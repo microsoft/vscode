@@ -54,7 +54,10 @@ export async function activate(context: ExtensionContext) {
 
 	const schemaRequests = await getSchemaRequestService(context, logOutputChannel);
 
-	client = await startClient(context, newLanguageClient, { schemaRequests, telemetry, timer, logOutputChannel });
+	const [_client, api] = await startClient(context, newLanguageClient, { schemaRequests, telemetry, timer, logOutputChannel });
+	client = _client;
+
+	return api;
 }
 
 export async function deactivate(): Promise<any> {

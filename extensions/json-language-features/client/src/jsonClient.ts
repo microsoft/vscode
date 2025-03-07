@@ -21,6 +21,7 @@ import {
 import { hash } from './utils/hash';
 import { createDocumentSymbolsLimitItem, createLanguageStatusItem, createLimitStatusItem } from './languageStatus';
 import { getLanguageParticipants, LanguageParticipants } from './languageParticipants';
+import { JsonApi, SchemaAssociationProvider, UriSchemaProvider } from './extension-api';
 
 namespace VSCodeContentRequest {
 	export const type: RequestType<string, string, any> = new RequestType('vscode/content');
@@ -151,11 +152,11 @@ export interface AsyncDisposable {
 	dispose(): Promise<void>;
 }
 
-export async function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: Runtime): Promise<AsyncDisposable> {
+export async function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: Runtime): Promise<[AsyncDisposable, JsonApi]> {
 	const languageParticipants = getLanguageParticipants();
 	context.subscriptions.push(languageParticipants);
 
-	let client: Disposable | undefined = await startClientWithParticipants(context, languageParticipants, newLanguageClient, runtime);
+	let [client, api]: [Disposable | undefined, JsonApi] = await startClientWithParticipants(context, languageParticipants, newLanguageClient, runtime);
 
 	let restartTrigger: Disposable | undefined;
 	languageParticipants.onDidChange(() => {
@@ -169,20 +170,23 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 				const oldClient = client;
 				client = undefined;
 				await oldClient.dispose();
-				client = await startClientWithParticipants(context, languageParticipants, newLanguageClient, runtime);
+				[client, api] = await startClientWithParticipants(context, languageParticipants, newLanguageClient, runtime);
 			}
 		}, 2000);
 	});
 
-	return {
-		dispose: async () => {
-			restartTrigger?.dispose();
-			await client?.dispose();
-		}
-	};
+	return [
+		{
+			dispose: async () => {
+				restartTrigger?.dispose();
+				await client?.dispose();
+			}
+		},
+		api
+	];
 }
 
-async function startClientWithParticipants(context: ExtensionContext, languageParticipants: LanguageParticipants, newLanguageClient: LanguageClientConstructor, runtime: Runtime): Promise<AsyncDisposable> {
+async function startClientWithParticipants(context: ExtensionContext, languageParticipants: LanguageParticipants, newLanguageClient: LanguageClientConstructor, runtime: Runtime): Promise<[AsyncDisposable, JsonApi]> {
 
 	const toDispose: Disposable[] = [];
 
@@ -230,6 +234,9 @@ async function startClientWithParticipants(context: ExtensionContext, languagePa
 			}
 		}
 	}));
+
+	const schemaAssociationProvider: SchemaAssociationProvider[] = [];
+	const uriSchemaProvider: { [schema: string]: UriSchemaProvider } = {};
 
 	function filterSchemaErrorDiagnostics(uri: Uri, diagnostics: Diagnostic[]): Diagnostic[] {
 		const schemaErrorIndex = diagnostics.findIndex(isSchemaResolveError);
@@ -377,6 +384,16 @@ async function startClientWithParticipants(context: ExtensionContext, languagePa
 				throw new ResponseError(5, e.toString(), e);
 			}
 		} else if (uri.scheme !== 'http' && uri.scheme !== 'https') {
+			const provider = uriSchemaProvider[uriString];
+			if (provider) {
+				try {
+					const schema = provider.provideSchemaContent(uri);
+					schemaDocuments[uriString] = true;
+					return schema;
+				} catch (e) {
+					throw new ResponseError(6, e.toString(), e);
+				}
+			}
 			try {
 				const document = await workspace.openTextDocument(uri);
 				schemaDocuments[uriString] = true;
@@ -495,11 +512,41 @@ async function startClientWithParticipants(context: ExtensionContext, languagePa
 
 	toDispose.push(commands.registerCommand('_json.retryResolveSchema', handleRetryResolveSchemaCommand));
 
-	client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociations(context));
+	let schemaAssociations = getSchemaAssociations(context);
+	const dynamicSchemaAssociations: typeof schemaAssociations = [];
+
+	function sendSchemaAssociations() {
+		client.sendNotification(SchemaAssociationNotification.type, schemaAssociations.concat(dynamicSchemaAssociations));
+	}
+
+	sendSchemaAssociations();
+
+	function provideSchemaAssociation(doc: TextDocument) {
+		for (const provider of schemaAssociationProvider) {
+			try {
+				const schema = provider.provideSchemaAssociation(doc);
+				if (schema) {
+					const stringUri = schema.toString();
+					const idx = dynamicSchemaAssociations.findIndex(s => s.uri === stringUri);
+					if (idx === -1) {
+						dynamicSchemaAssociations.push({ uri: stringUri, fileMatch: [doc.uri.toString()] });
+					} else {
+						dynamicSchemaAssociations[idx].fileMatch.push(doc.uri.toString());
+					}
+					sendSchemaAssociations();
+				}
+			} catch (e) {
+				console.error(e);
+			}
+		}
+	}
 
 	toDispose.push(extensions.onDidChange(_ => {
-		client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociations(context));
+		schemaAssociations = getSchemaAssociations(context);
+		sendSchemaAssociations();
 	}));
+
+	toDispose.push(workspace.onDidOpenTextDocument(provideSchemaAssociation));
 
 	// manually register / deregister format provider based on the `json.format.enable` setting avoiding issues with late registration. See #71652.
 	updateFormatterRegistration();
@@ -586,13 +633,79 @@ async function startClientWithParticipants(context: ExtensionContext, languagePa
 		});
 	}
 
-	return {
-		dispose: async () => {
-			await client.stop();
-			toDispose.forEach(d => d.dispose());
-			rangeFormatting?.dispose();
+	const api = {
+		registerSchemaAssociationProvider: function (provider: SchemaAssociationProvider): Disposable {
+			schemaAssociationProvider.push(provider);
+			return {
+				dispose: () => {
+					const idx = schemaAssociationProvider.indexOf(provider);
+					if (idx !== -1) {
+						schemaAssociationProvider.splice(idx, 1);
+					}
+				}
+			};
+		},
+		schemaAssociationChanged: function (uri: Uri | Uri[]): boolean {
+			const uris = Array.isArray(uri) ? uri : [uri];
+
+			const stringUris = uris.map(uri => uri.toString());
+
+			let hasChanged = false;
+			for (const uri of stringUris) {
+				for (const association of dynamicSchemaAssociations) {
+					const idx = association.fileMatch.findIndex(m => m === uri);
+					if (idx !== -1) {
+						hasChanged = true;
+						association.fileMatch.splice(idx, 1);
+
+						if (association.fileMatch.length === 0) {
+							const idx = dynamicSchemaAssociations.indexOf(association);
+							dynamicSchemaAssociations.splice(idx, 1);
+						}
+
+						const doc = workspace.textDocuments.find(doc => doc.uri.toString() === uri);
+						if (doc) {
+							provideSchemaAssociation(doc);
+						}
+						break;
+					}
+				}
+			}
+			return hasChanged;
+		},
+		registerUriSchemaProvider: function (schema: string, provider: UriSchemaProvider): Disposable {
+			uriSchemaProvider[schema] = provider;
+			return {
+				dispose: () => {
+					delete uriSchemaProvider[schema];
+				}
+			};
+		},
+		schemaContentChanged: function (uri: Uri | Uri[]): boolean {
+			const uris = Array.isArray(uri) ? uri : [uri];
+
+			const stringUris = uris.map(uri => uri.toString()).filter(uri => schemaDocuments[uri]);
+
+			const hasChanged = stringUris.length > 0;
+			if (hasChanged) {
+				client.sendNotification(SchemaContentChangeNotification.type, stringUris);
+			}
+			return hasChanged;
 		}
 	};
+
+	return [
+		{
+			dispose: async () => {
+				await client.stop();
+				Object.values(uriSchemaProvider).forEach(d => d.dispose?.());
+				schemaAssociationProvider.forEach(d => d.dispose?.());
+				toDispose.forEach(d => d.dispose());
+				rangeFormatting?.dispose();
+			}
+		},
+		api
+	];
 }
 
 function getSchemaAssociations(_context: ExtensionContext): ISchemaAssociation[] {
