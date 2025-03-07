@@ -136,11 +136,9 @@ registerAction2(class RemoveFileFromWorkingSet extends WorkingSetAction {
 			chatWidget.attachmentModel.delete(uri.toString());
 		}
 
-		// If there are now only suggested files in the working set, also clear those
-		const entries = [...currentEditingSession.workingSet.entries()];
-		const suggestedFiles = entries.filter(([_, state]) => state.state === WorkingSetEntryState.Suggested);
-		if (suggestedFiles.length === entries.length && !chatWidget.attachmentModel.attachments.find((v) => v.isFile && URI.isUri(v.value))) {
-			currentEditingSession.remove(WorkingSetEntryRemovalReason.Programmatic, ...entries.map(([uri,]) => uri));
+		// Clear all related file suggestions
+		if (chatWidget.attachmentModel.fileAttachments.length === 0) {
+			chatWidget.input.relatedFiles?.clear();
 		}
 	}
 });
@@ -338,7 +336,7 @@ export class ChatEditingRemoveAllFilesAction extends EditingSessionAction {
 
 	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]): Promise<void> {
 		// Remove all files from working set
-		const uris = [...editingSession.workingSet.keys()];
+		const uris = [...editingSession.entries.get()].map((e) => e.modifiedURI);
 		editingSession.remove(WorkingSetEntryRemovalReason.User, ...uris);
 
 		// Remove all file attachments

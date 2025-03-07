@@ -225,6 +225,7 @@ export function registerNewChatActions() {
 			await editingSession.stop(true);
 			widget.clear();
 			widget.attachmentModel.clear();
+			widget.input.relatedFiles?.clear();
 			widget.focusInput();
 
 			if (!context) {

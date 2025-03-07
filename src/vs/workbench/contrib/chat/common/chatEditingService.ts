@@ -91,10 +91,6 @@ export interface IChatEditingSession extends IDisposable {
 	 * @deprecated
 	 */
 	readonly workingSet: ResourceMap<WorkingSetDisplayMetadata>;
-	/**
-	 * @deprecated
-	 */
-	addFileToWorkingSet(uri: URI, description?: string, kind?: WorkingSetEntryState.Suggested): void;
 	show(): Promise<void>;
 	remove(reason: WorkingSetEntryRemovalReason, ...uris: URI[]): void;
 	accept(...uris: URI[]): Promise<void>;
@@ -163,7 +159,6 @@ export const enum WorkingSetEntryState {
 	Transient, // TODO@joyceerhl remove this
 	Attached, // TODO@joyceerhl remove this
 	Sent, // TODO@joyceerhl remove this
-	Suggested, // TODO@joyceerhl remove this
 }
 
 export const enum ChatEditingSessionChangeType {
