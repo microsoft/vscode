@@ -5,7 +5,6 @@
 
 .monaco-editor .dirty-diff-glyph {
 	margin-left: 5px;
-	z-index: 5;
 }
 
 .monaco-editor .dirty-diff-glyph:before {
@@ -14,6 +13,7 @@
 	height: 100%;
 	width: 0;
 	left: -2px;
+	z-index: 5;
 }
 
 .monaco-workbench:not(.reduce-motion) .monaco-editor .dirty-diff-glyph:before {
