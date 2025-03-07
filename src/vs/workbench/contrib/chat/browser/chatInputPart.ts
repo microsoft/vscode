@@ -961,31 +961,26 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.renderAttachedContext();
 		}));
 
-		if (this.options.renderWorkingSet) {
-			this.addFilesToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, attachmentToolbarContainer, MenuId.ChatInputAttachmentToolbar, {
-				telemetrySource: this.options.menus.telemetrySource,
-				label: true,
-				menuOptions: { shouldForwardArgs: true, renderShortTitle: true },
-				hiddenItemStrategy: HiddenItemStrategy.Ignore,
-				hoverDelegate,
-				getKeyBinding: () => undefined,
-				actionViewItemProvider: (action, options) => {
-					if (action.id === 'workbench.action.chat.editing.attachContext') {
-						const viewItem = this.instantiationService.createInstance(AddFilesButton, undefined, action, options);
-						return viewItem;
-					}
-					return undefined;
+		this.addFilesToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, attachmentToolbarContainer, MenuId.ChatInputAttachmentToolbar, {
+			telemetrySource: this.options.menus.telemetrySource,
+			label: true,
+			menuOptions: { shouldForwardArgs: true, renderShortTitle: true },
+			hiddenItemStrategy: HiddenItemStrategy.Ignore,
+			hoverDelegate,
+			actionViewItemProvider: (action, options) => {
+				if (action.id === 'workbench.action.chat.editing.attachContext' || action.id === 'workbench.action.chat.attachContext') {
+					const viewItem = this.instantiationService.createInstance(AddFilesButton, undefined, action, options);
+					return viewItem;
 				}
-			}));
-			this.addFilesToolbar.context = { widget, placeholder: localize('chatAttachFiles', 'Search for files and context to add to your request') };
-			this._register(this.addFilesToolbar.onDidChangeMenuItems(() => {
-				if (this.cachedDimensions) {
-					this.layout(this.cachedDimensions.height, this.cachedDimensions.width);
-				}
-			}));
-		} else {
-			dom.hide(attachmentToolbarContainer);
-		}
+				return undefined;
+			}
+		}));
+		this.addFilesToolbar.context = { widget, placeholder: localize('chatAttachFiles', 'Search for files and context to add to your request') };
+		this._register(this.addFilesToolbar.onDidChangeMenuItems(() => {
+			if (this.cachedDimensions) {
+				this.layout(this.cachedDimensions.height, this.cachedDimensions.width);
+			}
+		}));
 	}
 
 	private renderAttachedContext() {
