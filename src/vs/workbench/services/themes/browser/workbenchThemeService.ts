@@ -255,7 +255,15 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 			) {
 				this.restoreColorTheme();
 			}
-			if (e.affectsConfiguration(ThemeSettings.FILE_ICON_THEME)) {
+			if (e.affectsConfiguration(ThemeSettings.FILE_ICON_THEME)
+				|| e.affectsConfiguration(ThemeSettings.PREFERRED_DARK_ICON_THEME)
+				|| e.affectsConfiguration(ThemeSettings.PREFERRED_LIGHT_ICON_THEME)
+				|| e.affectsConfiguration(ThemeSettings.PREFERRED_HC_DARK_ICON_THEME)
+				|| e.affectsConfiguration(ThemeSettings.PREFERRED_HC_LIGHT_ICON_THEME)
+				|| e.affectsConfiguration(ThemeSettings.DETECT_COLOR_SCHEME)
+				|| e.affectsConfiguration(ThemeSettings.DETECT_HC)
+				|| e.affectsConfiguration(ThemeSettings.SYSTEM_COLOR_THEME)
+			) {
 				this.restoreFileIconTheme();
 			}
 			if (e.affectsConfiguration(ThemeSettings.PRODUCT_ICON_THEME)) {

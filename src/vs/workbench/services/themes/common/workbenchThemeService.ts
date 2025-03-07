@@ -32,6 +32,10 @@ export enum ThemeSettings {
 	PREFERRED_LIGHT_THEME = 'workbench.preferredLightColorTheme',
 	PREFERRED_HC_DARK_THEME = 'workbench.preferredHighContrastColorTheme', /* id kept for compatibility reasons */
 	PREFERRED_HC_LIGHT_THEME = 'workbench.preferredHighContrastLightColorTheme',
+	PREFERRED_DARK_ICON_THEME = 'workbench.preferredDarkIconTheme',
+	PREFERRED_LIGHT_ICON_THEME = 'workbench.preferredLightIconTheme',
+	PREFERRED_HC_DARK_ICON_THEME = 'workbench.preferredHighContrastIconTheme',
+	PREFERRED_HC_LIGHT_ICON_THEME = 'workbench.preferredHighContrastLightIconTheme',
 	DETECT_COLOR_SCHEME = 'window.autoDetectColorScheme',
 	DETECT_HC = 'window.autoDetectHighContrast',
 

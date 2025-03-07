@@ -725,28 +725,46 @@ registerAction2(class extends Action2 {
 		}
 
 		const currentTheme = themeService.getColorTheme();
-		let newSettingsId: string = ThemeSettings.PREFERRED_DARK_THEME;
+		let newColorThemeSettingsId: string = ThemeSettings.PREFERRED_DARK_THEME;
+		let newIconThemeSettingsId: string = ThemeSettings.PREFERRED_DARK_ICON_THEME;
+
 		switch (currentTheme.type) {
 			case ColorScheme.LIGHT:
-				newSettingsId = ThemeSettings.PREFERRED_DARK_THEME;
+				newColorThemeSettingsId = ThemeSettings.PREFERRED_DARK_THEME;
+				newIconThemeSettingsId = ThemeSettings.PREFERRED_DARK_ICON_THEME;
 				break;
 			case ColorScheme.DARK:
-				newSettingsId = ThemeSettings.PREFERRED_LIGHT_THEME;
+				newColorThemeSettingsId = ThemeSettings.PREFERRED_LIGHT_THEME;
+				newIconThemeSettingsId = ThemeSettings.PREFERRED_LIGHT_ICON_THEME;
 				break;
 			case ColorScheme.HIGH_CONTRAST_LIGHT:
-				newSettingsId = ThemeSettings.PREFERRED_HC_DARK_THEME;
+				newColorThemeSettingsId = ThemeSettings.PREFERRED_HC_DARK_THEME;
+				newIconThemeSettingsId = ThemeSettings.PREFERRED_HC_DARK_ICON_THEME;
 				break;
 			case ColorScheme.HIGH_CONTRAST_DARK:
-				newSettingsId = ThemeSettings.PREFERRED_HC_LIGHT_THEME;
+				newColorThemeSettingsId = ThemeSettings.PREFERRED_HC_LIGHT_THEME;
+				newIconThemeSettingsId = ThemeSettings.PREFERRED_HC_LIGHT_ICON_THEME;
 				break;
 		}
 
-		const themeSettingId: string = configurationService.getValue(newSettingsId);
+		const colorThemeSettingId: string = configurationService.getValue(newColorThemeSettingsId);
+		const iconThemeSettingId: string | null = configurationService.getValue(newIconThemeSettingsId);
 
-		if (themeSettingId && typeof themeSettingId === 'string') {
-			const theme = (await themeService.getColorThemes()).find(t => t.settingsId === themeSettingId);
-			if (theme) {
-				themeService.setColorTheme(theme.id, 'auto');
+		if (colorThemeSettingId && typeof colorThemeSettingId === 'string') {
+			const colorTheme = (await themeService.getColorThemes()).find(t => t.settingsId === colorThemeSettingId);
+
+			if (colorTheme) {
+				themeService.setColorTheme(colorTheme.id, 'auto');
+			}
+		}
+
+		if (iconThemeSettingId === null) {
+			themeService.setFileIconTheme(undefined, 'auto');
+		} else if (iconThemeSettingId && typeof iconThemeSettingId === 'string') {
+			const iconTheme = (await themeService.getFileIconThemes()).find(t => t.settingsId === iconThemeSettingId);
+
+			if (iconTheme) {
+				themeService.setFileIconTheme(iconTheme.id, 'auto');
 			}
 		}
 	}
