@@ -450,6 +450,7 @@ export const enum ExtensionManagementErrorCode {
 	IncompatibleTargetPlatform = 'IncompatibleTargetPlatform',
 	ReleaseVersionNotFound = 'ReleaseVersionNotFound',
 	Invalid = 'Invalid',
+	InvalidAuthority = 'InvalidAuthority',
 	Download = 'Download',
 	DownloadSignature = 'DownloadSignature',
 	DownloadFailedWriting = ExtensionGalleryErrorCode.DownloadFailedWriting,
