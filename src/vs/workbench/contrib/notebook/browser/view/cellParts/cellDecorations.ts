@@ -59,22 +59,12 @@ export class CellDecorations extends CellContentPart {
 			e.added.forEach(options => {
 				if (options.className && this.currentCell) {
 					this.rootContainer.classList.add(options.className);
-					this.notebookEditor.deltaCellContainerClassNames(this.currentCell.id, [options.className], []);
-				}
-
-				if (options.outputClassName && this.currentCell) {
-					this.notebookEditor.deltaCellContainerClassNames(this.currentCell.id, [options.outputClassName], []);
 				}
 			});
 
 			e.removed.forEach(options => {
 				if (options.className && this.currentCell) {
 					this.rootContainer.classList.remove(options.className);
-					this.notebookEditor.deltaCellContainerClassNames(this.currentCell.id, [], [options.className]);
-				}
-
-				if (options.outputClassName && this.currentCell) {
-					this.notebookEditor.deltaCellContainerClassNames(this.currentCell.id, [], [options.outputClassName]);
 				}
 			});
 		}));

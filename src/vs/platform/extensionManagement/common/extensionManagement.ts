@@ -514,6 +514,13 @@ export class ExtensionManagementError extends Error {
 	}
 }
 
+export interface InstallExtensionSummary {
+	failed: {
+		id: string;
+		installOptions: InstallOptions;
+	}[];
+}
+
 export type InstallOptions = {
 	isBuiltin?: boolean;
 	isWorkspaceScoped?: boolean;
@@ -527,9 +534,9 @@ export type InstallOptions = {
 	donotVerifySignature?: boolean;
 	operation?: InstallOperation;
 	profileLocation?: URI;
-	installOnlyNewlyAddedFromExtensionPack?: boolean;
 	productVersion?: IProductVersion;
 	keepExisting?: boolean;
+	downloadExtensionsLocally?: boolean;
 	/**
 	 * Context passed through to InstallExtensionResult
 	 */

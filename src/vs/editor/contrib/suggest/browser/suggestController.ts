@@ -520,8 +520,7 @@ export class SuggestController implements IEditorContribution {
 	}
 
 	private _reportSuggestionAcceptedTelemetry(item: CompletionItem, model: ITextModel, itemResolved: boolean, commandExectionDuration: number, additionalEditsAppliedAsync: number, index: number, completionItems: CompletionItem[]): void {
-		if (Math.floor(Math.random() * 100) === 0) {
-			// throttle telemetry event because accepting completions happens a lot
+		if (Math.random() > 0.0001) { // 0.01%
 			return;
 		}
 

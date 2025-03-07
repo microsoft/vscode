@@ -9,6 +9,12 @@ import { ITextModel } from '../../../common/model.js';
 import { ITreeSitterParserService, ITreeSitterParseResult, ITextModelTreeSitter, TreeUpdateEvent } from '../../../common/services/treeSitterParserService.js';
 
 export class TestTreeSitterParserService implements ITreeSitterParserService {
+	getLanguage(languageId: string): Promise<Parser.Language | undefined> {
+		throw new Error('Method not implemented.');
+	}
+	getTreeSync(content: string, languageId: string): Parser.Tree | undefined {
+		throw new Error('Method not implemented.');
+	}
 	async getTextModelTreeSitter(model: ITextModel, parseImmediately?: boolean): Promise<ITextModelTreeSitter> {
 		throw new Error('Method not implemented.');
 	}

@@ -357,6 +357,9 @@ class FileAccessImpl {
 
 export const FileAccess = new FileAccessImpl();
 
+export const CacheControlheaders: Record<string, string> = Object.freeze({
+	'Cache-Control': 'no-cache, no-store',
+});
 
 export namespace COI {
 

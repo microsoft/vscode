@@ -2141,26 +2141,30 @@ export class TerminalProfile implements vscode.TerminalProfile {
 export enum TerminalCompletionItemKind {
 	File = 0,
 	Folder = 1,
-	Flag = 2,
-	Method = 3,
+	Method = 2,
+	Alias = 3,
 	Argument = 4,
-	Alias = 5
+	Option = 5,
+	OptionValue = 6,
+	Flag = 7,
 }
 
 export class TerminalCompletionItem implements vscode.TerminalCompletionItem {
-	label: string;
+	label: string | CompletionItemLabel;
 	icon?: ThemeIcon | undefined;
 	detail?: string | undefined;
+	documentation?: string | vscode.MarkdownString | undefined;
 	isFile?: boolean | undefined;
 	isDirectory?: boolean | undefined;
 	isKeyword?: boolean | undefined;
 	replacementIndex: number;
 	replacementLength: number;
 
-	constructor(label: string, icon?: ThemeIcon, detail?: string, isFile?: boolean, isDirectory?: boolean, isKeyword?: boolean, replacementIndex?: number, replacementLength?: number) {
+	constructor(label: string | CompletionItemLabel, icon?: ThemeIcon, detail?: string, documentation?: string | vscode.MarkdownString, isFile?: boolean, isDirectory?: boolean, isKeyword?: boolean, replacementIndex?: number, replacementLength?: number) {
 		this.label = label;
 		this.icon = icon;
 		this.detail = detail;
+		this.documentation = documentation;
 		this.isFile = isFile;
 		this.isDirectory = isDirectory;
 		this.isKeyword = isKeyword;
@@ -2200,6 +2204,7 @@ export class TerminalCompletionList<T extends TerminalCompletionItem = TerminalC
 export interface TerminalResourceRequestConfig {
 	filesRequested?: boolean;
 	foldersRequested?: boolean;
+	fileExtensions?: string[];
 	cwd?: vscode.Uri;
 }
 
@@ -2897,9 +2902,9 @@ export class DataTransferFile implements vscode.DataTransferFile {
 
 @es5ClassCompat
 export class DataTransfer implements vscode.DataTransfer {
-	#items = new Map<string, DataTransferItem[]>();
+	#items = new Map<string, vscode.DataTransferItem[]>();
 
-	constructor(init?: Iterable<readonly [string, DataTransferItem]>) {
+	constructor(init?: Iterable<readonly [string, vscode.DataTransferItem]>) {
 		for (const [mime, item] of init ?? []) {
 			const existing = this.#items.get(this.#normalizeMime(mime));
 			if (existing) {
@@ -2910,17 +2915,17 @@ export class DataTransfer implements vscode.DataTransfer {
 		}
 	}
 
-	get(mimeType: string): DataTransferItem | undefined {
+	get(mimeType: string): vscode.DataTransferItem | undefined {
 		return this.#items.get(this.#normalizeMime(mimeType))?.[0];
 	}
 
-	set(mimeType: string, value: DataTransferItem): void {
+	set(mimeType: string, value: vscode.DataTransferItem): void {
 		// This intentionally overwrites all entries for a given mimetype.
 		// This is similar to how the DOM DataTransfer type works
 		this.#items.set(this.#normalizeMime(mimeType), [value]);
 	}
 
-	forEach(callbackfn: (value: DataTransferItem, key: string, dataTransfer: DataTransfer) => void, thisArg?: unknown): void {
+	forEach(callbackfn: (value: vscode.DataTransferItem, key: string, dataTransfer: DataTransfer) => void, thisArg?: unknown): void {
 		for (const [mime, items] of this.#items) {
 			for (const item of items) {
 				callbackfn.call(thisArg, item, mime, this);
@@ -4639,6 +4644,22 @@ export class ChatResponseTextEditPart implements vscode.ChatResponseTextEditPart
 	}
 }
 
+export class ChatResponseNotebookEditPart implements vscode.ChatResponseNotebookEditPart {
+	uri: vscode.Uri;
+	edits: vscode.NotebookEdit[];
+	isDone?: boolean;
+	constructor(uri: vscode.Uri, editsOrDone: vscode.NotebookEdit | vscode.NotebookEdit[] | true) {
+		this.uri = uri;
+		if (editsOrDone === true) {
+			this.isDone = true;
+			this.edits = [];
+		} else {
+			this.edits = Array.isArray(editsOrDone) ? editsOrDone : [editsOrDone];
+
+		}
+	}
+}
+
 export class ChatRequestTurn implements vscode.ChatRequestTurn {
 	constructor(
 		readonly prompt: string,
@@ -4698,6 +4719,10 @@ export class ChatReferenceBinaryData implements vscode.ChatReferenceBinaryData {
 	}
 }
 
+export class ChatReferenceDiagnostic implements vscode.ChatReferenceDiagnostic {
+	constructor(public readonly diagnostics: [vscode.Uri, vscode.Diagnostic[]][]) { }
+}
+
 export enum LanguageModelChatMessageRole {
 	User = 1,
 	Assistant = 2,
@@ -4715,6 +4740,20 @@ export class LanguageModelToolResultPart implements vscode.LanguageModelToolResu
 		this.content = content;
 		this.isError = isError ?? false;
 	}
+}
+
+export class PreparedTerminalToolInvocation {
+	constructor(
+		public readonly command: string,
+		public readonly language: string,
+		public readonly confirmationMessages?: vscode.LanguageModelToolConfirmationMessages,
+	) { }
+}
+
+export enum ChatErrorLevel {
+	Info = 0,
+	Warning = 1,
+	Error = 2
 }
 
 export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage {
@@ -4897,6 +4936,9 @@ export class LanguageModelToolResult {
 			content: this.content,
 		};
 	}
+}
+
+export class ExtendedLanguageModelToolResult extends LanguageModelToolResult {
 }
 
 export enum LanguageModelChatToolMode {

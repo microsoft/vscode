@@ -684,6 +684,22 @@ export function reverseOrder<TItem>(comparator: Comparator<TItem>): Comparator<T
 	return (a, b) => -comparator(a, b);
 }
 
+/**
+ * Returns a new comparator that treats `undefined` as the smallest value.
+ * All other values are compared using the given comparator.
+*/
+export function compareUndefinedSmallest<T>(comparator: Comparator<T>): Comparator<T | undefined> {
+	return (a, b) => {
+		if (a === undefined) {
+			return b === undefined ? CompareResult.neitherLessOrGreaterThan : CompareResult.lessThan;
+		} else if (b === undefined) {
+			return CompareResult.greaterThan;
+		}
+
+		return comparator(a, b);
+	};
+}
+
 export class ArrayQueue<T> {
 	private firstIdx = 0;
 	private lastIdx = this.items.length - 1;
