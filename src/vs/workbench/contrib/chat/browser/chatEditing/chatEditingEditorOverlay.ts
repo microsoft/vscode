@@ -5,7 +5,7 @@
 
 import '../media/chatEditingEditorOverlay.css';
 import { combinedDisposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, derivedOpts, IObservable, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, IObservable, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar, WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatEditingService, IChatEditingSession, IModifiedFileEntry, WorkingSetEntryState } from '../../common/chatEditingService.js';
@@ -250,7 +250,7 @@ class ChatEditorOverlayWidget {
 						}
 
 						protected override getTooltip(): string | undefined {
-							return this._requestMessage.get()?.message;
+							return this._requestMessage.get()?.message || super.getTooltip();
 						}
 					};
 				}
@@ -405,25 +405,24 @@ class ChatEditingOverlayController {
 
 			const { session, entry } = data;
 
-			if (!session.isGlobalEditingSession && isInProgress.read(r) && !entry?.isCurrentlyBeingModifiedBy.read(r)) {
-				// inline chat request
-				widget.show(session, undefined, { entryIndex: constObservable(0), changeIndex: constObservable(0) });
-				show();
-
-			} else if (entry?.state.read(r) === WorkingSetEntryState.Modified) {
+			if (
+				entry?.state.read(r) === WorkingSetEntryState.Modified // any entry changing
+				|| (!session.isGlobalEditingSession && isInProgress.read(r)) // inline chat request
+			) {
 				// any session with changes
 				const editorPane = group.activeEditorPane;
 				assertType(editorPane);
 
-				const changeIndex = derived(r => {
-					const idx = entry.getEditorIntegration(editorPane).currentIndex.read(r);
-					return idx;
-				});
+				const changeIndex = derived(r => entry
+					? entry.getEditorIntegration(editorPane).currentIndex.read(r)
+					: 0);
 
-				widget.show(session, entry, {
-					entryIndex: derived(r => session.entries.read(r).indexOf(entry)),
-					changeIndex
-				});
+				const entryIndex = derived(r => entry
+					? session.entries.read(r).indexOf(entry)
+					: 0
+				);
+
+				widget.show(session, entry, { entryIndex, changeIndex });
 				show();
 
 			} else {

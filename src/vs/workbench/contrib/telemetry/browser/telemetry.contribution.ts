@@ -379,6 +379,15 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 				}>('editor.stickyScroll.enabled', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
+			case 'typescript.experimental.expandableHover':
+				this.telemetryService.publicLog2<UpdatedSettingEvent, {
+					owner: 'aiday-mar';
+					comment: 'This is used to know if the TypeScript expandbale hover is enabled or not';
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
+				}>('typescript.experimental.expandableHover', { settingValue: this.getValueToReport(key, target), source });
+				return;
+
 			case 'window.titleBarStyle':
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
 					owner: 'benibenj';

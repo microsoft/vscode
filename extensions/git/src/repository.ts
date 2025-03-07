@@ -7,6 +7,7 @@ import TelemetryReporter from '@vscode/extension-telemetry';
 import * as fs from 'fs';
 import * as path from 'path';
 import picomatch from 'picomatch';
+import * as iconv from '@vscode/iconv-lite-umd';
 import { CancellationError, CancellationToken, CancellationTokenSource, Command, commands, Disposable, Event, EventEmitter, FileDecoration, l10n, LogLevel, LogOutputChannel, Memento, ProgressLocation, ProgressOptions, QuickDiffProvider, RelativePattern, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, TabInputNotebookDiff, TabInputTextDiff, TabInputTextMultiDiff, ThemeColor, Uri, window, workspace, WorkspaceEdit } from 'vscode';
 import { ActionButton } from './actionButton';
 import { ApiRepository } from './api/api1';
@@ -22,8 +23,9 @@ import { IPushErrorHandlerRegistry } from './pushError';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
-import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isDescendant, isRemote, Limiter, onceEvent, pathEquals, relativePath } from './util';
+import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isDescendant, isLinuxSnap, isRemote, Limiter, onceEvent, pathEquals, relativePath } from './util';
 import { IFileWatcher, watch } from './watch';
+import { detectEncoding } from './encoding';
 import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemDetailsProvider';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
@@ -1220,9 +1222,19 @@ export class Repository implements Disposable {
 		await this.run(Operation.Remove, () => this.repository.rm(resources.map(r => r.fsPath)));
 	}
 
-	async stage(resource: Uri, contents: string, encoding: string): Promise<void> {
+	async stage(resource: Uri, contents: string): Promise<void> {
+		const path = relativePath(this.repository.root, resource.fsPath).replace(/\\/g, '/');
 		await this.run(Operation.Stage, async () => {
-			const path = relativePath(this.repository.root, resource.fsPath).replace(/\\/g, '/');
+			const configFiles = workspace.getConfiguration('files', Uri.file(resource.fsPath));
+			let encoding = configFiles.get<string>('encoding') ?? 'utf8';
+			const autoGuessEncoding = configFiles.get<boolean>('autoGuessEncoding') === true;
+			const candidateGuessEncodings = configFiles.get<string[]>('candidateGuessEncodings') ?? [];
+
+			if (autoGuessEncoding) {
+				encoding = detectEncoding(Buffer.from(contents), candidateGuessEncodings) ?? encoding;
+			}
+
+			encoding = iconv.encodingExists(encoding) ? encoding : 'utf8';
 			await this.repository.stage(path, contents, encoding);
 
 			this._onDidChangeOriginalResource.fire(resource);
@@ -1349,7 +1361,7 @@ export class Repository implements Disposable {
 
 	async clean(resources: Uri[]): Promise<void> {
 		const config = workspace.getConfiguration('git');
-		const untrackedChangesSoftDelete = config.get<boolean>('untrackedChangesSoftDelete', true) && !isRemote;
+		const discardUntrackedChangesToTrash = config.get<boolean>('discardUntrackedChangesToTrash', true) && !isRemote && !isLinuxSnap;
 
 		await this.run(
 			Operation.Clean(!this.optimisticUpdateEnabled()),
@@ -1388,7 +1400,7 @@ export class Repository implements Disposable {
 					}
 				});
 
-				if (untrackedChangesSoftDelete) {
+				if (discardUntrackedChangesToTrash) {
 					const limiter = new Limiter<void>(5);
 					await Promise.all(toClean.map(fsPath => limiter.queue(
 						async () => await workspace.fs.delete(Uri.file(fsPath), { useTrash: true }))));
@@ -1521,7 +1533,11 @@ export class Repository implements Disposable {
 		try {
 			const mergeBase = await this.getConfig(mergeBaseConfigKey);
 			const branchFromConfig = mergeBase !== '' ? await this.getBranch(mergeBase) : undefined;
-			if (branchFromConfig) {
+
+			// There was a brief period of time when we would consider local branches as a valid
+			// merge base. Since then we have fixed the issue and only remote branches can be used
+			// as a merge base so we are adding an additional check.
+			if (branchFromConfig && branchFromConfig.remote) {
 				return branchFromConfig;
 			}
 		} catch (err) { }
@@ -1968,15 +1984,17 @@ export class Repository implements Disposable {
 	async show(ref: string, filePath: string): Promise<string> {
 		return await this.run(Operation.Show, async () => {
 			const path = relativePath(this.repository.root, filePath).replace(/\\/g, '/');
+			const configFiles = workspace.getConfiguration('files', Uri.file(filePath));
+			const defaultEncoding = configFiles.get<string>('encoding');
+			const autoGuessEncoding = configFiles.get<boolean>('autoGuessEncoding');
+			const candidateGuessEncodings = configFiles.get<string[]>('candidateGuessEncodings');
 
 			try {
-				const content = await this.repository.buffer(`${ref}:${path}`);
-				return await workspace.decode(content, Uri.file(filePath));
+				return await this.repository.bufferString(`${ref}:${path}`, defaultEncoding, autoGuessEncoding, candidateGuessEncodings);
 			} catch (err) {
 				if (err.gitErrorCode === GitErrorCodes.WrongCase) {
 					const gitRelativePath = await this.repository.getGitRelativePath(ref, path);
-					const content = await this.repository.buffer(`${ref}:${gitRelativePath}`);
-					return await workspace.decode(content, Uri.file(filePath));
+					return await this.repository.bufferString(`${ref}:${gitRelativePath}`, defaultEncoding, autoGuessEncoding, candidateGuessEncodings);
 				}
 
 				throw err;

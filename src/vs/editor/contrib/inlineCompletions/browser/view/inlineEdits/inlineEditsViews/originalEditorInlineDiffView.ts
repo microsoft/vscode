@@ -41,7 +41,9 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 	readonly onDidClick = this._onDidClick.event;
 
 	readonly isHovered = observableCodeEditor(this._originalEditor).isTargetHovered(
-		p => p.target.type === MouseTargetType.CONTENT_TEXT && p.target.detail.injectedText?.options.attachedData instanceof InlineEditAttachedData,
+		p => p.target.type === MouseTargetType.CONTENT_TEXT &&
+			p.target.detail.injectedText?.options.attachedData instanceof InlineEditAttachedData &&
+			p.target.detail.injectedText.options.attachedData.owner === this,
 		this._store
 	);
 
@@ -71,7 +73,7 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 				return;
 			}
 			const a = e.target.detail.injectedText?.options.attachedData;
-			if (a instanceof InlineEditAttachedData) {
+			if (a instanceof InlineEditAttachedData && a.owner === this) {
 				this._onDidClick.fire(e.event);
 			}
 		}));
@@ -263,7 +265,7 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 											...extraClasses // include extraClasses for additional styling if provided
 										),
 										cursorStops: InjectedTextCursorStops.None,
-										attachedData: new InlineEditAttachedData(),
+										attachedData: new InlineEditAttachedData(this),
 									},
 									zIndex: 2,
 									showIfCollapsed: true,
@@ -280,6 +282,7 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 }
 
 class InlineEditAttachedData {
+	constructor(public readonly owner: OriginalEditorInlineDiffView) { }
 }
 
 function allowsTrueInlineDiffRendering(mapping: DetailedLineRangeMapping): boolean {

@@ -31,6 +31,7 @@ import { ColumnRange } from '../../utils.js';
 import { addDisposableListener, getWindow, isHTMLElement, n } from '../../../../../../base/browser/dom.js';
 import './ghostTextView.css';
 import { IMouseEvent, StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
+import { CodeEditorWidget } from '../../../../../browser/widget/codeEditor/codeEditorWidget.js';
 
 export interface IGhostTextWidgetModel {
 	readonly targetTextModel: IObservable<ITextModel | undefined>;
@@ -81,7 +82,7 @@ export class GhostTextView extends Disposable {
 					return;
 				}
 				const a = e.target.detail.injectedText?.options.attachedData;
-				if (a instanceof GhostTextAttachedData) {
+				if (a instanceof GhostTextAttachedData && a.owner === this) {
 					this._onDidClick.fire(e.event);
 				}
 			}));
@@ -224,9 +225,12 @@ export class GhostTextView extends Disposable {
 					after: {
 						content: p.text,
 						tokens: p.tokens,
-						inlineClassName: p.preview ? 'ghost-text-decoration-preview' : 'ghost-text-decoration' + extraClassNames + p.lineDecorations.map(d => ' ' + d.className).join(' '), // TODO: take the ranges into account for line decorations
+						inlineClassName: (p.preview ? 'ghost-text-decoration-preview' : 'ghost-text-decoration')
+							+ (this._isClickable ? ' clickable' : '')
+							+ extraClassNames
+							+ p.lineDecorations.map(d => ' ' + d.className).join(' '), // TODO: take the ranges into account for line decorations
 						cursorStops: InjectedTextCursorStops.Left,
-						attachedData: new GhostTextAttachedData(),
+						attachedData: new GhostTextAttachedData(this),
 					},
 					showIfCollapsed: true,
 				}
@@ -255,7 +259,9 @@ export class GhostTextView extends Disposable {
 	);
 
 	private readonly _isInlineTextHovered = this._editorObs.isTargetHovered(
-		p => p.target.type === MouseTargetType.CONTENT_TEXT && p.target.detail.injectedText?.options.attachedData instanceof GhostTextAttachedData,
+		p => p.target.type === MouseTargetType.CONTENT_TEXT &&
+			p.target.detail.injectedText?.options.attachedData instanceof GhostTextAttachedData &&
+			p.target.detail.injectedText.options.attachedData.owner === this,
 		this._store
 	);
 
@@ -274,7 +280,9 @@ export class GhostTextView extends Disposable {
 	}
 }
 
-class GhostTextAttachedData { }
+class GhostTextAttachedData {
+	constructor(public readonly owner: GhostTextView) { }
+}
 
 interface WidgetDomElement {
 	ghostTextViewWarningWidgetData?: {
@@ -377,6 +385,8 @@ export class AdditionalLinesWidget extends Disposable {
 		this._store
 	);
 
+	private hasBeenAccepted = false;
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _lines: IObservable<{
@@ -390,12 +400,17 @@ export class AdditionalLinesWidget extends Disposable {
 	) {
 		super();
 
+		if (this._editor instanceof CodeEditorWidget && this._shouldKeepCursorStable) {
+			this._register(this._editor.onBeforeExecuteEdit(e => this.hasBeenAccepted = e.source === 'inlineSuggestion.accept'));
+		}
+
 		this._register(autorun(reader => {
 			/** @description update view zone */
 			const lines = this._lines.read(reader);
 			this.editorOptionsChanged.read(reader);
 
 			if (lines) {
+				this.hasBeenAccepted = false;
 				this.updateLines(lines.lineNumber, lines.additionalLines, lines.minReservedLineCount);
 			} else {
 				this.clear();
@@ -435,7 +450,10 @@ export class AdditionalLinesWidget extends Disposable {
 				renderLines(domNode, tabSize, additionalLines, this._editor.getOptions(), this._isClickable);
 
 				if (this._isClickable) {
-					store.add(addDisposableListener(domNode, 'mouseup', (e) => {
+					store.add(addDisposableListener(domNode, 'mousedown', (e) => {
+						e.preventDefault(); // This prevents that the editor loses focus
+					}));
+					store.add(addDisposableListener(domNode, 'click', (e) => {
 						if (isTargetGhostText(e.target)) {
 							this._onDidClick.fire(new StandardMouseEvent(getWindow(e), e));
 						}
@@ -469,7 +487,9 @@ export class AdditionalLinesWidget extends Disposable {
 		if (this._viewZoneInfo) {
 			changeAccessor.removeZone(this._viewZoneInfo.viewZoneId);
 
-			this.keepCursorStable(this._viewZoneInfo.lineNumber, -this._viewZoneInfo.heightInLines);
+			if (!this.hasBeenAccepted) {
+				this.keepCursorStable(this._viewZoneInfo.lineNumber, -this._viewZoneInfo.heightInLines);
+			}
 
 			this._viewZoneInfo = undefined;
 			this._viewZoneHeight.set(undefined, undefined);

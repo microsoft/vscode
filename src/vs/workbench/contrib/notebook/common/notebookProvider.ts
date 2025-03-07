@@ -33,7 +33,7 @@ export class NotebookProviderInfo {
 	readonly priority: RegisteredEditorPriority;
 	readonly providerDisplayName: string;
 
-	private _selectors: NotebookSelector[];
+	public _selectors: NotebookSelector[];
 	get selectors() {
 		return this._selectors;
 	}

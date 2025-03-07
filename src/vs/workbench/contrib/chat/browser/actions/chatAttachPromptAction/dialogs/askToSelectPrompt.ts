@@ -11,8 +11,10 @@ import { IChatAttachPromptActionOptions } from '../chatAttachPromptAction.js';
 import { IPromptPath } from '../../../../common/promptSyntax/service/types.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { dirname, extUri } from '../../../../../../../base/common/resources.js';
+import { DOCUMENTATION_URL } from '../../../../common/promptSyntax/constants.js';
 import { isLinux, isWindows } from '../../../../../../../base/common/platform.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
+import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { IViewsService } from '../../../../../../services/views/common/viewsService.js';
 import { assertDefined, WithUriValue } from '../../../../../../../base/common/types.js';
 import { getCleanPromptName } from '../../../../../../../platform/prompts/common/constants.js';
@@ -45,8 +47,23 @@ export interface ISelectPromptOptions {
 
 	readonly labelService: ILabelService;
 	readonly viewsService: IViewsService;
+	readonly openerService: IOpenerService;
 	readonly quickInputService: IQuickInputService;
 }
+
+/**
+ * A special quick pick item that links to the documentation.
+ */
+const DOCS_OPTION: WithUriValue<IQuickPickItem> = {
+	type: 'item',
+	label: localize(
+		'commands.prompts.use.select-dialog.docs-label',
+		'Learn how to create reusable prompts',
+	),
+	description: DOCUMENTATION_URL,
+	tooltip: DOCUMENTATION_URL,
+	value: URI.parse(DOCUMENTATION_URL),
+};
 
 /**
  * Shows the prompt selection dialog to the user that allows to select a prompt file(s).
@@ -59,15 +76,14 @@ export const askToSelectPrompt = async (
 ): Promise<void> => {
 	const { promptFiles, resource, quickInputService, labelService } = options;
 
-	// a sanity check - this function must be used only if there are prompt files to show
-	assert(
-		promptFiles.length > 0,
-		'Prompt files list must not be empty.',
-	);
-
-	const fileOptions = promptFiles.map(({ uri }) => {
-		return createPickItem(uri, labelService);
+	const fileOptions = promptFiles.map((promptFile) => {
+		return createPickItem(promptFile, labelService);
 	});
+
+	/**
+	 * Add a link to the documentation to the end of prompts list.
+	 */
+	fileOptions.push(DOCS_OPTION);
 
 	// if a resource is provided, create an `activeItem` for it to pre-select
 	// it in the UI, and sort the list so the active item appears at the top
@@ -82,7 +98,12 @@ export const askToSelectPrompt = async (
 		// the currently active prompt file is always available in the selection dialog,
 		// even if it is not included in the prompts list otherwise(from location setting)
 		if (!activeItem) {
-			activeItem = createPickItem(resource, labelService);
+			activeItem = createPickItem({
+				uri: resource,
+				// "user" prompts are always registered in the prompts list, hence it
+				// should be safe to assume that `resource` is not "user" prompt here
+				type: 'local',
+			}, labelService);
 			fileOptions.push(activeItem);
 		}
 
@@ -99,8 +120,21 @@ export const askToSelectPrompt = async (
 		});
 	}
 
+	/**
+	 * If still no active item present, fall back to the first item in the list.
+	 * This can happen only if command was invoked not from a focused prompt file
+	 * (hence the `resource` is not provided in the options).
+	 *
+	 * Fixes the two main cases:
+	 *  - when no prompt files found it, pre-selects the documentation link
+	 *  - when there is only a single prompt file, pre-selects it
+	 */
+	if (!activeItem) {
+		activeItem = fileOptions[0];
+	}
+
 	// otherwise show the prompt file selection dialog
-	const { viewsService } = options;
+	const { openerService } = options;
 
 	const quickPick = quickInputService.createQuickPick<WithUriValue<IQuickPickItem>>();
 	quickPick.activeItems = activeItem ? [activeItem] : [];
@@ -124,22 +158,29 @@ export const askToSelectPrompt = async (
 		});
 
 		disposables.add(quickPick.onDidAccept(async (event) => {
-			lastActiveWidget = await getChatWidgetObject(
-				options,
-				quickPick.keyMods.alt,
-				viewsService,
+			const { selectedItems } = quickPick;
+			const { alt, ctrlCmd } = quickPick.keyMods;
+
+			// sanity check to confirm our expectations
+			assert(
+				selectedItems.length === 1,
+				`Only one item can be accepted, got '${selectedItems.length}'.`,
 			);
 
-			for (const selectedItem of quickPick.selectedItems) {
-				lastActiveWidget
-					.attachmentModel
-					.promptInstructions
-					.add(selectedItem.value);
+			// whether user selected the docs link option
+			const docsSelected = (selectedItems[0] === DOCS_OPTION);
+
+			// if `super` key was pressed, open the selected prompt file(s)
+			if (ctrlCmd || docsSelected) {
+				return await openFiles(selectedItems, openerService);
 			}
+
+			// otherwise attach the selected prompt to a chat input
+			lastActiveWidget = await attachFiles(selectedItems, options, alt);
 
 			// if user submitted their selection, close the dialog
 			if (!event.inBackground) {
-				return disposables.dispose();
+				disposables.dispose();
 			}
 		}));
 
@@ -155,16 +196,30 @@ export const askToSelectPrompt = async (
  * Creates a quick pick item for a prompt.
  */
 const createPickItem = (
-	uri: URI,
+	promptFile: IPromptPath,
 	labelService: ILabelService,
 ): WithUriValue<IQuickPickItem> => {
+	const { uri, type } = promptFile;
 	const fileWithoutExtension = getCleanPromptName(uri);
+
+	// if a "user" prompt, don't show its filesystem path in
+	// the user interface, but do that for all the "local" ones
+	const description = (type === 'user')
+		? localize(
+			'user-prompt.capitalized',
+			'User prompt',
+		)
+		: labelService.getUriLabel(dirname(uri), { relative: true });
+
+	const tooltip = (type === 'user')
+		? description
+		: uri.fsPath;
 
 	return {
 		type: 'item',
 		label: fileWithoutExtension,
-		description: labelService.getUriLabel(dirname(uri), { relative: true }),
-		tooltip: uri.fsPath,
+		description,
+		tooltip,
 		value: uri,
 		id: uri.toString(),
 	};
@@ -181,15 +236,29 @@ const createPlaceholderText = (options: ISelectPromptOptions): string => {
 		'Select a prompt to use',
 	);
 
-	// if no widget reference is provided, add the note about
-	// the `alt`/`option` key modifier users can use
+	// if no widget reference is provided, add the note about `options`
+	// and `cmd` modifiers users can use to alter the command behavior
 	if (!widget) {
-		const key = (isWindows || isLinux) ? 'alt' : 'option';
+		const altOptionkey = (isWindows || isLinux) ? 'Alt' : 'Option';
 
-		text += ' ' + localize(
+		const altOptionModifierNote = localize(
 			'commands.prompts.use.select-dialog.alt-modifier-note',
-			'(hold `{0}` to use in Edits)',
-			key,
+			'{0}-key to use in Edits',
+			altOptionkey,
+		);
+
+		const cmdCtrlkey = (isWindows || isLinux) ? 'Ctrl' : 'Cmd';
+		const superModifierNote = localize(
+			'commands.prompts.use.select-dialog.super-modifier-note',
+			'{0}-key to open in editor',
+			cmdCtrlkey,
+		);
+
+		text += localize(
+			'commands.prompts.use.select-dialog.modifier-notes',
+			' (hold {0} or {1})',
+			altOptionModifierNote,
+			superModifierNote,
 		);
 	}
 
@@ -197,17 +266,50 @@ const createPlaceholderText = (options: ISelectPromptOptions): string => {
 };
 
 /**
+ * Opens provided files in the editor.
+ */
+const openFiles = async (
+	files: readonly WithUriValue<IQuickPickItem>[],
+	openerService: IOpenerService,
+) => {
+	for (const file of files) {
+		await openerService.open(file.value);
+	}
+};
+
+/**
+ * Attaches provided files to a chat input.
+ */
+const attachFiles = async (
+	files: readonly WithUriValue<IQuickPickItem>[],
+	options: ISelectPromptOptions,
+	altOption: boolean,
+): Promise<IChatWidget> => {
+	const widget = await getChatWidgetObject(options, altOption);
+
+	for (const file of files) {
+		widget
+			.attachmentModel
+			.promptInstructions
+			.add(file.value);
+	}
+
+	return widget;
+};
+
+/**
  * Gets a chat widget based on the provided {@link IChatAttachPromptActionOptions.widget widget}
  * reference. If no widget reference is provided, the function will reveal a `chat panel` by default
  * (either a last focused, or a new one), but if the {@link altOption} is set to `true`, a `chat edits`
  * panel will be revealed instead (likewise either a last focused, or a new one).
+ *
+ * @throws if failed to reveal a chat widget.
  */
 const getChatWidgetObject = async (
 	options: IChatAttachPromptActionOptions,
 	altOption: boolean,
-	viewsService: IViewsService,
 ): Promise<IChatWidget> => {
-	const { widget } = options;
+	const { widget, viewsService } = options;
 
 	// if no widget reference is present, the command was triggered from outside of
 	// an active chat input, so we reveal a chat widget window based on the `alt`

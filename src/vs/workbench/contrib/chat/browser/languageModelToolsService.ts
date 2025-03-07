@@ -191,6 +191,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					if (!userConfirmed) {
 						throw new CancellationError();
 					}
+
+					dto.toolSpecificData = toolInvocation?.toolSpecificData;
 				}
 			} else {
 				const prepared = tool.impl.prepareToolInvocation ?

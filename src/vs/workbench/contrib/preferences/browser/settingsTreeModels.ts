@@ -596,10 +596,15 @@ export class SettingsTreeModel implements IDisposable {
 		if (tocEntry.settings) {
 			const settingChildren = tocEntry.settings.map(s => this.createSettingsTreeSettingElement(s, element));
 			for (const child of settingChildren) {
-				if (!child.setting.deprecationMessage || child.isConfigured) {
+				if (!child.setting.deprecationMessage) {
 					children.push(child);
 				} else {
-					child.dispose();
+					child.inspectSelf();
+					if (child.isConfigured) {
+						children.push(child);
+					} else {
+						child.dispose();
+					}
 				}
 			}
 		}
@@ -971,10 +976,9 @@ export class SearchResultModel extends SettingsTreeModel {
 				// Sort by match type if the match types are not the same.
 				// The priority of the match type is given by the SettingMatchType enum.
 				return b.matchType - a.matchType;
-			} else if (a.matchType === SettingMatchType.KeyMatch) {
-				// The match types are the same and are KeyMatch.
-				// Sort by the number of words matched in the key.
-				// If those are the same, sort by the order in the table of contents.
+			} else if ((a.matchType & SettingMatchType.NonContiguousWordsInSettingsLabel) || (a.matchType & SettingMatchType.ContiguousWordsInSettingsLabel)) {
+				// The match types of a and b are the same and can be sorted by their number of matched words.
+				// If those numbers are the same, sort by the order in the table of contents.
 				return (b.keyMatchScore - a.keyMatchScore) || compareTwoNullableNumbers(a.setting.internalOrder, b.setting.internalOrder);
 			} else if (a.matchType === SettingMatchType.RemoteMatch) {
 				// The match types are the same and are RemoteMatch.

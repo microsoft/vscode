@@ -70,11 +70,14 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 	private renderFileWidgets(element: HTMLElement): void {
 		const links = element.querySelectorAll('a');
 		links.forEach(a => {
-			const href = a.getAttribute('data-href');
-			const uri = href ? URI.parse(href) : undefined;
-			if (uri?.scheme) {
-				const widget = this._register(this.instantiationService.createInstance(InlineAnchorWidget, a, { kind: 'inlineReference', inlineReference: uri }));
-				this._register(this.chatMarkdownAnchorService.register(widget));
+			// Empty link text -> render file widget
+			if (!a.textContent?.trim()) {
+				const href = a.getAttribute('data-href');
+				const uri = href ? URI.parse(href) : undefined;
+				if (uri?.scheme) {
+					const widget = this._register(this.instantiationService.createInstance(InlineAnchorWidget, a, { kind: 'inlineReference', inlineReference: uri }));
+					this._register(this.chatMarkdownAnchorService.register(widget));
+				}
 			}
 		});
 	}

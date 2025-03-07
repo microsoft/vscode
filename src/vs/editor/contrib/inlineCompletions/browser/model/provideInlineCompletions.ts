@@ -180,10 +180,10 @@ async function addRefAndCreateResult(
 		completions.addRef();
 		lists.push(completions);
 		for (const item of completions.inlineCompletions.items) {
-			if (!context.includeInlineEdits && item.isInlineEdit) {
+			if (!context.includeInlineEdits && (item.isInlineEdit || item.showInlineEditMenu)) {
 				continue;
 			}
-			if (!context.includeInlineCompletions && !item.isInlineEdit) {
+			if (!context.includeInlineCompletions && !(item.isInlineEdit || item.showInlineEditMenu)) {
 				continue;
 			}
 			const inlineCompletionItem = InlineCompletionItem.from(
@@ -197,7 +197,7 @@ async function addRefAndCreateResult(
 			itemsByHash.set(inlineCompletionItem.hash(), inlineCompletionItem);
 
 			// Stop after first visible inline completion
-			if (!item.isInlineEdit && context.triggerKind === InlineCompletionTriggerKind.Automatic) {
+			if (!(item.isInlineEdit || item.showInlineEditMenu) && context.triggerKind === InlineCompletionTriggerKind.Automatic) {
 				const minifiedEdit = inlineCompletionItem.toSingleTextEdit().removeCommonPrefix(new TextModelText(model));
 				if (!minifiedEdit.isEmpty) {
 					shouldStop = true;

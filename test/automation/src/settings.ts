@@ -24,8 +24,8 @@ export class SettingsEditor {
 	async addUserSetting(setting: string, value: string): Promise<void> {
 		await this.openUserSettingsFile();
 
-		await this.code.dispatchKeybinding('right');
-		await this.editor.waitForEditorSelection('settings.json', (s) => this._acceptEditorSelection(this.code.quality, s));
+		await this.code.sendKeybinding('right', () =>
+			this.editor.waitForEditorSelection('settings.json', (s) => this._acceptEditorSelection(this.code.quality, s)));
 		await this.editor.waitForTypeInEditor('settings.json', `"${setting}": ${value},`);
 		await this.editors.saveOpenedFile();
 	}
@@ -39,8 +39,8 @@ export class SettingsEditor {
 	async addUserSettings(settings: [key: string, value: string][]): Promise<void> {
 		await this.openUserSettingsFile();
 
-		await this.code.dispatchKeybinding('right');
-		await this.editor.waitForEditorSelection('settings.json', (s) => this._acceptEditorSelection(this.code.quality, s));
+		await this.code.sendKeybinding('right', () =>
+			this.editor.waitForEditorSelection('settings.json', (s) => this._acceptEditorSelection(this.code.quality, s)));
 		await this.editor.waitForTypeInEditor('settings.json', settings.map(v => `"${v[0]}": ${v[1]},`).join(''));
 		await this.editors.saveOpenedFile();
 	}
@@ -48,8 +48,9 @@ export class SettingsEditor {
 	async clearUserSettings(): Promise<void> {
 		await this.openUserSettingsFile();
 		await this.quickaccess.runCommand('editor.action.selectAll');
-		await this.code.dispatchKeybinding('Delete');
-		await this.editor.waitForEditorContents('settings.json', contents => contents === '');
+		await this.code.sendKeybinding('Delete', async () => {
+			await this.editor.waitForEditorContents('settings.json', contents => contents === '');
+		});
 		await this.editor.waitForTypeInEditor('settings.json', `{`); // will auto close }
 		await this.editors.saveOpenedFile();
 		await this.quickaccess.runCommand('workbench.action.closeActiveEditor');
@@ -70,12 +71,13 @@ export class SettingsEditor {
 
 		await this.code.waitAndClick(this._editContextSelector());
 		if (process.platform === 'darwin') {
-			await this.code.dispatchKeybinding('cmd+a');
+			await this.code.sendKeybinding('cmd+a');
 		} else {
-			await this.code.dispatchKeybinding('ctrl+a');
+			await this.code.sendKeybinding('ctrl+a');
 		}
-		await this.code.dispatchKeybinding('Delete');
-		await this.code.waitForElements('.settings-editor .settings-count-widget', false, results => !results || (results?.length === 1 && !results[0].textContent));
+		await this.code.sendKeybinding('Delete', async () => {
+			await this.code.waitForElements('.settings-editor .settings-count-widget', false, results => !results || (results?.length === 1 && !results[0].textContent));
+		});
 		await this.code.waitForTypeInEditor(this._editContextSelector(), query);
 		await this.code.waitForElements('.settings-editor .settings-count-widget', false, results => results?.length === 1 && results[0].textContent.includes('Found'));
 	}

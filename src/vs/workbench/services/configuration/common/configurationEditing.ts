@@ -22,13 +22,14 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import { IOpenSettingsOptions, IPreferencesService } from '../../preferences/common/preferences.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ITextModel } from '../../../../editor/common/model.js';
-import { IReference } from '../../../../base/common/lifecycle.js';
+import { IDisposable, IReference } from '../../../../base/common/lifecycle.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { EditOperation } from '../../../../editor/common/core/editOperation.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { ErrorNoTelemetry } from '../../../../base/common/errors.js';
+import { IFilesConfigurationService } from '../../filesConfiguration/common/filesConfigurationService.js';
 
 export const enum ConfigurationEditingErrorCode {
 
@@ -154,6 +155,7 @@ export class ConfigurationEditing {
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		this.queue = new Queue<void>();
 	}
@@ -198,8 +200,20 @@ export class ConfigurationEditing {
 		}
 
 		const edit = this.getEdits(operation, model.getValue(), formattingOptions)[0];
-		if (edit && this.applyEditsToBuffer(edit, model)) {
-			await this.save(model, operation);
+		if (edit) {
+			let disposable: IDisposable | undefined;
+			try {
+				// Optimization: we apply edits to a text model and save it
+				// right after. Use the files config service to signal this
+				// to the workbench to optimise the UI during this operation.
+				// For example, avoids to briefly show dirty indicators.
+				disposable = this.filesConfigurationService.enableAutoSaveAfterShortDelay(model.uri);
+				if (this.applyEditsToBuffer(edit, model)) {
+					await this.save(model, operation);
+				}
+			} finally {
+				disposable?.dispose();
+			}
 		}
 	}
 

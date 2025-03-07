@@ -993,8 +993,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 
 		// Container
 		this.element = parent;
-		this.container = document.createElement('div');
-		this.container.classList.add('content');
+		this.container = $('.content');
 		if (this.windowId !== mainWindow.vscodeWindowId) {
 			this.container.classList.add('auxiliary');
 		}
@@ -1067,8 +1066,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		this._register(this.createEditorDropTarget(container, Object.create(null)));
 
 		// No drop in the editor
-		const overlay = document.createElement('div');
-		overlay.classList.add('drop-block-overlay');
+		const overlay = $('.drop-block-overlay');
 		parent.appendChild(overlay);
 
 		// Hide the block if a mouse down event occurs #99065

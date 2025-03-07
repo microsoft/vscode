@@ -23,7 +23,6 @@ export interface RangeWithOffsets {
 
 export interface RangeChange {
 	newRange: Range;
-	oldRangeLength: number;
 	newRangeStartOffset: number;
 	newRangeEndOffset: number;
 }
