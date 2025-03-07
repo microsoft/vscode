@@ -55,12 +55,12 @@ export function refreshShellIntegrationInfoStatus(instance: ITerminalInstance) {
 	}
 	const cmdDetectionType = (
 		instance.capabilities.get(TerminalCapability.CommandDetection)?.hasRichCommandDetection
-			? 'Rich'
+			? localize('shellIntegration.rich', 'Rich')
 			: instance.capabilities.has(TerminalCapability.CommandDetection)
-				? 'Basic'
+				? localize('shellIntegration.basic', 'Basic')
 				: instance.usedShellIntegrationInjection
 					? localize('shellIntegration.injectionFailed', "Injection failed to activate")
-					: 'No'
+					: localize('shellIntegration.no', 'No')
 	);
 	const seenSequences = Array.from(instance.xterm.shellIntegration.seenSequences);
 	const seenSequencesString = (
