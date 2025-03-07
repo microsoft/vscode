@@ -42,7 +42,6 @@ import { WorkbenchList } from '../../../../platform/list/browser/listService.js'
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ViewAction, ViewPane } from '../../../browser/parts/views/viewPane.js';
@@ -80,6 +79,11 @@ interface InputBoxData {
 	type: 'condition' | 'hitCount' | 'name';
 }
 
+function getModeKindForBreakpoint(breakpoint: IBreakpoint) {
+	const kind = breakpoint instanceof Breakpoint ? 'source' : breakpoint instanceof InstructionBreakpoint ? 'instruction' : 'exception';
+	return kind;
+}
+
 export class BreakpointsView extends ViewPane {
 
 	private list!: WorkbenchList<BreakpointItem>;
@@ -111,13 +115,12 @@ export class BreakpointsView extends ViewPane {
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService openerService: IOpenerService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IMenuService menuService: IMenuService,
 		@IHoverService hoverService: IHoverService,
 		@ILanguageService private readonly languageService: ILanguageService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		this.menu = menuService.createMenu(MenuId.DebugBreakpointsContext, contextKeyService);
 		this._register(this.menu);
@@ -268,6 +271,7 @@ export class BreakpointsView extends ViewPane {
 		const conditionSupported = element instanceof ExceptionBreakpoint ? element.supportsCondition : (!session || !!session.capabilities.supportsConditionalBreakpoints);
 		this.breakpointSupportsCondition.set(conditionSupported);
 		this.breakpointIsDataBytes.set(element instanceof DataBreakpoint && element.src.type === DataBreakpointSetType.Address);
+		this.breakpointHasMultipleModes.set(this.debugService.getModel().getBreakpointModes(getModeKindForBreakpoint(element as IBreakpoint)).length > 1);
 
 		const { secondary } = getContextMenuActions(this.menu.getActions({ arg: e.element, shouldForwardArgs: false }), 'inline');
 
@@ -1948,8 +1952,8 @@ registerAction2(class extends ViewAction<BreakpointsView> {
 	}
 
 	async runInView(accessor: ServicesAccessor, view: BreakpointsView, breakpoint: IBreakpoint) {
-		const kind = breakpoint instanceof Breakpoint ? 'source' : breakpoint instanceof InstructionBreakpoint ? 'instruction' : 'exception';
 		const debugService = accessor.get(IDebugService);
+		const kind = getModeKindForBreakpoint(breakpoint);
 		const modes = debugService.getModel().getBreakpointModes(kind);
 		const picked = await accessor.get(IQuickInputService).pick(
 			modes.map(mode => ({ label: mode.label, description: mode.description, mode: mode.mode })),

@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// TODO @hediet @alexdima check where this code is used or remove this file
+// (code oss runs fine without this file, but is probably needed by the monaco-editor).
+
 (function () {
 
 	function loadCode(moduleId: string): Promise<SimpleWorkerModule> {

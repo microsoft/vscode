@@ -719,8 +719,8 @@ export class GettingStartedPage extends EditorPane {
 			const themeType = this.themeService.getColorTheme().type;
 			const videoPath = media.path[themeType];
 			const videoPoster = media.poster ? media.poster[themeType] : undefined;
-
-			const rawHTML = await this.detailsRenderer.renderVideo(videoPath, videoPoster);
+			const altText = media.altText ? media.altText : localize('videoAltText', "Video for {0}", stepToExpand.title);
+			const rawHTML = await this.detailsRenderer.renderVideo(videoPath, videoPoster, altText);
 			this.webview.setHtml(rawHTML);
 
 			let isDisposed = false;
@@ -731,7 +731,7 @@ export class GettingStartedPage extends EditorPane {
 				const themeType = this.themeService.getColorTheme().type;
 				const videoPath = media.path[themeType];
 				const videoPoster = media.poster ? media.poster[themeType] : undefined;
-				const body = await this.detailsRenderer.renderVideo(videoPath, videoPoster);
+				const body = await this.detailsRenderer.renderVideo(videoPath, videoPoster, altText);
 
 				if (!isDisposed) { // Make sure we weren't disposed of in the meantime
 					this.webview.setHtml(body);
@@ -1359,6 +1359,7 @@ export class GettingStartedPage extends EditorPane {
 						container.appendChild(shortcutMessage);
 						const label = new KeybindingLabel(shortcutMessage, OS, { ...defaultKeybindingLabelStyles });
 						label.set(keybinding);
+						this.detailsPageDisposables.add(label);
 					}
 				}
 

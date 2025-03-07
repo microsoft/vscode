@@ -53,7 +53,7 @@
 		],
 		"configurationDefaults": {
 			"[julia]": {
-				"editor.defaultColorDecorators": false
+				"editor.defaultColorDecorators": "never"
 			}
 		}
 	}

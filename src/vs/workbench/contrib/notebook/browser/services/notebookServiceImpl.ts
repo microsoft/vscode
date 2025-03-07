@@ -212,7 +212,7 @@ export class NotebookProviderInfoStore extends Disposable {
 
 				// untitled notebooks are disposed when they get saved. we should not hold a reference
 				// to such a disposed notebook and therefore dispose the reference as well
-				ref.object.notebook.onWillDispose(() => {
+				Event.once(ref.object.notebook.onWillDispose)(() => {
 					ref.dispose();
 				});
 
@@ -871,6 +871,11 @@ export class NotebookService extends Disposable implements INotebookService {
 	}
 
 	hasSupportedNotebooks(resource: URI): boolean {
+		if (this._models.has(resource)) {
+			// it might be untitled
+			return true;
+		}
+
 		const contribution = this.notebookProviderInfoStore.getContributedNotebook(resource);
 		if (!contribution.length) {
 			return false;

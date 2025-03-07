@@ -827,3 +827,19 @@ export class DisposableMap<K, V extends IDisposable = IDisposable> implements ID
 		return this._store[Symbol.iterator]();
 	}
 }
+
+/**
+ * Call `then` on a Promise, unless the returned disposable is disposed.
+ */
+export function thenIfNotDisposed<T>(promise: Promise<T>, then: (result: T) => void): IDisposable {
+	let disposed = false;
+	promise.then(result => {
+		if (disposed) {
+			return;
+		}
+		then(result);
+	});
+	return toDisposable(() => {
+		disposed = true;
+	});
+}

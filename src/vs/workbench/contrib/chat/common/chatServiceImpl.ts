@@ -44,6 +44,8 @@ interface IChatTransfer {
 	timestampInMilliseconds: number;
 	chat: ISerializableChatData;
 	inputValue: string;
+	location: ChatAgentLocation;
+	toolsAgentModeEnabled: boolean;
 }
 const SESSION_TRANSFER_EXPIRATION_IN_MILLISECONDS = 1000 * 60;
 
@@ -120,6 +122,9 @@ export class ChatService extends Disposable implements IChatService {
 		return this._transferredSessionData;
 	}
 
+	private readonly _onDidSubmitRequest = this._register(new Emitter<{ chatSessionId: string }>());
+	public readonly onDidSubmitRequest: Event<{ chatSessionId: string }> = this._onDidSubmitRequest.event;
+
 	private readonly _onDidPerformUserAction = this._register(new Emitter<IChatUserActionEvent>());
 	public readonly onDidPerformUserAction: Event<IChatUserActionEvent> = this._onDidPerformUserAction.event;
 
@@ -162,7 +167,12 @@ export class ChatService extends Disposable implements IChatService {
 		if (transferredChat) {
 			this.trace('constructor', `Transferred session ${transferredChat.sessionId}`);
 			this._persistedSessions[transferredChat.sessionId] = transferredChat;
-			this._transferredSessionData = { sessionId: transferredChat.sessionId, inputValue: transferredData.inputValue };
+			this._transferredSessionData = {
+				sessionId: transferredChat.sessionId,
+				inputValue: transferredData.inputValue,
+				location: transferredData.location,
+				toolsAgentModeEnabled: transferredData.toolsAgentModeEnabled,
+			};
 		}
 
 		this._register(storageService.onWillSaveState(() => this.saveState()));
@@ -440,11 +450,15 @@ export class ChatService extends Disposable implements IChatService {
 			return undefined;
 		}
 
-		if (sessionId === this.transferredSessionData?.sessionId) {
+		const session = this._startSession(sessionData, sessionData.initialLocation ?? ChatAgentLocation.Panel, CancellationToken.None);
+
+		const isTransferred = this.transferredSessionData?.sessionId === sessionId;
+		if (isTransferred) {
+			this.chatAgentService.toggleToolsAgentMode(this.transferredSessionData.toolsAgentModeEnabled);
 			this._transferredSessionData = undefined;
 		}
 
-		return this._startSession(sessionData, sessionData.initialLocation ?? ChatAgentLocation.Panel, CancellationToken.None);
+		return session;
 	}
 
 	loadSessionFromContent(data: IExportableChatData | ISerializableChatData): IChatModel | undefined {
@@ -476,7 +490,6 @@ export class ChatService extends Disposable implements IChatService {
 			...options,
 			locationData: request.locationData,
 			attachedContext: request.attachedContext,
-			workingSet: request.workingSet,
 			hasInstructionAttachments: options?.hasInstructionAttachments ?? false,
 		};
 		await this._sendRequestAsync(model, model.sessionId, request.message, attempt, enableCommandDetection, defaultAgent, location, resendOptions).responseCompletePromise;
@@ -512,7 +525,11 @@ export class ChatService extends Disposable implements IChatService {
 		for (let i = requests.length - 1; i >= 0; i -= 1) {
 			const request = requests[i];
 			if (request.shouldBeRemovedOnSend) {
-				this.removeRequest(sessionId, request.id);
+				if (request.shouldBeRemovedOnSend.afterUndoStop) {
+					request.response?.finalizeUndoState();
+				} else {
+					this.removeRequest(sessionId, request.id);
+				}
 			}
 		}
 
@@ -631,7 +648,7 @@ export class ChatService extends Disposable implements IChatService {
 				if (agentPart || (defaultAgent && !commandPart)) {
 					const prepareChatAgentRequest = async (agent: IChatAgentData, command?: IChatAgentCommand, enableCommandDetection?: boolean, chatRequest?: ChatRequestModel, isParticipantDetected?: boolean): Promise<IChatAgentRequest> => {
 						const initVariableData: IChatRequestVariableData = { variables: [] };
-						request = chatRequest ?? model.addRequest(parsedRequest, initVariableData, attempt, agent, command, options?.confirmation, options?.locationData, options?.attachedContext, options?.workingSet);
+						request = chatRequest ?? model.addRequest(parsedRequest, initVariableData, attempt, agent, command, options?.confirmation, options?.locationData, options?.attachedContext);
 
 						let variableData: IChatRequestVariableData;
 						let message: string;
@@ -640,11 +657,6 @@ export class ChatService extends Disposable implements IChatService {
 							message = getPromptText(request.message).message;
 						} else {
 							variableData = this.chatVariablesService.resolveVariables(parsedRequest, request.attachedContext);
-							for (const variable of variableData.variables) {
-								if (request.workingSet && variable.isFile && URI.isUri(variable.value)) {
-									request.workingSet.push(variable.value);
-								}
-							}
 							model.updateRequest(request, variableData);
 
 							const promptTextResult = getPromptText(request.message);
@@ -808,6 +820,7 @@ export class ChatService extends Disposable implements IChatService {
 		rawResponsePromise.finally(() => {
 			this._pendingRequests.deleteAndDispose(model.sessionId);
 		});
+		this._onDidSubmitRequest.fire({ chatSessionId: model.sessionId });
 		return {
 			responseCreatedPromise: responseCreated.p,
 			responseCompletePromise: rawResponsePromise,
@@ -998,6 +1011,8 @@ export class ChatService extends Disposable implements IChatService {
 			timestampInMilliseconds: Date.now(),
 			toWorkspace: toWorkspace,
 			inputValue: transferredSessionData.inputValue,
+			location: transferredSessionData.location,
+			toolsAgentModeEnabled: transferredSessionData.toolsAgentModeEnabled,
 		});
 
 		this.storageService.store(globalChatKey, JSON.stringify(existingRaw), StorageScope.PROFILE, StorageTarget.MACHINE);

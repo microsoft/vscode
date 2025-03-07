@@ -379,6 +379,15 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 				}>('editor.stickyScroll.enabled', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
+			case 'typescript.experimental.expandableHover':
+				this.telemetryService.publicLog2<UpdatedSettingEvent, {
+					owner: 'aiday-mar';
+					comment: 'This is used to know if the TypeScript expandbale hover is enabled or not';
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
+				}>('typescript.experimental.expandableHover', { settingValue: this.getValueToReport(key, target), source });
+				return;
+
 			case 'window.titleBarStyle':
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
 					owner: 'benibenj';
@@ -386,24 +395,6 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
 					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
 				}>('window.titleBarStyle', { settingValue: this.getValueToReport(key, target), source });
-				return;
-
-			case 'window.customTitleBarVisibility':
-				this.telemetryService.publicLog2<UpdatedSettingEvent, {
-					owner: 'benibenj';
-					comment: 'This is used to know if window custom title bar visibility is configured or not';
-					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
-					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('window.customTitleBarVisibility', { settingValue: this.getValueToReport(key, target), source });
-				return;
-
-			case 'window.nativeTabs':
-				this.telemetryService.publicLog2<UpdatedSettingEvent, {
-					owner: 'benibenj';
-					comment: 'This is used to know if window native tabs are enabled or not';
-					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
-					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('window.nativeTabs', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
 			case 'extensions.verifySignature':

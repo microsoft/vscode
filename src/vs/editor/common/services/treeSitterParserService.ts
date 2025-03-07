@@ -11,12 +11,18 @@ import { Range } from '../core/range.js';
 import { importAMDNodeModule } from '../../../amdX.js';
 
 export const EDITOR_EXPERIMENTAL_PREFER_TREESITTER = 'editor.experimental.preferTreeSitter';
+export const TREESITTER_ALLOWED_SUPPORT = ['typescript', 'ini'];
 
 export const ITreeSitterParserService = createDecorator<ITreeSitterParserService>('treeSitterParserService');
 
+export interface RangeWithOffsets {
+	range: Range;
+	startOffset: number;
+	endOffset: number;
+}
+
 export interface RangeChange {
 	newRange: Range;
-	oldRangeLength: number;
 	newRangeStartOffset: number;
 	newRangeEndOffset: number;
 }
@@ -36,8 +42,10 @@ export interface ITreeSitterParserService {
 	readonly _serviceBrand: undefined;
 	onDidAddLanguage: Event<{ id: string; language: Parser.Language }>;
 	getOrInitLanguage(languageId: string): Parser.Language | undefined;
+	getLanguage(languageId: string): Promise<Parser.Language | undefined>;
 	getParseResult(textModel: ITextModel): ITreeSitterParseResult | undefined;
 	getTree(content: string, languageId: string): Promise<Parser.Tree | undefined>;
+	getTreeSync(content: string, languageId: string): Parser.Tree | undefined;
 	onDidUpdateTree: Event<TreeUpdateEvent>;
 	/**
 	 * For testing purposes so that the time to parse can be measured.
@@ -64,6 +72,7 @@ export const ITreeSitterImporter = createDecorator<ITreeSitterImporter>('treeSit
 export interface ITreeSitterImporter {
 	readonly _serviceBrand: undefined;
 	getParserClass(): Promise<typeof Parser.Parser>;
+	readonly parserClass: typeof Parser.Parser | undefined;
 	getLanguageClass(): Promise<typeof Parser.Language>;
 	getQueryClass(): Promise<typeof Parser.Query>;
 }
@@ -79,6 +88,10 @@ export class TreeSitterImporter implements ITreeSitterImporter {
 			this._treeSitterImport = await importAMDNodeModule<typeof import('@vscode/tree-sitter-wasm')>('@vscode/tree-sitter-wasm', 'wasm/tree-sitter.js');
 		}
 		return this._treeSitterImport;
+	}
+
+	get parserClass() {
+		return this._parserClass;
 	}
 
 	private _parserClass: typeof Parser.Parser | undefined;
