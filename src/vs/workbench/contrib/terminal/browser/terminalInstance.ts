@@ -2229,7 +2229,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return icon;
 		}
 		const iconPicker = this._scopedInstantiationService.createInstance(TerminalIconPicker);
-		const pickedIcon = await iconPicker.pickIcons();
+		const pickedIcon = await iconPicker.pickIcons(this.instanceId); //add instanceId to specify UI for each terminal
 		iconPicker.dispose();
 		if (!pickedIcon) {
 			return undefined;
