@@ -221,6 +221,7 @@ export interface ICommandDetectionCapability {
 	readonly onCommandExecuted: Event<ITerminalCommand>;
 	readonly onCommandInvalidated: Event<ITerminalCommand[]>;
 	readonly onCurrentCommandInvalidated: Event<ICommandInvalidationRequest>;
+	readonly onSetRichCommandDetection: Event<boolean>;
 	setContinuationPrompt(value: string): void;
 	setPromptTerminator(value: string, lastPromptLine: string): void;
 	setCwd(value: string): void;

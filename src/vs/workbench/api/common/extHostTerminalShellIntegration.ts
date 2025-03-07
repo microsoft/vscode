@@ -143,7 +143,10 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 	public $closeTerminal(instanceId: number): void {
 		this._activeShellIntegrations.get(instanceId)?.dispose();
 		this._activeShellIntegrations.delete(instanceId);
+	}
 
+	public $setHasRichCommandDetection(instanceId: number, value: boolean): void {
+		this._activeShellIntegrations.get(instanceId)?.setHasRichCommandDetection(value);
 	}
 }
 
@@ -155,6 +158,7 @@ class InternalTerminalShellIntegration extends Disposable {
 
 	private _env: vscode.TerminalShellIntegrationEnvironment | undefined;
 	private _cwd: URI | undefined;
+	private _hasRichCommandDetection: boolean = false;
 
 	readonly store: DisposableStore = this._register(new DisposableStore());
 
@@ -182,6 +186,9 @@ class InternalTerminalShellIntegration extends Disposable {
 			},
 			get env(): vscode.TerminalShellIntegrationEnvironment | undefined {
 				return that._env;
+			},
+			get hasRichCommandDetection(): boolean {
+				return that._hasRichCommandDetection;
 			},
 			// executeCommand(commandLine: string): vscode.TerminalShellExecution;
 			// executeCommand(executable: string, args: string[]): vscode.TerminalShellExecution;
@@ -256,6 +263,13 @@ class InternalTerminalShellIntegration extends Disposable {
 					this._currentExecution = undefined;
 				}
 			});
+		}
+	}
+
+	setHasRichCommandDetection(value: boolean): void {
+		if (this._hasRichCommandDetection !== value) {
+			this._hasRichCommandDetection = value;
+			this._fireChangeEvent();
 		}
 	}
 
