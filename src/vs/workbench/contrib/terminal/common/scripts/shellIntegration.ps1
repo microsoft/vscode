@@ -93,7 +93,7 @@ function Global:Prompt() {
 	$Result += if ($pwd.Provider.Name -eq 'FileSystem') { "$([char]0x1b)]633;P;Cwd=$(__VSCode-Escape-Value $pwd.ProviderPath)`a" }
 
 	# Send current environment variables as JSON
-	# OSC 633 ; Env ; <Environment> ; <Nonce>
+	# OSC 633 ; EnvJson ; <Environment> ; <Nonce>
 	if ($__vscode_shell_env_reporting -eq "1") {
 		$envMap = @{}
 		Get-ChildItem Env: | ForEach-Object { $envMap[$_.Name] = $_.Value }
@@ -130,7 +130,7 @@ if (Get-Module -Name PSReadLine) {
 		$CommandLine = $__VSCodeOriginalPSConsoleHostReadLine.Invoke()
 
 		# Command line
-		# OSC 633 ; E ; <CommandLine?> ; <Nonce?> ST
+		# OSC 633 ; E [; <CommandLine> [; <Nonce>]] ST
 		$Result = "$([char]0x1b)]633;E;"
 		$Result += $(__VSCode-Escape-Value $CommandLine)
 		# Only send the nonce if the OS is not Windows 10 as it seems to echo to the terminal
