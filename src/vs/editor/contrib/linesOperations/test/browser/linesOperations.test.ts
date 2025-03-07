@@ -187,7 +187,7 @@ suite('Editor Contrib - Line Operations', () => {
 						'beta',
 						'omicron',
 					]);
-					assertSelection(editor, new Selection(1, 1, 3, 7));
+					assertSelection(editor, new Selection(1, 1, 3, 8));
 				});
 		});
 
@@ -240,8 +240,8 @@ suite('Editor Contrib - Line Operations', () => {
 						'beta'
 					]);
 					const expectedSelections = [
-						new Selection(1, 1, 3, 7),
-						new Selection(5, 1, 6, 4)
+						new Selection(1, 1, 3, 8),
+						new Selection(5, 1, 6, 5)
 					];
 					editor.getSelections()!.forEach((actualSelection, index) => {
 						assert.deepStrictEqual(actualSelection.toString(), expectedSelections[index].toString());
