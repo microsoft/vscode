@@ -140,7 +140,11 @@ elif [ -z "$(ldd --version 2>&1 | grep 'musl libc')" ]; then
 		# we instead use the version of the cached libc.so.6 file itself.
         libc_path_line=$(echo "$libc_path" | head -n1)
         libc_real_path=$(readlink -f "$libc_path_line")
-        libc_version=$(cat "$libc_real_path" | sed -n 's/.*release version \([0-9]\+\.[0-9]\+\).*/\1/p')
+        if command -v strings >/dev/null 2>&1; then
+            libc_version=$(strings "$libc_real_path" | grep "release version" | sed -n 's/.*release version \([0-9]\+\.[0-9]\+\).*/\1/p')
+        else
+            libc_version=$(cat "$libc_real_path" | sed -n 's/.*release version \([0-9]\+\.[0-9]\+\).*/\1/p')
+        fi
         if [ "$(printf '%s\n' "2.28" "$libc_version" | sort -V | head -n1)" = "2.28" ]; then
             found_required_glibc=1
             break
