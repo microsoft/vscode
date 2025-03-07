@@ -189,7 +189,7 @@ export class ZoomResetAction extends BaseZoomAction {
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.Numpad0
+				primary: KeyMod.CtrlCmd | KeyCode.Digit0
 			},
 			menu: {
 				id: MenuId.MenubarAppearanceMenu,
