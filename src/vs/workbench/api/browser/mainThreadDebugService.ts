@@ -116,12 +116,12 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	}
 
 	$registerDebugVisualizerTree(treeId: string, canEdit: boolean): void {
-		this.visualizerService.registerTree(treeId, {
+		this._visualizerTreeHandles.set(treeId, this.visualizerService.registerTree(treeId, {
 			disposeItem: id => this._proxy.$disposeVisualizedTree(id),
 			getChildren: e => this._proxy.$getVisualizerTreeItemChildren(treeId, e),
 			getTreeItem: e => this._proxy.$getVisualizerTreeItem(treeId, e),
 			editItem: canEdit ? ((e, v) => this._proxy.$editVisualizerTreeItem(e, v)) : undefined
-		});
+		}));
 	}
 
 	$unregisterDebugVisualizerTree(treeId: string): void {

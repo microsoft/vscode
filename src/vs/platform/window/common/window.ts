@@ -6,7 +6,7 @@
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { PerformanceMark } from '../../../base/common/performance.js';
-import { isLinux, isMacintosh, isNative, isWeb } from '../../../base/common/platform.js';
+import { isMacintosh, isNative, isWeb } from '../../../base/common/platform.js';
 import { URI, UriComponents, UriDto } from '../../../base/common/uri.js';
 import { ISandboxConfiguration } from '../../../base/parts/sandbox/common/sandboxTypes.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
@@ -15,7 +15,6 @@ import { NativeParsedArgs } from '../../environment/common/argv.js';
 import { FileType } from '../../files/common/files.js';
 import { ILoggerResource, LogLevel } from '../../log/common/log.js';
 import { PolicyDefinition, PolicyValue } from '../../policy/common/policy.js';
-import product from '../../product/common/product.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IUserDataProfile } from '../../userDataProfile/common/userDataProfile.js';
 import { IAnyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from '../../workspace/common/workspace.js';
@@ -186,11 +185,6 @@ export const enum CustomTitleBarVisibility {
 	NEVER = 'never',
 }
 
-export let titlebarStyleDefaultOverride: 'custom' | undefined = undefined;
-export function overrideDefaultTitlebarStyle(style: 'custom'): void {
-	titlebarStyleDefaultOverride = style;
-}
-
 export function hasCustomTitlebar(configurationService: IConfigurationService, titleBarStyle?: TitlebarStyle): boolean {
 	// Returns if it possible to have a custom title bar in the curren session
 	// Does not imply that the title bar is visible
@@ -228,11 +222,7 @@ export function getTitleBarStyle(configurationService: IConfigurationService): T
 		}
 	}
 
-	if (titlebarStyleDefaultOverride === 'custom') {
-		return TitlebarStyle.CUSTOM;
-	}
-
-	return isLinux && product.quality === 'stable' ? TitlebarStyle.NATIVE : TitlebarStyle.CUSTOM; // default to custom on all OS except Linux stable (for now)
+	return TitlebarStyle.CUSTOM; // default to custom on all OS
 }
 
 export const DEFAULT_CUSTOM_TITLEBAR_HEIGHT = 35; // includes space for command center
@@ -392,7 +382,6 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	autoDetectHighContrast?: boolean;
 	autoDetectColorScheme?: boolean;
 	isCustomZoomLevel?: boolean;
-	overrideDefaultTitlebarStyle?: 'custom';
 
 	perfMarks: PerformanceMark[];
 
@@ -409,3 +398,6 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 export function zoomLevelToZoomFactor(zoomLevel = 0): number {
 	return Math.pow(1.2, zoomLevel);
 }
+
+export const DEFAULT_WINDOW_SIZE = { width: 1200, height: 800 } as const;
+export const DEFAULT_AUX_WINDOW_SIZE = { width: 1024, height: 768 } as const;
