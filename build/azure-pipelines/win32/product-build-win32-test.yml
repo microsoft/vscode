@@ -14,7 +14,7 @@ parameters:
     default: PublishPipelineArtifact@0
 
 steps:
-  - powershell: yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
+  - powershell: npm exec -- npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Download Electron and Playwright
@@ -25,11 +25,9 @@ steps:
       - powershell: .\scripts\test.bat --tfs "Unit Tests"
         displayName: Run unit tests (Electron)
         timeoutInMinutes: 15
-
-      - powershell: yarn test-node
+      - powershell: npm run test-node
         displayName: Run unit tests (node.js)
         timeoutInMinutes: 15
-
       - powershell: node test/unit/browser/index.js --sequential --browser chromium --tfs "Browser Unit Tests"
         displayName: Run unit tests (Browser, Chromium)
         timeoutInMinutes: 20
@@ -38,12 +36,10 @@ steps:
       - powershell: .\scripts\test.bat --build --tfs "Unit Tests"
         displayName: Run unit tests (Electron)
         timeoutInMinutes: 15
-
-      - powershell: yarn test-node --build
+      - powershell: npm run test-node -- --build
         displayName: Run unit tests (node.js)
         timeoutInMinutes: 15
-
-      - powershell: yarn test-browser-no-install --sequential --build --browser chromium --tfs "Browser Unit Tests"
+      - powershell: npm run test-browser-no-install -- --sequential --build --browser chromium --tfs "Browser Unit Tests"
         displayName: Run unit tests (Browser, Chromium)
         timeoutInMinutes: 20
 
@@ -51,7 +47,7 @@ steps:
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
-        exec { yarn gulp `
+        exec { npm run gulp `
           compile-extension:configuration-editing `
           compile-extension:css-language-features-server `
           compile-extension:emmet `
@@ -61,24 +57,29 @@ steps:
           compile-extension:ipynb `
           compile-extension:notebook-renderers `
           compile-extension:json-language-features-server `
-          compile-extension:markdown-language-features-server `
           compile-extension:markdown-language-features `
           compile-extension-media `
           compile-extension:microsoft-authentication `
           compile-extension:typescript-language-features `
           compile-extension:vscode-api-tests `
           compile-extension:vscode-colorize-tests `
+          compile-extension:vscode-colorize-perf-tests `
           compile-extension:vscode-test-resolver `
         }
       displayName: Build integration tests
+
+    - powershell: .\build\azure-pipelines\win32\listprocesses.bat
+      displayName: Diagnostics before integration test runs
+      continueOnError: true
+      condition: succeededOrFailed()
 
     - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
       - powershell: .\scripts\test-integration.bat --tfs "Integration Tests"
         displayName: Run integration tests (Electron)
         timeoutInMinutes: 20
 
-      - powershell: .\scripts\test-web-integration.bat --browser firefox
-        displayName: Run integration tests (Browser, Firefox)
+      - powershell: .\scripts\test-web-integration.bat --browser chromium
+        displayName: Run integration tests (Browser, Chromium)
         timeoutInMinutes: 20
 
       - powershell: .\scripts\test-remote-integration.bat
@@ -121,6 +122,11 @@ steps:
         displayName: Run integration tests (Remote)
         timeoutInMinutes: 20
 
+      - powershell: .\build\azure-pipelines\win32\listprocesses.bat
+        displayName: Diagnostics after integration test runs
+        continueOnError: true
+        condition: succeededOrFailed()
+
   - ${{ if eq(parameters.VSCODE_RUN_SMOKE_TESTS, true) }}:
     - powershell: .\build\azure-pipelines\win32\listprocesses.bat
       displayName: Diagnostics before smoke test run
@@ -128,32 +134,33 @@ steps:
       condition: succeededOrFailed()
 
     - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-      - powershell: yarn --cwd test/smoke compile
+      - powershell: npm run compile
+        workingDirectory: test/smoke
         displayName: Compile smoke tests
 
-      - powershell: yarn gulp compile-extension-media
+      - powershell: npm run gulp compile-extension-media
         displayName: Build extensions for smoke tests
 
-      - powershell: yarn smoketest-no-compile --tracing
+      - powershell: npm run smoketest-no-compile -- --tracing
         displayName: Run smoke tests (Electron)
         timeoutInMinutes: 20
 
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-      - powershell: yarn smoketest-no-compile --tracing --build "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
+      - powershell: npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
         displayName: Run smoke tests (Electron)
         timeoutInMinutes: 20
 
-      - powershell: yarn smoketest-no-compile --web --tracing --headless
+      - powershell: npm run smoketest-no-compile -- --web --tracing --headless
         env:
           VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)\vscode-server-win32-$(VSCODE_ARCH)-web
         displayName: Run smoke tests (Browser, Chromium)
         timeoutInMinutes: 20
 
-      - powershell: yarn gulp compile-extension:vscode-test-resolver
+      - powershell: npm run gulp compile-extension:vscode-test-resolver
         displayName: Compile test resolver extension
         timeoutInMinutes: 20
 
-      - powershell: yarn smoketest-no-compile --tracing --remote --build "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
+      - powershell: npm run smoketest-no-compile -- --tracing --remote --build "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
         env:
           VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)\vscode-server-win32-$(VSCODE_ARCH)
         displayName: Run smoke tests (Remote)

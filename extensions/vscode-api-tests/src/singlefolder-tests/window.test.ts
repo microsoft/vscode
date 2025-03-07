@@ -424,7 +424,7 @@ suite('vscode API - window', () => {
 
 		const commandFile = await createRandomFile();
 		await commands.executeCommand('vscode.open', commandFile, ViewColumn.Three);
-		// Ensure active tab is correct after calling vscode.opn
+		// Ensure active tab is correct after calling vscode.open
 		assert.strictEqual(getActiveTab()?.group.viewColumn, ViewColumn.Three);
 
 		const leftDiff = await createRandomFile();

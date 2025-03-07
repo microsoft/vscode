@@ -4,31 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { createEditorPart, InMemoryTestWorkingCopyBackupService, registerTestResourceEditor, TestServiceAccessor, toTypedWorkingCopyId, toUntypedWorkingCopyId, workbenchInstantiationService, workbenchTeardown } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { timeout } from 'vs/base/common/async';
-import { BrowserWorkingCopyBackupTracker } from 'vs/workbench/services/workingCopy/browser/workingCopyBackupTracker';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
-import { bufferToReadable, VSBuffer } from 'vs/base/common/buffer';
-import { isWindows } from 'vs/base/common/platform';
-import { Schemas } from 'vs/base/common/network';
+import { URI } from '../../../../../base/common/uri.js';
+import { IEditorService } from '../../../editor/common/editorService.js';
+import { EditorPart } from '../../../../browser/parts/editor/editorPart.js';
+import { IEditorGroupsService } from '../../../editor/common/editorGroupsService.js';
+import { EditorService } from '../../../editor/browser/editorService.js';
+import { IUntitledTextResourceEditorInput } from '../../../../common/editor.js';
+import { IWorkingCopyBackupService } from '../../common/workingCopyBackup.js';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
+import { IFilesConfigurationService } from '../../../filesConfiguration/common/filesConfigurationService.js';
+import { IWorkingCopyService } from '../../common/workingCopyService.js';
+import { IWorkingCopyBackup } from '../../common/workingCopy.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { ILifecycleService, LifecyclePhase } from '../../../lifecycle/common/lifecycle.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { UntitledTextEditorInput } from '../../../untitled/common/untitledTextEditorInput.js';
+import { createEditorPart, InMemoryTestWorkingCopyBackupService, registerTestResourceEditor, TestServiceAccessor, toTypedWorkingCopyId, toUntypedWorkingCopyId, workbenchInstantiationService, workbenchTeardown } from '../../../../test/browser/workbenchTestServices.js';
+import { TestWorkingCopy } from '../../../../test/common/workbenchTestServices.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { timeout } from '../../../../../base/common/async.js';
+import { BrowserWorkingCopyBackupTracker } from '../../browser/workingCopyBackupTracker.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from '../../common/workingCopyEditorService.js';
+import { bufferToReadable, VSBuffer } from '../../../../../base/common/buffer.js';
+import { isWindows } from '../../../../../base/common/platform.js';
+import { Schemas } from '../../../../../base/common/network.js';
 
 suite('WorkingCopyBackupTracker (browser)', function () {
 	let accessor: TestServiceAccessor;

@@ -6,12 +6,12 @@
 
 
 import assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { TestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
-import { ITestRunProfile, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
-import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { TestProfileService } from '../../common/testProfileService.js';
+import { ITestRunProfile, TestRunProfileBitset } from '../../common/testTypes.js';
+import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 
 suite('Workbench - TestProfileService', () => {
 	let t: TestProfileService;

@@ -3,27 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/scm';
-import { IDisposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
-import { autorun } from 'vs/base/common/observable';
-import { append, $ } from 'vs/base/browser/dom';
-import { ISCMProvider, ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
-import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ActionRunner, IAction } from 'vs/base/common/actions';
-import { connectPrimaryMenu, getRepositoryResourceCount, isSCMRepository, StatusBarAction } from './util';
-import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
-import { FuzzyScore } from 'vs/base/common/filters';
-import { IListRenderer } from 'vs/base/browser/ui/list/list';
-import { IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import './media/scm.css';
+import { IDisposable, DisposableStore, combinedDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun, autorunWithStore } from '../../../../base/common/observable.js';
+import { append, $ } from '../../../../base/browser/dom.js';
+import { ISCMProvider, ISCMRepository, ISCMViewService } from '../common/scm.js';
+import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ActionRunner, IAction } from '../../../../base/common/actions.js';
+import { connectPrimaryMenu, getRepositoryResourceCount, isSCMRepository, StatusBarAction } from './util.js';
+import { ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
+import { ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/objectTree.js';
+import { FuzzyScore } from '../../../../base/common/filters.js';
+import { IListRenderer } from '../../../../base/browser/ui/list/list.js';
+import { IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { defaultCountBadgeStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { IMenuService, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 
 export class RepositoryActionRunner extends ActionRunner {
 	constructor(private readonly getSelectedRepositories: () => ISCMRepository[]) {
@@ -44,6 +47,7 @@ export class RepositoryActionRunner extends ActionRunner {
 
 interface RepositoryTemplate {
 	readonly label: HTMLElement;
+	readonly labelCustomHover: IManagedHover;
 	readonly name: HTMLElement;
 	readonly description: HTMLElement;
 	readonly countContainer: HTMLElement;
@@ -61,12 +65,13 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 	constructor(
 		private readonly toolbarMenuId: MenuId,
 		private readonly actionViewItemProvider: IActionViewItemProvider,
-		@ISCMViewService private scmViewService: ISCMViewService,
 		@ICommandService private commandService: ICommandService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IHoverService private hoverService: IHoverService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMenuService private menuService: IMenuService,
+		@ISCMViewService private scmViewService: ISCMViewService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) { }
 
@@ -78,6 +83,7 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 
 		const provider = append(container, $('.scm-provider'));
 		const label = append(provider, $('.label'));
+		const labelCustomHover = this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), label, '', {});
 		const name = append(label, $('span.name'));
 		const description = append(label, $('span.description'));
 		const actions = append(provider, $('.actions'));
@@ -86,9 +92,9 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 		const count = new CountBadge(countContainer, {}, defaultCountBadgeStyles);
 		const visibilityDisposable = toolBar.onDidChangeDropdownVisibility(e => provider.classList.toggle('active', e));
 
-		const templateDisposable = combinedDisposable(visibilityDisposable, toolBar);
+		const templateDisposable = combinedDisposable(labelCustomHover, visibilityDisposable, toolBar);
 
-		return { label, name, description, countContainer, count, toolBar, elementDisposables: new DisposableStore(), templateDisposable };
+		return { label, labelCustomHover, name, description, countContainer, count, toolBar, elementDisposables: new DisposableStore(), templateDisposable };
 	}
 
 	renderElement(arg: ISCMRepository | ITreeNode<ISCMRepository, FuzzyScore>, index: number, templateData: RepositoryTemplate, height: number | undefined): void {
@@ -96,10 +102,10 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 
 		templateData.name.textContent = repository.provider.name;
 		if (repository.provider.rootUri) {
-			templateData.label.title = `${repository.provider.label}: ${repository.provider.rootUri.fsPath}`;
+			templateData.labelCustomHover.update(`${repository.provider.label}: ${repository.provider.rootUri.fsPath}`);
 			templateData.description.textContent = repository.provider.label;
 		} else {
-			templateData.label.title = repository.provider.label;
+			templateData.labelCustomHover.update(repository.provider.label);
 			templateData.description.textContent = '';
 		}
 
@@ -110,14 +116,14 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 			templateData.toolBar.setActions([...statusPrimaryActions, ...menuPrimaryActions], menuSecondaryActions);
 		};
 
-		templateData.elementDisposables.add(autorun(reader => {
-			const commands = repository.provider.statusBarCommandsObs.read(reader) ?? [];
-			statusPrimaryActions = commands.map(c => new StatusBarAction(c, this.commandService));
+		templateData.elementDisposables.add(autorunWithStore((reader, store) => {
+			const commands = repository.provider.statusBarCommands.read(reader) ?? [];
+			statusPrimaryActions = commands.map(c => store.add(new StatusBarAction(c, this.commandService)));
 			updateToolbar();
 		}));
 
 		templateData.elementDisposables.add(autorun(reader => {
-			const count = repository.provider.countObs.read(reader) ?? getRepositoryResourceCount(repository.provider);
+			const count = repository.provider.count.read(reader) ?? getRepositoryResourceCount(repository.provider);
 			templateData.countContainer.setAttribute('data-count', String(count));
 			templateData.count.setCount(count);
 		}));
@@ -129,6 +135,7 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 			menuSecondaryActions = secondary;
 			updateToolbar();
 		}));
+
 		templateData.toolBar.context = repository.provider;
 	}
 
@@ -143,5 +150,6 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 	disposeTemplate(templateData: RepositoryTemplate): void {
 		templateData.elementDisposables.dispose();
 		templateData.templateDisposable.dispose();
+		templateData.count.dispose();
 	}
 }

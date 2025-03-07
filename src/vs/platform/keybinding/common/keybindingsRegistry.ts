@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { decodeKeybinding, Keybinding } from 'vs/base/common/keybindings';
-import { OperatingSystem, OS } from 'vs/base/common/platform';
-import { CommandsRegistry, ICommandHandler, ICommandMetadata } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { combinedDisposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { LinkedList } from 'vs/base/common/linkedList';
+import { decodeKeybinding, Keybinding } from '../../../base/common/keybindings.js';
+import { OperatingSystem, OS } from '../../../base/common/platform.js';
+import { CommandsRegistry, ICommandHandler, ICommandMetadata } from '../../commands/common/commands.js';
+import { ContextKeyExpression } from '../../contextkey/common/contextkey.js';
+import { Registry } from '../../registry/common/platform.js';
+import { combinedDisposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { LinkedList } from '../../../base/common/linkedList.js';
 
 export interface IKeybindingItem {
 	keybinding: Keybinding | null;

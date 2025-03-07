@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataAutoSyncService, UserDataSyncError } from 'vs/platform/userDataSync/common/userDataSync';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Event } from 'vs/base/common/event';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IUserDataAutoSyncService, SyncOptions, UserDataSyncError } from '../../../../platform/userDataSync/common/userDataSync.js';
+import { ISharedProcessService } from '../../../../platform/ipc/electron-sandbox/services.js';
+import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { Event } from '../../../../base/common/event.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 
 class UserDataAutoSyncService implements IUserDataAutoSyncService {
 
@@ -22,8 +22,8 @@ class UserDataAutoSyncService implements IUserDataAutoSyncService {
 		this.channel = sharedProcessService.getChannel('userDataAutoSync');
 	}
 
-	triggerSync(sources: string[], hasToLimitSync: boolean, disableCache: boolean): Promise<void> {
-		return this.channel.call('triggerSync', [sources, hasToLimitSync, disableCache]);
+	triggerSync(sources: string[], options?: SyncOptions): Promise<void> {
+		return this.channel.call('triggerSync', [sources, options]);
 	}
 
 	turnOn(): Promise<void> {

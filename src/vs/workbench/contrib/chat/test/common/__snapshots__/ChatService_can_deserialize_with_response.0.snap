@@ -1,0 +1,88 @@
+{
+  requesterUsername: "test",
+  requesterAvatarIconUri: undefined,
+  responderUsername: "",
+  responderAvatarIconUri: undefined,
+  initialLocation: "panel",
+  requests: [
+    {
+      requestId: undefined,
+      message: {
+        text: "@ChatProviderWithUsedContext test request",
+        parts: [
+          {
+            range: {
+              start: 0,
+              endExclusive: 28
+            },
+            editorRange: {
+              startLineNumber: 1,
+              startColumn: 1,
+              endLineNumber: 1,
+              endColumn: 29
+            },
+            agent: {
+              name: "ChatProviderWithUsedContext",
+              id: "ChatProviderWithUsedContext",
+              extensionId: {
+                value: "nullExtensionDescription",
+                _lower: "nullextensiondescription"
+              },
+              extensionPublisherId: "",
+              publisherDisplayName: "",
+              extensionDisplayName: "",
+              locations: [ "panel" ],
+              metadata: {  },
+              slashCommands: [  ],
+              disambiguation: [  ]
+            },
+            kind: "agent"
+          },
+          {
+            range: {
+              start: 28,
+              endExclusive: 41
+            },
+            editorRange: {
+              startLineNumber: 1,
+              startColumn: 29,
+              endLineNumber: 1,
+              endColumn: 42
+            },
+            text: " test request",
+            kind: "text"
+          }
+        ]
+      },
+      variableData: { variables: [  ] },
+      response: [  ],
+      responseId: undefined,
+      shouldBeRemovedOnSend: undefined,
+      result: { errorDetails: { message: "No activated agent with id \"ChatProviderWithUsedContext\"" } },
+      followups: undefined,
+      isCanceled: false,
+      vote: undefined,
+      voteDownReason: undefined,
+      agent: {
+        name: "ChatProviderWithUsedContext",
+        id: "ChatProviderWithUsedContext",
+        extensionId: {
+          value: "nullExtensionDescription",
+          _lower: "nullextensiondescription"
+        },
+        extensionPublisherId: "",
+        publisherDisplayName: "",
+        extensionDisplayName: "",
+        locations: [ "panel" ],
+        metadata: {  },
+        slashCommands: [  ],
+        disambiguation: [  ]
+      },
+      slashCommand: undefined,
+      usedContext: undefined,
+      contentReferences: [  ],
+      codeCitations: [  ],
+      timestamp: undefined
+    }
+  ]
+}

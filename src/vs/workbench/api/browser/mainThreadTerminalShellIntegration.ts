@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { Disposable, toDisposable, type IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { TerminalCapability, type ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ExtHostContext, MainContext, type ExtHostTerminalShellIntegrationShape, type MainThreadTerminalShellIntegrationShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { extHostNamedCustomer, type IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { TerminalShellExecutionCommandLineConfidence } from 'vs/workbench/api/common/extHostTypes';
+import { Event } from '../../../base/common/event.js';
+import { Disposable, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
+import { TerminalCapability, type ITerminalCommand } from '../../../platform/terminal/common/capabilities/capabilities.js';
+import { ExtHostContext, MainContext, type ExtHostTerminalShellIntegrationShape, type MainThreadTerminalShellIntegrationShape } from '../common/extHost.protocol.js';
+import { ITerminalService } from '../../contrib/terminal/browser/terminal.js';
+import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
+import { extHostNamedCustomer, type IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { TerminalShellExecutionCommandLineConfidence } from '../common/extHostTypes.js';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalShellIntegration)
 export class MainThreadTerminalShellIntegration extends Disposable implements MainThreadTerminalShellIntegrationShape {
@@ -33,15 +33,45 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 			}
 		}));
 
-		// onDidChangeTerminalShellIntegration
+		// onDidchangeTerminalShellIntegration initial state
+		for (const terminal of this._terminalService.instances) {
+			if (terminal.capabilities.has(TerminalCapability.CommandDetection)) {
+				this._proxy.$shellIntegrationChange(terminal.instanceId);
+				const cwdDetection = terminal.capabilities.get(TerminalCapability.CwdDetection);
+				if (cwdDetection) {
+					this._proxy.$cwdChange(terminal.instanceId, this._convertCwdToUri(cwdDetection.getCwd()));
+				}
+			}
+		}
+
+		// onDidChangeTerminalShellIntegration via command detection
 		const onDidAddCommandDetection = this._store.add(this._terminalService.createOnInstanceEvent(instance => {
 			return Event.map(
 				Event.filter(instance.capabilities.onDidAddCapabilityType, e => {
-					return e === TerminalCapability.CommandDetection;
+					return e === TerminalCapability.CommandDetection || e === TerminalCapability.CwdDetection;
 				}), () => instance
 			);
 		})).event;
 		this._store.add(onDidAddCommandDetection(e => this._proxy.$shellIntegrationChange(e.instanceId)));
+
+		// onDidChangeTerminalShellIntegration via cwd
+		const cwdChangeEvent = this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CwdDetection, e => e.onDidChangeCwd));
+		this._store.add(cwdChangeEvent.event(e => {
+			this._proxy.$cwdChange(e.instance.instanceId, this._convertCwdToUri(e.data));
+		}));
+
+		// onDidChangeTerminalShellIntegration via env
+		const envChangeEvent = this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.ShellEnvDetection, e => e.onDidChangeEnv));
+		this._store.add(envChangeEvent.event(e => {
+			if (e.data.value && typeof e.data.value === 'object') {
+				const envValue = e.data.value as { [key: string]: string | undefined };
+
+				// Extract keys and values
+				const keysArr = Object.keys(envValue);
+				const valuesArr = Object.values(envValue);
+				this._proxy.$shellEnvChange(e.instance.instanceId, keysArr, valuesArr as string[], e.data.isTrusted);
+			}
+		}));
 
 		// onDidStartTerminalShellExecution
 		const commandDetectionStartEvent = this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, e => e.onCommandExecuted));
@@ -60,7 +90,9 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 			// TerminalShellExecution.createDataStream
 			// Debounce events to reduce the message count - when this listener is disposed the events will be flushed
 			instanceDataListeners.get(instanceId)?.dispose();
-			instanceDataListeners.set(instanceId, Event.accumulate(e.instance.onData, 50, this._store)(events => this._proxy.$shellExecutionData(instanceId, events.join())));
+			instanceDataListeners.set(instanceId, Event.accumulate(e.instance.onData, 50, this._store)(events => {
+				this._proxy.$shellExecutionData(instanceId, events.join(''));
+			}));
 		}));
 
 		// onDidEndTerminalShellExecution
@@ -69,16 +101,10 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 			currentCommand = undefined;
 			const instanceId = e.instance.instanceId;
 			instanceDataListeners.get(instanceId)?.dispose();
-			// Send end in a microtask to ensure the data events are sent first
-			setTimeout(() => {
-				this._proxy.$shellExecutionEnd(instanceId, e.data.command, convertToExtHostCommandLineConfidence(e.data), e.data.isTrusted, e.data.exitCode);
-			});
-		}));
-
-		// onDidChangeTerminalShellIntegration via cwd
-		const cwdChangeEvent = this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CwdDetection, e => e.onDidChangeCwd));
-		this._store.add(cwdChangeEvent.event(e => {
-			this._proxy.$cwdChange(e.instance.instanceId, this._convertCwdToUri(e.data));
+			// Shell integration C (executed) and D (command finished) sequences should always be in
+			// their own events, so send this immediately. This means that the D sequence will not
+			// be included as it's currently being parsed when the command finished event fires.
+			this._proxy.$shellExecutionEnd(instanceId, e.data.command, convertToExtHostCommandLineConfidence(e.data), e.data.isTrusted, e.data.exitCode);
 		}));
 
 		// Clean up after dispose

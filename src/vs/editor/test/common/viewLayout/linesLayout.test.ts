@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { EditorWhitespace, LinesLayout } from 'vs/editor/common/viewLayout/linesLayout';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { EditorWhitespace, LinesLayout } from '../../../common/viewLayout/linesLayout.js';
 
 suite('Editor ViewLayout - LinesLayout', () => {
 

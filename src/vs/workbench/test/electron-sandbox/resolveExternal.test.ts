@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
-import { ITunnelService, RemoteTunnel } from 'vs/platform/tunnel/common/tunnel';
-import { URI } from 'vs/base/common/uri';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
-import { workbenchInstantiationService } from 'vs/workbench/test/electron-sandbox/workbenchTestServices';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
+import { NativeWindow } from '../../electron-sandbox/window.js';
+import { ITunnelService, RemoteTunnel } from '../../../platform/tunnel/common/tunnel.js';
+import { URI } from '../../../base/common/uri.js';
+import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IAddressProvider } from '../../../platform/remote/common/remoteAgentConnection.js';
+import { workbenchInstantiationService } from './workbenchTestServices.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
 
 type PortMap = Record<number, number>;
 

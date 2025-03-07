@@ -78,6 +78,7 @@
 	background-size: 16px;
 	background-position: center center;
 	background-repeat: no-repeat;
+	padding: 2px; /* Make sure view actions and container actions align */
 }
 
 .monaco-workbench .part > .title > .title-actions .action-label .label {

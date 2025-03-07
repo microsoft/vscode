@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createSingleCallFunction } from 'vs/base/common/functional';
-import { isLinux } from 'vs/base/common/platform';
-import Severity from 'vs/base/common/severity';
-import { localize } from 'vs/nls';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IEncryptionService, KnownStorageProvider, PasswordStoreCLIOption, isGnome, isKwallet } from 'vs/platform/encryption/common/encryptionService';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService, IPromptChoice } from 'vs/platform/notification/common/notification';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { BaseSecretStorageService, ISecretStorageService } from 'vs/platform/secrets/common/secrets';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
+import { createSingleCallFunction } from '../../../../base/common/functional.js';
+import { isLinux } from '../../../../base/common/platform.js';
+import Severity from '../../../../base/common/severity.js';
+import { localize } from '../../../../nls.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IEncryptionService, KnownStorageProvider, PasswordStoreCLIOption, isGnome, isKwallet } from '../../../../platform/encryption/common/encryptionService.js';
+import { INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService, IPromptChoice } from '../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { BaseSecretStorageService, ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IJSONEditingService } from '../../configuration/common/jsonEditing.js';
 
 export class NativeSecretStorageService extends BaseSecretStorageService {
 

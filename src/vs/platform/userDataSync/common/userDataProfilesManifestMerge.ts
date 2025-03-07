@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equals } from 'vs/base/common/objects';
-import { IUserDataProfile, UseDefaultProfileFlags } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { ISyncUserDataProfile } from 'vs/platform/userDataSync/common/userDataSync';
+import { equals } from '../../../base/common/objects.js';
+import { IUserDataProfile, UseDefaultProfileFlags } from '../../userDataProfile/common/userDataProfile.js';
+import { ISyncUserDataProfile } from './userDataSync.js';
 
 interface IRelaxedMergeResult {
 	local: { added: ISyncUserDataProfile[]; removed: IUserDataProfile[]; updated: ISyncUserDataProfile[] };
@@ -17,7 +17,6 @@ export type IMergeResult = Required<IRelaxedMergeResult>;
 interface IUserDataProfileInfo {
 	readonly id: string;
 	readonly name: string;
-	readonly shortName?: string;
 	readonly icon?: string;
 	readonly useDefaultFlags?: UseDefaultProfileFlags;
 }
@@ -120,14 +119,13 @@ function compare(from: IUserDataProfileInfo[] | null, to: IUserDataProfileInfo[]
 	const removed = fromKeys.filter(key => !toKeys.includes(key));
 	const updated: string[] = [];
 
-	for (const { id, name, shortName, icon, useDefaultFlags } of from) {
+	for (const { id, name, icon, useDefaultFlags } of from) {
 		if (removed.includes(id)) {
 			continue;
 		}
 		const toProfile = to.find(p => p.id === id);
 		if (!toProfile
 			|| toProfile.name !== name
-			|| toProfile.shortName !== shortName
 			|| toProfile.icon !== icon
 			|| !equals(toProfile.useDefaultFlags, useDefaultFlags)
 		) {

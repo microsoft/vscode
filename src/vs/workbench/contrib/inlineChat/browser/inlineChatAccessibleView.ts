@@ -3,16 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { AccessibleViewProviderId, AccessibleViewType } from 'vs/platform/accessibility/browser/accessibleView';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
+import { InlineChatController } from './inlineChatController.js';
+import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED } from '../common/inlineChat.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { renderMarkdownAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 
-export class InlineChatAccessibleView implements IAccessibleViewImplentation {
+export class InlineChatAccessibleView implements IAccessibleViewImplementation {
 	readonly priority = 100;
 	readonly name = 'inlineChat';
 	readonly when = ContextKeyExpr.or(CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED);
@@ -28,19 +30,16 @@ export class InlineChatAccessibleView implements IAccessibleViewImplentation {
 		if (!controller) {
 			return;
 		}
-		const responseContent = controller?.getMessage();
+		const responseContent = controller.widget.responseContent;
 		if (!responseContent) {
 			return;
 		}
-		return {
-			id: AccessibleViewProviderId.InlineChat,
-			verbositySettingKey: AccessibilityVerbositySettingId.InlineChat,
-			provideContent(): string { return responseContent; },
-			onClose() {
-				controller.focus();
-			},
-			options: { type: AccessibleViewType.View }
-		};
+		return new AccessibleContentProvider(
+			AccessibleViewProviderId.InlineChat,
+			{ type: AccessibleViewType.View },
+			() => renderMarkdownAsPlaintext(new MarkdownString(responseContent), true),
+			() => controller.focus(),
+			AccessibilityVerbositySettingId.InlineChat
+		);
 	}
-	dispose() { }
 }

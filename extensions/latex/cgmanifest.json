@@ -6,7 +6,7 @@
 				"git": {
 					"name": "jlelong/vscode-latex-basics",
 					"repositoryUrl": "https://github.com/jlelong/vscode-latex-basics",
-					"commitHash": "5d7c2a4e451a932b776f6d9342087be6a1e8c0a1"
+					"commitHash": "df6ef817c932d24da5cc72927344a547e463cc65"
 				}
 			},
 			"license": "MIT",

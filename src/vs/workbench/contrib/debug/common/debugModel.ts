@@ -3,32 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct } from 'vs/base/common/arrays';
-import { findLastIdx } from 'vs/base/common/arraysFind';
-import { DeferredPromise, RunOnceScheduler } from 'vs/base/common/async';
-import { VSBuffer, decodeBase64, encodeBase64 } from 'vs/base/common/buffer';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { stringHash } from 'vs/base/common/hash';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { mixin } from 'vs/base/common/objects';
-import { autorun } from 'vs/base/common/observable';
-import * as resources from 'vs/base/common/resources';
-import { isString, isUndefinedOrNull } from 'vs/base/common/types';
-import { URI, URI as uri } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import * as nls from 'vs/nls';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IEditorPane } from 'vs/workbench/common/editor';
-import { DEBUG_MEMORY_SCHEME, DataBreakpointSetType, DataBreakpointSource, DebugTreeItemCollapsibleState, IBaseBreakpoint, IBreakpoint, IBreakpointData, IBreakpointUpdateData, IBreakpointsChangeEvent, IDataBreakpoint, IDebugModel, IDebugSession, IDebugVisualizationTreeItem, IEnablement, IExceptionBreakpoint, IExceptionInfo, IExpression, IExpressionContainer, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryInvalidationEvent, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IScope, IStackFrame, IThread, ITreeElement, MemoryRange, MemoryRangeType, State, isFrameDeemphasized } from 'vs/workbench/contrib/debug/common/debug';
-import { Source, UNKNOWN_SOURCE_LABEL, getUriFromSource } from 'vs/workbench/contrib/debug/common/debugSource';
-import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
-import { IDebugVisualizerService } from 'vs/workbench/contrib/debug/common/debugVisualizers';
-import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { distinct } from '../../../../base/common/arrays.js';
+import { findLastIdx } from '../../../../base/common/arraysFind.js';
+import { DeferredPromise, RunOnceScheduler } from '../../../../base/common/async.js';
+import { VSBuffer, decodeBase64, encodeBase64 } from '../../../../base/common/buffer.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Emitter, Event, trackSetChanges } from '../../../../base/common/event.js';
+import { stringHash } from '../../../../base/common/hash.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { mixin } from '../../../../base/common/objects.js';
+import { autorun } from '../../../../base/common/observable.js';
+import * as resources from '../../../../base/common/resources.js';
+import { isString, isUndefinedOrNull } from '../../../../base/common/types.js';
+import { URI, URI as uri } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
+import * as nls from '../../../../nls.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IEditorPane } from '../../../common/editor.js';
+import { DEBUG_MEMORY_SCHEME, DataBreakpointSetType, DataBreakpointSource, DebugTreeItemCollapsibleState, IBaseBreakpoint, IBreakpoint, IBreakpointData, IBreakpointUpdateData, IBreakpointsChangeEvent, IDataBreakpoint, IDebugEvaluatePosition, IDebugModel, IDebugSession, IDebugVisualizationTreeItem, IEnablement, IExceptionBreakpoint, IExceptionInfo, IExpression, IExpressionContainer, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryInvalidationEvent, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IScope, IStackFrame, IThread, ITreeElement, MemoryRange, MemoryRangeType, State, isFrameDeemphasized } from './debug.js';
+import { Source, UNKNOWN_SOURCE_LABEL, getUriFromSource } from './debugSource.js';
+import { DebugStorage } from './debugStorage.js';
+import { IDebugVisualizerService } from './debugVisualizers.js';
+import { DisassemblyViewInput } from './disassemblyViewInput.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 
 interface IDebugProtocolVariableWithContext extends DebugProtocol.Variable {
 	__vscodeVariableMenuContext?: string;
@@ -54,7 +54,8 @@ export class ExpressionContainer implements IExpressionContainer {
 		public indexedVariables: number | undefined = 0,
 		public memoryReference: string | undefined = undefined,
 		private startOfVariables: number | undefined = 0,
-		public presentationHint: DebugProtocol.VariablePresentationHint | undefined = undefined
+		public presentationHint: DebugProtocol.VariablePresentationHint | undefined = undefined,
+		public valueLocationReference: number | undefined = undefined,
 	) { }
 
 	get reference(): number | undefined {
@@ -83,6 +84,7 @@ export class ExpressionContainer implements IExpressionContainer {
 		this.indexedVariables = dummyVar.indexedVariables;
 		this.memoryReference = dummyVar.memoryReference;
 		this.presentationHint = dummyVar.presentationHint;
+		this.valueLocationReference = dummyVar.valueLocationReference;
 		// Also call overridden method to adopt subclass props
 		this.adoptLazyResponse(dummyVar);
 	}
@@ -162,7 +164,7 @@ export class ExpressionContainer implements IExpressionContainer {
 					const count = nameCount.get(v.name) || 0;
 					const idDuplicationIndex = count > 0 ? count.toString() : '';
 					nameCount.set(v.name, count + 1);
-					return new Variable(this.session, this.threadId, this, v.variablesReference, v.name, v.evaluateName, v.value, v.namedVariables, v.indexedVariables, v.memoryReference, v.presentationHint, v.type, v.__vscodeVariableMenuContext, true, 0, idDuplicationIndex);
+					return new Variable(this.session, this.threadId, this, v.variablesReference, v.name, v.evaluateName, v.value, v.namedVariables, v.indexedVariables, v.memoryReference, v.presentationHint, v.type, v.__vscodeVariableMenuContext, true, 0, idDuplicationIndex, v.declarationLocationReference, v.valueLocationReference);
 				}
 				return new Variable(this.session, this.threadId, this, 0, '', undefined, nls.localize('invalidVariableAttributes', "Invalid variable attributes"), 0, 0, undefined, { kind: 'virtual' }, undefined, undefined, false);
 			});
@@ -198,7 +200,9 @@ export class ExpressionContainer implements IExpressionContainer {
 		session: IDebugSession | undefined,
 		stackFrame: IStackFrame | undefined,
 		context: string,
-		keepLazyVars = false): Promise<boolean> {
+		keepLazyVars = false,
+		location?: IDebugEvaluatePosition,
+	): Promise<boolean> {
 
 		if (!session || (!stackFrame && context !== 'repl')) {
 			this.value = context === 'repl' ? nls.localize('startDebugFirst', "Please start a debug session to evaluate expressions") : Expression.DEFAULT_VALUE;
@@ -208,7 +212,7 @@ export class ExpressionContainer implements IExpressionContainer {
 
 		this.session = session;
 		try {
-			const response = await session.evaluate(expression, stackFrame ? stackFrame.frameId : undefined, context);
+			const response = await session.evaluate(expression, stackFrame ? stackFrame.frameId : undefined, context, location);
 
 			if (response && response.body) {
 				this.value = response.body.result || '';
@@ -218,6 +222,7 @@ export class ExpressionContainer implements IExpressionContainer {
 				this.memoryReference = response.body.memoryReference;
 				this.type = response.body.type || this.type;
 				this.presentationHint = response.body.presentationHint;
+				this.valueLocationReference = response.body.valueLocationReference;
 
 				if (!keepLazyVars && response.body.presentationHint?.lazy) {
 					await this.evaluateLazy();
@@ -253,7 +258,7 @@ export class VisualizedExpression implements IExpression {
 		return Promise.resolve();
 	}
 	getChildren(): Promise<IExpression[]> {
-		return this.visualizer.getVisualizedChildren(this.treeId, this.treeItem.id);
+		return this.visualizer.getVisualizedChildren(this.session, this.treeId, this.treeItem.id);
 	}
 
 	getId(): string {
@@ -273,11 +278,16 @@ export class VisualizedExpression implements IExpression {
 	}
 
 	constructor(
+		private readonly session: IDebugSession | undefined,
 		private readonly visualizer: IDebugVisualizerService,
 		public readonly treeId: string,
 		public readonly treeItem: IDebugVisualizationTreeItem,
 		public readonly original?: Variable,
 	) { }
+
+	public getSession(): IDebugSession | undefined {
+		return this.session;
+	}
 
 	/** Edits the value, sets the {@link errorMessage} and returns false if unsuccessful */
 	public async edit(newValue: string) {
@@ -296,6 +306,9 @@ export class Expression extends ExpressionContainer implements IExpression {
 
 	public available: boolean;
 
+	private readonly _onDidChangeValue = new Emitter<IExpression>();
+	public readonly onDidChangeValue: Event<IExpression> = this._onDidChangeValue.event;
+
 	constructor(public name: string, id = generateUuid()) {
 		super(undefined, undefined, 0, id);
 		this.available = false;
@@ -306,8 +319,12 @@ export class Expression extends ExpressionContainer implements IExpression {
 		}
 	}
 
-	async evaluate(session: IDebugSession | undefined, stackFrame: IStackFrame | undefined, context: string, keepLazyVars?: boolean): Promise<void> {
-		this.available = await this.evaluateExpression(this.name, session, stackFrame, context, keepLazyVars);
+	async evaluate(session: IDebugSession | undefined, stackFrame: IStackFrame | undefined, context: string, keepLazyVars?: boolean, location?: IDebugEvaluatePosition): Promise<void> {
+		const hadDefaultValue = this.value === Expression.DEFAULT_VALUE;
+		this.available = await this.evaluateExpression(this.name, session, stackFrame, context, keepLazyVars, location);
+		if (hadDefaultValue || this.valueChanged) {
+			this._onDidChangeValue.fire(this);
+		}
 	}
 
 	override toString(): string {
@@ -346,8 +363,10 @@ export class Variable extends ExpressionContainer implements IExpression {
 		public readonly available = true,
 		startOfVariables = 0,
 		idDuplicationIndex = '',
+		public readonly declarationLocationReference: number | undefined = undefined,
+		valueLocationReference: number | undefined = undefined,
 	) {
-		super(session, threadId, reference, `variable:${parent.getId()}:${name}:${idDuplicationIndex}`, namedVariables, indexedVariables, memoryReference, startOfVariables, presentationHint);
+		super(session, threadId, reference, `variable:${parent.getId()}:${name}:${idDuplicationIndex}`, namedVariables, indexedVariables, memoryReference, startOfVariables, presentationHint, valueLocationReference);
 		this.value = value || '';
 		this.type = type;
 	}
@@ -540,6 +559,8 @@ export class StackFrame implements IStackFrame {
 	}
 }
 
+const KEEP_SUBTLE_FRAME_AT_TOP_REASONS: readonly string[] = ['breakpoint', 'step', 'function breakpoint'];
+
 export class Thread implements IThread {
 	private callStack: IStackFrame[];
 	private staleCallStack: IStackFrame[];
@@ -578,10 +599,11 @@ export class Thread implements IThread {
 
 	getTopStackFrame(): IStackFrame | undefined {
 		const callStack = this.getCallStack();
+		const stopReason = this.stoppedDetails?.reason;
 		// Allow stack frame without source and with instructionReferencePointer as top stack frame when using disassembly view.
 		const firstAvailableStackFrame = callStack.find(sf => !!(
-			((this.stoppedDetails?.reason === 'instruction breakpoint' || (this.stoppedDetails?.reason === 'step' && this.lastSteppingGranularity === 'instruction')) && sf.instructionPointerReference) ||
-			(sf.source && sf.source.available && !isFrameDeemphasized(sf))));
+			((stopReason === 'instruction breakpoint' || (stopReason === 'step' && this.lastSteppingGranularity === 'instruction')) && sf.instructionPointerReference) ||
+			(sf.source && sf.source.available && (KEEP_SUBTLE_FRAME_AT_TOP_REASONS.includes(stopReason!) || !isFrameDeemphasized(sf)))));
 		return firstAvailableStackFrame;
 	}
 
@@ -1069,9 +1091,13 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		return `${resources.basenameOrAuthority(this.uri)} ${this.lineNumber}`;
 	}
 
-	public setSessionDidTrigger(sessionId: string): void {
-		this.sessionsDidTrigger ??= new Set();
-		this.sessionsDidTrigger.add(sessionId);
+	public setSessionDidTrigger(sessionId: string, didTrigger = true): void {
+		if (didTrigger) {
+			this.sessionsDidTrigger ??= new Set();
+			this.sessionsDidTrigger.add(sessionId);
+		} else {
+			this.sessionsDidTrigger?.delete(sessionId);
+		}
 	}
 
 	public getSessionDidTrigger(sessionId: string): boolean {
@@ -1398,6 +1424,7 @@ export class DebugModel extends Disposable implements IDebugModel {
 	private readonly _onDidChangeBreakpoints = this._register(new Emitter<IBreakpointsChangeEvent | undefined>());
 	private readonly _onDidChangeCallStack = this._register(new Emitter<void>());
 	private readonly _onDidChangeWatchExpressions = this._register(new Emitter<IExpression | undefined>());
+	private readonly _onDidChangeWatchExpressionValue = this._register(new Emitter<IExpression | undefined>());
 	private readonly _breakpointModes = new Map<string, IBreakpointModeInternal>();
 	private breakpoints!: Breakpoint[];
 	private functionBreakpoints!: FunctionBreakpoint[];
@@ -1426,6 +1453,12 @@ export class DebugModel extends Disposable implements IDebugModel {
 			this.watchExpressions = debugStorage.watchExpressions.read(reader);
 			this._onDidChangeWatchExpressions.fire(undefined);
 		}));
+
+		this._register(trackSetChanges(
+			() => new Set(this.watchExpressions),
+			this.onDidChangeWatchExpressions,
+			(we) => we.onDidChangeValue((e) => this._onDidChangeWatchExpressionValue.fire(e)))
+		);
 
 		this.instructionBreakpoints = [];
 		this.sessions = [];
@@ -1492,6 +1525,10 @@ export class DebugModel extends Disposable implements IDebugModel {
 		return this._onDidChangeWatchExpressions.event;
 	}
 
+	get onDidChangeWatchExpressionValue(): Event<IExpression | undefined> {
+		return this._onDidChangeWatchExpressionValue.event;
+	}
+
 	rawUpdate(data: IRawModelUpdate): void {
 		const session = this.sessions.find(p => p.getId() === data.sessionId);
 		if (session) {
@@ -1544,7 +1581,13 @@ export class DebugModel extends Disposable implements IDebugModel {
 			let topCallStack = Promise.resolve();
 			const wholeCallStack = new Promise<void>((c, e) => {
 				topCallStack = thread.fetchCallStack(1).then(() => {
-					if (!this.schedulers.has(thread.getId()) && fetchFullStack) {
+					if (!fetchFullStack) {
+						c();
+						this._onDidChangeCallStack.fire();
+						return;
+					}
+
+					if (!this.schedulers.has(thread.getId())) {
 						const deferred = new DeferredPromise<void>();
 						this.schedulers.set(thread.getId(), {
 							completeDeferred: deferred,

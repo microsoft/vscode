@@ -4,9 +4,9 @@
   responderUsername: "",
   responderAvatarIconUri: undefined,
   initialLocation: "panel",
-  welcomeMessage: undefined,
   requests: [
     {
+      requestId: undefined,
       message: {
         parts: [
           {
@@ -32,7 +32,8 @@
               extensionDisplayName: "",
               locations: [ "panel" ],
               metadata: {  },
-              slashCommands: [  ]
+              slashCommands: [  ],
+              disambiguation: [  ]
             },
             kind: "agent"
           },
@@ -55,10 +56,13 @@
       },
       variableData: { variables: [  ] },
       response: [  ],
+      responseId: undefined,
+      shouldBeRemovedOnSend: undefined,
       result: { errorDetails: { message: "No activated agent with id \"ChatProviderWithUsedContext\"" } },
       followups: undefined,
       isCanceled: false,
       vote: undefined,
+      voteDownReason: undefined,
       agent: {
         name: "ChatProviderWithUsedContext",
         id: "ChatProviderWithUsedContext",
@@ -71,11 +75,14 @@
         extensionDisplayName: "",
         locations: [ "panel" ],
         metadata: {  },
-        slashCommands: [  ]
+        slashCommands: [  ],
+        disambiguation: [  ]
       },
       slashCommand: undefined,
       usedContext: undefined,
-      contentReferences: [  ]
+      contentReferences: [  ],
+      codeCitations: [  ],
+      timestamp: undefined
     }
   ]
 }

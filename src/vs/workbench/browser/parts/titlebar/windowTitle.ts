@@ -3,36 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { dirname, basename } from 'vs/base/common/resources';
-import { ITitleProperties, ITitleVariable } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
-import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { EditorResourceAccessor, Verbosity, SideBySideEditor } from 'vs/workbench/common/editor';
-import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { isWindows, isWeb, isMacintosh, isNative } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { trim } from 'vs/base/common/strings';
-import { IEditorGroupsContainer } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { template } from 'vs/base/common/labels';
-import { ILabelService, Verbosity as LabelVerbosity } from 'vs/platform/label/common/label';
-import { Emitter } from 'vs/base/common/event';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { Schemas } from 'vs/base/common/network';
-import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtualWorkspace';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { getWindowById } from 'vs/base/browser/dom';
-import { CodeWindow } from 'vs/base/browser/window';
+import { localize } from '../../../../nls.js';
+import { dirname, basename } from '../../../../base/common/resources.js';
+import { ITitleProperties, ITitleVariable } from './titlebarPart.js';
+import { IConfigurationService, IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { EditorResourceAccessor, Verbosity, SideBySideEditor } from '../../../common/editor.js';
+import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
+import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { isWindows, isWeb, isMacintosh, isNative } from '../../../../base/common/platform.js';
+import { URI } from '../../../../base/common/uri.js';
+import { trim } from '../../../../base/common/strings.js';
+import { IEditorGroupsContainer } from '../../../services/editor/common/editorGroupsService.js';
+import { template } from '../../../../base/common/labels.js';
+import { ILabelService, Verbosity as LabelVerbosity } from '../../../../platform/label/common/label.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { getVirtualWorkspaceLocation } from '../../../../platform/workspace/common/virtualWorkspace.js';
+import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { getWindowById } from '../../../../base/browser/dom.js';
+import { CodeWindow } from '../../../../base/browser/window.js';
+import { IDecorationsService } from '../../../services/decorations/common/decorations.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 
 const enum WindowSettingNames {
 	titleSeparator = 'window.titleSeparator',
-	title = 'window.title'
+	title = 'window.title',
 }
 
 export const defaultWindowTitle = (() => {
@@ -77,7 +79,9 @@ export class WindowTitle extends Disposable {
 	}
 
 	private title: string | undefined;
+
 	private titleIncludesFocusedView: boolean = false;
+	private titleIncludesEditorState: boolean = false;
 
 	private readonly editorService: IEditorService;
 
@@ -94,14 +98,17 @@ export class WindowTitle extends Disposable {
 		@ILabelService private readonly labelService: ILabelService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IProductService private readonly productService: IProductService,
-		@IViewsService private readonly viewsService: IViewsService
+		@IViewsService private readonly viewsService: IViewsService,
+		@IDecorationsService private readonly decorationsService: IDecorationsService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		super();
 
 		this.editorService = editorService.createScoped(editorGroupsContainer, this._store);
 		this.windowId = targetWindow.vscodeWindowId;
 
-		this.updateTitleIncludesFocusedView();
+		this.checkTitleVariables();
+
 		this.registerListeners();
 	}
 
@@ -123,21 +130,26 @@ export class WindowTitle extends Disposable {
 				this.titleUpdater.schedule();
 			}
 		}));
+		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => this.titleUpdater.schedule()));
 	}
 
 	private onConfigurationChanged(event: IConfigurationChangeEvent): void {
-		if (event.affectsConfiguration(WindowSettingNames.title)) {
-			this.updateTitleIncludesFocusedView();
+		const affectsTitleConfiguration = event.affectsConfiguration(WindowSettingNames.title);
+		if (affectsTitleConfiguration) {
+			this.checkTitleVariables();
 		}
 
-		if (event.affectsConfiguration(WindowSettingNames.title) || event.affectsConfiguration(WindowSettingNames.titleSeparator)) {
+		if (affectsTitleConfiguration || event.affectsConfiguration(WindowSettingNames.titleSeparator)) {
 			this.titleUpdater.schedule();
 		}
 	}
 
-	private updateTitleIncludesFocusedView(): void {
+	private checkTitleVariables(): void {
 		const titleTemplate = this.configurationService.getValue<unknown>(WindowSettingNames.title);
-		this.titleIncludesFocusedView = typeof titleTemplate === 'string' && titleTemplate.includes('${focusedView}');
+		if (typeof titleTemplate === 'string') {
+			this.titleIncludesFocusedView = titleTemplate.includes('${focusedView}');
+			this.titleIncludesEditorState = titleTemplate.includes('${activeEditorState}');
+		}
 	}
 
 	private onActiveEditorChange(): void {
@@ -169,6 +181,11 @@ export class WindowTitle extends Disposable {
 				this.activeEditorListeners.add(textEditorControl.onDidBlurEditorText(() => this.titleUpdater.schedule()));
 				this.activeEditorListeners.add(textEditorControl.onDidFocusEditorText(() => this.titleUpdater.schedule()));
 			}
+		}
+
+		// Apply listener for decorations to track editor state
+		if (this.titleIncludesEditorState) {
+			this.activeEditorListeners.add(this.decorationsService.onDidChangeDecorations(() => this.titleUpdater.schedule()));
 		}
 	}
 
@@ -286,6 +303,7 @@ export class WindowTitle extends Disposable {
 	 * {dirty}: indicator
 	 * {focusedView}: e.g. Terminal
 	 * {separator}: conditional separator
+	 * {activeEditorState}: e.g. Modified
 	 */
 	getWindowTitle(): string {
 		const editor = this.editorService.activeEditor;
@@ -345,6 +363,8 @@ export class WindowTitle extends Disposable {
 		const appName = this.productService.nameLong;
 		const profileName = this.userDataProfileService.currentProfile.isDefault ? '' : this.userDataProfileService.currentProfile.name;
 		const focusedView: string = this.viewsService.getFocusedViewName();
+		const activeEditorState = editorResource ? this.decorationsService.getDecoration(editorResource, false)?.tooltip : undefined;
+
 		const variables: Record<string, string> = {};
 		for (const [contextKey, name] of this.variables) {
 			variables[name] = this.contextKeyService.getContextKeyValue(contextKey) ?? '';
@@ -353,6 +373,10 @@ export class WindowTitle extends Disposable {
 		let titleTemplate = this.configurationService.getValue<string>(WindowSettingNames.title);
 		if (typeof titleTemplate !== 'string') {
 			titleTemplate = defaultWindowTitle;
+		}
+
+		if (!this.titleIncludesEditorState && this.accessibilityService.isScreenReaderOptimized() && this.configurationService.getValue('accessibility.windowTitleOptimized')) {
+			titleTemplate += '${separator}${activeEditorState}';
 		}
 
 		let separator = this.configurationService.getValue<string>(WindowSettingNames.titleSeparator);
@@ -378,11 +402,15 @@ export class WindowTitle extends Disposable {
 			remoteName,
 			profileName,
 			focusedView,
+			activeEditorState,
 			separator: { label: separator }
 		});
 	}
 
 	isCustomTitleFormat(): boolean {
+		if (this.accessibilityService.isScreenReaderOptimized() || this.titleIncludesEditorState) {
+			return true;
+		}
 		const title = this.configurationService.inspect<string>(WindowSettingNames.title);
 		const titleSeparator = this.configurationService.inspect<string>(WindowSettingNames.titleSeparator);
 

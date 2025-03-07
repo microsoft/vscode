@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as es from 'event-stream';
-import * as fs from 'fs';
-import * as gulp from 'gulp';
-import * as path from 'path';
+import es from 'event-stream';
+import fs from 'fs';
+import gulp from 'gulp';
+import path from 'path';
 import * as monacodts from './monaco-api';
 import * as nls from './nls';
 import { createReporter } from './reporter';
 import * as util from './util';
-import * as fancyLog from 'fancy-log';
-import * as ansiColors from 'ansi-colors';
-import * as os from 'os';
-import ts = require('typescript');
-import * as File from 'vinyl';
+import fancyLog from 'fancy-log';
+import ansiColors from 'ansi-colors';
+import os from 'os';
+import File from 'vinyl';
 import * as task from './task';
 import { Mangler } from './mangle/index';
 import { RawSourceMap } from 'source-map';
 import { gulpPostcss } from './postcss';
+import ts = require('typescript');
 const watch = require('./watch');
 
 
@@ -42,7 +42,14 @@ function getTypeScriptCompilerOptions(src: string): ts.CompilerOptions {
 	return options;
 }
 
-function createCompile(src: string, build: boolean, emitError: boolean, transpileOnly: boolean | { swc: boolean }) {
+interface ICompileTaskOptions {
+	readonly build: boolean;
+	readonly emitError: boolean;
+	readonly transpileOnly: boolean | { esbuild: boolean };
+	readonly preserveEnglish: boolean;
+}
+
+function createCompile(src: string, { build, emitError, transpileOnly, preserveEnglish }: ICompileTaskOptions) {
 	const tsb = require('./tsb') as typeof import('./tsb');
 	const sourcemaps = require('gulp-sourcemaps') as typeof import('gulp-sourcemaps');
 
@@ -56,7 +63,7 @@ function createCompile(src: string, build: boolean, emitError: boolean, transpil
 	const compilation = tsb.create(projectPath, overrideOptions, {
 		verbose: false,
 		transpileOnly: Boolean(transpileOnly),
-		transpileWithSwc: typeof transpileOnly !== 'boolean' && transpileOnly.swc
+		transpileWithSwc: typeof transpileOnly !== 'boolean' && transpileOnly.esbuild
 	}, err => reporter(err));
 
 	function pipeline(token?: util.ICancellationToken) {
@@ -79,7 +86,7 @@ function createCompile(src: string, build: boolean, emitError: boolean, transpil
 			.pipe(util.loadSourcemaps())
 			.pipe(compilation(token))
 			.pipe(noDeclarationsFilter)
-			.pipe(util.$if(build, nls.nls()))
+			.pipe(util.$if(build, nls.nls({ preserveEnglish })))
 			.pipe(noDeclarationsFilter.restore)
 			.pipe(util.$if(!transpileOnly, sourcemaps.write('.', {
 				addComment: false,
@@ -98,11 +105,11 @@ function createCompile(src: string, build: boolean, emitError: boolean, transpil
 	return pipeline;
 }
 
-export function transpileTask(src: string, out: string, swc: boolean): task.StreamTask {
+export function transpileTask(src: string, out: string, esbuild: boolean): task.StreamTask {
 
 	const task = () => {
 
-		const transpile = createCompile(src, false, true, { swc });
+		const transpile = createCompile(src, { build: false, emitError: true, transpileOnly: { esbuild }, preserveEnglish: false });
 		const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
 
 		return srcPipe
@@ -114,7 +121,7 @@ export function transpileTask(src: string, out: string, swc: boolean): task.Stre
 	return task;
 }
 
-export function compileTask(src: string, out: string, build: boolean, options: { disableMangle?: boolean } = {}): task.StreamTask {
+export function compileTask(src: string, out: string, build: boolean, options: { disableMangle?: boolean; preserveEnglish?: boolean } = {}): task.StreamTask {
 
 	const task = () => {
 
@@ -122,7 +129,7 @@ export function compileTask(src: string, out: string, build: boolean, options: {
 			throw new Error('compilation requires 4GB of RAM');
 		}
 
-		const compile = createCompile(src, build, true, false);
+		const compile = createCompile(src, { build, emitError: true, transpileOnly: false, preserveEnglish: !!options.preserveEnglish });
 		const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
 		const generator = new MonacoGenerator(false);
 		if (src === 'src') {
@@ -163,13 +170,13 @@ export function compileTask(src: string, out: string, build: boolean, options: {
 	return task;
 }
 
-export function watchTask(out: string, build: boolean): task.StreamTask {
+export function watchTask(out: string, build: boolean, srcPath: string = 'src'): task.StreamTask {
 
 	const task = () => {
-		const compile = createCompile('src', build, false, false);
+		const compile = createCompile(srcPath, { build, emitError: false, transpileOnly: false, preserveEnglish: false });
 
-		const src = gulp.src('src/**', { base: 'src' });
-		const watchSrc = watch('src/**', { base: 'src', readDelay: 200 });
+		const src = gulp.src(`${srcPath}/**`, { base: srcPath });
+		const watchSrc = watch(`${srcPath}/**`, { base: srcPath, readDelay: 200 });
 
 		const generator = new MonacoGenerator(true);
 		generator.execute();
@@ -275,7 +282,7 @@ function generateApiProposalNames() {
 	let eol: string;
 
 	try {
-		const src = fs.readFileSync('src/vs/workbench/services/extensions/common/extensionsApiProposals.ts', 'utf-8');
+		const src = fs.readFileSync('src/vs/platform/extensions/common/extensionsApiProposals.ts', 'utf-8');
 		const match = /\r?\n/m.exec(src);
 		eol = match ? match[0] : os.EOL;
 	} catch {
@@ -283,7 +290,8 @@ function generateApiProposalNames() {
 	}
 
 	const pattern = /vscode\.proposed\.([a-zA-Z\d]+)\.d\.ts$/;
-	const proposalNames = new Set<string>();
+	const versionPattern = /^\s*\/\/\s*version\s*:\s*(\d+)\s*$/mi;
+	const proposals = new Map<string, { proposal: string; version?: number }>();
 
 	const input = es.through();
 	const output = input
@@ -292,11 +300,22 @@ function generateApiProposalNames() {
 			const name = path.basename(f.path);
 			const match = pattern.exec(name);
 
-			if (match) {
-				proposalNames.add(match[1]);
+			if (!match) {
+				return;
 			}
+
+			const proposalName = match[1];
+
+			const contents = f.contents.toString('utf8');
+			const versionMatch = versionPattern.exec(contents);
+			const version = versionMatch ? versionMatch[1] : undefined;
+
+			proposals.set(proposalName, {
+				proposal: `https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.${proposalName}.d.ts`,
+				version: version ? parseInt(version) : undefined
+			});
 		}, function () {
-			const names = [...proposalNames.values()].sort();
+			const names = [...proposals.keys()].sort();
 			const contents = [
 				'/*---------------------------------------------------------------------------------------------',
 				' *  Copyright (c) Microsoft Corporation. All rights reserved.',
@@ -305,15 +324,19 @@ function generateApiProposalNames() {
 				'',
 				'// THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.',
 				'',
-				'export const allApiProposals = Object.freeze({',
-				`${names.map(name => `\t${name}: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.${name}.d.ts'`).join(`,${eol}`)}`,
-				'});',
-				'export type ApiProposalName = keyof typeof allApiProposals;',
+				'const _allApiProposals = {',
+				`${names.map(proposalName => {
+					const proposal = proposals.get(proposalName)!;
+					return `\t${proposalName}: {${eol}\t\tproposal: '${proposal.proposal}',${eol}${proposal.version ? `\t\tversion: ${proposal.version}${eol}` : ''}\t}`;
+				}).join(`,${eol}`)}`,
+				'};',
+				'export const allApiProposals = Object.freeze<{ [proposalName: string]: Readonly<{ proposal: string; version?: number }> }>(_allApiProposals);',
+				'export type ApiProposalName = keyof typeof _allApiProposals;',
 				'',
 			].join(eol);
 
 			this.emit('data', new File({
-				path: 'vs/workbench/services/extensions/common/extensionsApiProposals.ts',
+				path: 'vs/platform/extensions/common/extensionsApiProposals.ts',
 				contents: Buffer.from(contents)
 			}));
 			this.emit('end');

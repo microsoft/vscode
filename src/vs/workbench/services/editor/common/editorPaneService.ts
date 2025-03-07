@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWillInstantiateEditorPaneEvent } from 'vs/workbench/common/editor';
-import { Event } from 'vs/base/common/event';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IWillInstantiateEditorPaneEvent } from '../../../common/editor.js';
+import { Event } from '../../../../base/common/event.js';
 
 export const IEditorPaneService = createDecorator<IEditorPaneService>('editorPaneService');
 

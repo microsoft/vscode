@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedError } from 'vs/base/common/errors';
-import * as strings from 'vs/base/common/strings';
-import { CharacterPair, EnterAction, IndentAction, OnEnterRule } from 'vs/editor/common/languages/languageConfiguration';
-import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import * as strings from '../../../../base/common/strings.js';
+import { CharacterPair, EnterAction, IndentAction, OnEnterRule } from '../languageConfiguration.js';
+import { EditorAutoIndentStrategy } from '../../config/editorOptions.js';
 
 export interface IOnEnterSupportOptions {
 	brackets?: CharacterPair[];

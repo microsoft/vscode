@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { getMediaOrTextMime } from 'vs/base/common/mime';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { FileOperationError, FileOperationResult, IFileContent, IFileService } from 'vs/platform/files/common/files';
-import { IRemoteResourceProvider, IResourceUriProvider } from 'vs/workbench/browser/web.api';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { getMediaOrTextMime } from '../../../../base/common/mime.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { FileOperationError, FileOperationResult, IFileContent, IFileService } from '../../../../platform/files/common/files.js';
+import { IRemoteResourceProvider, IResourceUriProvider } from '../../../browser/web.api.js';
 
 export class BrowserRemoteResourceLoader extends Disposable {
 	constructor(

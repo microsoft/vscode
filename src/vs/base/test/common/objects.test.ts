@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import * as objects from 'vs/base/common/objects';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import * as objects from '../../common/objects.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 const check = (one: any, other: any, msg: string) => {
 	assert(objects.equals(one, other), msg);

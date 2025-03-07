@@ -102,6 +102,12 @@ declare module 'vscode' {
 		 * were passed in the {@link tests.runTests} method.
 		 */
 		readonly results: ReadonlyArray<Readonly<TestResultSnapshot>>;
+
+		/**
+		 * Gets coverage information for a URI. This function is available only
+		 * when a test run reported coverage.
+		 */
+		getDetailedCoverage?(uri: Uri, token?: CancellationToken): Thenable<FileCoverageDetail[]>;
 	}
 
 	/**

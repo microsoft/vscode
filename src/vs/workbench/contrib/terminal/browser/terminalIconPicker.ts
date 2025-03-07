@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension, getActiveDocument } from 'vs/base/browser/dom';
-import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { codiconsLibrary } from 'vs/base/common/codiconsLibrary';
-import { Lazy } from 'vs/base/common/lazy';
-import { Disposable } from 'vs/base/common/lifecycle';
-import type { ThemeIcon } from 'vs/base/common/themables';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { getIconRegistry, IconContribution } from 'vs/platform/theme/common/iconRegistry';
-import { WorkbenchIconSelectBox } from 'vs/workbench/services/userDataProfile/browser/iconSelectBox';
+import { Dimension, getActiveDocument } from '../../../../base/browser/dom.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
+import { codiconsLibrary } from '../../../../base/common/codiconsLibrary.js';
+import { Lazy } from '../../../../base/common/lazy.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import type { ThemeIcon } from '../../../../base/common/themables.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { getIconRegistry, IconContribution } from '../../../../platform/theme/common/iconRegistry.js';
+import { WorkbenchIconSelectBox } from '../../../services/userDataProfile/browser/iconSelectBox.js';
 
 const icons = new Lazy<IconContribution[]>(() => {
 	const iconDefinitions = getIconRegistry().getIcons();

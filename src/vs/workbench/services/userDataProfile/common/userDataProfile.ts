@@ -3,20 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isUndefined } from 'vs/base/common/types';
-import { Event } from 'vs/base/common/event';
-import { localize, localize2 } from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IUserDataProfile, IUserDataProfileOptions, IUserDataProfileUpdateOptions, ProfileResourceType, ProfileResourceTypeFlags } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { URI } from 'vs/base/common/uri';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { Codicon } from 'vs/base/common/codicons';
-import { ITreeItem, ITreeItemLabel } from 'vs/workbench/common/views';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IProductService } from 'vs/platform/product/common/productService';
+import { isUndefined } from '../../../../base/common/types.js';
+import { Event } from '../../../../base/common/event.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IUserDataProfile, IUserDataProfileOptions, IUserDataProfileUpdateOptions, ProfileResourceType, ProfileResourceTypeFlags } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { URI } from '../../../../base/common/uri.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ITreeItem, ITreeItemLabel } from '../../../common/views.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 
 export interface DidChangeUserDataProfileEvent {
 	readonly previous: IUserDataProfile;
@@ -30,7 +29,6 @@ export interface IUserDataProfileService {
 	readonly currentProfile: IUserDataProfile;
 	readonly onDidChangeCurrentProfile: Event<DidChangeUserDataProfileEvent>;
 	updateCurrentProfile(currentProfile: IUserDataProfile): Promise<void>;
-	getShortName(profile: IUserDataProfile): string;
 }
 
 export interface IProfileTemplateInfo {
@@ -49,10 +47,12 @@ export interface IUserDataProfileManagementService {
 	updateProfile(profile: IUserDataProfile, updateOptions: IUserDataProfileUpdateOptions): Promise<IUserDataProfile>;
 	switchProfile(profile: IUserDataProfile): Promise<void>;
 	getBuiltinProfileTemplates(): Promise<IProfileTemplateInfo[]>;
-
+	getDefaultProfileToUse(): IUserDataProfile;
 }
 
 export interface IUserDataProfileTemplate {
+	readonly name: string;
+	readonly icon?: string;
 	readonly settings?: string;
 	readonly keybindings?: string;
 	readonly tasks?: string;
@@ -79,15 +79,20 @@ export function toUserDataProfileUri(path: string, productService: IProductServi
 	});
 }
 
+export const PROFILE_URL_AUTHORITY_PREFIX = 'profile-';
+export function isProfileURL(uri: URI): boolean {
+	return uri.authority === PROFILE_URL_AUTHORITY || new RegExp(`^${PROFILE_URL_AUTHORITY_PREFIX}`).test(uri.authority);
+}
+
 export interface IUserDataProfileCreateOptions extends IUserDataProfileOptions {
+	readonly name?: string;
 	readonly resourceTypeFlags?: ProfileResourceTypeFlags;
-	readonly donotSwitch?: boolean;
 }
 
 export interface IProfileImportOptions extends IUserDataProfileCreateOptions {
 	readonly name?: string;
 	readonly icon?: string;
-	readonly mode?: 'preview' | 'apply' | 'both';
+	readonly mode?: 'apply';
 }
 
 export const IUserDataProfileImportExportService = createDecorator<IUserDataProfileImportExportService>('IUserDataProfileImportExportService');
@@ -98,15 +103,10 @@ export interface IUserDataProfileImportExportService {
 	unregisterProfileContentHandler(id: string): void;
 
 	resolveProfileTemplate(uri: URI): Promise<IUserDataProfileTemplate | null>;
-	exportProfile(): Promise<void>;
-	exportProfile2(profile: IUserDataProfile): Promise<void>;
-	importProfile(uri: URI, options?: IProfileImportOptions): Promise<void>;
-	showProfileContents(): Promise<void>;
-	createProfile(from?: IUserDataProfile | URI): Promise<void>;
-	createFromProfile(from: IUserDataProfile, name: string, options?: IUserDataProfileCreateOptions): Promise<void>;
-	editProfile(profile: IUserDataProfile): Promise<void>;
+	exportProfile(profile: IUserDataProfile, exportFlags?: ProfileResourceTypeFlags): Promise<void>;
+	createFromProfile(from: IUserDataProfile, options: IUserDataProfileCreateOptions, token: CancellationToken): Promise<IUserDataProfile | undefined>;
+	createProfileFromTemplate(profileTemplate: IUserDataProfileTemplate, options: IUserDataProfileCreateOptions, token: CancellationToken): Promise<IUserDataProfile | undefined>;
 	createTroubleshootProfile(): Promise<void>;
-	setProfile(profile: IUserDataProfileTemplate): Promise<void>;
 }
 
 export interface IProfileResourceInitializer {
@@ -145,15 +145,10 @@ export interface IUserDataProfileContentHandler {
 
 export const defaultUserDataProfileIcon = registerIcon('defaultProfile-icon', Codicon.settings, localize('defaultProfileIcon', 'Icon for Default Profile.'));
 
-export const ProfilesMenu = new MenuId('Profiles');
-export const MANAGE_PROFILES_ACTION_ID = 'workbench.profiles.actions.manage';
 export const PROFILES_TITLE = localize2('profiles', 'Profiles');
 export const PROFILES_CATEGORY = { ...PROFILES_TITLE };
 export const PROFILE_EXTENSION = 'code-profile';
 export const PROFILE_FILTER = [{ name: localize('profile', "Profile"), extensions: [PROFILE_EXTENSION] }];
-export const PROFILES_ENABLEMENT_CONTEXT = new RawContextKey<boolean>('profiles.enabled', true);
 export const CURRENT_PROFILE_CONTEXT = new RawContextKey<string>('currentProfile', '');
 export const IS_CURRENT_PROFILE_TRANSIENT_CONTEXT = new RawContextKey<boolean>('isCurrentProfileTransient', false);
 export const HAS_PROFILES_CONTEXT = new RawContextKey<boolean>('hasProfiles', false);
-export const IS_PROFILE_EXPORT_IN_PROGRESS_CONTEXT = new RawContextKey<boolean>('isProfileExportInProgress', false);
-export const IS_PROFILE_IMPORT_IN_PROGRESS_CONTEXT = new RawContextKey<boolean>('isProfileImportInProgress', false);

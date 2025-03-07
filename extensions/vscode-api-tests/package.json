@@ -7,16 +7,14 @@
   "enabledApiProposals": [
     "activeComment",
     "authSession",
-    "defaultChatParticipant",
     "chatParticipantPrivate",
-    "chatVariableResolver",
-    "contribViewsRemote",
+    "chatProvider",
     "contribStatusBarItems",
-    "createFileSystemWatcher",
+    "contribViewsRemote",
     "customEditorMove",
+    "defaultChatParticipant",
     "diffCommand",
     "documentFiltersExclusive",
-    "documentPaste",
     "editorInsets",
     "embeddings",
     "extensionRuntime",
@@ -27,7 +25,8 @@
     "findTextInFiles",
     "fsChunks",
     "interactive",
-    "mappedEditsProvider",
+    "languageStatusText",
+    "nativeWindowHandle",
     "notebookCellExecutionState",
     "notebookDeprecated",
     "notebookLiveShare",
@@ -35,25 +34,24 @@
     "notebookMime",
     "portsAttributes",
     "quickPickSortByLabel",
-    "languageStatusText",
     "resolvers",
     "scmActionButton",
     "scmSelectedProvider",
     "scmTextDocument",
     "scmValidation",
     "taskPresentationGroup",
+    "telemetry",
     "terminalDataWriteEvent",
     "terminalDimensions",
-    "terminalShellIntegration",
-    "tunnels",
     "testObserver",
+    "textDocumentEncoding",
     "textSearchProvider",
     "timeline",
     "tokenInformation",
     "treeViewActiveItem",
     "treeViewReveal",
-    "workspaceTrust",
-    "telemetry"
+    "tunnels",
+    "workspaceTrust"
   ],
   "private": true,
   "activationEvents": [],
@@ -63,6 +61,11 @@
   },
   "icon": "media/icon.png",
   "contributes": {
+    "languageModels": [
+      {
+        "vendor": "test-lm-vendor"
+      }
+    ],
     "chatParticipants": [
       {
         "id": "api-test.participant",
@@ -103,6 +106,13 @@
           "type": "string"
         },
         "farboo.get": {
+          "type": "string",
+          "default": "get-prop"
+        },
+        "integration-test.http.proxy": {
+          "type": "string"
+        },
+        "integration-test.http.proxyAuth": {
           "type": "string",
           "default": "get-prop"
         }
@@ -242,7 +252,10 @@
   },
   "devDependencies": {
     "@types/mocha": "^9.1.1",
-    "@types/node": "20.x"
+    "@types/node": "20.x",
+    "@types/node-forge": "^1.3.11",
+    "node-forge": "^1.3.1",
+    "straightforward": "^4.2.2"
   },
   "repository": {
     "type": "git",

@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IStatusbarEntry, ShowTooltipCommand, StatusbarEntryKinds } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ThemeColor } from 'vs/base/common/themables';
-import { isThemeColor } from 'vs/editor/common/editorCommon';
-import { addDisposableListener, EventType, hide, show, append, EventHelper } from 'vs/base/browser/dom';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { assertIsDefined } from 'vs/base/common/types';
-import { Command } from 'vs/editor/common/languages';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { renderIcon, renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { spinningLoading, syncing } from 'vs/platform/theme/common/iconRegistry';
-import { isMarkdownString, markdownStringEqual } from 'vs/base/common/htmlContent';
-import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { Gesture, EventType as TouchEventType } from 'vs/base/browser/touch';
-import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { SimpleIconLabel } from '../../../../base/browser/ui/iconLabel/simpleIconLabel.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IStatusbarEntry, isTooltipWithCommands, ShowTooltipCommand, StatusbarEntryKinds, TooltipContent } from '../../../services/statusbar/browser/statusbar.js';
+import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from '../../../../base/common/actions.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { ThemeColor } from '../../../../base/common/themables.js';
+import { isThemeColor } from '../../../../editor/common/editorCommon.js';
+import { addDisposableListener, EventType, hide, show, append, EventHelper, $ } from '../../../../base/browser/dom.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { assertIsDefined } from '../../../../base/common/types.js';
+import { Command } from '../../../../editor/common/languages.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { renderIcon, renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { spinningLoading, syncing } from '../../../../platform/theme/common/iconRegistry.js';
+import { isMarkdownString, markdownStringEqual } from '../../../../base/common/htmlContent.js';
+import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
+import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
+import { IManagedHover, IManagedHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 export class StatusbarEntryItem extends Disposable {
 
@@ -39,10 +39,8 @@ export class StatusbarEntryItem extends Disposable {
 	private readonly commandMouseListener = this._register(new MutableDisposable());
 	private readonly commandTouchListener = this._register(new MutableDisposable());
 	private readonly commandKeyboardListener = this._register(new MutableDisposable());
-	private readonly focusListener = this._register(new MutableDisposable());
-	private readonly focusOutListener = this._register(new MutableDisposable());
 
-	private hover: IUpdatableHover | undefined = undefined;
+	private hover: IManagedHover | undefined = undefined;
 
 	readonly labelContainer: HTMLElement;
 	readonly beakContainer: HTMLElement;
@@ -68,10 +66,10 @@ export class StatusbarEntryItem extends Disposable {
 		super();
 
 		// Label Container
-		this.labelContainer = document.createElement('a');
-		this.labelContainer.tabIndex = -1; // allows screen readers to read title, but still prevents tab focus.
-		this.labelContainer.setAttribute('role', 'button');
-		this.labelContainer.className = 'statusbar-item-label';
+		this.labelContainer = $('a.statusbar-item-label', {
+			role: 'button',
+			tabIndex: -1 // allows screen readers to read title, but still prevents tab focus.
+		});
 		this._register(Gesture.addTarget(this.labelContainer)); // enable touch
 
 		// Label (with support for progress)
@@ -79,8 +77,7 @@ export class StatusbarEntryItem extends Disposable {
 		this.container.appendChild(this.labelContainer);
 
 		// Beak Container
-		this.beakContainer = document.createElement('div');
-		this.beakContainer.className = 'status-bar-item-beak-container';
+		this.beakContainer = $('.status-bar-item-beak-container');
 		this.container.appendChild(this.beakContainer);
 
 		this.update(entry);
@@ -118,21 +115,26 @@ export class StatusbarEntryItem extends Disposable {
 
 		// Update: Hover
 		if (!this.entry || !this.isEqualTooltip(this.entry, entry)) {
-			const hoverContents = isMarkdownString(entry.tooltip) ? { markdown: entry.tooltip, markdownNotSupportedFallback: undefined } : entry.tooltip;
-			if (this.hover) {
-				this.hover.update(hoverContents);
+			let hoverOptions: IManagedHoverOptions | undefined;
+			let hoverTooltip: TooltipContent | undefined;
+			if (isTooltipWithCommands(entry.tooltip)) {
+				hoverTooltip = entry.tooltip.content;
+				hoverOptions = {
+					actions: entry.tooltip.commands.map(command => ({
+						commandId: command.id,
+						label: command.title,
+						run: () => this.executeCommand(command)
+					}))
+				};
 			} else {
-				this.hover = this._register(this.hoverService.setupUpdatableHover(this.hoverDelegate, this.container, hoverContents));
+				hoverTooltip = entry.tooltip;
 			}
-			if (entry.command !== ShowTooltipCommand /* prevents flicker on click */) {
-				this.focusListener.value = addDisposableListener(this.labelContainer, EventType.FOCUS, e => {
-					EventHelper.stop(e);
-					this.hover?.show(false);
-				});
-				this.focusOutListener.value = addDisposableListener(this.labelContainer, EventType.FOCUS_OUT, e => {
-					EventHelper.stop(e);
-					this.hover?.hide();
-				});
+
+			const hoverContents = isMarkdownString(hoverTooltip) ? { markdown: hoverTooltip, markdownNotSupportedFallback: undefined } : hoverTooltip;
+			if (this.hover) {
+				this.hover.update(hoverContents, hoverOptions);
+			} else {
+				this.hover = this._register(this.hoverService.setupManagedHover(this.hoverDelegate, this.container, hoverContents, hoverOptions));
 			}
 		}
 
@@ -250,8 +252,8 @@ export class StatusbarEntryItem extends Disposable {
 			if (isThemeColor(color)) {
 				colorResult = this.themeService.getColorTheme().getColor(color.id)?.toString();
 
-				const listener = this.themeService.onDidColorThemeChange(theme => {
-					const colorValue = theme.getColor(color.id)?.toString();
+				const listener = this.themeService.onDidColorThemeChange(e => {
+					const colorValue = e.theme.getColor(color.id)?.toString();
 
 					if (isBackground) {
 						container.style.backgroundColor = colorValue ?? '';
@@ -320,7 +322,7 @@ class StatusBarCodiconLabel extends SimpleIconLabel {
 			// If we have text to show, add a space to separate from progress
 			let textContent = text ?? '';
 			if (textContent) {
-				textContent = ` ${textContent}`;
+				textContent = `\u00A0${textContent}`; // prepend non-breaking space
 			}
 
 			// Append new elements

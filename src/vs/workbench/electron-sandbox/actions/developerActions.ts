@@ -3,20 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize2 } from 'vs/nls';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IsDevelopmentContext } from 'vs/platform/contextkey/common/contextkeys';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IFileService } from 'vs/platform/files/common/files';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { URI } from 'vs/base/common/uri';
-import { getActiveWindow } from 'vs/base/browser/dom';
+import { localize2 } from '../../../nls.js';
+import { INativeHostService } from '../../../platform/native/common/native.js';
+import { IEditorService } from '../../services/editor/common/editorService.js';
+import { Action2, MenuId } from '../../../platform/actions/common/actions.js';
+import { Categories } from '../../../platform/action/common/actionCommonCategories.js';
+import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
+import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
+import { KeybindingWeight } from '../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IsDevelopmentContext } from '../../../platform/contextkey/common/contextkeys.js';
+import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
+import { INativeWorkbenchEnvironmentService } from '../../services/environment/electron-sandbox/environmentService.js';
+import { URI } from '../../../base/common/uri.js';
+import { getActiveWindow } from '../../../base/browser/dom.js';
 
 export class ToggleDevToolsAction extends Action2 {
 
@@ -89,8 +88,8 @@ export class OpenUserDataFolderAction extends Action2 {
 
 	constructor() {
 		super({
-			id: 'workbench.action.openUserDataFolder',
-			title: localize2('openUserDataFolder', 'Open User Data Folder'),
+			id: 'workbench.action.revealUserDataFolder',
+			title: localize2('revealUserDataFolder', 'Reveal User Data Folder'),
 			category: Categories.Developer,
 			f1: true
 		});
@@ -98,19 +97,25 @@ export class OpenUserDataFolderAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const nativeHostService = accessor.get(INativeHostService);
-		const fileService = accessor.get(IFileService);
 		const environmentService = accessor.get(INativeWorkbenchEnvironmentService);
 
-		const userDataHome = URI.file(environmentService.userDataPath);
-		const file = await fileService.resolve(userDataHome);
+		return nativeHostService.showItemInFolder(URI.file(environmentService.userDataPath).fsPath);
+	}
+}
 
-		let itemToShow: URI;
-		if (file.children && file.children.length > 0) {
-			itemToShow = file.children[0].resource;
-		} else {
-			itemToShow = userDataHome;
-		}
+export class ShowGPUInfoAction extends Action2 {
 
-		return nativeHostService.showItemInFolder(itemToShow.fsPath);
+	constructor() {
+		super({
+			id: 'workbench.action.showGPUInfo',
+			title: localize2('showGPUInfo', 'Show GPU Info'),
+			category: Categories.Developer,
+			f1: true
+		});
+	}
+
+	run(accessor: ServicesAccessor) {
+		const nativeHostService = accessor.get(INativeHostService);
+		nativeHostService.openGPUInfoWindow();
 	}
 }

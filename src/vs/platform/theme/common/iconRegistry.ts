@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Codicon } from 'vs/base/common/codicons';
-import { getCodiconFontCharacters } from 'vs/base/common/codiconsUtil';
-import { ThemeIcon, IconIdentifier } from 'vs/base/common/themables';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import { isString } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import * as platform from 'vs/platform/registry/common/platform';
+import { RunOnceScheduler } from '../../../base/common/async.js';
+import { Codicon } from '../../../base/common/codicons.js';
+import { getCodiconFontCharacters } from '../../../base/common/codiconsUtil.js';
+import { ThemeIcon, IconIdentifier } from '../../../base/common/themables.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { IJSONSchema, IJSONSchemaMap } from '../../../base/common/jsonSchema.js';
+import { isString } from '../../../base/common/types.js';
+import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
+import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../jsonschemas/common/jsonContributionRegistry.js';
+import * as platform from '../../registry/common/platform.js';
 
 //  ------ API types
 
@@ -26,15 +26,15 @@ export const Extensions = {
 export type IconDefaults = ThemeIcon | IconDefinition;
 
 export interface IconDefinition {
-	font?: IconFontContribution; // undefined for the default font (codicon)
-	fontCharacter: string;
+	readonly font?: IconFontContribution; // undefined for the default font (codicon)
+	readonly fontCharacter: string;
 }
 
 
 export interface IconContribution {
 	readonly id: string;
 	description: string | undefined;
-	deprecationMessage?: string;
+	readonly deprecationMessage?: string;
 	readonly defaults: IconDefaults;
 }
 
@@ -145,6 +145,17 @@ export interface IIconRegistry {
 	getIconFont(id: string): IconFontDefinition | undefined;
 }
 
+// regexes for validation of font properties
+
+export const fontIdRegex = /^([\w_-]+)$/;
+export const fontStyleRegex = /^(normal|italic|(oblique[ \w\s-]+))$/;
+export const fontWeightRegex = /^(normal|bold|lighter|bolder|(\d{0-1000}))$/;
+export const fontSizeRegex = /^([\w_.%+-]+)$/;
+export const fontFormatRegex = /^woff|woff2|truetype|opentype|embedded-opentype|svg$/;
+export const fontColorRegex = /^#[0-9a-fA-F]{0,6}$/;
+
+export const fontIdErrorMessage = localize('schema.fontId.formatError', 'The font ID must only contain letters, numbers, underscores and dashes.');
+
 class IconRegistry implements IIconRegistry {
 
 	private readonly _onDidChange = new Emitter<void>();
@@ -156,7 +167,7 @@ class IconRegistry implements IIconRegistry {
 			icons: {
 				type: 'object',
 				properties: {
-					fontId: { type: 'string', description: localize('iconDefinition.fontId', 'The id of the font to use. If not set, the font that is defined first is used.') },
+					fontId: { type: 'string', description: localize('iconDefinition.fontId', 'The id of the font to use. If not set, the font that is defined first is used.'), pattern: fontIdRegex.source, patternErrorMessage: fontIdErrorMessage },
 					fontCharacter: { type: 'string', description: localize('iconDefinition.fontCharacter', 'The font character associated with the icon definition.') }
 				},
 				additionalProperties: false,
@@ -317,7 +328,6 @@ iconRegistry.onDidChange(() => {
 		delayer.schedule();
 	}
 });
-
 
 //setTimeout(_ => console.log(iconRegistry.toString()), 5000);
 

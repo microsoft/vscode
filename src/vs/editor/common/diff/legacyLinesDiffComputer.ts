@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { IDiffChange, ISequence, LcsDiff, IDiffResult } from 'vs/base/common/diff/diff';
-import { ILinesDiffComputer, ILinesDiffComputerOptions, LinesDiff } from 'vs/editor/common/diff/linesDiffComputer';
-import { RangeMapping, DetailedLineRangeMapping } from './rangeMapping';
-import * as strings from 'vs/base/common/strings';
-import { Range } from 'vs/editor/common/core/range';
-import { assertFn, checkAdjacentItems } from 'vs/base/common/assert';
-import { LineRange } from 'vs/editor/common/core/lineRange';
+import { CharCode } from '../../../base/common/charCode.js';
+import { IDiffChange, ISequence, LcsDiff, IDiffResult } from '../../../base/common/diff/diff.js';
+import { ILinesDiffComputer, ILinesDiffComputerOptions, LinesDiff } from './linesDiffComputer.js';
+import { RangeMapping, DetailedLineRangeMapping } from './rangeMapping.js';
+import * as strings from '../../../base/common/strings.js';
+import { Range } from '../core/range.js';
+import { assertFn, checkAdjacentItems } from '../../../base/common/assert.js';
+import { LineRange } from '../core/lineRange.js';
 
 const MINIMUM_MATCHING_CHARACTER_LENGTH = 3;
 

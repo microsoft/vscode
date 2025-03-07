@@ -1,0 +1,108 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.pane-body.chat-view-welcome-visible {
+	& > .interactive-session {
+		display: none;
+	}
+
+	& > .chat-view-welcome {
+		display: flex;
+	}
+}
+
+/* Container for chat widget welcome message */
+.interactive-session .chat-welcome-view-container {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	overflow: hidden;
+}
+
+/* Container for ChatViewPane welcome view */
+.pane-body > .chat-view-welcome {
+	flex-direction: column;
+	justify-content: center;
+	overflow: hidden;
+	height: 100%;
+	display: none;
+}
+
+div.chat-welcome-view {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+
+	& > .chat-welcome-view-icon {
+		min-height: 48px;
+	}
+
+	& > .chat-welcome-view-icon .codicon {
+		font-size: 40px;
+	}
+
+	& > .chat-welcome-view-title {
+		font-size: 24px;
+		margin-top: 5px;
+		font-weight: 500;
+		text-align: center;
+		line-height: normal;
+	}
+
+	& > .chat-welcome-view-indicator-container {
+		display: flex;
+		flex-wrap: wrap;
+		margin-top: 5px;
+		gap: 9px;
+		justify-content: center;
+
+		& > .chat-welcome-view-indicator {
+			font-size: 11px;
+			color: var(--vscode-badge-foreground);
+			background: var(--vscode-badge-background);
+			padding: 1px 8px;
+			border-radius: 14px;
+		}
+	}
+
+	& > .chat-welcome-view-message {
+		text-align: center;
+		max-width: 350px;
+		padding: 0 20px;
+		margin-top: 10px;
+
+		a {
+			color: var(--vscode-textLink-foreground);
+		}
+	}
+
+	.monaco-button {
+		display: inline-block;
+		width: initial;
+		padding: 4px 7px;
+	}
+
+	& > .chat-welcome-view-tips {
+		max-width: 250px;
+		margin: 10px 5px 0px;
+
+		.rendered-markdown {
+			gap: 6px;
+			display: flex;
+			align-items: start;
+			flex-direction: column;
+		}
+
+		.rendered-markdown p {
+			display: flex;
+			gap: 6px;
+			margin: 6px 0 0 0;
+
+			.codicon {
+				padding-top: 1px;
+			}
+		}
+	}
+}

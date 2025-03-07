@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { escape } from 'vs/base/common/strings';
-import { localize } from 'vs/nls';
+import { escape } from '../../../../base/common/strings.js';
+import { localize } from '../../../../nls.js';
 
 const sendSystemInfoLabel = escape(localize('sendSystemInfo', "Include my system information"));
 const sendProcessInfoLabel = escape(localize('sendProcessInfo', "Include my currently running processes"));
@@ -12,6 +12,7 @@ const sendWorkspaceInfoLabel = escape(localize('sendWorkspaceInfo', "Include my 
 const sendExtensionsLabel = escape(localize('sendExtensions', "Include my enabled extensions"));
 const sendExperimentsLabel = escape(localize('sendExperiments', "Include A/B experiment info"));
 const sendExtensionData = escape(localize('sendExtensionData', "Include additional extension info"));
+const acknowledgementsLabel = escape(localize('acknowledgements', "I acknowledge that my VS Code version is not updated and this issue may be closed."));
 const reviewGuidanceLabel = localize( // intentionally not escaped because of its embedded tags
 	{
 		key: 'reviewGuidanceLabel',
@@ -20,10 +21,15 @@ const reviewGuidanceLabel = localize( // intentionally not escaped because of it
 			'{Locked="</a>"}'
 		]
 	},
-	'Before you report an issue here please <a href="https://github.com/microsoft/vscode/wiki/Submitting-Bugs-and-Suggestions" target="_blank">review the guidance we provide</a>.'
+	'Before you report an issue here please <a href="https://github.com/microsoft/vscode/wiki/Submitting-Bugs-and-Suggestions" target="_blank">review the guidance we provide</a>. Please complete the form in English.'
 );
 
 export default (): string => `
+<div id="update-banner" class="issue-reporter-update-banner hidden">
+	<span class="update-banner-text" id="update-banner-text">
+		<!-- To be dynamically filled -->
+	</span>
+</div>
 <div class="issue-reporter" id="issue-reporter">
 	<div id="english" class="input-group hidden">${escape(localize('completeInEnglish', "Please complete the form in English."))}</div>
 
@@ -93,8 +99,9 @@ export default (): string => `
 				${sendExtensionData}
 				<span id="ext-loading" hidden></span>
 				<span class="ext-parens" hidden>(</span><a href="#" class="showInfo" id="extension-id">${escape(localize('show', "show"))}</a><span class="ext-parens" hidden>)</span>
+				<a id="extension-data-download">${escape(localize('downloadExtensionData', "Download Extension Data"))}</a>
 			</label>
-			<pre class="block-info" id="extension-data" placeholder="${escape(localize('extensionData', "Extension does not have additional data to include."))}" style="white-space: pre-wrap;">
+			<pre class="block-info" id="extension-data" placeholder="${escape(localize('extensionData', "Extension does not have additional data to include."))}" style="white-space: pre-wrap; user-select: text;">
 				<!-- To be dynamically filled -->
 			</pre>
 		</div>
@@ -105,9 +112,9 @@ export default (): string => `
 				${sendSystemInfoLabel}
 				(<a href="#" class="showInfo">${escape(localize('show', "show"))}</a>)
 			</label>
-			<div class="block-info hidden">
+			<div class="block-info hidden" style="user-select: text;">
 				<!-- To be dynamically filled -->
-			</div>
+		</div>
 		</div>
 		<div class="block block-process">
 			<input class="sendData" aria-label="${sendProcessInfoLabel}" type="checkbox" id="includeProcessInfo" checked/>
@@ -115,7 +122,7 @@ export default (): string => `
 				${sendProcessInfoLabel}
 				(<a href="#" class="showInfo">${escape(localize('show', "show"))}</a>)
 			</label>
-			<pre class="block-info hidden">
+			<pre class="block-info hidden" style="user-select: text;">
 				<code>
 				<!-- To be dynamically filled -->
 				</code>
@@ -127,7 +134,7 @@ export default (): string => `
 				${sendWorkspaceInfoLabel}
 				(<a href="#" class="showInfo">${escape(localize('show', "show"))}</a>)
 			</label>
-			<pre id="systemInfo" class="block-info hidden">
+			<pre id="systemInfo" class="block-info hidden" style="user-select: text;">
 				<code>
 				<!-- To be dynamically filled -->
 				</code>
@@ -139,7 +146,7 @@ export default (): string => `
 				${sendExtensionsLabel}
 				(<a href="#" class="showInfo">${escape(localize('show', "show"))}</a>)
 			</label>
-			<div id="systemInfo" class="block-info hidden">
+			<div id="systemInfo" class="block-info hidden" style="user-select: text;">
 				<!-- To be dynamically filled -->
 			</div>
 		</div>
@@ -149,9 +156,15 @@ export default (): string => `
 				${sendExperimentsLabel}
 				(<a href="#" class="showInfo">${escape(localize('show', "show"))}</a>)
 			</label>
-			<pre class="block-info hidden">
+			<pre class="block-info hidden" style="user-select: text;">
 				<!-- To be dynamically filled -->
 			</pre>
+		</div>
+		<div class="block block-acknowledgements hidden" id="version-acknowledgements">
+			<input class="sendData" aria-label="${acknowledgementsLabel}" type="checkbox" id="includeAcknowledgement"/>
+			<label class="caption" for="includeAcknowledgement">
+				${acknowledgementsLabel}
+			</label>
 		</div>
 	</div>
 </div>`;

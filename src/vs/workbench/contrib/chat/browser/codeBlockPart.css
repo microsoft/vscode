@@ -15,7 +15,7 @@
 .interactive-result-code-block .interactive-result-code-block-toolbar > .monaco-action-bar,
 .interactive-result-code-block .interactive-result-code-block-toolbar > .monaco-toolbar {
 	position: absolute;
-	top: -13px;
+	top: -15px;
 	height: 26px;
 	line-height: 26px;
 	background-color: var(--vscode-interactive-result-editor-background-color, var(--vscode-editor-background));
@@ -31,6 +31,7 @@
 }
 
 .interactive-result-code-block .interactive-result-code-block-toolbar > .monaco-toolbar {
+	border-radius: 3px;
 	right: 10px;
 }
 
@@ -56,7 +57,7 @@
 }
 
 .interactive-item-container .value .rendered-markdown [data-code] {
-	margin: 16px 0;
+	margin: 0 0 16px 0;
 }
 
 .interactive-result-code-block {
@@ -146,4 +147,18 @@
 
 .interactive-result-code-block.compare .message A > CODE {
 	color: var(--vscode-textLink-foreground);
+}
+
+.interactive-result-code-block.compare .interactive-result-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 0 3px;
+	box-sizing: border-box;
+	border-bottom: solid 1px var(--vscode-chat-requestBorder);
+}
+
+.interactive-result-code-block.compare.no-diff .interactive-result-header,
+.interactive-result-code-block.compare.no-diff .interactive-result-editor {
+	display: none;
 }

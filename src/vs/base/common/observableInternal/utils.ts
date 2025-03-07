@@ -3,14 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { autorun } from 'vs/base/common/observableInternal/autorun';
-import { BaseObservable, ConvenientObservable, IObservable, IObserver, IReader, ITransaction, _setKeepObserved, _setRecomputeInitiallyAndOnChange, observableValue, subtransaction, transaction } from 'vs/base/common/observableInternal/base';
-import { DebugNameData, Owner, getFunctionName } from 'vs/base/common/observableInternal/debugName';
-import { derived, derivedOpts } from 'vs/base/common/observableInternal/derived';
-import { getLogger } from 'vs/base/common/observableInternal/logging';
-import { IValueWithChangeEvent } from '../event';
+import { autorun, autorunOpts, autorunWithStoreHandleChanges } from './autorun.js';
+import { BaseObservable, ConvenientObservable, IObservable, IObservableWithChange, IObserver, IReader, ITransaction, _setKeepObserved, _setRecomputeInitiallyAndOnChange, observableValue, subtransaction, transaction } from './base.js';
+import { DebugNameData, DebugOwner, IDebugNameData, getDebugName, } from './debugName.js';
+import { BugIndicatingError, DisposableStore, EqualityComparer, Event, IDisposable, IValueWithChangeEvent, strictEquals, toDisposable } from './commonFacade/deps.js';
+import { derived, derivedOpts } from './derived.js';
+import { getLogger } from './logging/logging.js';
 
 /**
  * Represents an efficient observable whose value never changes.
@@ -38,6 +36,10 @@ class ConstObservable<T> extends ConvenientObservable<T, void> {
 		// NO OP
 	}
 
+	override log(): IObservableWithChange<T, void> {
+		return this;
+	}
+
 	override toString(): string {
 		return `Const: ${this.value}`;
 	}
@@ -52,30 +54,70 @@ export function observableFromPromise<T>(promise: Promise<T>): IObservable<{ val
 	return observable;
 }
 
+
+export function observableFromEvent<T, TArgs = unknown>(
+	owner: DebugOwner,
+	event: Event<TArgs>,
+	getValue: (args: TArgs | undefined) => T,
+): IObservable<T>;
 export function observableFromEvent<T, TArgs = unknown>(
 	event: Event<TArgs>,
 	getValue: (args: TArgs | undefined) => T,
+): IObservable<T>;
+export function observableFromEvent(...args:
+	[owner: DebugOwner, event: Event<any>, getValue: (args: any | undefined) => any]
+	| [event: Event<any>, getValue: (args: any | undefined) => any]
+): IObservable<any> {
+	let owner;
+	let event;
+	let getValue;
+	if (args.length === 3) {
+		[owner, event, getValue] = args;
+	} else {
+		[event, getValue] = args;
+	}
+	return new FromEventObservable(
+		new DebugNameData(owner, undefined, getValue),
+		event,
+		getValue,
+		() => FromEventObservable.globalTransaction,
+		strictEquals
+	);
+}
+
+export function observableFromEventOpts<T, TArgs = unknown>(
+	options: IDebugNameData & {
+		equalsFn?: EqualityComparer<T>;
+	},
+	event: Event<TArgs>,
+	getValue: (args: TArgs | undefined) => T,
 ): IObservable<T> {
-	return new FromEventObservable(event, getValue, () => FromEventObservable.globalTransaction);
+	return new FromEventObservable(
+		new DebugNameData(options.owner, options.debugName, options.debugReferenceFn ?? getValue),
+		event,
+		getValue, () => FromEventObservable.globalTransaction, options.equalsFn ?? strictEquals
+	);
 }
 
 export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 	public static globalTransaction: ITransaction | undefined;
 
-	private value: T | undefined;
-	private hasValue = false;
-	private subscription: IDisposable | undefined;
+	private _value: T | undefined;
+	private _hasValue = false;
+	private _subscription: IDisposable | undefined;
 
 	constructor(
+		private readonly _debugNameData: DebugNameData,
 		private readonly event: Event<TArgs>,
 		public readonly _getValue: (args: TArgs | undefined) => T,
 		private readonly _getTransaction: () => ITransaction | undefined,
+		private readonly _equalityComparator: EqualityComparer<T>
 	) {
 		super();
 	}
 
 	private getDebugName(): string | undefined {
-		return getFunctionName(this._getValue);
+		return this._debugNameData.getDebugName(this);
 	}
 
 	public get debugName(): string {
@@ -84,27 +126,27 @@ export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 	}
 
 	protected override onFirstObserverAdded(): void {
-		this.subscription = this.event(this.handleEvent);
+		this._subscription = this.event(this.handleEvent);
 	}
 
 	private readonly handleEvent = (args: TArgs | undefined) => {
 		const newValue = this._getValue(args);
-		const oldValue = this.value;
+		const oldValue = this._value;
 
-		const didChange = !this.hasValue || oldValue !== newValue;
+		const didChange = !this._hasValue || !(this._equalityComparator(oldValue!, newValue));
 		let didRunTransaction = false;
 
 		if (didChange) {
-			this.value = newValue;
+			this._value = newValue;
 
-			if (this.hasValue) {
+			if (this._hasValue) {
 				didRunTransaction = true;
 				subtransaction(
 					this._getTransaction(),
 					(tx) => {
-						getLogger()?.handleFromEventObservableTriggered(this, { oldValue, newValue, change: undefined, didChange, hadValue: this.hasValue });
+						getLogger()?.handleObservableUpdated(this, { oldValue, newValue, change: undefined, didChange, hadValue: this._hasValue });
 
-						for (const o of this.observers) {
+						for (const o of this._observers) {
 							tx.updateObserver(o, this);
 							o.handleChange(this, undefined);
 						}
@@ -115,32 +157,36 @@ export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 					}
 				);
 			}
-			this.hasValue = true;
+			this._hasValue = true;
 		}
 
 		if (!didRunTransaction) {
-			getLogger()?.handleFromEventObservableTriggered(this, { oldValue, newValue, change: undefined, didChange, hadValue: this.hasValue });
+			getLogger()?.handleObservableUpdated(this, { oldValue, newValue, change: undefined, didChange, hadValue: this._hasValue });
 		}
 	};
 
 	protected override onLastObserverRemoved(): void {
-		this.subscription!.dispose();
-		this.subscription = undefined;
-		this.hasValue = false;
-		this.value = undefined;
+		this._subscription!.dispose();
+		this._subscription = undefined;
+		this._hasValue = false;
+		this._value = undefined;
 	}
 
 	public get(): T {
-		if (this.subscription) {
-			if (!this.hasValue) {
+		if (this._subscription) {
+			if (!this._hasValue) {
 				this.handleEvent(undefined);
 			}
-			return this.value!;
+			return this._value!;
 		} else {
 			// no cache, as there are no subscribers to keep it updated
 			const value = this._getValue(undefined);
 			return value;
 		}
+	}
+
+	public debugSetValue(value: unknown) {
+		this._value = value as any;
 	}
 }
 
@@ -164,20 +210,24 @@ export namespace observableFromEvent {
 }
 
 export function observableSignalFromEvent(
-	debugName: string,
+	owner: DebugOwner | string,
 	event: Event<any>
 ): IObservable<void> {
-	return new FromEventObservableSignal(debugName, event);
+	return new FromEventObservableSignal(typeof owner === 'string' ? owner : new DebugNameData(owner, undefined, undefined), event);
 }
 
 class FromEventObservableSignal extends BaseObservable<void> {
 	private subscription: IDisposable | undefined;
 
+	public readonly debugName: string;
 	constructor(
-		public readonly debugName: string,
+		debugNameDataOrName: DebugNameData | string,
 		private readonly event: Event<any>,
 	) {
 		super();
+		this.debugName = typeof debugNameDataOrName === 'string'
+			? debugNameDataOrName
+			: debugNameDataOrName.getDebugName(this) ?? 'Observable Signal From Event';
 	}
 
 	protected override onFirstObserverAdded(): void {
@@ -187,7 +237,7 @@ class FromEventObservableSignal extends BaseObservable<void> {
 	private readonly handleEvent = () => {
 		transaction(
 			(tx) => {
-				for (const o of this.observers) {
+				for (const o of this._observers) {
 					tx.updateObserver(o, this);
 					o.handleChange(this, undefined);
 				}
@@ -221,7 +271,7 @@ export function observableSignal<TDelta = void>(debugNameOrOwner: string | objec
 	}
 }
 
-export interface IObservableSignal<TChange> extends IObservable<void, TChange> {
+export interface IObservableSignal<TChange> extends IObservableWithChange<void, TChange> {
 	trigger(tx: ITransaction | undefined, change: TChange): void;
 }
 
@@ -249,7 +299,7 @@ class ObservableSignal<TChange> extends BaseObservable<void, TChange> implements
 			return;
 		}
 
-		for (const o of this.observers) {
+		for (const o of this._observers) {
 			tx.updateObserver(o, this);
 			o.handleChange(this, change);
 		}
@@ -260,10 +310,19 @@ class ObservableSignal<TChange> extends BaseObservable<void, TChange> implements
 	}
 }
 
+export function signalFromObservable<T>(owner: DebugOwner | undefined, observable: IObservable<T>): IObservable<void> {
+	return derivedOpts({
+		owner,
+		equalsFn: () => false,
+	}, reader => {
+		observable.read(reader);
+	});
+}
+
 /**
- * @deprecated Use `debouncedObservable2` instead.
+ * @deprecated Use `debouncedObservable` instead.
  */
-export function debouncedObservable<T>(observable: IObservable<T>, debounceMs: number, disposableStore: DisposableStore): IObservable<T | undefined> {
+export function debouncedObservableDeprecated<T>(observable: IObservable<T>, debounceMs: number, disposableStore: DisposableStore): IObservable<T | undefined> {
 	const debouncedObservable = observableValue<T | undefined>('debounced', undefined);
 
 	let timeout: any = undefined;
@@ -289,7 +348,7 @@ export function debouncedObservable<T>(observable: IObservable<T>, debounceMs: n
 /**
  * Creates an observable that debounces the input observable.
  */
-export function debouncedObservable2<T>(observable: IObservable<T>, debounceMs: number): IObservable<T> {
+export function debouncedObservable<T>(observable: IObservable<T>, debounceMs: number): IObservable<T> {
 	let hasValue = false;
 	let lastValue: T | undefined;
 
@@ -366,10 +425,10 @@ _setKeepObserved(keepObserved);
 export function recomputeInitiallyAndOnChange<T>(observable: IObservable<T>, handleValue?: (value: T) => void): IDisposable {
 	const o = new KeepAliveObserver(true, handleValue);
 	observable.addObserver(o);
-	if (handleValue) {
-		handleValue(observable.get());
-	} else {
-		observable.reportChanges();
+	try {
+		o.beginUpdate(observable);
+	} finally {
+		o.endUpdate(observable);
 	}
 
 	return toDisposable(() => {
@@ -387,33 +446,33 @@ export class KeepAliveObserver implements IObserver {
 		private readonly _handleValue: ((value: any) => void) | undefined,
 	) { }
 
-	beginUpdate<T>(observable: IObservable<T, void>): void {
+	beginUpdate<T>(observable: IObservable<T>): void {
 		this._counter++;
 	}
 
-	endUpdate<T>(observable: IObservable<T, void>): void {
-		this._counter--;
-		if (this._counter === 0 && this._forceRecompute) {
+	endUpdate<T>(observable: IObservable<T>): void {
+		if (this._counter === 1 && this._forceRecompute) {
 			if (this._handleValue) {
 				this._handleValue(observable.get());
 			} else {
 				observable.reportChanges();
 			}
 		}
+		this._counter--;
 	}
 
-	handlePossibleChange<T>(observable: IObservable<T, unknown>): void {
+	handlePossibleChange<T>(observable: IObservable<T>): void {
 		// NO OP
 	}
 
-	handleChange<T, TChange>(observable: IObservable<T, TChange>, change: TChange): void {
+	handleChange<T, TChange>(observable: IObservableWithChange<T, TChange>, change: TChange): void {
 		// NO OP
 	}
 }
 
-export function derivedObservableWithCache<T>(owner: Owner, computeFn: (reader: IReader, lastValue: T | undefined) => T): IObservable<T> {
+export function derivedObservableWithCache<T>(owner: DebugOwner, computeFn: (reader: IReader, lastValue: T | undefined) => T): IObservable<T> {
 	let lastValue: T | undefined = undefined;
-	const observable = derived(owner, reader => {
+	const observable = derivedOpts({ owner, debugReferenceFn: computeFn }, reader => {
 		lastValue = computeFn(reader, lastValue);
 		return lastValue;
 	});
@@ -444,7 +503,7 @@ export function derivedObservableWithWritableCache<T>(owner: object, computeFn: 
 /**
  * When the items array changes, referential equal items are not mapped again.
  */
-export function mapObservableArrayCached<TIn, TOut, TKey = TIn>(owner: Owner, items: IObservable<readonly TIn[]>, map: (input: TIn, store: DisposableStore) => TOut, keySelector?: (input: TIn) => TKey): IObservable<readonly TOut[]> {
+export function mapObservableArrayCached<TIn, TOut, TKey = TIn>(owner: DebugOwner, items: IObservable<readonly TIn[]>, map: (input: TIn, store: DisposableStore) => TOut, keySelector?: (input: TIn) => TKey): IObservable<readonly TOut[]> {
 	let m = new ArrayMap(map, keySelector);
 	const self = derivedOpts({
 		debugReferenceFn: map,
@@ -520,9 +579,98 @@ export class ValueWithChangeEventFromObservable<T> implements IValueWithChangeEv
 	}
 }
 
-export function observableFromValueWithChangeEvent<T>(_owner: Owner, value: IValueWithChangeEvent<T>): IObservable<T> {
+export function observableFromValueWithChangeEvent<T>(owner: DebugOwner, value: IValueWithChangeEvent<T>): IObservable<T> {
 	if (value instanceof ValueWithChangeEventFromObservable) {
 		return value.observable;
 	}
-	return observableFromEvent(value.onDidChange, () => value.value);
+	return observableFromEvent(owner, value.onDidChange, () => value.value);
+}
+
+/**
+ * Creates an observable that has the latest changed value of the given observables.
+ * Initially (and when not observed), it has the value of the last observable.
+ * When observed and any of the observables change, it has the value of the last changed observable.
+ * If multiple observables change in the same transaction, the last observable wins.
+*/
+export function latestChangedValue<T extends IObservable<any>[]>(owner: DebugOwner, observables: T): IObservable<ReturnType<T[number]['get']>> {
+	if (observables.length === 0) {
+		throw new BugIndicatingError();
+	}
+
+	let hasLastChangedValue = false;
+	let lastChangedValue: any = undefined;
+
+	const result = observableFromEvent<any, void>(owner, cb => {
+		const store = new DisposableStore();
+		for (const o of observables) {
+			store.add(autorunOpts({ debugName: () => getDebugName(result, new DebugNameData(owner, undefined, undefined)) + '.updateLastChangedValue' }, reader => {
+				hasLastChangedValue = true;
+				lastChangedValue = o.read(reader);
+				cb();
+			}));
+		}
+		store.add({
+			dispose() {
+				hasLastChangedValue = false;
+				lastChangedValue = undefined;
+			},
+		});
+		return store;
+	}, () => {
+		if (hasLastChangedValue) {
+			return lastChangedValue;
+		} else {
+			return observables[observables.length - 1].get();
+		}
+	});
+	return result;
+}
+
+/**
+ * Works like a derived.
+ * However, if the value is not undefined, it is cached and will not be recomputed anymore.
+ * In that case, the derived will unsubscribe from its dependencies.
+*/
+export function derivedConstOnceDefined<T>(owner: DebugOwner, fn: (reader: IReader) => T): IObservable<T | undefined> {
+	return derivedObservableWithCache<T | undefined>(owner, (reader, lastValue) => lastValue ?? fn(reader));
+}
+
+type RemoveUndefined<T> = T extends undefined ? never : T;
+
+export function runOnChange<T, TChange>(observable: IObservableWithChange<T, TChange>, cb: (value: T, previousValue: undefined | T, deltas: RemoveUndefined<TChange>[]) => void): IDisposable {
+	let _previousValue: T | undefined;
+	return autorunWithStoreHandleChanges({
+		createEmptyChangeSummary: () => ({ deltas: [] as RemoveUndefined<TChange>[], didChange: false }),
+		handleChange: (context, changeSummary) => {
+			if (context.didChange(observable)) {
+				const e = context.change;
+				if (e !== undefined) {
+					changeSummary.deltas.push(e as RemoveUndefined<TChange>);
+				}
+				changeSummary.didChange = true;
+			}
+			return true;
+		},
+	}, (reader, changeSummary) => {
+		const value = observable.read(reader);
+		const previousValue = _previousValue;
+		if (changeSummary.didChange) {
+			_previousValue = value;
+			cb(value, previousValue, changeSummary.deltas);
+		}
+	});
+}
+
+export function runOnChangeWithStore<T, TChange>(observable: IObservableWithChange<T, TChange>, cb: (value: T, previousValue: undefined | T, deltas: RemoveUndefined<TChange>[], store: DisposableStore) => void): IDisposable {
+	const store = new DisposableStore();
+	const disposable = runOnChange(observable, (value, previousValue: undefined | T, deltas) => {
+		store.clear();
+		cb(value, previousValue, deltas, store);
+	});
+	return {
+		dispose() {
+			disposable.dispose();
+			store.dispose();
+		}
+	};
 }

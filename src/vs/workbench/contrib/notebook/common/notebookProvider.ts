@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as glob from 'vs/base/common/glob';
-import { URI } from 'vs/base/common/uri';
-import { basename } from 'vs/base/common/path';
-import { INotebookExclusiveDocumentFilter, isDocumentExcludePattern, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import * as glob from '../../../../base/common/glob.js';
+import { URI } from '../../../../base/common/uri.js';
+import { basename } from '../../../../base/common/path.js';
+import { INotebookExclusiveDocumentFilter, isDocumentExcludePattern, TransientOptions } from './notebookCommon.js';
+import { RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 
 type NotebookSelector = string | glob.IRelativePattern | INotebookExclusiveDocumentFilter;
 
@@ -19,7 +19,10 @@ export interface NotebookEditorDescriptor {
 	readonly selectors: readonly { filenamePattern?: string; excludeFileNamePattern?: string }[];
 	readonly priority: RegisteredEditorPriority;
 	readonly providerDisplayName: string;
-	readonly exclusive: boolean;
+}
+
+interface INotebookEditorDescriptorDto {
+	readonly _selectors: readonly NotebookSelector[];
 }
 
 export class NotebookProviderInfo {
@@ -29,9 +32,8 @@ export class NotebookProviderInfo {
 	readonly displayName: string;
 	readonly priority: RegisteredEditorPriority;
 	readonly providerDisplayName: string;
-	readonly exclusive: boolean;
 
-	private _selectors: NotebookSelector[];
+	public _selectors: NotebookSelector[];
 	get selectors() {
 		return this._selectors;
 	}
@@ -47,10 +49,11 @@ export class NotebookProviderInfo {
 		this._selectors = descriptor.selectors?.map(selector => ({
 			include: selector.filenamePattern,
 			exclude: selector.excludeFileNamePattern || ''
-		})) || [];
+		}))
+			|| (descriptor as unknown as INotebookEditorDescriptorDto)._selectors
+			|| [];
 		this.priority = descriptor.priority;
 		this.providerDisplayName = descriptor.providerDisplayName;
-		this.exclusive = descriptor.exclusive;
 		this._options = {
 			transientCellMetadata: {},
 			transientDocumentMetadata: {},

@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as resources from 'vs/base/common/resources';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
-import * as errors from 'vs/base/common/errors';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
-import { ISearchService } from 'vs/workbench/services/search/common/search';
-import { toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ILogService } from 'vs/platform/log/common/log';
-import { promiseWithResolvers } from 'vs/base/common/async';
+import * as resources from '../../../../base/common/resources.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { CancellationTokenSource, CancellationToken } from '../../../../base/common/cancellation.js';
+import * as errors from '../../../../base/common/errors.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { QueryBuilder } from '../../search/common/queryBuilder.js';
+import { ISearchService } from '../../search/common/search.js';
+import { toWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { promiseWithResolvers } from '../../../../base/common/async.js';
 
 const WORKSPACE_CONTAINS_TIMEOUT = 7000;
 

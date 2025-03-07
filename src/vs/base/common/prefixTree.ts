@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Iterable } from 'vs/base/common/iterator';
+import { Iterable } from './iterator.js';
 
 const unset = Symbol('unset');
 
@@ -20,9 +20,10 @@ export interface IPrefixTreeNode<T> {
  * well-defined prefix segments.
  */
 export class WellDefinedPrefixTree<V> {
-	private readonly root = new Node<V>();
+	public readonly root = new Node<V>();
 	private _size = 0;
 
+	/** Tree size, not including the root. */
 	public get size() {
 		return this._size;
 	}
@@ -30,6 +31,11 @@ export class WellDefinedPrefixTree<V> {
 	/** Gets the top-level nodes of the tree */
 	public get nodes(): Iterable<IPrefixTreeNode<V>> {
 		return this.root.children?.values() || Iterable.empty();
+	}
+
+	/** Gets the top-level nodes of the tree */
+	public get entries(): Iterable<[string, IPrefixTreeNode<V>]> {
+		return this.root.children?.entries() || Iterable.empty();
 	}
 
 	/**
@@ -103,6 +109,12 @@ export class WellDefinedPrefixTree<V> {
 				this._size--;
 				yield node._value;
 			}
+		}
+
+		// special case for the root note
+		if (subtree === this.root) {
+			this.root._value = unset;
+			this.root.children = undefined;
 		}
 	}
 

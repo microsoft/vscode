@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IURLService, IURLHandler, IOpenURLOptions } from 'vs/platform/url/common/url';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
-import { URLHandlerChannel } from 'vs/platform/url/common/urlIpc';
-import { IOpenerService, IOpener } from 'vs/platform/opener/common/opener';
-import { matchesScheme } from 'vs/base/common/network';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { NativeURLService } from 'vs/platform/url/common/urlService';
-import { ILogService } from 'vs/platform/log/common/log';
+import { IURLService, IURLHandler, IOpenURLOptions } from '../../../../platform/url/common/url.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
+import { URLHandlerChannel } from '../../../../platform/url/common/urlIpc.js';
+import { IOpenerService, IOpener } from '../../../../platform/opener/common/opener.js';
+import { matchesScheme } from '../../../../base/common/network.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { NativeURLService } from '../../../../platform/url/common/urlService.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 export interface IRelayOpenURLOptions extends IOpenURLOptions {
 	openToSide?: boolean;

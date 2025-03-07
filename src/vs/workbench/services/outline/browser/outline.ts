@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IDataSource, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { FuzzyScore } from 'vs/base/common/filters';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchDataTreeOptions } from 'vs/platform/list/browser/listService';
-import { IEditorPane } from 'vs/workbench/common/editor';
+import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { IDataSource, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
+import { FuzzyScore } from '../../../../base/common/filters.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IWorkbenchDataTreeOptions } from '../../../../platform/list/browser/listService.js';
+import { IEditorPane } from '../../../common/editor.js';
 
 export const IOutlineService = createDecorator<IOutlineService>('IOutlineService');
 

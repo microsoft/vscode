@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { withAsyncTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { StickyScrollController } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollController';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
-import { DocumentSymbol, SymbolKind } from 'vs/editor/common/languages';
-import { StickyLineCandidate, StickyLineCandidateProvider } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollProvider';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { mock } from 'vs/base/test/common/mock';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ILanguageFeatureDebounceService, LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { withAsyncTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { StickyScrollController } from '../../browser/stickyScrollController.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
+import { createTextModel } from '../../../../test/common/testTextModel.js';
+import { LanguageFeaturesService } from '../../../../common/services/languageFeaturesService.js';
+import { DocumentSymbol, SymbolKind } from '../../../../common/languages.js';
+import { StickyLineCandidate, StickyLineCandidateProvider } from '../../browser/stickyScrollProvider.js';
+import { EditorOption } from '../../../../common/config/editorOptions.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
+import { ILanguageFeatureDebounceService, LanguageFeatureDebounceService } from '../../../../common/services/languageFeatureDebounce.js';
+import { TestLanguageConfigurationService } from '../../../../test/common/modes/testLanguageConfigurationService.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 
 suite('Sticky Scroll Tests', () => {
 

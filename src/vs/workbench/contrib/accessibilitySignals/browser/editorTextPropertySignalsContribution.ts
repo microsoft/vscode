@@ -3,22 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout } from 'vs/base/common/async';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IReader, autorun, autorunWithStore, derived, observableFromEvent, observableFromPromise } from 'vs/base/common/observable';
-import { observableFromValueWithChangeEvent, observableSignalFromEvent, wasEventTriggeredRecently } from 'vs/base/common/observableInternal/utils';
-import { isDefined } from 'vs/base/common/types';
-import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { Position } from 'vs/editor/common/core/position';
-import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
-import { ITextModel } from 'vs/editor/common/model';
-import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
-import { AccessibilitySignal, AccessibilityModality, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { disposableTimeout } from '../../../../base/common/async.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IReader, autorun, autorunWithStore, derived, observableFromEvent, observableFromPromise, observableFromValueWithChangeEvent, observableSignalFromEvent, wasEventTriggeredRecently } from '../../../../base/common/observable.js';
+import { isDefined } from '../../../../base/common/types.js';
+import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
+import { Position } from '../../../../editor/common/core/position.js';
+import { CursorChangeReason } from '../../../../editor/common/cursorEvents.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { FoldingController } from '../../../../editor/contrib/folding/browser/folding.js';
+import { AccessibilityModality, AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IMarkerService, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IDebugService } from '../../debug/common/debug.js';
 
 export class EditorTextPropertySignalsContribution extends Disposable implements IWorkbenchContribution {
 	private readonly _textProperties: TextProperty[] = [
@@ -35,7 +34,7 @@ export class EditorTextPropertySignalsContribution extends Disposable implements
 			.some(signal => observableFromValueWithChangeEvent(this, this._accessibilitySignalService.getEnabledState(signal, false)).read(reader))
 	);
 
-	private readonly _activeEditorObservable = observableFromEvent(
+	private readonly _activeEditorObservable = observableFromEvent(this,
 		this._editorService.onDidActiveEditorChange,
 		(_) => {
 			const activeTextEditorControl = this._editorService.activeTextEditorControl;
@@ -73,7 +72,7 @@ export class EditorTextPropertySignalsContribution extends Disposable implements
 		let lastLine = -1;
 		const ignoredLineSignalsForCurrentLine = new Set<TextProperty>();
 
-		const timeouts = new DisposableStore();
+		const timeouts = store.add(new DisposableStore());
 
 		const propertySources = this._textProperties.map(p => ({ source: p.createSource(editor, editorModel), property: p }));
 
@@ -104,7 +103,7 @@ export class EditorTextPropertySignalsContribution extends Disposable implements
 
 				for (const modality of ['sound', 'announcement'] as AccessibilityModality[]) {
 					if (this._accessibilitySignalService.getEnabledState(signal, false, modality).value) {
-						const delay = this._accessibilitySignalService.getDelayMs(signal, modality) + (didType.get() ? 1000 : 0);
+						const delay = this._accessibilitySignalService.getDelayMs(signal, modality, mode) + (didType.get() ? 1000 : 0);
 
 						timeouts.add(disposableTimeout(() => {
 							if (source.isPresent(position, mode, undefined)) {

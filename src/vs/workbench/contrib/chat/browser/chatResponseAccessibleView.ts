@@ -3,97 +3,95 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { AccessibleViewProviderId, AccessibleViewType } from 'vs/platform/accessibility/browser/accessibleView';
-import { alertAccessibleViewFocusChange, IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { IChatWidgetService, IChatWidget } from 'vs/workbench/contrib/chat/browser/chat';
-import { CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { ChatWelcomeMessageModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { renderMarkdownAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
+import { ChatContextKeys } from '../common/chatContextKeys.js';
+import { isResponseVM } from '../common/chatViewModel.js';
+import { ChatTreeItem, IChatWidget, IChatWidgetService } from './chat.js';
 
-export class ChatResponseAccessibleView implements IAccessibleViewImplentation {
+export class ChatResponseAccessibleView implements IAccessibleViewImplementation {
 	readonly priority = 100;
 	readonly name = 'panelChat';
 	readonly type = AccessibleViewType.View;
-	readonly when = CONTEXT_IN_CHAT_SESSION;
+	readonly when = ChatContextKeys.inChatSession;
 	getProvider(accessor: ServicesAccessor) {
 		const widgetService = accessor.get(IChatWidgetService);
-		const codeEditorService = accessor.get(ICodeEditorService);
-		return resolveProvider(widgetService, codeEditorService, true);
-		function resolveProvider(widgetService: IChatWidgetService, codeEditorService: ICodeEditorService, initialRender?: boolean) {
-			const widget = widgetService.lastFocusedWidget;
-			if (!widget) {
-				return;
-			}
-			const chatInputFocused = initialRender && !!codeEditorService.getFocusedCodeEditor();
-			if (initialRender && chatInputFocused) {
-				widget.focusLastMessage();
-			}
+		const widget = widgetService.lastFocusedWidget;
+		if (!widget) {
+			return;
+		}
+		const chatInputFocused = widget.hasInputFocus();
+		if (chatInputFocused) {
+			widget.focusLastMessage();
+		}
 
-			if (!widget) {
-				return;
-			}
+		const verifiedWidget: IChatWidget = widget;
+		const focusedItem = verifiedWidget.getFocus();
 
-			const verifiedWidget: IChatWidget = widget;
-			const focusedItem = verifiedWidget.getFocus();
+		if (!focusedItem) {
+			return;
+		}
 
-			if (!focusedItem) {
-				return;
-			}
+		return new ChatResponseAccessibleProvider(verifiedWidget, focusedItem, chatInputFocused);
+	}
+}
 
-			widget.focus(focusedItem);
-			const isWelcome = focusedItem instanceof ChatWelcomeMessageModel;
-			let responseContent = isResponseVM(focusedItem) ? focusedItem.response.asString() : undefined;
-			if (isWelcome) {
-				const welcomeReplyContents = [];
-				for (const content of focusedItem.content) {
-					if (Array.isArray(content)) {
-						welcomeReplyContents.push(...content.map(m => m.message));
-					} else {
-						welcomeReplyContents.push((content as IMarkdownString).value);
-					}
-				}
-				responseContent = welcomeReplyContents.join('\n');
-			}
-			if (!responseContent && 'errorDetails' in focusedItem && focusedItem.errorDetails) {
-				responseContent = focusedItem.errorDetails.message;
-			}
-			if (!responseContent) {
-				return;
-			}
-			const responses = verifiedWidget.viewModel?.getItems().filter(i => isResponseVM(i));
-			const length = responses?.length;
-			const responseIndex = responses?.findIndex(i => i === focusedItem);
+class ChatResponseAccessibleProvider extends Disposable implements IAccessibleViewContentProvider {
+	private _focusedItem: ChatTreeItem;
+	constructor(
+		private readonly _widget: IChatWidget,
+		item: ChatTreeItem,
+		private readonly _chatInputFocused: boolean
+	) {
+		super();
+		this._focusedItem = item;
+	}
 
-			return {
-				id: AccessibleViewProviderId.Chat,
-				verbositySettingKey: AccessibilityVerbositySettingId.Chat,
-				provideContent(): string { return renderMarkdownAsPlaintext(new MarkdownString(responseContent), true); },
-				onClose() {
-					verifiedWidget.reveal(focusedItem);
-					if (chatInputFocused) {
-						verifiedWidget.focusInput();
-					} else {
-						verifiedWidget.focus(focusedItem);
-					}
-				},
-				next() {
-					verifiedWidget.moveFocus(focusedItem, 'next');
-					alertAccessibleViewFocusChange(responseIndex, length, 'next');
-					resolveProvider(widgetService, codeEditorService);
-				},
-				previous() {
-					verifiedWidget.moveFocus(focusedItem, 'previous');
-					alertAccessibleViewFocusChange(responseIndex, length, 'previous');
-					resolveProvider(widgetService, codeEditorService);
-				},
-				options: { type: AccessibleViewType.View }
-			};
+	readonly id = AccessibleViewProviderId.PanelChat;
+	readonly verbositySettingKey = AccessibilityVerbositySettingId.Chat;
+	readonly options = { type: AccessibleViewType.View };
+
+	provideContent(): string {
+		return this._getContent(this._focusedItem);
+	}
+
+	private _getContent(item: ChatTreeItem): string {
+		let responseContent = isResponseVM(item) ? item.response.toString() : '';
+		if (!responseContent && 'errorDetails' in item && item.errorDetails) {
+			responseContent = item.errorDetails.message;
+		}
+		return renderMarkdownAsPlaintext(new MarkdownString(responseContent), true);
+	}
+
+	onClose(): void {
+		this._widget.reveal(this._focusedItem);
+		if (this._chatInputFocused) {
+			this._widget.focusInput();
+		} else {
+			this._widget.focus(this._focusedItem);
 		}
 	}
-	dispose() { }
+
+	provideNextContent(): string | undefined {
+		const next = this._widget.getSibling(this._focusedItem, 'next');
+		if (next) {
+			this._focusedItem = next;
+			return this._getContent(next);
+		}
+		return;
+	}
+
+	providePreviousContent(): string | undefined {
+		const previous = this._widget.getSibling(this._focusedItem, 'previous');
+		if (previous) {
+			this._focusedItem = previous;
+			return this._getContent(previous);
+		}
+		return;
+	}
 }

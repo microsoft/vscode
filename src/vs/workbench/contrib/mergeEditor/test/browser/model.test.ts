@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IReader, transaction } from 'vs/base/common/observable';
-import { isDefined } from 'vs/base/common/types';
-import { Range } from 'vs/editor/common/core/range';
-import { linesDiffComputers } from 'vs/editor/common/diff/linesDiffComputers';
-import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
-import { createModelServices, createTextModel } from 'vs/editor/test/common/testTextModel';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IMergeDiffComputer, IMergeDiffComputerResult, toLineRange, toRangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
-import { DetailedLineRangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
-import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
-import { MergeEditorTelemetry } from 'vs/workbench/contrib/mergeEditor/browser/telemetry';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { IReader, transaction } from '../../../../../base/common/observable.js';
+import { isDefined } from '../../../../../base/common/types.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { linesDiffComputers } from '../../../../../editor/common/diff/linesDiffComputers.js';
+import { EndOfLinePreference, ITextModel } from '../../../../../editor/common/model.js';
+import { createModelServices, createTextModel } from '../../../../../editor/test/common/testTextModel.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IMergeDiffComputer, IMergeDiffComputerResult, toLineRange, toRangeMapping } from '../../browser/model/diffComputer.js';
+import { DetailedLineRangeMapping } from '../../browser/model/mapping.js';
+import { MergeEditorModel } from '../../browser/model/mergeEditorModel.js';
+import { MergeEditorTelemetry } from '../../browser/telemetry.js';
 
 suite('merge editor model', () => {
 	// todo: renable when failing case is found https://github.com/microsoft/vscode/pull/190444#issuecomment-1678151428

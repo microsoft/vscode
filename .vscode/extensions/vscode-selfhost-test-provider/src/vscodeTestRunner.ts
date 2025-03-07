@@ -37,7 +37,7 @@ export abstract class VSCodeTestRunner {
 		return new TestOutputScanner(cp, args);
 	}
 
-	public async debug(baseArgs: ReadonlyArray<string>, filter?: ReadonlyArray<vscode.TestItem>) {
+	public async debug(testRun: vscode.TestRun, baseArgs: ReadonlyArray<string>, filter?: ReadonlyArray<vscode.TestItem>) {
 		const port = await this.findOpenPort();
 		const baseConfiguration = vscode.workspace
 			.getConfiguration('launch', this.repoLocation)
@@ -63,7 +63,7 @@ export abstract class VSCodeTestRunner {
 		const cp = spawn(await this.binaryPath(), args, {
 			cwd: this.repoLocation.uri.fsPath,
 			stdio: 'pipe',
-			env: this.getEnvironment(),
+			env: this.getEnvironment(port),
 		});
 
 		// Register a descriptor factory that signals the server when any
@@ -95,7 +95,7 @@ export abstract class VSCodeTestRunner {
 			},
 		});
 
-		vscode.debug.startDebugging(this.repoLocation, { ...baseConfiguration, port });
+		vscode.debug.startDebugging(this.repoLocation, { ...baseConfiguration, port }, { testRun });
 
 		let exited = false;
 		let rootSession: vscode.DebugSession | undefined;
@@ -139,7 +139,7 @@ export abstract class VSCodeTestRunner {
 		});
 	}
 
-	protected getEnvironment(): NodeJS.ProcessEnv {
+	protected getEnvironment(_remoteDebugPort?: number): NodeJS.ProcessEnv {
 		return {
 			...process.env,
 			ELECTRON_RUN_AS_NODE: undefined,
@@ -261,9 +261,10 @@ export class BrowserTestRunner extends VSCodeTestRunner {
 	}
 
 	/** @override */
-	protected override getEnvironment() {
+	protected override getEnvironment(remoteDebugPort?: number) {
 		return {
-			...super.getEnvironment(),
+			...super.getEnvironment(remoteDebugPort),
+			PLAYWRIGHT_CHROMIUM_DEBUG_PORT: remoteDebugPort ? String(remoteDebugPort) : undefined,
 			ELECTRON_RUN_AS_NODE: '1',
 		};
 	}

@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assertNever } from 'vs/base/common/assert';
-import { clamp } from 'vs/base/common/numbers';
-import { localize } from 'vs/nls';
-import { chartsGreen, chartsRed, chartsYellow } from 'vs/platform/theme/common/colorRegistry';
-import { asCssVariableName } from 'vs/platform/theme/common/colorUtils';
-import { CoverageBarSource } from 'vs/workbench/contrib/testing/browser/testCoverageBars';
-import { ITestingCoverageBarThresholds, TestingDisplayedCoveragePercent } from 'vs/workbench/contrib/testing/common/configuration';
-import { getTotalCoveragePercent } from 'vs/workbench/contrib/testing/common/testCoverage';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
-import { ICoverageCount } from 'vs/workbench/contrib/testing/common/testTypes';
+import { assertNever } from '../../../../base/common/assert.js';
+import { clamp } from '../../../../base/common/numbers.js';
+import { localize } from '../../../../nls.js';
+import { chartsGreen, chartsRed, chartsYellow } from '../../../../platform/theme/common/colorRegistry.js';
+import { asCssVariableName } from '../../../../platform/theme/common/colorUtils.js';
+import { CoverageBarSource } from './testCoverageBars.js';
+import { ITestingCoverageBarThresholds, TestingDisplayedCoveragePercent } from '../common/configuration.js';
+import { getTotalCoveragePercent } from '../common/testCoverage.js';
+import { TestId } from '../common/testId.js';
+import { LiveTestResult } from '../common/testResult.js';
+import { ICoverageCount } from '../common/testTypes.js';
 
 export const percent = (cc: ICoverageCount) => clamp(cc.total === 0 ? 1 : cc.covered / cc.total, 0, 1);
 

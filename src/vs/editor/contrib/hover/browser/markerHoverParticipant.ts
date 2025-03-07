@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { CancelablePromise, createCancelablePromise, disposableTimeout } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { basename } from 'vs/base/common/resources';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
-import { CodeActionTriggerType } from 'vs/editor/common/languages';
-import { IModelDecoration } from 'vs/editor/common/model';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { IMarkerDecorationsService } from 'vs/editor/common/services/markerDecorations';
-import { getCodeActions, quickFixCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeActionController';
-import { CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
-import { MarkerController, NextMarkerAction } from 'vs/editor/contrib/gotoError/browser/gotoError';
-import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import * as nls from 'vs/nls';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IMarker, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { Progress } from 'vs/platform/progress/common/progress';
+import * as dom from '../../../../base/browser/dom.js';
+import { isNonEmptyArray } from '../../../../base/common/arrays.js';
+import { CancelablePromise, createCancelablePromise, disposableTimeout } from '../../../../base/common/async.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { basename } from '../../../../base/common/resources.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { Range } from '../../../common/core/range.js';
+import { CodeActionTriggerType } from '../../../common/languages.js';
+import { IModelDecoration } from '../../../common/model.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
+import { IMarkerDecorationsService } from '../../../common/services/markerDecorations.js';
+import { ApplyCodeActionReason, getCodeActions, quickFixCommandId } from '../../codeAction/browser/codeAction.js';
+import { CodeActionController } from '../../codeAction/browser/codeActionController.js';
+import { CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../../codeAction/common/types.js';
+import { MarkerController, NextMarkerAction } from '../../gotoError/browser/gotoError.js';
+import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from './hoverTypes.js';
+import * as nls from '../../../../nls.js';
+import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { IMarker, IMarkerData, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { Progress } from '../../../../platform/progress/common/progress.js';
 
 const $ = dom.$;
 
@@ -90,20 +90,28 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		return result;
 	}
 
-	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: MarkerHover[]): IDisposable {
+	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: MarkerHover[]): IRenderedHoverParts<MarkerHover> {
 		if (!hoverParts.length) {
-			return Disposable.None;
+			return new RenderedHoverParts([]);
 		}
-		const disposables = new DisposableStore();
-		hoverParts.forEach(msg => context.fragment.appendChild(this.renderMarkerHover(msg, disposables)));
+		const renderedHoverParts: IRenderedHoverPart<MarkerHover>[] = [];
+		hoverParts.forEach(hoverPart => {
+			const renderedMarkerHover = this._renderMarkerHover(hoverPart);
+			context.fragment.appendChild(renderedMarkerHover.hoverElement);
+			renderedHoverParts.push(renderedMarkerHover);
+		});
 		const markerHoverForStatusbar = hoverParts.length === 1 ? hoverParts[0] : hoverParts.sort((a, b) => MarkerSeverity.compare(a.marker.severity, b.marker.severity))[0];
-		this.renderMarkerStatusbar(context, markerHoverForStatusbar, disposables);
-		return disposables;
+		const disposables = this._renderMarkerStatusbar(context, markerHoverForStatusbar);
+		return new RenderedHoverParts(renderedHoverParts, disposables);
 	}
 
-	private renderMarkerHover(markerHover: MarkerHover, disposables: DisposableStore): HTMLElement {
+	public getAccessibleContent(hoverPart: MarkerHover): string {
+		return hoverPart.marker.message;
+	}
+
+	private _renderMarkerHover(markerHover: MarkerHover): IRenderedHoverPart<MarkerHover> {
+		const disposables: DisposableStore = new DisposableStore();
 		const hoverElement = $('div.hover-row');
-		hoverElement.tabIndex = 0;
 		const markerElement = dom.append(hoverElement, $('div.marker.hover-contents'));
 		const { source, message, code, relatedInformation } = markerHover.marker;
 
@@ -121,7 +129,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 					sourceElement.innerText = source;
 				}
 				const codeLink = dom.append(sourceAndCodeElement, $('a.code-link'));
-				codeLink.setAttribute('href', code.target.toString());
+				codeLink.setAttribute('href', code.target.toString(true));
 
 				disposables.add(dom.addDisposableListener(codeLink, 'click', (e) => {
 					this._openerService.open(code.target, { allowCommands: true });
@@ -154,9 +162,10 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 					e.stopPropagation();
 					e.preventDefault();
 					if (this._openerService) {
+						const editorOptions: ITextEditorOptions = { selection: { startLineNumber, startColumn } };
 						this._openerService.open(resource, {
 							fromUserGesture: true,
-							editorOptions: <ITextEditorOptions>{ selection: { startLineNumber, startColumn } }
+							editorOptions
 						}).catch(onUnexpectedError);
 					}
 				}));
@@ -166,10 +175,16 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 			}
 		}
 
-		return hoverElement;
+		const renderedHoverPart: IRenderedHoverPart<MarkerHover> = {
+			hoverPart: markerHover,
+			hoverElement,
+			dispose: () => disposables.dispose()
+		};
+		return renderedHoverPart;
 	}
 
-	private renderMarkerStatusbar(context: IEditorHoverRenderContext, markerHover: MarkerHover, disposables: DisposableStore): void {
+	private _renderMarkerStatusbar(context: IEditorHoverRenderContext, markerHover: MarkerHover): IDisposable {
+		const disposables = new DisposableStore();
 		if (markerHover.marker.severity === MarkerSeverity.Error || markerHover.marker.severity === MarkerSeverity.Warning || markerHover.marker.severity === MarkerSeverity.Info) {
 			const markerController = MarkerController.get(this._editor);
 			if (markerController) {
@@ -239,8 +254,22 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 						});
 					}
 				});
+
+				const aiCodeAction = actions.validActions.find(action => action.action.isAI);
+				if (aiCodeAction) {
+					context.statusBar.addAction({
+						label: aiCodeAction.action.title,
+						commandId: aiCodeAction.action.command?.id ?? '',
+						run: () => {
+							const controller = CodeActionController.get(this._editor);
+							controller?.applyCodeAction(aiCodeAction, false, false, ApplyCodeActionReason.FromProblemsHover);
+						}
+					});
+				}
+
 			}, onUnexpectedError);
 		}
+		return disposables;
 	}
 
 	private getCodeActions(marker: IMarker): CancelablePromise<CodeActionSet> {

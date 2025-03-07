@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// version: 5
+
 declare module 'vscode' {
 
 	/**
@@ -24,7 +26,27 @@ declare module 'vscode' {
 		/**
 		 * Code editor inline chat
 		 */
-		Editor = 4
+		Editor = 4,
+		/**
+		 * Chat is happening in an editing session
+		 */
+		EditingSession = 5,
+	}
+
+	export class ChatRequestEditorData {
+		//TODO@API should be the editor
+		document: TextDocument;
+		selection: Selection;
+		wholeRange: Range;
+
+		constructor(document: TextDocument, selection: Selection, wholeRange: Range);
+	}
+
+	export class ChatRequestNotebookData {
+		//TODO@API should be the editor
+		readonly cell: TextDocument;
+
+		constructor(cell: TextDocument);
 	}
 
 	export interface ChatRequest {
@@ -39,18 +61,32 @@ declare module 'vscode' {
 		readonly enableCommandDetection: boolean;
 
 		/**
+		 * If the chat participant or command was automatically assigned.
+		 */
+		readonly isParticipantDetected: boolean;
+
+		/**
 		 * The location at which the chat is happening. This will always be one of the supported values
+		 *
+		 * @deprecated
 		 */
 		readonly location: ChatLocation;
+
+		/**
+		 * Information that is specific to the location at which chat is happening, e.g within a document, notebook,
+		 * or terminal. Will be `undefined` for the chat panel.
+		 */
+		readonly location2: ChatRequestEditorData | ChatRequestNotebookData | undefined;
 	}
 
 	export interface ChatParticipant {
 		supportIssueReporting?: boolean;
+	}
 
-		/**
-		 * Temp, support references that are slow to resolve and should be tools rather than references.
-		 */
-		supportsSlowReferences?: boolean;
+	export enum ChatErrorLevel {
+		Info = 0,
+		Warning = 1,
+		Error = 2,
 	}
 
 	export interface ChatErrorDetails {
@@ -58,6 +94,10 @@ declare module 'vscode' {
 		 * If set to true, the message content is completely hidden. Only ChatErrorDetails#message will be shown.
 		 */
 		responseIsRedacted?: boolean;
+
+		isQuotaExceeded?: boolean;
+
+		level?: ChatErrorLevel;
 	}
 
 	export namespace chat {
@@ -73,4 +113,66 @@ declare module 'vscode' {
 		description?: string;
 		fullName?: string;
 	}
+
+	export namespace lm {
+		export function registerIgnoredFileProvider(provider: LanguageModelIgnoredFileProvider): Disposable;
+	}
+
+	export interface LanguageModelIgnoredFileProvider {
+		provideFileIgnored(uri: Uri, token: CancellationToken): ProviderResult<boolean>;
+	}
+
+	export interface LanguageModelToolInvocationOptions<T> {
+		chatRequestId?: string;
+		terminalCommand?: string;
+	}
+
+	export interface PreparedToolInvocation {
+		pastTenseMessage?: string | MarkdownString;
+		presentation?: 'hidden' | undefined;
+	}
+
+	export interface LanguageModelTool<T> {
+		prepareInvocation2?(options: LanguageModelToolInvocationPrepareOptions<T>, token: CancellationToken): ProviderResult<PreparedTerminalToolInvocation>;
+	}
+
+	export class PreparedTerminalToolInvocation {
+		readonly command: string;
+		readonly language: string;
+		readonly confirmationMessages?: LanguageModelToolConfirmationMessages;
+
+		constructor(
+			command: string,
+			language: string,
+			confirmationMessages?: LanguageModelToolConfirmationMessages,
+		);
+	}
+
+	export class ExtendedLanguageModelToolResult extends LanguageModelToolResult {
+		toolResultMessage?: string | MarkdownString;
+		toolResultDetails?: Array<Uri | Location>;
+	}
+
+	// #region Chat participant detection
+
+	export interface ChatParticipantMetadata {
+		participant: string;
+		command?: string;
+		disambiguation: { category: string; description: string; examples: string[] }[];
+	}
+
+	export interface ChatParticipantDetectionResult {
+		participant: string;
+		command?: string;
+	}
+
+	export interface ChatParticipantDetectionProvider {
+		provideParticipantDetection(chatRequest: ChatRequest, context: ChatContext, options: { participants?: ChatParticipantMetadata[]; location: ChatLocation }, token: CancellationToken): ProviderResult<ChatParticipantDetectionResult>;
+	}
+
+	export namespace chat {
+		export function registerChatParticipantDetectionProvider(participantDetectionProvider: ChatParticipantDetectionProvider): Disposable;
+	}
+
+	// #endregion
 }

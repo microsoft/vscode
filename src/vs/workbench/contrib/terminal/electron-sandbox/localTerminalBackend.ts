@@ -3,41 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { IProcessEnvironment, isMacintosh, isWindows, OperatingSystem } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ILocalPtyService, IProcessPropertyMap, IPtyHostLatencyMeasurement, IPtyService, IShellLaunchConfig, ITerminalBackend, ITerminalBackendRegistry, ITerminalChildProcess, ITerminalEnvironment, ITerminalLogService, ITerminalProcessOptions, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalExtensions, TerminalIpcChannels, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
-import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ITerminalConfiguration, ITerminalProfileResolverService, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
-import { LocalPty } from 'vs/workbench/contrib/terminal/electron-sandbox/localPty';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { BaseTerminalBackend } from 'vs/workbench/contrib/terminal/browser/baseTerminalBackend';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { Client as MessagePortClient } from 'vs/base/parts/ipc/common/ipc.mp';
-import { acquirePort } from 'vs/base/parts/ipc/electron-sandbox/ipc.mp';
-import { getDelayedChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { mark, PerformanceMark } from 'vs/base/common/performance';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { DeferredPromise } from 'vs/base/common/async';
-import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { memoize } from 'vs/base/common/decorators';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { shouldUseEnvironmentVariableCollection } from 'vs/platform/terminal/common/terminalEnvironment';
+import { Emitter } from '../../../../base/common/event.js';
+import { IProcessEnvironment, isMacintosh, isWindows, OperatingSystem } from '../../../../base/common/platform.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ILocalPtyService, IProcessPropertyMap, IPtyHostLatencyMeasurement, IPtyService, IShellLaunchConfig, ITerminalBackend, ITerminalBackendRegistry, ITerminalChildProcess, ITerminalEnvironment, ITerminalLogService, ITerminalProcessOptions, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalExtensions, TerminalIpcChannels, TerminalSettingId, TitleEventSource } from '../../../../platform/terminal/common/terminal.js';
+import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from '../../../../platform/terminal/common/terminalProcess.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { ITerminalInstanceService } from '../browser/terminal.js';
+import { ITerminalProfileResolverService } from '../common/terminal.js';
+import { TerminalStorageKeys } from '../common/terminalStorageKeys.js';
+import { LocalPty } from './localPty.js';
+import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
+import { IShellEnvironmentService } from '../../../services/environment/electron-sandbox/shellEnvironmentService.js';
+import { IHistoryService } from '../../../services/history/common/history.js';
+import * as terminalEnvironment from '../common/terminalEnvironment.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IEnvironmentVariableService } from '../common/environmentVariable.js';
+import { BaseTerminalBackend } from '../browser/baseTerminalBackend.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { Client as MessagePortClient } from '../../../../base/parts/ipc/common/ipc.mp.js';
+import { acquirePort } from '../../../../base/parts/ipc/electron-sandbox/ipc.mp.js';
+import { getDelayedChannel, ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { mark, PerformanceMark } from '../../../../base/common/performance.js';
+import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { IStatusbarService } from '../../../services/statusbar/browser/statusbar.js';
+import { memoize } from '../../../../base/common/decorators.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
+import { shouldUseEnvironmentVariableCollection } from '../../../../platform/terminal/common/terminalEnvironment.js';
+import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 
 export class LocalTerminalBackendContribution implements IWorkbenchContribution {
 
@@ -49,7 +50,7 @@ export class LocalTerminalBackendContribution implements IWorkbenchContribution 
 	) {
 		const backend = instantiationService.createInstance(LocalTerminalBackend);
 		Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).registerTerminalBackend(backend);
-		terminalInstanceService.didRegisterBackend(backend.remoteAuthority);
+		terminalInstanceService.didRegisterBackend(backend);
 	}
 }
 
@@ -60,6 +61,8 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 
 	private _directProxyClientEventually: DeferredPromise<MessagePortClient> | undefined;
 	private _directProxy: IPtyService | undefined;
+	private readonly _directProxyDisposables = this._register(new MutableDisposable());
+
 	/**
 	 * Communicate to the direct proxy (renderer<->ptyhost) if it's available, otherwise use the
 	 * indirect proxy (renderer<->main<->ptyhost). The latter may not need to actually launch the
@@ -117,6 +120,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		this._directProxyClientEventually = directProxyClientEventually;
 		const directProxy = ProxyChannel.toService<IPtyService>(getDelayedChannel(this._directProxyClientEventually.p.then(client => client.getChannel(TerminalIpcChannels.PtyHostWindow))));
 		this._directProxy = directProxy;
+		this._directProxyDisposables.clear();
 
 		// The pty host should not get launched until at least the window restored phase
 		// if remote auth exists, don't await
@@ -129,52 +133,32 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		acquirePort('vscode:createPtyHostMessageChannel', 'vscode:createPtyHostMessageChannelResult').then(port => {
 			mark('code/terminal/didConnectPtyHost');
 			this._logService.trace('Renderer->PtyHost#connect: connection established');
+
+			const store = new DisposableStore();
+			this._directProxyDisposables.value = store;
+
 			// There are two connections to the pty host; one to the regular shared process
 			// _localPtyService, and one directly via message port _ptyHostDirectProxy. The former is
 			// used for pty host management messages, it would make sense in the future to use a
 			// separate interface/service for this one.
-			const client = new MessagePortClient(port, `window:${this._nativeHostService.windowId}`);
+			const client = store.add(new MessagePortClient(port, `window:${this._nativeHostService.windowId}`));
 			directProxyClientEventually.complete(client);
 			this._onPtyHostConnected.fire();
 
 			// Attach process listeners
-			directProxy.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event));
-			directProxy.onDidChangeProperty(e => this._ptys.get(e.id)?.handleDidChangeProperty(e.property));
-			directProxy.onProcessExit(e => {
+			store.add(directProxy.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event)));
+			store.add(directProxy.onDidChangeProperty(e => this._ptys.get(e.id)?.handleDidChangeProperty(e.property)));
+			store.add(directProxy.onProcessExit(e => {
 				const pty = this._ptys.get(e.id);
 				if (pty) {
 					pty.handleExit(e.event);
 					this._ptys.delete(e.id);
 				}
-			});
-			directProxy.onProcessReady(e => this._ptys.get(e.id)?.handleReady(e.event));
-			directProxy.onProcessReplay(e => this._ptys.get(e.id)?.handleReplay(e.event));
-			directProxy.onProcessOrphanQuestion(e => this._ptys.get(e.id)?.handleOrphanQuestion());
-			directProxy.onDidRequestDetach(e => this._onDidRequestDetach.fire(e));
-
-			// Listen for config changes
-			const initialConfig = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
-			for (const match of Object.keys(initialConfig.autoReplies)) {
-				// Ensure the reply is value
-				const reply = initialConfig.autoReplies[match] as string | null;
-				if (reply) {
-					directProxy.installAutoReply(match, reply);
-				}
-			}
-			// TODO: Could simplify update to a single call
-			this._register(this._configurationService.onDidChangeConfiguration(async e => {
-				if (e.affectsConfiguration(TerminalSettingId.AutoReplies)) {
-					directProxy.uninstallAllAutoReplies();
-					const config = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
-					for (const match of Object.keys(config.autoReplies)) {
-						// Ensure the reply is value
-						const reply = config.autoReplies[match] as string | null;
-						if (reply) {
-							this._proxy.installAutoReply(match, reply);
-						}
-					}
-				}
 			}));
+			store.add(directProxy.onProcessReady(e => this._ptys.get(e.id)?.handleReady(e.event)));
+			store.add(directProxy.onProcessReplay(e => this._ptys.get(e.id)?.handleReplay(e.event)));
+			store.add(directProxy.onProcessOrphanQuestion(e => this._ptys.get(e.id)?.handleOrphanQuestion()));
+			store.add(directProxy.onDidRequestDetach(e => this._onDidRequestDetach.fire(e)));
 
 			// Eagerly fetch the backend's environment for memoization
 			this.getEnvironment();
@@ -384,4 +368,15 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 	private _getWorkspaceName(): string {
 		return this._labelService.getWorkspaceLabel(this._workspaceContextService.getWorkspace());
 	}
+
+	// #region Pty service contribution RPC calls
+
+	installAutoReply(match: string, reply: string): Promise<void> {
+		return this._proxy.installAutoReply(match, reply);
+	}
+	uninstallAllAutoReplies(): Promise<void> {
+		return this._proxy.uninstallAllAutoReplies();
+	}
+
+	// #endregion
 }

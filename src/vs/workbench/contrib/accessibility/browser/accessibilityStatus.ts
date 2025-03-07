@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
-import Severity from 'vs/base/common/severity';
-import { localize } from 'vs/nls';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { INotificationHandle, INotificationService, NotificationPriority } from 'vs/platform/notification/common/notification';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Event } from '../../../../base/common/event.js';
+import Severity from '../../../../base/common/severity.js';
+import { localize } from '../../../../nls.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { INotificationHandle, INotificationService, NotificationPriority } from '../../../../platform/notification/common/notification.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 
 export class AccessibilityStatus extends Disposable implements IWorkbenchContribution {
 
@@ -26,7 +27,8 @@ export class AccessibilityStatus extends Disposable implements IWorkbenchContrib
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@IStatusbarService private readonly statusbarService: IStatusbarService
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
 
@@ -50,7 +52,7 @@ export class AccessibilityStatus extends Disposable implements IWorkbenchContrib
 	private showScreenReaderNotification(): void {
 		this.screenReaderNotification = this.notificationService.prompt(
 			Severity.Info,
-			localize('screenReaderDetectedExplanation.question', "Are you using a screen reader to operate VS Code?"),
+			localize('screenReaderDetectedExplanation.question', "Screen reader usage detected. Do you want to enable {0} to optimize the editor for screen reader usage?", 'editor.accessibilitySupport'),
 			[{
 				label: localize('screenReaderDetectedExplanation.answerYes', "Yes"),
 				run: () => {
@@ -60,6 +62,12 @@ export class AccessibilityStatus extends Disposable implements IWorkbenchContrib
 				label: localize('screenReaderDetectedExplanation.answerNo', "No"),
 				run: () => {
 					this.configurationService.updateValue('editor.accessibilitySupport', 'off', ConfigurationTarget.USER);
+				}
+			},
+			{
+				label: localize('screenReaderDetectedExplanation.answerLearnMore', "Learn More"),
+				run: () => {
+					this.openerService.open('https://code.visualstudio.com/docs/editor/accessibility#_screen-readers');
 				}
 			}],
 			{

@@ -23,11 +23,13 @@ export function setup(logger: Logger) {
 			const app = this.app as Application;
 			await app.workbench.search.openSearchViewlet();
 
-			await app.code.dispatchKeybinding('PageUp');
-			await app.workbench.search.hasActivityBarMoved();
+			await app.code.sendKeybinding('PageUp', async () => {
+				await app.workbench.search.hasActivityBarMoved();
+			});
 
-			await app.code.dispatchKeybinding('PageUp');
-			await app.workbench.search.hasActivityBarMoved();
+			await app.code.sendKeybinding('PageUp', async () => {
+				await app.workbench.search.hasActivityBarMoved();
+			});
 		});
 
 		it('searches for body & checks for correct result number', async function () {
