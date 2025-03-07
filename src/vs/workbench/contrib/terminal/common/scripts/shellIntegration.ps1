@@ -124,7 +124,7 @@ function Global:Prompt() {
 # Only send the command executed sequence when PSReadLine is loaded, if not shell integration should
 # still work thanks to the command line sequence
 if (Get-Module -Name PSReadLine) {
-	[Console]::Write("$([char]0x1b)]633;P;HasRichCmdDetection=True`a")
+	[Console]::Write("$([char]0x1b)]633;P;HasRichCommandDetection=True`a")
 	$__VSCodeOriginalPSConsoleHostReadLine = $function:PSConsoleHostReadLine
 	function Global:PSConsoleHostReadLine {
 		$CommandLine = $__VSCodeOriginalPSConsoleHostReadLine.Invoke()

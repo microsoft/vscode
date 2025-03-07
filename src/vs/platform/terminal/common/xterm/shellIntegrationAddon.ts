@@ -209,10 +209,10 @@ const enum VSCodeOscPt {
 	 *   integration sequences are not guaranteed to be correct. Valid values: `True`, `False`.
 	 * - `ContinuationPrompt` - Reports the continuation prompt that is printed at the start of
 	 *   multi-line inputs.
-	 * - `HasRichCmdDetection` - Reports whether the shell has rich command line detection, meaning
-	 *   that sequences A, B, C, D and E are exactly where they're meant to be. In particular,
-	 *   {@link CommandLine} must happen immediately before {@link CommandExecuted} so VS Code knows
-	 *   the command line when the execution begins.
+	 * - `HasRichCommandDetection` - Reports whether the shell has rich command line detection,
+	 *   meaning that sequences A, B, C, D and E are exactly where they're meant to be. In
+	 *   particular, {@link CommandLine} must happen immediately before {@link CommandExecuted} so
+	 *   VS Code knows the command line when the execution begins.
 	 *
 	 * WARNING: Any other properties may be changed and are not guaranteed to work in the future.
 	 */
@@ -557,7 +557,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 						this._createOrGetCommandDetection(this._terminal).setIsWindowsPty(value === 'True' ? true : false);
 						return true;
 					}
-					case 'HasRichCmdDetection': {
+					case 'HasRichCommandDetection': {
 						this._createOrGetCommandDetection(this._terminal).setHasRichCommandDetection(value === 'True' ? true : false);
 						return true;
 					}
