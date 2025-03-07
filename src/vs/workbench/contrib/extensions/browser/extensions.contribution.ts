@@ -905,7 +905,8 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (requireReload) {
 					notificationService.prompt(
 						Severity.Info,
-						localize('InstallVSIXAction.successReload', "Completed installing extension from VSIX. Please reload Visual Studio Code to enable it."),
+						vsixs.length > 1 ? localize('InstallVSIXs.successReload', "Completed installing extensions. Please reload Visual Studio Code to enable them.")
+							: localize('InstallVSIXAction.successReload', "Completed installing extension. Please reload Visual Studio Code to enable it."),
 						[{
 							label: localize('InstallVSIXAction.reloadNow', "Reload Now"),
 							run: () => hostService.reload()
@@ -915,7 +916,8 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				else if (requireRestart) {
 					notificationService.prompt(
 						Severity.Info,
-						localize('InstallVSIXAction.successRestart', "Completed installing extension from VSIX. Please restart extensions to enable it."),
+						vsixs.length > 1 ? localize('InstallVSIXs.successRestart', "Completed installing extensions. Please restart extensions to enable them.")
+							: localize('InstallVSIXAction.successRestart', "Completed installing extension. Please restart extensions to enable it."),
 						[{
 							label: localize('InstallVSIXAction.restartExtensions', "Restart Extensions"),
 							run: () => extensionsWorkbenchService.updateRunningExtensions()
@@ -925,7 +927,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				else {
 					notificationService.prompt(
 						Severity.Info,
-						localize('InstallVSIXAction.successNoReload', "Completed installing extension."),
+						vsixs.length > 1 ? localize('InstallVSIXs.successNoReload', "Completed installing extensions.") : localize('InstallVSIXAction.successNoReload', "Completed installing extension."),
 						[]
 					);
 				}
