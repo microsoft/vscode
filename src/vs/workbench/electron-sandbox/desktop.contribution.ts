@@ -248,6 +248,12 @@ import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from '../../platform/window/electron-s
 				'scope': ConfigurationScope.APPLICATION,
 				'markdownDescription': localize('window.customTitleBarVisibility', "Adjust when the custom title bar should be shown. The custom title bar can be hidden when in full screen mode with `windowed`. The custom title bar can only be hidden in non full screen mode with `never` when {0} is set to `native`.", '`#window.titleBarStyle#`'),
 			},
+			'window.showTitleBarControls': {
+				'type': 'boolean',
+				'default': true,
+				'scope': ConfigurationScope.APPLICATION,
+				'markdownDescription': localize('window.showTitleBarControls', "Controls whether the Minimize, Maximize, and Close buttons should be shown in the custom title bar. This setting is effective only if {0} is set to `custom`.", '`#window.titleBarStyle#`')
+			},
 			'window.dialogStyle': {
 				'type': 'string',
 				'enum': ['native', 'custom'],
