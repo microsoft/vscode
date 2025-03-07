@@ -76,7 +76,7 @@ import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEd
 import { revealInSideBarCommand } from '../../files/browser/fileActions.contribution.js';
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { IChatEditingSession, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../common/chatEditingService.js';
+import { IChatEditingSession } from '../common/chatEditingService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../common/chatEntitlementService.js';
 import { IChatRequestVariableEntry, isImageVariableEntry, isLinkVariableEntry, isPasteVariableEntry } from '../common/chatModel.js';
 import { IChatFollowup } from '../common/chatService.js';
@@ -99,6 +99,7 @@ import { ChatFollowups } from './chatFollowups.js';
 import { IChatViewState } from './chatWidget.js';
 import { ChatFileReference } from './contrib/chatDynamicVariables/chatFileReference.js';
 import { ChatImplicitContext } from './contrib/chatImplicitContext.js';
+import { ChatRelatedFiles } from './contrib/chatInputRelatedFilesContrib.js';
 import { convertUint8ArrayToString, resizeImage } from './imageUtils.js';
 
 const $ = dom.$;
@@ -215,6 +216,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _implicitContext: ChatImplicitContext | undefined;
 	public get implicitContext(): ChatImplicitContext | undefined {
 		return this._implicitContext;
+	}
+
+	private _relatedFiles: ChatRelatedFiles | undefined;
+	public get relatedFiles(): ChatRelatedFiles | undefined {
+		return this._relatedFiles;
 	}
 
 	private _hasFileAttachmentContextKey: IContextKey<boolean>;
@@ -764,7 +770,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.renderAttachedContext();
 		this._register(this._attachmentModel.onDidChangeContext(() => this._handleAttachedContextChange()));
-		this.renderChatEditingSessionState(null, widget);
+		this.renderChatEditingSessionState(null);
+
+		if (this.options.renderWorkingSet) {
+			this._relatedFiles = this._register(new ChatRelatedFiles());
+			this._register(this._relatedFiles.onDidChange(() => this.renderChatRelatedFiles()));
+		}
+		this.renderChatRelatedFiles();
 
 		this.dnd.addOverlay(container, container);
 
@@ -1280,12 +1292,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		};
 	}
 
-	async renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null, chatWidget?: IChatWidget) {
+	async renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null) {
 		dom.setVisibility(Boolean(chatEditingSession), this.chatEditingSessionWidgetContainer);
-
-		if (chatEditingSession && this.configurationService.getValue('chat.renderRelatedFiles')) {
-			this.renderChatRelatedFiles(chatEditingSession, this.relatedFilesContainer);
-		}
 
 		const seenEntries = new ResourceSet();
 		const entries: IChatCollapsibleListItem[] = chatEditingSession?.entries.get().map((entry) => {
@@ -1306,15 +1314,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Summary of number of files changed
 		const innerContainer = this.chatEditingSessionWidgetContainer.querySelector('.chat-editing-session-container.show-file-icons') as HTMLElement ?? dom.append(this.chatEditingSessionWidgetContainer, $('.chat-editing-session-container.show-file-icons'));
-		for (const [file, metadata] of chatEditingSession.workingSet.entries()) {
-			if (!seenEntries.has(file) && metadata.state !== WorkingSetEntryState.Suggested) {
+		for (const entry of chatEditingSession.entries.get()) {
+			if (!seenEntries.has(entry.modifiedURI)) {
 				entries.unshift({
-					reference: file,
-					state: metadata.state,
-					description: metadata.description,
+					reference: entry.modifiedURI,
+					state: entry.state.get(),
 					kind: 'reference',
 				});
-				seenEntries.add(file);
+				seenEntries.add(entry.modifiedURI);
 			}
 		}
 
@@ -1332,19 +1339,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const overviewTitle = overviewRegion.querySelector('.working-set-title') as HTMLElement ?? dom.append(overviewRegion, $('.working-set-title'));
 		const overviewFileCount = overviewTitle.querySelector('span.working-set-count') ?? dom.append(overviewTitle, $('span.working-set-count'));
 
-		let suggestedFilesInWorkingSetCount = 0;
-		overviewFileCount.textContent = '';
-		if (entries.length === 1) {
-			overviewFileCount.textContent = localize('chatEditingSession.oneFile.1', '1 file changed');
-			suggestedFilesInWorkingSetCount = entries[0].kind === 'reference' && entries[0].state === WorkingSetEntryState.Suggested ? 1 : 0;
-		} else {
-			suggestedFilesInWorkingSetCount = entries.filter(e => e.kind === 'reference' && e.state === WorkingSetEntryState.Suggested).length;
-		}
-
-		if (entries.length > 1) {
-			const fileCount = entries.length - suggestedFilesInWorkingSetCount;
-			overviewFileCount.textContent = (fileCount === 1 ? localize('chatEditingSession.oneFile.1', '1 file changed') : localize('chatEditingSession.manyFiles.1', '{0} files changed', fileCount));
-		}
+		overviewFileCount.textContent = entries.length === 1 ? localize('chatEditingSession.oneFile.1', '1 file changed') : localize('chatEditingSession.manyFiles.1', '{0} files changed', entries.length);
 
 		overviewTitle.ariaLabel = overviewFileCount.textContent;
 		overviewTitle.tabIndex = 0;
@@ -1416,15 +1411,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._onDidChangeHeight.fire();
 	}
 
-	async renderChatRelatedFiles(chatEditingSession: IChatEditingSession, anchor: HTMLElement) {
+	async renderChatRelatedFiles() {
+		const anchor = this.relatedFilesContainer;
 		dom.clearNode(anchor);
-		dom.setVisibility(Boolean(chatEditingSession.workingSet.size), anchor);
+		const shouldRender = this.configurationService.getValue('chat.renderRelatedFiles');
+		dom.setVisibility(Boolean(this.relatedFiles?.value.length && shouldRender), anchor);
+		if (!shouldRender || !this.relatedFiles?.value.length) {
+			return;
+		}
 
 		const hoverDelegate = getDefaultHoverDelegate('element');
-		for (const [uri, metadata] of chatEditingSession.workingSet) {
-			if (metadata.state !== WorkingSetEntryState.Suggested) {
-				continue;
-			}
+		for (const { uri, description } of this.relatedFiles.value) {
 			const uriLabel = this._chatEditsActionsDisposables.add(new Button(anchor, {
 				supportIcons: true,
 				secondary: true,
@@ -1432,12 +1429,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}));
 			uriLabel.label = this.labelService.getUriBasenameLabel(uri);
 			uriLabel.element.classList.add('monaco-icon-label');
-			uriLabel.element.title = localize('suggeste.title', "{0} - {1}", this.labelService.getUriLabel(uri, { relative: true }), metadata.description ?? '');
+			uriLabel.element.title = localize('suggeste.title', "{0} - {1}", this.labelService.getUriLabel(uri, { relative: true }), description ?? '');
 
 			this._chatEditsActionsDisposables.add(uriLabel.onDidClick(() => {
 				group.remove(); // REMOVE asap
 				this._attachmentModel.addFile(uri);
-				chatEditingSession.remove(WorkingSetEntryRemovalReason.User, uri);
+				this.relatedFiles?.remove(uri);
 			}));
 
 			const addButton = this._chatEditsActionsDisposables.add(new Button(anchor, {
@@ -1451,7 +1448,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._chatEditsActionsDisposables.add(addButton.onDidClick(() => {
 				group.remove(); // REMOVE asap
 				this._attachmentModel.addFile(uri);
-				chatEditingSession.remove(WorkingSetEntryRemovalReason.User, uri);
+				this.relatedFiles?.remove(uri);
 			}));
 
 			const sep = document.createElement('div');
