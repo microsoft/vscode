@@ -5,10 +5,12 @@
 
 import { localize } from '../../../../nls.js';
 import { ITerminalInstance } from './terminal.js';
-import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { asArray } from '../../../../base/common/arrays.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import type { IHoverAction } from '../../../../base/browser/ui/hover/hover.js';
+import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
+import { TerminalStatus } from './terminalStatusList.js';
+import Severity from '../../../../base/common/severity.js';
 
 export function getInstanceHoverInfo(instance: ITerminalInstance): { content: MarkdownString; actions: IHoverAction[] } {
 	let statusString = '';
@@ -22,33 +24,9 @@ export function getInstanceHoverInfo(instance: ITerminalInstance): { content: Ma
 	}
 
 	const shellProcessString = getShellProcessTooltip(instance, true);
-	const shellIntegrationString = getShellIntegrationTooltip(instance, true);
-	const content = new MarkdownString(instance.title + shellProcessString + shellIntegrationString + statusString, { supportThemeIcons: true });
+	const content = new MarkdownString(instance.title + shellProcessString + statusString, { supportThemeIcons: true });
 
 	return { content, actions };
-}
-
-export function getShellIntegrationTooltip(instance: ITerminalInstance, markdown: boolean): string {
-	const shellIntegrationCapabilities: TerminalCapability[] = [];
-	if (instance.capabilities.has(TerminalCapability.CommandDetection)) {
-		shellIntegrationCapabilities.push(TerminalCapability.CommandDetection);
-	}
-	if (instance.capabilities.has(TerminalCapability.CwdDetection)) {
-		shellIntegrationCapabilities.push(TerminalCapability.CwdDetection);
-	}
-	let shellIntegrationString = '';
-	if (shellIntegrationCapabilities.length > 0) {
-		shellIntegrationString += `${markdown ? '\n\n---\n\n' : '\n\n'}${localize('shellIntegration.enabled', "Shell integration activated")}`;
-	} else {
-		if (instance.shellLaunchConfig.ignoreShellIntegration) {
-			shellIntegrationString += `${markdown ? '\n\n---\n\n' : '\n\n'}${localize('launchFailed.exitCodeOnlyShellIntegration', "The terminal process failed to launch. Disabling shell integration with terminal.integrated.shellIntegration.enabled might help.")}`;
-		} else {
-			if (instance.usedShellIntegrationInjection) {
-				shellIntegrationString += `${markdown ? '\n\n---\n\n' : '\n\n'}${localize('shellIntegration.activationFailed', "Shell integration failed to activate")}`;
-			}
-		}
-	}
-	return shellIntegrationString;
 }
 
 export function getShellProcessTooltip(instance: ITerminalInstance, markdown: boolean): string {
@@ -69,4 +47,30 @@ export function getShellProcessTooltip(instance: ITerminalInstance, markdown: bo
 	}
 
 	return lines.length ? `${markdown ? '\n\n---\n\n' : '\n\n'}${lines.join('\n')}` : '';
+}
+
+export function refreshShellIntegrationInfoStatus(instance: ITerminalInstance) {
+	if (!instance.xterm) {
+		return;
+	}
+	const cmdDetectionType = (
+		instance.capabilities.get(TerminalCapability.CommandDetection)?.hasRichCommandDetection
+			? 'Rich'
+			: instance.capabilities.has(TerminalCapability.CommandDetection)
+				? 'Basic'
+				: instance.usedShellIntegrationInjection
+					? localize('shellIntegration.injectionFailed', "Injection failed to activate")
+					: 'No'
+	);
+	const seenSequences = Array.from(instance.xterm.shellIntegration.seenSequences);
+	const seenSequencesString = (
+		seenSequences.length > 0
+			? ` (${seenSequences.map(e => `\`${e}\``).join(', ')})`
+			: ''
+	);
+	instance.statusList.add({
+		id: TerminalStatus.ShellIntegrationInfo,
+		severity: Severity.Info,
+		tooltip: `${localize('shellIntegration', "Shell integration")}: ${cmdDetectionType}${seenSequencesString}`
+	});
 }
