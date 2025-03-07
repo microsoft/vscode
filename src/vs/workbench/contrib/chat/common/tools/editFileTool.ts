@@ -13,6 +13,8 @@ import { localize } from '../../../../../nls.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { SaveReason } from '../../../../common/editor.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
+import { CellUri } from '../../../notebook/common/notebookCommon.js';
+import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { ICodeMapperService } from '../../common/chatCodeMapperService.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
 import { ChatModel } from '../../common/chatModel.js';
@@ -41,10 +43,10 @@ class Person {
 }
 `;
 
-export const EditToolId = 'vscode_editFile';
+export const ExtensionEditToolId = 'vscode_editFile';
+export const InternalEditToolId = 'vscode_editFile_internal';
 export const EditToolData: IToolData = {
-	id: EditToolId,
-	tags: ['vscode_editing'],
+	id: InternalEditToolId,
 	displayName: localize('chat.tools.editFile', "Edit File"),
 	modelDescription: `Edit a file in the workspace. Use this tool once per file that needs to be modified, even if there are multiple changes for a file. Generate the "explanation" property first. ${codeInstructions}`,
 	inputSchema: {
@@ -76,6 +78,7 @@ export class EditTool implements IToolImpl {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ILanguageModelIgnoredFilesService private readonly ignoredFilesService: ILanguageModelIgnoredFilesService,
 		@ITextFileService private readonly textFileService: ITextFileService,
+		@INotebookService private readonly notebookService: INotebookService,
 	) { }
 
 	async invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
@@ -118,11 +121,21 @@ export class EditTool implements IToolImpl {
 			kind: 'markdownContent',
 			content: new MarkdownString(parameters.code + '\n````\n')
 		});
-		model.acceptResponseProgress(request, {
-			kind: 'textEdit',
-			edits: [],
-			uri
-		});
+		const notebookUri = CellUri.parse(uri)?.notebook || uri;
+		// Signal start.
+		if (this.notebookService.hasSupportedNotebooks(notebookUri) && (this.notebookService.getNotebookTextModel(notebookUri))) {
+			model.acceptResponseProgress(request, {
+				kind: 'notebookEdit',
+				edits: [],
+				uri: notebookUri
+			});
+		} else {
+			model.acceptResponseProgress(request, {
+				kind: 'textEdit',
+				edits: [],
+				uri
+			});
+		}
 
 		const editSession = this.chatEditingService.getEditingSession(model.sessionId);
 		if (!editSession) {
@@ -142,7 +155,12 @@ export class EditTool implements IToolImpl {
 			},
 		}, token);
 
-		model.acceptResponseProgress(request, { kind: 'textEdit', uri, edits: [], done: true });
+		// Signal end.
+		if (this.notebookService.hasSupportedNotebooks(notebookUri) && (this.notebookService.getNotebookTextModel(notebookUri))) {
+			model.acceptResponseProgress(request, { kind: 'notebookEdit', uri: notebookUri, edits: [], done: true });
+		} else {
+			model.acceptResponseProgress(request, { kind: 'textEdit', uri, edits: [], done: true });
+		}
 
 		if (result?.errorMessage) {
 			throw new Error(result.errorMessage);

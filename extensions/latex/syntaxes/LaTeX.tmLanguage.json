@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/7a35f5e0f19b28f5f1366579e2a9ad34df4f40c9",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/7b75bae583f3f9802c533e021f882428872c572c",
 	"name": "LaTeX",
 	"scopeName": "text.tex.latex",
 	"patterns": [
@@ -2349,16 +2349,16 @@
 					]
 				}
 			},
-			"contentName": "meta.embedded.markdown_latex_combined",
+			"contentName": "meta.embedded.internal_only_markdown_latex_combined",
 			"end": "(\\\\end\\{markdown\\})",
 			"patterns": [
 				{
-					"include": "text.tex.markdown_latex_combined"
+					"include": "text.tex.internal_only_markdown_latex_combined"
 				}
 			]
 		},
 		{
-			"begin": "(\\s*\\\\begin\\{(\\w+\\*?)\\})",
+			"begin": "(\\s*\\\\begin\\{(\\p{Alphabetic}+\\*?)\\})",
 			"captures": {
 				"1": {
 					"patterns": [
@@ -3192,7 +3192,7 @@
 					"name": "punctuation.definition.arguments.end.latex"
 				}
 			},
-			"match": "\\s*((\\\\)(?:begin|end))(\\{)([a-zA-Z]*\\*?)(\\})(?:(\\[)([^\\]]*)(\\])){,2}(?:(\\{)([^{}]*)(\\}))?"
+			"match": "\\s*((\\\\)(?:begin|end))(\\{)(\\p{Alphabetic}+\\*?)(\\})(?:(\\[)([^\\]]*)(\\])){,2}(?:(\\{)([^{}]*)(\\}))?"
 		},
 		"definition-label": {
 			"begin": "((\\\\)z?label)((?:\\[[^\\[]*?\\])*)(\\{)",

@@ -194,14 +194,14 @@ export const enum DerivedState {
 }
 
 export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> implements IReader, IObserver {
-	public _state = DerivedState.initial;
-	private value: T | undefined = undefined;
-	public _updateCount = 0;
-	public _dependencies = new Set<IObservable<any>>();
-	private dependenciesToBeRemoved = new Set<IObservable<any>>();
-	private changeSummary: TChangeSummary | undefined = undefined;
+	private _state = DerivedState.initial;
+	private _value: T | undefined = undefined;
+	private _updateCount = 0;
+	private _dependencies = new Set<IObservable<any>>();
+	private _dependenciesToBeRemoved = new Set<IObservable<any>>();
+	private _changeSummary: TChangeSummary | undefined = undefined;
 	private _isUpdating = false;
-	public _isComputing = false;
+	private _isComputing = false;
 
 	public override get debugName(): string {
 		return this._debugNameData.getDebugName(this) ?? '(anonymous)';
@@ -216,7 +216,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 		private readonly _equalityComparator: EqualityComparer<T>,
 	) {
 		super();
-		this.changeSummary = this.createChangeSummary?.();
+		this._changeSummary = this.createChangeSummary?.();
 	}
 
 	protected override onLastObserverRemoved(): void {
@@ -225,7 +225,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 		 * that our cache is invalid.
 		 */
 		this._state = DerivedState.initial;
-		this.value = undefined;
+		this._value = undefined;
 		getLogger()?.handleDerivedCleared(this);
 		for (const d of this._dependencies) {
 			d.removeObserver(this);
@@ -283,17 +283,17 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 				}
 				// In case recomputation changed one of our dependencies, we need to recompute again.
 			} while (this._state !== DerivedState.upToDate);
-			return this.value!;
+			return this._value!;
 		}
 	}
 
 	private _recompute() {
-		const emptySet = this.dependenciesToBeRemoved;
-		this.dependenciesToBeRemoved = this._dependencies;
+		const emptySet = this._dependenciesToBeRemoved;
+		this._dependenciesToBeRemoved = this._dependencies;
 		this._dependencies = emptySet;
 
 		const hadValue = this._state !== DerivedState.initial;
-		const oldValue = this.value;
+		const oldValue = this._value;
 		this._state = DerivedState.upToDate;
 
 		let didChange = false;
@@ -301,27 +301,27 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 		this._isComputing = true;
 
 		try {
-			const changeSummary = this.changeSummary!;
-			this.changeSummary = this.createChangeSummary?.();
+			const changeSummary = this._changeSummary!;
+			this._changeSummary = this.createChangeSummary?.();
 			try {
 				this._isReaderValid = true;
 				/** might call {@link handleChange} indirectly, which could invalidate us */
-				this.value = this._computeFn(this, changeSummary);
+				this._value = this._computeFn(this, changeSummary);
 			} finally {
 				this._isReaderValid = false;
 				// We don't want our observed observables to think that they are (not even temporarily) not being observed.
 				// Thus, we only unsubscribe from observables that are definitely not read anymore.
-				for (const o of this.dependenciesToBeRemoved) {
+				for (const o of this._dependenciesToBeRemoved) {
 					o.removeObserver(this);
 				}
-				this.dependenciesToBeRemoved.clear();
+				this._dependenciesToBeRemoved.clear();
 			}
 
-			didChange = hadValue && !(this._equalityComparator(oldValue!, this.value));
+			didChange = hadValue && !(this._equalityComparator(oldValue!, this._value));
 
 			getLogger()?.handleObservableUpdated(this, {
 				oldValue,
-				newValue: this.value,
+				newValue: this._value,
 				change: undefined,
 				didChange,
 				hadValue,
@@ -396,7 +396,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 
 	public handlePossibleChange<T>(observable: IObservable<T>): void {
 		// In all other states, observers already know that we might have changed.
-		if (this._state === DerivedState.upToDate && this._dependencies.has(observable) && !this.dependenciesToBeRemoved.has(observable)) {
+		if (this._state === DerivedState.upToDate && this._dependencies.has(observable) && !this._dependenciesToBeRemoved.has(observable)) {
 			this._state = DerivedState.dependenciesMightHaveChanged;
 			for (const r of this._observers) {
 				r.handlePossibleChange(this);
@@ -405,7 +405,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 	}
 
 	public handleChange<T, TChange>(observable: IObservableWithChange<T, TChange>, change: TChange): void {
-		if (this._dependencies.has(observable) && !this.dependenciesToBeRemoved.has(observable)) {
+		if (this._dependencies.has(observable) && !this._dependenciesToBeRemoved.has(observable)) {
 			getLogger()?.handleDerivedDependencyChanged(this, observable, change);
 
 			let shouldReact = false;
@@ -414,7 +414,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 					changedObservable: observable,
 					change,
 					didChange: (o): this is any => o === observable as any,
-				}, this.changeSummary!) : true;
+				}, this._changeSummary!) : true;
 			} catch (e) {
 				onBugIndicatingError(e);
 			}
@@ -443,7 +443,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 		const value = observable.get();
 		// Which is why we only add the observable to the dependencies now.
 		this._dependencies.add(observable);
-		this.dependenciesToBeRemoved.delete(observable);
+		this._dependenciesToBeRemoved.delete(observable);
 		return value;
 	}
 
@@ -469,6 +469,21 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 		}
 		super.removeObserver(observer);
 	}
+
+	public debugGetState() {
+		return {
+			state: this._state,
+			updateCount: this._updateCount,
+			isComputing: this._isComputing,
+			dependencies: this._dependencies,
+			value: this._value,
+		};
+	}
+
+	public debugSetValue(newValue: unknown) {
+		this._value = newValue as any;
+	}
+
 }
 
 

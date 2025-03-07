@@ -1889,13 +1889,14 @@ export interface IDataTransferFileDTO {
 }
 
 export interface DataTransferItemDTO {
+	id: string;
 	readonly asString: string;
 	readonly fileData: IDataTransferFileDTO | undefined;
 	readonly uriListData?: ReadonlyArray<string | UriComponents>;
 }
 
 export interface DataTransferDTO {
-	readonly items: Array<[/* type */string, DataTransferItemDTO]>;
+	items: Array<readonly [/* type */string, DataTransferItemDTO]>;
 }
 
 export interface CheckboxUpdate {
@@ -2480,6 +2481,7 @@ export class TerminalCompletionListDto<T extends ITerminalCompletionItemDto = IT
 export interface TerminalResourceRequestConfigDto {
 	filesRequested?: boolean;
 	foldersRequested?: boolean;
+	fileExtensions?: string[];
 	cwd?: UriComponents;
 	pathSeparator: string;
 }

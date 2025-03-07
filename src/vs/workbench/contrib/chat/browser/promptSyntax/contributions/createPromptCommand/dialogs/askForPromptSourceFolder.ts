@@ -21,7 +21,7 @@ interface IAskForFolderOptions {
 	/**
 	 * Prompt type.
 	 */
-	readonly type: 'local' | 'global';
+	readonly type: 'local' | 'user';
 
 	readonly labelService: ILabelService;
 	readonly openerService: IOpenerService;

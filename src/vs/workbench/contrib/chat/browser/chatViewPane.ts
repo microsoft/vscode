@@ -18,7 +18,6 @@ import { ILayoutService } from '../../../../platform/layout/browser/layoutServic
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IViewPaneOptions, ViewPane } from '../../../browser/parts/views/viewPane.js';
@@ -62,7 +61,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IChatService private readonly chatService: IChatService,
@@ -70,7 +68,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@ILogService private readonly logService: ILogService,
 		@ILayoutService private readonly layoutService: ILayoutService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		// View state for the ViewPane is currently global per-provider basically, but some other strictly per-model state will require a separate memento.
 		this.memento = new Memento('interactive-session-view-' + CHAT_PROVIDER_ID + (this.chatOptions.location === ChatAgentLocation.EditingSession ? `-edits` : ''), this.storageService);
@@ -120,7 +118,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private updateModel(model?: IChatModel | undefined, viewState?: IChatViewState): void {
 		this.modelDisposables.clear();
 
-		model = model ?? (this.chatService.transferredSessionData?.sessionId
+		model = model ?? (this.chatService.transferredSessionData?.sessionId && this.chatService.transferredSessionData?.location === this.chatOptions.location
 			? this.chatService.getOrRestoreSession(this.chatService.transferredSessionData.sessionId)
 			: this.chatService.startSession(this.chatOptions.location, CancellationToken.None));
 		if (!model) {
@@ -148,7 +146,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private getSessionId() {
 		let sessionId: string | undefined;
-		if (this.chatService.transferredSessionData) {
+		if (this.chatService.transferredSessionData?.location === this.chatOptions.location) {
 			sessionId = this.chatService.transferredSessionData.sessionId;
 			this.viewState.inputValue = this.chatService.transferredSessionData.inputValue;
 		} else {
@@ -186,7 +184,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 						progressMessageAtBottomOfResponse: this.chatOptions.location === ChatAgentLocation.EditingSession,
 					},
 					editorOverflowWidgetsDomNode: editorOverflowNode,
-					enableImplicitContext: this.chatOptions.location === ChatAgentLocation.Panel,
+					enableImplicitContext: this.chatOptions.location === ChatAgentLocation.Panel || this.chatOptions.location === ChatAgentLocation.EditingSession,
 					enableWorkingSet: this.chatOptions.location === ChatAgentLocation.EditingSession ? 'explicit' : undefined
 				},
 				{

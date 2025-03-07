@@ -16,7 +16,7 @@ import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/ex
 import { ExtHostLanguageModelToolsShape, IMainContext, IToolDataDto, MainContext, MainThreadLanguageModelToolsShape } from './extHost.protocol.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import { IToolInputProcessor } from '../../contrib/chat/common/tools/tools.js';
-import { EditToolData, EditToolId, EditToolInputProcessor } from '../../contrib/chat/common/tools/editFileTool.js';
+import { EditToolData, InternalEditToolId, EditToolInputProcessor, ExtensionEditToolId } from '../../contrib/chat/common/tools/editFileTool.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
 
 export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape {
@@ -62,7 +62,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				throw new Error(`Invalid tool invocation token`);
 			}
 
-			if (toolId === EditToolId && !isProposedApiEnabled(extension, 'chatParticipantPrivate')) {
+			if ((toolId === InternalEditToolId || toolId === ExtensionEditToolId) && !isProposedApiEnabled(extension, 'chatParticipantPrivate')) {
 				throw new Error(`Invalid tool: ${toolId}`);
 			}
 
@@ -93,7 +93,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		return Array.from(this._allTools.values())
 			.map(tool => typeConvert.LanguageModelToolDescription.to(tool))
 			.filter(tool => {
-				if (tool.name === EditToolId) {
+				if (tool.name === InternalEditToolId || tool.name === ExtensionEditToolId) {
 					return isProposedApiEnabled(extension, 'chatParticipantPrivate');
 				}
 
@@ -112,6 +112,10 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			toolInvocationToken: dto.context as vscode.ChatParticipantToolToken | undefined,
 			chatRequestId: dto.chatRequestId,
 		};
+		if (isProposedApiEnabled(item.extension, 'chatParticipantPrivate') && dto.toolSpecificData?.kind === 'terminal') {
+			options.terminalCommand = dto.toolSpecificData.command;
+		}
+
 		if (dto.tokenBudget !== undefined) {
 			options.tokenizationOptions = {
 				tokenBudget: dto.tokenBudget,
@@ -134,29 +138,46 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			throw new Error(`Unknown tool ${toolId}`);
 		}
 
-		if (!item.tool.prepareInvocation) {
-			return undefined;
-		}
-
 		const options: vscode.LanguageModelToolInvocationPrepareOptions<any> = { input };
-		const result = await item.tool.prepareInvocation(options, token);
-		if (!result) {
-			return undefined;
+		if (isProposedApiEnabled(item.extension, 'chatParticipantPrivate') && item.tool.prepareInvocation2) {
+			const result = await item.tool.prepareInvocation2(options, token);
+			if (!result) {
+				return undefined;
+			}
+
+			return {
+				confirmationMessages: result.confirmationMessages ? {
+					title: result.confirmationMessages.title,
+					message: typeof result.confirmationMessages.message === 'string' ? result.confirmationMessages.message : typeConvert.MarkdownString.from(result.confirmationMessages.message),
+				} : undefined,
+				toolSpecificData: {
+					kind: 'terminal',
+					language: result.language,
+					command: result.command,
+				}
+			};
+		} else if (item.tool.prepareInvocation) {
+			const result = await item.tool.prepareInvocation(options, token);
+			if (!result) {
+				return undefined;
+			}
+
+			if (result.pastTenseMessage || result.presentation) {
+				checkProposedApiEnabled(item.extension, 'chatParticipantPrivate');
+			}
+
+			return {
+				confirmationMessages: result.confirmationMessages ? {
+					title: result.confirmationMessages.title,
+					message: typeof result.confirmationMessages.message === 'string' ? result.confirmationMessages.message : typeConvert.MarkdownString.from(result.confirmationMessages.message),
+				} : undefined,
+				invocationMessage: typeConvert.MarkdownString.fromStrict(result.invocationMessage),
+				pastTenseMessage: typeConvert.MarkdownString.fromStrict(result.pastTenseMessage),
+				presentation: result.presentation
+			};
 		}
 
-		if (result.pastTenseMessage || result.presentation) {
-			checkProposedApiEnabled(item.extension, 'chatParticipantPrivate');
-		}
-
-		return {
-			confirmationMessages: result.confirmationMessages ? {
-				title: result.confirmationMessages.title,
-				message: typeof result.confirmationMessages.message === 'string' ? result.confirmationMessages.message : typeConvert.MarkdownString.from(result.confirmationMessages.message),
-			} : undefined,
-			invocationMessage: typeConvert.MarkdownString.fromStrict(result.invocationMessage),
-			pastTenseMessage: typeConvert.MarkdownString.fromStrict(result.pastTenseMessage),
-			presentation: result.presentation
-		};
+		return undefined;
 	}
 
 	registerTool(extension: IExtensionDescription, id: string, tool: vscode.LanguageModelTool<any>): IDisposable {

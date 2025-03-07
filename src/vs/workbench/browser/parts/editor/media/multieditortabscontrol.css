@@ -359,6 +359,12 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit .monaco-icon-label,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit .monaco-icon-label > .monaco-icon-label-container {
 	overflow-x: visible; /* fixes https://github.com/microsoft/vscode/issues/20182 by ensuring the horizontal overflow is visible */
+
+	scrollbar-width: none; /* Firefox */
+	-ms-overflow-style: none; /* Internet Explorer 10+ */
+	&::-webkit-scrollbar {
+		display: none; /* Chrome, Safari, and Opera */
+	}
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink > .monaco-icon-label > .monaco-icon-label-container,
@@ -372,6 +378,18 @@
 .monaco-workbench.hc-black .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fixed > .monaco-icon-label > .monaco-icon-label-container,
 .monaco-workbench.hc-light .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fixed > .monaco-icon-label > .monaco-icon-label-container {
 	text-overflow: ellipsis;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab > .monaco-icon-label.italic > .monaco-icon-label-container {
+	/**
+	 * Browser rendering engines seem to have trouble to render italic labels
+	 * fully without clipping in case the parent container has `overflow: hidden`
+	 * and/or `flex: none`. We added those styles to fix other issues so a pragmatic
+	 * solution is to give the label container a bit more room to fully render.
+	 * 
+	 * Refs: https://github.com/microsoft/vscode/issues/207409
+	 */
+	padding-right: 1px;
 }
 
 /* Tab Actions */

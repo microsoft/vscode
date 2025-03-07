@@ -10,46 +10,32 @@ import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { ReadableStreamEvents } from '../../../../../../base/common/stream.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { IFileService, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, IFileDeleteOptions, IFileOverwriteOptions, IFileWriteOptions, IFileReadStreamOptions, IFileOpenOptions, FileType } from '../../../../../../platform/files/common/files.js';
+import { FileSystemProviderCapabilities, FileType, IFileChange, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, IFileService, IFileSystemProvider, IFileWriteOptions, IStat, IWatchOptions } from '../../../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
+import { INotebookService } from '../../../../notebook/common/notebookService.js';
+import { IChatEditingService } from '../../../common/chatEditingService.js';
+import { ChatEditingNotebookSnapshotScheme, deserializeSnapshot } from './chatEditingModifiedNotebookSnapshot.js';
+import { ChatEditingSession } from '../chatEditingSession.js';
 
 
 export class ChatEditingNotebookFileSystemProviderContrib extends Disposable implements IWorkbenchContribution {
 	static ID = 'chatEditingNotebookFileSystemProviderContribution';
 	constructor(
-		@IFileService private readonly fileService: IFileService) {
+		@IFileService private readonly fileService: IFileService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
 
 		super();
-		this._register(this.fileService.registerProvider(ChatEditingNotebookFileSystemProvider.scheme, new ChatEditingNotebookFileSystemProvider()));
+		const fileSystemProvider = instantiationService.createInstance(ChatEditingNotebookFileSystemProvider);
+		this._register(this.fileService.registerProvider(ChatEditingNotebookSnapshotScheme, fileSystemProvider));
 	}
 }
 
+type ChatEditingSnapshotNotebookContentQueryData = { sessionId: string; requestId: string | undefined; undoStop: string | undefined; viewType: string };
+
 export class ChatEditingNotebookFileSystemProvider implements IFileSystemProvider {
-	public static readonly scheme = 'chat-editing-notebook-model';
 	private static registeredFiles = new ResourceMap<VSBuffer>();
-
-	public static getEmptyFileURI(): URI {
-		return URI.from({
-			scheme: ChatEditingNotebookFileSystemProvider.scheme,
-			query: JSON.stringify({ kind: 'empty' }),
-		});
-	}
-
-	public static getFileURI(documentId: string, path: string): URI {
-		return URI.from({
-			scheme: ChatEditingNotebookFileSystemProvider.scheme,
-			path,
-			query: JSON.stringify({ kind: 'doc' }),
-		});
-	}
-	public static getSnapshotFileURI(requestId: string | undefined, path: string): URI {
-		return URI.from({
-			scheme: ChatEditingNotebookFileSystemProvider.scheme,
-			path,
-			query: JSON.stringify({ requestId: requestId ?? '' }),
-		});
-	}
-
 	public readonly capabilities: FileSystemProviderCapabilities = FileSystemProviderCapabilities.Readonly | FileSystemProviderCapabilities.FileAtomicRead | FileSystemProviderCapabilities.FileReadWrite;
 	public static registerFile(resource: URI, buffer: VSBuffer): IDisposable {
 		ChatEditingNotebookFileSystemProvider.registeredFiles.set(resource, buffer);
@@ -62,6 +48,9 @@ export class ChatEditingNotebookFileSystemProvider implements IFileSystemProvide
 		};
 	}
 
+	constructor(
+		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
+		@INotebookService private readonly notebookService: INotebookService) { }
 	readonly onDidChangeCapabilities = Event.None;
 	readonly onDidChangeFile: Event<readonly IFileChange[]> = Event.None;
 	watch(_resource: URI, _opts: IWatchOptions): IDisposable {
@@ -92,11 +81,27 @@ export class ChatEditingNotebookFileSystemProvider implements IFileSystemProvide
 	}
 	async readFile(resource: URI): Promise<Uint8Array> {
 		const buffer = ChatEditingNotebookFileSystemProvider.registeredFiles.get(resource);
-		if (!buffer) {
-			throw new Error('File not found');
+		if (buffer) {
+			return buffer.buffer;
 		}
-		return buffer.buffer;
+		const queryData = JSON.parse(resource.query) as ChatEditingSnapshotNotebookContentQueryData;
+		if (!queryData.viewType) {
+			throw new Error('File not found, viewType not found');
+		}
+		const session = this._chatEditingService.getEditingSession(queryData.sessionId);
+		if (!(session instanceof ChatEditingSession) || !queryData.requestId) {
+			throw new Error('File not found, session not found');
+		}
+		const snapshotEntry = session.getSnapshot(queryData.requestId, queryData.undoStop || undefined, resource);
+		if (!snapshotEntry) {
+			throw new Error('File not found, snapshot not found');
+		}
+
+		const { data } = deserializeSnapshot(snapshotEntry.current);
+		const { serializer } = await this.notebookService.withNotebookDataProvider(queryData.viewType);
+		return serializer.notebookToData(data).then(s => s.buffer);
 	}
+
 	writeFile?(__resource: URI, _content: Uint8Array, _opts: IFileWriteOptions): Promise<void> {
 		throw new Error('Method not implemented7.');
 	}

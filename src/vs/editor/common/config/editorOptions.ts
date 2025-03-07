@@ -1944,7 +1944,7 @@ class EffectiveExperimentalEditContextEnabled extends ComputedEditorOption<Edito
 
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions): boolean {
 		const editContextSupported = typeof (globalThis as any).EditContext === 'function';
-		return editContextSupported && env.accessibilitySupport !== AccessibilitySupport.Enabled && options.get(EditorOption.experimentalEditContextEnabled);
+		return editContextSupported && options.get(EditorOption.experimentalEditContextEnabled);
 	}
 }
 
@@ -4278,10 +4278,6 @@ export interface IInlineSuggestOptions {
 		* @internal
 		*/
 		useMultiLineGhostText?: boolean;
-		/**
-		* @internal
-		*/
-		useGutterIndicator?: boolean;
 	};
 }
 
@@ -4313,7 +4309,6 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				useMixedLinesDiff: 'forStableInsertions',
 				useInterleavedLinesDiff: 'never',
 				renderSideBySide: 'auto',
-				useGutterIndicator: true,
 				codeShifting: true,
 				useMultiLineGhostText: true
 			},
@@ -4371,8 +4366,8 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					description: nls.localize('inlineSuggest.edits.renderSideBySide', "Controls whether larger suggestions can be shown side by side."),
 					enum: ['auto', 'never'],
 					enumDescriptions: [
-						nls.localize('editor.inlineSuggest.edits.renderSideBySide.auto', "Larger suggestions will show side by side if there is enough space, otherwise they will be shown bellow."),
-						nls.localize('editor.inlineSuggest.edits.renderSideBySide.never', "Larger suggestions are never shown side by side and will always be shown bellow."),
+						nls.localize('editor.inlineSuggest.edits.renderSideBySide.auto', "Larger suggestions will show side by side if there is enough space, otherwise they will be shown below."),
+						nls.localize('editor.inlineSuggest.edits.renderSideBySide.never', "Larger suggestions are never shown side by side and will always be shown below."),
 					],
 					tags: ['nextEditSuggestions']
 				},
@@ -4422,7 +4417,6 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				codeShifting: boolean(input.edits?.codeShifting, this.defaultValue.edits.codeShifting),
 				renderSideBySide: stringSet(input.edits?.renderSideBySide, this.defaultValue.edits.renderSideBySide, ['never', 'auto']),
 				useInterleavedLinesDiff: stringSet(input.edits?.useInterleavedLinesDiff, this.defaultValue.edits.useInterleavedLinesDiff, ['never', 'always', 'afterJump']),
-				useGutterIndicator: boolean(input.edits?.useGutterIndicator, this.defaultValue.edits.useGutterIndicator),
 				useMultiLineGhostText: boolean(input.edits?.useMultiLineGhostText, this.defaultValue.edits.useMultiLineGhostText),
 			},
 		};

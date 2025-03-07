@@ -27,7 +27,7 @@ export async function resizeImage(data: Uint8Array | string): Promise<Uint8Array
 			URL.revokeObjectURL(url);
 			let { width, height } = img;
 
-			if (width < 768 || height < 768) {
+			if (width <= 768 || height <= 768) {
 				resolve(data);
 				return;
 			}
@@ -78,6 +78,17 @@ export function convertStringToUInt8Array(data: string): Uint8Array {
 		return Uint8Array.from(atob(base64Data), char => char.charCodeAt(0));
 	}
 	return new TextEncoder().encode(data);
+}
+
+// Only used for URLs
+export function convertUint8ArrayToString(data: Uint8Array): string {
+	try {
+		const decoder = new TextDecoder();
+		const decodedString = decoder.decode(data);
+		return decodedString;
+	} catch {
+		return '';
+	}
 }
 
 function isValidBase64(str: string): boolean {

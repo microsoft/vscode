@@ -16,11 +16,13 @@ import type { ICompletionResource } from '../types';
 import { osIsWindows } from '../helpers/os';
 import { removeAnyFileExtension } from '../helpers/file';
 import type { EnvironmentVariable } from './api-bindings/types';
+import { asArray, availableSpecs } from '../terminalSuggestMain';
 import { IFigExecuteExternals } from './execute';
 
 export interface IFigSpecSuggestionsResult {
 	filesRequested: boolean;
 	foldersRequested: boolean;
+	fileExtensions?: string[];
 	hasCurrentArg: boolean;
 	items: vscode.TerminalCompletionItem[];
 }
@@ -50,11 +52,10 @@ export async function getFigSuggestions(
 		if (!specLabels) {
 			continue;
 		}
-
 		for (const specLabel of specLabels) {
 			const availableCommand = (osIsWindows()
 				? availableCommands.find(command => (typeof command.label === 'string' ? command.label : command.label.label).match(new RegExp(`${specLabel}(\\.[^ ]+)?$`)))
-				: availableCommands.find(command => (typeof command.label === 'string' ? command.label : command.label.label).startsWith(specLabel)));
+				: availableCommands.find(command => (typeof command.label === 'string' ? command.label : command.label.label) === (specLabel)));
 			if (!availableCommand || (token && token.isCancellationRequested)) {
 				continue;
 			}
@@ -66,31 +67,38 @@ export async function getFigSuggestions(
 					result.items.push(createCompletionItem(
 						terminalContext.cursorPosition,
 						prefix,
-						{ label: { label: specLabel, description } },
+						{
+							label: { label: specLabel, description },
+							kind: vscode.TerminalCompletionItemKind.Method
+						},
 						description,
-						availableCommand.detail)
-					);
+						availableCommand.detail
+					));
 				}
 				continue;
 			}
 
 			const commandAndAliases = (osIsWindows()
 				? availableCommands.filter(command => specLabel === removeAnyFileExtension(command.definitionCommand ?? (typeof command.label === 'string' ? command.label : command.label.label)))
-				: availableCommands.filter(command => specLabel === (command.definitionCommand ?? command.label)));
+				: availableCommands.filter(command => specLabel === (command.definitionCommand ?? (typeof command.label === 'string' ? command.label : command.label.label))));
 			if (
 				!(osIsWindows()
 					? commandAndAliases.some(e => precedingText.startsWith(`${removeAnyFileExtension((typeof e.label === 'string' ? e.label : e.label.label))} `))
-					: commandAndAliases.some(e => precedingText.startsWith(`${e.label} `)))
+					: commandAndAliases.some(e => precedingText.startsWith(`${typeof e.label === 'string' ? e.label : e.label.label} `)))
 			) {
-				// the spec label is not the first word in the command line, so do not provide options or args
 				continue;
 			}
 
-			const completionItemResult = await getFigSpecSuggestions(spec, terminalContext, prefix, shellIntegrationCwd, env, name, executeExternals, token);
+			const actualSpec = availableCommand.definitionCommand ? availableSpecs.find(s => s.name === availableCommand.definitionCommand) : spec;
+			if (!actualSpec) {
+				continue;
+			}
+			const completionItemResult = await getFigSpecSuggestions(actualSpec, terminalContext, prefix, shellIntegrationCwd, env, name, executeExternals, token);
 			result.hasCurrentArg ||= !!completionItemResult?.hasCurrentArg;
 			if (completionItemResult) {
 				result.filesRequested ||= completionItemResult.filesRequested;
 				result.foldersRequested ||= completionItemResult.foldersRequested;
+				result.fileExtensions ||= completionItemResult.fileExtensions;
 				if (completionItemResult.items) {
 					result.items.push(...completionItemResult.items);
 				}
@@ -112,6 +120,7 @@ async function getFigSpecSuggestions(
 ): Promise<IFigSpecSuggestionsResult | undefined> {
 	let filesRequested = false;
 	let foldersRequested = false;
+	let fileExtensions: string[] | undefined;
 
 	const command = getCommand(terminalContext.commandLine, {}, terminalContext.cursorPosition);
 	if (!command || !shellIntegrationCwd) {
@@ -136,13 +145,15 @@ async function getFigSpecSuggestions(
 	if (completionItemResult) {
 		filesRequested = completionItemResult.filesRequested;
 		foldersRequested = completionItemResult.foldersRequested;
+		fileExtensions = completionItemResult.fileExtensions;
 	}
 
 	return {
 		filesRequested,
 		foldersRequested,
+		fileExtensions,
 		hasCurrentArg: !!parsedArguments.currentArg,
-		items: items,
+		items,
 	};
 }
 
@@ -157,9 +168,10 @@ export async function collectCompletionItemResult(
 	env: Record<string, string>,
 	items: vscode.TerminalCompletionItem[],
 	executeExternals: IFigExecuteExternals
-): Promise<{ filesRequested: boolean; foldersRequested: boolean } | undefined> {
+): Promise<{ filesRequested: boolean; foldersRequested: boolean; fileExtensions: string[] | undefined } | undefined> {
 	let filesRequested = false;
 	let foldersRequested = false;
+	let fileExtensions: string[] | undefined;
 
 	const addSuggestions = async (specArgs: SpecArg[] | Record<string, SpecArg> | undefined, kind: vscode.TerminalCompletionItemKind, parsedArguments?: ArgumentParserResult) => {
 		if (kind === vscode.TerminalCompletionItemKind.Argument && parsedArguments?.currentArg?.generators) {
@@ -199,6 +211,15 @@ export async function collectCompletionItemResult(
 			const generatorResults = s.triggerGenerators(parsedArguments, executeExternals);
 			for (const generatorResult of generatorResults) {
 				for (const item of (await generatorResult?.request) ?? []) {
+					if (item.type === 'file') {
+						filesRequested = true;
+						foldersRequested = true;
+						fileExtensions = item._internal?.fileExtensions as string[] | undefined;
+					}
+					if (item.type === 'folder') {
+						foldersRequested = true;
+					}
+
 					if (!item.name) {
 						continue;
 					}
@@ -237,6 +258,35 @@ export async function collectCompletionItemResult(
 			return { filesRequested, foldersRequested };
 		}
 		const flagsToExclude = kind === vscode.TerminalCompletionItemKind.Flag ? parsedArguments?.passedOptions.map(option => option.name).flat() : undefined;
+
+		function addItem(label: string, item: SpecArg) {
+			if (flagsToExclude?.includes(label)) {
+				return;
+			}
+
+			let itemKind = kind;
+			const lastArgType: string | undefined = parsedArguments?.annotations.at(-1)?.type;
+			if (lastArgType === 'subcommand_arg') {
+				if (typeof item === 'object' && 'args' in item && (asArray(item.args ?? [])).length > 0) {
+					itemKind = vscode.TerminalCompletionItemKind.Option;
+				}
+			}
+			else if (lastArgType === 'option_arg') {
+				itemKind = vscode.TerminalCompletionItemKind.OptionValue;
+			}
+
+			items.push(
+				createCompletionItem(
+					terminalContext.cursorPosition,
+					prefix,
+					{ label },
+					undefined,
+					typeof item === 'string' ? item : item.description,
+					itemKind,
+				)
+			);
+		}
+
 		if (Array.isArray(specArgs)) {
 			for (const item of specArgs) {
 				const suggestionLabels = getFigSuggestionLabel(item);
@@ -244,36 +294,12 @@ export async function collectCompletionItemResult(
 					continue;
 				}
 				for (const label of suggestionLabels) {
-					if (flagsToExclude?.includes(label)) {
-						continue;
-					}
-					items.push(
-						createCompletionItem(
-							terminalContext.cursorPosition,
-							prefix,
-							{ label },
-							undefined,
-							typeof item === 'string' ? item : item.description,
-							kind
-						)
-					);
+					addItem(label, item);
 				}
 			}
 		} else {
 			for (const [label, item] of Object.entries(specArgs)) {
-				if (flagsToExclude?.includes(label)) {
-					continue;
-				}
-				items.push(
-					createCompletionItem(
-						terminalContext.cursorPosition,
-						prefix,
-						{ label },
-						undefined,
-						typeof item === 'string' ? item : item.description,
-						kind
-					)
-				);
+				addItem(label, item);
 			}
 		}
 	};
@@ -288,7 +314,7 @@ export async function collectCompletionItemResult(
 		await addSuggestions(parsedArguments.completionObj.options, vscode.TerminalCompletionItemKind.Flag, parsedArguments);
 	}
 
-	return { filesRequested, foldersRequested };
+	return { filesRequested, foldersRequested, fileExtensions };
 }
 
 function convertEnvRecordToArray(env: Record<string, string>): EnvironmentVariable[] {

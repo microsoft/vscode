@@ -176,11 +176,11 @@ function getTelemetryLevelSettingDescription(): string {
 	const telemetryTableDescription = localize('telemetry.telemetryLevel.tableDescription', "The following table outlines the data sent with each setting:");
 	const telemetryTable = `
 |       | ${crashReportsHeader} | ${errorsHeader} | ${usageHeader} |
-|:------|:---------------------:|:---------------:|:--------------:|
-| all   |            ✓          |        ✓        |        ✓       |
-| error |            ✓          |        ✓        |        -       |
-| crash |            ✓          |        -        |        -       |
-| off   |            -          |        -        |        -       |
+|:------|:-------------:|:---------------:|:----------:|
+| all   |       ✓       |        ✓        |     ✓      |
+| error |       ✓       |        ✓        |     -      |
+| crash |       ✓       |        -        |     -      |
+| off   |       -       |        -        |     -      |
 `;
 
 	const deprecatedSettingNote = localize('telemetry.telemetryLevel.deprecated', "****Note:*** If this setting is 'off', no telemetry will be sent regardless of other telemetry settings. If this setting is set to anything except 'off' and telemetry is disabled with deprecated settings, no telemetry will be sent.*");

@@ -295,6 +295,7 @@ export class AIFolderMatchWorkspaceRootImpl extends Disposable implements ISearc
 	private disposeMatches(): void {
 		[...this._fileMatches.values()].forEach((fileMatch: ISearchTreeFileMatch) => fileMatch.dispose());
 		[...this._unDisposedFileMatches.values()].forEach((fileMatch: ISearchTreeFileMatch) => fileMatch.dispose());
+		this._fileMatches.clear();
 	}
 
 	override dispose(): void {
