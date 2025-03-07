@@ -22,7 +22,7 @@ import { IPaneCompositePartService } from '../../services/panecomposite/browser/
 import { ToggleAuxiliaryBarAction } from '../parts/auxiliarybar/auxiliaryBarActions.js';
 import { TogglePanelAction } from '../parts/panel/panelActions.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
-import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsMainEditorCenteredLayoutContext, MainEditorAreaVisibleContext, IsMainWindowFullscreenContext, PanelPositionContext, IsAuxiliaryWindowFocusedContext, TitleBarStyleContext } from '../../common/contextkeys.js';
+import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsMainEditorCenteredLayoutContext, MainEditorAreaVisibleContext, IsMainWindowFullscreenContext, PanelPositionContext, IsAuxiliaryWindowFocusedContext } from '../../common/contextkeys.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
@@ -30,7 +30,6 @@ import { registerIcon } from '../../../platform/theme/common/iconRegistry.js';
 import { ICommandActionTitle } from '../../../platform/action/common/action.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
-import { TitlebarStyle } from '../../../platform/window/common/window.js';
 import { IPreferencesService } from '../../services/preferences/common/preferences.js';
 import { QuickInputAlignmentContextKey } from '../../../platform/quickinput/browser/quickInput.js';
 import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
@@ -773,20 +772,6 @@ if (isWindows || isLinux || isWeb) {
 			return accessor.get(IWorkbenchLayoutService).toggleMenuBar();
 		}
 	});
-
-	// Add separately to title bar context menu so we can use a different title
-	for (const menuId of [MenuId.TitleBarContext, MenuId.TitleBarTitleContext]) {
-		MenuRegistry.appendMenuItem(menuId, {
-			command: {
-				id: 'workbench.action.toggleMenuBar',
-				title: localize('miMenuBarNoMnemonic', "Menu Bar"),
-				toggled: ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'compact'))
-			},
-			when: ContextKeyExpr.and(IsAuxiliaryWindowFocusedContext.toNegated(), ContextKeyExpr.notEquals(TitleBarStyleContext.key, TitlebarStyle.NATIVE), IsMainWindowFullscreenContext.negate()),
-			group: '2_config',
-			order: 0
-		});
-	}
 }
 
 // --- Reset View Locations
