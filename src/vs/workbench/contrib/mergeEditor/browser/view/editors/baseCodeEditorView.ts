@@ -82,6 +82,7 @@ export class BaseCodeEditorView extends CodeEditorView {
 		const activeModifiedBaseRange = viewModel.activeModifiedBaseRange.read(reader);
 		const showNonConflictingChanges = viewModel.showNonConflictingChanges.read(reader);
 		const showDeletionMarkers = this.showDeletionMarkers.read(reader);
+		const showOnlyConflictingChangesInOverviewRulers = this.showOnlyConflictingChangesInOverviewRulers.read(reader);
 
 		const result: IModelDeltaDecoration[] = [];
 		for (const modifiedBaseRange of model.modifiedBaseRanges.read(reader)) {
@@ -150,7 +151,7 @@ export class BaseCodeEditorView extends CodeEditorView {
 						position: MinimapPosition.Gutter,
 						color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
 					},
-					overviewRuler: modifiedBaseRange.isConflicting ? {
+					overviewRuler: (modifiedBaseRange.isConflicting || !showOnlyConflictingChangesInOverviewRulers) ? {
 						position: OverviewRulerLane.Center,
 						color: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },
 					} : undefined
