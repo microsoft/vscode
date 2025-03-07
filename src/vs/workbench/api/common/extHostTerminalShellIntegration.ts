@@ -110,7 +110,6 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		if (!this._activeShellIntegrations.has(instanceId)) {
 			this.$shellIntegrationChange(instanceId);
 		}
-		// TODO: Map this command line to a previously created shell execution, if it's found do not create a new one
 		const commandLine: vscode.TerminalShellExecutionCommandLine = {
 			value: commandLineValue,
 			confidence: commandLineConfidence,
@@ -228,12 +227,23 @@ class InternalTerminalShellIntegration extends Disposable {
 
 	startShellExecution(commandLine: vscode.TerminalShellExecutionCommandLine, cwd: URI | undefined): InternalTerminalShellExecution {
 		if (this._currentExecution) {
-			// TODO: Should we log when this happens?
+			if (this._hasRichCommandDetection) {
+				console.warn('Rich command detection is enabled but an execution started before the last ended');
+			}
 			this._currentExecution.endExecution(undefined);
 			this._onDidRequestEndExecution.fire({ terminal: this._terminal, shellIntegration: this.value, execution: this._currentExecution.value, exitCode: undefined });
 		}
-		// TODO: Should we check all of them and log a error when one that is not [0] is started?
-		let currentExecution = this._activeExecutions.find(e => e.value.commandLine.value === commandLine.value);
+
+		// Get the active execution, how strict this is depends on whether the terminal has rich
+		// command detection
+		let currentExecution: InternalTerminalShellExecution | undefined;
+		if (commandLine.confidence === TerminalShellExecutionCommandLineConfidence.High) {
+			currentExecution = this._activeExecutions.find(e => e.value.commandLine.value === commandLine.value);
+		} else {
+			currentExecution = this._activeExecutions.shift();
+		}
+
+		// If there is no execution, create a new one
 		if (!currentExecution) {
 			// Fallback to the shell integration's cwd as the cwd may not have been restored after a reload
 			currentExecution = new InternalTerminalShellExecution(commandLine, cwd ?? this._cwd);

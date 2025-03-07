@@ -46,8 +46,6 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 			}
 		}
 
-		// TODO: Rich isn't set on reconnected terminals
-
 		// onDidChangeTerminalShellIntegration via command detection
 		const onDidAddCommandDetection = this._store.add(this._terminalService.createOnInstanceEvent(instance => {
 			return Event.map(
