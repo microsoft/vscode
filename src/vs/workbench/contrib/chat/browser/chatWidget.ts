@@ -1119,13 +1119,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					}
 				}
 
-				for (const file of uniqueWorkingSetEntries) {
-					// Make sure that any files that we sent are part of the working set
-					// but do not permanently add file variables from previous requests to the working set
-					// since the user may subsequently edit the chat history
-					currentEditingSession.get()?.addFileToWorkingSet(file);
-				}
-
 				// Collect file variables from previous requests before sending the request
 				const previousRequests = this.viewModel.model.getRequests();
 				for (const request of previousRequests) {

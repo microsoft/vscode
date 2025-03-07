@@ -91,28 +91,6 @@ abstract class WorkingSetAction extends EditingSessionAction {
 	abstract runWorkingSetAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget | undefined, ...uris: URI[]): any;
 }
 
-registerAction2(class AddFileToWorkingSet extends WorkingSetAction {
-	constructor() {
-		super({
-			id: 'chatEditing.addFileToWorkingSet',
-			title: localize2('addFileToWorkingSet', 'Add File'),
-			icon: Codicon.plus,
-			menu: [{
-				id: MenuId.ChatEditingWidgetModifiedFilesToolbar,
-				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Suggested),
-				order: 0,
-				group: 'navigation'
-			}],
-		});
-	}
-
-	async runWorkingSetAction(_accessor: ServicesAccessor, currentEditingSession: IChatEditingSession, _chatWidget: IChatWidget, ...uris: URI[]): Promise<void> {
-		for (const uri of uris) {
-			currentEditingSession.addFileToWorkingSet(uri);
-		}
-	}
-});
-
 registerAction2(class RemoveFileFromWorkingSet extends WorkingSetAction {
 	constructor() {
 		super({
@@ -437,7 +415,7 @@ registerAction2(class AddFilesToWorkingSetAction extends EditingSessionAction {
 		}
 
 		for (const file of uris) {
-			editingSession.addFileToWorkingSet(file);
+			chatWidget.attachmentModel.addFile(file);
 		}
 	}
 });

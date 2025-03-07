@@ -34,6 +34,7 @@ import { IChatEditingService, WorkingSetEntryState } from '../../chat/common/cha
 import { assertType } from '../../../../base/common/types.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { ResourceMap } from '../../../../base/common/map.js';
+import { IChatWidgetService } from '../../chat/browser/chat.js';
 
 
 type SessionData = {
@@ -85,6 +86,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		@IChatService private readonly _chatService: IChatService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 	) { }
 
 	dispose() {
@@ -338,7 +340,8 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		const chatModel = this._chatService.startSession(ChatAgentLocation.EditingSession, token);
 
 		const editingSession = await this._chatEditingService.createEditingSession(chatModel.sessionId);
-		editingSession.addFileToWorkingSet(uri);
+		const widget = this._chatWidgetService.getWidgetBySessionId(chatModel.sessionId);
+		widget?.attachmentModel.addFile(uri);
 
 		const store = new DisposableStore();
 		store.add(toDisposable(() => {

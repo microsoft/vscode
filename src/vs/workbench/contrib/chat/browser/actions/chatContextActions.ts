@@ -854,7 +854,7 @@ export class AttachContextAction extends Action2 {
 		}
 
 		if (context?.showFilesOnly) {
-			if (chatEditingService?.hasRelatedFilesProviders() && (widget.getInput() || (getEditingSession(chatEditingService, widget)?.workingSet.size))) {
+			if (chatEditingService?.hasRelatedFilesProviders() && (widget.getInput() || widget.attachmentModel.fileAttachments.length > 0)) {
 				quickPickItems.unshift({
 					kind: 'related-files',
 					id: 'related-files',
@@ -1050,12 +1050,5 @@ registerAction2(class AttachFilesAction extends AttachContextAction {
 		return super.run(accessor, attachFilesContext);
 	}
 });
-
-function getEditingSession(chatEditingService: IChatEditingService, chatWidget: IChatWidget) {
-	if (!chatWidget.viewModel?.sessionId) {
-		return;
-	}
-	return chatEditingService.getEditingSession(chatWidget.viewModel.sessionId);
-}
 
 registerAction2(AttachPromptAction);
