@@ -89,10 +89,10 @@ export const configHosts: Fig.Generator = {
 
 		return configLines
 			.filter(
-				(line: any) =>
+				(line) =>
 					line.trim().toLowerCase().startsWith("host ") && !line.includes("*")
 			)
-			.map((host: any) => ({
+			.map((host) => ({
 				name: host.split(" ")[1],
 				description: "SSH host",
 				priority: 90,
