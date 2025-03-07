@@ -110,6 +110,7 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		if (!this._activeShellIntegrations.has(instanceId)) {
 			this.$shellIntegrationChange(instanceId);
 		}
+		// TODO: Map this command line to a previously created shell execution, if it's found do not create a new one
 		const commandLine: vscode.TerminalShellExecutionCommandLine = {
 			value: commandLineValue,
 			confidence: commandLineConfidence,
@@ -147,10 +148,11 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 }
 
 class InternalTerminalShellIntegration extends Disposable {
+	private _activeExecutions: InternalTerminalShellExecution[] = [];
+
 	private _currentExecution: InternalTerminalShellExecution | undefined;
 	get currentExecution(): InternalTerminalShellExecution | undefined { return this._currentExecution; }
 
-	private _ignoreNextExecution: boolean = false;
 	private _env: vscode.TerminalShellIntegrationEnvironment | undefined;
 	private _cwd: URI | undefined;
 
@@ -164,6 +166,8 @@ class InternalTerminalShellIntegration extends Disposable {
 	readonly onDidRequestShellExecution = this._onDidRequestShellExecution.event;
 	protected readonly _onDidRequestEndExecution = this._register(new Emitter<vscode.TerminalShellExecutionEndEvent>());
 	readonly onDidRequestEndExecution = this._onDidRequestEndExecution.event;
+	protected readonly _onDidRequestNewExecution = this._register(new Emitter<string>());
+	readonly onDidRequestNewExecution = this._onDidRequestNewExecution.event;
 
 	constructor(
 		private readonly _terminal: vscode.Terminal,
@@ -202,29 +206,35 @@ class InternalTerminalShellIntegration extends Disposable {
 					confidence: TerminalShellExecutionCommandLineConfidence.High,
 					isTrusted: true
 				};
-				const execution = that.startShellExecution(commandLine, that._cwd, true).value;
-				that._ignoreNextExecution = true;
+				const execution = that.requestNewShellExecution(commandLine, that._cwd).value;
 				return execution;
 			}
 		};
 	}
 
-	startShellExecution(commandLine: vscode.TerminalShellExecutionCommandLine, cwd: URI | undefined, fireEventInMicrotask?: boolean): InternalTerminalShellExecution {
-		if (this._ignoreNextExecution && this._currentExecution) {
-			this._ignoreNextExecution = false;
-		} else {
-			if (this._currentExecution) {
-				this._currentExecution.endExecution(undefined);
-				this._onDidRequestEndExecution.fire({ terminal: this._terminal, shellIntegration: this.value, execution: this._currentExecution.value, exitCode: undefined });
-			}
-			// Fallback to the shell integration's cwd as the cwd may not have been restored after a reload
-			const currentExecution = this._currentExecution = new InternalTerminalShellExecution(commandLine, cwd ?? this._cwd);
-			if (fireEventInMicrotask) {
-				queueMicrotask(() => this._onDidStartTerminalShellExecution.fire({ terminal: this._terminal, shellIntegration: this.value, execution: currentExecution.value }));
-			} else {
-				this._onDidStartTerminalShellExecution.fire({ terminal: this._terminal, shellIntegration: this.value, execution: this._currentExecution.value });
-			}
+	requestNewShellExecution(commandLine: vscode.TerminalShellExecutionCommandLine, cwd: URI | undefined) {
+		const execution = new InternalTerminalShellExecution(commandLine, cwd ?? this._cwd);
+		this._activeExecutions.push(execution);
+		this._onDidRequestNewExecution.fire(commandLine.value);
+		return execution;
+	}
+
+	startShellExecution(commandLine: vscode.TerminalShellExecutionCommandLine, cwd: URI | undefined): InternalTerminalShellExecution {
+		if (this._currentExecution) {
+			// TODO: Should we log when this happens?
+			this._currentExecution.endExecution(undefined);
+			this._onDidRequestEndExecution.fire({ terminal: this._terminal, shellIntegration: this.value, execution: this._currentExecution.value, exitCode: undefined });
 		}
+		// TODO: Should we check all of them and log a error when one that is not [0] is started?
+		let currentExecution = this._activeExecutions.find(e => e.value.commandLine.value === commandLine.value);
+		if (!currentExecution) {
+			// Fallback to the shell integration's cwd as the cwd may not have been restored after a reload
+			currentExecution = new InternalTerminalShellExecution(commandLine, cwd ?? this._cwd);
+		}
+
+		this._currentExecution = currentExecution;
+
+		this._onDidStartTerminalShellExecution.fire({ terminal: this._terminal, shellIntegration: this.value, execution: this._currentExecution.value });
 		return this._currentExecution;
 	}
 
