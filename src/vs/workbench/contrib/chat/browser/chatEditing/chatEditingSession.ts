@@ -575,20 +575,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
 	}
 
-	markIsReadonly(resource: URI, isReadonly?: boolean): void {
-		const entry = this._workingSet.get(resource);
-		if (entry) {
-			if (entry.state === WorkingSetEntryState.Suggested) {
-				entry.state = WorkingSetEntryState.Attached;
-			}
-		} else {
-			this._workingSet.set(resource, {
-				state: WorkingSetEntryState.Attached,
-			});
-		}
-		this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
-	}
-
 	private _assertNotDisposed(): void {
 		if (this._state.get() === ChatEditingSessionState.Disposed) {
 			throw new BugIndicatingError(`Cannot access a disposed editing session`);
@@ -805,10 +791,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				return;
 			}
 			this._workingSet.set(resource, { description, state: WorkingSetEntryState.Suggested });
-			this._trackUntitledWorkingSetEntry(resource);
-			this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
-		} else if (state === undefined || state.state === WorkingSetEntryState.Suggested) {
-			this._workingSet.set(resource, { description, state: WorkingSetEntryState.Attached });
 			this._trackUntitledWorkingSetEntry(resource);
 			this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
 		}
