@@ -130,6 +130,10 @@
         {
           "command": "notebook.cellOutput.openInTextEditor",
           "when": "false"
+        },
+        {
+          "command": "notebook.cellOutput.addToChat",
+          "when": "false"
         }
       ],
       "webview/context": [
