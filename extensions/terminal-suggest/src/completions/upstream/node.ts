@@ -83,7 +83,6 @@ const completionSpec: Fig.Subcommand = {
 		},
 	],
 	generateSpec: async (tokens, executeShellCommand) => {
-		
 		if (
 			(
 				await executeShellCommand({

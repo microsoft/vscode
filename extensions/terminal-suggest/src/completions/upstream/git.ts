@@ -296,14 +296,16 @@ export const gitGenerators: Record<string, Fig.Generator> = {
 	remotes: {
 		script: ["git", "--no-optional-locks", "remote", "-v"],
 		postProcess: function (out) {
-			const remoteURLs = out.split("\n").reduce<Record<string, string>>((dict, line) => {
-				const pair = line.split("\t");
-				const remote = pair[0];
-				const url = pair[1].split(" ")[0];
+			const remoteURLs = out
+				.split("\n")
+				.reduce<Record<string, string>>((dict, line) => {
+					const pair = line.split("\t");
+					const remote = pair[0];
+					const url = pair[1].split(" ")[0];
 
-				dict[remote] = url;
-				return dict;
-			}, {});
+					dict[remote] = url;
+					return dict;
+				}, {});
 
 			return Object.keys(remoteURLs).map((remote) => {
 				const url = remoteURLs[remote];
