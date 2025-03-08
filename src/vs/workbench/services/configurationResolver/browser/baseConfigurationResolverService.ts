@@ -202,9 +202,10 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		if (this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY && section) {
 			const overrides: IConfigurationOverrides = folder ? { resource: folder.uri } : {};
 			const result = this.configurationService.inspect(section, overrides);
-			if (result && (result.userValue || result.workspaceValue || result.workspaceFolderValue)) {
+			if (result && (result.userValue || result.workspaceValue || result.workspaceFolderValue || result.userRemoteValue)) {
 				switch (target) {
 					case ConfigurationTarget.USER: inputs = (<any>result.userValue)?.inputs; break;
+					case ConfigurationTarget.USER_REMOTE: inputs = (<any>result.userRemoteValue)?.inputs; break;
 					case ConfigurationTarget.WORKSPACE: inputs = (<any>result.workspaceValue)?.inputs; break;
 					default: inputs = (<any>result.workspaceFolderValue)?.inputs;
 				}
