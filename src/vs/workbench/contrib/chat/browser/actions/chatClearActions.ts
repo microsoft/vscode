@@ -345,6 +345,7 @@ export function registerNewChatActions() {
 				category: CHAT_CATEGORY,
 				icon: Codicon.goToEditingSession,
 				f1: true,
+				precondition: ChatContextKeys.Setup.hidden.toNegated(),
 				menu: [{
 					id: MenuId.ViewTitle,
 					when: ContextKeyExpr.and(ContextKeyExpr.equals('view', ChatViewId), ChatContextKeys.editingParticipantRegistered,
