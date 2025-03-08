@@ -367,7 +367,7 @@ export const createCLIsGenerator: Fig.Generator = {
 	postProcess: function (out) {
 		try {
 			return JSON.parse(out).results.map(
-				(item: any) =>
+				(item: { package: { name: string; description: string } }) =>
 					({
 						name: item.package.name.substring(7),
 						description: item.package.description,

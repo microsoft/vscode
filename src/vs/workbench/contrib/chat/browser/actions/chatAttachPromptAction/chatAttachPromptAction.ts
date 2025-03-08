@@ -13,6 +13,7 @@ import { IViewsService } from '../../../../../services/views/common/viewsService
 import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
 import { ISelectPromptOptions, askToSelectPrompt } from './dialogs/askToSelectPrompt.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 
 /**
  * Action ID for the `Attach Prompt` action.
@@ -35,6 +36,7 @@ export class AttachPromptAction extends Action2 {
 			id: ATTACH_PROMPT_ACTION_ID,
 			title: localize2('workbench.action.chat.attach.prompt.label', "Use Prompt"),
 			f1: false,
+			precondition: ChatContextKeys.enabled,
 			category: CHAT_CATEGORY,
 		});
 	}

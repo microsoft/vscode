@@ -24,6 +24,7 @@ import { ChatInputPart } from '../../../../chat/browser/chatInputPart.js';
 import { ChatDynamicVariableModel } from '../../../../chat/browser/contrib/chatDynamicVariables.js';
 import { computeCompletionRanges } from '../../../../chat/browser/contrib/chatInputCompletions.js';
 import { ChatAgentLocation, IChatAgentService } from '../../../../chat/common/chatAgents.js';
+import { ChatContextKeys } from '../../../../chat/common/chatContextKeys.js';
 import { IChatRequestPasteVariableEntry } from '../../../../chat/common/chatModel.js';
 import { chatVariableLeader } from '../../../../chat/common/chatParserTypes.js';
 import { NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT, NOTEBOOK_CELL_OUTPUT_MIMETYPE } from '../../../common/notebookContextKeys.js';
@@ -249,6 +250,7 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 			},
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			icon: icons.copyIcon,
+			precondition: ChatContextKeys.enabled
 		});
 	}
 

@@ -43,7 +43,7 @@ const getConfigLines = async (
 		.map((line) => line.split(" ")[1]);
 
 	// Get the lines of every include file
-	const includeLines: any = await Promise.all(
+	const includeLines: string[][] = await Promise.all(
 		includes.map((file) =>
 			getConfigLines(file, executeShellCommand, home, basePath)
 		)

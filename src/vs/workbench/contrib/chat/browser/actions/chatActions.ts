@@ -116,6 +116,7 @@ export function registerChatActions() {
 				icon: Codicon.copilot,
 				f1: true,
 				category: CHAT_CATEGORY,
+				precondition: ChatContextKeys.Setup.hidden.toNegated(),
 				keybinding: {
 					weight: KeybindingWeight.WorkbenchContrib,
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
@@ -546,6 +547,7 @@ export function registerChatActions() {
 				title: localize2('showCopilotUsageExtensions', "Show Extensions using Copilot"),
 				f1: true,
 				category: EXTENSIONS_CATEGORY,
+				precondition: ChatContextKeys.enabled
 			});
 		}
 
