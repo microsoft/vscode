@@ -107,6 +107,7 @@ export class ToggleAgentModeAction extends EditingSessionAction {
 			f1: true,
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(
+				ChatContextKeys.enabled,
 				ChatContextKeys.Editing.hasToolsAgent,
 				ChatContextKeys.requestInProgress.negate()),
 			toggled: {

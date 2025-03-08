@@ -13,11 +13,13 @@ import { IViewsService } from '../../../../../services/views/common/viewsService
 import { isPromptFile } from '../../../../../../platform/prompts/common/constants.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { appendToCommandPalette } from '../../../../files/browser/fileActions.contribution.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IActiveCodeEditor, isCodeEditor, isDiffEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IChatAttachPromptActionOptions, ATTACH_PROMPT_ACTION_ID } from '../../actions/chatAttachPromptAction/chatAttachPromptAction.js';
+import { MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 
 /**
  * Command ID of the "Use Prompt" command.
@@ -133,17 +135,17 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: COMMAND_KEY_BINDING,
 	handler: command,
-	when: PromptsConfig.enabledCtx,
+	when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
 });
 
 /**
  * Register the "Use Prompt" command in the `command palette`.
  */
-appendToCommandPalette(
-	{
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
 		id: COMMAND_ID,
 		title: localize('commands.prompts.use.title', "Use Prompt"),
-		category: CHAT_CATEGORY,
+		category: CHAT_CATEGORY
 	},
-	PromptsConfig.enabledCtx,
-);
+	when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled)
+});

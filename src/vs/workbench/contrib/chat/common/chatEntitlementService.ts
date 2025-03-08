@@ -115,6 +115,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 			!productService.defaultChatAgent ||				// needs product config
 			(isWeb && !environmentService.remoteAuthority)	// only enabled locally or a remote backend
 		) {
+			ChatContextKeys.Setup.hidden.bindTo(this.contextKeyService).set(true); // hide copilot UI
 			return;
 		}
 
