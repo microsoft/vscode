@@ -74,7 +74,8 @@
       {
         "command": "notebook.cellOutput.addToChat",
         "title": "%addCellOutputToChat.title%",
-        "category": "Notebook"
+        "category": "Notebook",
+        "enablement": "chatIsEnabled"
       },
       {
         "command": "notebook.cellOutput.openInTextEditor",
@@ -129,10 +130,6 @@
         },
         {
           "command": "notebook.cellOutput.openInTextEditor",
-          "when": "false"
-        },
-        {
-          "command": "notebook.cellOutput.addToChat",
           "when": "false"
         }
       ],
