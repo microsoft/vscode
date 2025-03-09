@@ -8,7 +8,7 @@ import { Event, Emitter } from '../../base/common/event.js';
 import { EventType, addDisposableListener, getClientArea, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, isActiveDocument, getWindow, getWindowId, getActiveElement, Dimension } from '../../base/browser/dom.js';
 import { onDidChangeFullscreen, isFullscreen, isWCOEnabled } from '../../base/browser/browser.js';
 import { IWorkingCopyBackupService } from '../services/workingCopy/common/workingCopyBackup.js';
-import { isWindows, isLinux, isMacintosh, isWeb, isIOS } from '../../base/common/platform.js';
+import { isWindows, isLinux, isWeb, isIOS } from '../../base/common/platform.js';
 import { EditorInputCapabilities, GroupIdentifier, isResourceEditorInput, IUntypedEditorInput, pathsToEditors } from '../common/editor.js';
 import { SidebarPart } from './parts/sidebar/sidebarPart.js';
 import { PanelPart } from './parts/panel/panelPart.js';
@@ -579,6 +579,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private updateWindowsBorder(skipLayout = false) {
 		if (
 			isWeb ||
+			isWindows || 											// not working well with zooming (border often not visible)
 			(
 				(isWindows || isLinux) &&
 				useWindowControlsOverlay(this.configurationService)	// Windows/Linux: not working with WCO (border cannot draw over the overlay)
@@ -598,10 +599,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		for (const container of this.containers) {
 			const isMainContainer = container === this.mainContainer;
 			const isActiveContainer = this.activeContainer === container;
-			const containerWindowId = getWindowId(getWindow(container));
 
 			let windowBorder = false;
-			if (!this.state.runtime.mainWindowFullscreen && !this.state.runtime.maximized.has(containerWindowId) && (activeBorder || inactiveBorder)) {
+			if (!this.state.runtime.mainWindowFullscreen && (activeBorder || inactiveBorder)) {
 				windowBorder = true;
 
 				// If the inactive color is missing, fallback to the active one
@@ -2073,16 +2073,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
-	hasMainWindowBorder(): boolean {
+	private hasMainWindowBorder(): boolean {
 		return this.state.runtime.mainWindowBorder;
 	}
 
-	getMainWindowBorderRadius(): string | undefined {
-		return this.state.runtime.mainWindowBorder && isMacintosh ? '5px' : undefined;
-	}
-
 	isPanelMaximized(): boolean {
-
 		// the workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
 		return (this.getPanelAlignment() === 'center' || !isHorizontal(this.getPanelPosition())) && !this.isVisible(Parts.EDITOR_PART, mainWindow);
 	}

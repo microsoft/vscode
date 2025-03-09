@@ -89,18 +89,6 @@
 			splash.id = 'monaco-parts-splash';
 			splash.className = baseTheme ?? 'vs-dark';
 
-			if (layoutInfo.windowBorder && colorInfo.windowBorder) {
-				splash.style.position = 'relative';
-				splash.style.height = 'calc(100vh - 2px)';
-				splash.style.width = 'calc(100vw - 2px)';
-				splash.style.border = `1px solid var(--window-border-color)`;
-				splash.style.setProperty('--window-border-color', colorInfo.windowBorder);
-
-				if (layoutInfo.windowBorderRadius) {
-					splash.style.borderRadius = layoutInfo.windowBorderRadius;
-				}
-			}
-
 			// ensure there is enough space
 			layoutInfo.auxiliarySideBarWidth = Math.min(layoutInfo.auxiliarySideBarWidth, window.innerWidth - (layoutInfo.activityBarWidth + layoutInfo.editorPartMinWidth + layoutInfo.sideBarWidth));
 			layoutInfo.sideBarWidth = Math.min(layoutInfo.sideBarWidth, window.innerWidth - (layoutInfo.activityBarWidth + layoutInfo.editorPartMinWidth + layoutInfo.auxiliarySideBarWidth));
