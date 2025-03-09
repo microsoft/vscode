@@ -462,7 +462,7 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 			defaultAction = submenuAction.actions[0];
 		}
 
-		this._defaultAction = this._instaService.createInstance(MenuEntryActionViewItem, <MenuItemAction>defaultAction, { keybinding: this._getDefaultActionKeybindingLabel(defaultAction) });
+		this._defaultAction = this._defaultActionDisposables.add(this._instaService.createInstance(MenuEntryActionViewItem, <MenuItemAction>defaultAction, { keybinding: this._getDefaultActionKeybindingLabel(defaultAction) }));
 
 		const dropdownOptions: IDropdownMenuActionViewItemOptions = {
 			keybindingProvider: action => this._keybindingService.lookupKeybinding(action.id),
