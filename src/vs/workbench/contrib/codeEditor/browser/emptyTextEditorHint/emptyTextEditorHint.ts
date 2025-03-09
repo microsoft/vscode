@@ -51,6 +51,8 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 	protected toDispose: IDisposable[];
 	private textHintContentWidget: EmptyTextEditorHintContentWidget | undefined;
 
+	protected readonly changeLanguageCommandId: string = ChangeLanguageAction.ID;
+
 	constructor(
 		protected readonly editor: ICodeEditor,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
@@ -149,7 +151,8 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 				this.chatAgentService,
 				this.telemetryService,
 				this.productService,
-				this.contextMenuService
+				this.contextMenuService,
+				this.changeLanguageCommandId
 			);
 		} else if (!shouldRenderHint && this.textHintContentWidget) {
 			this.textHintContentWidget.dispose();
@@ -184,6 +187,7 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 		private readonly telemetryService: ITelemetryService,
 		private readonly productService: IProductService,
 		private readonly contextMenuService: IContextMenuService,
+		private readonly changeLanguageCommandId: string,
 	) {
 		this.toDispose = new DisposableStore();
 		this.toDispose.add(this.editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
@@ -345,10 +349,10 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 			// Need to focus editor before so current editor becomes active and the command is properly executed
 			this.editor.focus();
 			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
-				id: ChangeLanguageAction.ID,
+				id: this.changeLanguageCommandId,
 				from: 'hint'
 			});
-			await this.commandService.executeCommand(ChangeLanguageAction.ID);
+			await this.commandService.executeCommand(this.changeLanguageCommandId);
 			this.editor.focus();
 		};
 
