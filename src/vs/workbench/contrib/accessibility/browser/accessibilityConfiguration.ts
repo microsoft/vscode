@@ -224,7 +224,7 @@ const configuration: IConfigurationNode = {
 					'default': 400
 				}
 			},
-			'tags': ['accessibility']
+			'tags': ['accessibility', 'experimental']
 		},
 		'accessibility.signalOptions.experimental.delays.warningAtPosition': {
 			'type': 'object',
@@ -243,7 +243,7 @@ const configuration: IConfigurationNode = {
 					'default': 1000
 				}
 			},
-			'tags': ['accessibility']
+			'tags': ['accessibility', 'experimental']
 		},
 		'accessibility.signalOptions.experimental.delays.errorAtPosition': {
 			'type': 'object',
@@ -262,7 +262,7 @@ const configuration: IConfigurationNode = {
 					'default': 1000
 				}
 			},
-			'tags': ['accessibility']
+			'tags': ['accessibility', 'experimental']
 		},
 		'accessibility.signals.lineHasBreakpoint': {
 			...signalFeatureBase,

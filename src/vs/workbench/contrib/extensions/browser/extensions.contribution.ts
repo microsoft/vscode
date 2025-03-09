@@ -221,7 +221,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					'body': {
 						'pub.name': 1
 					}
-				}]
+				}],
+				tags: ["experimental"]
 			},
 			[WORKSPACE_TRUST_EXTENSION_SUPPORT]: {
 				type: 'object',
@@ -252,12 +253,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			'extensions.experimental.deferredStartupFinishedActivation': {
 				type: 'boolean',
 				description: localize('extensionsDeferredStartupFinishedActivation', "When enabled, extensions which declare the `onStartupFinished` activation event will be activated after a timeout."),
-				default: false
+				default: false,
+				tags: ['experimental']
 			},
 			'extensions.experimental.issueQuickAccess': {
 				type: 'boolean',
 				description: localize('extensionsInQuickAccess', "When enabled, extensions can be searched for via Quick Access and report issues from there."),
-				default: true
+				default: true,
+				tags: ['experimental']
 			},
 			'extensions.verifySignature': {
 				type: 'boolean',
