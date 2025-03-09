@@ -816,21 +816,21 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 				[AccessibilityVoiceSettingId.SpeechLanguage]: {
 					markdownDescription: localize('voice.speechLanguage', "The language that text-to-speech and speech-to-text should use. Select `auto` to use the configured display language if possible. Note that not all display languages maybe supported by speech recognition and synthesizers."),
 					type: 'string',
-					'enum': languagesSorted,
-					'default': 'auto',
+					enum: languagesSorted,
+					default: 'auto',
 					tags: ['accessibility'],
-					'enumDescriptions': languagesSorted.map(key => languages[key].name),
-					'enumItemLabels': languagesSorted.map(key => languages[key].name)
+					enumDescriptions: languagesSorted.map(key => languages[key].name),
+					enumItemLabels: languagesSorted.map(key => languages[key].name)
 				},
 				[AccessibilityVoiceSettingId.AutoSynthesize]: {
 					type: 'string',
-					'enum': ['on', 'off'],
-					'enumDescriptions': [
+					enum: ['on', 'off'],
+					enumDescriptions: [
 						localize('accessibility.voice.autoSynthesize.on', "Enable the feature. When a screen reader is enabled, note that this will disable aria updates."),
 						localize('accessibility.voice.autoSynthesize.off', "Disable the feature."),
 					],
 					markdownDescription: localize('autoSynthesize', "Whether a textual response should automatically be read out aloud when speech was used as input. For example in a chat session, a response is automatically synthesized when voice was used as chat request."),
-					'default': 'off',
+					default: 'off',
 					tags: ['accessibility']
 				}
 			}
