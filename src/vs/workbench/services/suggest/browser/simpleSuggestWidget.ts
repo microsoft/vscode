@@ -439,8 +439,13 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 	}
 
 	private _setState(state: State): void {
-
 		if (this._state === state) {
+			if (this._state === State.Empty) {
+				// Don't keep the widget around if there are no suggestions
+				// as typing more is not going to yield new ones
+				this.hide();
+				this._state = State.Empty;
+			}
 			return;
 		}
 		this._state = state;
