@@ -103,6 +103,7 @@ const editorConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: false,
 			description: nls.localize('editor.experimental.asyncTokenizationLogging', "Controls whether async tokenization should be logged. For debugging only."),
+			tags: ['experimental']
 		},
 		'editor.experimental.asyncTokenizationVerification': {
 			type: 'boolean',
@@ -259,17 +260,20 @@ const editorConfiguration: IConfigurationNode = {
 		'diffEditor.experimental.showMoves': {
 			type: 'boolean',
 			default: diffEditorDefaultOptions.experimental.showMoves,
-			markdownDescription: nls.localize('showMoves', "Controls whether the diff editor should show detected code moves.")
+			markdownDescription: nls.localize('showMoves', "Controls whether the diff editor should show detected code moves."),
+			tags: ['experimental']
 		},
 		'diffEditor.experimental.showEmptyDecorations': {
 			type: 'boolean',
 			default: diffEditorDefaultOptions.experimental.showEmptyDecorations,
 			description: nls.localize('showEmptyDecorations', "Controls whether the diff editor shows empty decorations to see where characters got inserted or deleted."),
+			tags: ['experimental']
 		},
 		'diffEditor.experimental.useTrueInlineView': {
 			type: 'boolean',
 			default: diffEditorDefaultOptions.experimental.useTrueInlineView,
 			description: nls.localize('useTrueInlineView', "If enabled and the editor uses the inline view, word changes are rendered inline."),
+			tags: ['experimental']
 		},
 	}
 };

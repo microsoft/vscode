@@ -745,7 +745,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'notebook.diff.experimental.toggleInline': {
 			type: 'boolean',
 			default: typeof product.quality === 'string' && product.quality !== 'stable', // only enable as default in insiders
-			markdownDescription: localize('notebook.diff.toggleInline', "Enable the command to toggle the experimental notebook inline diff editor.")
+			markdownDescription: localize('notebook.diff.toggleInline', "Enable the command to toggle the experimental notebook inline diff editor."),
+			tags: ['experimental']
 		},
 	}
 });
