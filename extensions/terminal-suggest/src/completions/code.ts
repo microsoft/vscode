@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { filepaths } from '../helpers/filepaths';
+
 const commonOptions: Fig.Option[] = [
 	{
 		name: '-',
@@ -60,7 +62,6 @@ const commonOptions: Fig.Option[] = [
 			'Open a file at the path on the specified line and character position',
 		args: {
 			name: 'file:line[:character]',
-			// TODO: Support :line[:character] completion?
 			template: 'filepaths',
 		},
 	},
@@ -204,8 +205,16 @@ const extensionManagementOptions: Fig.Option[] = [
 		description:
 			`Installs or updates an extension. The argument is either an extension id or a path to a VSIX. The identifier of an extension is '\${ publisher }.\${ name }'. Use '--force' argument to update to latest version. To install a specific version provide '@\${version}'. For example: 'vscode.csharp@1.2.3'`,
 		args: {
-			// TODO: Create extension ID generator
 			name: 'extension-id[@version] | path-to-vsix',
+			generators: [
+				{
+					script: ['code', '--list-extensions', '--show-versions'],
+					postProcess: parseInstalledExtensions,
+				},
+				filepaths({
+					extensions: ['vsix'],
+				}),
+			],
 		},
 	},
 	{
@@ -217,8 +226,11 @@ const extensionManagementOptions: Fig.Option[] = [
 		name: '--uninstall-extension',
 		description: 'Uninstalls an extension',
 		args: {
-			// TODO: Create extension ID generator
 			name: 'extension-id',
+			generators: {
+				script: ['code', '--list-extensions', '--show-versions'],
+				postProcess: parseInstalledExtensions,
+			}
 		},
 	},
 	{
@@ -270,8 +282,11 @@ const troubleshootingOptions: Fig.Option[] = [
 		name: '--disable-extension',
 		description: 'Disable an extension',
 		args: {
-			// TODO: Create extension ID generator
 			name: 'extension-id',
+			generators: {
+				script: ['code', '--list-extensions', '--show-versions'],
+				postProcess: parseInstalledExtensions,
+			}
 		},
 	},
 	{
@@ -332,3 +347,16 @@ const codeCompletionSpec: Fig.Spec = {
 };
 
 export default codeCompletionSpec;
+
+
+export function parseInstalledExtensions(out: string): Fig.Suggestion[] | undefined {
+	const extensions = out.split('\n').filter(Boolean).map((line) => {
+		const [id, version] = line.split('@');
+		return {
+			name: id,
+			type: 'option' as Fig.SuggestionType,
+			description: `Version: ${version}`
+		};
+	});
+	return extensions;
+}
