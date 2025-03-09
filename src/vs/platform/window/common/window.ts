@@ -240,7 +240,7 @@ export function useWindowControlsOverlay(configurationService: IConfigurationSer
 	if (!isMacintosh) {
 		const setting = configurationService.getValue('window.titleControlsStyle');
 		if (setting === 'custom') {
-			return false;
+			return false; // explicitly disabled by choice
 		}
 	}
 

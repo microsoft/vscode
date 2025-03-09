@@ -579,7 +579,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private updateWindowsBorder(skipLayout = false) {
 		if (
 			isWeb ||
-			isWindows || 											// not working well with zooming (border often not visible)
 			(
 				(isWindows || isLinux) &&
 				useWindowControlsOverlay(this.configurationService)	// Windows/Linux: not working with WCO (border cannot draw over the overlay)
