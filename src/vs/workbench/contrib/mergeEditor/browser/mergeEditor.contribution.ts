@@ -22,6 +22,8 @@ import { MergeEditorInput } from './mergeEditorInput.js';
 import { MergeEditor, MergeEditorOpenHandlerContribution, MergeEditorResolverContribution } from './view/mergeEditor.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { MergeEditorSerializer } from './mergeEditorSerializer.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { MergeEditorAccessibilityHelpProvider } from './mergeEditorAccessibilityHelp.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
@@ -95,3 +97,5 @@ Registry
 	.registerWorkbenchContribution(MergeEditorOpenHandlerContribution, LifecyclePhase.Restored);
 
 registerWorkbenchContribution2(MergeEditorResolverContribution.ID, MergeEditorResolverContribution, WorkbenchPhase.BlockStartup /* only registers an editor resolver */);
+
+AccessibleViewRegistry.register(new MergeEditorAccessibilityHelpProvider());
