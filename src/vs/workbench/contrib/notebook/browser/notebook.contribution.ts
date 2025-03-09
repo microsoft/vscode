@@ -1229,7 +1229,8 @@ configurationRegistry.registerConfiguration({
 		[NotebookSetting.notebookVariablesView]: {
 			markdownDescription: nls.localize('notebook.VariablesView.description', "Enable the experimental notebook variables view within the debug panel."),
 			type: 'boolean',
-			default: false
+			default: false,
+			tags: ['experimental']
 		},
 		[NotebookSetting.notebookInlineValues]: {
 			markdownDescription: nls.localize('notebook.inlineValues.description', "Control whether to show inline values within notebook code cells after cell execution. Values will remain until the cell is edited, re-executed, or explicitly cleared via the Clear All Outputs toolbar button or the `Notebook: Clear Inline Values` command."),
