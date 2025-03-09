@@ -67,10 +67,28 @@ const args = minimist(process.argv.slice(2), {
 	const Module = require('module');
 	const originalLoad = Module._load;
 
+	// Fixes the source map support issue in vscode extension development error stacktrace
+	// Refs https://github.com/microsoft/vscode/issues/145473#issuecomment-2603933253
+	const vscodeExtensionDevelopmentPath = process.env.VSCODE_EXTENSION_DEVELOPMENT_PATH?.toLowerCase?.();
+
+	if (vscodeExtensionDevelopmentPath != undefined) {
+		const extensionDevelopmentSourceMapSupport = () => {
+			const moduleLoadName = arguments[0];
+			if (moduleLoadName.includes(vscodeExtensionDevelopmentPath)) {
+				const sourceMapSupport = originalLoad('source-map-support');
+				sourceMapSupport.install();
+			}
+		}
+	} else {
+		const extensionDevelopmentSourceMapSupport = () => {}
+	}
+
 	Module._load = function (request: string) {
 		if (request === 'natives') {
 			throw new Error('Either the extension or an NPM dependency is using the [unsupported "natives" node module](https://go.microsoft.com/fwlink/?linkid=871887).');
 		}
+		
+		extensionDevelopmentSourceMapSupport(arguments);
 
 		return originalLoad.apply(this, arguments);
 	};
