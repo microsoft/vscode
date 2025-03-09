@@ -152,6 +152,7 @@ export interface IWindowSettings {
 	readonly restoreFullscreen: boolean;
 	readonly zoomLevel: number;
 	readonly titleBarStyle: TitlebarStyle;
+	readonly titleControlsStyle: 'native' | 'custom';
 	readonly autoDetectHighContrast: boolean;
 	readonly autoDetectColorScheme: boolean;
 	readonly menuBarVisibility: MenuBarVisibility;
@@ -234,6 +235,13 @@ export function useWindowControlsOverlay(configurationService: IConfigurationSer
 
 	if (hasNativeTitlebar(configurationService)) {
 		return false; // only supported when title bar is custom
+	}
+
+	if (!isMacintosh) {
+		const setting = configurationService.getValue('window.titleControlsStyle');
+		if (setting === 'custom') {
+			return false;
+		}
 	}
 
 	return true; // default
