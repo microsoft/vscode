@@ -898,12 +898,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return this.renderUndoStop(content);
 		}
 
-		// todo@connor4312/roblourens: should this throw or renderNoContent to avoid progressive render thrashing?
-		return undefined;
+		return this.renderNoContent(other => content.kind === other.kind);
 	}
 
 	private renderUndoStop(content: IChatUndoStop) {
-		return this.renderNoContent(other => other.kind === 'undoStop' && other.id === content.id);
+		return this.renderNoContent(other => other.kind === content.kind && other.id === content.id);
 	}
 
 	private renderNoContent(equals: (otherContent: IChatRendererContent) => boolean): IChatContentPart {
