@@ -8,9 +8,10 @@ import { IModelDecorationOptions, IModelDecorationsChangeAccessor, IModelDeltaDe
 import { FoldingRegion, FoldingRegions, ILineRange, FoldRange, FoldSource } from './foldingRanges.js';
 import { hash } from '../../../../base/common/hash.js';
 import { SelectedLines } from './folding.js';
+import { MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 
 export interface IDecorationProvider {
-	getDecorationOption(isCollapsed: boolean, isHidden: boolean, isManual: boolean): IModelDecorationOptions;
+	getDecorationOption(isCollapsed: boolean, isHidden: boolean, isManual: boolean, markerSeverity?: MarkerSeverity): IModelDecorationOptions;
 	changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null;
 	removeDecorations(decorationIds: string[]): void;
 }
@@ -64,9 +65,14 @@ export class FoldingModel {
 				while (k < index) {
 					const endLineNumber = this._regions.getEndLineNumber(k);
 					const isCollapsed = this._regions.isCollapsed(k);
+					let maxMarkerSeverity: MarkerSeverity | undefined;
+					if (isCollapsed) {
+						const startLineNumber = this._regions.getStartLineNumber(k);
+						maxMarkerSeverity = this._maxMarkerSeverity(startLineNumber, endLineNumber);
+					}
 					if (endLineNumber <= dirtyRegionEndLine) {
 						const isManual = this.regions.getSource(k) !== FoldSource.provider;
-						accessor.changeDecorationOptions(this._editorDecorationIds[k], this._decorationProvider.getDecorationOption(isCollapsed, endLineNumber <= lastHiddenLine, isManual));
+						accessor.changeDecorationOptions(this._editorDecorationIds[k], this._decorationProvider.getDecorationOption(isCollapsed, endLineNumber <= lastHiddenLine, isManual, maxMarkerSeverity));
 					}
 					if (isCollapsed && endLineNumber > lastHiddenLine) {
 						lastHiddenLine = endLineNumber;
@@ -91,6 +97,24 @@ export class FoldingModel {
 			updateDecorationsUntil(this._regions.length);
 		});
 		this._updateEventEmitter.fire({ model: this, collapseStateChanged: toggledRegions });
+	}
+
+	private _maxMarkerSeverity(startLineNumber: number, endLineNumber: number): MarkerSeverity | undefined {
+		let maxMarkerSeverity: MarkerSeverity | undefined;
+
+		// Skip start line itself because any squigglies it has will remain visible
+		const decorations = this._textModel.getLinesDecorations(startLineNumber + 1, endLineNumber);
+		for (let index = 0; index < decorations.length; index++) {
+			const decoration = decorations[index];
+			if (decoration.options.className === 'squiggly-error') {
+				maxMarkerSeverity = MarkerSeverity.Error;
+				break;
+			}
+			if (decoration.options.className === 'squiggly-warning') {
+				maxMarkerSeverity = MarkerSeverity.Warning;
+			}
+		}
+		return maxMarkerSeverity;
 	}
 
 	public removeManualRanges(ranges: ILineRange[]) {
@@ -132,7 +156,11 @@ export class FoldingModel {
 				endLineNumber: endLineNumber,
 				endColumn: this._textModel.getLineMaxColumn(endLineNumber) + 1
 			};
-			newEditorDecorations.push({ range: decorationRange, options: this._decorationProvider.getDecorationOption(isCollapsed, endLineNumber <= lastHiddenLine, isManual) });
+			let maxMarkerSeverity: MarkerSeverity | undefined;
+			if (isCollapsed) {
+				maxMarkerSeverity = this._maxMarkerSeverity(startLineNumber, endLineNumber);
+			}
+			newEditorDecorations.push({ range: decorationRange, options: this._decorationProvider.getDecorationOption(isCollapsed, endLineNumber <= lastHiddenLine, isManual, maxMarkerSeverity) });
 			if (isCollapsed && endLineNumber > lastHiddenLine) {
 				lastHiddenLine = endLineNumber;
 			}
