@@ -1515,7 +1515,6 @@ class SCMInputWidgetEditorOptions {
 		return {
 			...getSimpleEditorOptions(this.configurationService),
 			...this.getEditorOptions(),
-			cursorWidth: 1,
 			dragAndDrop: true,
 			dropIntoEditor: { enabled: true },
 			formatOnType: true,
@@ -1539,9 +1538,11 @@ class SCMInputWidgetEditorOptions {
 		const lineHeight = this._getEditorLineHeight(fontSize);
 		const accessibilitySupport = this.configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport');
 		const cursorBlinking = this.configurationService.getValue<'blink' | 'smooth' | 'phase' | 'expand' | 'solid'>('editor.cursorBlinking');
+		const cursorStyle = this.configurationService.getValue<IEditorOptions['cursorStyle']>('editor.cursorStyle');
+		const cursorWidth = this.configurationService.getValue<IEditorOptions['cursorWidth']>('editor.cursorWidth') ?? 1;
 		const emptySelectionClipboard = this.configurationService.getValue<boolean>('editor.emptySelectionClipboard') === true;
 
-		return { ...this._getEditorLanguageConfiguration(), accessibilitySupport, cursorBlinking, fontFamily, fontSize, lineHeight, emptySelectionClipboard };
+		return { ...this._getEditorLanguageConfiguration(), accessibilitySupport, cursorBlinking, cursorStyle, cursorWidth, fontFamily, fontSize, lineHeight, emptySelectionClipboard };
 	}
 
 	private _getEditorFontFamily(): string {
