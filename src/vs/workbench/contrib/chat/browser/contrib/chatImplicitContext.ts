@@ -46,7 +46,7 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 		const activeEditorDisposables = this._register(new DisposableStore());
 
 		this._register(Event.runAndSubscribe(
-			editorService.onDidVisibleEditorsChange,
+			editorService.onDidActiveEditorChange,
 			(() => {
 				activeEditorDisposables.clear();
 				const codeEditor = this.findActiveCodeEditor();

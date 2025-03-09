@@ -81,10 +81,12 @@ export const createNpmSearchHandler =
 			}
 
 			const results = keywordParameter ? data.results : data;
-			return results.map((item: any) => ({
-				name: item.package.name,
-				description: item.package.description,
-			})) as Fig.Suggestion[];
+			return results.map(
+				(item: { package: { name: string; description: string } }) => ({
+					name: item.package.name,
+					description: item.package.description,
+				})
+			) as Fig.Suggestion[];
 		} catch (error) {
 			console.error({ error });
 			return [];
