@@ -7352,7 +7352,7 @@ declare namespace monaco.languages {
 		 * @param acceptedCharacters Deprecated. Use `info.acceptedCharacters` instead.
 		 */
 		handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number, info: PartialAcceptInfo): void;
-		handleRejection?(completions: T, item: T['items'][number]): void;
+		handleRejection?(completions: T, item: T['items'][number], isExplicit: boolean): void;
 		/**
 		 * Will be called when a completions list is no longer in use and can be garbage-collected.
 		*/
