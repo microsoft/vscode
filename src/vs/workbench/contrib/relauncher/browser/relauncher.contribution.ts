@@ -38,6 +38,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 	private static SETTINGS = [
 		TitleBarSetting.TITLE_BAR_STYLE,
+		TitleBarSetting.SHOW_TITLE_BAR_CONTROLS,
 		'window.nativeTabs',
 		'window.nativeFullScreen',
 		'window.clickThroughInactive',
@@ -52,6 +53,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 	private readonly titleBarStyle = new ChangeObserver<TitlebarStyle>('string');
 	private readonly nativeTabs = new ChangeObserver('boolean');
+	private readonly showTitleBarControls = new ChangeObserver('boolean');
 	private readonly nativeFullScreen = new ChangeObserver('boolean');
 	private readonly clickThroughInactive = new ChangeObserver('boolean');
 	private readonly updateMode = new ChangeObserver('string');
@@ -107,6 +109,9 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 			// Titlebar style
 			processChanged((config.window.titleBarStyle === TitlebarStyle.NATIVE || config.window.titleBarStyle === TitlebarStyle.CUSTOM) && this.titleBarStyle.handleChange(config.window?.titleBarStyle));
+
+			// Titlebar controls
+			processChanged(this.showTitleBarControls.handleChange(config.window?.showTitleBarControls));
 
 			// macOS: Native tabs
 			processChanged(isMacintosh && this.nativeTabs.handleChange(config.window?.nativeTabs));

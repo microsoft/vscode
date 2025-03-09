@@ -70,6 +70,12 @@ registerAction2(class ToggleLayoutControl extends ToggleTitleBarConfigAction {
 	}
 });
 
+registerAction2(class ToggleWindowControls extends ToggleTitleBarConfigAction {
+	constructor() {
+		super(LayoutSettings.WINDOW_CONTROLS, localize('toggle.windowControls', 'Window Controls'), localize('toggle.windowControlsDescription', "Toggle visibility of Minimize, Maximize and Close buttons in title bar"), 5, false);
+	}
+});
+
 registerAction2(class ToggleCustomTitleBar extends Action2 {
 	constructor() {
 		super({

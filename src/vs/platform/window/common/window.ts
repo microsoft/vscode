@@ -152,6 +152,7 @@ export interface IWindowSettings {
 	readonly restoreFullscreen: boolean;
 	readonly zoomLevel: number;
 	readonly titleBarStyle: TitlebarStyle;
+	readonly showTitleBarControls: boolean;
 	readonly autoDetectHighContrast: boolean;
 	readonly autoDetectColorScheme: boolean;
 	readonly menuBarVisibility: MenuBarVisibility;
@@ -172,6 +173,7 @@ export interface IDensitySettings {
 export const enum TitleBarSetting {
 	TITLE_BAR_STYLE = 'window.titleBarStyle',
 	CUSTOM_TITLE_BAR_VISIBILITY = 'window.customTitleBarVisibility',
+	SHOW_TITLE_BAR_CONTROLS = 'window.showTitleBarControls',
 }
 
 export const enum TitlebarStyle {
@@ -197,6 +199,10 @@ export function hasNativeTitlebar(configurationService: IConfigurationService, t
 	}
 
 	return titleBarStyle === TitlebarStyle.NATIVE;
+}
+
+export function showTitlebarControls(configurationService: IConfigurationService): boolean {
+	return configurationService.getValue<boolean>(TitleBarSetting.SHOW_TITLE_BAR_CONTROLS) ?? true;
 }
 
 export function getTitleBarStyle(configurationService: IConfigurationService): TitlebarStyle {
@@ -236,7 +242,7 @@ export function useWindowControlsOverlay(configurationService: IConfigurationSer
 		return false; // only supported when title bar is custom
 	}
 
-	return true; // default
+	return showTitlebarControls(configurationService);
 }
 
 export function useNativeFullScreen(configurationService: IConfigurationService): boolean {
