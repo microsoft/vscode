@@ -84,7 +84,7 @@ import { IChatVariablesService } from '../common/chatVariables.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { ChatInputHistoryMaxEntries, IChatHistoryEntry, IChatInputState, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
-import { CancelAction, ChatModelPickerActionId, ChatSubmitAction, ChatSubmitSecondaryAgentAction, IChatExecuteActionContext, IToggleAgentModeArgs, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
+import { CancelAction, ChatSubmitAction, ChatSubmitSecondaryAgentAction, IChatExecuteActionContext, IToggleAgentModeArgs, ChatSwitchToNextModelActionId, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
 import { ImplicitContextAttachmentWidget } from './attachments/implicitContextAttachment.js';
 import { PromptAttachmentsCollectionWidget } from './attachments/promptAttachments/promptAttachmentsCollectionWidget.js';
 import { IChatWidget } from './chat.js';
@@ -416,8 +416,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (persistedSelection) {
 			const model = this.languageModelsService.lookupLanguageModel(persistedSelection);
 			if (model) {
-				this._currentLanguageModel = { metadata: model, identifier: persistedSelection };
-				this._onDidChangeCurrentLanguageModel.fire(this._currentLanguageModel);
+				this.setCurrentLanguageModel({ metadata: model, identifier: persistedSelection });
 				this.checkModelSupported();
 			} else {
 				this._waitForPersistedLanguageModel.value = this.languageModelsService.onDidChangeLanguageModels(e => {
@@ -426,8 +425,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						this._waitForPersistedLanguageModel.clear();
 
 						if (persistedModel.metadata.isUserSelectable) {
-							this._currentLanguageModel = { metadata: persistedModel.metadata, identifier: persistedSelection };
-							this._onDidChangeCurrentLanguageModel.fire(this._currentLanguageModel!);
+							this.setCurrentLanguageModel({ metadata: persistedModel.metadata, identifier: persistedSelection });
 							this.checkModelSupported();
 						}
 					}
@@ -438,6 +436,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._register(this.chatAgentService.onDidChangeToolsAgentModeEnabled(() => {
 			this.checkModelSupported();
 		}));
+	}
+
+	public switchToNextModel(): void {
+		const models = this.getModels();
+		if (models.length > 0) {
+			const currentIndex = models.findIndex(model => model.identifier === this._currentLanguageModel?.identifier);
+			const nextIndex = (currentIndex + 1) % models.length;
+			this.setCurrentLanguageModel(models[nextIndex]);
+		}
 	}
 
 	private checkModelSupported(): void {
@@ -481,24 +488,25 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const model = this.languageModelsService.lookupLanguageModel(id);
 			return model?.isUserSelectable && !model.isDefault;
 		});
-		this._currentLanguageModel = hasUserSelectableLanguageModels && defaultLanguageModelId ?
+		const defaultModel = hasUserSelectableLanguageModels && defaultLanguageModelId ?
 			{ metadata: this.languageModelsService.lookupLanguageModel(defaultLanguageModelId)!, identifier: defaultLanguageModelId } :
 			undefined;
-		if (this._currentLanguageModel) {
-			this._onDidChangeCurrentLanguageModel.fire(this._currentLanguageModel);
+		if (defaultModel) {
+			this.setCurrentLanguageModel(defaultModel);
 		}
 	}
 
-	private setCurrentLanguageModelByUser(model: ILanguageModelChatMetadataAndIdentifier) {
+	private setCurrentLanguageModel(model: ILanguageModelChatMetadataAndIdentifier) {
 		this._currentLanguageModel = model;
 
-		// The user changed the language model, so we don't wait for the persisted option to be registered
-		this._waitForPersistedLanguageModel.clear();
 		if (this.cachedDimensions) {
+			// For quick chat and editor chat, relayout because the input may need to shrink to accomodate the model name
 			this.layout(this.cachedDimensions.height, this.cachedDimensions.width);
 		}
 
 		this.storageService.store(this.getSelectedModelStorageKey(), model.identifier, StorageScope.APPLICATION, StorageTarget.USER);
+
+		this._onDidChangeCurrentLanguageModel.fire(model);
 	}
 
 	private loadHistory(): HistoryNavigator2<IChatHistoryEntry> {
@@ -883,7 +891,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					}
 				}
 
-				if (action.id === ChatModelPickerActionId && action instanceof MenuItemAction) {
+				if (action.id === ChatSwitchToNextModelActionId && action instanceof MenuItemAction) {
 					if (!this._currentLanguageModel) {
 						this.setCurrentLanguageModelToDefault();
 					}
@@ -892,7 +900,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						const itemDelegate: ModelPickerDelegate = {
 							onDidChangeModel: this._onDidChangeCurrentLanguageModel.event,
 							setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
-								this.setCurrentLanguageModelByUser(model);
+								// The user changed the language model, so we don't wait for the persisted option to be registered
+								this._waitForPersistedLanguageModel.clear();
+								this.setCurrentLanguageModel(model);
 								this.renderAttachedContext();
 							},
 							getModels: () => this.getModels()
@@ -1654,7 +1664,12 @@ class ModelPickerActionViewItem extends DropdownMenuActionViewItemWithKeybinding
 			}
 		};
 
-		super(action, modelActionsProvider, contextMenuService, undefined, keybindingService, contextKeyService);
+		const actionWithLabel: IAction = {
+			...action,
+			tooltip: localize('chat.modelPicker.label', "Pick Model"),
+			run: () => { }
+		};
+		super(actionWithLabel, modelActionsProvider, contextMenuService, undefined, keybindingService, contextKeyService);
 		this._register(delegate.onDidChangeModel(modelId => {
 			this.currentLanguageModel = modelId;
 			this.renderLabel(this.element!);
