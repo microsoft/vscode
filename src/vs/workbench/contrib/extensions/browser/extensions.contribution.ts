@@ -222,7 +222,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 						'pub.name': 1
 					}
 				}],
-				tags: ["experimental"]
+				tags: ['experimental']
 			},
 			[WORKSPACE_TRUST_EXTENSION_SUPPORT]: {
 				type: 'object',
