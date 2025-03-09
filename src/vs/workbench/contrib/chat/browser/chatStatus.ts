@@ -241,6 +241,7 @@ class ChatStatusDashboard extends Disposable {
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super();
 	}
@@ -391,7 +392,7 @@ class ChatStatusDashboard extends Disposable {
 	}
 
 	private createCodeCompletionsSetting(container: HTMLElement, label: string, language: string | '*', disposables: DisposableStore): void {
-		const settingId = 'github.copilot.enable';
+		const settingId = this.productService.defaultChatAgent?.completionsEnablementSetting ?? '';
 
 		const readSetting = () => {
 			const result = this.configurationService.getValue<Record<string, boolean>>(settingId);
