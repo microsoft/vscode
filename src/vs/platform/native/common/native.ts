@@ -86,6 +86,9 @@ export interface ICommonNativeHostService {
 	getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle }>;
 
 	isMaximized(options?: INativeHostOptions): Promise<boolean>;
+	maximizeWindow(options?: INativeHostOptions): Promise<void>;
+	unmaximizeWindow(options?: INativeHostOptions): Promise<void>;
+	minimizeWindow(options?: INativeHostOptions): Promise<void>;
 	moveWindowTop(options?: INativeHostOptions): Promise<void>;
 	positionWindow(position: IRectangle, options?: INativeHostOptions): Promise<void>;
 
