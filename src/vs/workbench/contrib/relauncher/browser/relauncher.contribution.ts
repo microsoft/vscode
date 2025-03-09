@@ -55,7 +55,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private readonly nativeTabs = new ChangeObserver('boolean');
 	private readonly nativeFullScreen = new ChangeObserver('boolean');
 	private readonly clickThroughInactive = new ChangeObserver('boolean');
-	private readonly titleControlsStyle = new ChangeObserver('boolean');
+	private readonly titleControlsStyle = new ChangeObserver('string');
 	private readonly updateMode = new ChangeObserver('string');
 	private accessibilitySupport: 'on' | 'off' | 'auto' | undefined;
 	private readonly workspaceTrustEnabled = new ChangeObserver('boolean');
