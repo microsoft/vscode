@@ -36,6 +36,7 @@ export interface ISubmenuItem {
 	order?: number;
 	isSelection?: boolean;
 	rememberDefaultAction?: boolean;	// for dropdown menu: if true the last executed action is remembered as the default action
+	highlightFunction?: (action: SubmenuItemAction) => boolean; // for SubmenuEntryItemViewAction: if function returns true the action button is highlighted
 }
 
 export function isIMenuItem(item: any): item is IMenuItem {
