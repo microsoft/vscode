@@ -711,6 +711,11 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return clipboard.readText(type);
 	}
 
+	async triggerPaste(windowId: number | undefined): Promise<void> {
+		const window = this.windowById(windowId);
+		return window?.win?.webContents.paste();
+	}
+
 	async readImage(): Promise<Uint8Array> {
 		return clipboard.readImage().toPNG();
 	}

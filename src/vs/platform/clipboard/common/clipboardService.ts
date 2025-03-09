@@ -13,6 +13,11 @@ export interface IClipboardService {
 	readonly _serviceBrand: undefined;
 
 	/**
+	 * Trigger the paste. Returns whether the paste operation was successful.
+	 */
+	triggerPaste(): Promise<boolean>;
+
+	/**
 	 * Writes text to the system clipboard.
 	 */
 	writeText(text: string, type?: string): Promise<void>;
