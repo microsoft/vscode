@@ -143,6 +143,7 @@ export enum SettingMatchType {
 	ContiguousWordsInSettingsLabel = 1 << 5,
 	ContiguousQueryInSettingId = 1 << 6,
 	AllWordsInSettingsLabel = 1 << 7,
+	ExactMatch = 1 << 8,
 }
 export const SettingKeyMatchTypes = (SettingMatchType.AllWordsInSettingsLabel
 	| SettingMatchType.ContiguousWordsInSettingsLabel
