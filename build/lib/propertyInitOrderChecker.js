@@ -206,7 +206,6 @@ const ignored = new Set([
     'vs/platform/quickinput/browser/commandsQuickAccess.ts',
     'vs/workbench/contrib/quickaccess/browser/commandsQuickAccess.ts',
     'vs/workbench/contrib/multiDiffEditor/browser/scmMultiDiffSourceResolver.ts',
-    'vs/workbench/contrib/scm/browser/scmHistoryViewPane.ts',
     'vs/workbench/contrib/debug/browser/debugMemory.ts',
     'vs/workbench/contrib/markers/browser/markersViewActions.ts',
     'vs/workbench/contrib/mergeEditor/browser/view/viewZones.ts',
