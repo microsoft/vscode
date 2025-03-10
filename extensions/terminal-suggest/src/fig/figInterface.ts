@@ -133,7 +133,7 @@ async function getFigSpecSuggestions(
 		currentProcess: name,
 		// TODO: pass in aliases
 	};
-	const parsedArguments: ArgumentParserResult = await parseArguments(command, shellContext, spec);
+	const parsedArguments: ArgumentParserResult = await parseArguments(command, shellContext, spec, executeExternals);
 
 	const items: vscode.TerminalCompletionItem[] = [];
 	// TODO: Pass in and respect cancellation token
