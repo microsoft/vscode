@@ -21,7 +21,7 @@ declare module 'vscode' {
 
 	export interface TaskStatusEvent {
 		/**
-		 * The task item representing the task for which the event occurred.
+		 * The task item representing the task for which the event occurred
 		 */
 		readonly execution: TaskExecution;
 
@@ -34,7 +34,7 @@ declare module 'vscode' {
 	export namespace tasks {
 
 		/**
-		 * An event that is emitted when the status of a terminal task changes.
+		 * An event that is emitted when the status of a task changes.
 		 */
 		export const onDidChangeTaskStatus: Event<TaskStatusEvent>;
 	}
