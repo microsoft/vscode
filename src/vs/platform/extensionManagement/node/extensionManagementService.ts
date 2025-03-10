@@ -37,7 +37,7 @@ import {
 } from '../common/extensionManagement.js';
 import { areSameExtensions, computeTargetPlatform, ExtensionKey, getGalleryExtensionId, groupByExtension } from '../common/extensionManagementUtil.js';
 import { IExtensionsProfileScannerService, IScannedProfileExtension } from '../common/extensionsProfileScannerService.js';
-import { IExtensionsScannerService, IScannedExtension, UserExtensionsScanOptions } from '../common/extensionsScannerService.js';
+import { IExtensionsScannerService, IScannedExtension, ManifestMetadata, UserExtensionsScanOptions } from '../common/extensionsScannerService.js';
 import { ExtensionsDownloader } from './extensionDownloader.js';
 import { ExtensionsLifecycle } from './extensionLifecycle.js';
 import { fromExtractError, getManifest } from './extensionManagementUtil.js';
@@ -212,6 +212,10 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		this.manifestCache.invalidate(profileLocation);
 		this._onDidUpdateExtensionMetadata.fire({ local, profileLocation });
 		return local;
+	}
+
+	protected removeExtension(extension: ILocalExtension): Promise<void> {
+		return this.extensionsScanner.deleteExtension(extension, 'remove');
 	}
 
 	protected copyExtension(extension: ILocalExtension, fromProfileLocation: URI, toProfileLocation: URI, metadata: Partial<Metadata>): Promise<ILocalExtension> {
@@ -624,7 +628,7 @@ export class ExtensionsScanner extends Disposable {
 				throw fromExtractError(e);
 			}
 
-			const metadata: Metadata = { installedTimestamp: Date.now() };
+			const metadata: ManifestMetadata = { installedTimestamp: Date.now() };
 			try {
 				metadata.size = await computeSize(tempLocation, this.fileService);
 			} catch (error) {
@@ -633,7 +637,7 @@ export class ExtensionsScanner extends Disposable {
 			}
 
 			try {
-				await this.extensionsScannerService.updateMetadata(tempLocation, metadata);
+				await this.extensionsScannerService.updateManifestMetadata(tempLocation, metadata);
 			} catch (error) {
 				this.telemetryService.publicLog2<UpdateMetadataErrorEvent, UpdateMetadataErrorClassification>('extension:extract', { extensionId: extensionKey.id, code: `${toFileOperationResult(error)}` });
 				throw toExtensionManagementError(error, ExtensionManagementErrorCode.UpdateMetadata);
@@ -678,13 +682,9 @@ export class ExtensionsScanner extends Disposable {
 		return extensions.find(e => areSameExtensions(e.identifier, local.identifier));
 	}
 
-	async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation?: URI): Promise<ILocalExtension> {
+	async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation: URI): Promise<ILocalExtension> {
 		try {
-			if (profileLocation) {
-				await this.extensionsProfileScannerService.updateMetadata([[local, metadata]], profileLocation);
-			} else {
-				await this.extensionsScannerService.updateMetadata(local.location, metadata);
-			}
+			await this.extensionsProfileScannerService.updateMetadata([[local, metadata]], profileLocation);
 		} catch (error) {
 			this.telemetryService.publicLog2<UpdateMetadataErrorEvent, UpdateMetadataErrorClassification>('extension:extract', { extensionId: local.identifier.id, code: `${toFileOperationResult(error)}`, isProfile: !!profileLocation });
 			throw toExtensionManagementError(error, ExtensionManagementErrorCode.UpdateMetadata);
@@ -873,7 +873,7 @@ export class ExtensionsScanner extends Disposable {
 			// set size if not set before
 			if (isDefined(extension.metadata?.installedTimestamp) && isUndefined(extension.metadata?.size)) {
 				const size = await computeSize(extension.location, this.fileService);
-				await this.extensionsScannerService.updateMetadata(extension.location, { size });
+				await this.extensionsScannerService.updateManifestMetadata(extension.location, { size });
 			}
 		}));
 	}

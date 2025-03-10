@@ -8,16 +8,22 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { derived, IObservable, ISettableObservable } from '../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
+import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
+import { LineRange } from '../../../../../common/core/lineRange.js';
 import { Range } from '../../../../../common/core/range.js';
 import { SingleTextEdit, TextEdit } from '../../../../../common/core/textEdit.js';
 import { TextModelText } from '../../../../../common/model/textModelText.js';
 import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
 import { InlineEdit } from '../../model/inlineEdit.js';
 import { InlineEditWithChanges } from './inlineEditWithChanges.js';
+import { GhostTextIndicator, InlineEditModel } from './inlineEditsModel.js';
 import { InlineEditsView } from './inlineEditsView.js';
+import { InlineEditTabAction } from './inlineEditsViewInterface.js';
 
 export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This class is no longer a diff producer. Rename it or get rid of it
 	public static readonly hot = createHotClass(InlineEditsViewAndDiffProducer);
+
+	private readonly _editorObs = observableCodeEditor(this._editor);
 
 	private readonly _inlineEdit = derived<InlineEditWithChanges | undefined>(this, (reader) => {
 		const model = this._model.read(reader);
@@ -30,7 +36,7 @@ export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This c
 		const editOffset = model.inlineEditState.get()?.inlineCompletion.updatedEdit.read(reader);
 		if (!editOffset) { return undefined; }
 
-		const offsetEdits = model.inAcceptPartialFlow.read(reader) ? [editOffset.edits[0]] : editOffset.edits;
+		const offsetEdits = model.inPartialAcceptFlow.read(reader) ? [editOffset.edits[0]] : editOffset.edits;
 		const edits = offsetEdits.map(e => {
 			const innerEditRange = Range.fromPositions(
 				textModel.getPositionAt(e.replaceRange.start),
@@ -45,6 +51,41 @@ export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This c
 		return new InlineEditWithChanges(text, diffEdits, model.primaryPosition.get(), inlineEdit.renderExplicitly, inlineEdit.commands, inlineEdit.inlineCompletion);
 	});
 
+	private readonly _inlineEditModel = derived<InlineEditModel | undefined>(this, reader => {
+		const model = this._model.read(reader);
+		if (!model) { return undefined; }
+		const edit = this._inlineEdit.read(reader);
+		if (!edit) { return undefined; }
+
+		const tabAction = derived<InlineEditTabAction>(this, reader => {
+			if (this._editorObs.isFocused.read(reader)) {
+				if (model.tabShouldJumpToInlineEdit.read(reader)) { return InlineEditTabAction.Jump; }
+				if (model.tabShouldAcceptInlineEdit.read(reader)) { return InlineEditTabAction.Accept; }
+			}
+			return InlineEditTabAction.Inactive;
+		});
+
+		return new InlineEditModel(model, edit, tabAction);
+	});
+
+	private readonly _ghostTextIndicator = derived<GhostTextIndicator | undefined>(this, reader => {
+		const model = this._model.read(reader);
+		if (!model) { return undefined; }
+		const state = model.inlineCompletionState.read(reader);
+		if (!state) { return undefined; }
+		const inlineCompletion = state.inlineCompletion;
+		if (!inlineCompletion) { return undefined; }
+
+		if (!inlineCompletion.sourceInlineCompletion.showInlineEditMenu) {
+			return undefined;
+		}
+
+		const lineRange = LineRange.ofLength(state.primaryGhostText.lineNumber, 1);
+		const renderExplicitly = false;
+
+		return new GhostTextIndicator(this._editor, model, lineRange, inlineCompletion, renderExplicitly);
+	});
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _edit: IObservable<InlineEdit | undefined>,
@@ -54,6 +95,6 @@ export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This c
 	) {
 		super();
 
-		this._register(this._instantiationService.createInstance(InlineEditsView, this._editor, this._inlineEdit, this._model, this._focusIsInMenu));
+		this._register(this._instantiationService.createInstance(InlineEditsView, this._editor, this._inlineEditModel, this._ghostTextIndicator, this._focusIsInMenu));
 	}
 }

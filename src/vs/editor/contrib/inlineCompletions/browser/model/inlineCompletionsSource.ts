@@ -397,14 +397,11 @@ export class InlineCompletionWithUpdatedRange extends Disposable {
 				const endOffset = this._textModel.getOffsetAt(range.getEndPosition());
 				const originalRange = OffsetRange.ofStartAndLength(startOffset, endOffset - startOffset);
 
-				// TODO: EOL are not properly trimmed by the diffAlgorithm #12680
 				const replaceText = modifiedText.getValueOfRange(c.modifiedRange);
-				const oldText = this._textModel.getValueInRange(range);
-				if (replaceText.endsWith(eol) && oldText.endsWith(eol)) {
-					return new SingleOffsetEdit(originalRange.deltaEnd(-eol.length), replaceText.slice(0, -eol.length));
-				}
+				const originalText = this._textModel.getValueInRange(range);
+				const edit = new SingleOffsetEdit(originalRange, replaceText);
 
-				return new SingleOffsetEdit(originalRange, replaceText);
+				return reshapeEdit(edit, originalText, innerChanges.length, this._textModel);
 			})
 		);
 
@@ -783,4 +780,44 @@ export class StructuredLogger<T extends IRecordableLogEntry> extends Disposable 
 
 export function observableContextKey<T>(key: string, contextKeyService: IContextKeyService): IObservable<T | undefined> {
 	return observableFromEvent(contextKeyService.onDidChangeContext, () => contextKeyService.getContextKeyValue<T>(key));
+}
+
+function reshapeEdit(edit: SingleOffsetEdit, originalText: string, totalInnerEdits: number, textModel: ITextModel): SingleOffsetEdit {
+	// TODO: EOL are not properly trimmed by the diffAlgorithm #12680
+	const eol = textModel.getEOL();
+	if (edit.newText.endsWith(eol) && originalText.endsWith(eol)) {
+		edit = new SingleOffsetEdit(edit.replaceRange.deltaEnd(-eol.length), edit.newText.slice(0, -eol.length));
+	}
+
+	// INSERTION
+	// If the insertion ends with a new line and is inserted at the start of a line which has text,
+	// we move the insertion to the end of the previous line if possible
+	if (totalInnerEdits === 1 && edit.replaceRange.isEmpty && edit.newText.includes(eol)) {
+		edit = reshapeMultiLineInsertion(edit, textModel);
+	}
+
+	return edit;
+}
+
+function reshapeMultiLineInsertion(edit: SingleOffsetEdit, textModel: ITextModel): SingleOffsetEdit {
+	if (!edit.replaceRange.isEmpty) {
+		throw new BugIndicatingError('Unexpected original range');
+	}
+
+	if (edit.replaceRange.start === 0) {
+		return edit;
+	}
+
+	const eol = textModel.getEOL();
+	const startPosition = textModel.getPositionAt(edit.replaceRange.start);
+	const startColumn = startPosition.column;
+	const startLineNumber = startPosition.lineNumber;
+
+	// If the insertion ends with a new line and is inserted at the start of a line which has text,
+	// we move the insertion to the end of the previous line if possible
+	if (startColumn === 1 && startLineNumber > 1 && textModel.getLineLength(startLineNumber) !== 0 && edit.newText.endsWith(eol) && !edit.newText.startsWith(eol)) {
+		return new SingleOffsetEdit(edit.replaceRange.delta(-1), eol + edit.newText.slice(0, -eol.length));
+	}
+
+	return edit;
 }

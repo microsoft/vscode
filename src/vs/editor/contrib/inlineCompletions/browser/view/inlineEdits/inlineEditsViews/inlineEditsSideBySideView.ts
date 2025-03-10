@@ -23,7 +23,7 @@ import { Range } from '../../../../../../common/core/range.js';
 import { ITextModel } from '../../../../../../common/model.js';
 import { StickyScrollController } from '../../../../../stickyScroll/browser/stickyScrollController.js';
 import { InlineCompletionContextKeys } from '../../../controller/inlineCompletionContextKeys.js';
-import { IInlineEditsView, IInlineEditsViewHost } from '../inlineEditsViewInterface.js';
+import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';
 import { InlineEditWithChanges } from '../inlineEditWithChanges.js';
 import { getModifiedBorderColor, getOriginalBorderColor, modifiedBackgroundColor, originalBackgroundColor } from '../theme.js';
 import { PathBuilder, createRectangle, getOffsetForPos, mapOutFalsy, maxContentWidthInRange } from '../utils/utils.js';
@@ -64,7 +64,7 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 			newTextLineCount: number;
 			originalDisplayRange: LineRange;
 		} | undefined>,
-		private readonly _host: IInlineEditsViewHost,
+		private readonly _tabAction: IObservable<InlineEditTabAction>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
@@ -123,8 +123,11 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 	private readonly previewRef = n.ref<HTMLDivElement>();
 
 	private readonly _editorContainer = n.div({
-		class: ['editorContainer', this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !v.edits.useGutterIndicator && 'showHover')],
+		class: ['editorContainer'],
 		style: { position: 'absolute', overflow: 'hidden', cursor: 'pointer' },
+		onmousedown: e => {
+			e.preventDefault(); // This prevents that the editor loses focus
+		},
 		onclick: (e) => {
 			this._onDidClick.fire(new StandardMouseEvent(getWindow(e), e));
 		}
@@ -505,8 +508,8 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 		const layoutInfoObs = mapOutFalsy(this._previewEditorLayoutInfo).read(reader);
 		if (!layoutInfoObs) { return undefined; }
 
-		const modifiedBorderColor = getModifiedBorderColor(this._host.tabAction).read(reader);
-		const originalBorderColor = getOriginalBorderColor(this._host.tabAction).read(reader);
+		const modifiedBorderColor = getModifiedBorderColor(this._tabAction).read(reader);
+		const originalBorderColor = getOriginalBorderColor(this._tabAction).read(reader);
 
 		return [
 			n.svgElem('path', {

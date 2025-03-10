@@ -37,6 +37,7 @@ export interface IToolInvocation {
 	tokenBudget?: number;
 	context: IToolInvocationContext | undefined;
 	chatRequestId?: string;
+	chatInteractionId?: string;
 	toolSpecificData?: IChatTerminalToolInvocationData;
 }
 

@@ -5,7 +5,6 @@
 
 import { CHAT_CATEGORY } from '../chatActions.js';
 import { localize2 } from '../../../../../../nls.js';
-import { showHowToCreateLink } from './dialogs/showHowToCreate.js';
 import { Action2 } from '../../../../../../platform/actions/common/actions.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/types.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -14,6 +13,7 @@ import { IViewsService } from '../../../../../services/views/common/viewsService
 import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
 import { ISelectPromptOptions, askToSelectPrompt } from './dialogs/askToSelectPrompt.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 
 /**
  * Action ID for the `Attach Prompt` action.
@@ -24,7 +24,7 @@ export const ATTACH_PROMPT_ACTION_ID = 'workbench.action.chat.attach.prompt';
  * Options for the {@link AttachPromptAction} action.
  */
 export interface IChatAttachPromptActionOptions extends Pick<
-	ISelectPromptOptions, 'resource' | 'widget'
+	ISelectPromptOptions, 'resource' | 'widget' | 'viewsService'
 > { }
 
 /**
@@ -36,6 +36,7 @@ export class AttachPromptAction extends Action2 {
 			id: ATTACH_PROMPT_ACTION_ID,
 			title: localize2('workbench.action.chat.attach.prompt.label', "Use Prompt"),
 			f1: false,
+			precondition: ChatContextKeys.enabled,
 			category: CHAT_CATEGORY,
 		});
 	}
@@ -53,18 +54,13 @@ export class AttachPromptAction extends Action2 {
 		// find all prompt files in the user workspace
 		const promptFiles = await promptsService.listPromptFiles();
 
-		// if no prompt files found, show instructions on how to create one
-		if (promptFiles.length === 0) {
-			return await showHowToCreateLink(openerService, quickInputService);
-		}
-
-		await askToSelectPrompt(
-			{
-				...options,
-				promptFiles,
-				labelService,
-				viewsService,
-				quickInputService,
-			});
+		await askToSelectPrompt({
+			...options,
+			promptFiles,
+			labelService,
+			viewsService,
+			openerService,
+			quickInputService,
+		});
 	}
 }

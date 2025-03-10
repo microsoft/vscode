@@ -1,4 +1,10 @@
-{
+
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+export const zshBuiltinsCommandDescriptionsCache = {
   ".": {
     "shortDescription": "Source a file",
     "description": ":   Read commands from *file* and execute them in the current shell environment.\n\n    If *file* does not contain a slash, or if **PATH_DIRS** is set, the shell looks in the components of **\\$path** to find the directory containing *file*. Files in the current directory are not read unless `**.**` appears somewhere in **\\$path**. If a file named `*file***.zwc**` is found, is newer than *file*, and is the compiled form (created with the **zcompile** builtin) of *file*, then commands are read from that file instead of *file*.\n\n    If any arguments *arg* are given, they become the positional parameters; the old positional parameters are restored when the *file* is done executing. However, if no arguments are given, the positional parameters remain those of the calling context, and no restoring is done.\n\n    If *file* was not found the return status is 127; if *file* was found but contained a syntax error the return status is 126; else the return status is the exit status of the last command executed.",
@@ -534,4 +540,4 @@
     "description": ":   See the section `The zsh/net/tcp Module` in *zshmodules(1).*",
     "args": "ztcp"
   }
-}
+} as const;

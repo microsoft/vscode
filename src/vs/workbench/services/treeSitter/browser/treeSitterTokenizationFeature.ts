@@ -111,8 +111,8 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 	private _query: Parser.Query | undefined;
 	private readonly _onDidChangeTokens: Emitter<{ textModel: ITextModel; changes: IModelTokensChangedEvent }> = this._register(new Emitter());
 	public readonly onDidChangeTokens: Event<{ textModel: ITextModel; changes: IModelTokensChangedEvent }> = this._onDidChangeTokens.event;
-	private readonly _onDidCompleteFirstTokenization: Emitter<{ textModel: ITextModel }> = this._register(new Emitter());
-	public readonly onDidCompleteFirstTokenization: Event<{ textModel: ITextModel }> = this._onDidCompleteFirstTokenization.event;
+	private readonly _onDidCompleteBackgroundTokenization: Emitter<{ textModel: ITextModel }> = this._register(new Emitter());
+	public readonly onDidChangeBackgroundTokenization: Event<{ textModel: ITextModel }> = this._onDidCompleteBackgroundTokenization.event;
 	private _colorThemeData!: ColorThemeData;
 	private _languageAddedListener: IDisposable | undefined;
 	private _codeEditors: TreeSitterCodeEditors;
@@ -133,13 +133,15 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		this._register(this._codeEditors.onDidChangeViewport(e => {
 			this._parseAndTokenizeViewPort(e.model, e.ranges);
 		}));
+		this._register(this._codeEditors.onDidRemoveEditor(e => {
+			this._tokenizationStoreService.delete(e);
+		}));
 		this._codeEditors.getInitialViewPorts().then(async (viewports) => {
 			for (const viewport of viewports) {
 				this._parseAndTokenizeViewPort(viewport.model, viewport.ranges);
 			}
 		});
 		this._register(Event.runAndSubscribe(this._themeService.onDidColorThemeChange, (e) => this._updateTheme(e)));
-		let hasDoneFullTokenization = false;
 		this._register(this._treeSitterService.onDidUpdateTree((e) => {
 			if (e.textModel.getLanguageId() !== this._languageId) {
 				return;
@@ -154,20 +156,12 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 				return;
 			}
 
-			let updatePromise: Promise<void>;
 			// First time we see a tree we need to build a token store.
 			if (!this._tokenizationStoreService.hasTokens(e.textModel)) {
 				// This will likely not happen as we first handle all models, which are ready before trees.
-				updatePromise = this._firstTreeUpdate(e.textModel, e.versionId);
+				this._firstTreeUpdate(e.textModel, e.versionId);
 			} else {
-				updatePromise = this._handleTreeUpdate(e);
-			}
-
-			if (!hasDoneFullTokenization) {
-				hasDoneFullTokenization = true;
-				updatePromise.then(() => {
-					this._onDidCompleteFirstTokenization.fire({ textModel: e.textModel });
-				});
+				this._handleTreeUpdate(e);
 			}
 		}));
 	}
@@ -265,12 +259,11 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 					newRange: range,
 					newRangeStartOffset,
 					newRangeEndOffset,
-					oldRangeLength: newRangeEndOffset - newRangeStartOffset
 				};
 			}
 		} else {
 			const valueLength = textModel.getValueLength();
-			rangeChanges = [{ newRange: new Range(1, 1, maxLine, textModel.getLineMaxColumn(maxLine)), newRangeStartOffset: 0, newRangeEndOffset: valueLength, oldRangeLength: valueLength }];
+			rangeChanges = [{ newRange: new Range(1, 1, maxLine, textModel.getLineMaxColumn(maxLine)), newRangeStartOffset: 0, newRangeEndOffset: valueLength }];
 		}
 		return this._handleTreeUpdate({ ranges: rangeChanges, textModel, versionId });
 	}
@@ -335,7 +328,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		return this._updateTreeForRanges(e.textModel, rangeChanges, e.versionId, captures).then(() => {
 			const tree = this._getTree(e.textModel);
 			if (!e.textModel.isDisposed() && (tree?.versionId === e.textModel.getVersionId())) {
-				this._refreshNeedsRefresh(e.textModel);
+				this._refreshNeedsRefresh(e.textModel, e.versionId);
 			}
 
 		});
@@ -345,7 +338,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		let tokenUpdate: { newTokens: TokenUpdate[] } | undefined;
 
 		for (let i = 0; i < rangeChanges.length; i++) {
-			if (versionId !== textModel.getVersionId()) {
+			if (!textModel.isDisposed() && versionId !== textModel.getVersionId()) {
 				// Our captures have become invalid and we need to re-capture
 				break;
 			}
@@ -368,9 +361,10 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 			});
 			await new Promise<void>(resolve => setTimeout0(resolve));
 		}
+		this._onDidCompleteBackgroundTokenization.fire({ textModel });
 	}
 
-	private _refreshNeedsRefresh(textModel: ITextModel) {
+	private _refreshNeedsRefresh(textModel: ITextModel, versionId: number) {
 		const rangesToRefresh = this._tokenizationStoreService.getNeedsRefresh(textModel);
 		if (rangesToRefresh.length === 0) {
 			return;
@@ -382,11 +376,10 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 			rangeChanges[i] = {
 				newRange: range.range,
 				newRangeStartOffset: range.startOffset,
-				newRangeEndOffset: range.endOffset,
-				oldRangeLength: range.endOffset - range.startOffset
+				newRangeEndOffset: range.endOffset
 			};
 		}
-		this._handleTreeUpdate({ ranges: rangeChanges, textModel, versionId: textModel.getVersionId() });
+		this._handleTreeUpdate({ ranges: rangeChanges, textModel, versionId });
 	}
 
 	private _rangeTokensAsUpdates(rangeOffset: number, endOffsetToken: EndOffsetToken[], startingOffsetInArray?: number) {
@@ -452,8 +445,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 						ranges: [{
 							newRange: modelRange,
 							newRangeStartOffset: 0,
-							newRangeEndOffset: model.getValueLength(),
-							oldRangeLength: model.getValueLength()
+							newRangeEndOffset: model.getValueLength()
 						}],
 						textModel: model,
 						versionId: model.getVersionId()
@@ -506,7 +498,9 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 			return undefined;
 		}
 		const updates = this._rangeTokensAsUpdates(textModel.getOffsetAt({ lineNumber, column: 1 }), tokens.result);
-		this._tokenizationStoreService.updateTokens(textModel, textModel.getVersionId(), [{ newTokens: updates, oldRangeLength: textModel.getLineLength(lineNumber) }], TokenQuality.Accurate);
+		if (tokens.versionId === textModel.getVersionId()) {
+			this._tokenizationStoreService.updateTokens(textModel, tokens.versionId, [{ newTokens: updates, oldRangeLength: textModel.getLineLength(lineNumber) }], TokenQuality.Accurate);
+		}
 	}
 
 	public tokenizeEncodedInstrumented(lineNumber: number, textModel: ITextModel): { result: Uint32Array; captureTime: number; metadataTime: number } | undefined {
@@ -523,9 +517,13 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		return { tree, captures };
 	}
 
-	private _tokenize(encodedLanguageId: LanguageId, range: Range, rangeStartOffset: number, rangeEndOffset: number, textModel: ITextModel): { endOffsetsAndMetadata: { endOffset: number; metadata: number }[]; captureTime: number; metadataTime: number } | undefined {
+	private _tokenize(encodedLanguageId: LanguageId, range: Range, rangeStartOffset: number, rangeEndOffset: number, textModel: ITextModel): { endOffsetsAndMetadata: { endOffset: number; metadata: number }[]; versionId: number; captureTime: number; metadataTime: number } | undefined {
 		const { tree, captures } = this._getTreeAndCaptures(range, textModel);
-		return this._tokenizeCapturesWithMetadata(tree?.tree, captures, encodedLanguageId, rangeStartOffset, rangeEndOffset);
+		const result = this._tokenizeCapturesWithMetadata(tree?.tree, captures, encodedLanguageId, rangeStartOffset, rangeEndOffset);
+		if (!tree || !result) {
+			return undefined;
+		}
+		return { ...result, versionId: tree.versionId };
 	}
 
 	private _createTokensFromCaptures(tree: Parser.Tree | undefined, captures: QueryCapture[], rangeStartOffset: number, rangeEndOffset: number): { endOffsets: EndOffsetAndScopes[]; captureTime: number } | undefined {
@@ -547,6 +545,53 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 
 		const increaseSizeOfTokensByOneToken = () => {
 			endOffsetsAndScopes.push({ endOffset: 0, scopes: [] });
+		};
+
+		const brackets = (capture: QueryCapture, startOffset: number): number[] | undefined => {
+			return (capture.name.includes('punctuation') && capture.text) ? Array.from(capture.text.matchAll(BRACKETS)).map(match => startOffset + match.index) : undefined;
+		};
+
+		const addCurrentTokenToArray = (capture: QueryCapture, startOffset: number, endOffset: number, position?: number) => {
+			if (position !== undefined) {
+				const oldScopes = endOffsetsAndScopes[position].scopes;
+				let oldBracket = endOffsetsAndScopes[position].bracket;
+				// Check that the previous token ends at the same point that the current token starts
+				const prevEndOffset = position > 0 ? endOffsetsAndScopes[position - 1].endOffset : 0;
+				if (prevEndOffset !== startOffset) {
+					let preInsertBracket: number[] | undefined = undefined;
+					if (oldBracket && oldBracket.length > 0) {
+						preInsertBracket = [];
+						const postInsertBracket: number[] = [];
+						for (let i = 0; i < oldBracket.length; i++) {
+							const bracket = oldBracket[i];
+							if (bracket < startOffset) {
+								preInsertBracket.push(bracket);
+							} else if (bracket > endOffset) {
+								postInsertBracket.push(bracket);
+							}
+						}
+						if (preInsertBracket.length === 0) {
+							preInsertBracket = undefined;
+						}
+						if (postInsertBracket.length === 0) {
+							oldBracket = undefined;
+						} else {
+							oldBracket = postInsertBracket;
+						}
+					}
+					// We need to add some of the position token to cover the space
+					endOffsetsAndScopes.splice(position, 0, { endOffset: startOffset, scopes: [...oldScopes], bracket: preInsertBracket });
+					position++;
+					increaseSizeOfTokensByOneToken();
+					tokenIndex++;
+				}
+
+				endOffsetsAndScopes.splice(position, 0, { endOffset: endOffset, scopes: [...oldScopes, capture.name], bracket: brackets(capture, startOffset) });
+				endOffsetsAndScopes[tokenIndex].bracket = oldBracket;
+			} else {
+				endOffsetsAndScopes[tokenIndex] = { endOffset: endOffset, scopes: [capture.name], bracket: brackets(capture, startOffset) };
+			}
+			tokenIndex++;
 		};
 
 		for (let captureIndex = 0; captureIndex < captures.length; captureIndex++) {
@@ -579,52 +624,6 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 				continue;
 			}
 
-			const brackets = (): number[] | undefined => {
-				return (capture.name.includes('punctuation') && capture.text) ? Array.from(capture.text.matchAll(BRACKETS)).map(match => startOffset + match.index) : undefined;
-			};
-
-			const addCurrentTokenToArray = (position?: number) => {
-				if (position !== undefined) {
-					let oldBracket = endOffsetsAndScopes[position].bracket;
-					// Check that the previous token ends at the same point that the current token starts
-					const prevEndOffset = position > 0 ? endOffsetsAndScopes[position - 1].endOffset : 0;
-					if (prevEndOffset !== startOffset) {
-						let preInsertBracket: number[] | undefined = undefined;
-						if (oldBracket && oldBracket.length > 0) {
-							preInsertBracket = [];
-							const postInsertBracket: number[] = [];
-							for (let i = 0; i < oldBracket.length; i++) {
-								const bracket = oldBracket[i];
-								if (bracket < startOffset) {
-									preInsertBracket.push(bracket);
-								} else if (bracket > endOffset) {
-									postInsertBracket.push(bracket);
-								}
-							}
-							if (preInsertBracket.length === 0) {
-								preInsertBracket = undefined;
-							}
-							if (postInsertBracket.length === 0) {
-								oldBracket = undefined;
-							} else {
-								oldBracket = postInsertBracket;
-							}
-						}
-						// We need to add some of the position token to cover the space
-						endOffsetsAndScopes.splice(position, 0, { endOffset: startOffset, scopes: [...endOffsetsAndScopes[position].scopes], bracket: preInsertBracket });
-						position++;
-						increaseSizeOfTokensByOneToken();
-						tokenIndex++;
-					}
-
-					endOffsetsAndScopes.splice(position, 0, { endOffset: endOffset, scopes: [capture.name], bracket: brackets() });
-					endOffsetsAndScopes[tokenIndex].bracket = oldBracket;
-				} else {
-					endOffsetsAndScopes[tokenIndex] = { endOffset: endOffset, scopes: [capture.name], bracket: brackets() };
-				}
-				tokenIndex++;
-			};
-
 			if (previousEndOffset >= endOffset) {
 				// walk back through the tokens until we find the one that contains the current token
 				let withinTokenIndex = tokenIndex - 1;
@@ -636,13 +635,13 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 					// Check that the current token doesn't just replace the last token
 					if ((previousTokenStartOffset + currentTokenLength) === previousTokenEndOffset) {
 						if (previousTokenStartOffset === startOffset) {
-							// Current token and previous token span the exact same characters, replace the last scope
-							endOffsetsAndScopes[withinTokenIndex].scopes[endOffsetsAndScopes[withinTokenIndex].scopes.length - 1] = capture.name;
-							endOffsetsAndScopes[withinTokenIndex].bracket = brackets();
+							// Current token and previous token span the exact same characters, add the scopes to the previous token
+							endOffsetsAndScopes[withinTokenIndex].scopes.push(capture.name);
+							const oldBracket = endOffsetsAndScopes[withinTokenIndex].bracket;
+							endOffsetsAndScopes[withinTokenIndex].bracket = ((oldBracket && (oldBracket.length > 0)) ? oldBracket : brackets(capture, startOffset));
 						}
 					} else if (previousTokenStartOffset <= startOffset) {
-						// The current token is within the previous token. Adjust the end of the previous token
-						addCurrentTokenToArray(withinTokenIndex);
+						addCurrentTokenToArray(capture, startOffset, endOffset, withinTokenIndex);
 						break;
 					}
 					withinTokenIndex--;
@@ -651,7 +650,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 				} while (previousTokenEndOffset > startOffset);
 			} else {
 				// Just add the token to the array
-				addCurrentTokenToArray();
+				addCurrentTokenToArray(capture, startOffset, endOffset);
 			}
 		}
 
@@ -695,18 +694,18 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		return findMetadata(this._colorThemeData, [], encodedLanguageId, false);
 	}
 
-	private _tokenizeEncoded(lineNumber: number, textModel: ITextModel): { result: EndOffsetToken[]; captureTime: number; metadataTime: number } | undefined {
+	private _tokenizeEncoded(lineNumber: number, textModel: ITextModel): { result: EndOffsetToken[]; captureTime: number; metadataTime: number; versionId: number } | undefined {
 		const encodedLanguageId = this._languageIdCodec.encodeLanguageId(this._languageId);
 		const lineOffset = textModel.getOffsetAt({ lineNumber: lineNumber, column: 1 });
 		const maxLine = textModel.getLineCount();
 		const lineEndOffset = (lineNumber + 1 <= maxLine) ? textModel.getOffsetAt({ lineNumber: lineNumber + 1, column: 1 }) : textModel.getValueLength();
 		const lineLength = lineEndOffset - lineOffset;
 
-		const result = this._tokenize(encodedLanguageId, new Range(lineNumber, 1, lineNumber, lineLength), lineOffset, lineEndOffset, textModel);
+		const result = this._tokenize(encodedLanguageId, new Range(lineNumber, 1, lineNumber, lineLength + 1), lineOffset, lineEndOffset, textModel);
 		if (!result) {
 			return undefined;
 		}
-		return { result: result.endOffsetsAndMetadata, captureTime: result.captureTime, metadataTime: result.metadataTime };
+		return { result: result.endOffsetsAndMetadata, captureTime: result.captureTime, metadataTime: result.metadataTime, versionId: result.versionId };
 	}
 
 	private _endOffsetTokensToUint32Array(endOffsetsAndMetadata: EndOffsetToken[]): Uint32Array {

@@ -28,7 +28,7 @@ import { GroupsOrder, IEditorGroupsService } from '../../../../services/editor/c
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingResourceContextKey, chatEditingWidgetFileReadonlyContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
@@ -91,63 +91,13 @@ abstract class WorkingSetAction extends EditingSessionAction {
 	abstract runWorkingSetAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget | undefined, ...uris: URI[]): any;
 }
 
-registerAction2(class MarkFileAsReadonly extends WorkingSetAction {
-	constructor() {
-		super({
-			id: 'chatEditing.markFileAsReadonly',
-			title: localize2('markFileAsReadonly', 'Mark as read-only'),
-			icon: Codicon.lock,
-			toggled: chatEditingWidgetFileReadonlyContextKey,
-			menu: [{
-				id: MenuId.ChatEditingWidgetModifiedFilesToolbar,
-				when: ContextKeyExpr.and(
-					chatEditingAgentSupportsReadonlyReferencesContextKey,
-					ContextKeyExpr.or(
-						ContextKeyExpr.equals(chatEditingWidgetFileReadonlyContextKey.key, true),
-						ContextKeyExpr.equals(chatEditingWidgetFileReadonlyContextKey.key, false),
-					)
-				),
-				order: 10,
-				group: 'navigation'
-			}],
-		});
-	}
-
-	async runWorkingSetAction(_accessor: ServicesAccessor, currentEditingSession: IChatEditingSession, _chatWidget: IChatWidget, ...uris: URI[]): Promise<void> {
-		for (const uri of uris) {
-			currentEditingSession.markIsReadonly(uri);
-		}
-	}
-});
-
-registerAction2(class AddFileToWorkingSet extends WorkingSetAction {
-	constructor() {
-		super({
-			id: 'chatEditing.addFileToWorkingSet',
-			title: localize2('addFileToWorkingSet', 'Add File'),
-			icon: Codicon.plus,
-			menu: [{
-				id: MenuId.ChatEditingWidgetModifiedFilesToolbar,
-				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Suggested),
-				order: 0,
-				group: 'navigation'
-			}],
-		});
-	}
-
-	async runWorkingSetAction(_accessor: ServicesAccessor, currentEditingSession: IChatEditingSession, _chatWidget: IChatWidget, ...uris: URI[]): Promise<void> {
-		for (const uri of uris) {
-			currentEditingSession.addFileToWorkingSet(uri);
-		}
-	}
-});
-
 registerAction2(class RemoveFileFromWorkingSet extends WorkingSetAction {
 	constructor() {
 		super({
 			id: 'chatEditing.removeFileFromWorkingSet',
 			title: localize2('removeFileFromWorkingSet', 'Remove File'),
 			icon: Codicon.close,
+			precondition: ChatContextKeys.requestInProgress.negate(),
 			menu: [{
 				id: MenuId.ChatEditingWidgetModifiedFilesToolbar,
 				// when: ContextKeyExpr.or(ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Attached), ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Suggested), ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Transient)),
@@ -186,11 +136,9 @@ registerAction2(class RemoveFileFromWorkingSet extends WorkingSetAction {
 			chatWidget.attachmentModel.delete(uri.toString());
 		}
 
-		// If there are now only suggested files in the working set, also clear those
-		const entries = [...currentEditingSession.workingSet.entries()];
-		const suggestedFiles = entries.filter(([_, state]) => state.state === WorkingSetEntryState.Suggested);
-		if (suggestedFiles.length === entries.length && !chatWidget.attachmentModel.attachments.find((v) => v.isFile && URI.isUri(v.value))) {
-			currentEditingSession.remove(WorkingSetEntryRemovalReason.Programmatic, ...entries.map(([uri,]) => uri));
+		// Clear all related file suggestions
+		if (chatWidget.attachmentModel.fileAttachments.length === 0) {
+			chatWidget.input.relatedFiles?.clear();
 		}
 	}
 });
@@ -232,6 +180,7 @@ registerAction2(class AcceptAction extends WorkingSetAction {
 			id: 'chatEditing.acceptFile',
 			title: localize2('accept.file', 'Keep'),
 			icon: Codicon.check,
+			precondition: ChatContextKeys.requestInProgress.negate(),
 			menu: [{
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME), ContextKeyExpr.notIn(chatEditingResourceContextKey.key, decidedChatEditingResourceContextKey.key)),
 				id: MenuId.MultiDiffEditorFileToolbar,
@@ -257,6 +206,7 @@ registerAction2(class DiscardAction extends WorkingSetAction {
 			id: 'chatEditing.discardFile',
 			title: localize2('discard.file', 'Undo'),
 			icon: Codicon.discard,
+			precondition: ChatContextKeys.requestInProgress.negate(),
 			menu: [{
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME), ContextKeyExpr.notIn(chatEditingResourceContextKey.key, decidedChatEditingResourceContextKey.key)),
 				id: MenuId.MultiDiffEditorFileToolbar,
@@ -386,7 +336,7 @@ export class ChatEditingRemoveAllFilesAction extends EditingSessionAction {
 
 	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]): Promise<void> {
 		// Remove all files from working set
-		const uris = [...editingSession.workingSet.keys()];
+		const uris = [...editingSession.entries.get()].map((e) => e.modifiedURI);
 		editingSession.remove(WorkingSetEntryRemovalReason.User, ...uris);
 
 		// Remove all file attachments
@@ -463,7 +413,7 @@ registerAction2(class AddFilesToWorkingSetAction extends EditingSessionAction {
 		}
 
 		for (const file of uris) {
-			editingSession.addFileToWorkingSet(file);
+			chatWidget.attachmentModel.addFile(file);
 		}
 	}
 });

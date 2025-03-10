@@ -16,7 +16,7 @@ import type { ICompletionResource } from '../types';
 import { osIsWindows } from '../helpers/os';
 import { removeAnyFileExtension } from '../helpers/file';
 import type { EnvironmentVariable } from './api-bindings/types';
-import { asArray } from '../terminalSuggestMain';
+import { asArray, availableSpecs } from '../terminalSuggestMain';
 import { IFigExecuteExternals } from './execute';
 
 export interface IFigSpecSuggestionsResult {
@@ -52,11 +52,10 @@ export async function getFigSuggestions(
 		if (!specLabels) {
 			continue;
 		}
-
 		for (const specLabel of specLabels) {
 			const availableCommand = (osIsWindows()
 				? availableCommands.find(command => (typeof command.label === 'string' ? command.label : command.label.label).match(new RegExp(`${specLabel}(\\.[^ ]+)?$`)))
-				: availableCommands.find(command => (typeof command.label === 'string' ? command.label : command.label.label).startsWith(specLabel)));
+				: availableCommands.find(command => (typeof command.label === 'string' ? command.label : command.label.label) === (specLabel)));
 			if (!availableCommand || (token && token.isCancellationRequested)) {
 				continue;
 			}
@@ -81,17 +80,20 @@ export async function getFigSuggestions(
 
 			const commandAndAliases = (osIsWindows()
 				? availableCommands.filter(command => specLabel === removeAnyFileExtension(command.definitionCommand ?? (typeof command.label === 'string' ? command.label : command.label.label)))
-				: availableCommands.filter(command => specLabel === (command.definitionCommand ?? command.label)));
+				: availableCommands.filter(command => specLabel === (command.definitionCommand ?? (typeof command.label === 'string' ? command.label : command.label.label))));
 			if (
 				!(osIsWindows()
 					? commandAndAliases.some(e => precedingText.startsWith(`${removeAnyFileExtension((typeof e.label === 'string' ? e.label : e.label.label))} `))
-					: commandAndAliases.some(e => precedingText.startsWith(`${e.label} `)))
+					: commandAndAliases.some(e => precedingText.startsWith(`${typeof e.label === 'string' ? e.label : e.label.label} `)))
 			) {
-				// the spec label is not the first word in the command line, so do not provide options or args
 				continue;
 			}
 
-			const completionItemResult = await getFigSpecSuggestions(spec, terminalContext, prefix, shellIntegrationCwd, env, name, executeExternals, token);
+			const actualSpec = availableCommand.definitionCommand ? availableSpecs.find(s => s.name === availableCommand.definitionCommand) : spec;
+			if (!actualSpec) {
+				continue;
+			}
+			const completionItemResult = await getFigSpecSuggestions(actualSpec, terminalContext, prefix, shellIntegrationCwd, env, name, executeExternals, token);
 			result.hasCurrentArg ||= !!completionItemResult?.hasCurrentArg;
 			if (completionItemResult) {
 				result.filesRequested ||= completionItemResult.filesRequested;
@@ -131,7 +133,7 @@ async function getFigSpecSuggestions(
 		currentProcess: name,
 		// TODO: pass in aliases
 	};
-	const parsedArguments: ArgumentParserResult = await parseArguments(command, shellContext, spec);
+	const parsedArguments: ArgumentParserResult = await parseArguments(command, shellContext, spec, executeExternals);
 
 	const items: vscode.TerminalCompletionItem[] = [];
 	// TODO: Pass in and respect cancellation token
@@ -263,11 +265,13 @@ export async function collectCompletionItemResult(
 			}
 
 			let itemKind = kind;
-			if (typeof item === 'object' && 'args' in item && (asArray(item.args ?? [])).length > 0) {
-				itemKind = vscode.TerminalCompletionItemKind.Option;
-			}
 			const lastArgType: string | undefined = parsedArguments?.annotations.at(-1)?.type;
-			if (lastArgType === 'option_arg') {
+			if (lastArgType === 'subcommand_arg') {
+				if (typeof item === 'object' && 'args' in item && (asArray(item.args ?? [])).length > 0) {
+					itemKind = vscode.TerminalCompletionItemKind.Option;
+				}
+			}
+			else if (lastArgType === 'option_arg') {
 				itemKind = vscode.TerminalCompletionItemKind.OptionValue;
 			}
 

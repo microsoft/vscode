@@ -78,10 +78,9 @@ import { agentSlashCommandToMarkdown, agentToMarkdown } from './chatMarkdownDeco
 import { ChatCompatibilityNotifier, ChatExtensionPointHandler } from './chatParticipant.contribution.js';
 import { ChatPasteProvidersFeature } from './chatPasteProviders.js';
 import { QuickChatService } from './chatQuick.js';
-import { ChatQuotasService, IChatQuotasService } from '../common/chatQuotasService.js';
 import { ChatResponseAccessibleView } from './chatResponseAccessibleView.js';
-import { ChatEntitlementsService, ChatSetupContribution } from './chatSetup.js';
-import { IChatEntitlementsService } from '../common/chatEntitlementsService.js';
+import { ChatSetupContribution } from './chatSetup.js';
+import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../common/chatEntitlementService.js';
 import { ChatVariablesService } from './chatVariables.js';
 import { ChatWidgetService } from './chatWidget.js';
 import { ChatCodeBlockContextProviderService } from './codeBlockContextProviderService.js';
@@ -98,6 +97,9 @@ import { PROMPT_FILE_EXTENSION } from '../../../../platform/prompts/common/const
 import { DOCUMENTATION_URL } from '../common/promptSyntax/constants.js';
 import { registerChatToolActions } from './actions/chatToolActions.js';
 import { ChatStatusBarEntry } from './chatStatus.js';
+import product from '../../../../platform/product/common/product.js';
+import { Event } from '../../../../base/common/event.js';
+import { ChatEditingNotebookFileSystemProviderContrib } from './chatEditing/notebook/chatEditingNotebookFileSystemProvider.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -191,27 +193,50 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.renderRelatedFiles', "Controls whether related files should be rendered in the chat input."),
 			default: false
 		},
+		'chat.experimental.statusIndicator.enabled': { // TODO@bpasero remove this eventually
+			type: 'boolean',
+			description: nls.localize('chat.statusIndicator', "Controls whether a Copilot related status indicator appears in the lower right corner."),
+			default: product.quality !== 'stable',
+			tags: ['experimental', 'onExp']
+		},
 		[PromptsConfig.CONFIG_KEY]: {
-			type: 'object',
+			type: 'boolean',
 			title: nls.localize(
-				'chat.promptFiles.config.title',
+				'chat.reusablePrompts.config.enabled.title',
 				"Prompt Files",
 			),
 			markdownDescription: nls.localize(
-				'chat.promptFiles.config.description',
+				'chat.reusablePrompts.config.enabled.description',
+				"Enable reusable prompt files (`*{0}`) in Chat, Edits, and Inline Chat sessions. [Learn More]({1}).",
+				PROMPT_FILE_EXTENSION,
+				DOCUMENTATION_URL,
+			),
+			default: true,
+			restricted: true,
+			disallowConfigurationDefault: true,
+			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
+		},
+		[PromptsConfig.LOCATIONS_CONFIG_KEY]: {
+			type: 'object',
+			title: nls.localize(
+				'chat.reusablePrompts.config.locations.title',
+				"Prompt File Locations",
+			),
+			markdownDescription: nls.localize(
+				'chat.reusablePrompts.config.locations.description',
 				"Specify location(s) of reusable prompt files (`*{0}`) that can be attached in Chat, Edits, and Inline Chat sessions. [Learn More]({1}).\n\nRelative paths are resolved from the root folder(s) of your workspace.",
 				PROMPT_FILE_EXTENSION,
 				DOCUMENTATION_URL,
 			),
 			default: {
-				[PromptsConfig.DEFAULT_SOURCE_FOLDER]: false,
+				[PromptsConfig.DEFAULT_SOURCE_FOLDER]: true,
 			},
 			required: [PromptsConfig.DEFAULT_SOURCE_FOLDER],
 			additionalProperties: { type: 'boolean' },
 			unevaluatedProperties: { type: 'boolean' },
 			restricted: true,
 			disallowConfigurationDefault: true,
-			tags: ['experimental'],
+			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
 			examples: [
 				{
 					[PromptsConfig.DEFAULT_SOURCE_FOLDER]: true,
@@ -274,34 +299,39 @@ class ChatResolverContribution extends Disposable {
 	}
 }
 
-class ChatAgentSettingContribution implements IWorkbenchContribution {
+class ChatAgentSettingContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.chatAgentSetting';
 
 	private registeredNode: IConfigurationNode | undefined;
 
 	constructor(
-		@IWorkbenchAssignmentService experimentService: IWorkbenchAssignmentService,
+		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService,
 		@IProductService private readonly productService: IProductService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IChatEntitlementService private readonly entitlementService: IChatEntitlementService,
 	) {
+		super();
+
 		if (this.productService.quality !== 'stable') {
-			this.registerSetting();
+			this.registerEnablementSetting();
 		}
 
 		const expDisabledKey = ChatContextKeys.Editing.agentModeDisallowed.bindTo(contextKeyService);
 		experimentService.getTreatment<boolean>('chatAgentEnabled').then(enabled => {
 			if (enabled) {
-				this.registerSetting();
+				this.registerEnablementSetting();
 				expDisabledKey.set(false);
 			} else if (enabled === false) {
 				this.deregisterSetting();
 				expDisabledKey.set(true);
 			}
 		});
+
+		this.registerMaxRequestsSetting();
 	}
 
-	private registerSetting() {
+	private registerEnablementSetting() {
 		if (this.registeredNode) {
 			return;
 		}
@@ -327,6 +357,34 @@ class ChatAgentSettingContribution implements IWorkbenchContribution {
 			configurationRegistry.deregisterConfigurations([this.registeredNode]);
 			this.registeredNode = undefined;
 		}
+	}
+
+	private registerMaxRequestsSetting(): void {
+		let lastNode: IConfigurationNode | undefined;
+		const registerMaxRequestsSetting = () => {
+			const treatmentId = this.entitlementService.entitlement === ChatEntitlement.Limited ?
+				'chatAgentMaxRequestsFree' :
+				'chatAgentMaxRequestsPro';
+			this.experimentService.getTreatment<number>(treatmentId).then(value => {
+				const defaultValue = value ?? (this.entitlementService.entitlement === ChatEntitlement.Limited ? 5 : 15);
+				const node: IConfigurationNode = {
+					id: 'chatSidebar',
+					title: nls.localize('interactiveSessionConfigurationTitle', "Chat"),
+					type: 'object',
+					properties: {
+						'chat.agent.maxRequests': {
+							type: 'number',
+							markdownDescription: nls.localize('chat.agent.maxRequests', "The maximum number of requests to allow Copilot Edits to use per-turn in agent mode. When the limit is reached, Copilot will ask the user to confirm that it should keep working. \n\n> **Note**: For users on the Copilot Free plan, note that each agent mode request currently uses one chat request."),
+							default: defaultValue,
+							tags: ['experimental']
+						},
+					}
+				};
+				configurationRegistry.updateConfigurations({ remove: lastNode ? [lastNode] : [], add: [node] });
+				lastNode = node;
+			});
+		};
+		this._register(Event.runAndSubscribe(Event.debounce(this.entitlementService.onDidChangeEntitlement, () => { }, 1000), () => registerMaxRequestsSetting()));
 	}
 }
 
@@ -488,7 +546,7 @@ registerSingleton(ICodeMapperService, CodeMapperService, InstantiationType.Delay
 registerSingleton(IChatEditingService, ChatEditingService, InstantiationType.Delayed);
 registerSingleton(IChatMarkdownAnchorService, ChatMarkdownAnchorService, InstantiationType.Delayed);
 registerSingleton(ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService, InstantiationType.Delayed);
-registerSingleton(IChatQuotasService, ChatQuotasService, InstantiationType.Delayed);
-registerSingleton(IChatEntitlementsService, ChatEntitlementsService, InstantiationType.Delayed);
-
+registerSingleton(IChatEntitlementService, ChatEntitlementService, InstantiationType.Delayed);
 registerSingleton(IPromptsService, PromptsService, InstantiationType.Delayed);
+
+registerWorkbenchContribution2(ChatEditingNotebookFileSystemProviderContrib.ID, ChatEditingNotebookFileSystemProviderContrib, WorkbenchPhase.BlockStartup);

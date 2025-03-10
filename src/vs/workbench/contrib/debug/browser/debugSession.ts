@@ -403,6 +403,16 @@ export class DebugSession implements IDebugSession, IDisposable {
 	}
 
 	/**
+	 * Terminate any linked test run.
+	 */
+	cancelCorrelatedTestRun() {
+		if (this.correlatedTestRun && !this.correlatedTestRun.completedAt) {
+			this.didTerminateTestRun = true;
+			this.testService.cancelTestRun(this.correlatedTestRun.id);
+		}
+	}
+
+	/**
 	 * terminate the current debug adapter session
 	 */
 	async terminate(restart = false): Promise<void> {
@@ -415,8 +425,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 		if (this._options.lifecycleManagedByParent && this.parentSession) {
 			await this.parentSession.terminate(restart);
 		} else if (this.correlatedTestRun && !this.correlatedTestRun.completedAt && !this.didTerminateTestRun) {
-			this.didTerminateTestRun = true;
-			this.testService.cancelTestRun(this.correlatedTestRun.id);
+			this.cancelCorrelatedTestRun();
 		} else if (this.raw) {
 			if (this.raw.capabilities.supportsTerminateRequest && this._configuration.resolved.request === 'launch') {
 				await this.raw.terminate(restart);

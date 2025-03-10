@@ -1498,4 +1498,21 @@ suite('vscode API - workspace', () => {
 		const updatedText = doc.getText();
 		assert.strictEqual(updatedText, text);
 	});
+
+	test('encoding: utf8bom does not explode (https://github.com/microsoft/vscode/issues/242132)', async function () {
+		const buffer = [0xEF, 0xBB, 0xBF, 72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100];
+		const uri = await createRandomFile(new Uint8Array(buffer) /* UTF-8 with BOM */);
+
+		let doc = await vscode.workspace.openTextDocument(uri);
+		assert.strictEqual(doc.encoding, 'utf8bom');
+
+		doc = await vscode.workspace.openTextDocument(uri, { encoding: 'utf8bom' });
+		assert.strictEqual(doc.encoding, 'utf8bom');
+
+		const decoded = await vscode.workspace.decode(new Uint8Array(buffer), uri, { encoding: 'utf8bom' });
+		assert.strictEqual(decoded, 'Hello World');
+
+		const encoded = await vscode.workspace.encode('Hello World', uri, { encoding: 'utf8bom' });
+		assert.ok(equalsUint8Array(encoded, new Uint8Array(buffer)));
+	});
 });

@@ -771,7 +771,7 @@ export class InlineCompletionsModel extends Disposable {
 
 	// TODO: clean this up if we keep it
 	private readonly _inAcceptPartialFlow = observableValue(this, false);
-	public readonly inAcceptPartialFlow: IObservable<boolean> = this._inAcceptPartialFlow;
+	public readonly inPartialAcceptFlow: IObservable<boolean> = this._inAcceptPartialFlow;
 	public async acceptNextInlineEditPart(editor: ICodeEditor): Promise<void> {
 		if (editor.getModel() !== this.textModel) {
 			throw new BugIndicatingError();
