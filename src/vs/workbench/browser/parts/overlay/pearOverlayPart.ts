@@ -317,7 +317,6 @@ export class PearOverlayPart extends Part {
 	}
 
 	private close() {
-		console.log("WHY WHY WHY", this.isLocked);
 		if (this.isLocked) {
 			return; // Prevent closing when locked
 		}
