@@ -251,7 +251,7 @@ for (const file of program.getSourceFiles()) {
 		continue;
 	}
 
-	const relativePath = path.relative(path.dirname(TS_CONFIG_PATH), file.fileName);
+	const relativePath = path.relative(path.dirname(TS_CONFIG_PATH), file.fileName).replace(/\\/g, '/');
 	if (ignored.has(relativePath)) {
 		continue;
 	}
