@@ -296,6 +296,7 @@
 				"VSCODE_EXTHOST_WILL_SEND_SOCKET": null,
 				"VSCODE_SKIP_PRELAUNCH": "1",
 				"VSCODE_DEV_DEBUG": "1",
+				"DEV_WINDOW_SRC": "http://localhost:3000/src/vs/code/electron-sandbox/workbench/workbench-vite.html",
 			},
 			"cleanUp": "wholeBrowser",
 			"runtimeArgs": [

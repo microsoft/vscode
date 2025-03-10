@@ -3,17 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable no-restricted-globals */
+// @ts-check
 
 (function () {
 
 	const { ipcRenderer, webFrame, contextBridge, webUtils } = require('electron');
 
-	type ISandboxConfiguration = import('../common/sandboxTypes.js').ISandboxConfiguration;
+	/**
+	 * @typedef {import('../common/sandboxTypes.js').ISandboxConfiguration} ISandboxConfiguration
+	*/
 
 	//#region Utilities
 
-	function validateIPC(channel: string): true | never {
+	/**
+	 * @param {string} channel
+	 * @returns {true | never}
+	 */
+	function validateIPC(channel) {
 		if (!channel || !channel.startsWith('vscode:')) {
 			throw new Error(`Unsupported event IPC channel '${channel}'`);
 		}
@@ -21,7 +27,11 @@
 		return true;
 	}
 
-	function parseArgv(key: string): string | undefined {
+	/**
+	 * @param {string} key
+	 * @returns {string | undefined}
+	 */
+	function parseArgv(key) {
 		for (const arg of process.argv) {
 			if (arg.indexOf(`--${key}=`) === 0) {
 				return arg.split('=')[1];
@@ -35,9 +45,12 @@
 
 	//#region Resolve Configuration
 
-	let configuration: ISandboxConfiguration | undefined = undefined;
+	let configuration = undefined;
 
-	const resolveConfiguration: Promise<ISandboxConfiguration> = (async () => {
+	/**
+	 * @type {Promise<ISandboxConfiguration>}
+	 */
+	const resolveConfiguration = (async () => {
 		const windowConfigIpcChannel = parseArgv('vscode-window-config');
 		if (!windowConfigIpcChannel) {
 			throw new Error('Preload: did not find expected vscode-window-config in renderer process arguments list.');
@@ -47,7 +60,10 @@
 			validateIPC(windowConfigIpcChannel);
 
 			// Resolve configuration from electron-main
-			const resolvedConfiguration: ISandboxConfiguration = configuration = await ipcRenderer.invoke(windowConfigIpcChannel);
+			/**
+			 * @type {ISandboxConfiguration}
+			*/
+			const resolvedConfiguration = configuration = await ipcRenderer.invoke(windowConfigIpcChannel);
 
 			// Apply `userEnv` directly
 			Object.assign(process.env, resolvedConfiguration.userEnv);
@@ -75,8 +91,9 @@
 	 * shell specific environment from the OS shell to ensure we are seeing
 	 * all development related environment variables. We do this from the
 	 * main process because it may involve spawning a shell.
+	 * @type {Promise<typeof process.env>}
 	 */
-	const resolveShellEnv: Promise<typeof process.env> = (async () => {
+	const resolveShellEnv = (async () => {
 
 		// Resolve `userEnv` from configuration and
 		// `shellEnv` from the main side
@@ -106,22 +123,24 @@
 		 * A minimal set of methods exposed from Electron's `ipcRenderer`
 		 * to support communication to main process.
 		 */
-
 		ipcRenderer: {
 
-			send(channel: string, ...args: any[]): void {
+			/** @type {(channel: string, ...args: any[]) => void} */
+			send(channel, ...args) {
 				if (validateIPC(channel)) {
 					ipcRenderer.send(channel, ...args);
 				}
 			},
 
-			invoke(channel: string, ...args: any[]): Promise<any> {
+			/** @type {(channel: string, ...args: any[]) => Promise<any>} */
+			invoke(channel, ...args) {
 				validateIPC(channel);
 
 				return ipcRenderer.invoke(channel, ...args);
 			},
 
-			on(channel: string, listener: (event: Electron.IpcRendererEvent, ...args: any[]) => void) {
+			/** @type {(channel: string, listener: (event: Electron.IpcRendererEvent, ...args: any[]) => void) => unknown} */
+			on(channel, listener) {
 				validateIPC(channel);
 
 				ipcRenderer.on(channel, listener);
@@ -129,7 +148,8 @@
 				return this;
 			},
 
-			once(channel: string, listener: (event: Electron.IpcRendererEvent, ...args: any[]) => void) {
+			/** @type {(channel: string, listener: (event: Electron.IpcRendererEvent, ...args: any[]) => void) => unknown} */
+			once(channel, listener) {
 				validateIPC(channel);
 
 				ipcRenderer.once(channel, listener);
@@ -137,7 +157,8 @@
 				return this;
 			},
 
-			removeListener(channel: string, listener: (event: Electron.IpcRendererEvent, ...args: any[]) => void) {
+			/** @type {(channel: string, listener: (event: Electron.IpcRendererEvent, ...args: any[]) => void) => unknown} */
+			removeListener(channel, listener) {
 				validateIPC(channel);
 
 				ipcRenderer.removeListener(channel, listener);
@@ -147,10 +168,10 @@
 		},
 
 		ipcMessagePort: {
-
-			acquire(responseChannel: string, nonce: string) {
+			/** @type {(responseChannel: string, nonce: string) => void} */
+			acquire(responseChannel, nonce) {
 				if (validateIPC(responseChannel)) {
-					const responseListener = (e: Electron.IpcRendererEvent, responseNonce: string) => {
+					const responseListener = (e, responseNonce) => {
 						// validate that the nonce from the response is the same
 						// as when requested. and if so, use `postMessage` to
 						// send the `MessagePort` safely over, even when context
@@ -171,8 +192,10 @@
 		 * Support for subset of methods of Electron's `webFrame` type.
 		 */
 		webFrame: {
-
-			setZoomLevel(level: number): void {
+			/**
+			 * @param {number} level The zoom level to set
+			 */
+			setZoomLevel(level) {
 				if (typeof level === 'number') {
 					webFrame.setZoomLevel(level);
 				}
@@ -183,8 +206,11 @@
 		 * Support for subset of Electron's `webUtils` type.
 		 */
 		webUtils: {
-
-			getPathForFile(file: File): string {
+			/**
+			 * @param {File} file The file to get path for
+			 * @returns {string} The path for the file
+			 */
+			getPathForFile(file) {
 				return webUtils.getPathForFile(file);
 			}
 		},
@@ -203,19 +229,32 @@
 			get type() { return 'renderer'; },
 			get execPath() { return process.execPath; },
 
-			cwd(): string {
+			/**
+			 * @returns {string} The current working directory
+			 */
+			cwd() {
 				return process.env['VSCODE_CWD'] || process.execPath.substr(0, process.execPath.lastIndexOf(process.platform === 'win32' ? '\\' : '/'));
 			},
 
-			shellEnv(): Promise<typeof process.env> {
+			/**
+			 * @returns {Promise<typeof process.env>} The shell environment
+			 */
+			shellEnv() {
 				return resolveShellEnv;
 			},
 
-			getProcessMemoryInfo(): Promise<Electron.ProcessMemoryInfo> {
+			/**
+			 * @returns {Promise<Electron.ProcessMemoryInfo>} Process memory info
+			 */
+			getProcessMemoryInfo() {
 				return process.getProcessMemoryInfo();
 			},
 
-			on(type: string, callback: (...args: any[]) => void): void {
+			/**
+			 * @param {string} type The event type
+			 * @param {function(...any):void} callback The callback function
+			 */
+			on(type, callback) {
 				process.on(type, callback);
 			}
 		},
@@ -224,7 +263,6 @@
 		 * Some information about the context we are running in.
 		 */
 		context: {
-
 			/**
 			 * A configuration object made accessible from the main side
 			 * to configure the sandbox browser window.
@@ -232,15 +270,17 @@
 			 * Note: intentionally not using a getter here because the
 			 * actual value will be set after `resolveConfiguration`
 			 * has finished.
+			 * @returns {ISandboxConfiguration | undefined} The configuration
 			 */
-			configuration(): ISandboxConfiguration | undefined {
+			configuration() {
 				return configuration;
 			},
 
 			/**
 			 * Allows to await the resolution of the configuration object.
+			 * @returns {Promise<ISandboxConfiguration>} The resolved configuration
 			 */
-			async resolveConfiguration(): Promise<ISandboxConfiguration> {
+			async resolveConfiguration() {
 				return resolveConfiguration;
 			}
 		}
@@ -256,6 +296,7 @@
 			console.error(error);
 		}
 	} else {
-		(window as any).vscode = globals;
+		// @ts-ignore
+		window.vscode = globals;
 	}
 }());

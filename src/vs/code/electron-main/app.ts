@@ -277,7 +277,7 @@ export class CodeApplication extends Disposable {
 			}
 
 			// Block most svgs
-			if (uri.path.endsWith('.svg')) {
+			if (!process.env.DEV_WINDOW_SRC && uri.path.endsWith('.svg')) {
 				const isSafeResourceUrl = supportedSvgSchemes.has(uri.scheme);
 				if (!isSafeResourceUrl) {
 					return callback({ cancel: !isSvgRequestFromSafeContext(details) });
