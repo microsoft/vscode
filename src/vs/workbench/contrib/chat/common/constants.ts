@@ -12,3 +12,26 @@ export enum ChatMode {
 	Edit = 'edit',
 	Agent = 'agent'
 }
+
+export type RawChatParticipantLocation = 'panel' | 'terminal' | 'notebook' | 'editing-session';
+
+export enum ChatAgentLocation {
+	Panel = 'panel',
+	Terminal = 'terminal',
+	Notebook = 'notebook',
+	Editor = 'editor',
+	EditingSession = 'editing-session',
+}
+
+export namespace ChatAgentLocation {
+	export function fromRaw(value: RawChatParticipantLocation | string): ChatAgentLocation {
+		switch (value) {
+			case 'panel': return ChatAgentLocation.Panel;
+			case 'terminal': return ChatAgentLocation.Terminal;
+			case 'notebook': return ChatAgentLocation.Notebook;
+			case 'editor': return ChatAgentLocation.Editor;
+			case 'editing-session': return ChatAgentLocation.EditingSession;
+		}
+		return ChatAgentLocation.Panel;
+	}
+}

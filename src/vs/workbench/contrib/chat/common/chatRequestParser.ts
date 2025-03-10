@@ -6,7 +6,8 @@
 import { OffsetRange } from '../../../../editor/common/core/offsetRange.js';
 import { IPosition, Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
-import { ChatAgentLocation, IChatAgentData, IChatAgentService } from './chatAgents.js';
+import { IChatAgentData, IChatAgentService } from './chatAgents.js';
+import { ChatAgentLocation } from './constants.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestToolPart, IParsedChatRequest, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from './chatParserTypes.js';
 import { IChatSlashCommandService } from './chatSlashCommands.js';
 import { IChatVariablesService, IDynamicVariable } from './chatVariables.js';

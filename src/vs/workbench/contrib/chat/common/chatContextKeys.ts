@@ -7,8 +7,7 @@ import { localize } from '../../../../nls.js';
 import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { RemoteNameContext } from '../../../common/contextkeys.js';
-import { ChatAgentLocation } from './chatAgents.js';
-import { ChatConfiguration } from './constants.js';
+import { ChatAgentLocation, ChatConfiguration } from './constants.js';
 
 export namespace ChatContextKeys {
 	export const responseVote = new RawContextKey<string>('chatSessionResponseVote', '', { type: 'string', description: localize('interactiveSessionResponseVote', "When the response has been voted up, is set to 'up'. When voted down, is set to 'down'. Otherwise an empty string.") });

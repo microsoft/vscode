@@ -23,7 +23,8 @@ import { IChatWidget, IChatWidgetService } from '../../../../chat/browser/chat.j
 import { ChatInputPart } from '../../../../chat/browser/chatInputPart.js';
 import { ChatDynamicVariableModel } from '../../../../chat/browser/contrib/chatDynamicVariables.js';
 import { computeCompletionRanges } from '../../../../chat/browser/contrib/chatInputCompletions.js';
-import { ChatAgentLocation, IChatAgentService } from '../../../../chat/common/chatAgents.js';
+import { IChatAgentService } from '../../../../chat/common/chatAgents.js';
+import { ChatAgentLocation } from '../../../../chat/common/constants.js';
 import { ChatContextKeys } from '../../../../chat/common/chatContextKeys.js';
 import { IChatRequestPasteVariableEntry } from '../../../../chat/common/chatModel.js';
 import { chatVariableLeader } from '../../../../chat/common/chatParserTypes.js';
