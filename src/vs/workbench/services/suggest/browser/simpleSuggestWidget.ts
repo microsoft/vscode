@@ -24,6 +24,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { canExpandCompletionItem, SimpleSuggestDetailsOverlay, SimpleSuggestDetailsWidget } from './simpleSuggestWidgetDetails.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import * as strings from '../../../../base/common/strings.js';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
 
 const $ = dom.$;
 
@@ -440,12 +441,6 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 
 	private _setState(state: State): void {
 		if (this._state === state) {
-			if (this._state === State.Empty) {
-				// Don't keep the widget around if there are no suggestions
-				// as typing more is not going to yield new ones
-				this.hide();
-				this._state = State.Empty;
-			}
 			return;
 		}
 		this._state = state;
@@ -456,9 +451,11 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		switch (state) {
 			case State.Hidden:
 				if (this._status) {
-					dom.hide(this._messageElement, this._listElement, this._status.element);
+					dom.hide(this._status.element);
 				}
 				dom.hide(this._listElement);
+				dom.hide(this._messageElement);
+				dom.hide(this.element.domNode);
 				this._details.hide(true);
 				this._status?.hide();
 				// this._contentWidget.hide();
@@ -495,6 +492,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 				this._details.hide();
 				this._show();
 				this._focusedItem = undefined;
+				status(SimpleSuggestWidget.NO_SUGGESTIONS_MESSAGE);
 				break;
 			case State.Open:
 				dom.hide(this._messageElement);
