@@ -425,6 +425,7 @@ dependencies = [
  "lazy_static",
  "libc",
  "log",
+ "msvc_spectre_libs",
  "open",
  "opentelemetry",
  "pin-project",
@@ -1552,6 +1553,15 @@ dependencies = [
  "libc",
  "wasi 0.11.0+wasi-snapshot-preview1",
  "windows-sys 0.48.0",
+]
+
+[[package]]
+name = "msvc_spectre_libs"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "29e871a9861f3664f18b7e04e9301d4edd55090c2dadb4b1c602e26ab32b1f5b"
+dependencies = [
+ "cc",
 ]
 
 [[package]]

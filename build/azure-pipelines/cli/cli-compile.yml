@@ -96,6 +96,18 @@ steps:
           ${{ each pair in parameters.VSCODE_CLI_ENV }}:
             ${{ pair.key }}: ${{ pair.value }}
 
+    - ${{ else if contains(parameters.VSCODE_CLI_TARGET, '-windows-') }}:
+      - script: |
+          $env:CFLAGS = "$env:CFLAGS /Qspectre"
+          cargo build --release --target ${{ parameters.VSCODE_CLI_TARGET }} --bin=code
+        displayName: Compile ${{ parameters.VSCODE_CLI_TARGET }}
+        workingDirectory: $(Build.SourcesDirectory)/cli
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: true
+          VSCODE_CLI_COMMIT: $(Build.SourceVersion)
+          ${{ each pair in parameters.VSCODE_CLI_ENV }}:
+            ${{ pair.key }}: ${{ pair.value }}
+
     - ${{ else }}:
       - script: cargo build --release --target ${{ parameters.VSCODE_CLI_TARGET }} --bin=code
         displayName: Compile ${{ parameters.VSCODE_CLI_TARGET }}

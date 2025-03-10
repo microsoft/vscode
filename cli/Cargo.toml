@@ -59,9 +59,14 @@ tar = "0.4.38"
 serde = { version="1.0.163", features = ["derive"] }
 serde_json = "1.0.96"
 
-[target.'cfg(windows)'.dependencies]
+[target.'cfg(target_os = "windows")'.dependencies]
+msvc_spectre_libs = { version = "0.1.1", features = ["error"] }
 winreg = "0.50.0"
 winapi = "0.3.9"
+
+# -Ctarget-feature=+crt-static: Statically link the CRT (required to link the spectre-mitigated CRT).
+[target.'cfg(target_os = "windows")']
+rustflags = ["-Ctarget-feature=+crt-static"]
 
 [target.'cfg(target_os = "macos")'.dependencies]
 core-foundation = "0.9.3"
