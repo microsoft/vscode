@@ -1355,6 +1355,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			onDidEndTaskProcess: (listeners, thisArgs?, disposables?) => {
 				return _asExtensionEvent(extHostTask.onDidEndTaskProcess)(listeners, thisArgs, disposables);
+			},
+			onDidChangeTaskStatus: (listeners) => {
+				checkProposedApiEnabled(extension, 'taskStatus');
+				return _asExtensionEvent(extHostTask.onDidChangeTaskTerminalStatus)(listeners);
 			}
 		};
 
@@ -1652,6 +1656,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			SymbolKind: extHostTypes.SymbolKind,
 			SymbolTag: extHostTypes.SymbolTag,
 			Task: extHostTypes.Task,
+			TaskEventKind: extHostTypes.TaskEventKind,
 			TaskGroup: extHostTypes.TaskGroup,
 			TaskPanelKind: extHostTypes.TaskPanelKind,
 			TaskRevealKind: extHostTypes.TaskRevealKind,

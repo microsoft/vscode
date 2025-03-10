@@ -29,7 +29,8 @@ import { ExtHostContext, MainThreadTaskShape, ExtHostTaskShape, MainContext } fr
 import {
 	ITaskDefinitionDTO, ITaskExecutionDTO, IProcessExecutionOptionsDTO, ITaskPresentationOptionsDTO,
 	IProcessExecutionDTO, IShellExecutionDTO, IShellExecutionOptionsDTO, ICustomExecutionDTO, ITaskDTO, ITaskSourceDTO, ITaskHandleDTO, ITaskFilterDTO, ITaskProcessStartedDTO, ITaskProcessEndedDTO, ITaskSystemInfoDTO,
-	IRunOptionsDTO, ITaskGroupDTO
+	IRunOptionsDTO, ITaskGroupDTO,
+	ITaskStatus
 } from '../common/shared/tasks.js';
 import { IConfigurationResolverService } from '../../services/configurationResolver/common/configurationResolver.js';
 import { ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
@@ -44,6 +45,24 @@ namespace TaskExecutionDTO {
 		};
 	}
 }
+
+export interface ITaskTerminalStatusDTO {
+	execution: ITaskExecutionDTO;
+	taskEventKind: TaskEventKind;
+}
+
+export namespace TaskTerminalStatusDTO {
+	export function from(value: ITaskStatus): ITaskTerminalStatusDTO {
+		return {
+			execution: {
+				id: value.execution.id,
+				task: TaskDTO.from(value.execution.task)
+			},
+			taskEventKind: value.taskEventKind
+		};
+	}
+}
+
 
 namespace TaskProcessStartedDTO {
 	export function from(value: ITaskExecution, processId: number): ITaskProcessStartedDTO {
@@ -455,6 +474,7 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 			} else if (event.kind === TaskEventKind.End) {
 				this._proxy.$OnDidEndTask(TaskExecutionDTO.from(task.getTaskExecution()));
 			}
+			this._proxy.$onDidChangeTaskTerminalStatus(TaskTerminalStatusDTO.from({ execution: task.getTaskExecution(), taskEventKind: event.kind }));
 		}));
 	}
 
@@ -716,6 +736,7 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 									result.variables.set(variableName, partiallyResolvedVars[i]);
 								}
 							}
+
 							if (Types.isString(values.process)) {
 								result.process = values.process;
 							}
@@ -735,5 +756,4 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 	async $registerSupportedExecutions(custom?: boolean, shell?: boolean, process?: boolean): Promise<void> {
 		return this._taskService.registerSupportedExecutions(custom, shell, process);
 	}
-
 }

@@ -6,6 +6,7 @@
 import { UriComponents } from '../../../../base/common/uri.js';
 import { IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import type { Dto } from '../../../services/extensions/common/proxyIdentifier.js';
+import { ITaskExecution, TaskEventKind } from '../../../contrib/tasks/common/tasks.js';
 
 export interface ITaskDefinitionDTO {
 	type: string;
@@ -136,4 +137,14 @@ export interface ITaskSystemInfoDTO {
 	scheme: string;
 	authority: string;
 	platform: string;
+}
+
+export interface ITaskStatus {
+	execution: ITaskExecution;
+	taskEventKind: TaskEventKind;
+}
+
+export interface ITaskStatusDTO {
+	execution: ITaskExecutionDTO;
+	taskEventKind: TaskEventKind;
 }
