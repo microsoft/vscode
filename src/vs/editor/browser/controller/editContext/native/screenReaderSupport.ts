@@ -75,7 +75,6 @@ export class ScreenReaderSupport {
 		this._contentWidth = layoutInfo.contentWidth;
 		this._contentHeight = layoutInfo.height;
 		this._fontInfo = options.get(EditorOption.fontInfo);
-		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
 		this._divWidth = Math.round(wrappingColumn * this._fontInfo.typicalHalfwidthCharacterWidth);
 	}
@@ -146,7 +145,7 @@ export class ScreenReaderSupport {
 	private _doRender(scrollTop: number, top: number, left: number, width: number, height: number): void {
 		// For correct alignment of the screen reader content, we need to apply the correct font
 		applyFontInfo(this._domNode, this._fontInfo);
-
+		this._domNode.setLineHeight(height);
 		this._domNode.setTop(top);
 		this._domNode.setLeft(left);
 		this._domNode.setWidth(width);
