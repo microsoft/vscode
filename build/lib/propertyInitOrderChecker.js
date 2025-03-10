@@ -104,7 +104,6 @@ const ignored = new Set([
     'vs/editor/browser/widget/diffEditor/features/revertButtonsFeature.ts',
     'vs/editor/browser/widget/diffEditor/diffEditorWidget.ts',
     'vs/editor/contrib/colorPicker/browser/colorDetector.ts',
-    'vs/editor/contrib/inlineCompletions/browser/model/ghostText.ts',
     'vs/editor/contrib/inlineCompletions/browser/model/inlineCompletionsSource.ts',
     'vs/editor/contrib/inlineCompletions/browser/model/suggestWidgetAdapter.ts',
     'vs/editor/contrib/inlineCompletions/browser/model/inlineCompletionsModel.ts',
