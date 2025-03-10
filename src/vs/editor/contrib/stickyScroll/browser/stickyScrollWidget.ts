@@ -56,16 +56,16 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private readonly _linesDomNodeScrollable: HTMLElement = document.createElement('div');
 	private readonly _linesDomNode: HTMLElement = document.createElement('div');
 
+	private readonly _editor: ICodeEditor;
+
 	private _previousState: StickyScrollWidgetState | undefined;
+	private _lineHeight: number;
 	private _renderedStickyLines: RenderedStickyLine[] = [];
 	private _lineNumbers: number[] = [];
 	private _lastLineRelativePosition: number = 0;
 	private _minContentWidthInPx: number = 0;
 	private _isOnGlyphMargin: boolean = false;
 	private _height: number = -1;
-
-	private readonly _editor: ICodeEditor;
-	private _lineHeight: number;
 
 	public get height(): number { return this._height; }
 
