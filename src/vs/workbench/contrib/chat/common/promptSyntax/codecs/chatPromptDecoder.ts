@@ -268,7 +268,7 @@ export class ChatPromptDecoder extends BaseDecoder<TChatPromptToken, TMarkdownTo
 				`Unknown parser object '${this.current}'`,
 			);
 		} catch (error) {
-			// TODO: @lego - do this when this decoder returns all tokens, not just `links`
+			// TODO: @lego - uncomment this when this decoder returns all tokens, not just `links`
 			// for (const token of this.current.tokens) {
 			// 	this._onData.fire(token);
 			// }

@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { pick } from '../../../../../../../base/common/arrays.js';
+import { assert } from '../../../../../../../base/common/assert.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { PromptVariable, PromptVariableWithData } from '../tokens/promptVariable.js';
 import { Tab } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/tab.js';
@@ -18,27 +20,25 @@ import { ExclamationMark } from '../../../../../../../editor/common/codecs/simpl
 import { LeftBracket, RightBracket } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/brackets.js';
 import { LeftAngleBracket, RightAngleBracket } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/angleBrackets.js';
 import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../../../../../../editor/common/codecs/simpleCodec/parserBase.js';
-import { assert } from '../../../../../../../base/common/assert.js';
 
 /**
- * TODO: @lego - list
- */
-
-/**
- * TODO: @lego
+ * List of characters that terminate the prompt variable sequence.
  */
 const STOP_CHARACTERS: readonly string[] = [Space, Tab, NewLine, CarriageReturn, VerticalTab, FormFeed]
 	.map((token) => { return token.symbol; });
 
 /**
- * TODO: @lego (excluding the stop ones)
+ * List of characters that cannot be in a variable name (excluding the {@link STOP_CHARACTERS}).
  */
-// TODO: @lego - add `@` here once we have it
 const INVALID_NAME_CHARACTERS: readonly string[] = [Hash, ExclamationMark, LeftAngleBracket, RightAngleBracket, LeftBracket, RightBracket]
 	.map((token) => { return token.symbol; });
 
 /**
- * The parser responsible for parsing the TODO: @lego
+ * The parser responsible for parsing a `prompt variable name`.
+ * E.g., `#selection` or `#workspace` variable. If the `:` character follows
+ * the variable name, the parser transitions to {@link PartialPromptVariableWithData}
+ * that is also able to parse the `data` part of the variable. E.g., the `#file` part
+ * of the `#file:/path/to/something.md` sequence.
  */
 export class PartialPromptVariableName extends ParserBase<TSimpleToken, PartialPromptVariableName | PartialPromptVariableWithData | PromptVariable> {
 	constructor(token: Hash) {
@@ -150,22 +150,30 @@ export class PartialPromptVariableName extends ParserBase<TSimpleToken, PartialP
 }
 
 /**
- * TODO: @lego
+ * The parser responsible for parsing a `prompt variable name` with `data`.
+ * E.g., the `/path/to/something.md` part of the `#file:/path/to/something.md` sequence.
  */
 export class PartialPromptVariableWithData extends ParserBase<TSimpleToken, PartialPromptVariableWithData | PromptVariableWithData> {
-	/**
-	 * Number of tokens at the initialization of the current parser.
-	 */
-	// TODO: @lego - move to the base class?
-	private readonly startTokensCount: number;
 
 	constructor(tokens: readonly TSimpleToken[]) {
+		const firstToken = tokens;
+		const lastToken = tokens[tokens.length - 1];
+
+		// sanity checks of our expectations about the tokens list
+		assert(
+			tokens.length > 2,
+			`Tokens list must contain at least 3 items, got '${tokens.length}'.`,
+		);
+		assert(
+			firstToken instanceof Hash,
+			`The first token must be a '#', got '${firstToken} '.`,
+		);
+		assert(
+			lastToken instanceof Colon,
+			`The last token must be a ':', got '${lastToken} '.`,
+		);
+
 		super([...tokens]);
-
-		// TODO: @lego - validate that it starts with `#` and ends with `:`
-
-		// save the number of tokens that represent a variable name and the colon at the end
-		this.startTokensCount = this.currentTokens.length;
 	}
 
 	@assertNotConsumed
@@ -232,7 +240,7 @@ export class PartialPromptVariableWithData extends ParserBase<TSimpleToken, Part
 	 */
 	public asPromptVariableWithData(): PromptVariableWithData {
 		// if no tokens received after initial set of tokens, fail
-		// TODO: @lego - allow this to allow for `#file:` tokens to be emitted? (without path)
+		// TODO: @lego - allow this to emit `#file:` tokens? (without path)
 		assert(
 			this.currentTokens.length > this.startTokensCount,
 			`No 'data' part of the token found.`,
@@ -265,34 +273,3 @@ export class PartialPromptVariableWithData extends ParserBase<TSimpleToken, Part
 		);
 	}
 }
-
-/**
- * Utility that helps to pick a property from an object.
- *
- * ## Examples
- *
- * ```typescript
- * interface IObject = {
- *   a: number,
- *   b: string,
- * };
- *
- * const list: IObject[] = [
- *   { a: 1, b: 'foo' },
- *   { a: 2, b: 'bar' },
- * ];
- *
- * assert.deepStrictEqual(
- *   list.map(pick('a')),
- *   [1, 2],
- * );
- * ```
- */
-// TODO: @lego - move to a common place
-export const pick = <TObject, TKeyName extends keyof TObject>(
-	key: TKeyName,
-) => {
-	return (obj: TObject): TObject[TKeyName] => {
-		return obj[key];
-	};
-};

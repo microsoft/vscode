@@ -53,12 +53,19 @@ export abstract class ParserBase<TToken extends BaseToken, TNextObject> {
 	 */
 	protected isConsumed: boolean = false;
 
+	/**
+	 * Number of tokens at the initialization of the current parser.
+	 */
+	protected readonly startTokensCount: number;
+
 	constructor(
 		/**
 		 * Set of tokens that were accumulated so far.
 		 */
 		protected readonly currentTokens: TToken[] = [],
-	) { }
+	) {
+		this.startTokensCount = this.currentTokens.length;
+	}
 
 	/**
 	 * Get the tokens that were accumulated so far.

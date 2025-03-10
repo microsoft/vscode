@@ -5,6 +5,7 @@
 
 import { Range } from '../../../core/range.js';
 import { Dash } from '../../simpleCodec/tokens/dash.js';
+import { pick } from '../../../../../base/common/arrays.js';
 import { assert } from '../../../../../base/common/assert.js';
 import { MarkdownComment } from '../tokens/markdownComment.js';
 import { TSimpleToken } from '../../simpleCodec/simpleDecoder.js';
@@ -174,33 +175,3 @@ export class MarkdownCommentStart extends ParserBase<TSimpleToken, MarkdownComme
 		return true;
 	}
 }
-
-/**
- * Utility that helps to pick a property from an object.
- *
- * ## Examples
- *
- * ```typescript
- * interface IObject = {
- *   a: number,
- *   b: string,
- * };
- *
- * const list: IObject[] = [
- *   { a: 1, b: 'foo' },
- *   { a: 2, b: 'bar' },
- * ];
- *
- * assert.deepStrictEqual(
- *   list.map(pick('a')),
- *   [1, 2],
- * );
- * ```
- */
-export const pick = <TObject, TKeyName extends keyof TObject>(
-	key: TKeyName,
-) => {
-	return (obj: TObject): TObject[TKeyName] => {
-		return obj[key];
-	};
-};
