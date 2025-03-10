@@ -23,7 +23,7 @@ import { TokenArray } from '../../../../../../common/tokens/tokenArray.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../../../common/viewModel.js';
 import { GhostText, GhostTextPart } from '../../../model/ghostText.js';
 import { GhostTextView } from '../../ghostText/ghostTextView.js';
-import { IInlineEditsView, IInlineEditsViewHost } from '../inlineEditsViewInterface.js';
+import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';
 import { getModifiedBorderColor, modifiedChangedLineBackgroundColor } from '../theme.js';
 import { createRectangle, getPrefixTrim, mapOutFalsy } from '../utils/utils.js';
 
@@ -106,7 +106,7 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 			startColumn: number;
 			text: string;
 		} | undefined>,
-		private readonly _host: IInlineEditsViewHost,
+		private readonly _tabAction: IObservable<InlineEditTabAction>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 	) {
@@ -255,7 +255,7 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 			{ hideLeft: croppedOverlay.left !== overlay.left }
 		);
 
-		const modifiedBorderColor = getModifiedBorderColor(this._host.tabAction).read(reader);
+		const modifiedBorderColor = getModifiedBorderColor(this._tabAction).read(reader);
 
 		return [
 			n.svgElem('path', {

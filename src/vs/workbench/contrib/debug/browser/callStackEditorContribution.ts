@@ -9,7 +9,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Constants } from '../../../../base/common/uint.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { Range } from '../../../../editor/common/core/range.js';
-import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
+import { IEditorContribution, IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
 import { GlyphMarginLane, IModelDecorationOptions, IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness } from '../../../../editor/common/model.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -116,7 +116,7 @@ export function createDecorationsForStackFrame(stackFrame: IStackFrame, isFocuse
 }
 
 export class CallStackEditorContribution extends Disposable implements IEditorContribution {
-	private decorations = this.editor.createDecorationsCollection();
+	private decorations: IEditorDecorationsCollection;
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -125,6 +125,7 @@ export class CallStackEditorContribution extends Disposable implements IEditorCo
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
+		this.decorations = this.editor.createDecorationsCollection();
 
 		const setDecorations = () => this.decorations.set(this.createCallStackDecorations());
 		this._register(Event.any(this.debugService.getViewModel().onDidFocusStackFrame, this.debugService.getModel().onDidChangeCallStack)(() => {

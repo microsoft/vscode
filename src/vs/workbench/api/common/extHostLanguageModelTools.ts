@@ -75,6 +75,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				tokenBudget: options.tokenizationOptions?.tokenBudget,
 				context: options.toolInvocationToken as IToolInvocationContext | undefined,
 				chatRequestId: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.chatRequestId : undefined,
+				chatInteractionId: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.chatInteractionId : undefined,
 			}, token);
 			return typeConvert.LanguageModelToolResult.to(revive(result));
 		} finally {
@@ -111,6 +112,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			input: dto.parameters,
 			toolInvocationToken: dto.context as vscode.ChatParticipantToolToken | undefined,
 			chatRequestId: dto.chatRequestId,
+			chatInteractionId: dto.chatInteractionId,
 		};
 		if (isProposedApiEnabled(item.extension, 'chatParticipantPrivate') && dto.toolSpecificData?.kind === 'terminal') {
 			options.terminalCommand = dto.toolSpecificData.command;

@@ -1,7 +1,7 @@
 [
 	{
 		"c": "/* Game of Life\n * Implemented in TypeScript\n * To learn more about TypeScript, please visit http://www.typescriptlang.org/\n */",
-		"t": "comment",
+		"t": "comment.ts",
 		"r": {
 			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
@@ -29,7 +29,7 @@
 	},
 	{
 		"c": "Conway",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -43,7 +43,7 @@
 	},
 	{
 		"c": "{",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -57,7 +57,7 @@
 	},
 	{
 		"c": "export",
-		"t": "keyword.control",
+		"t": "keyword.control.ts",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -71,7 +71,7 @@
 	},
 	{
 		"c": "class",
-		"t": "storage.type",
+		"t": "storage.type.ts",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -85,7 +85,7 @@
 	},
 	{
 		"c": "Cell",
-		"t": "entity.name.type",
+		"t": "entity.name.type.ts entity.name.type.class.ts",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
 			"light_plus": "entity.name.type: #267F99",
@@ -99,7 +99,7 @@
 	},
 	{
 		"c": "{",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -113,7 +113,7 @@
 	},
 	{
 		"c": "public",
-		"t": "storage.modifier",
+		"t": "storage.modifier.ts",
 		"r": {
 			"dark_plus": "storage.modifier: #569CD6",
 			"light_plus": "storage.modifier: #0000FF",
@@ -127,7 +127,7 @@
 	},
 	{
 		"c": "row",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -141,7 +141,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter.ts keyword.operator.type.annotation.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -155,7 +155,7 @@
 	},
 	{
 		"c": "number",
-		"t": "support.type.primitive",
+		"t": "support.type.ts support.type.primitive.ts",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -169,7 +169,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -183,7 +183,7 @@
 	},
 	{
 		"c": "public",
-		"t": "storage.modifier",
+		"t": "storage.modifier.ts",
 		"r": {
 			"dark_plus": "storage.modifier: #569CD6",
 			"light_plus": "storage.modifier: #0000FF",
@@ -197,7 +197,7 @@
 	},
 	{
 		"c": "col",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -211,7 +211,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter.ts keyword.operator.type.annotation.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -225,7 +225,7 @@
 	},
 	{
 		"c": "number",
-		"t": "support.type.primitive",
+		"t": "support.type.ts support.type.primitive.ts",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -239,7 +239,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -253,7 +253,7 @@
 	},
 	{
 		"c": "public",
-		"t": "storage.modifier",
+		"t": "storage.modifier.ts",
 		"r": {
 			"dark_plus": "storage.modifier: #569CD6",
 			"light_plus": "storage.modifier: #0000FF",
@@ -267,7 +267,7 @@
 	},
 	{
 		"c": "live",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -281,7 +281,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter.ts keyword.operator.type.annotation.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -295,7 +295,7 @@
 	},
 	{
 		"c": "boolean",
-		"t": "support.type.primitive",
+		"t": "support.type.ts support.type.primitive.ts",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -309,7 +309,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -323,7 +323,7 @@
 	},
 	{
 		"c": "constructor",
-		"t": "storage.type",
+		"t": "variable.ts meta.definition.method.ts storage.type.ts",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -337,7 +337,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -351,7 +351,7 @@
 	},
 	{
 		"c": "row",
-		"t": "variable.parameter",
+		"t": "variable.ts variable.parameter.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -365,7 +365,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter.ts keyword.operator.type.annotation.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -379,7 +379,7 @@
 	},
 	{
 		"c": "number",
-		"t": "support.type.primitive",
+		"t": "support.type.ts support.type.primitive.ts",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -393,7 +393,7 @@
 	},
 	{
 		"c": ",",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -407,7 +407,7 @@
 	},
 	{
 		"c": "col",
-		"t": "variable.parameter",
+		"t": "variable.ts variable.parameter.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -421,7 +421,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter.ts keyword.operator.type.annotation.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -435,7 +435,7 @@
 	},
 	{
 		"c": "number",
-		"t": "support.type.primitive",
+		"t": "support.type.ts support.type.primitive.ts",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -449,7 +449,7 @@
 	},
 	{
 		"c": ",",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -463,7 +463,7 @@
 	},
 	{
 		"c": "live",
-		"t": "variable.parameter",
+		"t": "variable.ts variable.parameter.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -477,7 +477,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter.ts keyword.operator.type.annotation.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -491,7 +491,7 @@
 	},
 	{
 		"c": "boolean",
-		"t": "support.type.primitive",
+		"t": "support.type.ts support.type.primitive.ts",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -505,7 +505,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -519,7 +519,7 @@
 	},
 	{
 		"c": "{",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -533,7 +533,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -547,7 +547,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -561,7 +561,7 @@
 	},
 	{
 		"c": "row",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -575,7 +575,7 @@
 	},
 	{
 		"c": "=",
-		"t": "keyword.operator.assignment",
+		"t": "keyword.operator.assignment.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -589,7 +589,7 @@
 	},
 	{
 		"c": "row",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -603,7 +603,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -617,7 +617,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -631,7 +631,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -645,7 +645,7 @@
 	},
 	{
 		"c": "col",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -659,7 +659,7 @@
 	},
 	{
 		"c": "=",
-		"t": "keyword.operator.assignment",
+		"t": "keyword.operator.assignment.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -673,7 +673,7 @@
 	},
 	{
 		"c": "col",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -687,7 +687,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -701,7 +701,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -715,7 +715,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -729,7 +729,7 @@
 	},
 	{
 		"c": "live",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -743,7 +743,7 @@
 	},
 	{
 		"c": "=",
-		"t": "keyword.operator.assignment",
+		"t": "keyword.operator.assignment.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -757,7 +757,7 @@
 	},
 	{
 		"c": "live",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -771,7 +771,7 @@
 	},
 	{
 		"c": "}",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -785,7 +785,7 @@
 	},
 	{
 		"c": "}",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -799,7 +799,7 @@
 	},
 	{
 		"c": "export",
-		"t": "keyword.control",
+		"t": "keyword.control.ts",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -813,7 +813,7 @@
 	},
 	{
 		"c": "class",
-		"t": "storage.type",
+		"t": "storage.type.ts",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -827,7 +827,7 @@
 	},
 	{
 		"c": "GameOfLife",
-		"t": "entity.name.type",
+		"t": "entity.name.type.ts entity.name.type.class.ts",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
 			"light_plus": "entity.name.type: #267F99",
@@ -841,7 +841,7 @@
 	},
 	{
 		"c": "{",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -855,7 +855,7 @@
 	},
 	{
 		"c": "private",
-		"t": "storage.modifier",
+		"t": "storage.modifier.ts",
 		"r": {
 			"dark_plus": "storage.modifier: #569CD6",
 			"light_plus": "storage.modifier: #0000FF",
@@ -869,7 +869,7 @@
 	},
 	{
 		"c": "gridSize",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -883,7 +883,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter.ts keyword.operator.type.annotation.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -897,7 +897,7 @@
 	},
 	{
 		"c": "number",
-		"t": "support.type.primitive",
+		"t": "support.type.ts support.type.primitive.ts",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -911,7 +911,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -925,7 +925,7 @@
 	},
 	{
 		"c": "private",
-		"t": "storage.modifier",
+		"t": "storage.modifier.ts",
 		"r": {
 			"dark_plus": "storage.modifier: #569CD6",
 			"light_plus": "storage.modifier: #0000FF",
@@ -939,7 +939,7 @@
 	},
 	{
 		"c": "canvasSize",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -953,7 +953,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter.ts keyword.operator.type.annotation.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -967,7 +967,7 @@
 	},
 	{
 		"c": "number",
-		"t": "support.type.primitive",
+		"t": "support.type.ts support.type.primitive.ts",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -981,7 +981,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -995,7 +995,7 @@
 	},
 	{
 		"c": "private",
-		"t": "storage.modifier",
+		"t": "storage.modifier.ts",
 		"r": {
 			"dark_plus": "storage.modifier: #569CD6",
 			"light_plus": "storage.modifier: #0000FF",
@@ -1009,7 +1009,7 @@
 	},
 	{
 		"c": "lineColor",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1023,7 +1023,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter.ts keyword.operator.type.annotation.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1037,7 +1037,7 @@
 	},
 	{
 		"c": "string",
-		"t": "support.type.primitive",
+		"t": "support.type.ts support.type.primitive.ts",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -1051,7 +1051,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1065,7 +1065,7 @@
 	},
 	{
 		"c": "private",
-		"t": "storage.modifier",
+		"t": "storage.modifier.ts",
 		"r": {
 			"dark_plus": "storage.modifier: #569CD6",
 			"light_plus": "storage.modifier: #0000FF",
@@ -1079,7 +1079,7 @@
 	},
 	{
 		"c": "liveColor",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1093,7 +1093,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter.ts keyword.operator.type.annotation.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1107,7 +1107,7 @@
 	},
 	{
 		"c": "string",
-		"t": "support.type.primitive",
+		"t": "support.type.ts support.type.primitive.ts",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -1121,7 +1121,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1135,7 +1135,7 @@
 	},
 	{
 		"c": "private",
-		"t": "storage.modifier",
+		"t": "storage.modifier.ts",
 		"r": {
 			"dark_plus": "storage.modifier: #569CD6",
 			"light_plus": "storage.modifier: #0000FF",
@@ -1149,7 +1149,7 @@
 	},
 	{
 		"c": "deadColor",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1163,7 +1163,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter.ts keyword.operator.type.annotation.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1177,7 +1177,7 @@
 	},
 	{
 		"c": "string",
-		"t": "support.type.primitive",
+		"t": "support.type.ts support.type.primitive.ts",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -1191,7 +1191,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1205,7 +1205,7 @@
 	},
 	{
 		"c": "private",
-		"t": "storage.modifier",
+		"t": "storage.modifier.ts",
 		"r": {
 			"dark_plus": "storage.modifier: #569CD6",
 			"light_plus": "storage.modifier: #0000FF",
@@ -1219,7 +1219,7 @@
 	},
 	{
 		"c": "initialLifeProbability",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1233,7 +1233,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter.ts keyword.operator.type.annotation.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1247,7 +1247,7 @@
 	},
 	{
 		"c": "number",
-		"t": "support.type.primitive",
+		"t": "support.type.ts support.type.primitive.ts",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -1261,7 +1261,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1275,7 +1275,7 @@
 	},
 	{
 		"c": "private",
-		"t": "storage.modifier",
+		"t": "storage.modifier.ts",
 		"r": {
 			"dark_plus": "storage.modifier: #569CD6",
 			"light_plus": "storage.modifier: #0000FF",
@@ -1289,7 +1289,7 @@
 	},
 	{
 		"c": "animationRate",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1303,7 +1303,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter.ts keyword.operator.type.annotation.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1317,7 +1317,7 @@
 	},
 	{
 		"c": "number",
-		"t": "support.type.primitive",
+		"t": "support.type.ts support.type.primitive.ts",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -1331,7 +1331,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1345,7 +1345,7 @@
 	},
 	{
 		"c": "private",
-		"t": "storage.modifier",
+		"t": "storage.modifier.ts",
 		"r": {
 			"dark_plus": "storage.modifier: #569CD6",
 			"light_plus": "storage.modifier: #0000FF",
@@ -1359,7 +1359,7 @@
 	},
 	{
 		"c": "cellSize",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1373,7 +1373,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter.ts keyword.operator.type.annotation.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1387,7 +1387,7 @@
 	},
 	{
 		"c": "number",
-		"t": "support.type.primitive",
+		"t": "support.type.ts support.type.primitive.ts",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -1401,7 +1401,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1415,7 +1415,7 @@
 	},
 	{
 		"c": "private",
-		"t": "storage.modifier",
+		"t": "storage.modifier.ts",
 		"r": {
 			"dark_plus": "storage.modifier: #569CD6",
 			"light_plus": "storage.modifier: #0000FF",
@@ -1429,7 +1429,7 @@
 	},
 	{
 		"c": "world",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1443,7 +1443,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1457,7 +1457,7 @@
 	},
 	{
 		"c": "constructor",
-		"t": "storage.type",
+		"t": "variable.ts meta.definition.method.ts storage.type.ts",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -1471,7 +1471,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1485,7 +1485,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1499,7 +1499,7 @@
 	},
 	{
 		"c": "{",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1513,7 +1513,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -1527,7 +1527,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1541,7 +1541,7 @@
 	},
 	{
 		"c": "gridSize",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1555,7 +1555,7 @@
 	},
 	{
 		"c": "=",
-		"t": "keyword.operator.assignment",
+		"t": "keyword.operator.assignment.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1569,7 +1569,7 @@
 	},
 	{
 		"c": "50",
-		"t": "constant.numeric",
+		"t": "constant.numeric.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -1583,7 +1583,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1597,7 +1597,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -1611,7 +1611,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1625,7 +1625,7 @@
 	},
 	{
 		"c": "canvasSize",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1639,7 +1639,7 @@
 	},
 	{
 		"c": "=",
-		"t": "keyword.operator.assignment",
+		"t": "keyword.operator.assignment.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1653,7 +1653,7 @@
 	},
 	{
 		"c": "600",
-		"t": "constant.numeric",
+		"t": "constant.numeric.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -1667,7 +1667,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1681,7 +1681,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -1695,7 +1695,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1709,7 +1709,7 @@
 	},
 	{
 		"c": "lineColor",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1723,7 +1723,7 @@
 	},
 	{
 		"c": "=",
-		"t": "keyword.operator.assignment",
+		"t": "keyword.operator.assignment.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1737,7 +1737,7 @@
 	},
 	{
 		"c": "'",
-		"t": "string",
+		"t": "string.quoted.single.ts punctuation.definition.string.begin.ts",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -1751,7 +1751,7 @@
 	},
 	{
 		"c": "#cdcdcd",
-		"t": "string",
+		"t": "string.quoted.single.ts",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -1765,7 +1765,7 @@
 	},
 	{
 		"c": "'",
-		"t": "string",
+		"t": "string.quoted.single.ts punctuation.definition.string.end.ts",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -1779,7 +1779,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1793,7 +1793,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -1807,7 +1807,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1821,7 +1821,7 @@
 	},
 	{
 		"c": "liveColor",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1835,7 +1835,7 @@
 	},
 	{
 		"c": "=",
-		"t": "keyword.operator.assignment",
+		"t": "keyword.operator.assignment.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1849,7 +1849,7 @@
 	},
 	{
 		"c": "'",
-		"t": "string",
+		"t": "string.quoted.single.ts punctuation.definition.string.begin.ts",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -1863,7 +1863,7 @@
 	},
 	{
 		"c": "#666",
-		"t": "string",
+		"t": "string.quoted.single.ts",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -1877,7 +1877,7 @@
 	},
 	{
 		"c": "'",
-		"t": "string",
+		"t": "string.quoted.single.ts punctuation.definition.string.end.ts",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -1891,7 +1891,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1905,7 +1905,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -1919,7 +1919,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1933,7 +1933,7 @@
 	},
 	{
 		"c": "deadColor",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1947,7 +1947,7 @@
 	},
 	{
 		"c": "=",
-		"t": "keyword.operator.assignment",
+		"t": "keyword.operator.assignment.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1961,7 +1961,7 @@
 	},
 	{
 		"c": "'",
-		"t": "string",
+		"t": "string.quoted.single.ts punctuation.definition.string.begin.ts",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -1975,7 +1975,7 @@
 	},
 	{
 		"c": "#eee",
-		"t": "string",
+		"t": "string.quoted.single.ts",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -1989,7 +1989,7 @@
 	},
 	{
 		"c": "'",
-		"t": "string",
+		"t": "string.quoted.single.ts punctuation.definition.string.end.ts",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -2003,7 +2003,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2017,7 +2017,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -2031,7 +2031,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2045,7 +2045,7 @@
 	},
 	{
 		"c": "initialLifeProbability",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -2059,7 +2059,7 @@
 	},
 	{
 		"c": "=",
-		"t": "keyword.operator.assignment",
+		"t": "keyword.operator.assignment.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -2073,7 +2073,7 @@
 	},
 	{
 		"c": "0.5",
-		"t": "constant.numeric",
+		"t": "constant.numeric.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -2087,7 +2087,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2101,7 +2101,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -2115,7 +2115,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2129,7 +2129,7 @@
 	},
 	{
 		"c": "animationRate",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -2143,7 +2143,7 @@
 	},
 	{
 		"c": "=",
-		"t": "keyword.operator.assignment",
+		"t": "keyword.operator.assignment.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -2157,7 +2157,7 @@
 	},
 	{
 		"c": "60",
-		"t": "constant.numeric",
+		"t": "constant.numeric.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -2171,7 +2171,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2185,7 +2185,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -2199,7 +2199,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2213,7 +2213,7 @@
 	},
 	{
 		"c": "cellSize",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -2227,7 +2227,7 @@
 	},
 	{
 		"c": "=",
-		"t": "keyword.operator.assignment",
+		"t": "keyword.operator.assignment.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -2241,7 +2241,7 @@
 	},
 	{
 		"c": "0",
-		"t": "constant.numeric",
+		"t": "constant.numeric.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -2255,7 +2255,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2269,7 +2269,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -2283,7 +2283,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2297,7 +2297,7 @@
 	},
 	{
 		"c": "world",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -2311,7 +2311,7 @@
 	},
 	{
 		"c": "=",
-		"t": "keyword.operator.assignment",
+		"t": "keyword.operator.assignment.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -2325,7 +2325,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -2339,7 +2339,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2353,7 +2353,7 @@
 	},
 	{
 		"c": "createWorld",
-		"t": "entity.name.function",
+		"t": "variable.ts variable.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -2367,7 +2367,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2381,7 +2381,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2395,7 +2395,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2409,7 +2409,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -2423,7 +2423,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2437,7 +2437,7 @@
 	},
 	{
 		"c": "circleOfLife",
-		"t": "entity.name.function",
+		"t": "variable.ts variable.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -2451,7 +2451,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2465,7 +2465,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2479,7 +2479,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2493,7 +2493,7 @@
 	},
 	{
 		"c": "}",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2507,7 +2507,7 @@
 	},
 	{
 		"c": "public",
-		"t": "storage.modifier",
+		"t": "storage.modifier.ts",
 		"r": {
 			"dark_plus": "storage.modifier: #569CD6",
 			"light_plus": "storage.modifier: #0000FF",
@@ -2521,7 +2521,7 @@
 	},
 	{
 		"c": "createWorld",
-		"t": "entity.name.function",
+		"t": "variable.ts meta.definition.method.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -2535,7 +2535,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2549,7 +2549,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2563,7 +2563,7 @@
 	},
 	{
 		"c": "{",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2577,7 +2577,7 @@
 	},
 	{
 		"c": "return",
-		"t": "keyword.control",
+		"t": "keyword.control.ts",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -2591,7 +2591,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -2605,7 +2605,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2619,7 +2619,7 @@
 	},
 	{
 		"c": "travelWorld",
-		"t": "entity.name.function",
+		"t": "variable.ts variable.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -2633,7 +2633,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2647,7 +2647,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2661,7 +2661,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable.parameter",
+		"t": "variable.ts variable.parameter.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -2675,7 +2675,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter.ts keyword.operator.type.annotation.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -2689,7 +2689,7 @@
 	},
 	{
 		"c": "Cell",
-		"t": "entity.name.type",
+		"t": "entity.name.type.ts meta.type.annotation.ts entity.name.type.ts",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
 			"light_plus": "entity.name.type: #267F99",
@@ -2703,7 +2703,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2717,7 +2717,7 @@
 	},
 	{
 		"c": "=>",
-		"t": "storage.type",
+		"t": "storage.type.ts",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -2731,7 +2731,7 @@
 	},
 	{
 		"c": "{",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2745,7 +2745,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable",
+		"t": "variable.ts variable.other.object.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -2759,7 +2759,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2773,7 +2773,7 @@
 	},
 	{
 		"c": "live",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -2787,7 +2787,7 @@
 	},
 	{
 		"c": "=",
-		"t": "keyword.operator.assignment",
+		"t": "keyword.operator.assignment.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -2801,7 +2801,7 @@
 	},
 	{
 		"c": "Math",
-		"t": "variable",
+		"t": "variable.ts variable.other.object.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -2815,7 +2815,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2829,7 +2829,7 @@
 	},
 	{
 		"c": "random",
-		"t": "entity.name.function",
+		"t": "variable.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -2843,7 +2843,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2857,7 +2857,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2871,7 +2871,7 @@
 	},
 	{
 		"c": "<",
-		"t": "keyword.operator.relational",
+		"t": "keyword.operator.relational.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -2885,7 +2885,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -2899,7 +2899,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2913,7 +2913,7 @@
 	},
 	{
 		"c": "initialLifeProbability",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -2927,7 +2927,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2941,7 +2941,7 @@
 	},
 	{
 		"c": "return",
-		"t": "keyword.control",
+		"t": "keyword.control.ts",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -2955,7 +2955,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -2969,7 +2969,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2983,7 +2983,7 @@
 	},
 	{
 		"c": "}",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2997,7 +2997,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3011,7 +3011,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3025,7 +3025,7 @@
 	},
 	{
 		"c": "}",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3039,7 +3039,7 @@
 	},
 	{
 		"c": "public",
-		"t": "storage.modifier",
+		"t": "storage.modifier.ts",
 		"r": {
 			"dark_plus": "storage.modifier: #569CD6",
 			"light_plus": "storage.modifier: #0000FF",
@@ -3053,7 +3053,7 @@
 	},
 	{
 		"c": "circleOfLife",
-		"t": "entity.name.function",
+		"t": "variable.ts meta.definition.method.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -3067,7 +3067,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3081,7 +3081,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3095,7 +3095,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter.ts keyword.operator.type.annotation.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -3109,7 +3109,7 @@
 	},
 	{
 		"c": "void",
-		"t": "support.type.primitive",
+		"t": "support.type.ts support.type.primitive.ts",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -3123,7 +3123,7 @@
 	},
 	{
 		"c": "{",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3137,7 +3137,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -3151,7 +3151,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3165,7 +3165,7 @@
 	},
 	{
 		"c": "world",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -3179,7 +3179,7 @@
 	},
 	{
 		"c": "=",
-		"t": "keyword.operator.assignment",
+		"t": "keyword.operator.assignment.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -3193,7 +3193,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -3207,7 +3207,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3221,7 +3221,7 @@
 	},
 	{
 		"c": "travelWorld",
-		"t": "entity.name.function",
+		"t": "variable.ts variable.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -3235,7 +3235,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3249,7 +3249,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3263,7 +3263,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable.parameter",
+		"t": "variable.ts variable.parameter.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -3277,7 +3277,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter.ts keyword.operator.type.annotation.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -3291,7 +3291,7 @@
 	},
 	{
 		"c": "Cell",
-		"t": "entity.name.type",
+		"t": "entity.name.type.ts meta.type.annotation.ts entity.name.type.ts",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
 			"light_plus": "entity.name.type: #267F99",
@@ -3305,7 +3305,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3319,7 +3319,7 @@
 	},
 	{
 		"c": "=>",
-		"t": "storage.type",
+		"t": "storage.type.ts",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -3333,7 +3333,7 @@
 	},
 	{
 		"c": "{",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3347,7 +3347,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -3361,7 +3361,7 @@
 	},
 	{
 		"c": "=",
-		"t": "keyword.operator.assignment",
+		"t": "keyword.operator.assignment.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -3375,7 +3375,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -3389,7 +3389,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3403,7 +3403,7 @@
 	},
 	{
 		"c": "world",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -3417,7 +3417,7 @@
 	},
 	{
 		"c": "[",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3431,7 +3431,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable",
+		"t": "variable.ts variable.other.object.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -3445,7 +3445,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3459,7 +3459,7 @@
 	},
 	{
 		"c": "row",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -3473,7 +3473,7 @@
 	},
 	{
 		"c": "]",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3487,7 +3487,7 @@
 	},
 	{
 		"c": "[",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3501,7 +3501,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable",
+		"t": "variable.ts variable.other.object.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -3515,7 +3515,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3529,7 +3529,7 @@
 	},
 	{
 		"c": "col",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -3543,7 +3543,7 @@
 	},
 	{
 		"c": "]",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3557,7 +3557,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3571,7 +3571,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -3585,7 +3585,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3599,7 +3599,7 @@
 	},
 	{
 		"c": "draw",
-		"t": "entity.name.function",
+		"t": "variable.ts variable.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -3613,7 +3613,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3627,7 +3627,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -3641,7 +3641,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3655,7 +3655,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3669,7 +3669,7 @@
 	},
 	{
 		"c": "return",
-		"t": "keyword.control",
+		"t": "keyword.control.ts",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -3683,7 +3683,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -3697,7 +3697,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3711,7 +3711,7 @@
 	},
 	{
 		"c": "resolveNextGeneration",
-		"t": "entity.name.function",
+		"t": "variable.ts variable.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -3725,7 +3725,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3739,7 +3739,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -3753,7 +3753,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3767,7 +3767,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3781,7 +3781,7 @@
 	},
 	{
 		"c": "}",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3795,7 +3795,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3809,7 +3809,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3823,7 +3823,7 @@
 	},
 	{
 		"c": "setTimeout",
-		"t": "entity.name.function",
+		"t": "variable.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -3837,7 +3837,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3851,7 +3851,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3865,7 +3865,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3879,7 +3879,7 @@
 	},
 	{
 		"c": "=>",
-		"t": "storage.type",
+		"t": "storage.type.ts",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -3893,7 +3893,7 @@
 	},
 	{
 		"c": "{",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3907,7 +3907,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -3921,7 +3921,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3935,7 +3935,7 @@
 	},
 	{
 		"c": "circleOfLife",
-		"t": "entity.name.function",
+		"t": "variable.ts variable.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -3949,7 +3949,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3963,7 +3963,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3977,7 +3977,7 @@
 	},
 	{
 		"c": "}",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3991,7 +3991,7 @@
 	},
 	{
 		"c": ",",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4005,7 +4005,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -4019,7 +4019,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4033,7 +4033,7 @@
 	},
 	{
 		"c": "animationRate",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -4047,7 +4047,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4061,7 +4061,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4075,7 +4075,7 @@
 	},
 	{
 		"c": "}",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4089,7 +4089,7 @@
 	},
 	{
 		"c": "public",
-		"t": "storage.modifier",
+		"t": "storage.modifier.ts",
 		"r": {
 			"dark_plus": "storage.modifier: #569CD6",
 			"light_plus": "storage.modifier: #0000FF",
@@ -4103,7 +4103,7 @@
 	},
 	{
 		"c": "resolveNextGeneration",
-		"t": "entity.name.function",
+		"t": "variable.ts meta.definition.method.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -4117,7 +4117,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4131,7 +4131,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable.parameter",
+		"t": "variable.ts variable.parameter.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -4145,7 +4145,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter.ts keyword.operator.type.annotation.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -4159,7 +4159,7 @@
 	},
 	{
 		"c": "Cell",
-		"t": "entity.name.type",
+		"t": "entity.name.type.ts meta.type.annotation.ts entity.name.type.ts",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
 			"light_plus": "entity.name.type: #267F99",
@@ -4173,7 +4173,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4187,7 +4187,7 @@
 	},
 	{
 		"c": "{",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4201,7 +4201,7 @@
 	},
 	{
 		"c": "var",
-		"t": "storage.type",
+		"t": "storage.type.ts",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -4215,7 +4215,7 @@
 	},
 	{
 		"c": "count",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -4229,7 +4229,7 @@
 	},
 	{
 		"c": "=",
-		"t": "keyword.operator.assignment",
+		"t": "keyword.operator.assignment.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -4243,7 +4243,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -4257,7 +4257,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4271,7 +4271,7 @@
 	},
 	{
 		"c": "countNeighbors",
-		"t": "entity.name.function",
+		"t": "variable.ts variable.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -4285,7 +4285,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4299,7 +4299,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -4313,7 +4313,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4327,7 +4327,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4341,7 +4341,7 @@
 	},
 	{
 		"c": "var",
-		"t": "storage.type",
+		"t": "storage.type.ts",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -4355,7 +4355,7 @@
 	},
 	{
 		"c": "newCell",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -4369,7 +4369,7 @@
 	},
 	{
 		"c": "=",
-		"t": "keyword.operator.assignment",
+		"t": "keyword.operator.assignment.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -4383,7 +4383,7 @@
 	},
 	{
 		"c": "new",
-		"t": "keyword.operator.new",
+		"t": "new.expr.ts keyword.operator.new.ts",
 		"r": {
 			"dark_plus": "keyword.operator.new: #569CD6",
 			"light_plus": "keyword.operator.new: #0000FF",
@@ -4397,7 +4397,7 @@
 	},
 	{
 		"c": "Cell",
-		"t": "entity.name.function",
+		"t": "new.expr.ts variable.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -4411,7 +4411,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "new.expr.ts punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4425,7 +4425,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable",
+		"t": "new.expr.ts variable.ts variable.other.object.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -4439,7 +4439,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "new.expr.ts punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4453,7 +4453,7 @@
 	},
 	{
 		"c": "row",
-		"t": "variable",
+		"t": "new.expr.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -4467,7 +4467,7 @@
 	},
 	{
 		"c": ",",
-		"t": "punctuation.delimiter",
+		"t": "new.expr.ts punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4481,7 +4481,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable",
+		"t": "new.expr.ts variable.ts variable.other.object.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -4495,7 +4495,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "new.expr.ts punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4509,7 +4509,7 @@
 	},
 	{
 		"c": "col",
-		"t": "variable",
+		"t": "new.expr.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -4523,7 +4523,7 @@
 	},
 	{
 		"c": ",",
-		"t": "punctuation.delimiter",
+		"t": "new.expr.ts punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4537,7 +4537,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable",
+		"t": "new.expr.ts variable.ts variable.other.object.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -4551,7 +4551,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "new.expr.ts punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4565,7 +4565,7 @@
 	},
 	{
 		"c": "live",
-		"t": "variable",
+		"t": "new.expr.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -4579,7 +4579,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "new.expr.ts punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4593,7 +4593,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4607,7 +4607,7 @@
 	},
 	{
 		"c": "if",
-		"t": "keyword.control",
+		"t": "keyword.control.ts",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -4621,7 +4621,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4635,7 +4635,7 @@
 	},
 	{
 		"c": "count",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -4649,7 +4649,7 @@
 	},
 	{
 		"c": "<",
-		"t": "keyword.operator.relational",
+		"t": "keyword.operator.relational.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -4663,7 +4663,7 @@
 	},
 	{
 		"c": "2",
-		"t": "constant.numeric",
+		"t": "constant.numeric.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -4677,7 +4677,7 @@
 	},
 	{
 		"c": "||",
-		"t": "keyword.operator.logical",
+		"t": "keyword.operator.logical.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -4691,7 +4691,7 @@
 	},
 	{
 		"c": "count",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -4705,7 +4705,7 @@
 	},
 	{
 		"c": ">",
-		"t": "keyword.operator.relational",
+		"t": "keyword.operator.relational.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -4719,7 +4719,7 @@
 	},
 	{
 		"c": "3",
-		"t": "constant.numeric",
+		"t": "constant.numeric.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -4733,7 +4733,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4747,7 +4747,7 @@
 	},
 	{
 		"c": "newCell",
-		"t": "variable",
+		"t": "variable.ts variable.other.object.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -4761,7 +4761,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4775,7 +4775,7 @@
 	},
 	{
 		"c": "live",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -4789,7 +4789,7 @@
 	},
 	{
 		"c": "=",
-		"t": "keyword.operator.assignment",
+		"t": "keyword.operator.assignment.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -4803,7 +4803,7 @@
 	},
 	{
 		"c": "false",
-		"t": "constant.language.boolean.false",
+		"t": "constant.language.boolean.false.ts",
 		"r": {
 			"dark_plus": "constant.language: #569CD6",
 			"light_plus": "constant.language: #0000FF",
@@ -4817,7 +4817,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4831,7 +4831,7 @@
 	},
 	{
 		"c": "else",
-		"t": "keyword.control",
+		"t": "keyword.control.ts",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -4845,7 +4845,7 @@
 	},
 	{
 		"c": "if",
-		"t": "keyword.control",
+		"t": "keyword.control.ts",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -4859,7 +4859,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4873,7 +4873,7 @@
 	},
 	{
 		"c": "count",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -4887,7 +4887,7 @@
 	},
 	{
 		"c": "==",
-		"t": "keyword.operator",
+		"t": "keyword.operator.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -4901,7 +4901,7 @@
 	},
 	{
 		"c": "3",
-		"t": "constant.numeric",
+		"t": "constant.numeric.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -4915,7 +4915,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4929,7 +4929,7 @@
 	},
 	{
 		"c": "newCell",
-		"t": "variable",
+		"t": "variable.ts variable.other.object.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -4943,7 +4943,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4957,7 +4957,7 @@
 	},
 	{
 		"c": "live",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -4971,7 +4971,7 @@
 	},
 	{
 		"c": "=",
-		"t": "keyword.operator.assignment",
+		"t": "keyword.operator.assignment.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -4985,7 +4985,7 @@
 	},
 	{
 		"c": "true",
-		"t": "constant.language.boolean.true",
+		"t": "constant.language.boolean.true.ts",
 		"r": {
 			"dark_plus": "constant.language: #569CD6",
 			"light_plus": "constant.language: #0000FF",
@@ -4999,7 +4999,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5013,7 +5013,7 @@
 	},
 	{
 		"c": "return",
-		"t": "keyword.control",
+		"t": "keyword.control.ts",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -5027,7 +5027,7 @@
 	},
 	{
 		"c": "newCell",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -5041,7 +5041,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5055,7 +5055,7 @@
 	},
 	{
 		"c": "}",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5069,7 +5069,7 @@
 	},
 	{
 		"c": "public",
-		"t": "storage.modifier",
+		"t": "storage.modifier.ts",
 		"r": {
 			"dark_plus": "storage.modifier: #569CD6",
 			"light_plus": "storage.modifier: #0000FF",
@@ -5083,7 +5083,7 @@
 	},
 	{
 		"c": "countNeighbors",
-		"t": "entity.name.function",
+		"t": "variable.ts meta.definition.method.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -5097,7 +5097,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5111,7 +5111,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable.parameter",
+		"t": "variable.ts variable.parameter.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -5125,7 +5125,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter.ts keyword.operator.type.annotation.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -5139,7 +5139,7 @@
 	},
 	{
 		"c": "Cell",
-		"t": "entity.name.type",
+		"t": "entity.name.type.ts meta.type.annotation.ts entity.name.type.ts",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
 			"light_plus": "entity.name.type: #267F99",
@@ -5153,7 +5153,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5167,7 +5167,7 @@
 	},
 	{
 		"c": "{",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5181,7 +5181,7 @@
 	},
 	{
 		"c": "var",
-		"t": "storage.type",
+		"t": "storage.type.ts",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -5195,7 +5195,7 @@
 	},
 	{
 		"c": "neighbors",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -5209,7 +5209,7 @@
 	},
 	{
 		"c": "=",
-		"t": "keyword.operator.assignment",
+		"t": "keyword.operator.assignment.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -5223,7 +5223,7 @@
 	},
 	{
 		"c": "0",
-		"t": "constant.numeric",
+		"t": "constant.numeric.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -5237,7 +5237,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5251,7 +5251,7 @@
 	},
 	{
 		"c": "for",
-		"t": "keyword.control",
+		"t": "keyword.control.ts",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -5265,7 +5265,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5279,7 +5279,7 @@
 	},
 	{
 		"c": "var",
-		"t": "storage.type",
+		"t": "storage.type.ts",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -5293,7 +5293,7 @@
 	},
 	{
 		"c": "row",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -5307,7 +5307,7 @@
 	},
 	{
 		"c": "=",
-		"t": "keyword.operator.assignment",
+		"t": "keyword.operator.assignment.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -5321,21 +5321,21 @@
 	},
 	{
 		"c": "-",
-		"t": "",
+		"t": "keyword.operator.arithmetic.ts",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF",
-			"dark_modern": "default: #CCCCCC",
-			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000"
 		}
 	},
 	{
 		"c": "1",
-		"t": "constant.numeric",
+		"t": "constant.numeric.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -5349,7 +5349,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5363,7 +5363,7 @@
 	},
 	{
 		"c": "row",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -5377,7 +5377,7 @@
 	},
 	{
 		"c": "<=",
-		"t": "keyword.operator.relational",
+		"t": "keyword.operator.relational.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -5391,7 +5391,7 @@
 	},
 	{
 		"c": "1",
-		"t": "constant.numeric",
+		"t": "constant.numeric.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -5405,7 +5405,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5419,7 +5419,7 @@
 	},
 	{
 		"c": "row",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -5433,7 +5433,7 @@
 	},
 	{
 		"c": "++",
-		"t": "keyword.operator.increment",
+		"t": "keyword.operator.increment.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -5447,7 +5447,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5461,7 +5461,7 @@
 	},
 	{
 		"c": "{",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5475,7 +5475,7 @@
 	},
 	{
 		"c": "for",
-		"t": "keyword.control",
+		"t": "keyword.control.ts",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -5489,7 +5489,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5503,7 +5503,7 @@
 	},
 	{
 		"c": "var",
-		"t": "storage.type",
+		"t": "storage.type.ts",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -5517,7 +5517,7 @@
 	},
 	{
 		"c": "col",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -5531,7 +5531,7 @@
 	},
 	{
 		"c": "=",
-		"t": "keyword.operator.assignment",
+		"t": "keyword.operator.assignment.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -5545,21 +5545,21 @@
 	},
 	{
 		"c": "-",
-		"t": "",
+		"t": "keyword.operator.arithmetic.ts",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF",
-			"dark_modern": "default: #CCCCCC",
-			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000"
 		}
 	},
 	{
 		"c": "1",
-		"t": "constant.numeric",
+		"t": "constant.numeric.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -5573,7 +5573,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5587,7 +5587,7 @@
 	},
 	{
 		"c": "col",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -5601,7 +5601,7 @@
 	},
 	{
 		"c": "<=",
-		"t": "keyword.operator.relational",
+		"t": "keyword.operator.relational.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -5615,7 +5615,7 @@
 	},
 	{
 		"c": "1",
-		"t": "constant.numeric",
+		"t": "constant.numeric.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -5629,7 +5629,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5643,7 +5643,7 @@
 	},
 	{
 		"c": "col",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -5657,7 +5657,7 @@
 	},
 	{
 		"c": "++",
-		"t": "keyword.operator.increment",
+		"t": "keyword.operator.increment.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -5671,7 +5671,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5685,7 +5685,7 @@
 	},
 	{
 		"c": "{",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5699,7 +5699,7 @@
 	},
 	{
 		"c": "if",
-		"t": "keyword.control",
+		"t": "keyword.control.ts",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -5713,7 +5713,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5727,7 +5727,7 @@
 	},
 	{
 		"c": "row",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -5741,7 +5741,7 @@
 	},
 	{
 		"c": "==",
-		"t": "keyword.operator",
+		"t": "keyword.operator.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -5755,7 +5755,7 @@
 	},
 	{
 		"c": "0",
-		"t": "constant.numeric",
+		"t": "constant.numeric.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -5769,7 +5769,7 @@
 	},
 	{
 		"c": "&&",
-		"t": "keyword.operator.logical",
+		"t": "keyword.operator.logical.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -5783,7 +5783,7 @@
 	},
 	{
 		"c": "col",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -5797,7 +5797,7 @@
 	},
 	{
 		"c": "==",
-		"t": "keyword.operator",
+		"t": "keyword.operator.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -5811,7 +5811,7 @@
 	},
 	{
 		"c": "0",
-		"t": "constant.numeric",
+		"t": "constant.numeric.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -5825,7 +5825,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5839,7 +5839,7 @@
 	},
 	{
 		"c": "continue",
-		"t": "keyword.control",
+		"t": "keyword.control.ts",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -5853,7 +5853,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5867,7 +5867,7 @@
 	},
 	{
 		"c": "if",
-		"t": "keyword.control",
+		"t": "keyword.control.ts",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -5881,7 +5881,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5895,7 +5895,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -5909,7 +5909,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5923,7 +5923,7 @@
 	},
 	{
 		"c": "isAlive",
-		"t": "entity.name.function",
+		"t": "variable.ts variable.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -5937,7 +5937,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5951,7 +5951,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable",
+		"t": "variable.ts variable.other.object.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -5965,7 +5965,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5979,7 +5979,7 @@
 	},
 	{
 		"c": "row",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -5993,7 +5993,7 @@
 	},
 	{
 		"c": "+",
-		"t": "keyword.operator.arithmetic",
+		"t": "keyword.operator.arithmetic.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -6007,7 +6007,7 @@
 	},
 	{
 		"c": "row",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -6021,7 +6021,7 @@
 	},
 	{
 		"c": ",",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6035,7 +6035,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable",
+		"t": "variable.ts variable.other.object.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -6049,7 +6049,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6063,7 +6063,7 @@
 	},
 	{
 		"c": "col",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -6077,7 +6077,7 @@
 	},
 	{
 		"c": "+",
-		"t": "keyword.operator.arithmetic",
+		"t": "keyword.operator.arithmetic.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -6091,7 +6091,7 @@
 	},
 	{
 		"c": "col",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -6105,7 +6105,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6119,7 +6119,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6133,7 +6133,7 @@
 	},
 	{
 		"c": "{",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6147,7 +6147,7 @@
 	},
 	{
 		"c": "neighbors",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -6161,7 +6161,7 @@
 	},
 	{
 		"c": "++",
-		"t": "keyword.operator.increment",
+		"t": "keyword.operator.increment.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -6175,7 +6175,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6189,7 +6189,7 @@
 	},
 	{
 		"c": "}",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6203,7 +6203,7 @@
 	},
 	{
 		"c": "}",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6217,7 +6217,7 @@
 	},
 	{
 		"c": "}",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6231,7 +6231,7 @@
 	},
 	{
 		"c": "return",
-		"t": "keyword.control",
+		"t": "keyword.control.ts",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -6245,7 +6245,7 @@
 	},
 	{
 		"c": "neighbors",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -6259,7 +6259,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6273,7 +6273,7 @@
 	},
 	{
 		"c": "}",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6287,7 +6287,7 @@
 	},
 	{
 		"c": "public",
-		"t": "storage.modifier",
+		"t": "storage.modifier.ts",
 		"r": {
 			"dark_plus": "storage.modifier: #569CD6",
 			"light_plus": "storage.modifier: #0000FF",
@@ -6301,7 +6301,7 @@
 	},
 	{
 		"c": "isAlive",
-		"t": "entity.name.function",
+		"t": "variable.ts meta.definition.method.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -6315,7 +6315,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6329,7 +6329,7 @@
 	},
 	{
 		"c": "row",
-		"t": "variable.parameter",
+		"t": "variable.ts variable.parameter.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -6343,7 +6343,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter.ts keyword.operator.type.annotation.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -6357,7 +6357,7 @@
 	},
 	{
 		"c": "number",
-		"t": "support.type.primitive",
+		"t": "support.type.ts support.type.primitive.ts",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -6371,7 +6371,7 @@
 	},
 	{
 		"c": ",",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6385,7 +6385,7 @@
 	},
 	{
 		"c": "col",
-		"t": "variable.parameter",
+		"t": "variable.ts variable.parameter.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -6399,7 +6399,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter.ts keyword.operator.type.annotation.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -6413,7 +6413,7 @@
 	},
 	{
 		"c": "number",
-		"t": "support.type.primitive",
+		"t": "support.type.ts support.type.primitive.ts",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -6427,7 +6427,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6441,7 +6441,7 @@
 	},
 	{
 		"c": "{",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6455,7 +6455,7 @@
 	},
 	{
 		"c": "if",
-		"t": "keyword.control",
+		"t": "keyword.control.ts",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -6469,7 +6469,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6483,7 +6483,7 @@
 	},
 	{
 		"c": "row",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -6497,7 +6497,7 @@
 	},
 	{
 		"c": "<",
-		"t": "keyword.operator.relational",
+		"t": "keyword.operator.relational.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -6511,7 +6511,7 @@
 	},
 	{
 		"c": "0",
-		"t": "constant.numeric",
+		"t": "constant.numeric.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -6525,7 +6525,7 @@
 	},
 	{
 		"c": "||",
-		"t": "keyword.operator.logical",
+		"t": "keyword.operator.logical.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -6539,7 +6539,7 @@
 	},
 	{
 		"c": "col",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -6553,7 +6553,7 @@
 	},
 	{
 		"c": "<",
-		"t": "keyword.operator.relational",
+		"t": "keyword.operator.relational.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -6567,7 +6567,7 @@
 	},
 	{
 		"c": "0",
-		"t": "constant.numeric",
+		"t": "constant.numeric.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -6581,7 +6581,7 @@
 	},
 	{
 		"c": "||",
-		"t": "keyword.operator.logical",
+		"t": "keyword.operator.logical.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -6595,7 +6595,7 @@
 	},
 	{
 		"c": "row",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -6609,7 +6609,7 @@
 	},
 	{
 		"c": ">=",
-		"t": "keyword.operator.relational",
+		"t": "keyword.operator.relational.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -6623,7 +6623,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -6637,7 +6637,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6651,7 +6651,7 @@
 	},
 	{
 		"c": "gridSize",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -6665,7 +6665,7 @@
 	},
 	{
 		"c": "||",
-		"t": "keyword.operator.logical",
+		"t": "keyword.operator.logical.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -6679,7 +6679,7 @@
 	},
 	{
 		"c": "col",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -6693,7 +6693,7 @@
 	},
 	{
 		"c": ">=",
-		"t": "keyword.operator.relational",
+		"t": "keyword.operator.relational.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -6707,7 +6707,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -6721,7 +6721,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6735,7 +6735,7 @@
 	},
 	{
 		"c": "gridSize",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -6749,7 +6749,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6763,7 +6763,7 @@
 	},
 	{
 		"c": "return",
-		"t": "keyword.control",
+		"t": "keyword.control.ts",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -6777,7 +6777,7 @@
 	},
 	{
 		"c": "false",
-		"t": "constant.language.boolean.false",
+		"t": "constant.language.boolean.false.ts",
 		"r": {
 			"dark_plus": "constant.language: #569CD6",
 			"light_plus": "constant.language: #0000FF",
@@ -6791,7 +6791,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6805,7 +6805,7 @@
 	},
 	{
 		"c": "return",
-		"t": "keyword.control",
+		"t": "keyword.control.ts",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -6819,7 +6819,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -6833,7 +6833,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6847,7 +6847,7 @@
 	},
 	{
 		"c": "world",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -6861,7 +6861,7 @@
 	},
 	{
 		"c": "[",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6875,7 +6875,7 @@
 	},
 	{
 		"c": "row",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -6889,7 +6889,7 @@
 	},
 	{
 		"c": "]",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6903,7 +6903,7 @@
 	},
 	{
 		"c": "[",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6917,7 +6917,7 @@
 	},
 	{
 		"c": "col",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -6931,7 +6931,7 @@
 	},
 	{
 		"c": "]",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6945,7 +6945,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6959,7 +6959,7 @@
 	},
 	{
 		"c": "live",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -6973,7 +6973,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6987,7 +6987,7 @@
 	},
 	{
 		"c": "}",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7001,7 +7001,7 @@
 	},
 	{
 		"c": "public",
-		"t": "storage.modifier",
+		"t": "storage.modifier.ts",
 		"r": {
 			"dark_plus": "storage.modifier: #569CD6",
 			"light_plus": "storage.modifier: #0000FF",
@@ -7015,7 +7015,7 @@
 	},
 	{
 		"c": "travelWorld",
-		"t": "entity.name.function",
+		"t": "variable.ts meta.definition.method.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -7029,7 +7029,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7043,7 +7043,7 @@
 	},
 	{
 		"c": "callback",
-		"t": "variable.parameter",
+		"t": "variable.ts variable.parameter.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -7057,7 +7057,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7071,7 +7071,7 @@
 	},
 	{
 		"c": "{",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7085,7 +7085,7 @@
 	},
 	{
 		"c": "var",
-		"t": "storage.type",
+		"t": "storage.type.ts",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -7099,7 +7099,7 @@
 	},
 	{
 		"c": "result",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -7113,7 +7113,7 @@
 	},
 	{
 		"c": "=",
-		"t": "keyword.operator.assignment",
+		"t": "keyword.operator.assignment.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -7127,7 +7127,7 @@
 	},
 	{
 		"c": "[",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7141,7 +7141,7 @@
 	},
 	{
 		"c": "]",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7155,7 +7155,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7169,7 +7169,7 @@
 	},
 	{
 		"c": "for",
-		"t": "keyword.control",
+		"t": "keyword.control.ts",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -7183,7 +7183,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7197,7 +7197,7 @@
 	},
 	{
 		"c": "var",
-		"t": "storage.type",
+		"t": "storage.type.ts",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -7211,7 +7211,7 @@
 	},
 	{
 		"c": "row",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -7225,7 +7225,7 @@
 	},
 	{
 		"c": "=",
-		"t": "keyword.operator.assignment",
+		"t": "keyword.operator.assignment.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -7239,7 +7239,7 @@
 	},
 	{
 		"c": "0",
-		"t": "constant.numeric",
+		"t": "constant.numeric.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -7253,7 +7253,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7267,7 +7267,7 @@
 	},
 	{
 		"c": "row",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -7281,7 +7281,7 @@
 	},
 	{
 		"c": "<",
-		"t": "keyword.operator.relational",
+		"t": "keyword.operator.relational.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -7295,7 +7295,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -7309,7 +7309,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7323,7 +7323,7 @@
 	},
 	{
 		"c": "gridSize",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -7337,7 +7337,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7351,7 +7351,7 @@
 	},
 	{
 		"c": "row",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -7365,7 +7365,7 @@
 	},
 	{
 		"c": "++",
-		"t": "keyword.operator.increment",
+		"t": "keyword.operator.increment.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -7379,7 +7379,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7393,7 +7393,7 @@
 	},
 	{
 		"c": "{",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7407,7 +7407,7 @@
 	},
 	{
 		"c": "var",
-		"t": "storage.type",
+		"t": "storage.type.ts",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -7421,7 +7421,7 @@
 	},
 	{
 		"c": "rowData",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -7435,7 +7435,7 @@
 	},
 	{
 		"c": "=",
-		"t": "keyword.operator.assignment",
+		"t": "keyword.operator.assignment.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -7449,7 +7449,7 @@
 	},
 	{
 		"c": "[",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7463,7 +7463,7 @@
 	},
 	{
 		"c": "]",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7477,7 +7477,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7491,7 +7491,7 @@
 	},
 	{
 		"c": "for",
-		"t": "keyword.control",
+		"t": "keyword.control.ts",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -7505,7 +7505,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7519,7 +7519,7 @@
 	},
 	{
 		"c": "var",
-		"t": "storage.type",
+		"t": "storage.type.ts",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -7533,7 +7533,7 @@
 	},
 	{
 		"c": "col",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -7547,7 +7547,7 @@
 	},
 	{
 		"c": "=",
-		"t": "keyword.operator.assignment",
+		"t": "keyword.operator.assignment.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -7561,7 +7561,7 @@
 	},
 	{
 		"c": "0",
-		"t": "constant.numeric",
+		"t": "constant.numeric.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -7575,7 +7575,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7589,7 +7589,7 @@
 	},
 	{
 		"c": "col",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -7603,7 +7603,7 @@
 	},
 	{
 		"c": "<",
-		"t": "keyword.operator.relational",
+		"t": "keyword.operator.relational.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -7617,7 +7617,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -7631,7 +7631,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7645,7 +7645,7 @@
 	},
 	{
 		"c": "gridSize",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -7659,7 +7659,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7673,7 +7673,7 @@
 	},
 	{
 		"c": "col",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -7687,7 +7687,7 @@
 	},
 	{
 		"c": "++",
-		"t": "keyword.operator.increment",
+		"t": "keyword.operator.increment.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -7701,7 +7701,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7715,7 +7715,7 @@
 	},
 	{
 		"c": "{",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7729,7 +7729,7 @@
 	},
 	{
 		"c": "rowData",
-		"t": "variable",
+		"t": "variable.ts variable.other.object.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -7743,7 +7743,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7757,7 +7757,7 @@
 	},
 	{
 		"c": "push",
-		"t": "entity.name.function",
+		"t": "variable.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -7771,7 +7771,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7785,7 +7785,7 @@
 	},
 	{
 		"c": "callback",
-		"t": "entity.name.function",
+		"t": "variable.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -7799,7 +7799,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7813,7 +7813,7 @@
 	},
 	{
 		"c": "new",
-		"t": "keyword.operator.new",
+		"t": "new.expr.ts keyword.operator.new.ts",
 		"r": {
 			"dark_plus": "keyword.operator.new: #569CD6",
 			"light_plus": "keyword.operator.new: #0000FF",
@@ -7827,7 +7827,7 @@
 	},
 	{
 		"c": "Cell",
-		"t": "entity.name.function",
+		"t": "new.expr.ts variable.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -7841,7 +7841,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "new.expr.ts punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7855,7 +7855,7 @@
 	},
 	{
 		"c": "row",
-		"t": "variable",
+		"t": "new.expr.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -7869,7 +7869,7 @@
 	},
 	{
 		"c": ",",
-		"t": "punctuation.delimiter",
+		"t": "new.expr.ts punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7883,7 +7883,7 @@
 	},
 	{
 		"c": "col",
-		"t": "variable",
+		"t": "new.expr.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -7897,7 +7897,7 @@
 	},
 	{
 		"c": ",",
-		"t": "punctuation.delimiter",
+		"t": "new.expr.ts punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7911,7 +7911,7 @@
 	},
 	{
 		"c": "false",
-		"t": "constant.language.boolean.false",
+		"t": "new.expr.ts constant.language.boolean.false.ts",
 		"r": {
 			"dark_plus": "constant.language: #569CD6",
 			"light_plus": "constant.language: #0000FF",
@@ -7925,7 +7925,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "new.expr.ts punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7939,7 +7939,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7953,7 +7953,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7967,7 +7967,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7981,7 +7981,7 @@
 	},
 	{
 		"c": "}",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7995,7 +7995,7 @@
 	},
 	{
 		"c": "result",
-		"t": "variable",
+		"t": "variable.ts variable.other.object.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -8009,7 +8009,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8023,7 +8023,7 @@
 	},
 	{
 		"c": "push",
-		"t": "entity.name.function",
+		"t": "variable.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -8037,7 +8037,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8051,7 +8051,7 @@
 	},
 	{
 		"c": "rowData",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -8065,7 +8065,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8079,7 +8079,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8093,7 +8093,7 @@
 	},
 	{
 		"c": "}",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8107,7 +8107,7 @@
 	},
 	{
 		"c": "return",
-		"t": "keyword.control",
+		"t": "keyword.control.ts",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -8121,7 +8121,7 @@
 	},
 	{
 		"c": "result",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -8135,7 +8135,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8149,7 +8149,7 @@
 	},
 	{
 		"c": "}",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8163,7 +8163,7 @@
 	},
 	{
 		"c": "public",
-		"t": "storage.modifier",
+		"t": "storage.modifier.ts",
 		"r": {
 			"dark_plus": "storage.modifier: #569CD6",
 			"light_plus": "storage.modifier: #0000FF",
@@ -8177,7 +8177,7 @@
 	},
 	{
 		"c": "draw",
-		"t": "entity.name.function",
+		"t": "variable.ts meta.definition.method.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -8191,7 +8191,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8205,7 +8205,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable.parameter",
+		"t": "variable.ts variable.parameter.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -8219,7 +8219,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter.ts keyword.operator.type.annotation.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -8233,7 +8233,7 @@
 	},
 	{
 		"c": "Cell",
-		"t": "entity.name.type",
+		"t": "entity.name.type.ts meta.type.annotation.ts entity.name.type.ts",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
 			"light_plus": "entity.name.type: #267F99",
@@ -8247,7 +8247,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8261,7 +8261,7 @@
 	},
 	{
 		"c": "{",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8275,7 +8275,7 @@
 	},
 	{
 		"c": "if",
-		"t": "keyword.control",
+		"t": "keyword.control.ts",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -8289,7 +8289,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8303,7 +8303,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -8317,7 +8317,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8331,7 +8331,7 @@
 	},
 	{
 		"c": "cellSize",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -8345,7 +8345,7 @@
 	},
 	{
 		"c": "==",
-		"t": "keyword.operator",
+		"t": "keyword.operator.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -8359,7 +8359,7 @@
 	},
 	{
 		"c": "0",
-		"t": "constant.numeric",
+		"t": "constant.numeric.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -8373,7 +8373,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8387,7 +8387,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -8401,7 +8401,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8415,7 +8415,7 @@
 	},
 	{
 		"c": "cellSize",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -8429,7 +8429,7 @@
 	},
 	{
 		"c": "=",
-		"t": "keyword.operator.assignment",
+		"t": "keyword.operator.assignment.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -8443,7 +8443,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -8457,7 +8457,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8471,7 +8471,7 @@
 	},
 	{
 		"c": "canvasSize",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -8485,7 +8485,7 @@
 	},
 	{
 		"c": "/",
-		"t": "keyword.operator.arithmetic",
+		"t": "keyword.operator.arithmetic.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -8499,7 +8499,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -8513,7 +8513,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8527,7 +8527,7 @@
 	},
 	{
 		"c": "gridSize",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -8541,7 +8541,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8555,7 +8555,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -8569,7 +8569,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8583,7 +8583,7 @@
 	},
 	{
 		"c": "context",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -8597,7 +8597,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8611,7 +8611,7 @@
 	},
 	{
 		"c": "strokeStyle",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -8625,7 +8625,7 @@
 	},
 	{
 		"c": "=",
-		"t": "keyword.operator.assignment",
+		"t": "keyword.operator.assignment.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -8639,7 +8639,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -8653,7 +8653,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8667,7 +8667,7 @@
 	},
 	{
 		"c": "lineColor",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -8681,7 +8681,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8695,7 +8695,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -8709,7 +8709,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8723,7 +8723,7 @@
 	},
 	{
 		"c": "context",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -8737,7 +8737,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8751,7 +8751,7 @@
 	},
 	{
 		"c": "strokeRect",
-		"t": "entity.name.function",
+		"t": "variable.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -8765,7 +8765,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8779,7 +8779,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable",
+		"t": "variable.ts variable.other.object.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -8793,7 +8793,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8807,7 +8807,7 @@
 	},
 	{
 		"c": "row",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -8821,7 +8821,7 @@
 	},
 	{
 		"c": "*",
-		"t": "keyword.operator.arithmetic",
+		"t": "keyword.operator.arithmetic.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -8835,7 +8835,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -8849,7 +8849,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8863,7 +8863,7 @@
 	},
 	{
 		"c": "cellSize",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -8877,7 +8877,7 @@
 	},
 	{
 		"c": ",",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8891,7 +8891,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable",
+		"t": "variable.ts variable.other.object.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -8905,7 +8905,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8919,7 +8919,7 @@
 	},
 	{
 		"c": "col",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -8933,7 +8933,7 @@
 	},
 	{
 		"c": "*",
-		"t": "keyword.operator.arithmetic",
+		"t": "keyword.operator.arithmetic.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -8947,7 +8947,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -8961,7 +8961,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8975,7 +8975,7 @@
 	},
 	{
 		"c": "cellSize",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -8989,7 +8989,7 @@
 	},
 	{
 		"c": ",",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9003,7 +9003,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -9017,7 +9017,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9031,7 +9031,7 @@
 	},
 	{
 		"c": "cellSize",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -9045,7 +9045,7 @@
 	},
 	{
 		"c": ",",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9059,7 +9059,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -9073,7 +9073,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9087,7 +9087,7 @@
 	},
 	{
 		"c": "cellSize",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -9101,7 +9101,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9115,7 +9115,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9129,7 +9129,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -9143,7 +9143,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9157,7 +9157,7 @@
 	},
 	{
 		"c": "context",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -9171,7 +9171,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9185,7 +9185,7 @@
 	},
 	{
 		"c": "fillStyle",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -9199,7 +9199,7 @@
 	},
 	{
 		"c": "=",
-		"t": "keyword.operator.assignment",
+		"t": "keyword.operator.assignment.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -9213,7 +9213,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable",
+		"t": "variable.ts variable.other.object.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -9227,7 +9227,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9241,7 +9241,7 @@
 	},
 	{
 		"c": "live",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -9255,7 +9255,7 @@
 	},
 	{
 		"c": "?",
-		"t": "keyword.operator.ternary",
+		"t": "punctuation.delimiter.ts keyword.operator.ternary.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -9269,7 +9269,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -9283,7 +9283,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9297,7 +9297,7 @@
 	},
 	{
 		"c": "liveColor",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -9311,7 +9311,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.ternary",
+		"t": "punctuation.delimiter.ts keyword.operator.ternary.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -9325,7 +9325,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -9339,7 +9339,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9353,7 +9353,7 @@
 	},
 	{
 		"c": "deadColor",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -9367,7 +9367,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9381,7 +9381,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -9395,7 +9395,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9409,7 +9409,7 @@
 	},
 	{
 		"c": "context",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -9423,7 +9423,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9437,7 +9437,7 @@
 	},
 	{
 		"c": "fillRect",
-		"t": "entity.name.function",
+		"t": "variable.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -9451,7 +9451,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9465,7 +9465,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable",
+		"t": "variable.ts variable.other.object.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -9479,7 +9479,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9493,7 +9493,7 @@
 	},
 	{
 		"c": "row",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -9507,7 +9507,7 @@
 	},
 	{
 		"c": "*",
-		"t": "keyword.operator.arithmetic",
+		"t": "keyword.operator.arithmetic.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -9521,7 +9521,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -9535,7 +9535,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9549,7 +9549,7 @@
 	},
 	{
 		"c": "cellSize",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -9563,7 +9563,7 @@
 	},
 	{
 		"c": ",",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9577,7 +9577,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable",
+		"t": "variable.ts variable.other.object.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -9591,7 +9591,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9605,7 +9605,7 @@
 	},
 	{
 		"c": "col",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -9619,7 +9619,7 @@
 	},
 	{
 		"c": "*",
-		"t": "keyword.operator.arithmetic",
+		"t": "keyword.operator.arithmetic.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -9633,7 +9633,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -9647,7 +9647,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9661,7 +9661,7 @@
 	},
 	{
 		"c": "cellSize",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -9675,7 +9675,7 @@
 	},
 	{
 		"c": ",",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9689,7 +9689,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -9703,7 +9703,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9717,7 +9717,7 @@
 	},
 	{
 		"c": "cellSize",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -9731,7 +9731,7 @@
 	},
 	{
 		"c": ",",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9745,7 +9745,7 @@
 	},
 	{
 		"c": "this",
-		"t": "variable.language.this",
+		"t": "variable.language.this.ts",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -9759,7 +9759,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9773,7 +9773,7 @@
 	},
 	{
 		"c": "cellSize",
-		"t": "variable",
+		"t": "variable.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -9787,7 +9787,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9801,7 +9801,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9815,7 +9815,7 @@
 	},
 	{
 		"c": "}",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9829,7 +9829,7 @@
 	},
 	{
 		"c": "}",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9843,7 +9843,7 @@
 	},
 	{
 		"c": "}",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9857,7 +9857,7 @@
 	},
 	{
 		"c": "var",
-		"t": "storage.type",
+		"t": "storage.type.ts",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -9871,7 +9871,7 @@
 	},
 	{
 		"c": "game",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -9885,7 +9885,7 @@
 	},
 	{
 		"c": "=",
-		"t": "keyword.operator.assignment",
+		"t": "keyword.operator.assignment.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -9899,7 +9899,7 @@
 	},
 	{
 		"c": "new",
-		"t": "keyword.operator.new",
+		"t": "new.expr.ts keyword.operator.new.ts",
 		"r": {
 			"dark_plus": "keyword.operator.new: #569CD6",
 			"light_plus": "keyword.operator.new: #0000FF",
@@ -9913,7 +9913,7 @@
 	},
 	{
 		"c": "Conway",
-		"t": "variable",
+		"t": "new.expr.ts variable.ts variable.other.object.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -9927,7 +9927,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "new.expr.ts punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9941,7 +9941,7 @@
 	},
 	{
 		"c": "GameOfLife",
-		"t": "variable",
+		"t": "new.expr.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -9955,7 +9955,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "new.expr.ts punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9969,7 +9969,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "new.expr.ts punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9983,7 +9983,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",

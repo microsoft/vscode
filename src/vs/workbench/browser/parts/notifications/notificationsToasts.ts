@@ -7,7 +7,7 @@ import './media/notificationsToasts.css';
 import { localize } from '../../../../nls.js';
 import { INotificationsModel, NotificationChangeType, INotificationChangeEvent, INotificationViewItem, NotificationViewItemContentChangeKind } from '../../../common/notifications.js';
 import { IDisposable, dispose, toDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { addDisposableListener, EventType, Dimension, scheduleAtNextAnimationFrame, isAncestorOfActiveElement, getWindow } from '../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, Dimension, scheduleAtNextAnimationFrame, isAncestorOfActiveElement, getWindow, $ } from '../../../../base/browser/dom.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { NotificationsList } from './notificationsList.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
@@ -165,8 +165,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		// Lazily create toasts containers
 		let notificationsToastsContainer = this.notificationsToastsContainer;
 		if (!notificationsToastsContainer) {
-			notificationsToastsContainer = this.notificationsToastsContainer = document.createElement('div');
-			notificationsToastsContainer.classList.add('notifications-toasts');
+			notificationsToastsContainer = this.notificationsToastsContainer = $('.notifications-toasts');
 
 			this.container.appendChild(notificationsToastsContainer);
 		}
@@ -175,8 +174,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		notificationsToastsContainer.classList.add('visible');
 
 		// Container
-		const notificationToastContainer = document.createElement('div');
-		notificationToastContainer.classList.add('notification-toast-container');
+		const notificationToastContainer = $('.notification-toast-container');
 
 		const firstToast = notificationsToastsContainer.firstChild;
 		if (firstToast) {
@@ -186,8 +184,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		}
 
 		// Toast
-		const notificationToast = document.createElement('div');
-		notificationToast.classList.add('notification-toast');
+		const notificationToast = $('.notification-toast');
 		notificationToastContainer.appendChild(notificationToast);
 
 		// Create toast with item and show

@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { SnapshotContext } from '../../../../services/workingCopy/common/fileWorkingCopy.js';
-import { NotebookCellTextModel } from '../../../notebook/common/model/notebookCellTextModel.js';
-import { NotebookTextModel } from '../../../notebook/common/model/notebookTextModel.js';
-import { CellEditType, ICellDto2, ICellEditOperation, IOutputItemDto, NotebookData, NotebookSetting, TransientOptions } from '../../../notebook/common/notebookCommon.js';
+import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
+import { filter } from '../../../../../../base/common/objects.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { SnapshotContext } from '../../../../../services/workingCopy/common/fileWorkingCopy.js';
+import { NotebookCellTextModel } from '../../../../notebook/common/model/notebookCellTextModel.js';
+import { NotebookTextModel } from '../../../../notebook/common/model/notebookTextModel.js';
+import { CellEditType, ICellDto2, ICellEditOperation, IOutputItemDto, NotebookData, NotebookSetting, TransientOptions } from '../../../../notebook/common/notebookCommon.js';
 
 const BufferMarker = 'ArrayBuffer-4f56482b-5a03-49ba-8356-210d3b0c1c3d';
 
@@ -54,7 +55,9 @@ export function restoreSnapshot(notebook: NotebookTextModel, snapshot: string): 
 
 export class SnapshotComparer {
 	private readonly data: NotebookData;
+	private readonly transientOptions: TransientOptions | undefined;
 	constructor(initialCotent: string) {
+		this.transientOptions = deserializeSnapshot(initialCotent).transientOptions;
 		this.data = deserializeSnapshot(initialCotent).data;
 	}
 
@@ -62,9 +65,14 @@ export class SnapshotComparer {
 		if (notebook.cells.length !== this.data.cells.length) {
 			return false;
 		}
-		if (JSON.stringify(notebook.metadata) !== JSON.stringify(this.data.metadata)) {
+		const transientDocumentMetadata = this.transientOptions?.transientDocumentMetadata || {};
+		const notebookMetadata = filter(notebook.metadata || {}, key => !transientDocumentMetadata[key]);
+		const comparerMetadata = filter(this.data.metadata || {}, key => !transientDocumentMetadata[key]);
+		// When comparing ignore transient items.
+		if (JSON.stringify(notebookMetadata) !== JSON.stringify(comparerMetadata)) {
 			return false;
 		}
+		const transientCellMetadata = this.transientOptions?.transientCellMetadata || {};
 		for (let i = 0; i < notebook.cells.length; i++) {
 			const notebookCell = notebook.cells[i];
 			const comparerCell = this.data.cells[i];
@@ -85,13 +93,18 @@ export class SnapshotComparer {
 				if (notebookCell.source !== comparerCell.source) {
 					return false;
 				}
-				if (notebookCell.outputs.length !== comparerCell.outputs.length) {
+				if (!this.transientOptions?.transientOutputs && notebookCell.outputs.length !== comparerCell.outputs.length) {
 					return false;
 				}
-				if (JSON.stringify(notebookCell.metadata) !== JSON.stringify(comparerCell.metadata)) {
+				// When comparing ignore transient items.
+				const cellMetadata = filter(notebookCell.metadata || {}, key => !transientCellMetadata[key]);
+				const comparerCellMetadata = filter(comparerCell.metadata || {}, key => !transientCellMetadata[key]);
+				if (JSON.stringify(cellMetadata) !== JSON.stringify(comparerCellMetadata)) {
 					return false;
 				}
-				if (JSON.stringify(sanitizeCellDto2(notebookCell, true)) !== JSON.stringify(sanitizeCellDto2(comparerCell, true))) {
+
+				// When comparing ignore transient items.
+				if (JSON.stringify(sanitizeCellDto2(notebookCell, true, this.transientOptions)) !== JSON.stringify(sanitizeCellDto2(comparerCell, true, this.transientOptions))) {
 					return false;
 				}
 			}
@@ -101,8 +114,9 @@ export class SnapshotComparer {
 	}
 }
 
-function sanitizeCellDto2(cell: ICellDto2, ignoreInternalMetadata?: boolean): ICellDto2 {
-	const outputs = cell.outputs.map(output => {
+function sanitizeCellDto2(cell: ICellDto2, ignoreInternalMetadata?: boolean, transientOptions?: TransientOptions): ICellDto2 {
+	const transientCellMetadata = transientOptions?.transientCellMetadata || {};
+	const outputs = transientOptions?.transientOutputs ? [] : cell.outputs.map(output => {
 		// Ensure we're in full control of the data being stored.
 		// Possible we have classes instead of plain objects.
 		return {
@@ -121,7 +135,7 @@ function sanitizeCellDto2(cell: ICellDto2, ignoreInternalMetadata?: boolean): IC
 	return {
 		cellKind: cell.cellKind,
 		language: cell.language,
-		metadata: cell.metadata,
+		metadata: cell.metadata ? filter(cell.metadata, key => !transientCellMetadata[key]) : cell.metadata,
 		outputs,
 		mime: cell.mime,
 		source: cell.source,
@@ -132,6 +146,10 @@ function sanitizeCellDto2(cell: ICellDto2, ignoreInternalMetadata?: boolean): IC
 
 function serializeSnapshot(data: NotebookData, transientOptions: TransientOptions | undefined): string {
 	const dataDto: NotebookData = {
+		// Never pass transient options, as we're after a backup here.
+		// Else we end up stripping outputs from backups.
+		// Whether its persisted or not is up to the serializer.
+		// However when reloading/restoring we need to preserve outputs.
 		cells: data.cells.map(cell => sanitizeCellDto2(cell)),
 		metadata: data.metadata,
 	};

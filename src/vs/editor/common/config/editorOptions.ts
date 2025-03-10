@@ -1944,7 +1944,7 @@ class EffectiveExperimentalEditContextEnabled extends ComputedEditorOption<Edito
 
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions): boolean {
 		const editContextSupported = typeof (globalThis as any).EditContext === 'function';
-		return editContextSupported && env.accessibilitySupport !== AccessibilitySupport.Enabled && options.get(EditorOption.experimentalEditContextEnabled);
+		return editContextSupported && options.get(EditorOption.experimentalEditContextEnabled);
 	}
 }
 
@@ -4256,7 +4256,7 @@ export interface IInlineSuggestOptions {
 	fontFamily?: string | 'default';
 
 	edits?: {
-		codeShifting?: boolean;
+		allowCodeShifting?: 'always' | 'horizontal' | 'never';
 
 		renderSideBySide?: 'never' | 'auto';
 
@@ -4278,10 +4278,6 @@ export interface IInlineSuggestOptions {
 		* @internal
 		*/
 		useMultiLineGhostText?: boolean;
-		/**
-		* @internal
-		*/
-		useGutterIndicator?: boolean;
 	};
 }
 
@@ -4313,8 +4309,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				useMixedLinesDiff: 'forStableInsertions',
 				useInterleavedLinesDiff: 'never',
 				renderSideBySide: 'auto',
-				useGutterIndicator: true,
-				codeShifting: true,
+				allowCodeShifting: 'always',
 				useMultiLineGhostText: true
 			},
 		};
@@ -4359,11 +4354,12 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					description: nls.localize('inlineSuggest.edits.useMixedLinesDiff', "Controls whether to enable mixed lines diff in inline suggestions."),
 					enum: ['never', 'whenPossible', 'forStableInsertions', 'afterJumpWhenPossible'],
 				}, */
-				'editor.inlineSuggest.edits.codeShifting': {
-					type: 'boolean',
-					default: defaults.edits.codeShifting,
-					description: nls.localize('inlineSuggest.edits.codeShifting', "Controls whether showing a suggestion will shift the code to make space for the suggestion inline."),
-					tags: ['nextEditSuggestions']
+				'editor.inlineSuggest.edits.allowCodeShifting': {
+					type: 'string',
+					default: defaults.edits.allowCodeShifting,
+					description: nls.localize('inlineSuggest.edits.allowCodeShifting', "Controls whether showing a suggestion will shift the code to make space for the suggestion inline."),
+					enum: ['always', 'horizontal', 'never'],
+					tags: ['nextEditSuggestions', 'preview']
 				},
 				'editor.inlineSuggest.edits.renderSideBySide': {
 					type: 'string',
@@ -4374,13 +4370,13 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 						nls.localize('editor.inlineSuggest.edits.renderSideBySide.auto', "Larger suggestions will show side by side if there is enough space, otherwise they will be shown below."),
 						nls.localize('editor.inlineSuggest.edits.renderSideBySide.never', "Larger suggestions are never shown side by side and will always be shown below."),
 					],
-					tags: ['nextEditSuggestions']
+					tags: ['nextEditSuggestions', 'preview']
 				},
 				'editor.inlineSuggest.edits.showCollapsed': {
 					type: 'boolean',
 					default: defaults.edits.showCollapsed,
 					description: nls.localize('inlineSuggest.edits.showCollapsed', "Controls whether the suggestion will show as collapsed until jumping to it."),
-					tags: ['nextEditSuggestions']
+					tags: ['nextEditSuggestions', 'preview']
 				},
 				/* 'editor.inlineSuggest.edits.useMultiLineGhostText': {
 					type: 'boolean',
@@ -4419,10 +4415,9 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				enabled: boolean(input.edits?.enabled, this.defaultValue.edits.enabled),
 				showCollapsed: boolean(input.edits?.showCollapsed, this.defaultValue.edits.showCollapsed),
 				useMixedLinesDiff: stringSet(input.edits?.useMixedLinesDiff, this.defaultValue.edits.useMixedLinesDiff, ['never', 'whenPossible', 'forStableInsertions', 'afterJumpWhenPossible']),
-				codeShifting: boolean(input.edits?.codeShifting, this.defaultValue.edits.codeShifting),
+				allowCodeShifting: stringSet(input.edits?.allowCodeShifting, this.defaultValue.edits.allowCodeShifting, ['always', 'horizontal', 'never']),
 				renderSideBySide: stringSet(input.edits?.renderSideBySide, this.defaultValue.edits.renderSideBySide, ['never', 'auto']),
 				useInterleavedLinesDiff: stringSet(input.edits?.useInterleavedLinesDiff, this.defaultValue.edits.useInterleavedLinesDiff, ['never', 'always', 'afterJump']),
-				useGutterIndicator: boolean(input.edits?.useGutterIndicator, this.defaultValue.edits.useGutterIndicator),
 				useMultiLineGhostText: boolean(input.edits?.useMultiLineGhostText, this.defaultValue.edits.useMultiLineGhostText),
 			},
 		};

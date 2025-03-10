@@ -45,12 +45,7 @@ export class NotificationsListDelegate implements IListVirtualDelegate<INotifica
 	}
 
 	private createOffsetHelper(container: HTMLElement): HTMLElement {
-		const offsetHelper = document.createElement('div');
-		offsetHelper.classList.add('notification-offset-helper');
-
-		container.appendChild(offsetHelper);
-
-		return offsetHelper;
+		return container.appendChild($('.notification-offset-helper'));
 	}
 
 	getHeight(notification: INotificationViewItem): number {
@@ -146,7 +141,7 @@ interface IMessageActionHandler {
 class NotificationMessageRenderer {
 
 	static render(message: INotificationMessage, actionHandler?: IMessageActionHandler): HTMLElement {
-		const messageContainer = document.createElement('span');
+		const messageContainer = $('span');
 
 		for (const node of message.linkedText.nodes) {
 			if (typeof node === 'string') {
@@ -215,25 +210,20 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 		data.toDispose = new DisposableStore();
 
 		// Container
-		data.container = document.createElement('div');
-		data.container.classList.add('notification-list-item');
+		data.container = $('.notification-list-item');
 
 		// Main Row
-		data.mainRow = document.createElement('div');
-		data.mainRow.classList.add('notification-list-item-main-row');
+		data.mainRow = $('.notification-list-item-main-row');
 
 		// Icon
-		data.icon = document.createElement('div');
-		data.icon.classList.add('notification-list-item-icon', 'codicon');
+		data.icon = $('.notification-list-item-icon.codicon');
 
 		// Message
-		data.message = document.createElement('div');
-		data.message.classList.add('notification-list-item-message');
+		data.message = $('.notification-list-item-message');
 
 		// Toolbar
 		const that = this;
-		const toolbarContainer = document.createElement('div');
-		toolbarContainer.classList.add('notification-list-item-toolbar-container');
+		const toolbarContainer = $('.notification-list-item-toolbar-container');
 		data.toolbar = new ActionBar(
 			toolbarContainer,
 			{
@@ -279,16 +269,13 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 		data.toDispose.add(data.toolbar);
 
 		// Details Row
-		data.detailsRow = document.createElement('div');
-		data.detailsRow.classList.add('notification-list-item-details-row');
+		data.detailsRow = $('.notification-list-item-details-row');
 
 		// Source
-		data.source = document.createElement('div');
-		data.source.classList.add('notification-list-item-source');
+		data.source = $('.notification-list-item-source');
 
 		// Buttons Container
-		data.buttonsContainer = document.createElement('div');
-		data.buttonsContainer.classList.add('notification-list-item-buttons-container');
+		data.buttonsContainer = $('.notification-list-item-buttons-container');
 
 		container.appendChild(data.container);
 

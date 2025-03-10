@@ -1,7 +1,7 @@
 [
 	{
 		"c": "class",
-		"t": "storage.type",
+		"t": "storage.type.ts",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -15,7 +15,7 @@
 	},
 	{
 		"c": "A2",
-		"t": "entity.name.type",
+		"t": "entity.name.type.ts entity.name.type.class.ts",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
 			"light_plus": "entity.name.type: #267F99",
@@ -29,7 +29,7 @@
 	},
 	{
 		"c": "extends",
-		"t": "storage.modifier",
+		"t": "storage.modifier.ts",
 		"r": {
 			"dark_plus": "storage.modifier: #569CD6",
 			"light_plus": "storage.modifier: #0000FF",
@@ -43,7 +43,7 @@
 	},
 	{
 		"c": "B1",
-		"t": "entity.other.inherited-class",
+		"t": "variable.ts entity.other.inherited-class.ts",
 		"r": {
 			"dark_plus": "entity.other.inherited-class: #4EC9B0",
 			"light_plus": "entity.other.inherited-class: #267F99",
@@ -57,7 +57,7 @@
 	},
 	{
 		"c": "{",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -71,7 +71,7 @@
 	},
 	{
 		"c": "public",
-		"t": "storage.modifier",
+		"t": "storage.modifier.ts",
 		"r": {
 			"dark_plus": "storage.modifier: #569CD6",
 			"light_plus": "storage.modifier: #0000FF",
@@ -85,7 +85,7 @@
 	},
 	{
 		"c": "count",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -99,7 +99,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter.ts keyword.operator.type.annotation.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -113,7 +113,7 @@
 	},
 	{
 		"c": "number",
-		"t": "support.type.primitive",
+		"t": "support.type.ts support.type.primitive.ts",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -127,7 +127,7 @@
 	},
 	{
 		"c": "=",
-		"t": "keyword.operator.assignment",
+		"t": "keyword.operator.assignment.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -141,7 +141,7 @@
 	},
 	{
 		"c": "9",
-		"t": "constant.numeric",
+		"t": "constant.numeric.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -155,7 +155,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -169,7 +169,7 @@
 	},
 	{
 		"c": "public",
-		"t": "storage.modifier",
+		"t": "storage.modifier.ts",
 		"r": {
 			"dark_plus": "storage.modifier: #569CD6",
 			"light_plus": "storage.modifier: #0000FF",
@@ -183,7 +183,7 @@
 	},
 	{
 		"c": "resolveNextGeneration",
-		"t": "entity.name.function",
+		"t": "variable.ts meta.definition.method.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -197,7 +197,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -211,7 +211,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable.parameter",
+		"t": "variable.ts variable.parameter.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -225,7 +225,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter.ts keyword.operator.type.annotation.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -239,7 +239,7 @@
 	},
 	{
 		"c": "A2",
-		"t": "entity.name.type",
+		"t": "entity.name.type.ts meta.type.annotation.ts entity.name.type.ts",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
 			"light_plus": "entity.name.type: #267F99",
@@ -253,7 +253,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -267,7 +267,7 @@
 	},
 	{
 		"c": "{",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -281,7 +281,7 @@
 	},
 	{
 		"c": "}",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -295,7 +295,7 @@
 	},
 	{
 		"c": "}",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",

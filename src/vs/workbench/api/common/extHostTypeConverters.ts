@@ -2765,7 +2765,7 @@ export namespace ChatResponsePart {
 }
 
 export namespace ChatAgentRequest {
-	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined, model: vscode.LanguageModelChat, hasReadonlyProposal: boolean, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][]): vscode.ChatRequest {
+	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined, model: vscode.LanguageModelChat, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][]): vscode.ChatRequest {
 		const toolReferences = request.variables.variables.filter(v => v.isTool);
 		const variableReferences = request.variables.variables.filter(v => !v.isTool);
 		return {
@@ -2774,7 +2774,7 @@ export namespace ChatAgentRequest {
 			attempt: request.attempt ?? 0,
 			enableCommandDetection: request.enableCommandDetection ?? true,
 			isParticipantDetected: request.isParticipantDetected ?? false,
-			references: variableReferences.map(v => ChatPromptReference.to(v, hasReadonlyProposal, diagnostics)),
+			references: variableReferences.map(v => ChatPromptReference.to(v, diagnostics)),
 			toolReferences: toolReferences.map(ChatLanguageModelToolReference.to),
 			location: ChatLocation.to(request.location),
 			acceptedConfirmationData: request.acceptedConfirmationData,
@@ -2818,7 +2818,7 @@ export namespace ChatLocation {
 }
 
 export namespace ChatPromptReference {
-	export function to(variable: IChatRequestVariableEntry, hasReadonlyProposal: boolean, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][]): vscode.ChatPromptReference {
+	export function to(variable: IChatRequestVariableEntry, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][]): vscode.ChatPromptReference {
 		let value: vscode.ChatPromptReference['value'] = variable.value;
 		if (!value) {
 			throw new Error('Invalid value reference');
@@ -2861,7 +2861,6 @@ export namespace ChatPromptReference {
 			range: variable.range && [variable.range.start, variable.range.endExclusive],
 			value,
 			modelDescription: variable.modelDescription,
-			isReadonly: hasReadonlyProposal ? variable.isMarkedReadonly : undefined,
 		};
 	}
 }

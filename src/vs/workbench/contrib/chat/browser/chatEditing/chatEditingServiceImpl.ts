@@ -13,6 +13,7 @@ import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 
 import { LinkedList } from '../../../../../base/common/linkedList.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { derived, IObservable, observableValueOpts, runOnChange, ValueWithChangeEventFromObservable } from '../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { compare } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { assertType, isString } from '../../../../../base/common/types.js';
@@ -256,7 +257,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 					return;
 				}
 				const activeUri = this._editorService.activeEditorPane?.input.resource;
-				const inactive = activeUri && session.workingSet.has(activeUri);
+				const inactive = Boolean(activeUri && session.entries.get().find(entry => isEqual(activeUri, entry.modifiedURI)));
 				this._editorService.openEditor({ resource: uri, options: { inactive, preserveFocus: true, pinned: true } });
 			}));
 		};

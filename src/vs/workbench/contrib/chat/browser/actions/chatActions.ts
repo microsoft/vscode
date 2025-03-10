@@ -116,6 +116,7 @@ export function registerChatActions() {
 				icon: Codicon.copilot,
 				f1: true,
 				category: CHAT_CATEGORY,
+				precondition: ChatContextKeys.Setup.hidden.toNegated(),
 				keybinding: {
 					weight: KeybindingWeight.WorkbenchContrib,
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
@@ -514,7 +515,7 @@ export function registerChatActions() {
 		}
 	});
 
-	const nonEnterpriseCopilotUsers = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.notEquals(`config.${defaultChat.providerSetting}`, defaultChat.enterpriseProviderId));
+	const nonEnterpriseCopilotUsers = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.notEquals(`config.${defaultChat.completionsAdvancedSetting}.authProvider`, defaultChat.enterpriseProviderId));
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -546,6 +547,7 @@ export function registerChatActions() {
 				title: localize2('showCopilotUsageExtensions', "Show Extensions using Copilot"),
 				f1: true,
 				category: EXTENSIONS_CATEGORY,
+				precondition: ChatContextKeys.enabled
 			});
 		}
 
@@ -572,7 +574,7 @@ export function registerChatActions() {
 
 		override async run(accessor: ServicesAccessor): Promise<void> {
 			const commandService = accessor.get(ICommandService);
-			commandService.executeCommand('github.copilot.toggleStatusMenu');
+			commandService.executeCommand(defaultChat.completionsMenuCommand);
 		}
 	});
 
@@ -645,7 +647,8 @@ const defaultChat = {
 	manageSettingsUrl: product.defaultChatAgent?.manageSettingsUrl ?? '',
 	managePlanUrl: product.defaultChatAgent?.managePlanUrl ?? '',
 	enterpriseProviderId: product.defaultChatAgent?.enterpriseProviderId ?? '',
-	providerSetting: product.defaultChatAgent?.providerSetting ?? '',
+	completionsAdvancedSetting: product.defaultChatAgent?.completionsAdvancedSetting ?? '',
+	completionsMenuCommand: product.defaultChatAgent?.completionsMenuCommand ?? '',
 };
 
 // Add next to the command center if command center is disabled
@@ -726,7 +729,13 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 					primaryActionIcon = Codicon.copilotNotConnected;
 				} else if (chatQuotaExceeded || completionsQuotaExceeded) {
 					primaryActionId = OPEN_CHAT_QUOTA_EXCEEDED_DIALOG;
-					primaryActionTitle = quotaToButtonMessage({ chatQuotaExceeded, completionsQuotaExceeded });
+					if (chatQuotaExceeded && !completionsQuotaExceeded) {
+						primaryActionTitle = localize('chatQuotaExceededButton', "Monthly chat messages limit reached. Click for details.");
+					} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
+						primaryActionTitle = localize('completionsQuotaExceededButton', "Monthly code completions limit reached. Click for details.");
+					} else {
+						primaryActionTitle = localize('chatAndCompletionsQuotaExceededButton', "Copilot Free plan limit reached. Click for details.");
+					}
 					primaryActionIcon = Codicon.copilotWarning;
 				} else {
 					primaryActionId = TOGGLE_CHAT_ACTION_ID;
@@ -747,15 +756,5 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 
 		// Reduces flicker a bit on reload/restart
 		markAsSingleton(disposable);
-	}
-}
-
-export function quotaToButtonMessage({ chatQuotaExceeded, completionsQuotaExceeded }: { chatQuotaExceeded: boolean; completionsQuotaExceeded: boolean }): string {
-	if (chatQuotaExceeded && !completionsQuotaExceeded) {
-		return localize('chatQuotaExceededButton', "Monthly chat messages limit reached. Click for details.");
-	} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
-		return localize('completionsQuotaExceededButton', "Monthly code completions limit reached. Click for details.");
-	} else {
-		return localize('chatAndCompletionsQuotaExceededButton', "Copilot Free plan limit reached. Click for details.");
 	}
 }

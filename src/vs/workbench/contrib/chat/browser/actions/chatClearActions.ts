@@ -225,6 +225,7 @@ export function registerNewChatActions() {
 			await editingSession.stop(true);
 			widget.clear();
 			widget.attachmentModel.clear();
+			widget.input.relatedFiles?.clear();
 			widget.focusInput();
 
 			if (!context) {
@@ -344,6 +345,7 @@ export function registerNewChatActions() {
 				category: CHAT_CATEGORY,
 				icon: Codicon.goToEditingSession,
 				f1: true,
+				precondition: ChatContextKeys.Setup.hidden.toNegated(),
 				menu: [{
 					id: MenuId.ViewTitle,
 					when: ContextKeyExpr.and(ContextKeyExpr.equals('view', ChatViewId), ChatContextKeys.editingParticipantRegistered,

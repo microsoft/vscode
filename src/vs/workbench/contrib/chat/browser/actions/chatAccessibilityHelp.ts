@@ -89,7 +89,6 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		content.push(localize('chatEditing.acceptAllFiles', '- Accept All Edits{0}.', '<keybinding:chatEditing.acceptAllFiles>'));
 		content.push(localize('chatEditing.discardAllFiles', '- Discard All Edits{0}.', '<keybinding:chatEditing.discardAllFiles>'));
 		content.push(localize('chatEditing.openFileInDiff', '- Open File in Diff{0}.', '<keybinding:chatEditing.openFileInDiff>'));
-		content.push(localize('chatEditing.addFileToWorkingSet', '- Add File to Working Set{0}.', '<keybinding:chatEditing.addFileToWorkingSet>'));
 		content.push(localize('chatEditing.viewChanges', '- View Changes{0}.', '<keybinding:chatEditing.viewChanges>'));
 	}
 	else {
