@@ -586,7 +586,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 					tokenIndex++;
 				}
 
-				endOffsetsAndScopes.splice(position, 0, { endOffset: endOffset, scopes: [...oldScopes, capture.name], bracket: brackets(capture, startOffset) });
+				endOffsetsAndScopes.splice(position, 0, { endOffset: endOffset, scopes: [capture.name, ...oldScopes], bracket: brackets(capture, startOffset) });
 				endOffsetsAndScopes[tokenIndex].bracket = oldBracket;
 			} else {
 				endOffsetsAndScopes[tokenIndex] = { endOffset: endOffset, scopes: [capture.name], bracket: brackets(capture, startOffset) };

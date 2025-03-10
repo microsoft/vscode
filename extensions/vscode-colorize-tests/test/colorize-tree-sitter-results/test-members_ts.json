@@ -15,7 +15,7 @@
 	},
 	{
 		"c": "A2",
-		"t": "entity.name.type.ts",
+		"t": "entity.name.type.ts entity.name.type.class.ts",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
 			"light_plus": "entity.name.type: #267F99",
@@ -239,7 +239,7 @@
 	},
 	{
 		"c": "A2",
-		"t": "entity.name.type.ts",
+		"t": "entity.name.type.ts meta.type.annotation.ts entity.name.type.ts",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
 			"light_plus": "entity.name.type: #267F99",
