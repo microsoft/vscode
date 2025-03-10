@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ConfigurationChangedEvent, EditorAutoClosingEditStrategy, EditorAutoClosingStrategy, EditorAutoIndentStrategy, EditorAutoSurroundStrategy, EditorOption } from './config/editorOptions.js';
+import { ConfigurationChangedEvent, EditorAutoClosingEditStrategy, EditorAutoClosingStrategy, EditorAutoIndentStrategy, EditorAutoSurroundStrategy, EditorOption, TextEditorCursorStyle } from './config/editorOptions.js';
 import { LineTokens } from './tokens/lineTokens.js';
 import { Position } from './core/position.js';
 import { Range } from './core/range.js';
@@ -83,6 +83,21 @@ export class CursorConfiguration {
 	private readonly _languageId: string;
 	private _electricChars: { [key: string]: boolean } | null;
 
+	public readonly cursorStyle: TextEditorCursorStyle;
+
+	public get cursorStyleKind(): 'beforeCharacter' | 'onCharacter' {
+		switch (this.cursorStyle) {
+			case TextEditorCursorStyle.Line:
+			case TextEditorCursorStyle.LineThin:
+				return 'beforeCharacter';
+			case TextEditorCursorStyle.Block:
+			case TextEditorCursorStyle.Underline:
+			case TextEditorCursorStyle.BlockOutline:
+			case TextEditorCursorStyle.UnderlineThin:
+				return 'onCharacter';
+		}
+	}
+
 	public static shouldRecreate(e: ConfigurationChangedEvent): boolean {
 		return (
 			e.hasChanged(EditorOption.layoutInfo)
@@ -102,6 +117,7 @@ export class CursorConfiguration {
 			|| e.hasChanged(EditorOption.readOnly)
 			|| e.hasChanged(EditorOption.wordSegmenterLocales)
 			|| e.hasChanged(EditorOption.overtypeOnPaste)
+      || e.hasChanged(EditorOption.cursorStyle)
 		);
 	}
 
@@ -144,6 +160,8 @@ export class CursorConfiguration {
 
 		this.surroundingPairs = {};
 		this._electricChars = null;
+
+		this.cursorStyle = options.get(EditorOption.cursorStyle);
 
 		this.shouldAutoCloseBefore = {
 			quote: this._getShouldAutoClose(languageId, this.autoClosingQuotes, true),

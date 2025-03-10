@@ -229,7 +229,7 @@ export class ModelLineProjectionData {
 
 				return result;
 			}
-		} else if (affinity === PositionAffinity.Right || affinity === PositionAffinity.RightOfInjectedText) {
+		} else if (affinity === PositionAffinity.Right || affinity === PositionAffinity.RightOfInjectedText || affinity === PositionAffinity.RightOfInjectedTextBlockCursor) {
 			let result = injectedText.offsetInInputWithInjections + injectedText.length;
 			let index = injectedText.injectedTextIndex;
 			// traverse all injected text that touch each other
