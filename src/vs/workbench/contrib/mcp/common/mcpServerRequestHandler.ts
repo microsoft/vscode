@@ -8,11 +8,12 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogger } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IMcpMessageTransport } from './mcpRegistryTypes.js';
-import { MpcResponseError } from './mcpTypes.js';
+import { McpConnectionState, MpcResponseError } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
 
 /**
@@ -113,6 +114,14 @@ export class McpServerRequestHandler extends Disposable {
 	) {
 		super();
 		this._register(launch.onDidReceiveMessage(message => this.handleMessage(message)));
+		this._register(autorun(reader => {
+			const state = launch.state.read(reader).state;
+			// the handler will get disposed when the launch stops, but if we're still
+			// create()'ing we need to make sure to cancel the initialize request.
+			if (state === McpConnectionState.Kind.Error || state === McpConnectionState.Kind.Stopped) {
+				this.cancelAllRequests();
+			}
+		}));
 	}
 
 	/**
@@ -151,12 +160,12 @@ export class McpServerRequestHandler extends Disposable {
 
 		// Send the request
 		this.launch.send(jsonRpcRequest);
-		promise.p.finally(() => {
+		const ret = promise.p.finally(() => {
 			cancelListener.dispose();
 			this._pendingRequests.delete(id);
 		});
 
-		return promise.p as Promise<R>;
+		return ret as Promise<R>;
 	}
 
 	/**
@@ -352,9 +361,13 @@ export class McpServerRequestHandler extends Disposable {
 		return { roots: this._roots };
 	}
 
-	public override dispose(): void {
+	private cancelAllRequests() {
 		this._pendingRequests.forEach(pending => pending.promise.cancel());
 		this._pendingRequests.clear();
+	}
+
+	public override dispose(): void {
+		this.cancelAllRequests();
 		super.dispose();
 	}
 

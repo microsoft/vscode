@@ -59,7 +59,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 
 	public hasSavedInputs(collection: McpCollectionDefinition, definition: McpServerDefinition): boolean {
 		const stored = this.getInputStorageData(collection, definition);
-		return !!stored && !isEmptyObject(stored.map);
+		return !!stored && !!stored.map && !isEmptyObject(stored.map);
 	}
 
 	public clearSavedInputs(collection: McpCollectionDefinition, definition: McpServerDefinition) {
@@ -84,7 +84,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		if (definition.variableReplacement && storage) {
 			const { folder, section, target } = definition.variableReplacement;
 			// based on _configurationResolverService.resolveWithInteractionReplace
-			launch = await this._configurationResolverService.resolveAnyAsync(folder, section);
+			launch = await this._configurationResolverService.resolveAnyAsync(folder, launch);
 
 			const newVariables = await this._configurationResolverService.resolveWithInteraction(folder, launch, section, storage.map, target);
 
