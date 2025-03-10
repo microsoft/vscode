@@ -98,7 +98,7 @@ steps:
 
     - ${{ elseif contains(parameters.VSCODE_CLI_TARGET, '-windows-') }}:
       - script: |
-          $env:CFLAGS = "$env:CFLAGS /Qspectre"
+          $env:CFLAGS = "$env:CFLAGS /ZH:SHA_256 /Qspectre /sdl"
           cargo build --release --target ${{ parameters.VSCODE_CLI_TARGET }} --bin=code
         displayName: Compile ${{ parameters.VSCODE_CLI_TARGET }}
         workingDirectory: $(Build.SourcesDirectory)/cli
