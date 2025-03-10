@@ -332,6 +332,20 @@ const troubleshootingOptions: Fig.Option[] = [
 	},
 ];
 
+
+export function parseInstalledExtensions(out: string): Fig.Suggestion[] | undefined {
+	const extensions = out.split('\n').filter(Boolean).map((line) => {
+		const [id, version] = line.split('@');
+		return {
+			name: id,
+			type: 'option' as Fig.SuggestionType,
+			description: `Version: ${version}`
+		};
+	});
+	return extensions;
+}
+
+
 const codeCompletionSpec: Fig.Spec = {
 	name: 'code',
 	description: 'Visual Studio Code',
@@ -348,15 +362,3 @@ const codeCompletionSpec: Fig.Spec = {
 
 export default codeCompletionSpec;
 
-
-export function parseInstalledExtensions(out: string): Fig.Suggestion[] | undefined {
-	const extensions = out.split('\n').filter(Boolean).map((line) => {
-		const [id, version] = line.split('@');
-		return {
-			name: id,
-			type: 'option' as Fig.SuggestionType,
-			description: `Version: ${version}`
-		};
-	});
-	return extensions;
-}
