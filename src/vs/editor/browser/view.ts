@@ -681,7 +681,6 @@ export class View extends ViewEventHandler {
 	}
 
 	public isFocused(): boolean {
-		this._editContext.refreshFocusState();
 		return this._editContext.isFocused();
 	}
 
