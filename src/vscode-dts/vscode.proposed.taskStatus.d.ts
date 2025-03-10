@@ -21,7 +21,7 @@ declare module 'vscode' {
 
 	export interface TaskStatusEvent {
 		/**
-		 * The task item representing the task that got started.
+		 * The task item representing the task for which the event occurred.
 		 */
 		readonly execution: TaskExecution;
 

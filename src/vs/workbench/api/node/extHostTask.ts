@@ -27,7 +27,6 @@ import { homedir } from 'os';
 import { IExtHostVariableResolverProvider } from '../common/extHostVariableResolverService.js';
 
 export class ExtHostTask extends ExtHostTaskBase {
-
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
 		@IExtHostInitDataService initData: IExtHostInitDataService,

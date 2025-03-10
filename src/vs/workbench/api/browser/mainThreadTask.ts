@@ -736,6 +736,7 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 									result.variables.set(variableName, partiallyResolvedVars[i]);
 								}
 							}
+
 							if (Types.isString(values.process)) {
 								result.process = values.process;
 							}
