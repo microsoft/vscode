@@ -78,6 +78,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	private readonly _sash: IObservable<DiffEditorSash | undefined>;
 	private readonly _boundarySashes = observableValue<IBoundarySashes | undefined>(this, undefined);
 
+	private _codeEditorService: ICodeEditorService;
 	private _accessibleDiffViewerShouldBeVisible = observableValue(this, false);
 	private _accessibleDiffViewerVisible = derived(this, reader =>
 		this._options.onlyShowAccessibleDiffViewer.read(reader)
@@ -107,6 +108,8 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	) {
 		super();
 		codeEditorService.willCreateDiffEditor();
+
+		this._codeEditorService = codeEditorService;
 
 		this._contextKeyService.createKey('isInDiffEditor', true);
 
@@ -699,6 +702,11 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 				this._accessibilitySignalService.playSignal(AccessibilitySignal.diffLineModified, { source: 'diffEditor.cursorPositionChanged' });
 			}
 		}
+	}
+
+	public override dispose(): void {
+		super.dispose();
+		this._codeEditorService.removeDiffEditor(this);
 	}
 }
 
