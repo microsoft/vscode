@@ -5,8 +5,8 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { adjustCellDiffAndOriginalModelBasedOnCellAddDelete, adjustCellDiffAndOriginalModelBasedOnCellMovements, adjustCellDiffForKeepingADeletedCell, adjustCellDiffForKeepingAnInsertedCell, adjustCellDiffForRevertingADeletedCell, adjustCellDiffForRevertingAnInsertedCell } from '../../browser/chatEditing/chatEditingModifiedNotebookEntry.js';
-import { ICellDiffInfo } from '../../browser/chatEditing/chatEditingNotebookEditorIntegration.js';
+import { adjustCellDiffAndOriginalModelBasedOnCellAddDelete, adjustCellDiffAndOriginalModelBasedOnCellMovements, adjustCellDiffForKeepingADeletedCell, adjustCellDiffForKeepingAnInsertedCell, adjustCellDiffForRevertingADeletedCell, adjustCellDiffForRevertingAnInsertedCell } from '../../browser/chatEditing/notebook/helpers.js';
+import { ICellDiffInfo } from '../../browser/chatEditing/notebook/notebookCellChanges.js';
 import { nullDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import { ObservablePromise, observableValue } from '../../../../../base/common/observable.js';
 import { CellEditType, CellKind, ICell, ICellEditOperation, NotebookCellsChangeType } from '../../../notebook/common/notebookCommon.js';
@@ -331,6 +331,64 @@ suite('ChatEditingModifiedNotebookEntry', function () {
 				{
 					diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('2'), originalCellIndex: 2,
 					modifiedCellIndex: 2, modifiedModel: createModifiedModel('2'),
+				},
+			]);
+		});
+		test('Delete second inserted with multiple cells (subsequent inserts)', async function () {
+			const cellsDiffInfo: ICellDiffInfo[] = [
+				{
+					diff, keep, undo, type: 'insert', originalModel: createOriginalModel('null'), originalCellIndex: undefined,
+					modifiedCellIndex: 0, modifiedModel: createModifiedModel('New0'),
+				},
+				{
+					diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('0'), originalCellIndex: 0,
+					modifiedCellIndex: 1, modifiedModel: createModifiedModel('0'),
+				},
+				{
+					diff, keep, undo, type: 'delete', originalModel: createOriginalModel('1'), originalCellIndex: 1,
+					modifiedCellIndex: undefined, modifiedModel: createModifiedModel('null'),
+				},
+				{
+					diff, keep, undo, type: 'insert', originalModel: createOriginalModel('null'), originalCellIndex: undefined,
+					modifiedCellIndex: 2, modifiedModel: createModifiedModel('1'),
+				},
+				{
+					diff, keep, undo, type: 'insert', originalModel: createOriginalModel('null'), originalCellIndex: undefined,
+					modifiedCellIndex: 3, modifiedModel: createModifiedModel('3'),
+				},
+				{
+					diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('2'), originalCellIndex: 2,
+					modifiedCellIndex: 4, modifiedModel: createModifiedModel('4'),
+				},
+			];
+
+			const result = adjustCellDiffForRevertingAnInsertedCell(2,
+				cellsDiffInfo,
+				applyEdits);
+
+			assert.deepStrictEqual(appliedEdits, [
+				{ editType: CellEditType.Replace, index: 2, cells: [], count: 1 },
+			]);
+			assert.deepStrictEqual(result, [
+				{
+					diff, keep, undo, type: 'insert', originalModel: createOriginalModel('null'), originalCellIndex: undefined,
+					modifiedCellIndex: 0, modifiedModel: createModifiedModel('New0'),
+				},
+				{
+					diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('0'), originalCellIndex: 0,
+					modifiedCellIndex: 1, modifiedModel: createModifiedModel('0'),
+				},
+				{
+					diff, keep, undo, type: 'delete', originalModel: createOriginalModel('1'), originalCellIndex: 1,
+					modifiedCellIndex: undefined, modifiedModel: createModifiedModel('null'),
+				},
+				{
+					diff, keep, undo, type: 'insert', originalModel: createOriginalModel('null'), originalCellIndex: undefined,
+					modifiedCellIndex: 2, modifiedModel: createModifiedModel('3'),
+				},
+				{
+					diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('2'), originalCellIndex: 2,
+					modifiedCellIndex: 3, modifiedModel: createModifiedModel('4'),
 				},
 			]);
 		});

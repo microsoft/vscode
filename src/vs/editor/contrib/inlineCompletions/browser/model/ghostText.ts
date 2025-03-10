@@ -68,7 +68,11 @@ export interface IGhostTextLine {
 	lineDecorations: LineDecoration[];
 }
 
+
 export class GhostTextPart {
+
+	readonly lines: IGhostTextLine[];
+
 	constructor(
 		readonly column: number,
 		readonly text: string,
@@ -78,12 +82,11 @@ export class GhostTextPart {
 		readonly preview: boolean,
 		private _inlineDecorations: InlineDecoration[] = [],
 	) {
+		this.lines = splitLines(this.text).map((line, i) => ({
+			line,
+			lineDecorations: LineDecoration.filter(this._inlineDecorations, i + 1, 1, line.length + 1)
+		}));
 	}
-
-	readonly lines: IGhostTextLine[] = splitLines(this.text).map((line, i) => ({
-		line,
-		lineDecorations: LineDecoration.filter(this._inlineDecorations, i + 1, 1, line.length + 1)
-	}));
 
 	equals(other: GhostTextPart): boolean {
 		return this.column === other.column &&
@@ -96,22 +99,24 @@ export class GhostTextPart {
 }
 
 export class GhostTextReplacement {
-	public readonly parts: ReadonlyArray<GhostTextPart> = [
-		new GhostTextPart(
-			this.columnRange.endColumnExclusive,
-			this.text,
-			false
-		),
-	];
+	public readonly parts: ReadonlyArray<GhostTextPart>;
+	readonly newLines: string[];
 
 	constructor(
 		readonly lineNumber: number,
 		readonly columnRange: ColumnRange,
 		readonly text: string,
 		public readonly additionalReservedLineCount: number = 0,
-	) { }
-
-	readonly newLines = splitLines(this.text);
+	) {
+		this.parts = [
+			new GhostTextPart(
+				this.columnRange.endColumnExclusive,
+				this.text,
+				false
+			),
+		];
+		this.newLines = splitLines(this.text);
+	}
 
 	renderForScreenReader(_lineText: string): string {
 		return this.newLines.join('\n');

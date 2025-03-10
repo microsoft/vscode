@@ -155,7 +155,7 @@ export function generateUuid(): string {
 		// > usable feature in insecure contexts: the getRandomValues() method.
 		// > In general, you should use this API only in secure contexts.
 
-		return crypto.randomUUID.bind(crypto).toString();
+		return crypto.randomUUID.bind(crypto)();
 	}
 
 	// prep-work

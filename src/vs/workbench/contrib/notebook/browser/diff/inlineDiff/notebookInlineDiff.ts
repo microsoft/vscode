@@ -18,6 +18,9 @@ import { NotebookDeletedCellDecorator } from './notebookDeletedCellDecorator.js'
 import { NotebookInsertedCellDecorator } from './notebookInsertedCellDecorator.js';
 import { INotebookLoggingService } from '../../../common/notebookLoggingService.js';
 import { computeDiff } from '../../../common/notebookDiff.js';
+import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
+import { INotebookOriginalModelReferenceFactory, NotebookOriginalModelReferenceFactory } from './notebookOriginalModelRefFactory.js';
+import { INotebookOriginalCellModelFactory, OriginalNotebookCellModelFactory } from './notebookOriginalCellModelFactory.js';
 
 export class NotebookInlineDiffDecorationContribution extends Disposable implements INotebookEditorContribution {
 	static ID: string = 'workbench.notebook.inlineDiffDecoration';
@@ -163,3 +166,5 @@ export class NotebookInlineDiffDecorationContribution extends Disposable impleme
 }
 
 registerNotebookContribution(NotebookInlineDiffDecorationContribution.ID, NotebookInlineDiffDecorationContribution);
+registerSingleton(INotebookOriginalModelReferenceFactory, NotebookOriginalModelReferenceFactory, InstantiationType.Delayed);
+registerSingleton(INotebookOriginalCellModelFactory, OriginalNotebookCellModelFactory, InstantiationType.Delayed);

@@ -200,7 +200,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 			editorContainer,
 			foldingIndicator,
 			templateDisposables,
-			elementDisposables: new DisposableStore(),
+			elementDisposables: templateDisposables.add(new DisposableStore()),
 			cellParts,
 			toJSON: () => { return {}; }
 		};
@@ -226,7 +226,6 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 	}
 
 	disposeTemplate(templateData: MarkdownCellRenderTemplate): void {
-		templateData.elementDisposables.dispose();
 		templateData.templateDisposables.dispose();
 	}
 
@@ -367,7 +366,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			outputShowMoreContainer,
 			editor,
 			templateDisposables,
-			elementDisposables: this._register(new DisposableStore()),
+			elementDisposables: templateDisposables.add(new DisposableStore()),
 			cellParts,
 			toJSON: () => { return {}; }
 		};
@@ -398,7 +397,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	}
 
 	disposeTemplate(templateData: CodeCellRenderTemplate): void {
-		templateData.templateDisposables.clear();
+		templateData.templateDisposables.dispose();
 	}
 
 	disposeElement(element: ICellViewModel, index: number, templateData: CodeCellRenderTemplate, height: number | undefined): void {

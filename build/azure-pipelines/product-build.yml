@@ -279,6 +279,10 @@ extends:
                   name: Azure Pipelines
                   image: macOS-13
                   os: macOS
+                variables:
+                  # todo@connor4312 to diagnose build flakes
+                  - name: MSRUSTUP_LOG
+                    value: debug
                 steps:
                   - template: build/azure-pipelines/darwin/cli-build-darwin.yml@self
                     parameters:
@@ -292,6 +296,10 @@ extends:
                   name: Azure Pipelines
                   image: macOS-13
                   os: macOS
+                variables:
+                  # todo@connor4312 to diagnose build flakes
+                  - name: MSRUSTUP_LOG
+                    value: debug
                 steps:
                   - template: build/azure-pipelines/darwin/cli-build-darwin.yml@self
                     parameters:
