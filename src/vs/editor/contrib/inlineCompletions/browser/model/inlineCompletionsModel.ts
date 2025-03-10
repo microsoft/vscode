@@ -375,7 +375,7 @@ export class InlineCompletionsModel extends Disposable {
 
 		const item = this._inlineCompletionItems.read(reader);
 		const inlineEditResult = item?.inlineEdit;
-		if (inlineEditResult) {
+		if (inlineEditResult && this._inAcceptFlow.read(reader)) {
 			if (this._hasVisiblePeekWidgets.read(reader)) {
 				return undefined;
 			}
@@ -386,7 +386,7 @@ export class InlineCompletionsModel extends Disposable {
 			const cursorAtInlineEdit = LineRange.fromRangeInclusive(edit.range).addMargin(1, 1).contains(cursorPos.lineNumber);
 			const cursorInsideShowRange = cursorAtInlineEdit || (inlineEditResult.inlineCompletion.cursorShowRange?.containsPosition(cursorPos) ?? true);
 
-			if (!cursorInsideShowRange && !this._inAcceptFlow.read(reader)) {
+			if (!cursorInsideShowRange) {
 				return undefined;
 			}
 
