@@ -801,11 +801,11 @@ export const WINDOW_ACTIVE_BORDER = registerColor('window.activeBorder', {
 	light: null,
 	hcDark: contrastBorder,
 	hcLight: contrastBorder
-}, localize('windowActiveBorder', "The color used for the border of the window when it is active on macOS or Linux. Requires custom title bar style and custom or hidden title controls on Linux."));
+}, localize('windowActiveBorder', "The color used for the border of the window when it is active on macOS or Linux. Requires custom title bar style and custom or hidden window controls on Linux."));
 
 export const WINDOW_INACTIVE_BORDER = registerColor('window.inactiveBorder', {
 	dark: null,
 	light: null,
 	hcDark: contrastBorder,
 	hcLight: contrastBorder
-}, localize('windowInactiveBorder', "The color used for the border of the window when it is inactive on macOS or Linux. Requires custom title bar style and custom or hidden title controls on Linux."));
+}, localize('windowInactiveBorder', "The color used for the border of the window when it is inactive on macOS or Linux. Requires custom title bar style and custom or hidden window controls on Linux."));
