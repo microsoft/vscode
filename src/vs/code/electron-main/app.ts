@@ -174,7 +174,6 @@ export class CodeApplication extends Disposable {
 
 		const allowedPermissionsInCore = new Set([
 			'media',
-			'font-access',
 			'local-fonts',
 			// TODO(deepak1556): Should be removed once migration is complete
 			// https://github.com/microsoft/vscode/issues/239228
