@@ -141,17 +141,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 
 	private _workingSet = new ResourceMap<WorkingSetDisplayMetadata>();
-	get workingSet() {
-		this._assertNotDisposed();
-
-		// Return here a reunion between the AI modified entries and the user built working set
-		const result = new ResourceMap<WorkingSetDisplayMetadata>(this._workingSet);
-		for (const entry of this._entriesObs.get()) {
-			result.set(entry.modifiedURI, { state: entry.state.get() });
-		}
-
-		return result;
-	}
 
 	private _editorPane: MultiDiffEditor | undefined;
 
