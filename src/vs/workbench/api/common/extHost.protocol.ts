@@ -2523,6 +2523,7 @@ export interface ExtHostTerminalShellIntegrationShape {
 	$shellExecutionData(instanceId: number, data: string): void;
 	$shellEnvChange(instanceId: number, shellEnvKeys: string[], shellEnvValues: string[], isTrusted: boolean): void;
 	$cwdChange(instanceId: number, cwd: UriComponents | undefined): void;
+	$setHasRichCommandDetection(instanceId: number, value: boolean): void;
 	$closeTerminal(instanceId: number): void;
 }
 

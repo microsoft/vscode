@@ -33,6 +33,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	private _dimensions: ITerminalDimensions;
 	private __isCommandStorageDisabled: boolean = false;
 	private _handleCommandStartOptions?: IHandleCommandOptions;
+	private _hasRichCommandDetection: boolean = false;
+	get hasRichCommandDetection() { return this._hasRichCommandDetection; }
 
 	private _ptyHeuristicsHooks: ICommandDetectionHeuristicsHooks;
 	private readonly _ptyHeuristics: MandatoryMutableDisposable<IPtyHeuristics>;
@@ -71,6 +73,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	readonly onCommandInvalidated = this._onCommandInvalidated.event;
 	private readonly _onCurrentCommandInvalidated = this._register(new Emitter<ICommandInvalidationRequest>());
 	readonly onCurrentCommandInvalidated = this._onCurrentCommandInvalidated.event;
+	private readonly _onSetRichCommandDetection = this._register(new Emitter<boolean>());
+	readonly onSetRichCommandDetection = this._onSetRichCommandDetection.event;
 
 	constructor(
 		private readonly _terminal: Terminal,
@@ -221,6 +225,11 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		} else if (!value && !(this._ptyHeuristics.value instanceof UnixPtyHeuristics)) {
 			this._ptyHeuristics.value = new UnixPtyHeuristics(this._terminal, this, this._ptyHeuristicsHooks, this._logService);
 		}
+	}
+
+	setHasRichCommandDetection(value: boolean): void {
+		this._hasRichCommandDetection = value;
+		this._onSetRichCommandDetection.fire(value);
 	}
 
 	setIsCommandStorageDisabled(): void {
@@ -403,6 +412,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		}
 		return {
 			isWindowsPty: this._ptyHeuristics.value instanceof WindowsPtyHeuristics,
+			hasRichCommandDetection: this._hasRichCommandDetection,
 			commands,
 			promptInputModel: this._promptInputModel.serialize(),
 		};
@@ -411,6 +421,9 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	deserialize(serialized: ISerializedCommandDetectionCapability): void {
 		if (serialized.isWindowsPty) {
 			this.setIsWindowsPty(serialized.isWindowsPty);
+		}
+		if (serialized.hasRichCommandDetection) {
+			this.setHasRichCommandDetection(serialized.hasRichCommandDetection);
 		}
 		const buffer = this._terminal.buffer.normal;
 		for (const e of serialized.commands) {

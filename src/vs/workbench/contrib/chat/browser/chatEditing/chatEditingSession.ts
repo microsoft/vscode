@@ -10,9 +10,8 @@ import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { StringSHA1 } from '../../../../../base/common/hash.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
-import { Disposable, DisposableMap, DisposableStore, dispose } from '../../../../../base/common/lifecycle.js';
-import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
-import { Schemas } from '../../../../../base/common/network.js';
+import { Disposable, DisposableMap, dispose } from '../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
 import { asyncTransaction, autorun, derived, derivedOpts, derivedWithStore, IObservable, IReader, ITransaction, ObservablePromise, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { autorunDelta, autorunIterableDelta } from '../../../../../base/common/observableInternal/autorun.js';
 import { isEqual, joinPath } from '../../../../../base/common/resources.js';
@@ -51,7 +50,7 @@ import { ChatEditingTextModelContentProvider } from './chatEditingTextModelConte
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ChatEditingModifiedNotebookEntry } from './chatEditingModifiedNotebookEntry.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { ChatEditingModifiedNotebookDiff } from './chatEditingModifiedNotebookDiff.js';
+import { ChatEditingModifiedNotebookDiff } from './notebook/chatEditingModifiedNotebookDiff.js';
 
 const STORAGE_CONTENTS_FOLDER = 'contents';
 const STORAGE_STATE_FILE = 'state.json';
@@ -142,19 +141,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 
 	private _workingSet = new ResourceMap<WorkingSetDisplayMetadata>();
-	get workingSet() {
-		this._assertNotDisposed();
-
-		// Return here a reunion between the AI modified entries and the user built working set
-		const result = new ResourceMap<WorkingSetDisplayMetadata>(this._workingSet);
-		for (const entry of this._entriesObs.get()) {
-			result.set(entry.modifiedURI, { state: entry.state.get() });
-		}
-
-		return result;
-	}
-
-	private _removedTransientEntries = new ResourceSet();
 
 	private _editorPane: MultiDiffEditor | undefined;
 
@@ -431,10 +417,8 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 	public createSnapshot(requestId: string, undoStop: string | undefined): void {
 		const snapshot = this._createSnapshot(requestId, undoStop);
-		for (const [uri, data] of this._workingSet) {
-			if (data.state !== WorkingSetEntryState.Suggested) {
-				this._workingSet.set(uri, { state: WorkingSetEntryState.Sent });
-			}
+		for (const [uri, _] of this._workingSet) {
+			this._workingSet.set(uri, { state: WorkingSetEntryState.Sent });
 		}
 
 		const linearHistoryPtr = this._linearHistoryIndex.get();
@@ -562,9 +546,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			const state = this._workingSet.get(uri);
 			if (state !== undefined) {
 				didRemoveUris = this._workingSet.delete(uri) || didRemoveUris;
-				if (reason === WorkingSetEntryRemovalReason.User && state.state === WorkingSetEntryState.Suggested) {
-					this._removedTransientEntries.add(uri);
-				}
 			}
 		}
 
@@ -572,20 +553,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			return; // noop
 		}
 
-		this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
-	}
-
-	markIsReadonly(resource: URI, isReadonly?: boolean): void {
-		const entry = this._workingSet.get(resource);
-		if (entry) {
-			if (entry.state === WorkingSetEntryState.Suggested) {
-				entry.state = WorkingSetEntryState.Attached;
-			}
-		} else {
-			this._workingSet.set(resource, {
-				state: WorkingSetEntryState.Attached,
-			});
-		}
 		this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
 	}
 
@@ -757,61 +724,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				});
 			},
 		};
-	}
-
-	private _trackUntitledWorkingSetEntry(resource: URI) {
-		if (resource.scheme !== Schemas.untitled) {
-			return;
-		}
-		const untitled = this._textFileService.untitled.get(resource);
-		if (!untitled) { // Shouldn't happen
-			return;
-		}
-
-		// Track this file until
-		// 1. it is removed from the working set
-		// 2. it is closed
-		// 3. we are disposed
-		const store = new DisposableStore();
-		store.add(this.onDidChange(e => {
-			if (e === ChatEditingSessionChangeType.WorkingSet && !this._workingSet.get(resource)) {
-				// The user has removed the file from the working set
-				store.dispose();
-			}
-		}));
-		store.add(this._textFileService.untitled.onDidSave(e => {
-			const existing = this._workingSet.get(resource);
-			if (isEqual(e.source, resource) && existing) {
-				this._workingSet.delete(resource);
-				this._workingSet.set(e.target, existing);
-				store.dispose();
-				this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
-			}
-		}));
-		store.add(this._editorService.onDidCloseEditor((e) => {
-			if (isEqual(e.editor.resource, resource)) {
-				this._workingSet.delete(resource);
-				store.dispose();
-				this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
-			}
-		}));
-		this._store.add(store);
-	}
-
-	addFileToWorkingSet(resource: URI, description?: string, proposedState?: WorkingSetEntryState.Suggested): void {
-		const state = this._workingSet.get(resource);
-		if (proposedState === WorkingSetEntryState.Suggested) {
-			if (state !== undefined || this._removedTransientEntries.has(resource)) {
-				return;
-			}
-			this._workingSet.set(resource, { description, state: WorkingSetEntryState.Suggested });
-			this._trackUntitledWorkingSetEntry(resource);
-			this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
-		} else if (state === undefined || state.state === WorkingSetEntryState.Suggested) {
-			this._workingSet.set(resource, { description, state: WorkingSetEntryState.Attached });
-			this._trackUntitledWorkingSetEntry(resource);
-			this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
-		}
 	}
 
 	private _getHistoryEntryByLinearIndex(index: number) {

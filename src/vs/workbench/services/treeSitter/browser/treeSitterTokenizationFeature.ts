@@ -338,7 +338,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		let tokenUpdate: { newTokens: TokenUpdate[] } | undefined;
 
 		for (let i = 0; i < rangeChanges.length; i++) {
-			if (versionId !== textModel.getVersionId()) {
+			if (!textModel.isDisposed() && versionId !== textModel.getVersionId()) {
 				// Our captures have become invalid and we need to re-capture
 				break;
 			}
@@ -586,7 +586,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 					tokenIndex++;
 				}
 
-				endOffsetsAndScopes.splice(position, 0, { endOffset: endOffset, scopes: [...oldScopes, capture.name], bracket: brackets(capture, startOffset) });
+				endOffsetsAndScopes.splice(position, 0, { endOffset: endOffset, scopes: [capture.name, ...oldScopes], bracket: brackets(capture, startOffset) });
 				endOffsetsAndScopes[tokenIndex].bracket = oldBracket;
 			} else {
 				endOffsetsAndScopes[tokenIndex] = { endOffset: endOffset, scopes: [capture.name], bracket: brackets(capture, startOffset) };

@@ -14,11 +14,13 @@ import { IOpenerService } from '../../../../../../../platform/opener/common/open
 import { PromptsConfig } from '../../../../../../../platform/prompts/common/config.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { IPromptPath, IPromptsService } from '../../../../common/promptSyntax/service/types.js';
-import { appendToCommandPalette } from '../../../../../files/browser/fileActions.contribution.js';
 import { IQuickInputService } from '../../../../../../../platform/quickinput/common/quickInput.js';
 import { ServicesAccessor } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { MenuId, MenuRegistry } from '../../../../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../../../../platform/contextkey/common/contextkey.js';
+import { ChatContextKeys } from '../../../../common/chatContextKeys.js';
 
 /**
  * Base command ID prefix.
@@ -109,7 +111,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: LOCAL_COMMAND_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
 	handler: commandFactory('local'),
-	when: PromptsConfig.enabledCtx,
+	when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
 });
 
 /**
@@ -119,29 +121,29 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: USER_COMMAND_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
 	handler: commandFactory('user'),
-	when: PromptsConfig.enabledCtx,
+	when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
 });
 
 /**
  * Register the "Create Prompt" command in the command palette.
  */
-appendToCommandPalette(
-	{
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
 		id: LOCAL_COMMAND_ID,
 		title: LOCAL_COMMAND_TITLE,
-		category: CHAT_CATEGORY,
+		category: CHAT_CATEGORY
 	},
-	PromptsConfig.enabledCtx,
-);
+	when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled)
+});
 
 /**
  * Register the "Create User Prompt" command in the command palette.
  */
-appendToCommandPalette(
-	{
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
 		id: USER_COMMAND_ID,
 		title: USER_COMMAND_TITLE,
 		category: CHAT_CATEGORY,
 	},
-	PromptsConfig.enabledCtx,
-);
+	when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled)
+});

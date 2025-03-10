@@ -112,6 +112,9 @@ unset VSCODE_NONCE
 __vscode_shell_env_reporting="$VSCODE_SHELL_ENV_REPORTING"
 unset VSCODE_SHELL_ENV_REPORTING
 
+# Report this shell supports rich command detection
+builtin printf '\e]633;P;HasRichCommandDetection=True\a'
+
 __vsc_prompt_start() {
 	builtin printf '\e]633;A\a'
 }

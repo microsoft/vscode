@@ -8,6 +8,7 @@ import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions
 import { localize2 } from '../../../../../nls.js';
 import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatWidgetService } from '../chat.js';
 
 export function registerChatDeveloperActions() {
@@ -24,7 +25,8 @@ class LogChatInputHistoryAction extends Action2 {
 			title: localize2('workbench.action.chat.logInputHistory.label', "Log Chat Input History"),
 			icon: Codicon.attach,
 			category: Categories.Developer,
-			f1: true
+			f1: true,
+			precondition: ChatContextKeys.enabled
 		});
 	}
 
