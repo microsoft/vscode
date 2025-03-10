@@ -31,6 +31,7 @@ import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashC
 import { ChatRequestParser } from './chatRequestParser.js';
 import { IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatTransferredSessionData, IChatUserActionEvent } from './chatService.js';
 import { ChatServiceTelemetry } from './chatServiceTelemetry.js';
+import { ChatSessionStore, IChatSessionIndex } from './chatSessionStore.js';
 import { IChatSlashCommandService } from './chatSlashCommands.js';
 import { IChatVariablesService } from './chatVariables.js';
 import { ChatMessageRole, IChatMessage } from './languageModels.js';
@@ -133,6 +134,9 @@ export class ChatService extends Disposable implements IChatService {
 
 	private readonly _sessionFollowupCancelTokens = this._register(new DisposableMap<string, CancellationTokenSource>());
 	private readonly _chatServiceTelemetry: ChatServiceTelemetry;
+	private readonly _chatSessionStore: ChatSessionStore;
+
+	// private readonly _chatSessionIndex: Promise<IChatSessionIndex>;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -150,6 +154,9 @@ export class ChatService extends Disposable implements IChatService {
 		super();
 
 		this._chatServiceTelemetry = this.instantiationService.createInstance(ChatServiceTelemetry);
+		this._chatSessionStore = this.instantiationService.createInstance(ChatSessionStore);
+		// this._chatSessionIndex = this._chatSessionStore.getSessionIndex();
+
 		const isEmptyWindow = !workspaceContextService.getWorkspace().folders.length;
 		const sessionData = storageService.get(serializedChatKey, isEmptyWindow ? StorageScope.APPLICATION : StorageScope.WORKSPACE, '');
 		if (sessionData) {
@@ -186,6 +193,10 @@ export class ChatService extends Disposable implements IChatService {
 		const liveChats = Array.from(this._sessionModels.values())
 			.filter(session => session.initialLocation === ChatAgentLocation.Panel || session.initialLocation === ChatAgentLocation.EditingSession)
 			.filter(session => session.getRequests().length > 0);
+
+		if (this.configurationService.getValue('chat.useFileStorage')) {
+			this._chatSessionStore.storeSessions(liveChats);
+		}
 
 		const isEmptyWindow = !this.workspaceContextService.getWorkspace().folders.length;
 		if (isEmptyWindow) {
