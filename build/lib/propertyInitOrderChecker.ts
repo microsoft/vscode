@@ -87,7 +87,6 @@ const ignored = new Set([
 	'vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditWithChanges.ts',
 	'vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditsModel.ts',
 	'vs/platform/contextview/browser/contextViewService.ts',
-	'vs/editor/contrib/stickyScroll/browser/stickyScrollWidget.ts',
 	'vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/components/gutterIndicatorMenu.ts',
 	'vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/components/gutterIndicatorView.ts',
 	'vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditsViews/inlineEditsDeletionView.ts',
