@@ -548,7 +548,14 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 	}
 
 	public async $onDidChangeTaskTerminalStatus(value: ITaskStatusDTO): Promise<void> {
-		const execution = await this.getTaskExecution(value.execution.id);
+		let execution;
+		try {
+			execution = await this.getTaskExecution(value.execution.id);
+		} catch (error) {
+			// The task execution is not available anymore
+			return;
+		}
+
 		this._onDidChangeTaskTerminalStatus.fire({
 			execution: execution,
 			taskEventKind: value.taskEventKind
