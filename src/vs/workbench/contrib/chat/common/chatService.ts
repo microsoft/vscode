@@ -505,6 +505,9 @@ export interface IChatService {
 	onDidDisposeSession: Event<{ sessionId: string; reason: 'initializationFailed' | 'cleared' }>;
 
 	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void;
+
+	readonly unifiedViewEnabled: boolean;
+	isEditingLocation(location: ChatAgentLocation): boolean;
 }
 
 export const KEYWORD_ACTIVIATION_SETTING_ID = 'accessibility.voice.keywordActivation';

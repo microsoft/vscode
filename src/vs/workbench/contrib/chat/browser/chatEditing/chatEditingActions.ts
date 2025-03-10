@@ -48,26 +48,35 @@ export abstract class EditingSessionAction extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor, ...args: any[]) {
-		const context: IEditingSessionActionContext | undefined = args[0];
-
-		const chatEditingService = accessor.get(IChatEditingService);
-		const chatWidget = context?.widget ?? accessor.get(IChatWidgetService).getWidgetsByLocations(ChatAgentLocation.EditingSession).at(0);
-
-		if (!chatWidget?.viewModel) {
+		const context = getEditingSessionContext(accessor, args);
+		if (!context || !context.editingSession) {
 			return;
 		}
 
-		const chatSessionId = chatWidget.viewModel.model.sessionId;
-		const editingSession = chatEditingService.getEditingSession(chatSessionId);
-
-		if (!editingSession) {
-			return;
-		}
-
-		return this.runEditingSessionAction(accessor, editingSession, chatWidget, ...args);
+		return this.runEditingSessionAction(accessor, context.editingSession, context.chatWidget, ...args);
 	}
 
 	abstract runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]): any;
+}
+
+export function getEditingSessionContext(accessor: ServicesAccessor, args: any[]): { editingSession?: IChatEditingSession; chatWidget: IChatWidget } | undefined {
+	const context: IEditingSessionActionContext | undefined = args[0];
+
+	const chatEditingService = accessor.get(IChatEditingService);
+	const chatWidget = context?.widget ?? accessor.get(IChatWidgetService).getWidgetsByLocations(ChatAgentLocation.EditingSession).at(0);
+
+	if (!chatWidget?.viewModel) {
+		return;
+	}
+
+	const chatSessionId = chatWidget.viewModel.model.sessionId;
+	const editingSession = chatEditingService.getEditingSession(chatSessionId);
+
+	if (!editingSession) {
+		return;
+	}
+
+	return { editingSession, chatWidget };
 }
 
 

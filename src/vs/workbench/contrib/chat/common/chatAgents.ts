@@ -27,6 +27,7 @@ import { ChatContextKeys } from './chatContextKeys.js';
 import { IChatProgressHistoryResponseContent, IChatRequestVariableData, ISerializableChatAgentData } from './chatModel.js';
 import { IRawChatCommandContribution, RawChatParticipantLocation } from './chatParticipantContribTypes.js';
 import { IChatFollowup, IChatLocationData, IChatProgress, IChatResponseErrorDetails, IChatTaskDto } from './chatService.js';
+import { ChatMode } from './constants.js';
 
 //#region agent service, commands etc
 
@@ -208,7 +209,7 @@ export interface IChatAgentService {
 	readonly onDidChangeAgents: Event<IChatAgent | undefined>;
 	readonly onDidChangeToolsAgentModeEnabled: Event<void>;
 	readonly toolsAgentModeEnabled: boolean;
-	toggleToolsAgentMode(enabled?: boolean): void;
+	setChatMode(mode: ChatMode): void;
 	registerAgent(id: string, data: IChatAgentData): IDisposable;
 	registerAgentImplementation(id: string, agent: IChatAgentImplementation): IDisposable;
 	registerDynamicAgent(data: IChatAgentData, agentImpl: IChatAgentImplementation): IDisposable;
@@ -242,6 +243,7 @@ export interface IChatAgentService {
 }
 
 const ChatToolsAgentModeStorageKey = 'chat.toolsAgentMode';
+const ChatModeStorageKey = 'chat.chatMode';
 
 export class ChatAgentService extends Disposable implements IChatAgentService {
 
@@ -264,6 +266,11 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 	private readonly _agentModeContextKey: IContextKey<boolean>;
 	private readonly _hasToolsAgentContextKey: IContextKey<boolean>;
 
+	/**
+	 * Should it live in a different service?
+	 */
+	private readonly _chatMode: ChatMode;
+
 	private _chatParticipantDetectionProviders = new Map<number, IChatParticipantDetectionProvider>();
 
 	constructor(
@@ -284,8 +291,14 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		this._hasToolsAgentContextKey = ChatContextKeys.Editing.hasToolsAgent.bindTo(contextKeyService);
 		this._agentModeContextKey.set(
 			this.storageService.getBoolean(ChatToolsAgentModeStorageKey, StorageScope.WORKSPACE, false));
+		this._chatMode = this.storageService.get(ChatModeStorageKey, StorageScope.WORKSPACE, ChatMode.Chat) as ChatMode;
 		this._register(
-			this.storageService.onWillSaveState(() => this.storageService.store(ChatToolsAgentModeStorageKey, this._agentModeContextKey.get(), StorageScope.WORKSPACE, StorageTarget.USER)));
+			this.storageService.onWillSaveState(() => this.saveState()));
+	}
+
+	private saveState() {
+		this.storageService.store(ChatToolsAgentModeStorageKey, this._agentModeContextKey.get(), StorageScope.WORKSPACE, StorageTarget.USER);
+		this.storageService.store(ChatModeStorageKey, this._chatMode, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
 	registerAgent(id: string, data: IChatAgentData): IDisposable {
@@ -426,8 +439,8 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		return !!this._hasToolsAgentContextKey.get() && !!this._agentModeContextKey.get();
 	}
 
-	toggleToolsAgentMode(enabled?: boolean): void {
-		this._agentModeContextKey.set(enabled ?? !this._agentModeContextKey.get());
+	setChatMode(mode: ChatMode): void {
+		this._agentModeContextKey.set(mode === ChatMode.Agent);
 		this._onDidChangeToolsAgentModeEnabled.fire();
 		this._onDidChangeAgents.fire(this.getDefaultAgent(ChatAgentLocation.EditingSession));
 	}

@@ -100,6 +100,7 @@ import { ChatStatusBarEntry } from './chatStatus.js';
 import product from '../../../../platform/product/common/product.js';
 import { Event } from '../../../../base/common/event.js';
 import { ChatEditingNotebookFileSystemProviderContrib } from './chatEditing/notebook/chatEditingNotebookFileSystemProvider.js';
+import { ChatConfiguration } from '../common/constants.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -198,6 +199,12 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.statusIndicator', "Controls whether a Copilot related status indicator appears in the lower right corner."),
 			default: product.quality !== 'stable',
 			tags: ['experimental', 'onExp']
+		},
+		[ChatConfiguration.UnifiedChatView]: {
+			type: 'boolean',
+			description: nls.localize('chat.experimental.unifiedChatView', "Enables the unified view with Chat, Edit, and Agent in one place."),
+			default: false,
+			tags: ['experimental'],
 		},
 		[PromptsConfig.CONFIG_KEY]: {
 			type: 'boolean',

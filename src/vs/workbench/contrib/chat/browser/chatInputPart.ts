@@ -76,8 +76,9 @@ import { IChatFollowup } from '../common/chatService.js';
 import { IChatVariablesService } from '../common/chatVariables.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { ChatInputHistoryMaxEntries, IChatHistoryEntry, IChatInputState, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
+import { ChatConfiguration, ChatMode } from '../common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
-import { CancelAction, ChatSubmitAction, ChatSubmitSecondaryAgentAction, IChatExecuteActionContext, IToggleAgentModeArgs, ChatSwitchToNextModelActionId, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
+import { CancelAction, ChatSubmitAction, ChatSubmitSecondaryAgentAction, IChatExecuteActionContext, IToggleChatModeArgs, ChatSwitchToNextModelActionId, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
 import { ImplicitContextAttachmentWidget } from './attachments/implicitContextAttachment.js';
 import { PromptAttachmentsCollectionWidget } from './attachments/promptAttachments/promptAttachmentsCollectionWidget.js';
 import { IChatWidget } from './chat.js';
@@ -896,7 +897,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						return this.instantiationService.createInstance(ModelPickerActionViewItem, action, this._currentLanguageModel, itemDelegate);
 					}
 				} else if (action.id === ToggleAgentModeActionId && action instanceof MenuItemAction) {
-					return this.instantiationService.createInstance(ToggleAgentActionViewItem, action);
+					return this.instantiationService.createInstance(ToggleChatModeActionViewItem, action);
 				}
 
 				return undefined;
@@ -1456,7 +1457,7 @@ class ModelPickerActionViewItem extends DropdownMenuActionViewItemWithKeybinding
 const chatInputEditorContainerSelector = '.interactive-input-editor';
 setupSimpleEditorSelectionStyling(chatInputEditorContainerSelector);
 
-class ToggleAgentActionViewItem extends DropdownMenuActionViewItemWithKeybinding {
+class ToggleChatModeActionViewItem extends DropdownMenuActionViewItemWithKeybinding {
 	private readonly agentStateActions: IAction[];
 
 	constructor(
@@ -1464,7 +1465,9 @@ class ToggleAgentActionViewItem extends DropdownMenuActionViewItemWithKeybinding
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
+		// TODO checked?
 		const agentStateActions = [
 			{
 				...action,
@@ -1472,7 +1475,7 @@ class ToggleAgentActionViewItem extends DropdownMenuActionViewItemWithKeybinding
 				label: localize('chat.agentMode', "Agent"),
 				class: undefined,
 				enabled: true,
-				run: () => action.run({ agentMode: true } satisfies IToggleAgentModeArgs)
+				run: () => action.run({ mode: ChatMode.Agent } satisfies IToggleChatModeArgs)
 			},
 			{
 				...action,
@@ -1480,10 +1483,19 @@ class ToggleAgentActionViewItem extends DropdownMenuActionViewItemWithKeybinding
 				label: localize('chat.normalMode', "Edit"),
 				class: undefined,
 				enabled: true,
-				checked: !action.checked,
-				run: () => action.run({ agentMode: false } satisfies IToggleAgentModeArgs)
+				run: () => action.run({ mode: ChatMode.Edit } satisfies IToggleChatModeArgs)
 			},
 		];
+		if (configurationService.getValue(ChatConfiguration.UnifiedChatView)) {
+			agentStateActions.push({
+				...action,
+				id: 'chatMode',
+				label: localize('chat.chatMode', "Chat"),
+				class: undefined,
+				enabled: true,
+				run: () => action.run({ mode: ChatMode.Chat } satisfies IToggleChatModeArgs)
+			});
+		}
 
 		super(action, agentStateActions, contextMenuService, undefined, keybindingService, contextKeyService);
 		this.agentStateActions = agentStateActions;

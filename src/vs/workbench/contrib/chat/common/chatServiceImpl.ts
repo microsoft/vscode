@@ -5,6 +5,7 @@
 
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { memoize } from '../../../../base/common/decorators.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { ErrorNoTelemetry } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -33,6 +34,7 @@ import { IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChat
 import { ChatServiceTelemetry } from './chatServiceTelemetry.js';
 import { IChatSlashCommandService } from './chatSlashCommands.js';
 import { IChatVariablesService } from './chatVariables.js';
+import { ChatConfiguration, ChatMode } from './constants.js';
 import { ChatMessageRole, IChatMessage } from './languageModels.js';
 import { ILanguageModelToolsService } from './languageModelToolsService.js';
 
@@ -133,6 +135,11 @@ export class ChatService extends Disposable implements IChatService {
 
 	private readonly _sessionFollowupCancelTokens = this._register(new DisposableMap<string, CancellationTokenSource>());
 	private readonly _chatServiceTelemetry: ChatServiceTelemetry;
+
+	@memoize
+	public get unifiedViewEnabled(): boolean {
+		return !!this.configurationService.getValue(ChatConfiguration.UnifiedChatView);
+	}
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -473,7 +480,10 @@ export class ChatService extends Disposable implements IChatService {
 
 		const isTransferred = this.transferredSessionData?.sessionId === sessionId;
 		if (isTransferred) {
-			this.chatAgentService.toggleToolsAgentMode(this.transferredSessionData.toolsAgentModeEnabled);
+			if (this.transferredSessionData.toolsAgentModeEnabled) {
+				this.chatAgentService.setChatMode(ChatMode.Agent);
+			}
+
 			this._transferredSessionData = undefined;
 		}
 
@@ -1036,6 +1046,10 @@ export class ChatService extends Disposable implements IChatService {
 
 		this.storageService.store(globalChatKey, JSON.stringify(existingRaw), StorageScope.PROFILE, StorageTarget.MACHINE);
 		this.trace('transferChatSession', `Transferred session ${model.sessionId} to workspace ${toWorkspace.toString()}`);
+	}
+
+	isEditingLocation(location: ChatAgentLocation): boolean {
+		return location === ChatAgentLocation.EditingSession || this.unifiedViewEnabled;
 	}
 }
 

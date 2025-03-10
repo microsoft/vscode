@@ -171,21 +171,22 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				this.chatOptions.location,
 				{ viewId: this.id },
 				{
-					autoScroll: this.chatOptions.location === ChatAgentLocation.EditingSession,
+					autoScroll: this.chatService.isEditingLocation(this.chatOptions.location), // TODO based on current mode for the session
 					renderFollowups: this.chatOptions.location === ChatAgentLocation.Panel,
 					supportsFileReferences: true,
 					supportsAdditionalParticipants: this.chatOptions.location === ChatAgentLocation.Panel,
 					rendererOptions: {
-						renderCodeBlockPills: this.chatOptions.location === ChatAgentLocation.EditingSession,
+						renderCodeBlockPills: this.chatService.isEditingLocation(this.chatOptions.location),
 						renderTextEditsAsSummary: (uri) => {
-							return this.chatOptions.location === ChatAgentLocation.EditingSession;
+							return this.chatService.isEditingLocation(this.chatOptions.location);
 						},
-						referencesExpandedWhenEmptyResponse: this.chatOptions.location !== ChatAgentLocation.EditingSession,
-						progressMessageAtBottomOfResponse: this.chatOptions.location === ChatAgentLocation.EditingSession,
+						referencesExpandedWhenEmptyResponse: !this.chatService.isEditingLocation(this.chatOptions.location),
+						progressMessageAtBottomOfResponse: this.chatService.isEditingLocation(this.chatOptions.location),
+						hasEditingEnabled: this.chatService.isEditingLocation(this.chatOptions.location),
 					},
 					editorOverflowWidgetsDomNode: editorOverflowNode,
-					enableImplicitContext: this.chatOptions.location === ChatAgentLocation.Panel || this.chatOptions.location === ChatAgentLocation.EditingSession,
-					enableWorkingSet: this.chatOptions.location === ChatAgentLocation.EditingSession ? 'explicit' : undefined
+					enableImplicitContext: this.chatOptions.location === ChatAgentLocation.Panel || this.chatService.isEditingLocation(this.chatOptions.location),
+					enableWorkingSet: this.chatService.isEditingLocation(this.chatOptions.location) ? 'explicit' : undefined
 				},
 				{
 					listForeground: SIDE_BAR_FOREGROUND,

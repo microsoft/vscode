@@ -162,6 +162,7 @@ export interface IChatListItemRendererOptions {
 	readonly renderTextEditsAsSummary?: (uri: URI) => boolean;
 	readonly referencesExpandedWhenEmptyResponse?: boolean;
 	readonly progressMessageAtBottomOfResponse?: boolean;
+	readonly hasEditingEnabled?: boolean;
 }
 
 export interface IChatWidgetViewOptions {

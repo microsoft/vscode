@@ -18,6 +18,7 @@ import { isChatViewTitleActionContext } from '../../common/chatActions.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingSession, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { ChatMode } from '../../common/constants.js';
 import { ChatViewId, EditsViewId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { EditingSessionAction } from '../chatEditing/chatEditingActions.js';
 import { ctxIsGlobalEditingSession } from '../chatEditing/chatEditingEditorContextKeys.js';
@@ -232,8 +233,9 @@ export function registerNewChatActions() {
 				return;
 			}
 
-			if (!isChatViewTitleAction && typeof context.agentMode === 'boolean') {
-				agentService.toggleToolsAgentMode(context.agentMode);
+			if (!isChatViewTitleAction && context.agentMode === true) {
+				// TODO change arg
+				agentService.setChatMode(ChatMode.Agent);
 			}
 
 			if (context.inputValue) {
