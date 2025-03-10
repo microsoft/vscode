@@ -136,7 +136,7 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _chatServiceTelemetry: ChatServiceTelemetry;
 	private readonly _chatSessionStore: ChatSessionStore;
 
-	// private readonly _chatSessionIndex: Promise<IChatSessionIndex>;
+	private readonly _chatSessionIndex: Promise<IChatSessionIndex>;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -154,8 +154,6 @@ export class ChatService extends Disposable implements IChatService {
 		super();
 
 		this._chatServiceTelemetry = this.instantiationService.createInstance(ChatServiceTelemetry);
-		this._chatSessionStore = this.instantiationService.createInstance(ChatSessionStore);
-		// this._chatSessionIndex = this._chatSessionStore.getSessionIndex();
 
 		const isEmptyWindow = !workspaceContextService.getWorkspace().folders.length;
 		const sessionData = storageService.get(serializedChatKey, isEmptyWindow ? StorageScope.APPLICATION : StorageScope.WORKSPACE, '');
@@ -181,6 +179,9 @@ export class ChatService extends Disposable implements IChatService {
 				toolsAgentModeEnabled: transferredData.toolsAgentModeEnabled,
 			};
 		}
+
+		this._chatSessionStore = this.instantiationService.createInstance(ChatSessionStore);
+		this._chatSessionIndex = this._chatSessionStore.getSessionIndex(this._persistedSessions);
 
 		this._register(storageService.onWillSaveState(() => this.saveState()));
 	}

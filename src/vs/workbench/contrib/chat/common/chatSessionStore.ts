@@ -15,7 +15,7 @@ import { FileOperationResult, IFileService, toFileOperationResult } from '../../
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { ChatModel, ISerializableChatData, ISerializableChatDataIn, normalizeSerializableChatData } from './chatModel.js';
+import { ChatModel, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData } from './chatModel.js';
 
 const maxPersistedSessions = 25;
 
@@ -44,7 +44,7 @@ export class ChatSessionStore {
 	async storeSessions(sessions: ChatModel[]): Promise<void> {
 		await this.storeQueue.queue(async () => {
 			try {
-				const index = await this.getIndex();
+				const { index } = await this.getIndex();
 				await Promise.all(sessions.map(session => this.writeSession(session, index)));
 				await this.trimEntries(index);
 				await this.flushIndex(index);
@@ -54,7 +54,7 @@ export class ChatSessionStore {
 		});
 	}
 
-	private async writeSession(session: ChatModel, index: IChatSessionIndexData): Promise<void> {
+	private async writeSession(session: ChatModel | ISerializableChatData, index: IChatSessionIndexData): Promise<void> {
 		try {
 			const storageLocation = this.getStorageLocation(session.sessionId);
 			const content = JSON.stringify(session, undefined, 2);
@@ -114,14 +114,14 @@ export class ChatSessionStore {
 
 	private indexSequencer = new Sequencer();
 	private indexCache: IChatSessionIndexData | undefined;
-	private async getIndex(): Promise<IChatSessionIndexData> {
+	private async getIndex(): Promise<{ index: IChatSessionIndexData; isFresh: boolean }> {
 		if (this.indexCache) {
-			return this.indexCache;
+			return { index: this.indexCache, isFresh: false };
 		}
 
 		return await this.indexSequencer.queue(async () => {
 			if (this.indexCache) {
-				return this.indexCache;
+				return { index: this.indexCache, isFresh: false };
 			}
 
 			try {
@@ -135,27 +135,29 @@ export class ChatSessionStore {
 					this.indexCache = { version: 1, entries: {} };
 				}
 
-				return this.indexCache;
+				return { index: this.indexCache, isFresh: false };
 			} catch (e) {
-				this.handleIndexReadError(e);
+				const isFresh = await this.handleIndexReadError(e);
 				this.indexCache = { version: 1, entries: {} };
-				return this.indexCache;
+				return { index: this.indexCache, isFresh };
 			}
 		});
 	}
 
-	private async handleIndexReadError(error: Error): Promise<void> {
+	private async handleIndexReadError(error: Error): Promise<boolean> {
 		if (toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
 			try {
 				const stat = await this.fileService.resolve(this.storageRoot);
 				if (stat.children?.length === 0) {
-					this.logService.trace('ChatSessionStore: Initializing chat index');
+					this.logService.info(`ChatSessionStore: Initializing chat index in ${this.storageRoot.fsPath}`);
+					return true;
 				} else {
 					this.reportError('indexMissing', `Chats exist in ${this.storageRoot.fsPath} but index is missing`, error);
 				}
 			} catch (e2) {
 				if (toFileOperationResult(e2) === FileOperationResult.FILE_NOT_FOUND) {
-					this.logService.trace('ChatSessionStore: Initializing chat index');
+					this.logService.info(`ChatSessionStore: Initializing chat index in ${this.storageRoot.fsPath}`);
+					return true;
 				} else {
 					this.reportError('statStorageRoot', `Chat index missing, could not stat ${this.storageRoot.fsPath}`, e2);
 				}
@@ -163,11 +165,33 @@ export class ChatSessionStore {
 		} else {
 			this.reportError('indexRead', 'Error reading index', error);
 		}
+
+		return false;
 	}
 
-	async getSessionIndex(): Promise<IChatSessionIndex> {
-		const index = await this.getIndex();
-		return index.entries;
+	async getSessionIndex(initialData?: ISerializableChatsData): Promise<IChatSessionIndex> {
+		const indexResult = await this.getIndex();
+
+		const needsMigrationFromStorageService = indexResult.isFresh && !Object.keys(indexResult.index.entries).length && initialData;
+		if (needsMigrationFromStorageService) {
+			await this.migrate(initialData);
+		}
+
+		return indexResult.index.entries;
+	}
+
+	private async migrate(initialData: ISerializableChatsData): Promise<void> {
+		const index: IChatSessionIndexData = {
+			version: 1,
+			entries: {}
+		};
+
+		await Promise.all(Object.values(initialData).map(async session => {
+			await this.writeSession(session, index);
+		}));
+
+		this.indexCache = index;
+		await this.flushIndex(index);
 	}
 
 	public async readSession(sessionId: string): Promise<ISerializableChatData | undefined> {
@@ -255,8 +279,10 @@ function isChatSessionIndex(data: unknown): data is IChatSessionIndexData {
 	return true;
 }
 
-function getSessionMetadata(session: ChatModel): IChatSessionEntryMetadata {
-	const title = session.title || localize('newChat', "New Chat");
+function getSessionMetadata(session: ChatModel | ISerializableChatData): IChatSessionEntryMetadata {
+	const title = session instanceof ChatModel ?
+		(session.title || localize('newChat', "New Chat")) :
+		session.customTitle ?? ChatModel.getDefaultTitle(session.requests);
 	return {
 		sessionId: session.sessionId,
 		title,
