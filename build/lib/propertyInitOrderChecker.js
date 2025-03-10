@@ -42,6 +42,17 @@ const ts = __importStar(require("typescript"));
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
 const TS_CONFIG_PATH = path.join(__dirname, '../../', 'src', 'tsconfig.json');
+//
+// #############################################################################################
+//
+// A custom typescript checker that ensure constructor properties are NOT used to initialize
+// defined properties. This is needed for the times when `useDefineForClassFields` is gone.
+//
+// see https://github.com/microsoft/vscode/issues/243049, https://github.com/microsoft/vscode/issues/186726,
+// https://github.com/microsoft/vscode/pull/241544
+//
+// #############################################################################################
+//
 const ignored = new Set([
     'vs/base/common/arrays.ts',
     'vs/platform/workspace/common/workspace.ts',
@@ -187,7 +198,6 @@ const ignored = new Set([
     'vs/workbench/contrib/search/common/cacheState.ts',
     'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoSymbolQuickAccess.ts',
     'vs/workbench/contrib/search/browser/anythingQuickAccess.ts',
-    'vs/workbench/contrib/chat/browser/chatEditing/chatEditingCodeEditorIntegration.ts',
     'vs/workbench/contrib/chat/browser/chatEditing/chatEditingSession.ts',
     'vs/workbench/contrib/testing/browser/testResultsView/testResultsOutput.ts',
     'vs/workbench/contrib/testing/common/testExplorerFilterState.ts',
