@@ -226,7 +226,7 @@ function findPSCoreDotnetGlobalTool(): IPossiblePowerShellExe {
 	return new PossiblePowerShellExe(dotnetGlobalToolExePath, '.NET Core PowerShell Global Tool');
 }
 
-function findPSCoreUserInstallation(): IPossiblePowerShellExe {
+function findPSCoreScoopInstallation(): IPossiblePowerShellExe {
 	const scoopAppsDir = path.join(os.homedir(), 'scoop', 'apps');
 	const scoopPwsh = path.join(scoopAppsDir, 'pwsh', 'current', 'pwsh.exe');
 
@@ -292,7 +292,7 @@ async function* enumerateDefaultPowerShellInstallations(): AsyncIterable<IPossib
 		yield pwshExe;
 	}
 
-	pwshExe = await findPSCoreUserInstallation();
+	pwshExe = await findPSCoreScoopInstallation();
 	if (pwshExe) {
 		yield pwshExe;
 	}
