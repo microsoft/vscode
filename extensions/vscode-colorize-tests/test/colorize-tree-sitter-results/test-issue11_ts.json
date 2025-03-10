@@ -1737,7 +1737,7 @@
 	},
 	{
 		"c": "A",
-		"t": "entity.name.type.ts",
+		"t": "entity.name.type.ts entity.name.type.class.ts",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
 			"light_plus": "entity.name.type: #267F99",
@@ -1751,7 +1751,7 @@
 	},
 	{
 		"c": "<",
-		"t": "",
+		"t": "punctuation.definition.typeparameters.begin.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1807,7 +1807,7 @@
 	},
 	{
 		"c": ">",
-		"t": "",
+		"t": "punctuation.definition.typeparameters.end.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1863,7 +1863,7 @@
 	},
 	{
 		"c": "A1",
-		"t": "entity.name.type.ts",
+		"t": "entity.name.type.ts entity.name.type.class.ts",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
 			"light_plus": "entity.name.type: #267F99",
@@ -1877,7 +1877,7 @@
 	},
 	{
 		"c": "<",
-		"t": "",
+		"t": "punctuation.definition.typeparameters.begin.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2031,7 +2031,7 @@
 	},
 	{
 		"c": ">",
-		"t": "",
+		"t": "punctuation.definition.typeparameters.end.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2087,7 +2087,7 @@
 	},
 	{
 		"c": "B",
-		"t": "entity.name.type.ts",
+		"t": "entity.name.type.ts entity.name.type.class.ts",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
 			"light_plus": "entity.name.type: #267F99",
@@ -2143,7 +2143,7 @@
 	},
 	{
 		"c": "C",
-		"t": "entity.name.type.ts",
+		"t": "entity.name.type.ts entity.name.type.class.ts",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
 			"light_plus": "entity.name.type: #267F99",
@@ -2213,7 +2213,7 @@
 	},
 	{
 		"c": "<",
-		"t": "",
+		"t": "punctuation.definition.typeparameters.begin.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2241,7 +2241,7 @@
 	},
 	{
 		"c": ">",
-		"t": "",
+		"t": "punctuation.definition.typeparameters.end.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2409,7 +2409,7 @@
 	},
 	{
 		"c": "<",
-		"t": "punctuation.definition.typeparameters.ts",
+		"t": "punctuation.definition.typeparameters.begin.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2563,7 +2563,7 @@
 	},
 	{
 		"c": ">",
-		"t": "punctuation.definition.typeparameters.ts",
+		"t": "punctuation.definition.typeparameters.end.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2647,7 +2647,7 @@
 	},
 	{
 		"c": "<",
-		"t": "punctuation.definition.typeparameters.ts",
+		"t": "punctuation.definition.typeparameters.begin.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2759,7 +2759,7 @@
 	},
 	{
 		"c": ">",
-		"t": "punctuation.definition.typeparameters.ts",
+		"t": "punctuation.definition.typeparameters.end.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3081,7 +3081,7 @@
 	},
 	{
 		"c": "<",
-		"t": "punctuation.definition.typeparameters.ts",
+		"t": "punctuation.definition.typeparameters.begin.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3109,7 +3109,7 @@
 	},
 	{
 		"c": ">",
-		"t": "punctuation.definition.typeparameters.ts",
+		"t": "punctuation.definition.typeparameters.end.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
