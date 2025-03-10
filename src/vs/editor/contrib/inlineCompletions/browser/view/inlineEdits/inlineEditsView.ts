@@ -38,7 +38,7 @@ export class InlineEditsView extends Disposable {
 
 	private readonly _useMixedLinesDiff = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.useMixedLinesDiff);
 	private readonly _useInterleavedLinesDiff = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.useInterleavedLinesDiff);
-	private readonly _useCodeShifting = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.codeShifting);
+	private readonly _useCodeShifting = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.allowCodeShifting);
 	private readonly _renderSideBySide = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.renderSideBySide);
 	private readonly _showCollapsed = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.showCollapsed);
 	private readonly _useMultiLineGhostText = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.useMultiLineGhostText);
@@ -321,7 +321,7 @@ export class InlineEditsView extends Disposable {
 		if (
 			isSingleInnerEdit && (
 				this._useMixedLinesDiff.read(reader) === 'forStableInsertions'
-				&& this._useCodeShifting.read(reader)
+				&& this._useCodeShifting.read(reader) !== 'never'
 				&& isSingleLineInsertionAfterPosition(diff, inlineEdit.cursorPosition)
 			)
 		) {
@@ -333,7 +333,7 @@ export class InlineEditsView extends Disposable {
 			return 'deletion';
 		}
 
-		if (isSingleMultiLineInsertion(diff) && this._useMultiLineGhostText.read(reader) && this._useCodeShifting.read(reader)) {
+		if (isSingleMultiLineInsertion(diff) && this._useMultiLineGhostText.read(reader) && this._useCodeShifting.read(reader) === 'always') {
 			return 'insertionMultiLine';
 		}
 

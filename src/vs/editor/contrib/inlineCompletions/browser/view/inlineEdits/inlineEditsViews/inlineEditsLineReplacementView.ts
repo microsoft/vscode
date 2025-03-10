@@ -153,7 +153,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 	});
 
 	private readonly _viewZoneInfo = derived<{ height: number; lineNumber: number } | undefined>(reader => {
-		const shouldShowViewZone = this._editor.getOption(EditorOption.inlineSuggest).map(o => o.edits.codeShifting).read(reader);
+		const shouldShowViewZone = this._editor.getOption(EditorOption.inlineSuggest).map(o => o.edits.allowCodeShifting === 'always').read(reader);
 		if (!shouldShowViewZone) {
 			return undefined;
 		}

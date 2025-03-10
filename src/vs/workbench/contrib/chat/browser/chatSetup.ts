@@ -60,6 +60,7 @@ import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.
 import { equalsIgnoreCase } from '../../../../base/common/strings.js';
 import { IStatusbarService } from '../../../services/statusbar/browser/statusbar.js';
 import { IChatEntitlementService, ChatEntitlement, ChatEntitlementService, ChatSetupContext, ChatSetupRequests } from '../common/chatEntitlementService.js';
+import { isObject } from '../../../../base/common/types.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -73,10 +74,13 @@ const defaultChat = {
 	providerName: product.defaultChatAgent?.providerName ?? '',
 	enterpriseProviderId: product.defaultChatAgent?.enterpriseProviderId ?? '',
 	enterpriseProviderName: product.defaultChatAgent?.enterpriseProviderName ?? '',
-	providerSetting: product.defaultChatAgent?.providerSetting ?? '',
 	providerUriSetting: product.defaultChatAgent?.providerUriSetting ?? '',
 	providerScopes: product.defaultChatAgent?.providerScopes ?? [[]],
 	manageSettingsUrl: product.defaultChatAgent?.manageSettingsUrl ?? '',
+	completionsAdvancedSetting: product.defaultChatAgent?.completionsAdvancedSetting ?? '',
+	walkthroughCommand: product.defaultChatAgent?.walkthroughCommand ?? '',
+	completionsRefreshTokenCommand: product.defaultChatAgent?.completionsRefreshTokenCommand ?? '',
+	chatRefreshTokenCommand: product.defaultChatAgent?.chatRefreshTokenCommand ?? '',
 };
 
 //#region Contribution
@@ -168,7 +172,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					title: ChatSetupHideAction.TITLE,
 					f1: true,
 					category: CHAT_CATEGORY,
-					precondition: ChatContextKeys.Setup.installed.negate(),
+					precondition: ContextKeyExpr.and(ChatContextKeys.Setup.installed.negate(), ChatContextKeys.Setup.hidden.negate()),
 					menu: {
 						id: MenuId.ChatTitleBarMenu,
 						group: 'z_hide',
@@ -560,38 +564,32 @@ class ChatSetupWelcomeContent extends Disposable {
 
 		// Header
 		{
-			const header = localize({ key: 'header', comment: ['{Locked="[Copilot]({0})"}'] }, "[Copilot]({0}) is your AI pair programmer.", this.context.state.installed ? 'command:github.copilot.open.walkthrough' : defaultChat.documentationUrl);
-			this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(header, { isTrusted: true }))).element);
+			const header = localize({ key: 'header', comment: ['{Locked="[Copilot]({0})"}'] }, "[Copilot]({0}) is your AI pair programmer.", this.context.state.installed ? `command:${defaultChat.walkthroughCommand}` : defaultChat.documentationUrl);
+			this.element.appendChild($('p', undefined, this._register(markdown.render(new MarkdownString(header, { isTrusted: true }))).element));
 
-			const featuresParent = this.element.appendChild($('div.chat-features-container'));
-			this.element.appendChild(featuresParent);
-
-			const featuresContainer = this.element.appendChild($('div'));
-			featuresParent.appendChild(featuresContainer);
-
-			const featureChatContainer = featuresContainer.appendChild($('div.chat-feature-container'));
-			featureChatContainer.appendChild(renderIcon(Codicon.code));
-
-			const featureChatLabel = featureChatContainer.appendChild($('span'));
-			featureChatLabel.textContent = localize('featureChat', "Code faster with Completions");
-
-			const featureEditsContainer = featuresContainer.appendChild($('div.chat-feature-container'));
-			featureEditsContainer.appendChild(renderIcon(Codicon.editSession));
-
-			const featureEditsLabel = featureEditsContainer.appendChild($('span'));
-			featureEditsLabel.textContent = localize('featureEdits', "Build features with Copilot Edits");
-
-			const featureExploreContainer = featuresContainer.appendChild($('div.chat-feature-container'));
-			featureExploreContainer.appendChild(renderIcon(Codicon.commentDiscussion));
-
-			const featureExploreLabel = featureExploreContainer.appendChild($('span'));
-			featureExploreLabel.textContent = localize('featureExplore', "Explore your codebase with Chat");
+			this.element.appendChild(
+				$('div.chat-features-container', undefined,
+					$('div', undefined,
+						$('div.chat-feature-container', undefined,
+							renderIcon(Codicon.code),
+							$('span', undefined, localize('featureChat', "Code faster with Completions"))
+						),
+						$('div.chat-feature-container', undefined,
+							renderIcon(Codicon.editSession),
+							$('span', undefined, localize('featureEdits', "Build features with Copilot Edits"))
+						),
+						$('div.chat-feature-container', undefined,
+							renderIcon(Codicon.commentDiscussion),
+							$('span', undefined, localize('featureExplore', "Explore your codebase with Chat"))
+						)
+					)
+				)
+			);
 		}
 
 		// Limited SKU
 		const free = localize({ key: 'free', comment: ['{Locked="[]({0})"}'] }, "$(sparkle-filled) We now offer [Copilot for free]({0}).", defaultChat.skusDocumentationUrl);
-		const freeContainer = this.element.appendChild($('p'));
-		freeContainer.appendChild(this._register(markdown.render(new MarkdownString(free, { isTrusted: true, supportThemeIcons: true }))).element);
+		const freeContainer = this.element.appendChild($('p', undefined, this._register(markdown.render(new MarkdownString(free, { isTrusted: true, supportThemeIcons: true }))).element));
 
 		// Setup Button
 		const buttonContainer = this.element.appendChild($('p'));
@@ -610,12 +608,11 @@ class ChatSetupWelcomeContent extends Disposable {
 
 		// Terms
 		const terms = localize({ key: 'terms', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "By continuing, you agree to the [Terms]({0}) and [Privacy Policy]({1}).", defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl);
-		this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(terms, { isTrusted: true }))).element);
+		this.element.appendChild($('p', undefined, this._register(markdown.render(new MarkdownString(terms, { isTrusted: true }))).element));
 
 		// SKU Settings
 		const settings = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "Copilot Free and Pro may show [public code]({0}) suggestions and we may use your data for product improvement. You can change these [settings]({1}) at any time.", defaultChat.publicCodeMatchesUrl, defaultChat.manageSettingsUrl);
-		const settingsContainer = this.element.appendChild($('p'));
-		settingsContainer.appendChild(this._register(markdown.render(new MarkdownString(settings, { isTrusted: true }))).element);
+		const settingsContainer = this.element.appendChild($('p', undefined, this._register(markdown.render(new MarkdownString(settings, { isTrusted: true }))).element));
 
 		// Update based on model state
 		this._register(Event.runAndSubscribe(this.controller.onDidChange, () => this.update(freeContainer, settingsContainer, button)));
@@ -669,8 +666,13 @@ class ChatSetupWelcomeContent extends Disposable {
 			'id': 'copilot.setup',
 			'type': 'object',
 			'properties': {
-				[defaultChat.providerSetting]: {
-					'type': 'string'
+				[defaultChat.completionsAdvancedSetting]: {
+					'type': 'object',
+					'properties': {
+						'authProvider': {
+							'type': 'string'
+						}
+					}
 				},
 				[defaultChat.providerUriSetting]: {
 					'type': 'string'
@@ -683,9 +685,23 @@ class ChatSetupWelcomeContent extends Disposable {
 			if (!success) {
 				return; // not properly configured, abort
 			}
-			await this.configurationService.updateValue(defaultChat.providerSetting, defaultChat.enterpriseProviderId, ConfigurationTarget.USER);
+		}
+
+		let existingAdvancedSetting = this.configurationService.inspect(defaultChat.completionsAdvancedSetting).user?.value;
+		if (!isObject(existingAdvancedSetting)) {
+			existingAdvancedSetting = {};
+		}
+
+		if (useEnterpriseProvider) {
+			await this.configurationService.updateValue(`${defaultChat.completionsAdvancedSetting}`, {
+				...existingAdvancedSetting,
+				'authProvider': defaultChat.enterpriseProviderId
+			}, ConfigurationTarget.USER);
 		} else {
-			await this.configurationService.updateValue(defaultChat.providerSetting, undefined, ConfigurationTarget.USER);
+			await this.configurationService.updateValue(`${defaultChat.completionsAdvancedSetting}`, Object.keys(existingAdvancedSetting).length > 0 ? {
+				...existingAdvancedSetting,
+				'authProvider': undefined
+			} : undefined, ConfigurationTarget.USER);
 			await this.configurationService.updateValue(defaultChat.providerUriSetting, undefined, ConfigurationTarget.USER);
 		}
 
@@ -764,6 +780,6 @@ class ChatSetupWelcomeContent extends Disposable {
 
 function refreshTokens(commandService: ICommandService): void {
 	// ugly, but we need to signal to the extension that entitlements changed
-	commandService.executeCommand('github.copilot.signIn');
-	commandService.executeCommand('github.copilot.refreshToken');
+	commandService.executeCommand(defaultChat.completionsRefreshTokenCommand);
+	commandService.executeCommand(defaultChat.chatRefreshTokenCommand);
 }

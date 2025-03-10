@@ -197,7 +197,26 @@ export class ChatService extends Disposable implements IChatService {
 					.filter(session => !this._sessionModels.has(session.sessionId))
 					.filter(session => session.requests.length));
 			allSessions.sort((a, b) => (b.creationDate ?? 0) - (a.creationDate ?? 0));
+
+			// Only keep one persisted edit session, the latest one. This would be the current one if it's live.
+			// No way to know whether it's currently live or if it has been cleared and there is no current session.
+			// But ensure that we don't store multiple edit sessions.
+			let hasPersistedEditSession = false;
+			allSessions = allSessions.filter(s => {
+				if (s.initialLocation === ChatAgentLocation.EditingSession) {
+					if (hasPersistedEditSession) {
+						return false;
+					} else {
+						hasPersistedEditSession = true;
+						return true;
+					}
+				}
+
+				return true;
+			});
+
 			allSessions = allSessions.slice(0, maxPersistedSessions);
+
 			if (allSessions.length) {
 				this.trace('onWillSaveState', `Persisting ${allSessions.length} sessions`);
 			}

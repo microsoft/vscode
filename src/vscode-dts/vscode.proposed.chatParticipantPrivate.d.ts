@@ -124,6 +124,7 @@ declare module 'vscode' {
 
 	export interface LanguageModelToolInvocationOptions<T> {
 		chatRequestId?: string;
+		chatInteractionId?: string;
 		terminalCommand?: string;
 	}
 

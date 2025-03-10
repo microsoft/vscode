@@ -504,7 +504,7 @@ export class AttachContextAction extends Action2 {
 
 	constructor(desc: Readonly<IAction2Options> = {
 		id: AttachContextAction.ID,
-		title: localize2('workbench.action.chat.attachContext.label', "Attach Context"),
+		title: localize2('workbench.action.chat.attachContext.label.2', "Add Context"),
 		icon: Codicon.attach,
 		category: CHAT_CATEGORY,
 		precondition: ContextKeyExpr.or(AttachContextAction._cdt, ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession))),
@@ -516,9 +516,8 @@ export class AttachContextAction extends Action2 {
 		menu: [
 			{
 				when: ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
-				id: MenuId.ChatInput,
-				group: 'navigation',
-				order: 2
+				id: MenuId.ChatInputAttachmentToolbar,
+				group: 'navigation'
 			},
 			{
 				when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel).negate(), AttachContextAction._cdt),
@@ -854,7 +853,7 @@ export class AttachContextAction extends Action2 {
 		}
 
 		if (context?.showFilesOnly) {
-			if (chatEditingService?.hasRelatedFilesProviders() && (widget.getInput() || (getEditingSession(chatEditingService, widget)?.workingSet.size))) {
+			if (chatEditingService?.hasRelatedFilesProviders() && (widget.getInput() || widget.attachmentModel.fileAttachments.length > 0)) {
 				quickPickItems.unshift({
 					kind: 'related-files',
 					id: 'related-files',
@@ -1033,7 +1032,11 @@ registerAction2(class AttachFilesAction extends AttachContextAction {
 			shortTitle: localize2('workbench.action.chat.editing.attachContext.shortLabel', "Add Context..."),
 			f1: false,
 			category: CHAT_CATEGORY,
-			menu: { id: MenuId.ChatInputAttachmentToolbar, group: 'navigation' },
+			menu: {
+				when: ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
+				id: MenuId.ChatInputAttachmentToolbar,
+				group: 'navigation'
+			},
 			icon: Codicon.attach,
 			precondition: ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
 			keybinding: {
@@ -1050,12 +1053,5 @@ registerAction2(class AttachFilesAction extends AttachContextAction {
 		return super.run(accessor, attachFilesContext);
 	}
 });
-
-function getEditingSession(chatEditingService: IChatEditingService, chatWidget: IChatWidget) {
-	if (!chatWidget.viewModel?.sessionId) {
-		return;
-	}
-	return chatEditingService.getEditingSession(chatWidget.viewModel.sessionId);
-}
 
 registerAction2(AttachPromptAction);
