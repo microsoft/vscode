@@ -14,7 +14,20 @@ import { referenceGeneratedDepsByArch as debianGeneratedDeps } from './debian/de
 import { referenceGeneratedDepsByArch as rpmGeneratedDeps } from './rpm/dep-lists';
 import { DebianArchString, isDebianArchString } from './debian/types';
 import { isRpmArchString, RpmArchString } from './rpm/types';
+import { performance, PerformanceObserver } from 'perf_hooks';
 import product = require('../../product.json');
+
+// Set up performance observer
+const obs = new PerformanceObserver((items) => {
+	const entries = items.getEntries();
+	for (const entry of entries) {
+		console.log(`${entry.name}: ${entry.duration}ms`);
+	}
+	performance.clearMarks();
+	performance.clearMeasures();
+	obs.disconnect();
+});
+obs.observe({ entryTypes: ['measure'] });
 
 // A flag that can easily be toggled.
 // Make sure to compile the build directory after toggling the value.
@@ -78,16 +91,23 @@ export async function getDependencies(packageType: 'deb' | 'rpm', buildDir: stri
 	}
 
 	// Merge all the dependencies.
+	performance.mark('mergePackageDeps-start');
 	const mergedDependencies = mergePackageDeps(dependencies);
+	performance.mark('mergePackageDeps-end');
+	performance.measure('mergePackageDeps', 'mergePackageDeps-start', 'mergePackageDeps-end');
 
 	// Exclude bundled dependencies and sort
+	performance.mark('sortDependencies-start');
 	const sortedDependencies: string[] = Array.from(mergedDependencies).filter(dependency => {
 		return !bundledDeps.some(bundledDep => dependency.startsWith(bundledDep));
 	}).sort();
+	performance.mark('sortDependencies-end');
+	performance.measure('sortDependencies', 'sortDependencies-start', 'sortDependencies-end');
 
 	const referenceGeneratedDeps = packageType === 'deb' ?
 		debianGeneratedDeps[arch as DebianArchString] :
 		rpmGeneratedDeps[arch as RpmArchString];
+	performance.mark('referenceGeneratedDeps-start');
 	if (JSON.stringify(sortedDependencies) !== JSON.stringify(referenceGeneratedDeps)) {
 		const failMessage = 'The dependencies list has changed.'
 			+ '\nOld:\n' + referenceGeneratedDeps.join('\n')
@@ -98,6 +118,8 @@ export async function getDependencies(packageType: 'deb' | 'rpm', buildDir: stri
 			console.warn(failMessage);
 		}
 	}
+	performance.mark('referenceGeneratedDeps-end');
+	performance.measure('referenceGeneratedDeps', 'referenceGeneratedDeps-start', 'referenceGeneratedDeps-end');
 
 	return sortedDependencies;
 }

@@ -17,7 +17,19 @@ const dep_lists_1 = require("./debian/dep-lists");
 const dep_lists_2 = require("./rpm/dep-lists");
 const types_1 = require("./debian/types");
 const types_2 = require("./rpm/types");
+const perf_hooks_1 = require("perf_hooks");
 const product = require("../../product.json");
+// Set up performance observer
+const obs = new perf_hooks_1.PerformanceObserver((items) => {
+    const entries = items.getEntries();
+    for (const entry of entries) {
+        console.log(`${entry.name}: ${entry.duration}ms`);
+    }
+    perf_hooks_1.performance.clearMarks();
+    perf_hooks_1.performance.clearMeasures();
+    obs.disconnect();
+});
+obs.observe({ entryTypes: ['measure'] });
 // A flag that can easily be toggled.
 // Make sure to compile the build directory after toggling the value.
 // If false, we warn about new dependencies if they show up
@@ -75,14 +87,21 @@ async function getDependencies(packageType, buildDir, applicationName, arch) {
         dependencies = (0, calculate_deps_2.generatePackageDeps)(files);
     }
     // Merge all the dependencies.
+    perf_hooks_1.performance.mark('mergePackageDeps-start');
     const mergedDependencies = mergePackageDeps(dependencies);
+    perf_hooks_1.performance.mark('mergePackageDeps-end');
+    perf_hooks_1.performance.measure('mergePackageDeps', 'mergePackageDeps-start', 'mergePackageDeps-end');
     // Exclude bundled dependencies and sort
+    perf_hooks_1.performance.mark('sortDependencies-start');
     const sortedDependencies = Array.from(mergedDependencies).filter(dependency => {
         return !bundledDeps.some(bundledDep => dependency.startsWith(bundledDep));
     }).sort();
+    perf_hooks_1.performance.mark('sortDependencies-end');
+    perf_hooks_1.performance.measure('sortDependencies', 'sortDependencies-start', 'sortDependencies-end');
     const referenceGeneratedDeps = packageType === 'deb' ?
         dep_lists_1.referenceGeneratedDepsByArch[arch] :
         dep_lists_2.referenceGeneratedDepsByArch[arch];
+    perf_hooks_1.performance.mark('referenceGeneratedDeps-start');
     if (JSON.stringify(sortedDependencies) !== JSON.stringify(referenceGeneratedDeps)) {
         const failMessage = 'The dependencies list has changed.'
             + '\nOld:\n' + referenceGeneratedDeps.join('\n')
@@ -94,6 +113,8 @@ async function getDependencies(packageType, buildDir, applicationName, arch) {
             console.warn(failMessage);
         }
     }
+    perf_hooks_1.performance.mark('referenceGeneratedDeps-end');
+    perf_hooks_1.performance.measure('referenceGeneratedDeps', 'referenceGeneratedDeps-start', 'referenceGeneratedDeps-end');
     return sortedDependencies;
 }
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:chrome/installer/linux/rpm/merge_package_deps.py.

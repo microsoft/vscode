@@ -20,12 +20,51 @@ const debianRecommendedDependencies = require('./linux/debian/dep-lists').recomm
 const path = require('path');
 const cp = require('child_process');
 const util = require('util');
+const { performance } = require('perf_hooks');
 
 const exec = util.promisify(cp.exec);
 const root = path.dirname(__dirname);
 const commit = getVersion(root);
 
 const linuxPackageRevision = Math.floor(new Date().getTime() / 1000);
+
+// Performance measurement helper
+function measurePerformance(name, fn) {
+	return function () {
+		const markStartName = `${name}-start`;
+		const markEndName = `${name}-end`;
+
+		performance.mark(markStartName);
+
+		const result = fn.apply(this, arguments);
+
+		// For stream results, we need to add an on('end') handler
+		if (result && typeof result.on === 'function') {
+			const originalPipe = result.pipe;
+			result.pipe = function (dest) {
+				const stream = originalPipe.call(this, dest);
+
+				stream.on('end', () => {
+					performance.mark(markEndName);
+					performance.measure(name, markStartName, markEndName);
+					console.log(`${name}: ${performance.getEntriesByName(name)[0].duration.toFixed(2)}ms`);
+					performance.clearMarks(markStartName);
+					performance.clearMarks(markEndName);
+				});
+
+				return stream;
+			};
+		} else {
+			performance.mark(markEndName);
+			performance.measure(name, markStartName, markEndName);
+			console.log(`${name}: ${performance.getEntriesByName(name)[0].duration.toFixed(2)}ms`);
+			performance.clearMarks(markStartName);
+			performance.clearMarks(markEndName);
+		}
+
+		return result;
+	};
+}
 
 /**
  * @param {string} arch
@@ -154,7 +193,7 @@ function prepareRpmPackage(arch) {
 	const rpmArch = getRpmPackageArch(arch);
 	const stripBinary = process.env['STRIP'] ?? '/usr/bin/strip';
 
-	return function () {
+	const fn = function () {
 		const desktop = gulp.src('resources/linux/code.desktop', { base: '.' })
 			.pipe(rename('BUILD/usr/share/applications/' + product.applicationName + '.desktop'));
 
@@ -221,6 +260,8 @@ function prepareRpmPackage(arch) {
 
 		return all.pipe(vfs.dest(getRpmBuildPath(rpmArch)));
 	};
+
+	return measurePerformance(`prepareRpmPackage-${rpmArch}`, fn);
 }
 
 /**
