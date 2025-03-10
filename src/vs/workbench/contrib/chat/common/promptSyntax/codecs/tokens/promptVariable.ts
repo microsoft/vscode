@@ -13,7 +13,7 @@ import { BaseToken } from '../../../../../../../editor/common/codecs/baseToken.j
 const START_CHARACTER: string = '#';
 
 /**
- * TODO: @lego
+ * Character that separates name of a prompt variable from its data.
  */
 const DATA_SEPARATOR: string = ':';
 
@@ -71,7 +71,7 @@ export class PromptVariable extends PromptToken {
  * Represents a {@link PromptVariable} with additional data token in a prompt text.
  * (e.g., `#variable:/path/to/file.md`)
  */
-// TODO: @legomushroom - all for empty `path`s?
+// TODO: @legomushroom - allow for empty `path`s?
 export class PromptVariableWithData extends PromptVariable {
 	constructor(
 		fullRange: Range,
