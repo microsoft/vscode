@@ -31,7 +31,7 @@ import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { Platform, platform } from '../../../base/common/platform.js';
-import { getTitleControlsStyle } from '../../window/common/window.js';
+import { getTitleControlsStyle, TitleControlsStyle } from '../../window/common/window.js';
 import { getZoomFactor } from '../../../base/browser/browser.js';
 
 const $ = dom.$;
@@ -923,7 +923,7 @@ class QuickInputDragAndDropController extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
-		const customTitleControls = getTitleControlsStyle(this.configurationService) === 'custom';
+		const customTitleControls = getTitleControlsStyle(this.configurationService) === TitleControlsStyle.CUSTOM;
 
 		// Do not allow the widget to overflow or underflow window controls.
 		// Use CSS calculations to avoid having to force layout with `.clientWidth`
