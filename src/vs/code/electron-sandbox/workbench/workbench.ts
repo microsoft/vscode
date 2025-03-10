@@ -89,6 +89,22 @@
 			splash.id = 'monaco-parts-splash';
 			splash.className = baseTheme ?? 'vs-dark';
 
+			if (layoutInfo.windowBorder && colorInfo.windowBorder) {
+				const borderElement = document.createElement('div');
+				borderElement.style.position = 'absolute';
+				borderElement.style.width = 'calc(100vw - 2px)';
+				borderElement.style.height = 'calc(100vh - 2px)';
+				borderElement.style.zIndex = '1'; // allow border above other elements
+				borderElement.style.border = `1px solid var(--window-border-color)`;
+				borderElement.style.setProperty('--window-border-color', colorInfo.windowBorder);
+
+				if (layoutInfo.windowBorderRadius) {
+					borderElement.style.borderRadius = layoutInfo.windowBorderRadius;
+				}
+
+				splash.appendChild(borderElement);
+			}
+
 			// ensure there is enough space
 			layoutInfo.auxiliarySideBarWidth = Math.min(layoutInfo.auxiliarySideBarWidth, window.innerWidth - (layoutInfo.activityBarWidth + layoutInfo.editorPartMinWidth + layoutInfo.sideBarWidth));
 			layoutInfo.sideBarWidth = Math.min(layoutInfo.sideBarWidth, window.innerWidth - (layoutInfo.activityBarWidth + layoutInfo.editorPartMinWidth + layoutInfo.auxiliarySideBarWidth));

@@ -224,6 +224,7 @@ export interface IPartsSplash {
 		statusBarBackground: string | undefined;
 		statusBarBorder: string | undefined;
 		statusBarNoFolderBackground: string | undefined;
+		windowBorder: string | undefined;
 	};
 	layoutInfo: {
 		sideBarSide: string;
@@ -233,6 +234,8 @@ export interface IPartsSplash {
 		sideBarWidth: number;
 		auxiliarySideBarWidth: number;
 		statusBarHeight: number;
+		windowBorder: boolean;
+		windowBorderRadius: string | undefined;
 	} | undefined;
 }
 
