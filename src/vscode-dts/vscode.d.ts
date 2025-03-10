@@ -15312,6 +15312,26 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * The progress of a notebook cell execution.
+	 */
+	export interface NotebookCellExecutionProgress {
+		/**
+		 * Total of execution progress.
+		 */
+		total?: number;
+
+		/**
+		 * current increment on execution progress.
+		 */
+		increment?: number;
+
+		/**
+		 * current progress of execution progress.
+		 */
+		progress?: number;
+	}
+
+	/**
 	 * The summary of a notebook cell execution.
 	 */
 	export interface NotebookCellExecutionSummary {
@@ -15821,6 +15841,29 @@ declare module 'vscode' {
 		 * Set and unset the order of this cell execution.
 		 */
 		executionOrder: number | undefined;
+
+		/**
+		 * Set the total of the execution progress, will be used to present cell progress bar.
+		 *
+		 * @param value The value of total progress to the cell execution.
+		 */
+		setTotalProgress(value: number): void;
+
+		/**
+		 * Set progress increment of the execution. If {@link setTotalProgress} not set,
+		 * a progress bar with a total progress of 100 would be shown.
+		 *
+		 * @param value The value of the progress to be incremented.
+		 */
+		setIncrementProgress(value: number): void;
+
+		/**
+		 * Set current progress of the execution. If {@link setTotalProgress} not set,
+		 * a progress bar with a total progress of 100 would be shown.
+		 *
+		 * @param value The value of the current progress.
+		 */
+		setProgress(value: number): void;
 
 		/**
 		 * Signal that the execution has begun.
