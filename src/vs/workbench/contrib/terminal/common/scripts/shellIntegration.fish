@@ -21,6 +21,8 @@ and ! set --query VSCODE_SHELL_INTEGRATION
 or exit
 
 set --global VSCODE_SHELL_INTEGRATION 1
+set --global __vscode_shell_env_reporting $VSCODE_SHELL_ENV_REPORTING
+set -e VSCODE_SHELL_ENV_REPORTING
 
 # Apply any explicit path prefix (see #99878)
 # On fish, '$fish_user_paths' is always prepended to the PATH, for both login and non-login shells, so we need
@@ -29,6 +31,9 @@ if set -q VSCODE_PATH_PREFIX
 	set -gx PATH "$VSCODE_PATH_PREFIX$PATH"
 end
 set -e VSCODE_PATH_PREFIX
+
+set -g vsc_env_keys
+set -g vsc_env_values
 
 set -g __vsc_applied_env_vars 0
 function __vsc_apply_env_vars
@@ -146,6 +151,18 @@ function __vsc_update_cwd --on-event fish_prompt
 	end
 end
 
+if test "$__vscode_shell_env_reporting" = "1"
+	function __vsc_update_env --on-event fish_prompt
+		__vsc_esc EnvSingleStart 1
+		for line in (env)
+			set myVar (echo $line | awk -F= '{print $1}')
+			set myVal (echo $line | awk -F= '{print $2}')
+			__vsc_esc EnvSingleEntry $myVar (__vsc_escape_value "$myVal")
+		end
+		__vsc_esc EnvSingleEnd
+	end
+end
+
 # Sent at the start of the prompt.
 # Marks the beginning of the prompt (and, implicitly, a new line).
 function __vsc_fish_prompt_start
@@ -190,4 +207,8 @@ function __init_vscode_shell_integration
 		end
 	end
 end
+
+# Report this shell supports rich command detection
+__vsc_esc P HasRichCommandDetection=True
+
 __preserve_fish_prompt

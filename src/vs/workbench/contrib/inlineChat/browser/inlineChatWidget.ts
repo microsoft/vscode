@@ -8,7 +8,6 @@ import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/ac
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../base/common/actions.js';
-import { isNonEmptyArray } from '../../../../base/common/arrays.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { constObservable, derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
@@ -424,10 +423,7 @@ export class InlineChatWidget {
 
 	get responseContent(): string | undefined {
 		const requests = this._chatWidget.viewModel?.model.getRequests();
-		if (!isNonEmptyArray(requests)) {
-			return undefined;
-		}
-		return requests.at(-1)?.response?.response.toString();
+		return requests?.at(-1)?.response?.response.toString();
 	}
 
 

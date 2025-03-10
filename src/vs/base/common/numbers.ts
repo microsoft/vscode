@@ -158,3 +158,8 @@ export const randomInt = (max: number, min: number = 0): number => {
 
 	return Math.round(min + randomFloat);
 };
+
+export function randomChance(p: number): boolean {
+	assert(p >= 0 && p <= 1, 'p must be between 0 and 1');
+	return Math.random() < p;
+}

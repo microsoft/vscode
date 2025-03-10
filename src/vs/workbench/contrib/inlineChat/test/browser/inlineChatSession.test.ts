@@ -60,7 +60,7 @@ import { ILanguageModelToolsService } from '../../../chat/common/languageModelTo
 import { MockLanguageModelToolsService } from '../../../chat/test/common/mockLanguageModelToolsService.js';
 import { IChatRequestModel } from '../../../chat/common/chatModel.js';
 import { assertSnapshot } from '../../../../../base/test/common/snapshot.js';
-import { IObservable, observableValue, constObservable } from '../../../../../base/common/observable.js';
+import { IObservable, constObservable } from '../../../../../base/common/observable.js';
 import { IChatEditingService, IChatEditingSession } from '../../../chat/common/chatEditingService.js';
 
 suite('InlineChatSession', function () {
@@ -106,7 +106,6 @@ suite('InlineChatSession', function () {
 				}
 			}],
 			[IChatEditingService, new class extends mock<IChatEditingService>() {
-				override globalEditingSessionObs: IObservable<IChatEditingSession | null> = observableValue(this, null);
 				override editingSessionsObs: IObservable<readonly IChatEditingSession[]> = constObservable([]);
 			}],
 			[IChatAccessibilityService, new class extends mock<IChatAccessibilityService>() {

@@ -13,7 +13,7 @@ import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scro
 import { AutoOpenBarrier, Barrier, Promises, disposableTimeout, timeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { debounce } from '../../../../base/common/decorators.js';
-import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { BugIndicatingError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { ISeparator, template } from '../../../../base/common/labels.js';
@@ -90,6 +90,7 @@ import type { IMenu } from '../../../../platform/actions/common/actions.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { TerminalContribCommandId } from '../terminalContribExports.js';
 import type { IProgressState } from '@xterm/addon-progress';
+import { refreshShellIntegrationInfoStatus } from './terminalTooltip.js';
 
 const enum Constants {
 	/**
@@ -404,6 +405,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._hasHadInput = false;
 		this._fixedRows = _shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.rows;
 		this._fixedCols = _shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.cols;
+		this._shellLaunchConfig.shellIntegrationEnvironmentReporting = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnvironmentReporting);
 
 		this._resource = getTerminalUri(this._workspaceContextService.getWorkspace().id, this.instanceId, this.title);
 
@@ -417,6 +419,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		if (this._shellLaunchConfig.attachPersistentProcess?.type) {
 			this._shellLaunchConfig.type = this._shellLaunchConfig.attachPersistentProcess.type;
+		}
+
+		if (this._shellLaunchConfig.attachPersistentProcess?.tabActions) {
+			this._shellLaunchConfig.tabActions = this._shellLaunchConfig.attachPersistentProcess.tabActions;
 		}
 
 		if (this.shellLaunchConfig.cwd) {
@@ -855,6 +861,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}));
 		this._register(xterm.onDidChangeProgress(() => this._labelComputer?.refreshLabel(this)));
 
+		// Register and update the terminal's shell integration status
+		this._register(Event.runAndSubscribe(xterm.shellIntegration.onDidChangeSeenSequences, () => {
+			if (xterm.shellIntegration.seenSequences.size > 0) {
+				refreshShellIntegrationInfoStatus(this);
+			}
+		}));
+
 		// Set up updating of the process cwd on key press, this is only needed when the cwd
 		// detection capability has not been registered
 		if (!this.capabilities.has(TerminalCapability.CwdDetection)) {
@@ -951,7 +964,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	/**
-	 * Opens the the terminal instance inside the parent DOM element previously set with
+	 * Opens the terminal instance inside the parent DOM element previously set with
 	 * `attachToElement`, you must ensure the parent DOM element is explicitly visible before
 	 * invoking this function as it performs some DOM calculations internally
 	 */
@@ -1517,25 +1530,33 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _onProcessData(ev: IProcessDataEvent): void {
-		// Ensure events are split by SI command execute sequence to ensure the output of the
-		// command can be read by extensions. This must be done here as xterm.js does not currently
-		// have a listener for when individual data events are parsed, only `onWriteParsed` which
-		// fires when the write buffer is flushed.
-		const execIndex = ev.data.indexOf('\x1b]633;C\x07');
-		if (execIndex !== -1) {
-			if (ev.trackCommit) {
-				this._writeProcessData(ev.data.substring(0, execIndex + '\x1b]633;C\x07'.length));
-				ev.writePromise = new Promise<void>(r => this._writeProcessData(ev.data.substring(execIndex + '\x1b]633;C\x07'.length), r));
-			} else {
-				this._writeProcessData(ev.data.substring(0, execIndex + '\x1b]633;C\x07'.length));
-				this._writeProcessData(ev.data.substring(execIndex + '\x1b]633;C\x07'.length));
+		// Ensure events are split by SI command execute and command finished sequence to ensure the
+		// output of the command can be read by extensions and the output of the command is of a
+		// consistent form respectively. This must be done here as xterm.js does not currently have
+		// a listener for when individual data events are parsed, only `onWriteParsed` which fires
+		// when the write buffer is flushed.
+		const leadingSegmentedData: string[] = [];
+		const matches = ev.data.matchAll(/(?<seq>\x1b\][16]33;(?:C|D(?:;\d+)?)\x07)/g);
+		let i = 0;
+		for (const match of matches) {
+			if (match.groups?.seq === undefined) {
+				throw new BugIndicatingError('seq must be defined');
 			}
+			leadingSegmentedData.push(ev.data.substring(i, match.index));
+			leadingSegmentedData.push(match.groups?.seq ?? '');
+			i = match.index + match[0].length;
+		}
+		const lastData = ev.data.substring(i);
+
+		// Write all leading segmented data first, followed by the last data, tracking commit if
+		// necessary
+		for (let i = 0; i < leadingSegmentedData.length; i++) {
+			this._writeProcessData(leadingSegmentedData[i]);
+		}
+		if (ev.trackCommit) {
+			ev.writePromise = new Promise<void>(r => this._writeProcessData(lastData, r));
 		} else {
-			if (ev.trackCommit) {
-				ev.writePromise = new Promise<void>(r => this._writeProcessData(ev.data, r));
-			} else {
-				this._writeProcessData(ev.data);
-			}
+			this._writeProcessData(lastData);
 		}
 	}
 

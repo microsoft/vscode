@@ -856,7 +856,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		styleSheets.push(`.notebookOverlay .monaco-list .monaco-list-row .cell-shadow-container-bottom { top: ${cellBottomMargin}px; }`);
 
 		styleSheets.push(`
-			.notebookOverlay .monaco-list .monaco-list-row:has(+ .monaco-list-row.selected) .cell-focus-indicator-bottom {
+			.notebookOverlay .monaco-list.selection-multiple .monaco-list-row:has(+ .monaco-list-row.selected) .cell-focus-indicator-bottom {
 				height: ${bottomToolbarGap + cellBottomMargin}px;
 			}
 		`);
@@ -1614,6 +1614,28 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			}
 		}));
 
+		store.add(cell.onCellDecorationsChanged(e => {
+			e.added.forEach(options => {
+				if (options.className) {
+					this.deltaCellContainerClassNames(cell.id, [options.className], []);
+				}
+
+				if (options.outputClassName) {
+					this.deltaCellContainerClassNames(cell.id, [options.outputClassName], []);
+				}
+			});
+
+			e.removed.forEach(options => {
+				if (options.className) {
+					this.deltaCellContainerClassNames(cell.id, [], [options.className]);
+				}
+
+				if (options.outputClassName) {
+					this.deltaCellContainerClassNames(cell.id, [], [options.outputClassName]);
+				}
+			});
+		}));
+
 		return store;
 	}
 
@@ -2321,6 +2343,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	//#region Cell operations/layout API
 	private _pendingLayouts: WeakMap<ICellViewModel, IDisposable> | null = new WeakMap<ICellViewModel, IDisposable>();
+	private _layoutDisposables: Set<IDisposable> = new Set<IDisposable>();
 	async layoutNotebookCell(cell: ICellViewModel, height: number, context?: CellLayoutContext): Promise<void> {
 		this._debug('layout cell', cell.handle, height);
 		const viewIndex = this._list.getViewIndex(cell);
@@ -2353,6 +2376,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				return;
 			}
 
+			const pendingLayout = this._pendingLayouts?.get(cell);
 			this._pendingLayouts?.delete(cell);
 
 			if (!this.hasEditorFocus()) {
@@ -2371,15 +2395,21 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 			this._list.updateElementHeight2(cell, height);
 			deferred.complete(undefined);
+			if (pendingLayout) {
+				pendingLayout.dispose();
+				this._layoutDisposables.delete(pendingLayout);
+			}
 		};
 
 		if (this._list.inRenderingTransaction) {
 			const layoutDisposable = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.getDomNode()), doLayout);
 
-			this._pendingLayouts?.set(cell, toDisposable(() => {
+			const disposable = toDisposable(() => {
 				layoutDisposable.dispose();
 				deferred.complete(undefined);
-			}));
+			});
+			this._pendingLayouts?.set(cell, disposable);
+			this._layoutDisposables.add(disposable);
 		} else {
 			doLayout();
 		}
@@ -2463,6 +2493,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 					} else {
 						await this.revealInView(cell);
 					}
+
 				}
 
 			}
@@ -2609,6 +2640,37 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return Promise.all(requests);
 	}
 
+	private async _warmupSelection(includeOutput: boolean, selectedCellRanges: ICellRange[]) {
+		if (!this.hasModel() || !this.viewModel) {
+			return;
+		}
+
+		const cells = this.viewModel.viewCells;
+		const requests = [];
+
+		for (const range of selectedCellRanges) {
+			for (let i = range.start; i < range.end; i++) {
+				if (cells[i].cellKind === CellKind.Markup && !this._webview!.markupPreviewMapping.has(cells[i].id)) {
+					requests.push(this.createMarkupPreview(cells[i]));
+				}
+			}
+		}
+
+		if (includeOutput && this._list) {
+			for (const range of selectedCellRanges) {
+				for (let i = range.start; i < range.end; i++) {
+					const cell = this._list.element(i);
+
+					if (cell?.cellKind === CellKind.Code) {
+						requests.push(this._warmupCell((cell as CodeCellViewModel)));
+					}
+				}
+			}
+		}
+
+		return Promise.all(requests);
+	}
+
 	async find(query: string, options: INotebookFindOptions, token: CancellationToken, skipWarmup: boolean = false, shouldGetSearchPreviewInfo = false, ownerID?: string): Promise<CellFindMatchWithIndex[]> {
 		if (!this._notebookViewModel) {
 			return [];
@@ -2633,10 +2695,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		});
 
 		if (this._webview) {
-			// request all outputs to be rendered
+			// request all or some outputs to be rendered
 			// measure perf
 			const start = Date.now();
-			await this._warmupAll(!!options.includeOutput);
+			if (options.findScope && options.findScope.findScopeType === NotebookFindScopeType.Cells && options.findScope.selectedCellRanges) {
+				await this._warmupSelection(!!options.includeOutput, options.findScope.selectedCellRanges);
+			} else {
+				await this._warmupAll(!!options.includeOutput);
+			}
 			const end = Date.now();
 			this.logService.debug('Find', `Warmup time: ${end - start}ms`);
 
@@ -3208,6 +3274,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		// dispose webview first
 		this._webview?.dispose();
 		this._webview = null;
+
+		this._layoutDisposables.forEach(d => d.dispose());
 
 		this.notebookEditorService.removeNotebookEditor(this);
 		dispose(this._contributions.values());

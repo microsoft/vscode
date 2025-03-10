@@ -181,7 +181,7 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 			}
 		}));
 
-		this._disposables.add(_themeService.onDidColorThemeChange(this._updateStyles, this));
+		this._disposables.add(_themeService.onDidColorThemeChange(e => this._updateStyles(e.theme)));
 	}
 
 	dispose(): void {

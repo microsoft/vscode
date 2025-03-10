@@ -38,7 +38,7 @@ import { ICommandActionTitle } from '../../../../platform/action/common/action.j
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { resolveCommandsContext } from './editorCommandsContext.js';
 import { IListService } from '../../../../platform/list/browser/listService.js';
-import { InputMode } from '../../../../editor/common/inputMode.js';
+import { prepareMoveCopyEditors } from './editor.js';
 
 class ExecuteCommandAction extends Action2 {
 
@@ -66,9 +66,11 @@ abstract class AbstractSplitEditorAction extends Action2 {
 	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const configurationService = accessor.get(IConfigurationService);
+		const editorService = accessor.get(IEditorService);
+		const listService = accessor.get(IListService);
 
 		const direction = this.getDirection(configurationService);
-		const commandContext = resolveCommandsContext(args, accessor.get(IEditorService), editorGroupsService, accessor.get(IListService));
+		const commandContext = resolveCommandsContext(args, editorService, editorGroupsService, listService);
 
 		splitEditor(editorGroupsService, direction, commandContext);
 	}
@@ -1174,8 +1176,10 @@ export class ToggleMaximizeEditorGroupAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const editorService = accessor.get(IEditorService);
+		const listService = accessor.get(IListService);
 
-		const resolvedContext = resolveCommandsContext(args, accessor.get(IEditorService), editorGroupsService, accessor.get(IListService));
+		const resolvedContext = resolveCommandsContext(args, editorService, editorGroupsService, listService);
 		if (resolvedContext.groupedEditors.length) {
 			editorGroupsService.toggleMaximizeGroup(resolvedContext.groupedEditors[0].group);
 		}
@@ -2544,19 +2548,19 @@ abstract class BaseMoveCopyEditorToNewWindowAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, ...args: unknown[]) {
-		const editorGroupService = accessor.get(IEditorGroupsService);
-		const resolvedContext = resolveCommandsContext(args, accessor.get(IEditorService), editorGroupService, accessor.get(IListService));
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const editorService = accessor.get(IEditorService);
+		const listService = accessor.get(IListService);
+
+		const resolvedContext = resolveCommandsContext(args, editorService, editorGroupsService, listService);
 		if (!resolvedContext.groupedEditors.length) {
 			return;
 		}
 
-		const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
+		const auxiliaryEditorPart = await editorGroupsService.createAuxiliaryEditorPart();
 
-		// only single group supported for move/copy for now
-		const { group, editors } = resolvedContext.groupedEditors[0];
-		const options = { preserveFocus: resolvedContext.preserveFocus };
-		const editorsWithOptions = editors.map(editor => ({ editor, options }));
-
+		const { group, editors } = resolvedContext.groupedEditors[0]; // only single group supported for move/copy for now
+		const editorsWithOptions = prepareMoveCopyEditors(group, editors, resolvedContext.preserveFocus);
 		if (this.move) {
 			group.moveEditors(editorsWithOptions, auxiliaryEditorPart.activeGroup);
 		} else {
@@ -2695,34 +2699,5 @@ export class NewEmptyEditorWindowAction extends Action2 {
 
 		const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
 		auxiliaryEditorPart.activeGroup.focus();
-	}
-}
-
-export class ToggleOvertypeInsertMode extends Action2 {
-
-	constructor() {
-		super({
-			id: 'editor.action.toggleOvertypeInsertMode',
-			title: {
-				...localize2('toggleOvertypeInsertMode', "Toggle Overtype/Insert Mode"),
-				mnemonicTitle: localize({ key: 'mitoggleOvertypeInsertMode', comment: ['&& denotes a mnemonic'] }, "&&Toggle Overtype/Insert Mode"),
-			},
-			metadata: {
-				description: localize2('toggleOvertypeMode.description', "Toggle between overtype and insert mode"),
-			},
-			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyCode.Insert,
-				mac: { primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.KeyO },
-			},
-			f1: true,
-			category: Categories.View
-		});
-	}
-
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const oldInputMode = InputMode.getInputMode();
-		const newInputMode = oldInputMode === 'insert' ? 'overtype' : 'insert';
-		InputMode.setInputMode(newInputMode);
 	}
 }

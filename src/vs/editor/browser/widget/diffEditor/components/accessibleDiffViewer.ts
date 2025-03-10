@@ -7,7 +7,6 @@ import { addDisposableListener, addStandardDisposableListener, reset } from '../
 import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTypes.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
-import { Action } from '../../../../../base/common/actions.js';
 import { forEachAdjacent, groupAdjacentBy } from '../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
@@ -34,6 +33,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { registerIcon } from '../../../../../platform/theme/common/iconRegistry.js';
 import './accessibleDiffViewer.css';
 import { DiffEditorEditors } from './diffEditorEditors.js';
+import { toAction } from '../../../../../base/common/actions.js';
 
 const accessibleDiffViewerInsertIcon = registerIcon('diff-review-insert', Codicon.add, localize('accessibleDiffViewerInsertIcon', 'Icon for \'Insert\' in accessible diff viewer.'));
 const accessibleDiffViewerRemoveIcon = registerIcon('diff-review-remove', Codicon.remove, localize('accessibleDiffViewerRemoveIcon', 'Icon for \'Remove\' in accessible diff viewer.'));
@@ -365,13 +365,13 @@ class View extends Disposable {
 			/** @description update actions */
 			this._actionBar.clear();
 			if (this._model.canClose.read(reader)) {
-				this._actionBar.push(new Action(
-					'diffreview.close',
-					localize('label.close', "Close"),
-					'close-diff-review ' + ThemeIcon.asClassName(accessibleDiffViewerCloseIcon),
-					true,
-					async () => _model.close()
-				), { label: false, icon: true });
+				this._actionBar.push(toAction({
+					id: 'diffreview.close',
+					label: localize('label.close', "Close"),
+					class: 'close-diff-review ' + ThemeIcon.asClassName(accessibleDiffViewerCloseIcon),
+					enabled: true,
+					run: async () => _model.close()
+				}), { label: false, icon: true });
 			}
 		}));
 

@@ -323,23 +323,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._buffer = textBuffer;
 		this._bufferDisposable = disposable;
 
-		this._options = TextModel.resolveOptions(this._buffer, creationOptions);
-
-		const languageId = (typeof languageIdOrSelection === 'string' ? languageIdOrSelection : languageIdOrSelection.languageId);
-		if (typeof languageIdOrSelection !== 'string') {
-			this._languageSelectionListener.value = languageIdOrSelection.onDidChange(() => this._setLanguage(languageIdOrSelection.languageId));
-		}
-
-		this._bracketPairs = this._register(new BracketPairsTextModelPart(this, this._languageConfigurationService));
-		this._guidesTextModelPart = this._register(new GuidesTextModelPart(this, this._languageConfigurationService));
-		this._decorationProvider = this._register(new ColorizedBracketPairsDecorationProvider(this));
-		this._tokenizationTextModelPart = this.instantiationService.createInstance(TokenizationTextModelPart,
-			this,
-			this._bracketPairs,
-			languageId,
-			this._attachedViews
-		);
-
 		const bufferLineCount = this._buffer.getLineCount();
 		const bufferTextLength = this._buffer.getValueLengthInRange(new Range(1, 1, bufferLineCount, this._buffer.getLineLength(bufferLineCount) + 1), model.EndOfLinePreference.TextDefined);
 
@@ -357,6 +340,23 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			this._isTooLargeForTokenization = false;
 			this._isTooLargeForHeapOperation = false;
 		}
+
+		this._options = TextModel.resolveOptions(this._buffer, creationOptions);
+
+		const languageId = (typeof languageIdOrSelection === 'string' ? languageIdOrSelection : languageIdOrSelection.languageId);
+		if (typeof languageIdOrSelection !== 'string') {
+			this._languageSelectionListener.value = languageIdOrSelection.onDidChange(() => this._setLanguage(languageIdOrSelection.languageId));
+		}
+
+		this._bracketPairs = this._register(new BracketPairsTextModelPart(this, this._languageConfigurationService));
+		this._guidesTextModelPart = this._register(new GuidesTextModelPart(this, this._languageConfigurationService));
+		this._decorationProvider = this._register(new ColorizedBracketPairsDecorationProvider(this));
+		this._tokenizationTextModelPart = this.instantiationService.createInstance(TokenizationTextModelPart,
+			this,
+			this._bracketPairs,
+			languageId,
+			this._attachedViews
+		);
 
 		this._isTooLargeForSyncing = (bufferTextLength > TextModel._MODEL_SYNC_LIMIT);
 
@@ -2031,6 +2031,10 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	public getLineIndentColumn(lineNumber: number): number {
 		// Columns start with 1.
 		return indentOfLine(this.getLineContent(lineNumber)) + 1;
+	}
+
+	public override toString(): string {
+		return `TextModel(${this.uri.toString()})`;
 	}
 }
 

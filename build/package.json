@@ -41,7 +41,7 @@
     "byline": "^5.0.0",
     "debug": "^4.3.2",
     "electron-osx-sign": "^0.4.16",
-    "esbuild": "0.23.0",
+    "esbuild": "0.25.0",
     "extract-zip": "^2.0.1",
     "gulp-merge-json": "^2.1.1",
     "gulp-sort": "^2.0.0",

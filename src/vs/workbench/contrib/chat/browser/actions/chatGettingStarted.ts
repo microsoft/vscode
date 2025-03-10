@@ -16,7 +16,7 @@ import { IWorkbenchLayoutService } from '../../../../services/layout/browser/lay
 import { ensureSideBarChatViewSize, showCopilotView } from '../chat.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-
+import { IStatusbarService } from '../../../../services/statusbar/browser/statusbar.js';
 
 export class ChatGettingStartedContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.chatGettingStarted';
@@ -33,6 +33,7 @@ export class ChatGettingStartedContribution extends Disposable implements IWorkb
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
 	) {
 		super();
 
@@ -71,9 +72,6 @@ export class ChatGettingStartedContribution extends Disposable implements IWorkb
 
 	private async onDidInstallChat() {
 
-		// Enable chat command center if previously disabled
-		this.configurationService.updateValue('chat.commandCenter.enabled', true);
-
 		// Open Copilot view
 		showCopilotView(this.viewsService, this.layoutService);
 		ensureSideBarChatViewSize(this.viewDescriptorService, this.layoutService, this.viewsService);
@@ -81,5 +79,9 @@ export class ChatGettingStartedContribution extends Disposable implements IWorkb
 		// Only do this once
 		this.storageService.store(ChatGettingStartedContribution.hideWelcomeView, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		this.recentlyInstalled = false;
+
+		// Enable Copilot related UI if previously disabled
+		this.statusbarService.updateEntryVisibility('chat.statusBarEntry', true);
+		this.configurationService.updateValue('chat.commandCenter.enabled', true);
 	}
 }

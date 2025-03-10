@@ -353,7 +353,7 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 
 		// Make sure both toolbars have the same hover delegate for instant hover to work
 		// Due to the elements being further apart than normal toolbars, the default time limit is to short and has to be increased
-		const hoverDelegate = this._register(this.instantiationService.createInstance(WorkbenchHoverDelegate, 'element', true, {}));
+		const hoverDelegate = this._register(this.instantiationService.createInstance(WorkbenchHoverDelegate, 'element', { instantHover: true }, {}));
 		hoverDelegate.setInstantHoverTimeLimit(600);
 
 		const leftToolbarOptions: IWorkbenchToolBarOptions = {
@@ -504,6 +504,7 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 			this._deferredActionUpdate = disposableTimeout(async () => {
 				await this._setNotebookActions();
 				this.visible = true;
+				this._deferredActionUpdate?.dispose();
 				this._deferredActionUpdate = undefined;
 			}, 50);
 		}

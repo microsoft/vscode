@@ -501,13 +501,13 @@ declare module 'vscode' {
 		 * The position at which the selection starts.
 		 * This position might be before or after {@link Selection.active active}.
 		 */
-		anchor: Position;
+		readonly anchor: Position;
 
 		/**
 		 * The position of the cursor.
 		 * This position might be before or after {@link Selection.anchor anchor}.
 		 */
-		active: Position;
+		readonly active: Position;
 
 		/**
 		 * Create a selection from two positions.
@@ -530,7 +530,7 @@ declare module 'vscode' {
 		/**
 		 * A selection is reversed if its {@link Selection.anchor anchor} is the {@link Selection.end end} position.
 		 */
-		isReversed: boolean;
+		readonly isReversed: boolean;
 	}
 
 	/**
@@ -6329,7 +6329,7 @@ declare module 'vscode' {
 		 * Optional method which fills in the {@linkcode DocumentPasteEdit.additionalEdit} before the edit is applied.
 		 *
 		 * This is called once per edit and should be used if generating the complete edit may take a long time.
-		 * Resolve can only be used to change {@linkcode DocumentPasteEdit.additionalEdit}.
+		 * Resolve can only be used to change {@linkcode DocumentPasteEdit.insertText} or {@linkcode DocumentPasteEdit.additionalEdit}.
 		 *
 		 * @param pasteEdit The {@linkcode DocumentPasteEdit} to resolve.
 		 * @param token A cancellation token.
@@ -8412,7 +8412,7 @@ declare module 'vscode' {
 		 * {@linkcode ExtensionContext.globalState globalState} to store key value data.
 		 *
 		 * @see {@linkcode FileSystem workspace.fs} for how to read and write files and folders from
-		 *  an uri.
+		 *  a uri.
 		 */
 		readonly storageUri: Uri | undefined;
 
@@ -11911,7 +11911,7 @@ declare module 'vscode' {
 	 * A map containing a mapping of the mime type of the corresponding transferred data.
 	 *
 	 * Drag and drop controllers that implement {@link TreeDragAndDropController.handleDrag `handleDrag`} can add additional mime types to the
-	 * data transfer. These additional mime types will only be included in the `handleDrop` when the the drag was initiated from
+	 * data transfer. These additional mime types will only be included in the `handleDrop` when the drag was initiated from
 	 * an element in the same drag and drop controller.
 	 */
 	export class DataTransfer implements Iterable<[mimeType: string, item: DataTransferItem]> {
@@ -16176,6 +16176,26 @@ declare module 'vscode' {
 		hideWhenEmpty?: boolean;
 
 		/**
+		 * Context value of the resource group. This can be used to contribute resource group specific actions.
+		 * For example, if a resource group is given a context value of `exportable`, when contributing actions to `scm/resourceGroup/context`
+		 * using `menus` extension point, you can specify context value for key `scmResourceGroupState` in `when` expressions, like `scmResourceGroupState == exportable`.
+		 * ```json
+		 * "contributes": {
+		 *   "menus": {
+		 *     "scm/resourceGroup/context": [
+		 *       {
+		 *         "command": "extension.export",
+		 *         "when": "scmResourceGroupState == exportable"
+		 *       }
+		 *     ]
+		 *   }
+		 * }
+		 * ```
+		 * This will show action `extension.export` only for resource groups with `contextValue` equal to `exportable`.
+		 */
+		contextValue?: string;
+
+		/**
 		 * This group's collection of
 		 * {@link SourceControlResourceState source control resource states}.
 		 */
@@ -17464,15 +17484,21 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Optional options to be used when calling {@link authentication.getSession} with the flag `forceNewSession`.
+	 * Optional options to be used when calling {@link authentication.getSession} with interactive options `forceNewSession` & `createIfNone`.
 	 */
-	export interface AuthenticationForceNewSessionOptions {
+	export interface AuthenticationGetSessionPresentationOptions {
 		/**
 		 * An optional message that will be displayed to the user when we ask to re-authenticate. Providing additional context
 		 * as to why you are asking a user to re-authenticate can help increase the odds that they will accept.
 		 */
 		detail?: string;
 	}
+
+	/**
+	 * Optional options to be used when calling {@link authentication.getSession} with the flag `forceNewSession`.
+	 * @deprecated Use {@link AuthenticationGetSessionPresentationOptions} instead.
+	 */
+	export type AuthenticationForceNewSessionOptions = AuthenticationGetSessionPresentationOptions;
 
 	/**
 	 * Options to be used when getting an {@link AuthenticationSession} from an {@link AuthenticationProvider}.
@@ -17503,6 +17529,8 @@ declare module 'vscode' {
 		 * on the accounts activity bar icon. An entry for the extension will be added under the menu to sign in. This
 		 * allows quietly prompting the user to sign in.
 		 *
+		 * If you provide options, you will also see the dialog but with the additional context provided.
+		 *
 		 * If there is a matching session but the extension has not been granted access to it, setting this to true
 		 * will also result in an immediate modal dialog, and false will add a numbered badge to the accounts icon.
 		 *
@@ -17510,7 +17538,7 @@ declare module 'vscode' {
 		 *
 		 * Note: you cannot use this option with {@link AuthenticationGetSessionOptions.silent silent}.
 		 */
-		createIfNone?: boolean;
+		createIfNone?: boolean | AuthenticationGetSessionPresentationOptions;
 
 		/**
 		 * Whether we should attempt to reauthenticate even if there is already a session available.
@@ -17518,12 +17546,14 @@ declare module 'vscode' {
 		 * If true, a modal dialog will be shown asking the user to sign in again. This is mostly used for scenarios
 		 * where the token needs to be re minted because it has lost some authorization.
 		 *
+		 * If you provide options, you will also see the dialog but with the additional context provided.
+		 *
 		 * If there are no existing sessions and forceNewSession is true, it will behave identically to
 		 * {@link AuthenticationGetSessionOptions.createIfNone createIfNone}.
 		 *
 		 * This defaults to false.
 		 */
-		forceNewSession?: boolean | AuthenticationForceNewSessionOptions;
+		forceNewSession?: boolean | AuthenticationGetSessionPresentationOptions | AuthenticationForceNewSessionOptions;
 
 		/**
 		 * Whether we should show the indication to sign in in the Accounts menu.
@@ -17677,7 +17707,7 @@ declare module 'vscode' {
 		 * @param options The {@link AuthenticationGetSessionOptions} to use
 		 * @returns A thenable that resolves to an authentication session
 		 */
-		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { /** */createIfNone: true }): Thenable<AuthenticationSession>;
+		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { /** */createIfNone: true | AuthenticationGetSessionPresentationOptions }): Thenable<AuthenticationSession>;
 
 		/**
 		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
@@ -17692,7 +17722,7 @@ declare module 'vscode' {
 		 * @param options The {@link AuthenticationGetSessionOptions} to use
 		 * @returns A thenable that resolves to an authentication session
 		 */
-		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { /** literal-type defines return type */forceNewSession: true | AuthenticationForceNewSessionOptions }): Thenable<AuthenticationSession>;
+		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { /** literal-type defines return type */forceNewSession: true | AuthenticationGetSessionPresentationOptions | AuthenticationForceNewSessionOptions }): Thenable<AuthenticationSession>;
 
 		/**
 		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
@@ -18609,7 +18639,7 @@ declare module 'vscode' {
 		 * used to represent line coverage.
 		 * @param branchCoverage Branch coverage information
 		 * @param declarationCoverage Declaration coverage information
-		 * @param includesTests Test cases included in this coverage report, see {@link includesTests}
+		 * @param includesTests Test cases included in this coverage report, see {@link FileCoverage.includesTests}
 		 */
 		constructor(
 			uri: Uri,
@@ -19456,7 +19486,7 @@ declare module 'vscode' {
 		readonly toolInvocationToken: ChatParticipantToolToken;
 
 		/**
-		 * This is the model that is currently selected in the UI. Extensions can use this or use {@link chat.selectChatModels} to
+		 * This is the model that is currently selected in the UI. Extensions can use this or use {@link lm.selectChatModels} to
 		 * pick another model. Don't hold onto this past the lifetime of the request.
 		 */
 		readonly model: LanguageModelChat;
@@ -19749,7 +19779,7 @@ declare module 'vscode' {
 	/**
 	 * Represents a language model response.
 	 *
-	 * @see {@link LanguageModelAccess.chatRequest}
+	 * @see {@link ChatRequest}
 	 */
 	export interface LanguageModelChatResponse {
 
@@ -20096,7 +20126,7 @@ declare module 'vscode' {
 		/**
 		 * A JSON schema for the input this tool accepts.
 		 */
-		inputSchema?: object;
+		inputSchema?: object | undefined;
 	}
 
 	/**

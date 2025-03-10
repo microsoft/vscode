@@ -8,7 +8,7 @@ import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { marked } from '../../../../../base/common/marked/marked.js';
-import { waitForState } from '../../../../../base/common/observable.js';
+import { observableFromEvent, waitForState } from '../../../../../base/common/observable.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
@@ -36,6 +36,7 @@ import { IChatRequestModel } from '../../common/chatModel.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { ChatTreeItem, EditsViewId, IChatWidgetService } from '../chat.js';
+import { ChatViewPane } from '../chatViewPane.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
 export const MarkUnhelpfulActionId = 'workbench.action.chat.markUnhelpful';
@@ -260,10 +261,10 @@ export function registerChatTitleActions() {
 					await configurationService.updateValue('chat.editing.confirmEditRequestRetry', false);
 				}
 
-				// Reset the snapshot
+				// Reset the snapshot to the first stop (undefined undo index)
 				const snapshotRequest = chatRequests[itemIndex];
 				if (snapshotRequest) {
-					await currentEditingSession.restoreSnapshot(snapshotRequest.id);
+					await currentEditingSession.restoreSnapshot(snapshotRequest.id, undefined);
 				}
 			}
 			const request = chatModel?.getRequests().find(candidate => candidate.id === item.requestId);
@@ -461,12 +462,15 @@ export function registerChatTitleActions() {
 				return;
 			}
 
-			await viewsService.openView(EditsViewId);
+			const editsView = await viewsService.openView(EditsViewId);
 
-			let editingSession = chatEditingService.globalEditingSessionObs.get();
-			if (!editingSession) {
-				editingSession = await waitForState(chatEditingService.globalEditingSessionObs);
+			if (!(editsView instanceof ChatViewPane)) {
+				return;
 			}
+
+			const viewModelObs = observableFromEvent(this, editsView.widget.onDidChangeViewModel, () => editsView.widget.viewModel);
+			const chatSessionId = (await waitForState(viewModelObs)).sessionId;
+			const editingSession = chatEditingService.getEditingSession(chatSessionId);
 
 			if (!editingSession) {
 				return;
@@ -483,12 +487,12 @@ export function registerChatTitleActions() {
 				await chatService.adoptRequest(editingSession.chatSessionId, request);
 				this._collectWorkingSetAdditions(request, workingSetAdditions);
 			}
-			workingSetAdditions.forEach(uri => editingSession.addFileToWorkingSet(uri));
+			workingSetAdditions.forEach(uri => editsView.widget.attachmentModel.addFile(uri));
 
 			// make request
 			await chatService.sendRequest(editingSession.chatSessionId, '', {
 				agentId: editAgent.id,
-				acceptedConfirmationData: [{ _type: 'toEditTransfer', transferedTurnResults: sourceRequests.map(v => v.response?.result) }], // TODO@jrieken HACKY
+				acceptedConfirmationData: [{ _type: 'toEditTransfer', transferredTurnResults: sourceRequests.map(v => v.response?.result) }], // TODO@jrieken HACKY
 				confirmation: typeof this.desc.title === 'string' ? this.desc.title : this.desc.title.value
 			});
 		}

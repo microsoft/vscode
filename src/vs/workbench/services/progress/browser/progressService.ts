@@ -190,7 +190,7 @@ export class ProgressService extends Disposable implements IProgressService {
 			if (this.windowProgressStatusEntry) {
 				this.windowProgressStatusEntry.update(statusEntryProperties);
 			} else {
-				this.windowProgressStatusEntry = this.statusbarService.addEntry(statusEntryProperties, 'status.progress', StatusbarAlignment.LEFT);
+				this.windowProgressStatusEntry = this.statusbarService.addEntry(statusEntryProperties, 'status.progress', StatusbarAlignment.LEFT, -Number.MAX_VALUE /* almost last entry */);
 			}
 		}
 

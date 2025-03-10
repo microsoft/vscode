@@ -153,9 +153,9 @@ export class ViewModel extends Disposable implements IViewModel {
 			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewTokensColorsChangedEvent());
 		}));
 
-		this._register(this._themeService.onDidColorThemeChange((theme) => {
+		this._register(this._themeService.onDidColorThemeChange((e) => {
 			this._invalidateDecorationsColorCache();
-			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewThemeChangedEvent(theme));
+			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewThemeChangedEvent(e.theme));
 		}));
 
 		this._updateConfigurationViewLineCountNow();

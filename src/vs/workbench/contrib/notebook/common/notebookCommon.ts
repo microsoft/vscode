@@ -19,10 +19,9 @@ import { ISplice } from '../../../../base/common/sequence.js';
 import { ThemeColor } from '../../../../base/common/themables.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { Range } from '../../../../editor/common/core/range.js';
-import { ILineChange } from '../../../../editor/common/diff/legacyLinesDiffComputer.js';
 import * as editorCommon from '../../../../editor/common/editorCommon.js';
 import { Command, WorkspaceEditMetadata } from '../../../../editor/common/languages.js';
-import { IReadonlyTextBuffer } from '../../../../editor/common/model.js';
+import { IReadonlyTextBuffer, ITextModel } from '../../../../editor/common/model.js';
 import { IAccessibilityInformation } from '../../../../platform/accessibility/common/accessibility.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
@@ -121,6 +120,12 @@ export interface NotebookCellMetadata {
 }
 
 export interface NotebookCellInternalMetadata {
+	/**
+	 * Used only for diffing of Notebooks.
+	 * This is not persisted and generally useful only when diffing two notebooks.
+	 * Useful only after we've manually matched a few cells together so we know which cells are matching.
+	 */
+	cellId?: string;
 	executionId?: string;
 	executionOrder?: number;
 	lastRunSuccess?: boolean;
@@ -270,6 +275,9 @@ export interface ICell {
 	internalMetadata: NotebookCellInternalMetadata;
 	getHashValue(): number;
 	textBuffer: IReadonlyTextBuffer;
+	textModel?: ITextModel;
+	onDidChangeTextModel: Event<void>;
+	getValue(): string;
 	onDidChangeOutputs?: Event<NotebookCellOutputsSplice>;
 	onDidChangeOutputItems?: Event<void>;
 	onDidChangeLanguage: Event<string>;
@@ -951,7 +959,6 @@ export interface INotebookCellStatusBarItemProvider {
 export interface INotebookDiffResult {
 	cellsDiff: IDiffResult;
 	metadataChanged: boolean;
-	linesDiff?: { originalCellhandle: number; modifiedCellhandle: number; lineChanges: ILineChange[] }[];
 }
 
 export interface INotebookCellStatusBarItem {

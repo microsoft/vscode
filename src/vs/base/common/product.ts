@@ -95,8 +95,6 @@ export interface IProductConfiguration {
 
 	readonly extensionsGallery?: {
 		readonly serviceUrl: string;
-		readonly servicePPEUrl?: string;
-		readonly searchUrl?: string;
 		readonly itemUrl: string;
 		readonly publisherUrl: string;
 		readonly resourceUrlTemplate: string;
@@ -321,10 +319,20 @@ export interface IDefaultChatAgent {
 	readonly providerName: string;
 	readonly enterpriseProviderId: string;
 	readonly enterpriseProviderName: string;
-	readonly providerSetting: string;
 	readonly providerUriSetting: string;
 	readonly providerScopes: string[][];
 
 	readonly entitlementUrl: string;
 	readonly entitlementSignupLimitedUrl: string;
+
+	readonly chatQuotaExceededContext: string;
+	readonly completionsQuotaExceededContext: string;
+
+	readonly walkthroughCommand: string;
+	readonly completionsMenuCommand: string;
+	readonly completionsRefreshTokenCommand: string;
+	readonly chatRefreshTokenCommand: string;
+
+	readonly completionsAdvancedSetting: string;
+	readonly completionsEnablementSetting: string;
 }

@@ -31,7 +31,6 @@ import { indentOfLine } from '../../../../../../editor/common/model/textModel.js
 import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { ICoordinatesConverter } from '../../../../../../editor/common/viewModel.js';
 import { ViewModelEventsCollector } from '../../../../../../editor/common/viewModelEventDispatcher.js';
-import { WordHighlighterContribution } from '../../../../../../editor/contrib/wordHighlighter/browser/wordHighlighter.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -811,6 +810,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 	private constructCellEditorOptions(cell: ICellViewModel): EditorConfiguration {
 		const cellEditorOptions = new CellEditorOptions(this.notebookEditor.getBaseCellEditorOptions(cell.language), this.notebookEditor.notebookOptions, this.configurationService);
 		const options = cellEditorOptions.getUpdatedValue(cell.internalMetadata, cell.uri);
+		cellEditorOptions.dispose();
 		return new EditorConfiguration(false, MenuId.EditorContent, options, null, this.accessibilityService);
 	}
 
@@ -885,21 +885,6 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 				cell.decorationIds,
 				newDecorations
 			);
-
-			/**
-			 * TODO: @Yoyokrazy debt
-			 * goal: draw decorations for occurrence higlight on the cursor blink cycle
-			 *
-			 * Trigger WH with delay: x ms (x = cursor blink cycle)
-			 * -> start = Date()
-			 * -> WordHighlighter -> compute
-			 * -> end = Date()
-			 * -> delay = x - ((end - start) % x)
-			 */
-			const matchingEditor = this.notebookEditor.codeEditors.find(cellEditor => cellEditor[0] === cell.cellViewModel);
-			if (matchingEditor) {
-				WordHighlighterContribution.get(matchingEditor[1])?.wordHighlighter?.trigger();
-			}
 		});
 	}
 

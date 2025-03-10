@@ -167,6 +167,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'do-not-sync': { type: 'boolean' },
 	'do-not-include-pack-dependencies': { type: 'boolean' },
 	'trace': { type: 'boolean' },
+	'trace-memory-infra': { type: 'boolean' },
 	'trace-category-filter': { type: 'string' },
 	'trace-options': { type: 'string' },
 	'preserve-env': { type: 'boolean' },
@@ -211,6 +212,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'trace-startup-format': { type: 'string' },
 	'trace-startup-file': { type: 'string' },
 	'trace-startup-duration': { type: 'string' },
+	'xdg-portal-required-version': { type: 'string' },
 
 	_: { type: 'string[]' } // main arguments
 };
