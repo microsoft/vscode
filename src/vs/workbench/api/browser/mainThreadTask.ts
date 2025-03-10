@@ -30,7 +30,7 @@ import {
 	ITaskDefinitionDTO, ITaskExecutionDTO, IProcessExecutionOptionsDTO, ITaskPresentationOptionsDTO,
 	IProcessExecutionDTO, IShellExecutionDTO, IShellExecutionOptionsDTO, ICustomExecutionDTO, ITaskDTO, ITaskSourceDTO, ITaskHandleDTO, ITaskFilterDTO, ITaskProcessStartedDTO, ITaskProcessEndedDTO, ITaskSystemInfoDTO,
 	IRunOptionsDTO, ITaskGroupDTO,
-	TaskTerminalStatusDTO
+	ITaskStatus
 } from '../common/shared/tasks.js';
 import { IConfigurationResolverService } from '../../services/configurationResolver/common/configurationResolver.js';
 import { ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
@@ -45,6 +45,24 @@ namespace TaskExecutionDTO {
 		};
 	}
 }
+
+export interface ITaskTerminalStatusDTO {
+	execution: ITaskExecutionDTO;
+	taskEventKind: TaskEventKind;
+}
+
+export namespace TaskTerminalStatusDTO {
+	export function from(value: ITaskStatus): ITaskTerminalStatusDTO {
+		return {
+			execution: {
+				id: value.execution.id,
+				task: TaskDTO.from(value.execution.task)
+			},
+			taskEventKind: value.taskEventKind
+		};
+	}
+}
+
 
 namespace TaskProcessStartedDTO {
 	export function from(value: ITaskExecution, processId: number): ITaskProcessStartedDTO {
@@ -456,8 +474,7 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 			} else if (event.kind === TaskEventKind.End) {
 				this._proxy.$OnDidEndTask(TaskExecutionDTO.from(task.getTaskExecution()));
 			}
-			//TODO@meganrogge fix
-			this._proxy.$onDidChangeTaskTerminalStatus(TaskTerminalStatusDTO.from({ terminalId: 1, status: event.kind.toString() }));
+			this._proxy.$onDidChangeTaskTerminalStatus(TaskTerminalStatusDTO.from({ execution: task.getTaskExecution(), taskEventKind: event.kind }));
 		}));
 	}
 

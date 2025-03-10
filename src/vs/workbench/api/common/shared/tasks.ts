@@ -6,6 +6,7 @@
 import { UriComponents } from '../../../../base/common/uri.js';
 import { IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import type { Dto } from '../../../services/extensions/common/proxyIdentifier.js';
+import { ITaskExecution, TaskEventKind } from '../../../contrib/tasks/common/tasks.js';
 
 export interface ITaskDefinitionDTO {
 	type: string;
@@ -138,28 +139,12 @@ export interface ITaskSystemInfoDTO {
 	platform: string;
 }
 
-export interface ITaskTerminalStatus {
-	terminalId: number;
-	status: string;
+export interface ITaskStatus {
+	execution: ITaskExecution;
+	taskEventKind: TaskEventKind;
 }
 
-export interface ITaskTerminalStatusDTO {
-	terminalId: number;
-	status: string;
-}
-
-export namespace TaskTerminalStatusDTO {
-	export function from(value: ITaskTerminalStatus): ITaskTerminalStatusDTO {
-		return {
-			terminalId: value.terminalId,
-			status: value.status
-		};
-	}
-
-	export function to(value: ITaskTerminalStatusDTO): ITaskTerminalStatus {
-		return {
-			terminalId: value.terminalId,
-			status: value.status
-		};
-	}
+export interface ITaskStatusDTO {
+	execution: ITaskExecutionDTO;
+	taskEventKind: TaskEventKind;
 }

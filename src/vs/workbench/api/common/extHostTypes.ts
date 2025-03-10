@@ -2216,6 +2216,19 @@ export enum TaskRevealKind {
 	Never = 3
 }
 
+export const TaskEventKind = {
+	DependsOnStarted: 'dependsOnStarted',
+	AcquiredInput: 'acquiredInput',
+	Start: 'start',
+	ProcessStarted: 'processStarted',
+	Active: 'active',
+	Inactive: 'inactive',
+	Changed: 'changed',
+	Terminated: 'terminated',
+	ProcessEnded: 'processEnded',
+	End: 'end'
+};
+
 export enum TaskPanelKind {
 	Shared = 1,
 
