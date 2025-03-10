@@ -152,7 +152,7 @@ export interface IWindowSettings {
 	readonly restoreFullscreen: boolean;
 	readonly zoomLevel: number;
 	readonly titleBarStyle: TitlebarStyle;
-	readonly titleControlsStyle: 'native' | 'custom' | 'hidden';
+	readonly titleControlsStyle: TitleControlsStyle;
 	readonly autoDetectHighContrast: boolean;
 	readonly autoDetectColorScheme: boolean;
 	readonly menuBarVisibility: MenuBarVisibility;
@@ -178,6 +178,12 @@ export const enum TitleBarSetting {
 export const enum TitlebarStyle {
 	NATIVE = 'native',
 	CUSTOM = 'custom',
+}
+
+export const enum TitleControlsStyle {
+	NATIVE = 'native',
+	CUSTOM = 'custom',
+	HIDDEN = 'hidden'
 }
 
 export const enum CustomTitleBarVisibility {
@@ -226,18 +232,18 @@ export function getTitleBarStyle(configurationService: IConfigurationService): T
 	return TitlebarStyle.CUSTOM; // default to custom on all OS
 }
 
-export function getTitleControlsStyle(configurationService: IConfigurationService): 'native' | 'custom' | 'hidden' {
+export function getTitleControlsStyle(configurationService: IConfigurationService): TitleControlsStyle {
 	if (isWeb || isMacintosh || getTitleBarStyle(configurationService) === TitlebarStyle.NATIVE) {
-		return 'native'; // only supported on Windows/Linux desktop with custom titlebar
+		return TitleControlsStyle.NATIVE; // only supported on Windows/Linux desktop with custom titlebar
 	}
 
 	const configuration = configurationService.getValue<IWindowSettings | undefined>('window');
 	const style = configuration?.titleControlsStyle;
-	if (style === 'custom' || style === 'hidden') {
+	if (style === TitleControlsStyle.CUSTOM || style === TitleControlsStyle.HIDDEN) {
 		return style;
 	}
 
-	return 'native'; // default to native on all OS
+	return TitleControlsStyle.NATIVE; // default to native on all OS
 }
 
 export const DEFAULT_CUSTOM_TITLEBAR_HEIGHT = 35; // includes space for command center
@@ -253,7 +259,7 @@ export function useWindowControlsOverlay(configurationService: IConfigurationSer
 
 	if (!isMacintosh) {
 		const setting = getTitleControlsStyle(configurationService);
-		if (setting === 'custom' || setting === 'hidden') {
+		if (setting === TitleControlsStyle.CUSTOM || setting === TitleControlsStyle.HIDDEN) {
 			return false; // explicitly disabled by choice
 		}
 	}
