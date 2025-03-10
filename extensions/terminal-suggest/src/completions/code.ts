@@ -154,7 +154,7 @@ const commonOptions: Fig.Option[] = [
 	}
 ];
 
-const extensionManagementOptions: Fig.Option[] = [
+export const extensionManagementOptions = (cliName: string): Fig.Option[] => [
 	{
 		name: '--extensions-dir',
 		description: 'Set the root path for extensions',
@@ -207,10 +207,7 @@ const extensionManagementOptions: Fig.Option[] = [
 		args: {
 			name: 'extension-id[@version] | path-to-vsix',
 			generators: [
-				{
-					script: ['code', '--list-extensions', '--show-versions'],
-					postProcess: parseInstalledExtensions,
-				},
+				createCodeGenerators(cliName),
 				filepaths({
 					extensions: ['vsix'],
 				}),
@@ -227,10 +224,7 @@ const extensionManagementOptions: Fig.Option[] = [
 		description: 'Uninstalls an extension',
 		args: {
 			name: 'extension-id',
-			generators: {
-				script: ['code', '--list-extensions', '--show-versions'],
-				postProcess: parseInstalledExtensions,
-			}
+			generators: createCodeGenerators(cliName)
 		},
 	},
 	{
@@ -240,7 +234,7 @@ const extensionManagementOptions: Fig.Option[] = [
 	},
 ];
 
-const troubleshootingOptions: Fig.Option[] = [
+export const troubleshootingOptions = (cliName: string): Fig.Option[] => [
 	{
 		name: ['-v', '--version'],
 		description: 'Print version',
@@ -283,10 +277,7 @@ const troubleshootingOptions: Fig.Option[] = [
 		description: 'Disable an extension',
 		args: {
 			name: 'extension-id',
-			generators: {
-				script: ['code', '--list-extensions', '--show-versions'],
-				postProcess: parseInstalledExtensions,
-			}
+			generators: createCodeGenerators(cliName)
 		},
 	},
 	{
@@ -332,6 +323,12 @@ const troubleshootingOptions: Fig.Option[] = [
 	},
 ];
 
+export function createCodeGenerators(cliName: string): Fig.Generator {
+	return {
+		script: [cliName, '--list-extensions', '--show-versions'],
+		postProcess: parseInstalledExtensions
+	};
+}
 
 export function parseInstalledExtensions(out: string): Fig.Suggestion[] | undefined {
 	const extensions = out.split('\n').filter(Boolean).map((line) => {
@@ -355,8 +352,8 @@ const codeCompletionSpec: Fig.Spec = {
 	},
 	options: [
 		...commonOptions,
-		...extensionManagementOptions,
-		...troubleshootingOptions,
+		...extensionManagementOptions('code'),
+		...troubleshootingOptions('code'),
 	],
 };
 
