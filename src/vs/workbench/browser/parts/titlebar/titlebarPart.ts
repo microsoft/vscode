@@ -484,7 +484,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				// for something, except for web where a custom menu being supported). not putting the
 				// container helps with allowing to move the window when clicking very close to the
 				// window control buttons.
-			} else if (this.configurationService.getValue('window.titleControlsStyle') !== 'hidden') {
+			} else if (this.configurationService.getValue('window.titleControlsStyle') === 'hidden') {
 				// Linux/Windows: controls are explicitly disabled
 			} else {
 				this.windowControlsContainer = append(primaryWindowControlsLocation === 'left' ? this.leftContent : this.rightContent, $('div.window-controls-container'));
