@@ -20,7 +20,6 @@ import { TerminalExitReason } from '../../../../platform/terminal/common/termina
 
 
 
-
 export const USER_TASKS_GROUP_KEY = 'settings';
 
 export const TASK_RUNNING_STATE = new RawContextKey<boolean>('taskRunning', false, nls.localize('tasks.taskRunningContext', "Whether a task is currently running."));

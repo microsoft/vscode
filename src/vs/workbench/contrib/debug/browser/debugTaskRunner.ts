@@ -25,7 +25,6 @@ import { ConfiguringTask, CustomTask, ITaskEvent, ITaskIdentifier, Task, TaskEve
 import { ITaskService, ITaskSummary } from '../../tasks/common/taskService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 
-
 const onceFilter = (event: Event<ITaskEvent>, filter: (e: ITaskEvent) => boolean) => Event.once(Event.filter(event, filter));
 
 export const enum TaskRunResult {

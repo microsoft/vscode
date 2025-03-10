@@ -737,7 +737,6 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 									result.variables.set(variableName, partiallyResolvedVars[i]);
 								}
 							}
-
 							if (Types.isString(values.process)) {
 								result.process = values.process;
 							}
@@ -757,4 +756,5 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 	async $registerSupportedExecutions(custom?: boolean, shell?: boolean, process?: boolean): Promise<void> {
 		return this._taskService.registerSupportedExecutions(custom, shell, process);
 	}
+
 }
