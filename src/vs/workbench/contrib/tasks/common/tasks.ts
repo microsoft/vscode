@@ -20,6 +20,7 @@ import { TerminalExitReason } from '../../../../platform/terminal/common/termina
 
 
 
+
 export const USER_TASKS_GROUP_KEY = 'settings';
 
 export const TASK_RUNNING_STATE = new RawContextKey<boolean>('taskRunning', false, nls.localize('tasks.taskRunningContext', "Whether a task is currently running."));
@@ -1102,7 +1103,19 @@ export class TaskSorter {
 	}
 }
 
-export const enum TaskEventKind {
+
+
+export const enum TaskRunType {
+	SingleRun = 'singleRun',
+	Background = 'background'
+}
+
+export interface ITaskChangedEvent {
+	kind: TaskEventKind.Changed;
+}
+
+
+export enum TaskEventKind {
 	DependsOnStarted = 'dependsOnStarted',
 	AcquiredInput = 'acquiredInput',
 	Start = 'start',
@@ -1115,15 +1128,6 @@ export const enum TaskEventKind {
 	End = 'end'
 }
 
-
-export const enum TaskRunType {
-	SingleRun = 'singleRun',
-	Background = 'background'
-}
-
-export interface ITaskChangedEvent {
-	kind: TaskEventKind.Changed;
-}
 
 interface ITaskCommon {
 	taskId: string;

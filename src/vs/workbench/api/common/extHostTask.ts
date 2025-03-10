@@ -551,8 +551,7 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 		const execution = await this.getTaskExecution(value.execution.id);
 		this._onDidChangeTaskTerminalStatus.fire({
 			execution: execution,
-			// TODO@meganrogge is there a way to not have to cast this?
-			taskEventKind: value.taskEventKind as string as vscode.TaskEventKind
+			taskEventKind: value.taskEventKind
 		});
 	}
 

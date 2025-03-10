@@ -6,7 +6,7 @@
 import { UriComponents } from '../../../../base/common/uri.js';
 import { IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import type { Dto } from '../../../services/extensions/common/proxyIdentifier.js';
-import { ITaskExecution, TaskEventKind } from '../../../contrib/tasks/common/tasks.js';
+import { ITaskExecution } from '../../../contrib/tasks/common/tasks.js';
 
 export interface ITaskDefinitionDTO {
 	type: string;
@@ -49,6 +49,19 @@ export interface IShellQuotingOptionsDTO {
 	};
 	strong?: string;
 	weak?: string;
+}
+
+export enum TaskEventKind {
+	DependsOnStarted = 'dependsOnStarted',
+	AcquiredInput = 'acquiredInput',
+	Start = 'start',
+	ProcessStarted = 'processStarted',
+	Active = 'active',
+	Inactive = 'inactive',
+	Changed = 'changed',
+	Terminated = 'terminated',
+	ProcessEnded = 'processEnded',
+	End = 'end'
 }
 
 export interface IShellExecutionOptionsDTO extends IExecutionOptionsDTO {
