@@ -8,10 +8,10 @@ import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { Memento } from '../../../common/memento.js';
-import { ChatAgentLocation } from './chatAgents.js';
 import { WorkingSetEntryState } from './chatEditingService.js';
 import { IChatRequestVariableEntry } from './chatModel.js';
 import { CHAT_PROVIDER_ID } from './chatParticipantContribTypes.js';
+import { ChatAgentLocation } from './constants.js';
 
 export interface IChatHistoryEntry {
 	text: string;

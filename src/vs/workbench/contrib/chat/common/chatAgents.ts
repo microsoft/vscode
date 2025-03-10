@@ -776,3 +776,4 @@ export function reviveSerializedAgent(raw: ISerializableChatAgentData): IChatAge
 
 	return revive(agent);
 }
+export { ChatAgentLocation };
