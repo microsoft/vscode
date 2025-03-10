@@ -198,7 +198,6 @@ const ignored = new Set([
     'vs/workbench/contrib/search/common/cacheState.ts',
     'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoSymbolQuickAccess.ts',
     'vs/workbench/contrib/search/browser/anythingQuickAccess.ts',
-    'vs/workbench/contrib/chat/browser/chatEditing/chatEditingCodeEditorIntegration.ts',
     'vs/workbench/contrib/chat/browser/chatEditing/chatEditingSession.ts',
     'vs/workbench/contrib/testing/browser/testResultsView/testResultsOutput.ts',
     'vs/workbench/contrib/testing/common/testExplorerFilterState.ts',
