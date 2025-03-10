@@ -178,7 +178,6 @@ const ignored = new Set([
 	'vs/workbench/contrib/testing/common/testServiceImpl.ts',
 	'vs/platform/quickinput/browser/commandsQuickAccess.ts',
 	'vs/workbench/contrib/quickaccess/browser/commandsQuickAccess.ts',
-	'vs/workbench/contrib/scm/browser/scmViewService.ts',
 	'vs/workbench/contrib/multiDiffEditor/browser/scmMultiDiffSourceResolver.ts',
 	'vs/workbench/contrib/scm/browser/workingSet.ts',
 	'vs/workbench/contrib/scm/browser/scmHistoryViewPane.ts',
