@@ -341,7 +341,6 @@ export class LinesLayout {
 	}
 
 	public onContentChanges(changes: IModelContentChange[]): void {
-		console.log('onContentChanges');
 		for (const change of changes) {
 			const [eolCount] = countEOL(change.text);
 			const range = change.range;
@@ -349,10 +348,6 @@ export class LinesLayout {
 			const endLineNumber = range.endLineNumber;
 			const deletingLinesCnt = endLineNumber - startLineNumber;
 			const insertingLinesCnt = eolCount;
-
-			console.log('range : ', range);
-			console.log('startLineNumber', startLineNumber);
-			console.log('endLineNumber', endLineNumber);
 
 			if (deletingLinesCnt > 0) {
 				this._specialLineHeightsManager.onLinesDeleted2(startLineNumber + 1, endLineNumber);

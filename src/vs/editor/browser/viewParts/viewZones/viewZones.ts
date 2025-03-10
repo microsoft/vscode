@@ -90,13 +90,11 @@ export class ViewZones extends ViewPart {
 			const keys = Object.keys(this._zones);
 			for (let i = 0, len = keys.length; i < len; i++) {
 				const id = keys[i];
-				// retrieve zone
 				const zone = this._zones[id];
 				const props = this._computeWhitespaceProps(zone.delegate);
 				zone.isInHiddenArea = props.isInHiddenArea;
 				const oldWhitespace = oldWhitespaces.get(id);
 				if (oldWhitespace && (oldWhitespace.afterLineNumber !== props.afterViewLineNumber || oldWhitespace.height !== props.heightInPx)) {
-					// If the values are no longer equal then change one of the whitespaces
 					whitespaceAccessor.changeOneWhitespace(id, props.afterViewLineNumber, props.heightInPx);
 					this._safeCallOnComputedHeight(zone.delegate, props.heightInPx);
 					hadAChange = true;
@@ -202,6 +200,7 @@ export class ViewZones extends ViewPart {
 		let zonesHaveChanged = false;
 
 		this._context.viewModel.changeWhitespace((whitespaceAccessor: IWhitespaceChangeAccessor) => {
+
 			const changeAccessor: IViewZoneChangeAccessor = {
 				addZone: (zone: IViewZone): string => {
 					zonesHaveChanged = true;
@@ -233,12 +232,9 @@ export class ViewZones extends ViewPart {
 	}
 
 	private _addZone(whitespaceAccessor: IWhitespaceChangeAccessor, zone: IViewZone): string {
-		//v Adding the zone by calling into the whitespace accessor
 		const props = this._computeWhitespaceProps(zone);
-		// we get the whitespace id
 		const whitespaceId = whitespaceAccessor.insertWhitespace(props.afterViewLineNumber, this._getZoneOrdinal(zone), props.heightInPx, props.minWidthInPx);
 
-		// Then we set some additional properties on it
 		const myZone: IMyViewZone = {
 			whitespaceId: whitespaceId,
 			delegate: zone,
