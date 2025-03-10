@@ -226,6 +226,20 @@ export function getTitleBarStyle(configurationService: IConfigurationService): T
 	return TitlebarStyle.CUSTOM; // default to custom on all OS
 }
 
+export function getTitleControlsStyle(configurationService: IConfigurationService): 'native' | 'custom' | 'hidden' {
+	if (isWeb || isMacintosh || getTitleBarStyle(configurationService) === TitlebarStyle.NATIVE) {
+		return 'native'; // only supported on Windows/Linux desktop with custom titlebar
+	}
+
+	const configuration = configurationService.getValue<IWindowSettings | undefined>('window');
+	const style = configuration?.titleControlsStyle;
+	if (style === 'custom' || style === 'hidden') {
+		return style;
+	}
+
+	return 'native'; // default to native on all OS
+}
+
 export const DEFAULT_CUSTOM_TITLEBAR_HEIGHT = 35; // includes space for command center
 
 export function useWindowControlsOverlay(configurationService: IConfigurationService): boolean {
