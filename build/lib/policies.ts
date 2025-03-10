@@ -799,7 +799,21 @@ function renderProfileManifest(appName: string, bundleIdentifier: string, _versi
 			<string>Payload Organization</string>
 			<key>pfm_type</key>
 			<string>string</string>
-		</dict>`;
+		</dict>
+		<dict>
+            <key>pfm_default</key>
+            <integer>5</integer>
+            <key>pfm_name</key>
+            <string>TargetDeviceType</string>
+            <key>pfm_title</key>
+            <string>Target Device Type</string>
+            <key>pfm_type</key>
+            <string>integer</string>
+            <key>pfm_range_list</key>
+            <array>
+                <integer>5</integer>
+            </array>
+        </dict>`;
 
 	const profileManifestSubkeys = policies.map(policy => {
 		return policy.renderProfileManifest(translations);
@@ -822,7 +836,7 @@ function renderProfileManifest(appName: string, bundleIdentifier: string, _versi
     <key>pfm_interaction</key>
     <string>combined</string>
     <key>pfm_last_modified</key>
-    <date>2025-02-14T10:00:00Z</date>
+    <date>${new Date().toISOString().replace(/\.\d+Z$/, 'Z')}</date>
     <key>pfm_platforms</key>
     <array>
         <string>macOS</string>
@@ -863,11 +877,6 @@ function renderMacOSPolicy(policies: Policy[], translations: Translations) {
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 	<dict>
-		<key>ConsentText</key>
-		<dict>
-			<key>default</key>
-			<string>This profile manages ${appName}. For more information see https://code.visualstudio.com/docs/setup/enterprise</string>
-		</dict>
 		<key>PayloadContent</key>
 		<array>
 			<dict>
@@ -885,7 +894,7 @@ ${policyEntries}
 			</dict>
 		</array>
 		<key>PayloadDescription</key>
-		<string>https://code.visualstudio.com/docs/setup/enterprise</string>
+		<string>This profile manages ${appName}. For more information see https://code.visualstudio.com/docs/setup/enterprise</string>
 		<key>PayloadDisplayName</key>
 		<string>${appName}</string>
 		<key>PayloadIdentifier</key>
