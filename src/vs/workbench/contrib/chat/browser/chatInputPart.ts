@@ -23,6 +23,7 @@ import { HistoryNavigator2 } from '../../../../base/common/history.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { basename, dirname } from '../../../../base/common/path.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -74,6 +75,7 @@ import { AccessibilityVerbositySettingId } from '../../accessibility/browser/acc
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEditorSelectionStyling } from '../../codeEditor/browser/simpleEditorOptions.js';
 import { revealInSideBarCommand } from '../../files/browser/fileActions.contribution.js';
+import { IMcpService } from '../../mcp/common/mcpTypes.js';
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatEditingSession, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../common/chatEditingService.js';
@@ -199,6 +201,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		contextArr
 			.push(...this.instructionAttachmentsPart.chatAttachments);
+
+
+		// // TODO@jrieken use only selected servers
+		// for (const server of this.mcpService.servers.get()) {
+		// 	for (const { id, definition } of server.tools.get()) {
+		// 		contextArr.push({
+		// 			isTool: true,
+		// 			id,
+		// 			name: definition.name,
+		// 			value: undefined
+		// 		});
+		// 	}
+		// }
 
 		return contextArr;
 	}
@@ -353,6 +368,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@ILabelService private readonly labelService: ILabelService,
 		@IChatVariablesService private readonly variableService: IChatVariablesService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
+		@IMcpService private readonly mcpService: IMcpService
 	) {
 		super();
 
@@ -723,6 +739,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						dom.h('.chat-attachment-toolbar@attachmentToolbar'),
 						dom.h('.chat-attached-context@attachedContextContainer'),
 						dom.h('.chat-related-files@relatedFilesContainer'),
+						dom.h('.chat-mcp@mcpContainer'),
 					]),
 					dom.h('.interactive-input-followups@followupsContainer'),
 				])
@@ -737,6 +754,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							dom.h('.chat-attachment-toolbar@attachmentToolbar'),
 							dom.h('.chat-related-files@relatedFilesContainer'),
 							dom.h('.chat-attached-context@attachedContextContainer'),
+							dom.h('.chat-mcp@mcpContainer'),
 						]),
 						dom.h('.chat-editor-container@editorContainer'),
 						dom.h('.chat-input-toolbars@inputToolbars'),
@@ -761,6 +779,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._implicitContext = this._register(new ChatImplicitContext());
 			this._register(this._implicitContext.onDidChangeValue(() => this._handleAttachedContextChange()));
 		}
+
+		this._register(autorun(r => {
+			const servers = this.mcpService.servers.read(r);
+			const contents = renderLabelWithIcons(localize('serverpattern', "{0} {1}", '$(tools)', servers.length));
+			dom.reset(elements.mcpContainer, ...contents);
+		}));
 
 		this.renderAttachedContext();
 		this._register(this._attachmentModel.onDidChangeContext(() => this._handleAttachedContextChange()));

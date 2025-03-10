@@ -177,12 +177,12 @@ export class McpServer extends Disposable implements IMcpServer {
 	 * Helper function to call the function on the handler once it's online. The
 	 * connection started if it is not already.
 	 */
-	public callOn<R>(fn: (handler: McpServerRequestHandler) => Promise<R>, token?: CancellationToken): Promise<R> {
+	public async callOn<R>(fn: (handler: McpServerRequestHandler) => Promise<R>, token?: CancellationToken): Promise<R> {
 		const store = new DisposableStore();
 		this.start(); // idempotent
 
 		try {
-			return new Promise((resolve, reject) => {
+			return await new Promise((resolve, reject) => {
 				if (token) {
 					store.add(token.onCancellationRequested(() => {
 						reject(new CancellationError());
@@ -215,10 +215,15 @@ export class McpServer extends Disposable implements IMcpServer {
 }
 
 export class McpTool implements IMcpTool {
+
+	readonly id: string;
+
 	constructor(
 		private readonly _server: McpServer,
 		public readonly definition: MCP.Tool,
-	) { }
+	) {
+		this.id = `${_server.definition.id}_${definition.name}`.replaceAll('.', '_');
+	}
 
 	call(params: Record<string, unknown>, token?: CancellationToken): Promise<MCP.CallToolResult> {
 		return this._server.callOn(h => h.callTool({ name: this.definition.name, arguments: params }), token);

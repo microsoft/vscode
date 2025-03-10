@@ -70,6 +70,7 @@ export namespace McpServerDefinition {
 }
 
 export interface IMcpService {
+	_serviceBrand: undefined;
 	readonly servers: IObservable<readonly IMcpServer[]>;
 }
 
@@ -88,6 +89,9 @@ export interface IMcpServer extends IDisposable {
 
 
 export interface IMcpTool {
+
+	readonly id: string;
+
 	readonly definition: MCP.Tool;
 	/**
 	 * Calls a tool

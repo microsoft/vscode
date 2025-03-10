@@ -1122,7 +1122,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .action-item.chat-attached-context-attachment.chat-add-files .action-label,
-.interactive-session .chat-attached-context .chat-attached-context-attachment {
+.interactive-session .chat-attached-context .chat-attached-context-attachment,
+.interactive-session .chat-mcp {
 	display: flex;
 	gap: 2px;
 	overflow: hidden;
