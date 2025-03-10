@@ -38,7 +38,7 @@ export function createCodeTestSpecs(executable: string): ITestSpec[] {
 		{ input: `${executable} --goto |`, expectedResourceRequests: { type: 'files', cwd: testPaths.cwd } },
 		{ input: `${executable} --user-data-dir |`, expectedResourceRequests: { type: 'folders', cwd: testPaths.cwd } },
 		{ input: `${executable} --profile |` },
-		{ input: `${executable} --install-extension |`, expectedCompletions: [executable] },
+		{ input: `${executable} --install-extension |`, expectedCompletions: [executable], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 		{ input: `${executable} --uninstall-extension |`, expectedCompletions: [executable] },
 		{ input: `${executable} --disable-extension |`, expectedCompletions: [executable] },
 		{ input: `${executable} --log |`, expectedCompletions: logOptions },
