@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, getActiveWindow } from '../../../../../base/browser/dom.js';
+import { addDisposableListener, getActiveElement, getShadowRoot } from '../../../../../base/browser/dom.js';
 import { IDisposable, Disposable } from '../../../../../base/common/lifecycle.js';
 
 export interface ITypeData {
@@ -21,8 +21,15 @@ export class FocusTracker extends Disposable {
 		private readonly _onFocusChange: (newFocusValue: boolean) => void,
 	) {
 		super();
-		this._register(addDisposableListener(this._domNode, 'focus', () => this._handleFocusedChanged(true)));
-		this._register(addDisposableListener(this._domNode, 'blur', () => this._handleFocusedChanged(false)));
+		this._register(addDisposableListener(this._domNode, 'focus', () => {
+			// Here we don't trust the browser and instead we check
+			// that the active element is the one we are tracking
+			// (this happens when cmd+tab is used to switch apps)
+			this.refreshFocusState();
+		}));
+		this._register(addDisposableListener(this._domNode, 'blur', () => {
+			this._handleFocusedChanged(false);
+		}));
 	}
 
 	private _handleFocusedChanged(focused: boolean): void {
@@ -34,14 +41,14 @@ export class FocusTracker extends Disposable {
 	}
 
 	public focus(): void {
-		// fixes: https://github.com/microsoft/vscode/issues/228147
-		// Immediately call this method in order to directly set the field isFocused to true so the textInputFocus context key is evaluated correctly
-		this._handleFocusedChanged(true);
 		this._domNode.focus();
+		this.refreshFocusState();
 	}
 
 	public refreshFocusState(): void {
-		const focused = this._domNode === getActiveWindow().document.activeElement;
+		const shadowRoot = getShadowRoot(this._domNode);
+		const activeElement = shadowRoot ? shadowRoot.activeElement : getActiveElement();
+		const focused = this._domNode === activeElement;
 		this._handleFocusedChanged(focused);
 	}
 
