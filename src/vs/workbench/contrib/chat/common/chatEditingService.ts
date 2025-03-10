@@ -87,11 +87,12 @@ export interface IChatEditingSession extends IDisposable {
 	readonly onDidDispose: Event<void>;
 	readonly state: IObservable<ChatEditingSessionState>;
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
+	/**
+	 * @deprecated
+	 */
 	readonly workingSet: ResourceMap<WorkingSetDisplayMetadata>;
-	addFileToWorkingSet(uri: URI, description?: string, kind?: WorkingSetEntryState.Suggested): void;
 	show(): Promise<void>;
 	remove(reason: WorkingSetEntryRemovalReason, ...uris: URI[]): void;
-	markIsReadonly(uri: URI, isReadonly?: boolean): void;
 	accept(...uris: URI[]): Promise<void>;
 	reject(...uris: URI[]): Promise<void>;
 	getEntry(uri: URI): IModifiedFileEntry | undefined;
@@ -156,9 +157,8 @@ export const enum WorkingSetEntryState {
 	Accepted,
 	Rejected,
 	Transient, // TODO@joyceerhl remove this
-	Attached,
+	Attached, // TODO@joyceerhl remove this
 	Sent, // TODO@joyceerhl remove this
-	Suggested,
 }
 
 export const enum ChatEditingSessionChangeType {

@@ -338,7 +338,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		let tokenUpdate: { newTokens: TokenUpdate[] } | undefined;
 
 		for (let i = 0; i < rangeChanges.length; i++) {
-			if (versionId !== textModel.getVersionId()) {
+			if (!textModel.isDisposed() && versionId !== textModel.getVersionId()) {
 				// Our captures have become invalid and we need to re-capture
 				break;
 			}
