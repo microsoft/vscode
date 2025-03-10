@@ -28,6 +28,7 @@ import { IStorageService } from '../../storage/common/storage.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { format2 } from '../../../base/common/strings.js';
+import { IAssignmentService } from '../../assignment/common/assignment.js';
 
 const CURRENT_TARGET_PLATFORM = isWeb ? TargetPlatform.WEB : getTargetPlatform(platform, arch);
 const ACTIVITY_HEADER_NAME = 'X-Market-Search-Activity-Id';
@@ -177,6 +178,14 @@ enum Flags {
 	 * Include the details if an extension is in conflict list or not
 	 */
 	IncludeNameConflictInfo = 0x8000,
+
+	/**
+	 * When retrieving versions from a query, only include the latest stable and pre-release
+	 * versions of the extensions that matched. This is useful when the caller needs
+	 * only the latest versions and not the entire version history. It will save a
+	 * significant size in the returned payload.
+	 */
+	IncludeLatestPrereleaseAndStableVersionOnly = 0x10000,
 }
 
 function flagsToString(...flags: Flags[]): string {
@@ -251,6 +260,7 @@ type GalleryServiceQueryClassification = {
 	comment: 'Information about Marketplace query and its response';
 	readonly filterTypes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Filter types used in the query.' };
 	readonly flags: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flags passed in the query.' };
+	readonly includeLatestPrereleaseAndStableVersionOnly: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'whether the query includes latest pre-release and stable version only flag' };
 	readonly sortBy: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'sorted by option passed in the query' };
 	readonly sortOrder: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'sort order option passed in the query' };
 	readonly pageNumber: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'requested page number in the query' };
@@ -267,6 +277,7 @@ type GalleryServiceQueryClassification = {
 
 type QueryTelemetryData = {
 	readonly flags: number;
+	readonly includeLatestPrereleaseAndStableVersionOnly: boolean;
 	readonly filterTypes: string[];
 	readonly sortBy: string;
 	readonly sortOrder: string;
@@ -303,6 +314,7 @@ type ExtensionsCriteria = {
 	readonly compatible: boolean;
 	readonly includePreRelease: boolean | (IExtensionIdentifier & { includePreRelease: boolean })[];
 	readonly versions?: (IExtensionIdentifier & { version: string })[];
+	readonly isQueryForReleaseVersionFromPreReleaseVersion?: boolean;
 };
 
 const enum VersionKind {
@@ -381,7 +393,8 @@ class Query {
 			sortOrder: String(this.sortOrder),
 			pageNumber: String(this.pageNumber),
 			source: this.state.source,
-			searchTextLength: this.searchText.length
+			searchTextLength: this.searchText.length,
+			includeLatestPrereleaseAndStableVersionOnly: !!(this.state.flags & Flags.IncludeLatestPrereleaseAndStableVersionOnly)
 		};
 	}
 }
@@ -611,7 +624,7 @@ interface IRawExtensionsControlManifest {
 	extensionsEnabledWithPreRelease?: string[];
 }
 
-abstract class AbstractExtensionGalleryService implements IExtensionGalleryService {
+export abstract class AbstractExtensionGalleryService implements IExtensionGalleryService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -624,6 +637,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 
 	constructor(
 		storageService: IStorageService | undefined,
+		private readonly assignmentService: IAssignmentService | undefined,
 		@IRequestService private readonly requestService: IRequestService,
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
@@ -669,7 +683,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		const useResourceApi = options.preferResourceApi && (this.configurationService.getValue(UseUnpkgResourceApiConfigKey) ?? false);
 		const result = useResourceApi
 			? await this.getExtensionsUsingResourceApi(extensionInfos, options, token)
-			: await this.doGetExtensions(extensionInfos, options, token);
+			: await this.getExtensionsUsingQueryApi(extensionInfos, options, token);
 
 		const uuids = result.map(r => r.identifier.uuid);
 		const extensionInfosByName: IExtensionInfo[] = [];
@@ -691,29 +705,32 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 					count: extensionInfosByName.length
 				});
 
-			const extensions = await this.doGetExtensions(extensionInfosByName, options, token);
+			const extensions = await this.getExtensionsUsingQueryApi(extensionInfosByName, options, token);
 			result.push(...extensions);
 		}
 
 		return result;
 	}
 
-	private async doGetExtensions(extensionInfos: ReadonlyArray<IExtensionInfo>, options: IExtensionQueryOptions, token: CancellationToken): Promise<IGalleryExtension[]> {
-		const names: string[] = []; const ids: string[] = [], includePreReleases: (IExtensionIdentifier & { includePreRelease: boolean })[] = [], versions: (IExtensionIdentifier & { version: string })[] = [];
+	private async getExtensionsUsingQueryApi(extensionInfos: ReadonlyArray<IExtensionInfo>, options: IExtensionQueryOptions, token: CancellationToken): Promise<IGalleryExtension[]> {
+		const names: string[] = [],
+			ids: string[] = [],
+			includePreRelease: (IExtensionIdentifier & { includePreRelease: boolean })[] = [],
+			versions: (IExtensionIdentifier & { version: string })[] = [];
 		let isQueryForReleaseVersionFromPreReleaseVersion = true;
+
 		for (const extensionInfo of extensionInfos) {
 			if (extensionInfo.uuid) {
 				ids.push(extensionInfo.uuid);
 			} else {
 				names.push(extensionInfo.id);
 			}
-			// Set includePreRelease to true if version is set, because the version can be a pre-release version
-			const includePreRelease = !!(extensionInfo.version || extensionInfo.preRelease);
-			includePreReleases.push({ id: extensionInfo.id, uuid: extensionInfo.uuid, includePreRelease });
 			if (extensionInfo.version) {
 				versions.push({ id: extensionInfo.id, uuid: extensionInfo.uuid, version: extensionInfo.version });
+			} else {
+				includePreRelease.push({ id: extensionInfo.id, uuid: extensionInfo.uuid, includePreRelease: !!extensionInfo.preRelease });
 			}
-			isQueryForReleaseVersionFromPreReleaseVersion = isQueryForReleaseVersionFromPreReleaseVersion && (!!extensionInfo.hasPreRelease && !includePreRelease);
+			isQueryForReleaseVersionFromPreReleaseVersion = isQueryForReleaseVersionFromPreReleaseVersion && (!!extensionInfo.hasPreRelease && !extensionInfo.preRelease);
 		}
 
 		if (!ids.length && !names.length) {
@@ -727,17 +744,29 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		if (names.length) {
 			query = query.withFilter(FilterType.ExtensionName, ...names);
 		}
-		if (options.queryAllVersions || isQueryForReleaseVersionFromPreReleaseVersion /* Inlcude all versions if every requested extension is for release version and has pre-release version  */) {
+		if (options.queryAllVersions) {
 			query = query.withFlags(query.flags, Flags.IncludeVersions);
 		}
 		if (options.source) {
 			query = query.withSource(options.source);
 		}
 
-		const { extensions } = await this.queryGalleryExtensions(query, { targetPlatform: options.targetPlatform ?? CURRENT_TARGET_PLATFORM, includePreRelease: includePreReleases, versions, compatible: !!options.compatible, productVersion: options.productVersion ?? { version: this.productService.version, date: this.productService.date } }, token);
+		const { extensions } = await this.queryGalleryExtensions(
+			query,
+			{
+				targetPlatform: options.targetPlatform ?? CURRENT_TARGET_PLATFORM,
+				includePreRelease,
+				versions,
+				compatible: !!options.compatible,
+				productVersion: options.productVersion ?? { version: this.productService.version, date: this.productService.date },
+				isQueryForReleaseVersionFromPreReleaseVersion
+			},
+			token);
+
 		if (options.source) {
 			extensions.forEach((e, index) => setTelemetry(e, index, options.source));
 		}
+
 		return extensions;
 	}
 
@@ -812,7 +841,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			}
 		}));
 
-		const extensions = await this.doGetExtensions(toQuery, options, token);
+		const extensions = await this.getExtensionsUsingQueryApi(toQuery, options, token);
 		result.push(...extensions);
 
 		return result;
@@ -828,12 +857,18 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		if (this.allowedExtensionsService.isAllowed({ id: extension.identifier.id, publisherDisplayName: extension.publisherDisplayName }) !== true) {
 			return null;
 		}
-		const query = new Query()
-			.withFlags(Flags.IncludeVersions)
-			.withPage(1, 1)
-			.withFilter(FilterType.ExtensionId, extension.identifier.uuid);
-		const { extensions } = await this.queryGalleryExtensions(query, { targetPlatform, compatible: true, includePreRelease, productVersion }, CancellationToken.None);
-		return extensions[0] || null;
+		const result = await this.getExtensions([{
+			...extension.identifier,
+			preRelease: includePreRelease,
+			hasPreRelease: extension.hasPreReleaseVersion,
+		}], {
+			compatible: true,
+			productVersion,
+			queryAllVersions: true,
+			targetPlatform,
+		}, CancellationToken.None);
+
+		return result[0] ?? null;
 	}
 
 	async isExtensionCompatible(extension: IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform, productVersion: IProductVersion = { version: this.productService.version, date: this.productService.date }): Promise<boolean> {
@@ -993,6 +1028,17 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 	}
 
 	private async queryGalleryExtensions(query: Query, criteria: ExtensionsCriteria, token: CancellationToken): Promise<{ extensions: IGalleryExtension[]; total: number }> {
+		if (
+			this.productService.quality !== 'stable'
+			&& (await this.assignmentService?.getTreatment<boolean>('useLatestPrereleaseAndStableVersionFlag'))
+		) {
+			return this.queryGalleryExtensionsUsingIncludeLatestPrereleaseAndStableVersionFlag(query, criteria, token);
+		}
+
+		return this.queryGalleryExtensionsWithAllVersionsAsFallback(query, criteria, token);
+	}
+
+	private async queryGalleryExtensionsWithAllVersionsAsFallback(query: Query, criteria: ExtensionsCriteria, token: CancellationToken): Promise<{ extensions: IGalleryExtension[]; total: number }> {
 		const flags = query.flags;
 
 		/**
@@ -1010,9 +1056,9 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		}
 
 		/**
-		 * If versions criteria exist, then remove IncludeLatestVersionOnly flag and add IncludeVersions flag.
+		 * If versions criteria exist or every requested extension is for release version and has a pre-release version, then remove latest flags and add all versions flag.
 		 */
-		if (criteria.versions?.length) {
+		if (criteria.versions?.length || criteria.isQueryForReleaseVersionFromPreReleaseVersion) {
 			query = query.withFlags(query.flags & ~Flags.IncludeLatestVersionOnly, Flags.IncludeVersions);
 		}
 
@@ -1114,6 +1160,72 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		}
 
 		return { extensions: result.sort((a, b) => a[0] - b[0]).map(([, extension]) => extension), total };
+	}
+
+	private async queryGalleryExtensionsUsingIncludeLatestPrereleaseAndStableVersionFlag(query: Query, criteria: ExtensionsCriteria, token: CancellationToken): Promise<{ extensions: IGalleryExtension[]; total: number }> {
+
+		/**
+		 * If versions criteria exist, then remove latest flags and add all versions flag.
+		*/
+		if (criteria.versions?.length) {
+			query = query.withFlags(query.flags & ~Flags.IncludeLatestVersionOnly & ~Flags.IncludeLatestPrereleaseAndStableVersionOnly, Flags.IncludeVersions);
+		}
+
+		/**
+		 * If the query does not specify all versions flag, handle latest versions.
+		 */
+		else if (!(query.flags & Flags.IncludeVersions)) {
+			const includeLatest = isBoolean(criteria.includePreRelease) ? criteria.includePreRelease : criteria.includePreRelease.every(({ includePreRelease }) => includePreRelease);
+			query = includeLatest ? query.withFlags(query.flags & ~Flags.IncludeLatestPrereleaseAndStableVersionOnly, Flags.IncludeLatestVersionOnly) : query.withFlags(query.flags & ~Flags.IncludeLatestVersionOnly, Flags.IncludeLatestPrereleaseAndStableVersionOnly);
+		}
+
+		/**
+		 * If all versions flag is set, remove latest flags.
+		 */
+		if (!!(query.flags & Flags.IncludeVersions) && (!!(query.flags & Flags.IncludeLatestVersionOnly) || !!(query.flags & Flags.IncludeLatestPrereleaseAndStableVersionOnly))) {
+			query = query.withFlags(query.flags & ~Flags.IncludeLatestVersionOnly & ~Flags.IncludeLatestPrereleaseAndStableVersionOnly, Flags.IncludeVersions);
+		}
+
+		/**
+		 * Add necessary extension flags
+		 */
+		query = query.withFlags(query.flags, Flags.IncludeAssetUri, Flags.IncludeCategoryAndTags, Flags.IncludeFiles, Flags.IncludeStatistics, Flags.IncludeVersionProperties);
+		const { galleryExtensions: rawGalleryExtensions, total, context } = await this.queryRawGalleryExtensions(query, token);
+
+		const extensions: IGalleryExtension[] = [];
+		for (let index = 0; index < rawGalleryExtensions.length; index++) {
+			const rawGalleryExtension = rawGalleryExtensions[index];
+			const extensionIdentifier = { id: getGalleryExtensionId(rawGalleryExtension.publisher.publisherName, rawGalleryExtension.extensionName), uuid: rawGalleryExtension.extensionId };
+			const allTargetPlatforms = getAllTargetPlatforms(rawGalleryExtension);
+			if (criteria.compatible) {
+				// Skip looking for all versions if requested for a web-compatible extension and it is not a web extension.
+				if (isNotWebExtensionInWebTargetPlatform(allTargetPlatforms, criteria.targetPlatform)) {
+					continue;
+				}
+				// Skip looking for all versions if the extension is not allowed.
+				if (this.allowedExtensionsService.isAllowed({ id: extensionIdentifier.id, publisherDisplayName: rawGalleryExtension.publisher.displayName }) !== true) {
+					continue;
+				}
+			}
+
+			const version = criteria.versions?.find(extensionIdentifierWithVersion => areSameExtensions(extensionIdentifierWithVersion, extensionIdentifier))?.version
+				?? ((isBoolean(criteria.includePreRelease) ? criteria.includePreRelease : !!criteria.includePreRelease.find(extensionIdentifierWithPreRelease => areSameExtensions(extensionIdentifierWithPreRelease, extensionIdentifier))?.includePreRelease) ? VersionKind.Latest : VersionKind.Release);
+			const rawGalleryExtensionVersion = await this.getRawGalleryExtensionVersion(
+				rawGalleryExtension,
+				{
+					compatible: criteria.compatible,
+					targetPlatform: criteria.targetPlatform,
+					productVersion: criteria.productVersion,
+					version
+				},
+				allTargetPlatforms
+			);
+			if (rawGalleryExtensionVersion) {
+				extensions.push(toExtension(rawGalleryExtension, rawGalleryExtensionVersion, allTargetPlatforms, context));
+			}
+		}
+
+		return { extensions, total };
 	}
 
 	private async getRawGalleryExtensionVersion(rawGalleryExtension: IRawGalleryExtension, criteria: ExtensionVersionCriteria, allTargetPlatforms: TargetPlatform[]): Promise<IRawGalleryExtensionVersion | null> {
@@ -1639,7 +1751,7 @@ export class ExtensionGalleryService extends AbstractExtensionGalleryService {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IAllowedExtensionsService allowedExtensionsService: IAllowedExtensionsService,
 	) {
-		super(storageService, requestService, logService, environmentService, telemetryService, fileService, productService, configurationService, allowedExtensionsService);
+		super(storageService, undefined, requestService, logService, environmentService, telemetryService, fileService, productService, configurationService, allowedExtensionsService);
 	}
 }
 
@@ -1655,6 +1767,6 @@ export class ExtensionGalleryServiceWithNoStorageService extends AbstractExtensi
 		@IConfigurationService configurationService: IConfigurationService,
 		@IAllowedExtensionsService allowedExtensionsService: IAllowedExtensionsService,
 	) {
-		super(undefined, requestService, logService, environmentService, telemetryService, fileService, productService, configurationService, allowedExtensionsService);
+		super(undefined, undefined, requestService, logService, environmentService, telemetryService, fileService, productService, configurationService, allowedExtensionsService);
 	}
 }
