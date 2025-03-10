@@ -7,32 +7,47 @@ import { Disposable, Event, EventEmitter, LogOutputChannel, SecretStorage } from
 import { AccountInfo } from '@azure/msal-node';
 
 export interface IAccountAccess {
-	initialize(): Promise<void>;
 	onDidAccountAccessChange: Event<void>;
 	isAllowedAccess(account: AccountInfo): boolean;
 	setAllowedAccess(account: AccountInfo, allowed: boolean): Promise<void>;
 }
 
-export class ScopedAccountAccess implements IAccountAccess {
+export class ScopedAccountAccess implements IAccountAccess, Disposable {
 	private readonly _onDidAccountAccessChangeEmitter = new EventEmitter<void>();
 	readonly onDidAccountAccessChange = this._onDidAccountAccessChangeEmitter.event;
 
-	private readonly _accountAccessSecretStorage: AccountAccessSecretStorage;
-
 	private value = new Array<string>();
 
-	constructor(
+	private readonly _disposable: Disposable;
+
+	private constructor(
+		private readonly _accountAccessSecretStorage: IAccountAccessSecretStorage,
+		disposables: Disposable[] = []
+	) {
+		this._disposable = Disposable.from(
+			...disposables,
+			this._onDidAccountAccessChangeEmitter,
+			this._accountAccessSecretStorage.onDidChange(() => this.update())
+		);
+	}
+
+	static async create(
 		secretStorage: SecretStorage,
 		cloudName: string,
 		logger: LogOutputChannel,
-		migrations?: { clientId: string; authority: string }[],
-	) {
-		this._accountAccessSecretStorage = new AccountAccessSecretStorage(secretStorage, cloudName, logger, migrations);
-		this._accountAccessSecretStorage.onDidChange(() => this.update());
+		migrations: { clientId: string; authority: string }[] | undefined,
+	): Promise<ScopedAccountAccess> {
+		const storage = await AccountAccessSecretStorage.create(secretStorage, cloudName, logger, migrations);
+		const access = new ScopedAccountAccess(storage, [storage]);
+		await access.initialize();
+		return access;
 	}
 
-	async initialize() {
-		await this._accountAccessSecretStorage.initialize();
+	dispose() {
+		this._disposable.dispose();
+	}
+
+	private async initialize(): Promise<void> {
 		await this.update();
 	}
 
@@ -62,15 +77,22 @@ export class ScopedAccountAccess implements IAccountAccess {
 	}
 }
 
-export class AccountAccessSecretStorage {
+interface IAccountAccessSecretStorage {
+	get(): Promise<string[] | undefined>;
+	store(value: string[]): Thenable<void>;
+	delete(): Thenable<void>;
+	onDidChange: Event<void>;
+}
+
+class AccountAccessSecretStorage implements IAccountAccessSecretStorage, Disposable {
 	private _disposable: Disposable;
 
-	private readonly _onDidChangeEmitter = new EventEmitter<void>;
+	private readonly _onDidChangeEmitter = new EventEmitter<void>();
 	readonly onDidChange: Event<void> = this._onDidChangeEmitter.event;
 
 	private readonly _key = `accounts-${this._cloudName}`;
 
-	constructor(
+	private constructor(
 		private readonly _secretStorage: SecretStorage,
 		private readonly _cloudName: string,
 		private readonly _logger: LogOutputChannel,
@@ -86,10 +108,21 @@ export class AccountAccessSecretStorage {
 		);
 	}
 
+	static async create(
+		secretStorage: SecretStorage,
+		cloudName: string,
+		logger: LogOutputChannel,
+		migrations?: { clientId: string; authority: string }[],
+	): Promise<AccountAccessSecretStorage> {
+		const storage = new AccountAccessSecretStorage(secretStorage, cloudName, logger, migrations);
+		await storage.initialize();
+		return storage;
+	}
+
 	/**
 	 * TODO: Remove this method after a release with the migration
 	 */
-	async initialize(): Promise<void> {
+	private async initialize(): Promise<void> {
 		if (!this._migrations) {
 			return;
 		}

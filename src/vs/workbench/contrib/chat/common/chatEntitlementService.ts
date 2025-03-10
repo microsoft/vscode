@@ -85,10 +85,12 @@ const defaultChat = {
 	upgradePlanUrl: product.defaultChatAgent?.upgradePlanUrl ?? '',
 	providerId: product.defaultChatAgent?.providerId ?? '',
 	enterpriseProviderId: product.defaultChatAgent?.enterpriseProviderId ?? '',
-	providerSetting: product.defaultChatAgent?.providerSetting ?? '',
 	providerScopes: product.defaultChatAgent?.providerScopes ?? [[]],
 	entitlementUrl: product.defaultChatAgent?.entitlementUrl ?? '',
 	entitlementSignupLimitedUrl: product.defaultChatAgent?.entitlementSignupLimitedUrl ?? '',
+	completionsAdvancedSetting: product.defaultChatAgent?.completionsAdvancedSetting ?? '',
+	chatQuotaExceededContext: product.defaultChatAgent?.chatQuotaExceededContext ?? '',
+	completionsQuotaExceededContext: product.defaultChatAgent?.completionsQuotaExceededContext ?? ''
 };
 
 interface IChatQuotasAccessor {
@@ -115,6 +117,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 			!productService.defaultChatAgent ||				// needs product config
 			(isWeb && !environmentService.remoteAuthority)	// only enabled locally or a remote backend
 		) {
+			ChatContextKeys.Setup.hidden.bindTo(this.contextKeyService).set(true); // hide copilot UI
 			return;
 		}
 
@@ -171,8 +174,8 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	private readonly completionsQuotaExceededContextKey = ChatContextKeys.completionsQuotaExceeded.bindTo(this.contextKeyService);
 
 	private ExtensionQuotaContextKeys = {
-		chatQuotaExceeded: 'github.copilot.chat.quotaExceeded',
-		completionsQuotaExceeded: 'github.copilot.completions.quotaExceeded',
+		chatQuotaExceeded: defaultChat.chatQuotaExceededContext,
+		completionsQuotaExceeded: defaultChat.completionsQuotaExceededContext,
 	};
 
 	private registerListeners(): void {
@@ -305,7 +308,7 @@ interface IQuotas {
 export class ChatSetupRequests extends Disposable {
 
 	static providerId(configurationService: IConfigurationService): string {
-		if (configurationService.getValue<string | undefined>(defaultChat.providerSetting) === defaultChat.enterpriseProviderId) {
+		if (configurationService.getValue<string | undefined>(`${defaultChat.completionsAdvancedSetting}.authProvider`) === defaultChat.enterpriseProviderId) {
 			return defaultChat.enterpriseProviderId;
 		}
 

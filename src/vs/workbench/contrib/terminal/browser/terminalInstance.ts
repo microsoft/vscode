@@ -90,6 +90,7 @@ import type { IMenu } from '../../../../platform/actions/common/actions.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { TerminalContribCommandId } from '../terminalContribExports.js';
 import type { IProgressState } from '@xterm/addon-progress';
+import { refreshShellIntegrationInfoStatus } from './terminalTooltip.js';
 
 const enum Constants {
 	/**
@@ -859,6 +860,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}));
 		this._register(xterm.onDidChangeProgress(() => this._labelComputer?.refreshLabel(this)));
+
+		// Register and update the terminal's shell integration status
+		this._register(Event.runAndSubscribe(xterm.shellIntegration.onDidChangeSeenSequences, () => {
+			if (xterm.shellIntegration.seenSequences.size > 0) {
+				refreshShellIntegrationInfoStatus(this);
+			}
+		}));
 
 		// Set up updating of the process cwd on key press, this is only needed when the cwd
 		// detection capability has not been registered
