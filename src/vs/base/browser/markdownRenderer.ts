@@ -46,10 +46,9 @@ export interface ISanitizerOptions {
 
 const defaultMarkedRenderers = Object.freeze({
 	image: ({ href, title, text }: marked.Tokens.Image): string => {
-		let dimensions: string[] = [];
 		let attributes: string[] = [];
 		if (href) {
-			({ href, dimensions } = parseHrefAndDimensions(href));
+			({ href, attributes } = parseHrefAndDimensions(href));
 			attributes.push(`src="${escapeDoubleQuotes(href)}"`);
 		}
 		if (text) {
@@ -58,8 +57,8 @@ const defaultMarkedRenderers = Object.freeze({
 		if (title) {
 			attributes.push(`title="${escapeDoubleQuotes(title)}"`);
 		}
-		if (dimensions.length) {
-			attributes = attributes.concat(dimensions);
+		if (attributes.length) {
+			attributes = attributes.concat(attributes);
 		}
 		return '<img ' + attributes.join(' ') + '>';
 	},
@@ -414,6 +413,12 @@ function sanitizeRenderedMarkdown(
 					return;
 				} else if (e.attrName === 'class') {
 					e.keepAttr = /^codicon codicon-[a-z\-]+( codicon-modifier-[a-z\-]+)?$/.test(e.attrValue);
+					return;
+				}
+			}
+			if (element.tagName === 'IMG') {
+				if (e.attrName === 'style') {
+					e.keepAttr = /^(border-radius:[0-9]+px;)?$/.test(e.attrValue);
 					return;
 				}
 			}
