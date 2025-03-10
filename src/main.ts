@@ -522,14 +522,6 @@ function getJSFlags(cliArgs: NativeParsedArgs): string | null {
 		jsFlags.push(cliArgs['js-flags']);
 	}
 
-	if (process.platform === 'linux') {
-		// Fix cppgc crash on Linux with 16KB page size.
-		// Refs https://issues.chromium.org/issues/378017037
-		// TODO(deepak1556): Remove this once we update to
-		// Chromium >= 134.
-		jsFlags.push('--nodecommit_pooled_pages');
-	}
-
 	return jsFlags.length > 0 ? jsFlags.join(' ') : null;
 }
 
