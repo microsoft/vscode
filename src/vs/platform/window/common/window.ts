@@ -252,7 +252,7 @@ export function useWindowControlsOverlay(configurationService: IConfigurationSer
 	}
 
 	if (!isMacintosh) {
-		const setting = configurationService.getValue('window.titleControlsStyle');
+		const setting = getTitleControlsStyle(configurationService);
 		if (setting === 'custom' || setting === 'hidden') {
 			return false; // explicitly disabled by choice
 		}
