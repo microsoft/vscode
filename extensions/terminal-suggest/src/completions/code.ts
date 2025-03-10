@@ -5,7 +5,7 @@
 
 import { filepaths } from '../helpers/filepaths';
 
-const commonOptions: Fig.Option[] = [
+export const commonOptions: Fig.Option[] = [
 	{
 		name: '-',
 		description: `Read from stdin (e.g. 'ps aux | grep code | code -')`,
