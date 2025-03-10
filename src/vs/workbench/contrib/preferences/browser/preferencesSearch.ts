@@ -82,9 +82,6 @@ function cleanFilter(filter: string): string {
 }
 
 export class LocalSearchProvider implements ISearchProvider {
-	static readonly EXACT_MATCH_SCORE = 10000;
-	static readonly START_SCORE = 1000;
-
 	constructor(
 		private _filter: string,
 		@IConfigurationService private readonly configurationService: IConfigurationService
@@ -120,7 +117,7 @@ export class LocalSearchProvider implements ISearchProvider {
 		};
 
 		const filterMatches = preferencesModel.filterSettings(this._filter, this.getGroupFilter(this._filter), settingMatcher);
-		const exactMatch = filterMatches.find(m => m.score === LocalSearchProvider.EXACT_MATCH_SCORE);
+		const exactMatch = filterMatches.find(m => m.matchType === SettingMatchType.ExactMatch);
 		if (exactMatch) {
 			return Promise.resolve({
 				filterMatches: [exactMatch],
