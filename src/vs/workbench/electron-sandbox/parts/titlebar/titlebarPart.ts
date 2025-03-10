@@ -158,7 +158,12 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 		}
 
 		// Custom Window Controls (Native Windows/Linux)
-		if (!hasNativeTitlebar(this.configurationService) && !useWindowControlsOverlay(this.configurationService) && this.windowControlsContainer) {
+		if (
+			!hasNativeTitlebar(this.configurationService) &&								// not for native title bars
+			!useWindowControlsOverlay(this.configurationService) &&							// not when controls are natively drawn
+			this.configurationService.getValue('window.titleControlsStyle') !== 'hidden' &&	// not when controls are disabled
+			this.windowControlsContainer
+		) {
 
 			// Minimize
 			const minimizeIcon = append(this.windowControlsContainer, $('div.window-icon.window-minimize' + ThemeIcon.asCSSSelector(Codicon.chromeMinimize)));

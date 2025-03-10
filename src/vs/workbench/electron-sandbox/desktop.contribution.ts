@@ -238,11 +238,11 @@ import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from '../../platform/window/electron-s
 			},
 			'window.titleControlsStyle': {
 				'type': 'string',
-				'enum': ['native', 'custom'],
+				'enum': ['native', 'custom', 'hidden'],
 				'default': 'native',
 				'included': !isMacintosh,
 				'scope': ConfigurationScope.APPLICATION,
-				'description': localize('titleControlsStyle', "Adjust the appearance of the window controls to be native by the OS or custom. Changes require a full restart to apply."),
+				'description': localize('titleControlsStyle', "Adjust the appearance of the window controls to be native by the OS, custom drawn or hidden. Changes require a full restart to apply."),
 			},
 			'window.customTitleBarVisibility': {
 				'type': 'string',

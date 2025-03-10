@@ -152,7 +152,7 @@ export interface IWindowSettings {
 	readonly restoreFullscreen: boolean;
 	readonly zoomLevel: number;
 	readonly titleBarStyle: TitlebarStyle;
-	readonly titleControlsStyle: 'native' | 'custom';
+	readonly titleControlsStyle: 'native' | 'custom' | 'hidden';
 	readonly autoDetectHighContrast: boolean;
 	readonly autoDetectColorScheme: boolean;
 	readonly menuBarVisibility: MenuBarVisibility;
@@ -239,7 +239,7 @@ export function useWindowControlsOverlay(configurationService: IConfigurationSer
 
 	if (!isMacintosh) {
 		const setting = configurationService.getValue('window.titleControlsStyle');
-		if (setting === 'custom') {
+		if (setting === 'custom' || setting === 'hidden') {
 			return false; // explicitly disabled by choice
 		}
 	}
