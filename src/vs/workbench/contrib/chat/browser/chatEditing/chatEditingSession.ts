@@ -972,7 +972,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			}
 			// this file does not exist yet, create it and try again
 			await this._bulkEditService.apply({ edits: [{ newResource: resource }] });
-			this._editorService.openEditor({ resource, options: { inactive: true, preserveFocus: true, pinned: true } });
+			this._editorService.openEditor({ resource, options: { inactive: false, preserveFocus: true, pinned: true } });
 			if (this._notebookService.hasSupportedNotebooks(notebookUri)) {
 				return await ChatEditingModifiedNotebookEntry.create(resource, multiDiffEntryDelegate, telemetryInfo, ChatEditKind.Created, initialContent, this._instantiationService);
 			} else {
