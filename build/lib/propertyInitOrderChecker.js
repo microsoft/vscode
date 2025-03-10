@@ -210,7 +210,6 @@ const ignored = new Set([
     'vs/platform/quickinput/browser/commandsQuickAccess.ts',
     'vs/workbench/contrib/quickaccess/browser/commandsQuickAccess.ts',
     'vs/workbench/contrib/scm/browser/quickDiffDecorator.ts',
-    'vs/workbench/contrib/scm/browser/activity.ts',
     'vs/workbench/contrib/scm/browser/scmViewService.ts',
     'vs/workbench/contrib/multiDiffEditor/browser/scmMultiDiffSourceResolver.ts',
     'vs/workbench/contrib/scm/browser/workingSet.ts',
