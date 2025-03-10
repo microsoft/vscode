@@ -43,7 +43,6 @@ const ignored = new Set([
 	'vs/platform/extensionManagement/common/extensionsScannerService.ts',
 	'vs/platform/utilityProcess/electron-main/utilityProcessWorkerMainService.ts',
 	'vs/platform/configuration/common/configurations.ts',
-	'vs/platform/userData/common/fileUserDataProvider.ts',
 	'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/tokenizer.ts',
 	'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/bracketPairsTree.ts',
 	'vs/editor/common/model/textModelTokens.ts',
