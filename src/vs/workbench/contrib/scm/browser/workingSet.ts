@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { autorun, autorunWithStore, derived } from '../../../../base/common/observable.js';
+import { autorun, autorunWithStore, derived, IObservable } from '../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -28,8 +28,8 @@ interface ISCMRepositoryWorkingSet {
 export class SCMWorkingSetController extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.scmWorkingSets';
 
+	private _enabledConfig: IObservable<boolean>;
 	private _workingSets!: Map<string, ISCMRepositoryWorkingSet>;
-	private _enabledConfig = observableConfigValue<boolean>('scm.workingSets.enabled', false, this.configurationService);
 
 	private readonly _repositoryDisposables = new DisposableMap<ISCMRepository>();
 
@@ -41,6 +41,8 @@ export class SCMWorkingSetController extends Disposable implements IWorkbenchCon
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super();
+
+		this._enabledConfig = observableConfigValue<boolean>('scm.workingSets.enabled', false, this.configurationService);
 
 		this._store.add(autorunWithStore((reader, store) => {
 			if (!this._enabledConfig.read(reader)) {
