@@ -7,7 +7,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -107,6 +107,7 @@ export class ToggleAgentModeAction extends EditingSessionAction {
 			f1: true,
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(
+				ChatContextKeys.enabled,
 				ChatContextKeys.Editing.hasToolsAgent,
 				ChatContextKeys.requestInProgress.negate()),
 			toggled: {
@@ -209,6 +210,45 @@ export class ToggleRequestPausedAction extends Action2 {
 	}
 }
 
+export const ChatSwitchToNextModelActionId = 'workbench.action.chat.switchToNextModel';
+export class SwitchToNextModelAction extends Action2 {
+	static readonly ID = ChatSwitchToNextModelActionId;
+
+	constructor() {
+		super({
+			id: SwitchToNextModelAction.ID,
+			title: localize2('interactive.switchToNextModel.label', "Switch to Next Model"),
+			category: CHAT_CATEGORY,
+			f1: true,
+			keybinding: {
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Period,
+				weight: KeybindingWeight.WorkbenchContrib,
+			},
+			menu: {
+				id: MenuId.ChatExecute,
+				order: 3,
+				group: 'navigation',
+				when: ContextKeyExpr.and(
+					ChatContextKeys.languageModelsAreUserSelectable,
+					ContextKeyExpr.or(
+						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel),
+						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.EditingSession),
+						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Editor),
+						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Notebook),
+						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Terminal)
+					)
+				),
+			}
+		});
+	}
+
+	override run(accessor: ServicesAccessor, ...args: any[]): void {
+		const widgetService = accessor.get(IChatWidgetService);
+		const widget = widgetService.lastFocusedWidget;
+		widget?.input.switchToNextModel();
+	}
+}
+
 export class ChatEditingSessionSubmitAction extends SubmitAction {
 	static readonly ID = 'workbench.action.edits.submit';
 
@@ -301,26 +341,6 @@ class SubmitWithoutDispatchingAction extends Action2 {
 		widget?.acceptInput(context?.inputValue, { noCommandDetection: true });
 	}
 }
-
-export const ChatModelPickerActionId = 'workbench.action.chat.pickModel';
-MenuRegistry.appendMenuItem(MenuId.ChatExecute, {
-	command: {
-		id: ChatModelPickerActionId,
-		title: localize2('chat.pickModel.label', "Pick Model"),
-	},
-	order: 3,
-	group: 'navigation',
-	when: ContextKeyExpr.and(
-		ChatContextKeys.languageModelsAreUserSelectable,
-		ContextKeyExpr.or(
-			ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel),
-			ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.EditingSession),
-			ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Editor),
-			ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Notebook),
-			ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Terminal)
-		)
-	),
-});
 
 export class ChatSubmitSecondaryAgentAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.submitSecondaryAgent';
@@ -558,4 +578,5 @@ export function registerChatExecuteActions() {
 	registerAction2(SendToChatEditingAction);
 	registerAction2(ToggleAgentModeAction);
 	registerAction2(ToggleRequestPausedAction);
+	registerAction2(SwitchToNextModelAction);
 }

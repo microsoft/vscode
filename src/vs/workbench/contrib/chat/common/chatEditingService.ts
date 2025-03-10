@@ -6,7 +6,6 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, IReader, ITransaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
@@ -87,14 +86,6 @@ export interface IChatEditingSession extends IDisposable {
 	readonly onDidDispose: Event<void>;
 	readonly state: IObservable<ChatEditingSessionState>;
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
-	/**
-	 * @deprecated
-	 */
-	readonly workingSet: ResourceMap<WorkingSetDisplayMetadata>;
-	/**
-	 * @deprecated
-	 */
-	addFileToWorkingSet(uri: URI, description?: string, kind?: WorkingSetEntryState.Suggested): void;
 	show(): Promise<void>;
 	remove(reason: WorkingSetEntryRemovalReason, ...uris: URI[]): void;
 	accept(...uris: URI[]): Promise<void>;
@@ -163,7 +154,6 @@ export const enum WorkingSetEntryState {
 	Transient, // TODO@joyceerhl remove this
 	Attached, // TODO@joyceerhl remove this
 	Sent, // TODO@joyceerhl remove this
-	Suggested, // TODO@joyceerhl remove this
 }
 
 export const enum ChatEditingSessionChangeType {
