@@ -15,15 +15,15 @@ import { assertType } from '../../../common/types.js';
  */
 class Protocol implements IMessagePassingProtocol {
 
-	readonly onMessage = Event.fromNodeEventEmitter<VSBuffer>(this.port, 'message', (e: MessageEvent) => {
-		if (e.data) {
-			return VSBuffer.wrap(e.data);
-		}
-		return VSBuffer.alloc(0);
-	});
+	readonly onMessage;
 
 	constructor(private port: MessagePortMain) {
-
+		this.onMessage = Event.fromNodeEventEmitter<VSBuffer>(this.port, 'message', (e: MessageEvent) => {
+			if (e.data) {
+				return VSBuffer.wrap(e.data);
+			}
+			return VSBuffer.alloc(0);
+		});
 		// we must call start() to ensure messages are flowing
 		port.start();
 	}
