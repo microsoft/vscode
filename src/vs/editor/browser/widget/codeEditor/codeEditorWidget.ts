@@ -2027,11 +2027,11 @@ const enum BooleanEventValue {
 }
 
 export class BooleanEventEmitter extends Disposable {
-	private readonly _onDidChangeToTrue: Emitter<void> = this._register(new Emitter<void>(this._emitterOptions));
-	public readonly onDidChangeToTrue: Event<void> = this._onDidChangeToTrue.event;
+	private readonly _onDidChangeToTrue: Emitter<void>;
+	public readonly onDidChangeToTrue: Event<void>;
 
-	private readonly _onDidChangeToFalse: Emitter<void> = this._register(new Emitter<void>(this._emitterOptions));
-	public readonly onDidChangeToFalse: Event<void> = this._onDidChangeToFalse.event;
+	private readonly _onDidChangeToFalse: Emitter<void>;
+	public readonly onDidChangeToFalse: Event<void>;
 
 	private _value: BooleanEventValue;
 
@@ -2039,6 +2039,10 @@ export class BooleanEventEmitter extends Disposable {
 		private readonly _emitterOptions: EmitterOptions
 	) {
 		super();
+		this._onDidChangeToTrue = this._register(new Emitter<void>(this._emitterOptions));
+		this.onDidChangeToTrue = this._onDidChangeToTrue.event;
+		this._onDidChangeToFalse = this._register(new Emitter<void>(this._emitterOptions));
+		this.onDidChangeToFalse = this._onDidChangeToFalse.event;
 		this._value = BooleanEventValue.NotSet;
 	}
 
