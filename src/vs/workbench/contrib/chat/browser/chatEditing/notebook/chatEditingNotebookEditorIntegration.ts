@@ -141,6 +141,19 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 				&& cellChanges.read(r).some(c => c.type !== 'unchanged' && c.type !== 'delete' && !c.diff.read(r).identical)
 			) {
 				lastModifyingRequestId = _entry.lastModifyingRequestId;
+
+				const sortedCellChanges = sortCellChanges(cellChanges.read(r));
+				const values = new Uint32Array(sortedCellChanges.length);
+				for (let i = 0; i < sortedCellChanges.length; i++) {
+					const change = sortedCellChanges[i];
+					values[i] = change.type === 'insert' ? 1
+						: change.type === 'delete' ? 1
+							: change.type === 'modified' ? change.diff.read(r).changes.length
+								: 0;
+				}
+
+				this.diffIndexPrefixSum = new PrefixSumComputer(values);
+
 				this.reveal(true);
 			}
 		}));
@@ -211,33 +224,6 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			});
 		}));
 
-		const cellsAreVisible = onDidChangeVisibleRanges.map(v => v.length > 0);
-
-		// Focus
-		this._register(autorun(r => {
-			const sortedCellChanges = sortCellChanges(cellChanges.read(r));
-
-			const values = new Uint32Array(sortedCellChanges.length);
-			for (let i = 0; i < sortedCellChanges.length; i++) {
-				const change = sortedCellChanges[i];
-				values[i] = change.type === 'insert' ? 1
-					: change.type === 'delete' ? 1
-						: change.type === 'modified' ? change.diff.read(r).changes.length
-							: 0;
-			}
-
-			this.diffIndexPrefixSum = new PrefixSumComputer(values);
-
-			const changes = sortedCellChanges.filter(c => c.type !== 'unchanged' && c.type !== 'delete' && !c.diff.read(r).identical);
-			if (!changes.length || !cellsAreVisible.read(r)) {
-				return;
-			}
-
-			// set initial index
-			this._currentIndex.set(0, undefined);
-			this._revealChange(sortedCellChanges[0]);
-		}));
-
 		this._register(autorun(r => {
 			const currentChange = this.currentChange.read(r);
 			if (currentChange) {
@@ -289,6 +275,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			};
 		});
 
+		const cellsAreVisible = onDidChangeVisibleRanges.map(v => v.length > 0);
 		this._register(autorun(r => {
 			if (!cellsAreVisible.read(r)) {
 				return;
