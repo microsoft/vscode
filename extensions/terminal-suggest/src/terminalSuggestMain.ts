@@ -26,25 +26,9 @@ import { createCompletionItem } from './helpers/completionItem';
 import { getFigSuggestions } from './fig/figInterface';
 import { executeCommand, executeCommandTimeout, IFigExecuteExternals } from './fig/execute';
 
-// TODO: remove once API is finalized
-export const enum TerminalShellType {
-	Sh = 1,
-	Bash = 2,
-	Fish = 3,
-	Csh = 4,
-	Ksh = 5,
-	Zsh = 6,
-	CommandPrompt = 7,
-	GitBash = 8,
-	PowerShell = 9,
-	Python = 10,
-	Julia = 11,
-	NuShell = 12,
-	Node = 13
-}
 
 const isWindows = osIsWindows();
-const cachedGlobals: Map<TerminalShellType, ICompletionResource[] | undefined> = new Map();
+const cachedGlobals: Map<string, ICompletionResource[] | undefined> = new Map();
 let pathExecutableCache: PathExecutableCache;
 
 export const availableSpecs: Fig.Spec[] = [
@@ -58,25 +42,24 @@ for (const spec of upstreamSpecs) {
 	availableSpecs.push(require(`./completions/upstream/${spec}`).default);
 }
 
-const getShellSpecificGlobals: Map<TerminalShellType, (options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>) => Promise<(string | ICompletionResource)[]>> = new Map([
-	[TerminalShellType.Bash, getBashGlobals],
-	[TerminalShellType.Zsh, getZshGlobals],
+const getShellSpecificGlobals: Map<string, (options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>) => Promise<(string | ICompletionResource)[]>> = new Map([
+	['bash', getBashGlobals],
+	['zsh', getZshGlobals],
 	// TODO: Ghost text in the command line prevents completions from working ATM for fish
-	[TerminalShellType.Fish, getFishGlobals],
-	[TerminalShellType.PowerShell, getPwshGlobals],
+	['fish', getFishGlobals],
+	['pwsh', getPwshGlobals],
 ]);
 
-async function getShellGlobals(shellType: TerminalShellType, existingCommands?: Set<string>): Promise<ICompletionResource[] | undefined> {
+async function getShellGlobals(shellType: string, existingCommands?: Set<string>): Promise<ICompletionResource[] | undefined> {
 	try {
 		const cachedCommands = cachedGlobals.get(shellType);
 		if (cachedCommands) {
 			return cachedCommands;
 		}
-		const shell = getShell(shellType);
-		if (!shell) {
+		if (!shellType) {
 			return;
 		}
-		const options: ExecOptionsWithStringEncoding = { encoding: 'utf-8', shell };
+		const options: ExecOptionsWithStringEncoding = { encoding: 'utf-8', shell: shellType };
 		const mixedCommands: (string | ICompletionResource)[] | undefined = await getShellSpecificGlobals.get(shellType)?.(options, existingCommands);
 		const normalizedCommands = mixedCommands?.map(command => typeof command === 'string' ? ({ label: command }) : command);
 		cachedGlobals.set(shellType, normalizedCommands);
@@ -100,7 +83,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 
-			const shellType: TerminalShellType | undefined = 'shellType' in terminal.state ? terminal.state.shellType as TerminalShellType : undefined;
+			const shellType: string | undefined = 'shell' in terminal.state ? terminal.state.shell as string : undefined;
 			if (!shellType) {
 				console.debug('#terminalCompletions No shell type found for terminal');
 				return;
@@ -298,22 +281,6 @@ function compareItems(existingItem: vscode.TerminalCompletionItem, command: ICom
 		score -= existingItem.documentation ? typeof existingItem.documentation === 'string' ? 2 : 3 : 0;
 		if (score >= 0) {
 			return { ...command, replacementIndex: existingItem.replacementIndex, replacementLength: existingItem.replacementLength };
-		}
-	}
-}
-
-function getShell(shellType: TerminalShellType): string | undefined {
-	switch (shellType) {
-		case TerminalShellType.Bash:
-			return 'bash';
-		case TerminalShellType.Fish:
-			return 'fish';
-		case TerminalShellType.Zsh:
-			return 'zsh';
-		case TerminalShellType.PowerShell:
-			return 'pwsh';
-		default: {
-			return undefined;
 		}
 	}
 }
