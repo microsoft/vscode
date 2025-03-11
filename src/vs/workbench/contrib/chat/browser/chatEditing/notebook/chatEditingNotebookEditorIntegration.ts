@@ -9,6 +9,7 @@ import { debouncedObservable } from '../../../../../../base/common/observableInt
 import { basename } from '../../../../../../base/common/resources.js';
 import { assertType } from '../../../../../../base/common/types.js';
 import { nullDocumentDiff } from '../../../../../../editor/common/diff/documentDiffProvider.js';
+import { PrefixSumComputer } from '../../../../../../editor/common/model/prefixSumComputer.js';
 import { localize } from '../../../../../../nls.js';
 import { MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -88,6 +89,8 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 
 	private readonly _currentChange = observableValue<{ change: ICellDiffInfo; index: number } | undefined>(this, undefined);
 	readonly currentChange: IObservable<{ change: ICellDiffInfo; index: number } | undefined> = this._currentChange;
+
+	private diffIndexPrefixSum: PrefixSumComputer = new PrefixSumComputer(new Uint32Array());
 
 	private readonly cellEditorIntegrations = new Map<NotebookCellTextModel, { integration: ChatEditingCodeEditorIntegration; diff: ISettableObservable<IDocumentDiff2> }>();
 
@@ -223,6 +226,17 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 		this._register(autorun(r => {
 			const sortedCellChanges = sortCellChanges(cellChanges.read(r));
 
+			const values = new Uint32Array(sortedCellChanges.length);
+			for (let i = 0; i < sortedCellChanges.length; i++) {
+				const change = sortedCellChanges[i];
+				values[i] = change.type === 'insert' ? 1
+					: change.type === 'delete' ? 1
+						: change.type === 'modified' ? change.diff.read(r).changes.length
+							: 0;
+			}
+
+			this.diffIndexPrefixSum = new PrefixSumComputer(values);
+
 			const changes = sortedCellChanges.filter(c => c.type !== 'unchanged' && c.type !== 'delete' && !c.diff.read(r).identical);
 			if (!changes.length || !cellsAreVisible.read(r)) {
 				return;
@@ -231,21 +245,21 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			// set initial index
 			this._currentIndex.set(0, undefined);
 			this._revealChange(sortedCellChanges[0]);
+		}));
 
-			this._register(autorun(r => {
-				const currentChange = this.currentChange.read(r);
-				if (currentChange) {
-					const change = currentChange.change;
-					const indexInChange = currentChange.index;
-					const diffChangeIndex = sortCellChanges(this.cellChanges.get().filter(c => c.type !== 'unchanged' && !c.diff.read(r).identical)).findIndex(c => c === change);
+		this._register(autorun(r => {
+			const currentChange = this.currentChange.read(r);
+			if (currentChange) {
+				const indexInChange = currentChange.index;
+				const modifiedCellIndex = currentChange.change.modifiedCellIndex;
 
-					if (diffChangeIndex !== -1) {
-						this._currentIndex.set(diffChangeIndex + indexInChange, undefined);
-					}
-				} else {
-					this._currentIndex.set(-1, undefined);
-				}
-			}));
+				const changesBeforeCell = modifiedCellIndex !== undefined && modifiedCellIndex > 0 ?
+					this.diffIndexPrefixSum.getPrefixSum(modifiedCellIndex - 1) : 0;
+
+				this._currentIndex.set(changesBeforeCell + indexInChange, undefined);
+			} else {
+				this._currentIndex.set(-1, undefined);
+			}
 		}));
 
 		this.insertDeleteDecorators = derivedWithStore((r, store) => {
