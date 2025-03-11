@@ -99,6 +99,10 @@ export class McpServerRequestHandler extends Disposable {
 				}, token);
 
 				mcp._serverInit = initialized;
+
+				mcp.sendNotification<MCP.InitializedNotification>({
+					method: 'notifications/initialized'
+				});
 			});
 
 			return mcp;

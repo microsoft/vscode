@@ -11,6 +11,7 @@ import { McpConnectionState, McpServerLaunch, McpServerTransportStdio, McpServer
 import { ExtHostMcpService } from '../common/extHostMcp.js';
 import { IExtHostRpcService } from '../common/extHostRpcService.js';
 import { homedir } from 'os';
+import { PassThrough } from 'stream';
 
 export class NodeExtHostMpcService extends ExtHostMcpService {
 	constructor(
@@ -45,6 +46,8 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 	override $sendMessage(id: number, message: string): void {
 		const nodeServer = this.nodeServers.get(id);
 		if (nodeServer) {
+			this._proxy.$onDidPublishLog(id, '[Client Says] ' + message.toString());
+
 			nodeServer.child.stdin.write(message + '\n');
 		} else {
 			super.$sendMessage(id, message);
@@ -77,7 +80,12 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 
 		this._proxy.$onDidChangeState(id, { state: McpConnectionState.Kind.Starting });
 
-		child.stdout.pipe(new StreamSplitter('\n')).on('data', line => this._proxy.$onDidReceiveMessage(id, line.toString()));
+		const debug = new PassThrough();
+		debug.on('data', line => {
+			this._proxy.$onDidPublishLog(id, '[Server Says] ' + line.toString());
+		});
+
+		child.stdout.pipe(new StreamSplitter('\n')).pipe(debug).on('data', line => this._proxy.$onDidReceiveMessage(id, line.toString()));
 
 		child.stdin.on('error', onError);
 		child.stdout.on('error', onError);
