@@ -115,7 +115,6 @@ const ignored = new Set([
     'vs/workbench/contrib/mergeEditor/browser/view/editors/codeEditorView.ts',
     'vs/workbench/contrib/mergeEditor/browser/view/editors/inputCodeEditorView.ts',
     'vs/workbench/contrib/mergeEditor/browser/view/viewModel.ts',
-    'vs/workbench/contrib/codeEditor/browser/dictation/editorDictation.ts',
     'vs/workbench/contrib/mergeEditor/browser/mergeEditorInputModel.ts',
     'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput.ts',
     'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.ts',
