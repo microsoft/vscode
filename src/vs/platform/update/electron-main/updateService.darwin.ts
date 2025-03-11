@@ -98,24 +98,19 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 		if (!this.url) {
 			return;
 		}
-
-		console.dir('Checking for updates...', { url: this.url, context });
 		this.logService.info('Checking for updates...', { url: this.url, context });
 		this.setState(State.CheckingForUpdates(context));
 
 		this.requestService.request({ url: this.url }, CancellationToken.None)
 			.then<IUpdate | null>(asJson)
 			.then(update => {
-				console.dir('Update check response:', update);
 				this.logService.info('Update check response:', update);
 				if (!update || !update.version || !update.productVersion) {
-					console.dir('No update available');
 					this.telemetryService.publicLog2<{ explicit: boolean }, UpdateNotAvailableClassification>('update:notAvailable', { explicit: !!context });
 					this.setState(State.Idle(UpdateType.Archive));
 					return;
 				}
 
-				console.dir('Update available:', update);
 				this.logService.info('Update available:', update);
 				this.setState(State.AvailableForDownload(update));
 			})
@@ -140,7 +135,6 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 	}
 
 	protected override async doDownloadUpdate(state: AvailableForDownload): Promise<void> {
-		console.dir('Starting download for update:', state.update);
 		this.logService.info('Starting download for update:', state.update);
 		this.setState(State.Downloading);
 
@@ -149,7 +143,6 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 	}
 
 	private onUpdateDownloaded(update: IUpdate): void {
-		console.dir('Update downloaded successfully:', update);
 		this.logService.info('Update downloaded successfully:', update);
 		this.setState(State.Downloaded(update));
 
