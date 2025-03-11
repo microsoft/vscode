@@ -99,6 +99,7 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 		super('workbench.titleService', themeService, storageService);
 
 		this.mainPart = this._register(this.createMainTitlebarPart());
+		this.onMenubarVisibilityChange = this.mainPart.onMenubarVisibilityChange;
 		this._register(this.registerPart(this.mainPart));
 
 		this.registerActions();
@@ -184,7 +185,7 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 
 	//#region Service Implementation
 
-	readonly onMenubarVisibilityChange = this.mainPart.onMenubarVisibilityChange;
+	readonly onMenubarVisibilityChange: Event<boolean>;
 
 	private properties: ITitleProperties | undefined = undefined;
 
