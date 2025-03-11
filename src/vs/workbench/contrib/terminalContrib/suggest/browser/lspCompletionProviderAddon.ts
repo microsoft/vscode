@@ -43,11 +43,17 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 		console.log('provideCompletions', value, cursorPosition);
 
 		// TODO: Create and use a fake document in our target language
-		const uri = URI.file('/Users/anthonykim/Desktop/vscode/src/vs/workbench/contrib/terminalContrib/suggest/browser/dummy.ts');
+		// TODO: How come real python path does not work?
+
+		const uri = URI.from({
+			scheme: 'untitled',
+			path: '/Users/anthonykim/Desktop/vscode/extensions/vscode-colorize-tests/test/colorize-fixtures/test.py'
+		});
 		const textModel = await this._textModelService.createModelReference(uri);
+		textModel.object.textEditorModel.setLanguage('python');
 		const providers = this._languageFeaturesService.completionProvider.all(textModel.object.textEditorModel);
 
-		// TODO: Use the actual position based on cursorPosition
+		// TODO: Use the actual position based on cursorPosition, is this how you do it?
 		const textBeforeCursor = value.substring(0, cursorPosition);
 		const lines = textBeforeCursor.split('\n');
 		const lineNumber = lines.length;

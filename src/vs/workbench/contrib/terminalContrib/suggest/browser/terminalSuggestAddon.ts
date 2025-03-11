@@ -153,7 +153,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._capabilities.onDidAddCapabilityType,
 			this._capabilities.onDidRemoveCapabilityType
 		), () => {
-			const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
+			const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection); // TODO: When can commandDetection be undefined?
 			if (commandDetection) {
 				if (this._promptInputModel !== commandDetection.promptInputModel) {
 					this._promptInputModel = commandDetection.promptInputModel;
