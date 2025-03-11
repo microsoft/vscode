@@ -1079,7 +1079,7 @@ class StandaloneContextMenuService extends ContextMenuService {
 
 export const standaloneEditorWorkerDescriptor: IWorkerDescriptor = {
 	moduleId: 'vs/editor/common/services/editorSimpleWorker',
-	esmModuleLocation: undefined,
+	esmModuleLocation: URI.parse(new URL('../../common/services/editorSimpleWorkerMain.js', import.meta.url).toString()),
 	label: 'editorWorkerService'
 };
 

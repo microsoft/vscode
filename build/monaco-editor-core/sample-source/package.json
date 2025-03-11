@@ -1,0 +1,9 @@
+{
+  "name": "@vscode/sample-source",
+  "devDependencies": {
+    "serve": "^14.2.4"
+  },
+  "scripts": {
+    "start": "echo 'open http://localhost:3000/sample-source/index.html' && serve -p 3000 .."
+  }
+}
