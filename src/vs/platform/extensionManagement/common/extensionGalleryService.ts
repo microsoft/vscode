@@ -70,8 +70,8 @@ const enum Flag {
 }
 
 type ExtensionGalleryManifestResource = {
-	readonly '@id': string;
-	readonly '@type': string;
+	readonly id: string;
+	readonly type: string;
 };
 
 type ExtensionQueryCapabilityValue = {
@@ -491,12 +491,12 @@ function setTelemetry(extension: IGalleryExtension, index: number, querySource?:
 
 function getExtensionGalleryManifestResourceUri(manifest: IExtensionGalleryManifest, type: ExtensionGalleryResourceType, version?: string): string | undefined {
 	for (const resource of manifest.resources) {
-		const [r, v] = resource['@type'].split('/');
+		const [r, v] = resource.type.split('/');
 		if (r !== type) {
 			continue;
 		}
 		if (!version || v === version) {
-			return resource['@id'];
+			return resource.id;
 		}
 		break;
 	}
@@ -1863,52 +1863,52 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 		const resources = [
 			{
-				'@id': `${extensionsGallery.serviceUrl}/extensionquery`,
-				'@type': ExtensionGalleryResourceType.ExtensionQueryService
+				id: `${extensionsGallery.serviceUrl}/extensionquery`,
+				type: ExtensionGalleryResourceType.ExtensionQueryService
 			},
 			{
-				'@id': `${extensionsGallery.serviceUrl}/vscode/{publisher}/{name}/latest`,
-				'@type': ExtensionGalleryResourceType.ExtensionLatestVersionUri
+				id: `${extensionsGallery.serviceUrl}/vscode/{publisher}/{name}/latest`,
+				type: ExtensionGalleryResourceType.ExtensionLatestVersionUri
 			},
 			{
-				'@id': `${extensionsGallery.serviceUrl}/publishers/{publisher}/extensions/{name}/{version}/stats?statType={statTypeName}`,
-				'@type': ExtensionGalleryResourceType.ExtensionStatisticsUri
+				id: `${extensionsGallery.serviceUrl}/publishers/{publisher}/extensions/{name}/{version}/stats?statType={statTypeName}`,
+				type: ExtensionGalleryResourceType.ExtensionStatisticsUri
 			},
 			{
-				'@id': `${extensionsGallery.serviceUrl}/itemName/{publisher}.{name}/version/{version}/statType/{statTypeValue}/vscodewebextension`,
-				'@type': ExtensionGalleryResourceType.WebExtensionStatisticsUri
+				id: `${extensionsGallery.serviceUrl}/itemName/{publisher}.{name}/version/{version}/statType/{statTypeValue}/vscodewebextension`,
+				type: ExtensionGalleryResourceType.WebExtensionStatisticsUri
 			},
 		];
 
 		if (extensionsGallery.publisherUrl) {
 			resources.push({
-				'@id': `${extensionsGallery.publisherUrl}/{publisher}`,
-				'@type': ExtensionGalleryResourceType.PublisherViewUri
+				id: `${extensionsGallery.publisherUrl}/{publisher}`,
+				type: ExtensionGalleryResourceType.PublisherViewUri
 			});
 		}
 
 		if (extensionsGallery.itemUrl) {
 			resources.push({
-				'@id': `${extensionsGallery.itemUrl}/?itemName={publisher}.{name}`,
-				'@type': ExtensionGalleryResourceType.ExtensionDetailsViewUri
+				id: `${extensionsGallery.itemUrl}/?itemName={publisher}.{name}`,
+				type: ExtensionGalleryResourceType.ExtensionDetailsViewUri
 			});
 			resources.push({
-				'@id': `${extensionsGallery.itemUrl}/?itemName={publisher}.{name}&ssr=false#review-details`,
-				'@type': ExtensionGalleryResourceType.ExtensionRatingViewUri
+				id: `${extensionsGallery.itemUrl}/?itemName={publisher}.{name}&ssr=false#review-details`,
+				type: ExtensionGalleryResourceType.ExtensionRatingViewUri
 			});
 		}
 
 		if (extensionsGallery.resourceUrlTemplate) {
 			resources.push({
-				'@id': extensionsGallery.resourceUrlTemplate,
-				'@type': ExtensionGalleryResourceType.ExtensionUriTemplate
+				id: extensionsGallery.resourceUrlTemplate,
+				type: ExtensionGalleryResourceType.ExtensionUriTemplate
 			});
 		}
 
 		if (extensionsGallery.nlsBaseUrl) {
 			resources.push({
-				'@id': extensionsGallery.nlsBaseUrl,
-				'@type': ExtensionGalleryResourceType.WebLanguagePackService
+				id: extensionsGallery.nlsBaseUrl,
+				type: ExtensionGalleryResourceType.WebLanguagePackService
 			});
 		}
 
