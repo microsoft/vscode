@@ -167,7 +167,7 @@ extends:
   parameters:
     sdl:
       tsa:
-        enabled: true
+        enabled: false
         configFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/tsaoptions.json
       binskim:
         analyzeTargetGlob: '+:file|**\*.exe;-:file|**\VSCodeSetup*.exe'
