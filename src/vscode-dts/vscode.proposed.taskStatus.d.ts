@@ -19,31 +19,31 @@ declare module 'vscode' {
 		/** Indicates that a task was terminated, either by user action or by the system */
 		Terminated = 'terminated',
 
-		/** Indicates a task has started running */
+		/** Indicates that a task has started running */
 		Start = 'start',
 
-		/** Indicates task has acquired all needed input/variables to execute */
+		/** Indicates that a task has acquired all needed input/variables to execute */
 		AcquiredInput = 'acquiredInput',
 
-		/** Indicates a dependent task has started */
+		/** Indicates that a dependent task has started */
 		DependsOnStarted = 'dependsOnStarted',
 
-		/** Indicates the task is actively running/processing */
+		/** Indicates that a task is actively running/processing */
 		Active = 'active',
 
-		/** Indicates the task is paused/waiting but not complete */
+		/** Indicates that a task is paused/waiting but not complete */
 		Inactive = 'inactive',
 
-		/** Indicates the task has completed fully */
+		/** Indicates that a task has completed fully */
 		End = 'end',
 
-		/** Indicates that a problem matcher has started */
+		/** Indicates that a task's problem matcher has started */
 		ProblemMatcherStarted = 'problemMatcherStarted',
 
-		/** Indicates that a problem matcher has ended */
+		/** Indicates that a task's problem matcher has ended */
 		ProblemMatcherEnded = 'problemMatcherEnded',
 
-		/** Indicates that a problem matcher has found errors */
+		/** Indicates that a task's problem matcher has found errors */
 		ProblemMatcherFoundErrors = 'problemMatcherFoundErrors'
 	}
 

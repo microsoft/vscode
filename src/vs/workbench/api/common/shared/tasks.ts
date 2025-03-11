@@ -52,43 +52,43 @@ export interface IShellQuotingOptionsDTO {
 }
 
 export enum TaskEventKind {
-	/** Indicates a task's properties or configuration have changed */
+	/** Indicates that a task's properties or configuration have changed */
 	Changed = 'changed',
 
-	/** Indicates a task has begun executing */
+	/** Indicates that a task has begun executing */
 	ProcessStarted = 'processStarted',
 
-	/** Indicates a task process has completed */
+	/** Indicates that a task process has completed */
 	ProcessEnded = 'processEnded',
 
-	/** Indicates a task was terminated, either by user action or by the system */
+	/** Indicates that a task was terminated, either by user action or by the system */
 	Terminated = 'terminated',
 
-	/** Indicates a task has started running */
+	/** Indicates that a task has started running */
 	Start = 'start',
 
-	/** Indicates a task has acquired all needed input/variables to execute */
+	/** Indicates that a task has acquired all needed input/variables to execute */
 	AcquiredInput = 'acquiredInput',
 
-	/** Indicates a dependent task has started */
+	/** Indicates that a dependent task has started */
 	DependsOnStarted = 'dependsOnStarted',
 
-	/** Indicates a task is actively running/processing */
+	/** Indicates that a task is actively running/processing */
 	Active = 'active',
 
-	/** Indicates a task is paused/waiting but not complete */
+	/** Indicates that a task is paused/waiting but not complete */
 	Inactive = 'inactive',
 
-	/** Indicates a task has completed fully */
+	/** Indicates that a task has completed fully */
 	End = 'end',
 
-	/** Indicates the task's problem matcher has started */
+	/** Indicates that a task's problem matcher has started */
 	ProblemMatcherStarted = 'problemMatcherStarted',
 
-	/** Indicates the task's problem matcher has ended */
+	/** Indicates that a task's problem matcher has ended */
 	ProblemMatcherEnded = 'problemMatcherEnded',
 
-	/** Indicates the task's problem matcher has found errors */
+	/** Indicates that a task's problem matcher has found errors */
 	ProblemMatcherFoundErrors = 'problemMatcherFoundErrors'
 }
 
