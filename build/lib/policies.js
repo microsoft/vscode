@@ -128,10 +128,19 @@ class BooleanPolicy extends BasePolicy {
         return `<checkBox refId="${this.name}">${this.name}</checkBox>`;
     }
     renderProfileValue() {
-        throw new Error(`Boolean policy '${this.name}' cannot be rendered in Profile.`);
+        return `<false/>`;
     }
-    renderProfileManifestValue(_) {
-        throw new Error(`Boolean policy '${this.name}' cannot be rendered in Profile Manifest.`);
+    renderProfileManifestValue(translations) {
+        return `<key>pfm_default</key>
+<false/>
+<key>pfm_description</key>
+<string>${renderProfileString(this.name, this.moduleName, this.description, translations)}</string>
+<key>pfm_name</key>
+<string>${this.name}</string>
+<key>pfm_title</key>
+<string>${this.name}</string>
+<key>pfm_type</key>
+<string>boolean</string>`;
     }
 }
 class ParseError extends Error {
@@ -199,10 +208,19 @@ class StringPolicy extends BasePolicy {
         return `<textBox refId="${this.name}"><label>${this.name}:</label></textBox>`;
     }
     renderProfileValue() {
-        throw new Error(`String policy '${this.name}' cannot be rendered in Profile.`);
+        return `<string></string>`;
     }
-    renderProfileManifestValue(_) {
-        throw new Error(`String policy '${this.name}' cannot be rendered in Profile Manifest.`);
+    renderProfileManifestValue(translations) {
+        return `<key>pfm_default</key>
+<string></string>
+<key>pfm_description</key>
+<string>${renderProfileString(this.name, this.moduleName, this.description, translations)}</string>
+<key>pfm_name</key>
+<string>${this.name}</string>
+<key>pfm_title</key>
+<string>${this.name}</string>
+<key>pfm_type</key>
+<string>string</string>`;
     }
 }
 class ObjectPolicy extends BasePolicy {

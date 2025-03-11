@@ -186,11 +186,20 @@ class BooleanPolicy extends BasePolicy {
 	}
 
 	renderProfileValue(): string {
-		throw new Error(`Boolean policy '${this.name}' cannot be rendered in Profile.`);
+		return `<false/>`;
 	}
 
-	renderProfileManifestValue(_?: LanguageTranslations): string {
-		throw new Error(`Boolean policy '${this.name}' cannot be rendered in Profile Manifest.`);
+	renderProfileManifestValue(translations?: LanguageTranslations): string {
+		return `<key>pfm_default</key>
+<false/>
+<key>pfm_description</key>
+<string>${renderProfileString(this.name, this.moduleName, this.description, translations)}</string>
+<key>pfm_name</key>
+<string>${this.name}</string>
+<key>pfm_title</key>
+<string>${this.name}</string>
+<key>pfm_type</key>
+<string>boolean</string>`;
 	}
 }
 
@@ -303,13 +312,21 @@ class StringPolicy extends BasePolicy {
 	}
 
 	renderProfileValue(): string {
-		throw new Error(`String policy '${this.name}' cannot be rendered in Profile.`);
+		return `<string></string>`;
 	}
 
-	renderProfileManifestValue(_?: LanguageTranslations): string {
-		throw new Error(`String policy '${this.name}' cannot be rendered in Profile Manifest.`);
+	renderProfileManifestValue(translations?: LanguageTranslations): string {
+		return `<key>pfm_default</key>
+<string></string>
+<key>pfm_description</key>
+<string>${renderProfileString(this.name, this.moduleName, this.description, translations)}</string>
+<key>pfm_name</key>
+<string>${this.name}</string>
+<key>pfm_title</key>
+<string>${this.name}</string>
+<key>pfm_type</key>
+<string>string</string>`;
 	}
-
 }
 
 class ObjectPolicy extends BasePolicy {
