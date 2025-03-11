@@ -75,7 +75,7 @@
     "@types/semver": "^7.5.8",
     "@vscode/deviceid": "^0.1.1",
     "@vscode/iconv-lite-umd": "0.7.0",
-    "@vscode/policy-watcher": "^1.1.10",
+    "@vscode/policy-watcher": "^1.2.0",
     "@vscode/proxy-agent": "^0.32.0",
     "@vscode/ripgrep": "^1.15.11",
     "@vscode/spdlog": "^0.15.0",
