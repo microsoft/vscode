@@ -224,7 +224,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		try {
 			if (data.provider.provideLanguageModelResponse2) {
 				value = data.provider.provideLanguageModelResponse2(
-					messages.map(typeConvert.LanguageModelChatMessage.to),
+					messages.map(typeConvert.LanguageModelChatMessage2.to),
 					options,
 					ExtensionIdentifier.toKey(from),
 					progress,
@@ -233,7 +233,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 			} else {
 				value = data.provider.provideLanguageModelResponse(
-					messages.map(typeConvert.LanguageModelChatMessage.to),
+					messages.map(typeConvert.LanguageModelChatMessage2.to),
 					options,
 					ExtensionIdentifier.toKey(from),
 					progress,
@@ -367,7 +367,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		return result;
 	}
 
-	private async _sendChatRequest(extension: IExtensionDescription, languageModelId: string, messages: vscode.LanguageModelChatMessage[], options: vscode.LanguageModelChatRequestOptions, token: CancellationToken) {
+	private async _sendChatRequest(extension: IExtensionDescription, languageModelId: string, messages: vscode.LanguageModelChatMessage2[], options: vscode.LanguageModelChatRequestOptions, token: CancellationToken) {
 
 		const internalMessages: IChatMessage[] = this._convertMessages(extension, messages);
 
@@ -403,13 +403,13 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		return res.apiObject;
 	}
 
-	private _convertMessages(extension: IExtensionDescription, messages: vscode.LanguageModelChatMessage[]) {
+	private _convertMessages(extension: IExtensionDescription, messages: vscode.LanguageModelChatMessage2[]) {
 		const internalMessages: IChatMessage[] = [];
 		for (const message of messages) {
 			if (message.role as number === extHostTypes.LanguageModelChatMessageRole.System) {
 				checkProposedApiEnabled(extension, 'languageModelSystem');
 			}
-			internalMessages.push(typeConvert.LanguageModelChatMessage.from(message));
+			internalMessages.push(typeConvert.LanguageModelChatMessage2.from(message));
 		}
 		return internalMessages;
 	}
@@ -488,7 +488,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		}
 	}
 
-	private async _computeTokenLength(languageModelId: string, value: string | vscode.LanguageModelChatMessage, token: vscode.CancellationToken): Promise<number> {
+	private async _computeTokenLength(languageModelId: string, value: string | vscode.LanguageModelChatMessage2, token: vscode.CancellationToken): Promise<number> {
 
 		const data = this._allLanguageModelData.get(languageModelId);
 		if (!data) {
@@ -501,7 +501,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			return local.provider.provideTokenCount(value, token);
 		}
 
-		return this._proxy.$countTokens(languageModelId, (typeof value === 'string' ? value : typeConvert.LanguageModelChatMessage.from(value)), token);
+		return this._proxy.$countTokens(languageModelId, (typeof value === 'string' ? value : typeConvert.LanguageModelChatMessage2.from(value)), token);
 	}
 
 	$updateModelAccesslist(data: { from: ExtensionIdentifier; to: ExtensionIdentifier; enabled: boolean }[]): void {

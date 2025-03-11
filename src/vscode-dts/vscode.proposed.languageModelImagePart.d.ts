@@ -5,10 +5,15 @@
 
 declare module 'vscode' {
 
+	export interface LanguageModelChat {
+		sendRequest(messages: LanguageModelChatMessage[], options?: LanguageModelChatRequestOptions, token?: CancellationToken): Thenable<LanguageModelChatResponse>;
+		countTokens(text: string | LanguageModelChatMessage, token?: CancellationToken): Thenable<number>;
+	}
+
 	/**
 	 * Represents a message in a chat. Can assume different roles, like user or assistant.
 	 */
-	export class LanguageModelChatMessage {
+	export class LanguageModelChatMessage2 {
 
 		/**
 		 * Utility to create a new user message.
@@ -16,7 +21,7 @@ declare module 'vscode' {
 		 * @param content The content of the message.
 		 * @param name The optional name of a user for the message.
 		 */
-		static User(content: string | Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelImagePart>, name?: string): LanguageModelChatMessage;
+		static User(content: string | Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelImagePart>, name?: string): LanguageModelChatMessage2;
 
 		/**
 		 * Utility to create a new assistant message.
@@ -24,7 +29,7 @@ declare module 'vscode' {
 		 * @param content The content of the message.
 		 * @param name The optional name of a user for the message.
 		 */
-		static Assistant(content: string | Array<LanguageModelTextPart | LanguageModelToolCallPart | LanguageModelImagePart>, name?: string): LanguageModelChatMessage;
+		static Assistant(content: string | Array<LanguageModelTextPart | LanguageModelToolCallPart | LanguageModelImagePart>, name?: string): LanguageModelChatMessage2;
 
 		/**
 		 * The role of this message.
