@@ -184,7 +184,13 @@ class InternalTerminalShellIntegration extends Disposable {
 				return that._cwd;
 			},
 			get env(): vscode.TerminalShellIntegrationEnvironment | undefined {
-				return that._env;
+				if (!that._env) {
+					return undefined;
+				}
+				return Object.freeze({
+					isTrusted: that._env.isTrusted,
+					value: Object.freeze({ ...that._env.value })
+				});
 			},
 			get hasRichCommandDetection(): boolean {
 				return that._hasRichCommandDetection;
