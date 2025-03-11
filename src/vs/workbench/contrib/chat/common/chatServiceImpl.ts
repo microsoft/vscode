@@ -33,6 +33,7 @@ import { IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChat
 import { ChatServiceTelemetry } from './chatServiceTelemetry.js';
 import { IChatSlashCommandService } from './chatSlashCommands.js';
 import { IChatVariablesService } from './chatVariables.js';
+import { ChatMode } from './constants.js';
 import { ChatMessageRole, IChatMessage } from './languageModels.js';
 import { ILanguageModelToolsService } from './languageModelToolsService.js';
 
@@ -45,7 +46,7 @@ interface IChatTransfer {
 	chat: ISerializableChatData;
 	inputValue: string;
 	location: ChatAgentLocation;
-	toolsAgentModeEnabled: boolean;
+	mode: ChatMode;
 }
 const SESSION_TRANSFER_EXPIRATION_IN_MILLISECONDS = 1000 * 60;
 
@@ -171,7 +172,7 @@ export class ChatService extends Disposable implements IChatService {
 				sessionId: transferredChat.sessionId,
 				inputValue: transferredData.inputValue,
 				location: transferredData.location,
-				toolsAgentModeEnabled: transferredData.toolsAgentModeEnabled,
+				mode: transferredData.mode,
 			};
 		}
 
@@ -576,7 +577,7 @@ export class ChatService extends Disposable implements IChatService {
 			if (!agent) {
 				throw new Error(`Unknown agent: ${options.agentId}`);
 			}
-			parserContext = { selectedAgent: agent };
+			parserContext = { selectedAgent: agent, mode: options.mode };
 			const commandPart = options.slashCommand ? ` ${chatSubcommandLeader}${options.slashCommand}` : '';
 			request = `${chatAgentLeader}${agent.name}${commandPart} ${request}`;
 		}
@@ -1032,7 +1033,7 @@ export class ChatService extends Disposable implements IChatService {
 			toWorkspace: toWorkspace,
 			inputValue: transferredSessionData.inputValue,
 			location: transferredSessionData.location,
-			toolsAgentModeEnabled: transferredSessionData.toolsAgentModeEnabled,
+			mode: transferredSessionData.mode,
 		});
 
 		this.storageService.store(globalChatKey, JSON.stringify(existingRaw), StorageScope.PROFILE, StorageTarget.MACHINE);
