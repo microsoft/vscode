@@ -488,6 +488,9 @@ class ChatStatusDashboard extends Disposable {
 			}
 		}, disposables);
 
+		// enablement of NES depends on completions setting
+		// so we have to update our checkbox state accordingly
+
 		if (!completionsSettingAccessor.readSetting()) {
 			container.classList.add('disabled');
 			checkbox.disable();
