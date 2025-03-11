@@ -7,15 +7,34 @@
 declare module 'vscode' {
 
 	export enum TaskEventKind {
-		DependsOnStarted = 'dependsOnStarted',
-		AcquiredInput = 'acquiredInput',
-		Start = 'start',
-		ProcessStarted = 'processStarted',
-		Active = 'active',
-		Inactive = 'inactive',
+		/** Indicates that a task's properties or configuration have changed */
 		Changed = 'changed',
-		Terminated = 'terminated',
+
+		/** Indicates that a task has begun executing */
+		ProcessStarted = 'processStarted',
+
+		/** Indicates that a task process has completed */
 		ProcessEnded = 'processEnded',
+
+		/** Indicates that a task was terminated, either by user action or by the system */
+		Terminated = 'terminated',
+
+		/** Indicates a task has started running */
+		Start = 'start',
+
+		/** Indicates task has acquired all needed input/variables to execute */
+		AcquiredInput = 'acquiredInput',
+
+		/** Indicates a dependent task has started */
+		DependsOnStarted = 'dependsOnStarted',
+
+		/** Indicates the task is actively processing lines using problem matchers */
+		Active = 'active',
+
+		/** Indicates the task has finished processing lines using problem matchers */
+		Inactive = 'inactive',
+
+		/** Indicates the task has completed fully */
 		End = 'end'
 	}
 
