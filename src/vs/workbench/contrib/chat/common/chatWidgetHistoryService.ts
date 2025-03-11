@@ -12,6 +12,7 @@ import { ChatAgentLocation } from './chatAgents.js';
 import { WorkingSetEntryState } from './chatEditingService.js';
 import { IChatRequestVariableEntry } from './chatModel.js';
 import { CHAT_PROVIDER_ID } from './chatParticipantContribTypes.js';
+import { ChatMode } from './constants.js';
 
 export interface IChatHistoryEntry {
 	text: string;
@@ -23,6 +24,7 @@ export interface IChatInputState {
 	[key: string]: any;
 	chatContextAttachments?: ReadonlyArray<IChatRequestVariableEntry>;
 	chatWorkingSet?: ReadonlyArray<{ uri: URI; state: WorkingSetEntryState }>;
+	chatMode?: ChatMode;
 }
 
 export const IChatWidgetHistoryService = createDecorator<IChatWidgetHistoryService>('IChatWidgetHistoryService');
