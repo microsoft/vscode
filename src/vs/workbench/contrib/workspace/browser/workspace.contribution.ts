@@ -440,6 +440,12 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 			return;
 		}
 
+		// Don't show modal prompt for empty folders by default
+		if (await this.areWorkspaceFoldersEmpty()) {
+			this.updateWorkbenchIndicators(false);
+			return;
+		}
+
 		if (this.startupPromptSetting === 'never') {
 			this.updateWorkbenchIndicators(false);
 			return;
@@ -478,6 +484,16 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 			}
 			return false;
 		});
+	}
+
+	private async areWorkspaceFoldersEmpty(): Promise<boolean> {
+		for (const folder of this.workspaceContextService.getWorkspace().folders) {
+			const folderStat = await this.fileService.resolve(folder.uri);
+			if (folderStat.children && folderStat.children.length > 0) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	//#endregion
