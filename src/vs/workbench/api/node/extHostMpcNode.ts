@@ -79,6 +79,9 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 
 		child.stdout.pipe(new StreamSplitter('\n')).on('data', line => this._proxy.$onDidReceiveMessage(id, line.toString()));
 
+		child.stdin.on('error', onError);
+		child.stdout.on('error', onError);
+
 		// Stderr handling is not currently specified https://github.com/modelcontextprotocol/specification/issues/177
 		// Just treat it as generic log data for now
 		child.stderr.pipe(new StreamSplitter('\n')).on('data', line => this._proxy.$onDidPublishLog(id, line.toString()));
