@@ -25,6 +25,7 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { CHAT_CATEGORY } from '../../chat/browser/actions/chatActions.js';
 import { ChatAgentLocation } from '../../chat/common/chatAgents.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
+import { McpContextKeys } from '../common/mcpContextKeys.js';
 import { IMcpService, IMcpTool, McpConnectionState } from '../common/mcpTypes.js';
 
 // acroynms do not get localized
@@ -178,9 +179,15 @@ export class AttachMCPToolsAction extends Action2 {
 			icon: Codicon.tools,
 			f1: false,
 			category: CHAT_CATEGORY,
-			precondition: ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
+			precondition: ContextKeyExpr.and(
+				McpContextKeys.serverCount.greater(0),
+				ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)
+			),
 			menu: {
-				when: ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
+				when: ContextKeyExpr.and(
+					McpContextKeys.serverCount.greater(0),
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)
+				),
 				id: MenuId.ChatInputAttachmentToolbar,
 				group: 'navigation'
 			},

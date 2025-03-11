@@ -22,6 +22,7 @@ import { McpDiscovery } from './mcpDiscovery.js';
 import { AttachMCPToolsAction, AttachMCPToolsActionRendering, ListMcpServerCommand, McpServerOptionsCommand } from './mcpCommands.js';
 
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { McpContextKeysController } from '../common/mcpContextKeys.js';
 
 registerSingleton(IMcpRegistry, McpRegistry, InstantiationType.Delayed);
 registerSingleton(IMcpService, McpService, InstantiationType.Delayed);
@@ -30,6 +31,7 @@ mcpDiscoveryRegistry.register(new SyncDescriptor(RemoteNativeMpcDiscovery));
 mcpDiscoveryRegistry.register(new SyncDescriptor(ConfigMcpDiscovery));
 
 registerWorkbenchContribution2('mcpDiscovery', McpDiscovery, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2('mcpContextKeys', McpContextKeysController, WorkbenchPhase.BlockRestore);
 
 registerAction2(ListMcpServerCommand);
 registerAction2(McpServerOptionsCommand);
