@@ -32,7 +32,7 @@ export interface ISimpleCompletion {
 	/**
 	 * The completion item's kind that will be included in the aria label.
 	 */
-	type?: string;
+	kindLabel?: string;
 
 	/**
 	 * The completion's detail which appears on the right of the list.
