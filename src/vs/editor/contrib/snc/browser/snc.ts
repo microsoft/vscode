@@ -1,0 +1,837 @@
+/* eslint-disable header/header */
+import { registerEditorContribution, EditorContributionInstantiation } from '../../../browser/editorExtensions.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IEditorContribution } from '../../../common/editorCommon.js';
+import { ICodeEditor, IViewZone, IOverlayWidget, IOverlayWidgetPosition, IOverlayWidgetPositionCoordinates } from '../../../browser/editorBrowser.js';
+import { Position } from '../../../common/core/position.js';
+import { IModelContentChangedEvent } from '../../../common/textModelEvents.js';
+import { IProcessOptions, IVisualizationItem, SNCStreamMessage, UiEvent } from '../../../../platform/snc/common/snc.js';
+import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { createTrustedTypesPolicy } from '../../../../base/browser/trustedTypes.js';
+import { IHostService } from '../../../../workbench/services/host/browser/host.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import * as dom from '../../../../base/browser/dom.js';
+
+// 'sncVisualization' is a trusted name defined in src/vs/code/electron-sandbox/workbench/workbench(-dev).html
+const ttPolicy = createTrustedTypesPolicy('sncVisualization', { createHTML: value => value });
+
+// May want to use zoneView (see codelensWidget) to give some space
+// And IContentWidget might position things relative to a line of code
+//
+// Need to figure out how to get the provenance info. Maybe be fine
+// to do source-to-source translation for the current file only
+// (so any backward lenses will only be for the current file—might be fine)
+// but will need to wrap every object with special tags, just like in Plottery
+// numpy will break this, but what can you do
+//
+// Actually, not sure we even need provenance *traces*, just a tag of
+// what location the value came from and what's its expression.
+// No need to backtrack yet
+//
+// Maybe have the front-end invoke the app, but such that the "python" executable
+// is our own and imports of the relevant file rewrite it prior to exeuction
+// Can indeed overwrite the import handling pretty easily: https://docs.python.org/3/reference/import.html https://github.com/rohitsanj/import-hook-python/blob/main/import_hook.py https://docs.python.org/3/library/importlib.html
+//
+//
+
+
+// /**
+//  * Determines if a visualization should be positioned as a block (between lines) vs inline (at end of line)
+//  */
+// function shouldUseBlockLayout(html: string): boolean {
+// 	// Check for HTML tables (pandas DataFrames)
+// 	if (html.includes('<table>')) {
+// 		return true;
+// 	}
+
+// 	// Check for multiple line breaks (multi-line content)
+// 	const brCount = (html.match(/<br>/gi) || []).length;
+// 	if (brCount >= 2) {
+// 		return true;
+// 	}
+
+// 	// Check for long content that would overflow inline
+// 	const textContent = html.replace(/<[^>]*>/g, ''); // Strip HTML tags
+// 	if (textContent.length > 200) {
+// 		return true;
+// 	}
+
+// 	return false;
+// }
+
+/**
+ * Widget that displays visualization data for a specific line of code.
+ */
+class VisualizationWidget extends Disposable implements IOverlayWidget {
+	private readonly editor: ICodeEditor;
+	private readonly domNode: HTMLElement;
+	private position: Position | null = null;
+	private lastOnscreenPixelPosition: IOverlayWidgetPositionCoordinates | null = null;
+	private readonly visIndex: number;
+	private readonly lineNumber: number;
+	private readonly onPointerEvent: (pythonEventStr: string, ev: MouseEvent) => void;
+	private moveThrottleTimer: any = null;
+	private readonly moveThrottleDelay = 16;
+
+	constructor(editor: ICodeEditor, lineNumber: number, visIndex: number, onPointerEvent: (pythonEventStr: string, ev: MouseEvent) => void) {
+		super();
+		this.editor = editor;
+		this.position = new Position(lineNumber, 1);
+		this.visIndex = visIndex;
+		this.lineNumber = lineNumber;
+		this.onPointerEvent = onPointerEvent;
+
+		// Create the widget DOM node
+		this.domNode = document.createElement('div');
+		this.domNode.className = 'snc-visualization-widget';
+
+		// Update styling for overlay widget - use absolute positioning
+		this.domNode.style.position = 'absolute';
+		this.domNode.style.display = 'inline-block';
+		this.domNode.style.marginLeft = '8px';
+		this.domNode.style.padding = '0px 4px';
+		this.domNode.style.background = 'none';
+		this.domNode.style.fontSize = '11px';
+		this.domNode.style.fontStyle = 'italic';
+		this.domNode.style.fontFamily = 'monospace';
+		this.domNode.style.color = 'rgba(255,255,255,0.2)';
+		this.domNode.style.whiteSpace = 'nowrap';
+		this.domNode.style.verticalAlign = 'middle';
+		this.domNode.style.borderRadius = '3px';
+		this.domNode.style.maxWidth = '800px';
+		this.domNode.style.maxHeight = '600px';
+		this.domNode.style.overflow = 'auto';
+		this.domNode.style.scrollbarWidth = 'thin';
+		this.domNode.style.scrollbarColor = 'rgba(255,255,255,0.1) transparent';
+		// this.domNode.style.textOverflow = 'ellipsis';
+		this.domNode.style.filter = 'none';
+		this.domNode.style.opacity = '0.9';
+		this.domNode.style.zIndex = '1000';
+		this.domNode.style.userSelect = 'text'; // otherwise no text selection allowed
+
+		// Add custom mouse wheel event handling to actually scroll
+		this._register(dom.addDisposableListener(this.domNode, 'wheel', (e: WheelEvent) => {
+
+			const oldScrollTop = this.domNode.scrollTop;
+			const oldScrollLeft = this.domNode.scrollLeft;
+
+			this.domNode.scrollTop += e.deltaY;
+			this.domNode.scrollLeft += e.deltaX;
+
+			if (oldScrollTop != this.domNode.scrollTop || oldScrollLeft != this.domNode.scrollLeft) {
+				e.preventDefault();
+				e.stopPropagation();
+			}
+		}));
+
+
+		this._register(dom.addDisposableListener(this.domNode, 'mousedown', (ev: MouseEvent) => {
+			// ev.target
+			// const idx = this.getIndexFromEventTarget(e.target as Node) ?? this.findNearestIndex(e);
+			this.dispatch_as_python_event('snc-mouse-down', ev);
+		}));
+		this._register(dom.addDisposableListener(this.domNode, 'mousemove', (ev: MouseEvent) => {
+			if (this.moveThrottleTimer) { return; }
+			this.moveThrottleTimer = setTimeout(() => { this.moveThrottleTimer = null; }, this.moveThrottleDelay);
+			// const idx = this.getIndexFromEventTarget(e.target as Node) ?? this.findNearestIndex(e);
+			this.dispatch_as_python_event('snc-mouse-move', ev);
+		}));
+		this._register(dom.addDisposableListener(this.domNode, 'mouseup', (ev: MouseEvent) => {
+			// const idx = this.getIndexFromEventTarget(e.target as Node) ?? this.findNearestIndex(e);
+			this.dispatch_as_python_event('snc-mouse-up', ev);
+		}));
+
+		// Add the widget to the editor
+		this.editor.addOverlayWidget(this);
+	}
+
+	private dispatch_as_python_event(attr_name: string, ev: MouseEvent): void {
+		if (!ev.target) { return; }
+
+		let node = ev.target as Node;
+		let el: Element | null = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : (node.parentElement);
+
+		while (el && el != this.domNode) {
+			if (el.hasAttribute(attr_name)) {
+				const pythonEventStr: string = el.getAttribute(attr_name) ?? '';
+				this.onPointerEvent(pythonEventStr, ev);
+			}
+			el = el.parentElement;
+		}
+	}
+
+	getId(): string {
+		return `editor.contrib.visualizationOverlayWidget-${this.lineNumber}-${this.visIndex}`;
+	}
+
+	getDomNode(): HTMLElement {
+		return this.domNode;
+	}
+
+	getPosition(): IOverlayWidgetPosition | null {
+		if (!this.position) {
+			return null;
+		}
+
+		// Calculate absolute position coordinates
+		const lineNumber = this.position.lineNumber;
+		const model = this.editor.getModel();
+
+		if (!model) {
+			return null;
+		}
+
+		try {
+			// Get the line content to find the end column
+			const lineContent = model.getLineContent(lineNumber);
+			const endColumn = lineContent.length + 1;
+
+			// Use the editor's coordinate conversion methods
+			const position = { lineNumber, column: endColumn };
+			const pixelPosition = this.editor.getScrolledVisiblePosition(position);
+
+			if (!pixelPosition) {
+				// Line is not visible
+				return null;
+			}
+
+			if (pixelPosition.top < 0 && this.lastOnscreenPixelPosition) {
+				// x coordinate is not reliable when lines are offscreen, use last known coordinate
+				return {
+					preference: {
+						top: pixelPosition.top,
+						left: this.lastOnscreenPixelPosition.left
+					}
+				};
+			} else {
+				this.lastOnscreenPixelPosition = pixelPosition;
+				return { preference: pixelPosition };
+			}
+		} catch (error) {
+			return null;
+		}
+	}
+
+	/**
+	 * Update the widget's HTML content
+	 */
+	updateContent(html: string): void {
+		const trustedHtml = ttPolicy?.createHTML(html) ?? html;
+		this.domNode.innerHTML = trustedHtml as string;
+	}
+
+	/**
+	 * Update the widget's position (called when scrolling or content changes)
+	 */
+	updatePosition(): void {
+		this.editor.layoutOverlayWidget(this);
+	}
+
+	// START HERE remove this front-end index stuff
+	// then work on the selection mechanism in Python
+
+	// private getIndexFromEventTarget(node: Node | null): number | null {
+	// 	if (!node) { return null; }
+	// 	let el: Element | null = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : (node.parentElement);
+	// 	while (el && el !== this.domNode) {
+	// 		if (el.hasAttribute('data-snc-idx')) {
+	// 			const attr = el.getAttribute('data-snc-idx');
+	// 			if (attr !== null) {
+	// 				const parsed = parseInt(attr, 10);
+	// 				if (!Number.isNaN(parsed)) { return parsed; }
+	// 			}
+	// 		}
+	// 		el = el.parentElement;
+	// 	}
+	// 	return null;
+	// }
+
+	// private findNearestIndex(e: MouseEvent): number | null {
+	// 	// Fallback: scan elements and pick the one with center nearest to pointer
+	// 	const candidates = this.domNode.querySelectorAll('[data-snc-idx]');
+	// 	let bestIdx: number | null = null;
+	// 	let bestDist = Number.POSITIVE_INFINITY;
+	// 	for (const el of candidates as any as Element[]) {
+	// 		const rect = (el as Element).getBoundingClientRect();
+	// 		const cx = rect.left + rect.width / 2;
+	// 		const cy = rect.top + rect.height / 2;
+	// 		const dx = cx - e.clientX;
+	// 		const dy = cy - e.clientY;
+	// 		const dist = dx * dx + dy * dy;
+	// 		if (dist < bestDist) {
+	// 			bestDist = dist;
+	// 			const attr = (el as Element).getAttribute('data-snc-idx');
+	// 			if (attr !== null) {
+	// 				const parsed = parseInt(attr, 10);
+	// 				if (!Number.isNaN(parsed)) { bestIdx = parsed; }
+	// 			}
+	// 		}
+	// 	}
+	// 	return bestIdx;
+	// }
+
+	/**
+	 * Dispose of the widget
+	 */
+	override dispose(): void {
+		this.editor.removeOverlayWidget(this);
+		super.dispose();
+	}
+}
+
+export class SNCController extends Disposable implements IEditorContribution {
+	public static readonly ID = 'editor.contrib.snc';
+
+	private visualizationWidgets: Map<number, VisualizationWidget[]> = new Map();
+	private viewZones: Map<number, string> = new Map(); // line number -> view zone id
+	private debounceTimer: any = null;
+	private readonly debounceDelay = 100; // ms
+
+	// Streaming state
+	private currentRunId: string | null = null;
+	private eventsBeingHandledCurrentRun: { line: number; visIndex: number; events: UiEvent[] }[] = [];
+	private visualizationItems: IVisualizationItem[] = [];
+	private streamSubscription: { dispose(): void } | null = null;
+	private streamUpdateTimer: any = null;
+	// private latestVisualizationData: IVisualizationItem[] = [];
+	private cursorUpdateTimer: any = null;
+	// private lastSentIdxByKey: Map<string, number | null> = new Map();
+	private runStartMsById: Map<string, number> = new Map();
+	private runFirstItemMsById: Map<string, number> = new Map();
+	// private lastPointerEventMs: number = 0;
+
+
+	constructor(
+		private readonly editor: ICodeEditor,
+		@IMainProcessService private readonly mainProcessService: IMainProcessService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IHostService private readonly hostService: IHostService,
+		@IEditorService private readonly editorService: IEditorService,
+	) {
+		super();
+
+		// Register event handlers
+		this._register(editor.onDidChangeModelContent((e) => { this.onDidChangeModelContent(e); }));
+		this._register(editor.onDidChangeModel(() => {
+			this.clearVisualizationWidgets();
+			// Set up language change listener for the new model
+			this.setupLanguageChangeListener();
+			// Trigger initial visualization when a new model loads
+			this.triggerInitialVisualization();
+		}));
+		this._register(editor.onDidDispose(() => { this.clearVisualizationWidgets(); }));
+		this._register(editor.onDidChangeCursorPosition(() => {
+			this.onCursorPositionChanged();
+		}));
+
+		// Register scroll event handler to update overlay widget positions
+		this._register(editor.onDidScrollChange(() => {
+			this.updateOverlayWidgetPositions();
+		}));
+
+		// Register window focus change handler to update visualizations when window becomes visible
+		this._register(this.hostService.onDidChangeFocus((focused: boolean) => {
+			if (focused) {
+				this.onWindowBecameVisible();
+			}
+		}));
+
+		// Register editor visibility change handler to update visualizations when editors become visible
+		this._register(this.editorService.onDidVisibleEditorsChange(() => {
+			this.onEditorsVisibilityChanged();
+		}));
+
+		// Set up language change listener for the initial model
+		this.setupLanguageChangeListener();
+
+		// Trigger initial visualization when controller is created
+		this.triggerInitialVisualization();
+	}
+
+	getProgram(): string {
+		return this.editor.getModel()!.getLinesContent().join('\n');
+	}
+
+	onDidChangeModelContent(e: IModelContentChangedEvent): void {
+		// Debounce to avoid running on every keystroke
+		if (this.debounceTimer) {
+			clearTimeout(this.debounceTimer);
+		}
+
+		this.debounceTimer = setTimeout(() => {
+			this.runProgram(this.getProgram());
+		}, this.debounceDelay);
+	}
+
+	private onWindowBecameVisible(): void {
+		// Re-render existing visualizations when window becomes visible; do not rerun
+		// const data = this.currentRunId ? this.streamedItems : this.latestVisualizationData;
+		const data = this.visualizationItems;
+		if (data && data.length > 0) {
+			this.updateVisualizationWidgets(data);
+		}
+	}
+
+	private onCursorPositionChanged(): void {
+		// Re-render visualizations when cursor moves; do NOT rerun the program
+		// const data = this.currentRunId ? this.streamedItems : this.latestVisualizationData;
+		const data = this.visualizationItems;
+		if (!data || data.length === 0) {
+			return;
+		}
+		if (this.cursorUpdateTimer) {
+			clearTimeout(this.cursorUpdateTimer);
+		}
+		this.cursorUpdateTimer = setTimeout(() => {
+			this.updateVisualizationWidgets(data);
+		}, 50);
+	}
+
+	private setupLanguageChangeListener(): void {
+		const model = this.editor.getModel();
+		if (!model) {
+			return;
+		}
+
+		// Listen for language changes on the model
+		this._register(model.onDidChangeLanguageConfiguration(() => {
+			this.onLanguageChanged();
+		}));
+
+		// Also listen for when the language changes
+		this._register(model.onDidChangeLanguage(() => {
+			this.onLanguageChanged();
+		}));
+	}
+
+	private onLanguageChanged(): void {
+		const model = this.editor.getModel();
+		if (!model) {
+			return;
+		}
+
+		const languageId = model.getLanguageId();
+
+		// If language changed to Python, trigger visualization
+		if (languageId === 'python' || languageId === 'py') {
+			this.triggerInitialVisualization();
+		}
+	}
+
+	private onEditorsVisibilityChanged(): void {
+		// Check if this editor has a model and is Python
+		const model = this.editor.getModel();
+		if (!model) {
+			return;
+		}
+
+		const languageId = model.getLanguageId();
+		if (languageId !== 'python' && languageId !== 'py') {
+			return;
+		}
+
+		// Check if this editor is currently visible in the editor service
+		const visibleEditors = this.editorService.visibleTextEditorControls;
+		const isThisEditorVisible = visibleEditors.includes(this.editor);
+
+		if (isThisEditorVisible) {
+			if (this.debounceTimer) {
+				clearTimeout(this.debounceTimer);
+			}
+
+			this.debounceTimer = setTimeout(() => {
+				this.runProgram(this.getProgram());
+			}, this.debounceDelay);
+		}
+	}
+
+	private triggerInitialVisualization(): void {
+		// Only trigger for Python files
+		const model = this.editor.getModel();
+		if (!model) {
+			return;
+		}
+
+		const languageId = model.getLanguageId();
+		if (languageId !== 'python' && languageId !== 'py') {
+			return;
+		}
+
+		const content = this.getProgram();
+		if (!content || content.trim().length === 0) {
+			return;
+		}
+
+		// Use longer debounce delay for initial trigger to ensure system is ready
+		if (this.debounceTimer) {
+			clearTimeout(this.debounceTimer);
+		}
+
+		this.debounceTimer = setTimeout(() => {
+			this.runProgram(content);
+		}, 1);
+	}
+
+	private clearVisualizationWidgets(): void {
+		// Remove all existing widgets
+		for (const widgets of this.visualizationWidgets.values()) {
+			for (const widget of widgets) {
+				widget.dispose();
+			}
+		}
+		this.visualizationWidgets.clear();
+
+		// Remove all view zones
+		this.editor.changeViewZones((accessor) => {
+			for (const viewZoneId of this.viewZones.values()) {
+				accessor.removeZone(viewZoneId);
+			}
+		});
+		this.viewZones.clear();
+	}
+
+	private updateOverlayWidgetPositions(): void {
+		// Update positions of all overlay widgets when scrolling
+		for (const widgets of this.visualizationWidgets.values()) {
+			for (const widget of widgets) {
+				widget.updatePosition();
+			}
+		}
+	}
+
+	// private modelKey(line: number, visIndex?: number | null): string {
+	// 	return `${line}:${visIndex ?? 0}`;
+	// }
+
+	private updateVisualizationWidgets(visualizationData: IVisualizationItem[]): void {
+
+		// console.log("visualizationData", visualizationData);
+
+		// Get current cursor position
+		const cursorPosition = this.editor.getPosition();
+		const cursorLine = cursorPosition?.lineNumber || 1;
+
+		// Group visualization items by line number
+		const groupedByLine = new Map<number, IVisualizationItem[]>();
+		for (const item of visualizationData) {
+			if (!groupedByLine.has(item.line)) {
+				groupedByLine.set(item.line, []);
+			}
+			groupedByLine.get(item.line)!.push(item);
+		}
+		// console.log("groupedByLine", groupedByLine)
+
+		const presentLines = new Set<number>(Array.from(groupedByLine.keys()));
+
+		// console.log("presentLines", presentLines)
+
+
+		this.editor.changeViewZones((accessor) => {
+			// Remove widgets/view zones for lines no longer present
+			for (const [line, widgets] of Array.from(this.visualizationWidgets.entries())) {
+				if (!presentLines.has(line)) {
+					// console.log("disposing", line, widgets)
+					for (const w of widgets) { w.dispose(); }
+					this.visualizationWidgets.delete(line);
+					const vz = this.viewZones.get(line);
+					if (vz) { accessor.removeZone(vz); this.viewZones.delete(line); }
+				}
+			}
+
+			// Update or create for each present line
+			for (const [lineNumber, items] of groupedByLine.entries()) {
+				// Decide first vs last iteration
+				const shouldUseFirst = items.some(item =>
+					item.last_line_in_containing_loop !== undefined &&
+					cursorLine <= item.last_line_in_containing_loop
+				);
+
+				// Group by execution step and pick one step
+				const groupedByStep = new Map<number, IVisualizationItem[]>();
+				for (const item of items) {
+					if (!groupedByStep.has(item.execution_step)) {
+						groupedByStep.set(item.execution_step, []);
+					}
+					groupedByStep.get(item.execution_step)!.push(item);
+				}
+				const selectedStep = (shouldUseFirst ? Math.min : Math.max)(...groupedByStep.keys());
+				const stepItems = groupedByStep.get(selectedStep) || [];
+
+				const existing = this.visualizationWidgets.get(lineNumber);
+				// console.log("existing", lineNumber, existing)
+
+
+				if (existing && existing.length === stepItems.length) {
+					// Incremental update: reuse widgets, just update content
+					for (let i = 0; i < stepItems.length; i++) {
+						existing[i].updateContent(stepItems[i].html);
+						existing[i].updatePosition();
+					}
+
+					// Adjust view zone height if needed
+					const maxHeight = Math.max(...existing.map(w => w.getDomNode().getBoundingClientRect().height));
+					const existingZoneId = this.viewZones.get(lineNumber);
+					if (maxHeight > 22) {
+						if (existingZoneId) {
+							accessor.removeZone(existingZoneId);
+						}
+						const viewZone: IViewZone = {
+							afterLineNumber: lineNumber,
+							heightInPx: maxHeight - 12,
+							domNode: document.createElement('div'),
+							suppressMouseDown: false
+						};
+						const viewZoneId = accessor.addZone(viewZone);
+						this.viewZones.set(lineNumber, viewZoneId);
+					} else if (existingZoneId) {
+						accessor.removeZone(existingZoneId);
+						this.viewZones.delete(lineNumber);
+					}
+				} else {
+					// Rebuild for this line
+					if (existing) {
+						for (const w of existing) { w.dispose(); }
+						this.visualizationWidgets.delete(lineNumber);
+						const oldZone = this.viewZones.get(lineNumber);
+						if (oldZone) { accessor.removeZone(oldZone); this.viewZones.delete(lineNumber); }
+					}
+
+					const widgets: VisualizationWidget[] = [];
+					for (let i = 0; i < stepItems.length; i++) {
+						const item = stepItems[i];
+						const visIndex = (item as any).visIndex ?? i;
+						const widget = new VisualizationWidget(this.editor, lineNumber, visIndex, (pythonEventStr, ev) => { this.onPointerEvent(lineNumber, visIndex, pythonEventStr, ev) });
+						widget.updateContent(item.html);
+						widgets.push(widget);
+					}
+					if (widgets.length > 0) {
+						this.visualizationWidgets.set(lineNumber, widgets);
+					}
+
+					const maxHeight = widgets.length ? Math.max(...widgets.map(w => w.getDomNode().getBoundingClientRect().height)) : 0;
+					if (maxHeight > 22) {
+						const viewZone: IViewZone = {
+							afterLineNumber: lineNumber,
+							heightInPx: maxHeight - 12,
+							domNode: document.createElement('div'),
+							suppressMouseDown: false
+						};
+						const viewZoneId = accessor.addZone(viewZone);
+						this.viewZones.set(lineNumber, viewZoneId);
+					}
+				}
+			}
+		});
+	}
+
+	/**
+	 * Handle pointer event from VisualizationWidget
+	 */
+
+	private onPointerEvent(lineNumber: number, visIndex: number, pythonEventStr: string, ev: MouseEvent): void {
+		// const key = this.modelKey(lineNumber, visIndex);
+
+		// const mods: any = {};
+		// if (e.altKey) { mods.altKey = true; }
+		// if (e.ctrlKey) { mods.ctrlKey = true; }
+		// if (e.metaKey) { mods.metaKey = true; }
+		// if (e.shiftKey) { mods.shiftKey = true; }
+		// return Object.keys(mods).length ? mods : undefined;
+
+		// console.log("ev", ev)
+
+		// Dedupe high-frequency moves by index to avoid redundant reruns
+		// const lastSent = this.lastSentIdxByKey.get(key);
+		// let phase = ev.type.replace('mouse', ''); // 'mousemove' => 'move'
+
+		// if (phase === 'down') {
+		// 	this.lastSentIdxByKey.set(key, (typeof idx === 'number') ? idx : null);
+		// } else if (phase === 'move') {
+		// 	const currentIdx = (typeof idx === 'number') ? idx : null;
+		// 	if (lastSent === currentIdx) {
+		// 		return;
+		// 	}
+		// 	this.lastSentIdxByKey.set(key, currentIdx);
+		// }
+
+		const eventJSON = { type: ev.type, button: ev.button, buttons: ev.buttons, layerX: ev.layerX, layerY: ev.layerY, timeStamp: ev.timeStamp, altKey: ev.altKey, ctrlKey: ev.ctrlKey, metaKey: ev.metaKey, shiftKey: ev.shiftKey }
+
+		const event: UiEvent = { line: lineNumber, visIndex, pythonEventStr, eventJSON };
+		// console.log('SNC viz_pointer event', JSON.stringify(event));
+
+		// Rerun on every pointer event to keep backend authoritative for selections
+		// this.lastPointerEventMs = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+		this.sendEventToPython(event);
+
+		// After mouseup, reset dedupe so a new drag starts fresh
+		// if (phase === 'up') {
+		// 	this.lastSentIdxByKey.delete(key);
+		// }
+	}
+
+	private sendEventToPython(event: UiEvent) {
+		this.runProgram(this.getProgram(), event);
+	}
+
+	private async runProgram(content: string, uiEvent?: UiEvent): Promise<void> {
+		// Get the working directory from the first workspace folder
+		const workingDirectory = this.workspaceContextService.getWorkspace().folders[0]?.uri.fsPath || '';
+		const channel = this.mainProcessService.getChannel('sncProcess');
+
+		// Cancel any previous streaming run
+		if (this.currentRunId) {
+			try { await channel.call('cancel', [this.currentRunId]); } catch { /* ignore */ }
+			this.currentRunId = null;
+			this.eventsBeingHandledCurrentRun = [];
+		}
+
+		this.streamUpdateTimer = null;
+
+		// Add event to appropriate visualizer
+		if (uiEvent) {
+			let found = false;
+			this.visualizationItems = this.visualizationItems.map(visItem => {
+				if (visItem.line == uiEvent.line && visItem.visIndex == uiEvent.visIndex) {
+					found = true;
+					return {
+						...visItem,
+						unhandledEvents: [...(visItem.unhandledEvents || []), uiEvent]
+					}
+				}
+				return visItem;
+			});
+			if (!found) {
+				console.error(`SNC: No vis at ${uiEvent.line}:${uiEvent.visIndex} to queue event on!`)
+			}
+		}
+
+		// Ensure we are subscribed to the streaming event once
+		if (!this.streamSubscription) {
+			const ev = channel.listen<SNCStreamMessage>('onStream');
+			this.streamSubscription = ev((msg) => {
+				// Filter by run id for this controller
+				if (!this.currentRunId || msg.runId !== this.currentRunId) {
+					return;
+				}
+
+				if (msg.type === 'item') {
+					// console.log(msg.item.model)
+					// Timing: first item arrival for this run
+					if (!this.runFirstItemMsById.has(msg.runId)) {
+						const t0 = this.runStartMsById.get(msg.runId);
+						const t1 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+						if (typeof t0 === 'number') {
+							// console.log('SNC timing: first item', { runId: msg.runId, startToFirstItemMs: t1 - t0 });
+						}
+						this.runFirstItemMsById.set(msg.runId, t1);
+					}
+
+					// replace prior items as new ones come in
+					let found = false;
+					this.visualizationItems = this.visualizationItems.map(visItem => {
+						if (visItem.line == msg.item.line && visItem.visIndex == msg.item.visIndex) {
+							found = true;
+							const handled_events: UiEvent[] = this.eventsBeingHandledCurrentRun.find(ev => ev.line == msg.item.line && ev.visIndex == msg.item.visIndex)?.events || [];
+							return {
+								...msg.item,
+								unhandledEvents: (visItem.unhandledEvents || []).filter(ev => !handled_events.includes(ev))
+							};
+						}
+						return visItem;
+					});
+					if (!found) {
+						this.visualizationItems = [...this.visualizationItems, msg.item];
+					}
+
+					// Throttle UI updates
+					if (!this.streamUpdateTimer) {
+						this.updateVisualizationWidgets(this.visualizationItems);
+						this.streamUpdateTimer = setTimeout(() => {
+							this.streamUpdateTimer = null;
+						}, 16);
+					}
+				} else if (msg.type === 'end') {
+					// console.log('program end');
+
+					// Timing: end of run
+					// const tStart = this.runStartMsById.get(msg.runId);
+					// const tFirst = this.runFirstItemMsById.get(msg.runId);
+					// const tEnd = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+					// if (typeof tStart === 'number') {
+					// 	const total = tEnd - tStart;
+					// 	const spawnToFirst = (typeof tFirst === 'number') ? (tFirst - tStart) : -1;
+					// 	const ptrToEnd = this.lastPointerEventMs ? (tEnd - this.lastPointerEventMs) : -1;
+					// 	console.log('SNC timing: run end', { runId: msg.runId, totalMs: total, spawnToFirstItemMs: spawnToFirst, ptrEvtToEndMs: ptrToEnd });
+					// }
+					this.runStartMsById.delete(msg.runId);
+					this.runFirstItemMsById.delete(msg.runId);
+
+					clearTimeout(this.streamUpdateTimer);
+
+					// remove prior runs
+					this.visualizationItems = this.visualizationItems.filter(visItem => visItem.runId === this.currentRunId);
+					this.updateVisualizationWidgets(this.visualizationItems);
+
+					if (msg.result.stdout) {
+						console.log('Program output:', msg.result.stdout);
+					}
+					if (msg.result.stderr) {
+						console.error('Program errors:', msg.result.stderr);
+					}
+
+					this.currentRunId = null;
+					this.eventsBeingHandledCurrentRun = [];
+				} else if (msg.type === 'error') {
+					console.error('SNC streaming error:', msg.error);
+					this.currentRunId = null;
+					this.eventsBeingHandledCurrentRun = [];
+					this.visualizationItems = [];
+					this.clearVisualizationWidgets();
+				}
+			});
+			this._register({ dispose: () => { this.streamSubscription?.dispose(); this.streamSubscription = null; } });
+		}
+
+		const models_and_events = this.visualizationItems.filter(visItem => visItem.model || visItem.unhandledEvents).map(visItem => {
+			const model_and_events: any = {
+				line: visItem.line,
+				visIndex: visItem.visIndex,
+			};
+			if (visItem.model) { model_and_events['model'] = visItem.model }
+			if (visItem.unhandledEvents) { model_and_events['events'] = visItem.unhandledEvents } // don't transform events: they are compared by == i.e. exact objectid
+			return model_and_events;
+		});
+
+		// Start a new streaming run
+		const runId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+		this.currentRunId = runId;
+		const nowMs = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+		this.runStartMsById.set(runId, nowMs);
+		// const ptrDelta = this.lastPointerEventMs ? (nowMs - this.lastPointerEventMs) : -1;
+		// console.log('SNC timing: run start', { runId, ptrToStartMs: ptrDelta });
+
+		this.eventsBeingHandledCurrentRun = models_and_events.map(m_e => ({
+			line: m_e.line,
+			visIndex: m_e.visIndex,
+			events: m_e['events'] || []
+		}))
+
+		try {
+			const options: IProcessOptions = {
+				modelsAndEventsJson: JSON.stringify(models_and_events),
+				timeout: 60_000,
+				workingDirectory
+			};
+			await channel.call('startProgram', [content, options, runId]);
+		} catch (error) {
+			console.error('Failed to start streaming run:', error);
+			this.currentRunId = null;
+			this.eventsBeingHandledCurrentRun = [];
+			this.clearVisualizationWidgets();
+		}
+	}
+
+}
+
+registerEditorContribution(SNCController.ID, SNCController, EditorContributionInstantiation.AfterFirstRender);

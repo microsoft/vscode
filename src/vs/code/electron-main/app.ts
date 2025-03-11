@@ -122,6 +122,8 @@ import { NativeMcpDiscoveryHelperService } from '../../platform/mcp/node/nativeM
 import { IWebContentExtractorService } from '../../platform/webContentExtractor/common/webContentExtractor.js';
 import { NativeWebContentExtractorService } from '../../platform/webContentExtractor/electron-main/webContentExtractorService.js';
 import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
+import { ISNCProcessService } from '../../platform/snc/common/snc.js';
+import { SNCProcessService } from '../../platform/snc/node/sncProcessService.js';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -1112,6 +1114,9 @@ export class CodeApplication extends Disposable {
 		// Dev Only: CSS service (for ESM)
 		services.set(ICSSDevelopmentService, new SyncDescriptor(CSSDevelopmentService, undefined, true));
 
+		// SNC Process Service
+		services.set(ISNCProcessService, new SyncDescriptor(SNCProcessService, undefined, true));
+
 		// Init services that require it
 		await Promises.settled([
 			backupMainService.initialize(),
@@ -1236,6 +1241,10 @@ export class CodeApplication extends Disposable {
 		// Utility Process Worker
 		const utilityProcessWorkerChannel = ProxyChannel.fromService(accessor.get(IUtilityProcessWorkerMainService), disposables);
 		mainProcessElectronServer.registerChannel(ipcUtilityProcessWorkerChannelName, utilityProcessWorkerChannel);
+
+		// SNC Process Service
+		const sncProcessChannel = ProxyChannel.fromService(accessor.get(ISNCProcessService), disposables);
+		mainProcessElectronServer.registerChannel('sncProcess', sncProcessChannel);
 	}
 
 	private async openFirstWindow(accessor: ServicesAccessor, initialProtocolUrls: IInitialProtocolUrls | undefined): Promise<ICodeWindow[]> {

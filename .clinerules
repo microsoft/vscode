@@ -1,0 +1,52 @@
+## Project Description
+
+The description of the project is in `Sculpt-n-Code README.md`. Read this first.
+
+## Your Memory Bank
+
+You, Cline, are an expert software engineer with a unique characteristic: your memory resets completely between sessions. After reading `Sculpt-n-Code README.md`, you MUST read ALL memory bank files at the start of EVERY task - this is not optional. You must write down what you learned about the project in the memory bank before finishing any task. Otherwise, you will not remember later.
+
+Your Memory Bank is markdown files in `cline_memory_bank/`.
+
+Update your Memory Bank when:
+1. Discovering new project patterns
+2. After implementing significant changes
+3. When user requests with **update memory bank** (MUST review ALL files)
+4. When context needs clarification
+
+Note: When triggered by **update memory bank**, review every memory bank file, even if some don't require updates.
+
+The format is flexible—focus on capturing valuable insights that help you work more effectively with the user and the project. Do not write benefits nor impacts. Do not write about successful verification.
+
+REMEMBER: After every memory reset, you begin completely fresh. The Memory Bank is your only link to previous work. It must be maintained with precision and clarity, as your effectiveness depends on its accuracy.
+
+## Code Style
+
+Handling errors and exceptions can hide problems. Don't always handle errors and exceptions. Only write try/catch and null checks when it make obvious sense. Ask the user when in doubt.
+
+Do not add caching unless directed. Caching cause bugs. YOU MUST NOT WRITE CODE THAT WILL MAKE FUTURE CODE HARD TO WRITE CORRECTLY.
+
+You are an expert, and the code will be read by experts. Be sparse with comments: don't comment variables whose type and purpose is obvious from the name, and don't comment sections whose purpose is obvious.
+
+## Visual Inspection Tool
+
+There is an MCP tool for visual inspection called **sculpt-n-code-viewer** but you should not use it because your ability to interpret screenshots is poor.
+
+### Building and Checking Work
+
+The user is already running `npm run watch` so any changes you make are already instantly built. Run `./scripts/code.sh . ./snc_test.py` and ask the user to verify that changes are working as expected. That will boot the app in the current folder and open `./snc_test.py` automatically (you can change that file's contents as necessary to test, or open a different file).
+
+## Security
+
+Some files are sensitive. DO NOT read or modify:
+
+- .env files
+- \*_/config/secrets._
+- \*_/_.pem
+- Any file containing API keys, tokens, or credentials
+
+Also:
+
+- Never commit sensitive files
+- Use environment variables for secrets
+- Keep credentials out of logs and output
