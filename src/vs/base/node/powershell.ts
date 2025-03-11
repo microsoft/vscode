@@ -230,7 +230,7 @@ function findPSCoreScoopInstallation(): IPossiblePowerShellExe {
 	const scoopAppsDir = path.join(os.homedir(), 'scoop', 'apps');
 	const scoopPwsh = path.join(scoopAppsDir, 'pwsh', 'current', 'pwsh.exe');
 
-	return new PossiblePowerShellExe(scoopPwsh, 'PowerShell Core Scoop Installation');
+	return new PossiblePowerShellExe(scoopPwsh, 'PowerShell (Scoop)');
 }
 
 function findWinPS(): IPossiblePowerShellExe | null {
