@@ -7,16 +7,17 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, derivedWithStore, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { debouncedObservable } from '../../../../../../base/common/observableInternal/utils.js';
 import { basename } from '../../../../../../base/common/resources.js';
+import { assertType } from '../../../../../../base/common/types.js';
 import { nullDocumentDiff } from '../../../../../../editor/common/diff/documentDiffProvider.js';
 import { localize } from '../../../../../../nls.js';
 import { MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IResourceDiffEditorInput } from '../../../../../common/editor.js';
+import { IEditorPane, IResourceDiffEditorInput } from '../../../../../common/editor.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { NotebookDeletedCellDecorator } from '../../../../notebook/browser/diff/inlineDiff/notebookDeletedCellDecorator.js';
 import { NotebookInsertedCellDecorator } from '../../../../notebook/browser/diff/inlineDiff/notebookInsertedCellDecorator.js';
 import { INotebookTextDiffEditor } from '../../../../notebook/browser/diff/notebookDiffEditorBrowser.js';
-import { INotebookEditor } from '../../../../notebook/browser/notebookBrowser.js';
+import { getNotebookEditorFromEditorPane, INotebookEditor } from '../../../../notebook/browser/notebookBrowser.js';
 import { INotebookEditorService } from '../../../../notebook/browser/services/notebookEditorService.js';
 import { NotebookCellTextModel } from '../../../../notebook/common/model/notebookCellTextModel.js';
 import { NotebookTextModel } from '../../../../notebook/common/model/notebookTextModel.js';
@@ -26,6 +27,58 @@ import { ChatEditingCodeEditorIntegration, IDocumentDiff2 } from '../chatEditing
 import { countChanges, ICellDiffInfo, sortCellChanges } from './notebookCellChanges.js';
 
 export class ChatEditingNotebookEditorIntegration extends Disposable implements IModifiedFileEntryEditorIntegration {
+	private integration: ChatEditingNotebookEditorWidgetIntegration;
+	private notebookEditor: INotebookEditor;
+	constructor(
+		_entry: IModifiedFileEntry,
+		editor: IEditorPane,
+		notebookModel: NotebookTextModel,
+		originalModel: NotebookTextModel,
+		cellChanges: IObservable<ICellDiffInfo[]>,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	) {
+		super();
+
+		const notebookEditor = getNotebookEditorFromEditorPane(editor);
+		assertType(notebookEditor);
+		this.notebookEditor = notebookEditor;
+		this.integration = this.instantiationService.createInstance(ChatEditingNotebookEditorWidgetIntegration, _entry, notebookEditor, notebookModel, originalModel, cellChanges);
+		this._register(editor.onDidChangeControl(() => {
+			const notebookEditor = getNotebookEditorFromEditorPane(editor);
+			if (notebookEditor && notebookEditor !== this.notebookEditor) {
+				this.notebookEditor = notebookEditor;
+				this.integration.dispose();
+				this.integration = this.instantiationService.createInstance(ChatEditingNotebookEditorWidgetIntegration, _entry, notebookEditor, notebookModel, originalModel, cellChanges);
+			}
+		}));
+	}
+	public get currentIndex(): IObservable<number> {
+		return this.integration.currentIndex;
+	}
+	reveal(firstOrLast: boolean): void {
+		return this.integration.reveal(firstOrLast);
+	}
+	next(wrap: boolean): boolean {
+		return this.integration.next(wrap);
+	}
+	previous(wrap: boolean): boolean {
+		return this.integration.previous(wrap);
+	}
+	enableAccessibleDiffView(): void {
+		this.integration.enableAccessibleDiffView();
+	}
+	acceptNearestChange(change: IModifiedFileEntryChangeHunk): void {
+		this.integration.acceptNearestChange(change);
+	}
+	rejectNearestChange(change: IModifiedFileEntryChangeHunk): void {
+		this.integration.rejectNearestChange(change);
+	}
+	toggleDiff(change: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
+		return this.integration.toggleDiff(change);
+	}
+}
+
+class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements IModifiedFileEntryEditorIntegration {
 	private readonly _currentIndex = observableValue(this, -1);
 	readonly currentIndex: IObservable<number> = this._currentIndex;
 
