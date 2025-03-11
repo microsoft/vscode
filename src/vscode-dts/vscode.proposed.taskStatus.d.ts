@@ -28,10 +28,10 @@ declare module 'vscode' {
 		/** Indicates a dependent task has started */
 		DependsOnStarted = 'dependsOnStarted',
 
-		/** Indicates the task is actively processing lines using problem matchers */
+		/** Indicates the task is actively running/processing */
 		Active = 'active',
 
-		/** Indicates the task has finished processing lines using problem matchers */
+		/** Indicates the task is paused/waiting but not complete */
 		Inactive = 'inactive',
 
 		/** Indicates the task has completed fully */
