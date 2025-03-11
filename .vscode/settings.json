@@ -171,4 +171,6 @@
 	"eslint.useFlatConfig": true,
 	"editor.occurrencesHighlightDelay": 0,
 	"typescript.experimental.expandableHover": true,
+	"python.terminal.shellIntegration.enabled": true,
+	"editor.inlineSuggest.enabled": true,
 }

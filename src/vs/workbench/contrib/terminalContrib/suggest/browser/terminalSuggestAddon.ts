@@ -228,7 +228,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (!doNotRequestExtensionCompletions) {
 			await this._extensionService.activateByEvent('onTerminalCompletionsRequested');
 		}
-		this._currentPromptInputState = {
+		this._currentPromptInputState = { // TODO: this._promptInputModel is messed up for Python shell..
 			value: this._promptInputModel.value,
 			prefix: this._promptInputModel.prefix,
 			suffix: this._promptInputModel.suffix,

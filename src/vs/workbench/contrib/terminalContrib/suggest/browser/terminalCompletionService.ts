@@ -196,6 +196,83 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 		const results = await Promise.all(completionPromises);
 		return results.filter(result => !!result).flat();
+
+		// 	// Calculate the position for replacements as we need these values for the dummy completions
+		// 	const textBeforeCursor = promptValue.substring(0, cursorPosition);
+		// 	const lines = textBeforeCursor.split('\n');
+		// 	const currentLine = lines[lines.length - 1];
+		// 	const wordStartIndex = this._findWordStart(currentLine, currentLine.length);
+		// 	const replacementIndex = cursorPosition - (currentLine.length - wordStartIndex);
+		// 	const replacementLength = currentLine.length - wordStartIndex;
+
+		// 	// Return dummy hard-coded completions
+		// 	return [
+		// 		{
+		// 			label: 'file.txt',
+		// 			provider: 'dummy',
+		// 			detail: 'A sample text file',
+		// 			kind: TerminalCompletionItemKind.File,
+		// 			replacementIndex,
+		// 			replacementLength
+		// 		},
+		// 		{
+		// 			label: 'documents',
+		// 			provider: 'dummy',
+		// 			detail: 'A sample folder',
+		// 			kind: TerminalCompletionItemKind.Folder,
+		// 			replacementIndex,
+		// 			replacementLength
+		// 		},
+		// 		{
+		// 			label: '--help',
+		// 			provider: 'dummy',
+		// 			detail: 'Display help information',
+		// 			kind: TerminalCompletionItemKind.Flag,
+		// 			replacementIndex,
+		// 			replacementLength
+		// 		},
+		// 		{
+		// 			label: 'runCommand',
+		// 			provider: 'dummy',
+		// 			detail: 'Executes a command',
+		// 			kind: TerminalCompletionItemKind.Method,
+		// 			replacementIndex,
+		// 			replacementLength
+		// 		},
+		// 		{
+		// 			label: 'userName',
+		// 			provider: 'dummy',
+		// 			detail: 'Current user name',
+		// 			kind: TerminalCompletionItemKind.Argument,
+		// 			replacementIndex,
+		// 			replacementLength
+		// 		},
+		// 		{
+		// 			label: 'll',
+		// 			inputData: 'ls -la',
+		// 			provider: 'dummy',
+		// 			detail: 'Alias for ls -la',
+		// 			kind: TerminalCompletionItemKind.Alias,
+		// 			replacementIndex,
+		// 			replacementLength
+		// 		}
+		// 	];
+		// }
+
+		// /**
+		//  * Finds the starting index of the current word in the given text
+		//  */
+		// private _findWordStart(text: string, endPosition: number): number {
+		// 	let i = endPosition;
+		// 	// Go back until we find a character that's not a word character
+		// 	while (i > 0) {
+		// 		const char = text.charAt(i - 1);
+		// 		if (!/[\w\d\._-]/.test(char)) {
+		// 			break;
+		// 		}
+		// 		i--;
+		// 	}
+		// 	return i;
 	}
 
 	async resolveResources(resourceRequestConfig: TerminalResourceRequestConfig, promptValue: string, cursorPosition: number, provider: string, capabilities: ITerminalCapabilityStore): Promise<ITerminalCompletion[] | undefined> {

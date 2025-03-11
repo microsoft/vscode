@@ -43,13 +43,19 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 		console.log('provideCompletions', value, cursorPosition);
 
 		// TODO: Create and use a fake document in our target language
-		const uri = URI.file('C:\\Github\\Tyriar\\xterm.js\\src\\vs\\base\\common\\map.ts');
+		const uri = URI.file('/Users/anthonykim/Desktop/vscode/src/vs/workbench/contrib/terminalContrib/suggest/browser/dummy.ts');
 		const textModel = await this._textModelService.createModelReference(uri);
 		const providers = this._languageFeaturesService.completionProvider.all(textModel.object.textEditorModel);
 
 		// TODO: Use the actual position based on cursorPosition
+		const textBeforeCursor = value.substring(0, cursorPosition);
+		const lines = textBeforeCursor.split('\n');
+		const lineNumber = lines.length;
+		const column = lines[lines.length - 1].length + 1;
+		const position = new Position(lineNumber, column);
+
 		// TODO: Scan back to start of nearest word like other providers? Is this needed for `ILanguageFeaturesService`?
-		const position = new Position(1, 1);
+
 
 		const completions: ITerminalCompletion[] = [];
 		for (const provider of providers) {
@@ -72,4 +78,9 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 
 		return completions;
 	}
+	// Main issues:
+	// Pylance never shows up as one of the provider even when we pass in Python file
+	// Inside REPL (Python subshell under supershell), prompt input is not tracked, so there is no trigger
+	// Label does not show up
+	// Currently only enabled for pwsh, even though register happens in broader scope.
 }
