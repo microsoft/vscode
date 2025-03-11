@@ -188,7 +188,7 @@ suite('Workbench - MCP - Registry', () => {
 		assert.strictEqual(registry.delegates.length, 0);
 	});
 
-	test('resolveConnection creates connection with resolved variables and memorizes them', async () => {
+	test('resolveConnection creates connection with resolved variables and memorizes them until cleared', async () => {
 		const definition: McpServerDefinition = {
 			...baseDefinition,
 			launch: {
@@ -223,36 +223,13 @@ suite('Workbench - MCP - Registry', () => {
 		assert.ok(connection2);
 		assert.strictEqual((connection2.launchDefinition as any).env.PATH, 'interactiveValue0');
 		connection2.dispose();
-	});
 
-	test('resolveConnection with stored variables resolves them', async () => {
-		const definition: McpServerDefinition = {
-			...baseDefinition,
-			launch: {
-				type: McpServerTransportType.Stdio,
-				command: '${storedVar}',
-				args: [],
-				env: {},
-				cwd: URI.parse('file:///test')
-			},
-			variableReplacement: {
-				section: 'mcp'
-			}
-		};
+		registry.clearSavedInputs();
 
-		// Save some mock inputs
-		const key = `mcpConfig.${testCollection.id}.${definition.id}`;
-		testStorageService.store(key, { 'storedVar': 'resolved-value' }, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const connection3 = await registry.resolveConnection(testCollection, definition) as McpServerConnection;
 
-		// Register a delegate that can handle the connection
-		const delegate = new TestMcpHostDelegate();
-		const disposable = registry.registerDelegate(delegate);
-		store.add(disposable);
-
-		const connection = await registry.resolveConnection(testCollection, definition) as McpServerConnection;
-
-		assert.ok(connection);
-		assert.strictEqual((connection.launchDefinition as any).command, 'resolved-value');
-		connection.dispose();
+		assert.ok(connection3);
+		assert.strictEqual((connection3.launchDefinition as any).env.PATH, 'interactiveValue4');
+		connection3.dispose();
 	});
 });
