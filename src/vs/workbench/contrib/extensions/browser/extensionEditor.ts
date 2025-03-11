@@ -589,8 +589,11 @@ export class ExtensionEditor extends EditorPane {
 
 		if (extension.url) {
 			this.transientDisposables.add(onClick(template.name, () => this.openerService.open(URI.parse(extension.url!))));
-			this.transientDisposables.add(onClick(template.rating, () => this.openerService.open(URI.parse(`${extension.url}&ssr=false#review-details`))));
 			this.transientDisposables.add(onClick(template.publisher, () => this.extensionsWorkbenchService.openSearch(`publisher:"${extension.publisherDisplayName}"`)));
+		}
+
+		if (extension.ratingUrl) {
+			this.transientDisposables.add(onClick(template.rating, () => this.openerService.open(URI.parse(extension.ratingUrl!))));
 		}
 
 		const manifest = await this.extensionManifest.get().promise;
