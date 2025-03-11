@@ -336,4 +336,5 @@ export interface IDefaultChatAgent {
 
 	readonly completionsAdvancedSetting: string;
 	readonly completionsEnablementSetting: string;
+	readonly nextEditSuggestionsSetting: string;
 }

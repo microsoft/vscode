@@ -108,6 +108,10 @@
 	cursor: pointer;
 }
 
+.chat-status-bar-entry-tooltip .settings .setting.disabled .setting-label {
+	color: var(--vscode-disabledForeground);
+}
+
 /* Shortcuts */
 
 .chat-status-bar-entry-tooltip .shortcuts {
