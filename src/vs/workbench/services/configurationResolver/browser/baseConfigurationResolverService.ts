@@ -16,13 +16,13 @@ import { ConfigurationTarget, IConfigurationOverrides, IConfigurationService } f
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IInputOptions, IPickOptions, IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, IWorkspaceFolderData, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
-import { ConfiguredInput } from '../common/configurationResolver.js';
-import { AbstractVariableResolverService } from '../common/variableResolver.js';
 import { IEditorService } from '../../editor/common/editorService.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { IPathService } from '../../path/common/pathService.js';
+import { ConfiguredInput } from '../common/configurationResolver.js';
+import { AbstractVariableResolverService } from '../common/variableResolver.js';
 
 const LAST_INPUT_STORAGE_KEY = 'configResolveInputLru';
 const LAST_INPUT_CACHE_SIZE = 5;
@@ -138,7 +138,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		}, labelService, pathService.userHome().then(home => home.path), envVariablesPromise);
 	}
 
-	public override async resolveWithInteractionReplace(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<any> {
+	public override async resolveWithInteractionReplace(folder: IWorkspaceFolderData | undefined, config: any, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<any> {
 		// resolve any non-interactive variables and any contributed variables
 		config = await this.resolveAnyAsync(folder, config);
 
@@ -155,7 +155,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		});
 	}
 
-	public override async resolveWithInteraction(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<Map<string, string> | undefined> {
+	public override async resolveWithInteraction(folder: IWorkspaceFolderData | undefined, config: any, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<Map<string, string> | undefined> {
 		// resolve any non-interactive variables and any contributed variables
 		const resolved = await this.resolveAnyMap(folder, config);
 		config = resolved.newConfig;
@@ -191,7 +191,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 	 *
 	 * @param variableToCommandMap Aliases for commands
 	 */
-	private async resolveWithInputAndCommands(folder: IWorkspaceFolder | undefined, configuration: any, variableToCommandMap?: IStringDictionary<string>, section?: string, target?: ConfigurationTarget): Promise<IStringDictionary<string> | undefined> {
+	private async resolveWithInputAndCommands(folder: IWorkspaceFolderData | undefined, configuration: any, variableToCommandMap?: IStringDictionary<string>, section?: string, target?: ConfigurationTarget): Promise<IStringDictionary<string> | undefined> {
 
 		if (!configuration) {
 			return Promise.resolve(undefined);

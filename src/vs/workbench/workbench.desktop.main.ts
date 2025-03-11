@@ -175,6 +175,9 @@ import './contrib/encryption/electron-sandbox/encryption.contribution.js';
 // Emergency Alert
 import './contrib/emergencyAlert/electron-sandbox/emergencyAlert.contribution.js';
 
+// MCP
+import './contrib/mcp/electron-sandbox/mcp.contribution.js';
+
 //#endregion
 
 

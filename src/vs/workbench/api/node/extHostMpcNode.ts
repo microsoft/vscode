@@ -10,6 +10,7 @@ import { StreamSplitter } from '../../../base/node/nodeStreams.js';
 import { McpConnectionState, McpServerLaunch, McpServerTransportStdio, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
 import { ExtHostMcpService } from '../common/extHostMcp.js';
 import { IExtHostRpcService } from '../common/extHostRpcService.js';
+import { homedir } from 'os';
 
 export class NodeExtHostMpcService extends ExtHostMcpService {
 	constructor(
@@ -61,7 +62,7 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 		try {
 			child = spawn(launch.command, launch.args, {
 				stdio: 'pipe',
-				cwd: URI.revive(launch.cwd).fsPath,
+				cwd: launch.cwd ? URI.revive(launch.cwd).fsPath : homedir(),
 				signal: abortCtrl.signal,
 				env: {
 					...process.env,

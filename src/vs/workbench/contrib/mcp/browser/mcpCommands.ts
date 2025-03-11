@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { groupBy } from '../../../../base/common/collections.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { ILocalizedString, localize, localize2 } from '../../../../nls.js';
@@ -37,26 +38,31 @@ class ListMcpServerCommand extends Action2 {
 		type ItemType = { id: string } & IQuickPickItem;
 
 		const store = new DisposableStore();
-		const pick = quickInput.createQuickPick<ItemType>();
+		const pick = quickInput.createQuickPick<ItemType>({ useSeparators: true });
 
 		store.add(pick);
 		store.add(autorun(reader => {
-			const servers = mcpService.servers.read(reader);
-			pick.items = servers.map(server => ({
-				id: server.definition.id,
-				label: server.definition.label,
-				description: McpConnectionState.toString(server.state.read(reader)),
-			}));
+			const servers = groupBy(mcpService.servers.read(reader).slice().sort((a, b) => (a.collection.order || 0) - (b.collection.order || 0)), s => s.collection.id);
+			pick.items = Object.values(servers).flatMap(servers => {
+				return [
+					{ type: 'separator', label: servers[0].collection.label, id: servers[0].collection.id },
+					...servers.map(server => ({
+						id: server.definition.id,
+						label: server.definition.label,
+						description: McpConnectionState.toString(server.state.read(reader)),
+					})),
+				];
+			});
 		}));
 
 
 		const picked = await new Promise<ItemType | undefined>(resolve => {
-			pick.onDidAccept(() => {
+			store.add(pick.onDidAccept(() => {
 				resolve(pick.activeItems[0]);
-			});
-			pick.onDidHide(() => {
+			}));
+			store.add(pick.onDidHide(() => {
 				resolve(undefined);
-			});
+			}));
 			pick.show();
 		});
 
@@ -130,6 +136,7 @@ class McpServerOptionsCommand extends Action2 {
 		switch (pick.action) {
 			case 'start':
 				await server.start();
+				server.showOutput();
 				break;
 			case 'stop':
 				await server.stop();

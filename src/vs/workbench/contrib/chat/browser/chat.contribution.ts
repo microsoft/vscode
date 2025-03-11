@@ -100,6 +100,8 @@ import { ChatStatusBarEntry } from './chatStatus.js';
 import product from '../../../../platform/product/common/product.js';
 import { Event } from '../../../../base/common/event.js';
 import { ChatEditingNotebookFileSystemProviderContrib } from './chatEditing/notebook/chatEditingNotebookFileSystemProvider.js';
+import { mcpConfigurationSection, mcpSchemaExampleServers } from '../../mcp/common/mcpConfiguration.js';
+import { mcpSchemaId } from '../../../services/configuration/common/configuration.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -198,6 +200,15 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.statusIndicator', "Controls whether a Copilot related status indicator appears in the lower right corner."),
 			default: product.quality !== 'stable',
 			tags: ['experimental', 'onExp']
+		},
+		[mcpConfigurationSection]: {
+			type: 'object',
+			default: {
+				inputs: [],
+				servers: mcpSchemaExampleServers,
+			},
+			description: nls.localize('workspaceConfig.mcp.description', "Model Context Protocol server configurations"),
+			$ref: mcpSchemaId
 		},
 		[PromptsConfig.CONFIG_KEY]: {
 			type: 'boolean',

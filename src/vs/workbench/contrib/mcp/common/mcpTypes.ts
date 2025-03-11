@@ -13,7 +13,7 @@ import { localize } from '../../../../nls.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
-import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { MCP } from './modelContextProtocol.js';
 
@@ -34,9 +34,26 @@ export interface McpCollectionDefinition {
 	readonly isTrustedByDefault: boolean;
 	/** Scope where associated collection info should be stored. */
 	readonly scope: StorageScope;
+	/** Sort order of the collection. */
+	readonly order?: number;
+}
+
+export const enum McpCollectionSortOrder {
+	Workspace = 0,
+	User = 100,
+	Filesystem = 200,
+
+	RemotePenalty = 50,
 }
 
 export namespace McpCollectionDefinition {
+	export interface FromExtHost {
+		readonly id: string;
+		readonly label: string;
+		readonly isTrustedByDefault: boolean;
+		readonly scope: StorageScope;
+	}
+
 	export function equals(a: McpCollectionDefinition, b: McpCollectionDefinition): boolean {
 		return a.id === b.id
 			&& a.remoteAuthority === b.remoteAuthority
@@ -55,7 +72,7 @@ export interface McpServerDefinition {
 	/** If set, allows configuration variables to be resolved in the {@link launch} with the given context */
 	readonly variableReplacement?: {
 		section?: string; // e.g. 'mcp'
-		folder?: IWorkspaceFolder;
+		folder?: IWorkspaceFolderData;
 		target?: ConfigurationTarget;
 	};
 }
@@ -114,7 +131,7 @@ export const enum McpServerTransportType {
  */
 export interface McpServerTransportStdio {
 	readonly type: McpServerTransportType.Stdio;
-	readonly cwd: URI;
+	readonly cwd: URI | undefined;
 	readonly command: string;
 	readonly args: readonly string[];
 	readonly env: Record<string, string | number | null>;
