@@ -12,7 +12,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IRequestContext } from '../../../../base/parts/request/common/request.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -113,6 +113,20 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	) {
 		super();
 
+		this.chatQuotaExceededContextKey = ChatContextKeys.chatQuotaExceeded.bindTo(this.contextKeyService);
+		this.completionsQuotaExceededContextKey = ChatContextKeys.completionsQuotaExceeded.bindTo(this.contextKeyService);
+
+		this.onDidChangeEntitlement = Event.map(
+			Event.filter(
+				this.contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([
+					ChatContextKeys.Setup.pro.key,
+					ChatContextKeys.Setup.limited.key,
+					ChatContextKeys.Setup.canSignUp.key,
+					ChatContextKeys.Setup.signedOut.key
+				])), this._store
+			), () => { }, this._store
+		);
+
 		if (
 			!productService.defaultChatAgent ||				// needs product config
 			(isWeb && !environmentService.remoteAuthority)	// only enabled locally or a remote backend
@@ -132,16 +146,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 
 	//#region --- Entitlements
 
-	readonly onDidChangeEntitlement = Event.map(
-		Event.filter(
-			this.contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([
-				ChatContextKeys.Setup.pro.key,
-				ChatContextKeys.Setup.limited.key,
-				ChatContextKeys.Setup.canSignUp.key,
-				ChatContextKeys.Setup.signedOut.key
-			])), this._store
-		), () => { }, this._store
-	);
+	readonly onDidChangeEntitlement: Event<void>;
 
 	get entitlement(): ChatEntitlement {
 		if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.pro.key) === true) {
@@ -170,8 +175,8 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	private _quotas: IChatQuotas = { chatQuotaExceeded: false, completionsQuotaExceeded: false, quotaResetDate: undefined };
 	get quotas() { return this._quotas; }
 
-	private readonly chatQuotaExceededContextKey = ChatContextKeys.chatQuotaExceeded.bindTo(this.contextKeyService);
-	private readonly completionsQuotaExceededContextKey = ChatContextKeys.completionsQuotaExceeded.bindTo(this.contextKeyService);
+	private readonly chatQuotaExceededContextKey: IContextKey<boolean>;
+	private readonly completionsQuotaExceededContextKey: IContextKey<boolean>;
 
 	private ExtensionQuotaContextKeys = {
 		chatQuotaExceeded: defaultChat.chatQuotaExceededContext,
@@ -315,7 +320,7 @@ export class ChatSetupRequests extends Disposable {
 		return defaultChat.providerId;
 	}
 
-	private state: IEntitlements = { entitlement: this.context.state.entitlement };
+	private state: IEntitlements;
 
 	private pendingResolveCts = new CancellationTokenSource();
 	private didResolveEntitlements = false;
@@ -333,6 +338,8 @@ export class ChatSetupRequests extends Disposable {
 		@IAuthenticationExtensionsService private readonly authenticationExtensionsService: IAuthenticationExtensionsService,
 	) {
 		super();
+
+		this.state = { entitlement: this.context.state.entitlement };
 
 		this.registerListeners();
 
@@ -706,14 +713,14 @@ export class ChatSetupContext extends Disposable {
 
 	private static readonly CHAT_SETUP_CONTEXT_STORAGE_KEY = 'chat.setupContext';
 
-	private readonly canSignUpContextKey = ChatContextKeys.Setup.canSignUp.bindTo(this.contextKeyService);
-	private readonly signedOutContextKey = ChatContextKeys.Setup.signedOut.bindTo(this.contextKeyService);
-	private readonly limitedContextKey = ChatContextKeys.Setup.limited.bindTo(this.contextKeyService);
-	private readonly proContextKey = ChatContextKeys.Setup.pro.bindTo(this.contextKeyService);
-	private readonly hiddenContext = ChatContextKeys.Setup.hidden.bindTo(this.contextKeyService);
-	private readonly installedContext = ChatContextKeys.Setup.installed.bindTo(this.contextKeyService);
+	private readonly canSignUpContextKey: IContextKey<boolean>;
+	private readonly signedOutContextKey: IContextKey<boolean>;
+	private readonly limitedContextKey: IContextKey<boolean>;
+	private readonly proContextKey: IContextKey<boolean>;
+	private readonly hiddenContext: IContextKey<boolean>;
+	private readonly installedContext: IContextKey<boolean>;
 
-	private _state: IChatSetupContextState = this.storageService.getObject<IChatSetupContextState>(ChatSetupContext.CHAT_SETUP_CONTEXT_STORAGE_KEY, StorageScope.PROFILE) ?? { entitlement: ChatEntitlement.Unknown };
+	private _state: IChatSetupContextState;
 	private suspendedState: IChatSetupContextState | undefined = undefined;
 	get state(): IChatSetupContextState {
 		return this.suspendedState ?? this._state;
@@ -725,7 +732,7 @@ export class ChatSetupContext extends Disposable {
 	private updateBarrier: Barrier | undefined = undefined;
 
 	constructor(
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
@@ -733,6 +740,15 @@ export class ChatSetupContext extends Disposable {
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) {
 		super();
+
+		this.canSignUpContextKey = ChatContextKeys.Setup.canSignUp.bindTo(contextKeyService);
+		this.signedOutContextKey = ChatContextKeys.Setup.signedOut.bindTo(contextKeyService);
+		this.limitedContextKey = ChatContextKeys.Setup.limited.bindTo(contextKeyService);
+		this.proContextKey = ChatContextKeys.Setup.pro.bindTo(contextKeyService);
+		this.hiddenContext = ChatContextKeys.Setup.hidden.bindTo(contextKeyService);
+		this.installedContext = ChatContextKeys.Setup.installed.bindTo(contextKeyService);
+
+		this._state = this.storageService.getObject<IChatSetupContextState>(ChatSetupContext.CHAT_SETUP_CONTEXT_STORAGE_KEY, StorageScope.PROFILE) ?? { entitlement: ChatEntitlement.Unknown };
 
 		this.checkExtensionInstallation();
 		this.updateContextSync();
