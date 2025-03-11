@@ -186,6 +186,16 @@ export class HoverService extends Disposable implements IHoverService {
 		if (this._currentHover?.isLocked) {
 			return undefined;
 		}
+
+		// Set `id` to default if it's undefined
+		if (options.id === undefined) {
+			options.id = isHTMLElement(options.content)
+				? undefined
+				: typeof options.content === 'string'
+					? options.content.toString()
+					: options.content.value;
+		}
+
 		if (getHoverOptionsIdentity(this._currentHoverOptions) === getHoverOptionsIdentity(options)) {
 			return undefined;
 		}
@@ -202,15 +212,6 @@ export class HoverService extends Disposable implements IHoverService {
 			} else {
 				this._lastFocusedElementBeforeOpen = undefined;
 			}
-		}
-
-		// Set `id` to default if it's undefined
-		if (options.id === undefined) {
-			options.id = isHTMLElement(options.content)
-				? undefined
-				: typeof options.content === 'string'
-					? options.content.toString()
-					: options.content.value;
 		}
 
 		const hoverDisposables = new DisposableStore();
