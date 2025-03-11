@@ -107,10 +107,10 @@ suite('Workbench - MCP - ServerRequestHandler', () => {
 
 		// Get the sent message and verify it
 		const sentMessages = transport.getSentMessages();
-		assert.strictEqual(sentMessages.length, 2); // initialize + listResources
+		assert.strictEqual(sentMessages.length, 3); // initialize + listResources
 
 		// Verify listResources request format
-		const listResourcesRequest = sentMessages[1] as MCP.JSONRPCRequest;
+		const listResourcesRequest = sentMessages[2] as MCP.JSONRPCRequest;
 		assert.strictEqual(listResourcesRequest.method, 'resources/list');
 		assert.strictEqual(listResourcesRequest.jsonrpc, MCP.JSONRPC_VERSION);
 		assert.ok(typeof listResourcesRequest.id === 'number');
@@ -140,7 +140,7 @@ suite('Workbench - MCP - ServerRequestHandler', () => {
 
 		// Get the first request and respond with pagination
 		const sentMessages = transport.getSentMessages();
-		const listResourcesRequest = sentMessages[1] as MCP.JSONRPCRequest;
+		const listResourcesRequest = sentMessages[2] as MCP.JSONRPCRequest;
 
 		// Send first page with nextCursor
 		transport.simulateReceiveMessage({
@@ -192,7 +192,7 @@ suite('Workbench - MCP - ServerRequestHandler', () => {
 
 		// Get the sent message
 		const sentMessages = transport.getSentMessages();
-		const readResourceRequest = sentMessages[1] as MCP.JSONRPCRequest; // [0] is initialize
+		const readResourceRequest = sentMessages[2] as MCP.JSONRPCRequest; // [0] is initialize
 
 		// Simulate error response
 		transport.simulateReceiveMessage({
@@ -292,7 +292,7 @@ suite('Workbench - MCP - ServerRequestHandler', () => {
 
 		// Get the request ID
 		const sentMessages = transport.getSentMessages();
-		const listResourcesRequest = sentMessages[1] as MCP.JSONRPCRequest;
+		const listResourcesRequest = sentMessages[2] as MCP.JSONRPCRequest;
 		const requestId = listResourcesRequest.id;
 
 		// Cancel the request
@@ -324,7 +324,7 @@ suite('Workbench - MCP - ServerRequestHandler', () => {
 
 		// Get the request ID
 		const sentMessages = transport.getSentMessages();
-		const listResourcesRequest = sentMessages[1] as MCP.JSONRPCRequest;
+		const listResourcesRequest = sentMessages[2] as MCP.JSONRPCRequest;
 		const requestId = listResourcesRequest.id;
 
 		// Simulate cancelled notification from server

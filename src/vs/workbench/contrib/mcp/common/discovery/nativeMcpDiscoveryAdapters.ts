@@ -28,14 +28,14 @@ export class ClaudeDesktopMpcDiscoveryAdapter implements NativeMpcDiscoveryAdapt
 		this.id = `claude-desktop.${this.remoteAuthority}`;
 	}
 
-	getFilePath({ platform, winAppData, homedir }: INativeMcpDiscoveryData): URI | undefined {
+	getFilePath({ platform, winAppData, xdgHome, homedir }: INativeMcpDiscoveryData): URI | undefined {
 		if (platform === Platform.Windows) {
 			const appData = winAppData || URI.joinPath(homedir, 'AppData', 'Roaming');
 			return URI.joinPath(appData, 'Claude', 'claude_desktop_config.json');
 		} else if (platform === Platform.Mac) {
 			return URI.joinPath(homedir, 'Library', 'Application Support', 'Claude', 'claude_desktop_config.json');
 		} else {
-			const configDir = /*process.env.XDG_CONFIG_HOME || */URI.joinPath(homedir, '.config');
+			const configDir = xdgHome || URI.joinPath(homedir, '.config');
 			return URI.joinPath(configDir, 'Claude', 'claude_desktop_config.json');
 		}
 	}
