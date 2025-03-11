@@ -23,7 +23,7 @@ import { EditingSessionAction } from '../chatEditing/chatEditingActions.js';
 import { ctxIsGlobalEditingSession } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
-import { CHAT_CATEGORY } from './chatActions.js';
+import { CHAT_CATEGORY, IChatViewOpenOptions } from './chatActions.js';
 import { clearChatEditor } from './chatClear.js';
 
 export const ACTION_ID_NEW_CHAT = `workbench.action.chat.newChat`;
@@ -377,9 +377,19 @@ export function registerNewChatActions() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor, ...args: any[]) {
+		async run(accessor: ServicesAccessor, opts?: string | IChatViewOpenOptions) {
+			opts = typeof opts === 'string' ? { query: opts } : opts;
 			const viewsService = accessor.get(IViewsService);
 			const chatView = await viewsService.openView(EditsViewId) as ChatViewPane;
+
+			if (opts?.query) {
+				if (opts.isPartialQuery) {
+					chatView.widget.setInput(opts.query);
+				} else {
+					chatView.widget.acceptInput(opts.query);
+				}
+			}
+
 			chatView.widget.focusInput();
 		}
 	});
