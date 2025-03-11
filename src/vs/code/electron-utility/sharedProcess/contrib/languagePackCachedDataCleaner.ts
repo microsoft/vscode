@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
+import { promises } from 'fs';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
@@ -38,11 +38,11 @@ export class LanguagePackCachedDataCleaner extends Disposable {
 	constructor(
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@ILogService private readonly logService: ILogService,
-		@IProductService private readonly productService: IProductService
+		@IProductService productService: IProductService
 	) {
 		super();
 
-		this.dataMaxAge = this.productService.quality !== 'stable'
+		this.dataMaxAge = productService.quality !== 'stable'
 			? 1000 * 60 * 60 * 24 * 7 		// roughly 1 week (insiders)
 			: 1000 * 60 * 60 * 24 * 30 * 3; // roughly 3 months (stable)
 
@@ -61,7 +61,7 @@ export class LanguagePackCachedDataCleaner extends Disposable {
 
 		try {
 			const installed: IStringDictionary<boolean> = Object.create(null);
-			const metaData: ILanguagePackFile = JSON.parse(await fs.promises.readFile(join(this.environmentService.userDataPath, 'languagepacks.json'), 'utf8'));
+			const metaData: ILanguagePackFile = JSON.parse(await promises.readFile(join(this.environmentService.userDataPath, 'languagepacks.json'), 'utf8'));
 			for (const locale of Object.keys(metaData)) {
 				const entry = metaData[locale];
 				installed[`${entry.hash}.${locale}`] = true;
@@ -96,7 +96,7 @@ export class LanguagePackCachedDataCleaner extends Disposable {
 					}
 
 					const candidate = join(folder, entry);
-					const stat = await fs.promises.stat(candidate);
+					const stat = await promises.stat(candidate);
 					if (stat.isDirectory() && (now - stat.mtime.getTime()) > this.dataMaxAge) {
 						this.logService.trace(`[language pack cache cleanup]: Removing language pack cache folder: ${join(packEntry, entry)}`);
 

@@ -29,21 +29,21 @@ export class RemoteStorageService extends AbstractStorageService {
 	private workspaceStorage: IStorage | undefined;
 
 	constructor(
-		private readonly initialWorkspace: IAnyWorkspaceIdentifier | undefined,
-		private readonly initialProfiles: { defaultProfile: IUserDataProfile; currentProfile: IUserDataProfile },
+		initialWorkspace: IAnyWorkspaceIdentifier | undefined,
+		initialProfiles: { defaultProfile: IUserDataProfile; currentProfile: IUserDataProfile },
 		private readonly remoteService: IRemoteService,
 		private readonly environmentService: IEnvironmentService
 	) {
 		super();
 
-		this.applicationStorageProfile = this.initialProfiles.defaultProfile;
+		this.applicationStorageProfile = initialProfiles.defaultProfile;
 		this.applicationStorage = this.createApplicationStorage();
 
-		this.profileStorageProfile = this.initialProfiles.currentProfile;
+		this.profileStorageProfile = initialProfiles.currentProfile;
 		this.profileStorage = this.createProfileStorage(this.profileStorageProfile);
 
-		this.workspaceStorageId = this.initialWorkspace?.id;
-		this.workspaceStorage = this.createWorkspaceStorage(this.initialWorkspace);
+		this.workspaceStorageId = initialWorkspace?.id;
+		this.workspaceStorage = this.createWorkspaceStorage(initialWorkspace);
 	}
 
 	private createApplicationStorage(): IStorage {

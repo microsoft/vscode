@@ -60,7 +60,7 @@ class ServerKeyedAESCrypto implements ISecretStorageCrypto {
 	/**
 	 * Gets whether the algorithm is supported; requires a secure context
 	 */
-	public static supported() {
+	static supported() {
 		return !!crypto.subtle;
 	}
 
@@ -159,11 +159,14 @@ class ServerKeyedAESCrypto implements ISecretStorageCrypto {
 				if (!res.ok) {
 					throw new Error(res.statusText);
 				}
+
 				const serverKey = new Uint8Array(await res.arrayBuffer());
 				if (serverKey.byteLength !== AESConstants.KEY_LENGTH / 8) {
 					throw Error(`The key retrieved by the server is not ${AESConstants.KEY_LENGTH} bit long.`);
 				}
+
 				this.serverKey = serverKey;
+
 				return this.serverKey;
 			} catch (e) {
 				lastError = e instanceof Error ? e : new Error(String(e));
