@@ -19,6 +19,13 @@ export class Space extends BaseToken {
 	public static readonly symbol: string = ' ';
 
 	/**
+	 * Return text representation of the token.
+	 */
+	public get text(): string {
+		return Space.symbol;
+	}
+
+	/**
 	 * Create new `Space` token with range inside
 	 * the given `Line` at the given `column number`.
 	 */

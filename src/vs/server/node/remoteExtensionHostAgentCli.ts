@@ -129,7 +129,7 @@ class CliMain extends Disposable {
 			userDataProfilesService.init()
 		]);
 
-		services.set(IRequestService, new SyncDescriptor(RequestService));
+		services.set(IRequestService, new SyncDescriptor(RequestService, ['remote']));
 		services.set(IDownloadService, new SyncDescriptor(DownloadService));
 		services.set(ITelemetryService, NullTelemetryService);
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryServiceWithNoStorageService));

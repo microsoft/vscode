@@ -196,7 +196,7 @@ suite('AllowedExtensionsService', () => {
 	test('should trigger change event when allowed list change', async () => {
 		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { '*': false });
 		const testObject = disposables.add(new AllowedExtensionsService(aProductService(), configurationService));
-		const promise = Event.toPromise(testObject.onDidChangeAllowedExtensions);
+		const promise = Event.toPromise(testObject.onDidChangeAllowedExtensionsConfigValue);
 		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true, affectedKeys: new Set([AllowedExtensionsConfigKey]), change: { keys: [], overrides: [] }, source: ConfigurationTarget.USER });
 		await promise;
 	});

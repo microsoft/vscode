@@ -64,7 +64,7 @@ export class EditorPagePosition {
 }
 
 /**
- * Coordinates relative to the the (top;left) of the editor that can be used safely with other internal editor metrics.
+ * Coordinates relative to the (top;left) of the editor that can be used safely with other internal editor metrics.
  * **NOTE**: This position is obtained by taking page coordinates and transforming them relative to the
  * editor's (top;left) position in a way in which scale transformations are taken into account.
  * **NOTE**: These coordinates could be negative if the mouse position is outside the editor.

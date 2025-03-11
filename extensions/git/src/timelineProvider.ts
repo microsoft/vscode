@@ -12,7 +12,10 @@ import { CommandCenter } from './commands';
 import { OperationKind, OperationResult } from './operation';
 import { getCommitShortHash } from './util';
 import { CommitShortStat } from './git';
-import { getRemoteSourceControlHistoryItemCommands } from './remoteSource';
+import { provideSourceControlHistoryItemAvatar, provideSourceControlHistoryItemHoverCommands, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailsProvider';
+import { AvatarQuery, AvatarQueryCommit } from './api/git';
+
+const AVATAR_SIZE = 20;
 
 export class GitTimelineItem extends TimelineItem {
 	static is(item: TimelineItem): item is GitTimelineItem {
@@ -51,16 +54,20 @@ export class GitTimelineItem extends TimelineItem {
 		return this.shortenRef(this.previousRef);
 	}
 
-	setItemDetails(uri: Uri, hash: string | undefined, author: string, email: string | undefined, date: string, message: string, shortStat?: CommitShortStat, remoteSourceCommands: Command[] = []): void {
+	setItemDetails(uri: Uri, hash: string | undefined, avatar: string | undefined, author: string, email: string | undefined, date: string, message: string, shortStat?: CommitShortStat, remoteSourceCommands: Command[] = []): void {
 		this.tooltip = new MarkdownString('', true);
 		this.tooltip.isTrusted = true;
 		this.tooltip.supportHtml = true;
 
+		const avatarMarkdown = avatar
+			? `![${author}](${avatar}|width=${AVATAR_SIZE},height=${AVATAR_SIZE})`
+			: '$(account)';
+
 		if (email) {
 			const emailTitle = l10n.t('Email');
-			this.tooltip.appendMarkdown(`$(account) [**${author}**](mailto:${email} "${emailTitle} ${author}")`);
+			this.tooltip.appendMarkdown(`${avatarMarkdown} [**${author}**](mailto:${email} "${emailTitle} ${author}")`);
 		} else {
-			this.tooltip.appendMarkdown(`$(account) **${author}**`);
+			this.tooltip.appendMarkdown(`${avatarMarkdown} **${author}**`);
 		}
 
 		this.tooltip.appendMarkdown(`, $(history) ${date}\n\n`);
@@ -215,25 +222,39 @@ export class GitTimelineProvider implements TimelineProvider {
 
 		const openComparison = l10n.t('Open Comparison');
 
-		const defaultRemote = repo.getDefaultRemote();
+		const emptyTree = await repo.getEmptyTree();
 		const unpublishedCommits = await repo.getUnpublishedCommits();
-		const remoteSourceCommands: Command[] = defaultRemote?.fetchUrl
-			? await getRemoteSourceControlHistoryItemCommands(defaultRemote.fetchUrl)
-			: [];
+		const remoteHoverCommands = await provideSourceControlHistoryItemHoverCommands(this.model, repo);
 
-		const items = commits.map<GitTimelineItem>((c, i) => {
+		const avatarQuery = {
+			commits: commits.map(c => ({
+				hash: c.hash,
+				authorName: c.authorName,
+				authorEmail: c.authorEmail
+			}) satisfies AvatarQueryCommit),
+			size: 20
+		} satisfies AvatarQuery;
+		const avatars = await provideSourceControlHistoryItemAvatar(this.model, repo, avatarQuery);
+
+		const items: GitTimelineItem[] = [];
+		for (let index = 0; index < commits.length; index++) {
+			const c = commits[index];
+
 			const date = dateType === 'authored' ? c.authorDate : c.commitDate;
 
 			const message = emojify(c.message);
 
-			const item = new GitTimelineItem(c.hash, commits[i + 1]?.hash ?? `${c.hash}^`, message, date?.getTime() ?? 0, c.hash, 'git:file:commit');
+			const previousRef = commits[index + 1]?.hash ?? emptyTree;
+			const item = new GitTimelineItem(c.hash, previousRef, message, date?.getTime() ?? 0, c.hash, 'git:file:commit');
 			item.iconPath = new ThemeIcon('git-commit');
 			if (showAuthor) {
 				item.description = c.authorName;
 			}
 
-			const commitRemoteSourceCommands = !unpublishedCommits.has(c.hash) ? remoteSourceCommands : [];
-			item.setItemDetails(uri, c.hash, c.authorName!, c.authorEmail, dateFormatter.format(date), message, c.shortStat, commitRemoteSourceCommands);
+			const commitRemoteSourceCommands = !unpublishedCommits.has(c.hash) ? remoteHoverCommands : [];
+			const messageWithLinks = await provideSourceControlHistoryItemMessageLinks(this.model, repo, message) ?? message;
+
+			item.setItemDetails(uri, c.hash, avatars?.get(c.hash), c.authorName!, c.authorEmail, dateFormatter.format(date), messageWithLinks, c.shortStat, commitRemoteSourceCommands);
 
 			const cmd = this.commands.resolveTimelineOpenDiffCommand(item, uri);
 			if (cmd) {
@@ -244,8 +265,8 @@ export class GitTimelineProvider implements TimelineProvider {
 				};
 			}
 
-			return item;
-		});
+			items.push(item);
+		}
 
 		if (options.cursor === undefined) {
 			const you = l10n.t('You');
@@ -258,7 +279,7 @@ export class GitTimelineProvider implements TimelineProvider {
 				// TODO@eamodio: Replace with a better icon -- reflecting its status maybe?
 				item.iconPath = new ThemeIcon('git-commit');
 				item.description = '';
-				item.setItemDetails(uri, undefined, you, undefined, dateFormatter.format(date), Resource.getStatusText(index.type));
+				item.setItemDetails(uri, undefined, undefined, you, undefined, dateFormatter.format(date), Resource.getStatusText(index.type));
 
 				const cmd = this.commands.resolveTimelineOpenDiffCommand(item, uri);
 				if (cmd) {
@@ -280,7 +301,7 @@ export class GitTimelineProvider implements TimelineProvider {
 					const item = new GitTimelineItem('', index ? '~' : 'HEAD', l10n.t('Uncommitted Changes'), date.getTime(), 'working', 'git:file:working');
 					item.iconPath = new ThemeIcon('circle-outline');
 					item.description = '';
-					item.setItemDetails(uri, undefined, you, undefined, dateFormatter.format(date), Resource.getStatusText(working.type));
+					item.setItemDetails(uri, undefined, undefined, you, undefined, dateFormatter.format(date), Resource.getStatusText(working.type));
 
 					const cmd = this.commands.resolveTimelineOpenDiffCommand(item, uri);
 					if (cmd) {

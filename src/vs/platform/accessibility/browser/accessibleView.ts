@@ -35,6 +35,7 @@ export const enum AccessibleViewProviderId {
 	ReplHelp = 'replHelp',
 	RunAndDebug = 'runAndDebug',
 	Walkthrough = 'walkthrough',
+	SourceControl = 'scm'
 }
 
 export const enum AccessibleViewType {
@@ -166,6 +167,10 @@ export class AccessibleContentProvider extends Disposable implements IAccessible
 	) {
 		super();
 	}
+}
+
+export function isIAccessibleViewContentProvider(obj: any): obj is IAccessibleViewContentProvider {
+	return obj && obj.id && obj.options && obj.provideContent && obj.onClose && obj.verbositySettingKey;
 }
 
 export class ExtensionContentProvider extends Disposable implements IBasicContentProvider {

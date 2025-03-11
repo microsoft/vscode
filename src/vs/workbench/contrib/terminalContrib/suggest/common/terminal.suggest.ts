@@ -11,9 +11,13 @@ export const enum TerminalSuggestCommandId {
 	AcceptSelectedSuggestion = 'workbench.action.terminal.acceptSelectedSuggestion',
 	AcceptSelectedSuggestionEnter = 'workbench.action.terminal.acceptSelectedSuggestionEnter',
 	HideSuggestWidget = 'workbench.action.terminal.hideSuggestWidget',
+	HideSuggestWidgetAndNavigateHistory = 'workbench.action.terminal.hideSuggestWidgetAndNavigateHistory',
 	ClearSuggestCache = 'workbench.action.terminal.clearSuggestCache',
 	RequestCompletions = 'workbench.action.terminal.requestCompletions',
 	ResetWidgetSize = 'workbench.action.terminal.resetSuggestWidgetSize',
+	ToggleDetails = 'workbench.action.terminal.suggestToggleDetails',
+	ToggleDetailsFocus = 'workbench.action.terminal.suggestToggleDetailsFocus',
+	ConfigureSettings = 'workbench.action.terminal.configureSuggestSettings',
 }
 
 export const defaultTerminalSuggestCommandsToSkipShell = [
@@ -26,4 +30,6 @@ export const defaultTerminalSuggestCommandsToSkipShell = [
 	TerminalSuggestCommandId.HideSuggestWidget,
 	TerminalSuggestCommandId.ClearSuggestCache,
 	TerminalSuggestCommandId.RequestCompletions,
+	TerminalSuggestCommandId.ToggleDetails,
+	TerminalSuggestCommandId.ToggleDetailsFocus,
 ];

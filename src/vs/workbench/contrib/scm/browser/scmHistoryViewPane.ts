@@ -6,7 +6,7 @@
 import './media/scm.css';
 import * as platform from '../../../../base/common/platform.js';
 import { $, append, h, reset } from '../../../../base/browser/dom.js';
-import { IHoverOptions, IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
+import { IHoverAction, IHoverOptions, IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
@@ -27,7 +27,6 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IOpenEvent, WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { asCssVariable, ColorIdentifier, foreground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IViewPaneOptions, ViewAction, ViewPane, ViewPaneShowActions } from '../../../browser/parts/views/viewPane.js';
@@ -242,7 +241,7 @@ registerAction2(class extends Action2 {
 			f1: false,
 			menu: [
 				{
-					id: MenuId.SCMChangesContext,
+					id: MenuId.SCMHistoryItemContext,
 					when: ContextKeyExpr.equals('config.multiDiffEditor.experimental.enabled', true),
 					group: '0_view',
 					order: 1
@@ -319,15 +318,19 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 	static readonly TEMPLATE_ID = 'history-item';
 	get templateId(): string { return HistoryItemRenderer.TEMPLATE_ID; }
 
-	private readonly _badgesConfig = observableConfigValue<'all' | 'filter'>('scm.graph.badges', 'filter', this._configurationService);
+	private readonly _badgesConfig: IObservable<'all' | 'filter'>;
 
 	constructor(
 		private readonly hoverDelegate: IHoverDelegate,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IHoverService private readonly _hoverService: IHoverService,
+		@IMenuService private readonly _menuService: IMenuService,
 		@IThemeService private readonly _themeService: IThemeService
-	) { }
+	) {
+		this._badgesConfig = observableConfigValue<'all' | 'filter'>('scm.graph.badges', 'filter', this._configurationService);
+	}
 
 	renderTemplate(container: HTMLElement): HistoryItemTemplate {
 		// hack
@@ -344,11 +347,12 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 	}
 
 	renderElement(node: ITreeNode<SCMHistoryItemViewModelTreeElement, LabelFuzzyScore>, index: number, templateData: HistoryItemTemplate, height: number | undefined): void {
+		const provider = node.element.repository.provider;
 		const historyItemViewModel = node.element.historyItemViewModel;
 		const historyItem = historyItemViewModel.historyItem;
 
 		const historyItemHover = this._hoverService.setupManagedHover(this.hoverDelegate, templateData.element, this._getHoverContent(node.element), {
-			actions: this._getHoverActions(historyItem),
+			actions: this._getHoverActions(provider, historyItem),
 		});
 		templateData.elementDisposables.add(historyItemHover);
 
@@ -356,7 +360,6 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		templateData.graphContainer.classList.toggle('current', historyItemViewModel.isCurrent);
 		templateData.graphContainer.appendChild(renderSCMHistoryItemGraph(historyItemViewModel));
 
-		const provider = node.element.repository.provider;
 		const historyItemRef = provider.historyProvider.get()?.historyItemRef?.get();
 		const extraClasses = historyItemRef?.revision === historyItem.id ? ['history-item-current'] : [];
 		const [matches, descriptionMatches] = this._processMatches(historyItemViewModel, node.filterData);
@@ -438,7 +441,12 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		append(templateData.labelContainer, elements.root);
 	}
 
-	private _getHoverActions(historyItem: ISCMHistoryItem) {
+	private _getHoverActions(provider: ISCMProvider, historyItem: ISCMHistoryItem): IHoverAction[] {
+		const actions = this._menuService.getMenuActions(MenuId.SCMHistoryItemHover, this._contextKeyService, {
+			arg: provider,
+			shouldForwardArgs: true
+		}).flatMap(item => item[1]);
+
 		return [
 			{
 				commandId: 'workbench.scm.action.graph.copyHistoryItemId',
@@ -446,12 +454,18 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 				label: historyItem.displayId ?? historyItem.id,
 				run: () => this._clipboardService.writeText(historyItem.id)
 			},
-			{
-				commandId: 'workbench.scm.action.graph.copyHistoryItemMessage',
-				iconClass: 'codicon.codicon-copy',
-				label: localize('historyItemMessage', "Message"),
-				run: () => this._clipboardService.writeText(historyItem.message)
-			}
+			...actions.map(action => {
+				const iconClass = ThemeIcon.isThemeIcon(action.item.icon)
+					? ThemeIcon.asClassNameArray(action.item.icon).join('.')
+					: undefined;
+
+				return {
+					commandId: action.id,
+					label: action.label,
+					iconClass,
+					run: () => action.run(historyItem)
+				};
+			}) satisfies IHoverAction[]
 		];
 	}
 
@@ -462,11 +476,17 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 
 		if (historyItem.author) {
+			const icon = URI.isUri(historyItem.authorIcon)
+				? `![${historyItem.author}](${historyItem.authorIcon.toString()}|width=20,height=20)`
+				: ThemeIcon.isThemeIcon(historyItem.authorIcon)
+					? `$(${historyItem.authorIcon.id})`
+					: '$(account)';
+
 			if (historyItem.authorEmail) {
 				const emailTitle = localize('emailLinkTitle', "Email");
-				markdown.appendMarkdown(`$(account) [**${historyItem.author}**](mailto:${historyItem.authorEmail} "${emailTitle} ${historyItem.author}")`);
+				markdown.appendMarkdown(`${icon} [**${historyItem.author}**](mailto:${historyItem.authorEmail} "${emailTitle} ${historyItem.author}")`);
 			} else {
-				markdown.appendMarkdown(`$(account) **${historyItem.author}**`);
+				markdown.appendMarkdown(`${icon} **${historyItem.author}**`);
 			}
 
 			if (historyItem.timestamp) {
@@ -606,7 +626,7 @@ class HistoryItemHoverDelegate extends WorkbenchHoverDelegate {
 		@IHoverService hoverService: IHoverService,
 
 	) {
-		super('element', true, () => this.getHoverOptions(), configurationService, hoverService);
+		super('element', { instantHover: true }, () => this.getHoverOptions(), configurationService, hoverService);
 	}
 
 	private getHoverOptions(): Partial<IHoverOptions> {
@@ -731,36 +751,13 @@ type RepositoryState = {
 };
 
 class SCMHistoryViewModel extends Disposable {
-
-	private readonly _closedRepository = observableFromEvent(
-		this,
-		this._scmService.onDidRemoveRepository,
-		repository => repository);
-
-	private readonly _firstRepository = this._scmService.repositoryCount > 0 ?
-		constObservable(Iterable.first(this._scmService.repositories)) :
-		observableFromEvent(
-			this,
-			Event.once(this._scmService.onDidAddRepository),
-			repository => repository
-		);
-
-	private readonly _selectedRepository = observableValue<'auto' | ISCMRepository>(this, 'auto');
-
-	private readonly _graphRepository = derived(reader => {
-		const selectedRepository = this._selectedRepository.read(reader);
-		if (selectedRepository !== 'auto') {
-			return selectedRepository;
-		}
-
-		return this._scmViewService.activeRepository.read(reader);
-	});
-
 	/**
 	 * The active | selected repository takes precedence over the first repository when the observable
 	 * values are updated in the same transaction (or during the initial read of the observable value).
 	 */
-	readonly repository = latestChangedValue(this, [this._firstRepository, this._graphRepository]);
+	readonly repository: IObservable<ISCMRepository | undefined>;
+	private readonly _selectedRepository = observableValue<'auto' | ISCMRepository>(this, 'auto');
+
 	readonly onDidChangeHistoryItemsFilter = observableSignal(this);
 	readonly isViewModelEmpty = observableValue(this, false);
 
@@ -786,9 +783,30 @@ class SCMHistoryViewModel extends Disposable {
 
 		this._scmHistoryItemCountCtx = ContextKeys.SCMHistoryItemCount.bindTo(this._contextKeyService);
 
+		const firstRepository = this._scmService.repositoryCount > 0
+			? constObservable(Iterable.first(this._scmService.repositories))
+			: observableFromEvent(this,
+				Event.once(this._scmService.onDidAddRepository),
+				repository => repository);
+
+		const graphRepository = derived(reader => {
+			const selectedRepository = this._selectedRepository.read(reader);
+			if (selectedRepository !== 'auto') {
+				return selectedRepository;
+			}
+
+			return this._scmViewService.activeRepository.read(reader);
+		});
+
+		this.repository = latestChangedValue(this, [firstRepository, graphRepository]);
+
+		const closedRepository = observableFromEvent(this,
+			this._scmService.onDidRemoveRepository,
+			repository => repository);
+
 		// Closed repository cleanup
 		this._register(autorun(reader => {
-			const repository = this._closedRepository.read(reader);
+			const repository = closedRepository.read(reader);
 			if (!repository) {
 				return;
 			}
@@ -1231,14 +1249,13 @@ export class SCMHistoryViewPane extends ViewPane {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService
 	) {
 		super({
 			...options,
 			titleMenuId: MenuId.SCMHistoryTitle,
 			showActions: ViewPaneShowActions.WhenExpanded
-		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		this._scmProviderCtx = ContextKeys.SCMProvider.bindTo(this.scopedContextKeyService);
 		this._scmCurrentHistoryItemRefHasRemote = ContextKeys.SCMCurrentHistoryItemRefHasRemote.bindTo(this.scopedContextKeyService);
@@ -1395,7 +1412,7 @@ export class SCMHistoryViewPane extends ViewPane {
 		return this._treeViewModel?.repository.get()?.provider;
 	}
 
-	override getActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
+	override createActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
 		if (action.id === PICK_REPOSITORY_ACTION_ID) {
 			const repository = this._treeViewModel?.repository.get();
 			if (repository) {
@@ -1409,7 +1426,7 @@ export class SCMHistoryViewPane extends ViewPane {
 			}
 		}
 
-		return super.getActionViewItem(action, options);
+		return super.createActionViewItem(action, options);
 	}
 
 	override focus(): void {
@@ -1586,59 +1603,64 @@ export class SCMHistoryViewPane extends ViewPane {
 		// If there are any history item references we have to add a submenu item for each orignal action,
 		// and a menu item for each history item ref that matches the `when` clause of the original action.
 		if (historyItemRefMenuItems.length > 0 && element.historyItemViewModel.historyItem.references?.length) {
-			const submenuIds = new Map<string, MenuId>();
+			const historyItemRefActions = new Map<string, ISCMHistoryItemRef[]>();
 
 			for (const ref of element.historyItemViewModel.historyItem.references) {
 				const contextKeyService = this.scopedContextKeyService.createOverlay([
 					['scmHistoryItemRef', ref.id]
 				]);
 
-				for (const [, actions] of this._menuService.getMenuActions(MenuId.SCMHistoryItemRefContext, contextKeyService)) {
-					for (const action of actions) {
-						let subMenuId = submenuIds.get(action.id);
+				const menuActions = this._menuService.getMenuActions(
+					MenuId.SCMHistoryItemRefContext, contextKeyService);
 
-						if (!subMenuId) {
-							subMenuId = MenuId.for(action.id);
-
-							// Get the menu item for the original action so that
-							// we can create a submenu with the same group, order
-							const historyItemRefMenuItem = historyItemRefMenuItems
-								.find(item => item.command.id === action.id);
-
-							// Register the submenu for the original action
-							this._contextMenuDisposables.value.add(MenuRegistry.appendMenuItem(MenuId.SCMChangesContext, {
-								title: action.label,
-								submenu: subMenuId,
-								group: historyItemRefMenuItem?.group,
-								order: historyItemRefMenuItem?.order
-							}));
-
-							submenuIds.set(action.id, subMenuId);
-						}
-
-						// Register a new action for the history item ref
-						this._contextMenuDisposables.value.add(registerAction2(class extends Action2 {
-							constructor() {
-								super({
-									id: `${action.id}.${ref.id}`,
-									title: ref.name,
-									menu: {
-										id: subMenuId!,
-										group: ref.category
-									}
-								});
-							}
-							override run(accessor: ServicesAccessor, ...args: any[]): void {
-								const commandService = accessor.get(ICommandService);
-								commandService.executeCommand(action.id, ...args, ref.id);
-							}
-						}));
+				for (const action of menuActions.flatMap(a => a[1])) {
+					if (!historyItemRefActions.has(action.id)) {
+						historyItemRefActions.set(action.id, []);
 					}
+
+					historyItemRefActions.get(action.id)!.push(ref);
+				}
+			}
+
+			// Register submenu, menu items
+			for (const historyItemRefMenuItem of historyItemRefMenuItems) {
+				const actionId = historyItemRefMenuItem.command.id;
+
+				if (!historyItemRefActions.has(actionId)) {
+					continue;
+				}
+
+				// Register the submenu for the original action
+				this._contextMenuDisposables.value.add(MenuRegistry.appendMenuItem(MenuId.SCMHistoryItemContext, {
+					title: historyItemRefMenuItem.command.title,
+					submenu: MenuId.for(actionId),
+					group: historyItemRefMenuItem?.group,
+					order: historyItemRefMenuItem?.order
+				}));
+
+				// Register the action for the history item ref
+				for (const historyItemRef of historyItemRefActions.get(actionId) ?? []) {
+					this._contextMenuDisposables.value.add(registerAction2(class extends Action2 {
+						constructor() {
+							super({
+								id: `${actionId}.${historyItemRef.id}`,
+								title: historyItemRef.name,
+								menu: {
+									id: MenuId.for(actionId),
+									group: historyItemRef.category
+								}
+							});
+						}
+						override run(accessor: ServicesAccessor, ...args: any[]): void {
+							const commandService = accessor.get(ICommandService);
+							commandService.executeCommand(actionId, ...args, historyItemRef.id);
+						}
+					}));
 				}
 			}
 		}
 
-		const historyItemMenuActions = this._menuService.getMenuActions(MenuId.SCMChangesContext, this.scopedContextKeyService, {
+		const historyItemMenuActions = this._menuService.getMenuActions(MenuId.SCMHistoryItemContext, this.scopedContextKeyService, {
 			arg: element.repository.provider,
 			shouldForwardArgs: true
 		});

@@ -244,7 +244,7 @@ export class UtilityProcess extends Disposable {
 		this.process = utilityProcess.fork(modulePath, args, {
 			serviceName,
 			env,
-			execArgv,
+			execArgv, // !!! Add `--trace-warnings` for node.js tracing !!!
 			allowLoadingUnsignedLibraries,
 			respondToAuthRequestsFromMainProcess,
 			stdio

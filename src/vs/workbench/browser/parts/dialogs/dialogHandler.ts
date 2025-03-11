@@ -17,10 +17,10 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { fromNow } from '../../../../base/common/date.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { MarkdownRenderer, openLinkFromMarkdown } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { ResultKind } from '../../../../platform/keybinding/common/keybindingResolver.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 
 export class BrowserDialogHandler extends AbstractDialogHandler {
 
@@ -33,17 +33,20 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 		'editor.action.clipboardPasteAction'
 	];
 
-	private readonly markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
+	private readonly markdownRenderer: MarkdownRenderer;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IProductService private readonly productService: IProductService,
-		@IClipboardService private readonly clipboardService: IClipboardService
+		@IClipboardService private readonly clipboardService: IClipboardService,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super();
+
+		this.markdownRenderer = instantiationService.createInstance(MarkdownRenderer, {});
 	}
 
 	async prompt<T>(prompt: IPrompt<T>): Promise<IAsyncPromptResult<T>> {
@@ -106,13 +109,18 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 		}
 	}
 
-	private async doShow(type: Severity | DialogType | undefined, message: string, buttons?: string[], detail?: string, cancelId?: number, checkbox?: ICheckbox, inputs?: IInputElement[], customOptions?: ICustomDialogOptions, cancellationToken?: CancellationToken): Promise<IDialogResult> {
+	private async doShow(type: Severity | DialogType | undefined, message: string, buttons?: string[], detail?: string, cancelId?: number, checkbox?: ICheckbox, inputs?: IInputElement[], customOptions?: ICustomDialogOptions): Promise<IDialogResult> {
 		const dialogDisposables = new DisposableStore();
 
 		const renderBody = customOptions ? (parent: HTMLElement) => {
 			parent.classList.add(...(customOptions.classes || []));
 			customOptions.markdownDetails?.forEach(markdownDetail => {
-				const result = this.markdownRenderer.render(markdownDetail.markdown);
+				const result = this.markdownRenderer.render(markdownDetail.markdown, {
+					actionHandler: {
+						callback: link => openLinkFromMarkdown(this.openerService, link, markdownDetail.markdown.isTrusted, true /* skip URL validation to prevent another dialog from showing which is unsupported */),
+						disposables: dialogDisposables
+					}
+				});
 				parent.appendChild(result.element);
 				result.element.classList.add(...(markdownDetail.classes || []));
 				dialogDisposables.add(result);
@@ -138,7 +146,6 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 				renderBody,
 				icon: customOptions?.icon,
 				disableCloseAction: customOptions?.disableCloseAction,
-				closeOnLinkClick: customOptions?.closeOnLinkClick,
 				buttonDetails: customOptions?.buttonDetails,
 				checkboxLabel: checkbox?.label,
 				checkboxChecked: checkbox?.checked,

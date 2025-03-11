@@ -5,7 +5,7 @@
 
 import { URI } from '../../../base/common/uri.js';
 import { LanguageFeatureRegistry, NotebookInfo, NotebookInfoResolver } from '../languageFeatureRegistry.js';
-import { CodeActionProvider, CodeLensProvider, CompletionItemProvider, DocumentPasteEditProvider, DeclarationProvider, DefinitionProvider, DocumentColorProvider, DocumentFormattingEditProvider, MultiDocumentHighlightProvider, DocumentHighlightProvider, DocumentDropEditProvider, DocumentRangeFormattingEditProvider, DocumentRangeSemanticTokensProvider, DocumentSemanticTokensProvider, DocumentSymbolProvider, EvaluatableExpressionProvider, FoldingRangeProvider, HoverProvider, ImplementationProvider, InlayHintsProvider, InlineCompletionsProvider, InlineValuesProvider, LinkedEditingRangeProvider, LinkProvider, OnTypeFormattingEditProvider, ReferenceProvider, RenameProvider, SelectionRangeProvider, SignatureHelpProvider, TypeDefinitionProvider, MappedEditsProvider, NewSymbolNamesProvider, InlineEditProvider } from '../languages.js';
+import { CodeActionProvider, CodeLensProvider, CompletionItemProvider, DocumentPasteEditProvider, DeclarationProvider, DefinitionProvider, DocumentColorProvider, DocumentFormattingEditProvider, MultiDocumentHighlightProvider, DocumentHighlightProvider, DocumentDropEditProvider, DocumentRangeFormattingEditProvider, DocumentRangeSemanticTokensProvider, DocumentSemanticTokensProvider, DocumentSymbolProvider, EvaluatableExpressionProvider, FoldingRangeProvider, HoverProvider, ImplementationProvider, InlayHintsProvider, InlineCompletionsProvider, InlineValuesProvider, LinkedEditingRangeProvider, LinkProvider, OnTypeFormattingEditProvider, ReferenceProvider, RenameProvider, SelectionRangeProvider, SignatureHelpProvider, TypeDefinitionProvider, NewSymbolNamesProvider, InlineEditProvider } from '../languages.js';
 import { ILanguageFeaturesService } from './languageFeatures.js';
 import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
 
@@ -45,7 +45,6 @@ export class LanguageFeaturesService implements ILanguageFeaturesService {
 	readonly documentSemanticTokensProvider = new LanguageFeatureRegistry<DocumentSemanticTokensProvider>(this._score.bind(this));
 	readonly documentDropEditProvider = new LanguageFeatureRegistry<DocumentDropEditProvider>(this._score.bind(this));
 	readonly documentPasteEditProvider = new LanguageFeatureRegistry<DocumentPasteEditProvider>(this._score.bind(this));
-	readonly mappedEditsProvider: LanguageFeatureRegistry<MappedEditsProvider> = new LanguageFeatureRegistry<MappedEditsProvider>(this._score.bind(this));
 
 	private _notebookTypeResolver?: NotebookInfoResolver;
 

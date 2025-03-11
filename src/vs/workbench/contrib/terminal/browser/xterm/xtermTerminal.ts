@@ -256,7 +256,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			}
 		}));
 
-		this._register(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
+		this._register(this._themeService.onDidColorThemeChange(e => this._updateTheme(e.theme)));
 		this._register(this._logService.onDidChangeLogLevel(e => this.raw.options.logLevel = vscodeToXtermLogLevel(e)));
 
 		// Refire events
@@ -308,11 +308,11 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			updateProgress();
 			const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
 			if (commandDetection) {
-				commandDetection.onCommandFinished(() => progressAddon.progress = { state: 0, value: 0 });
+				this._register(commandDetection.onCommandFinished(() => progressAddon.progress = { state: 0, value: 0 }));
 			} else {
 				const disposable = this._capabilities.onDidAddCapability(e => {
 					if (e.id === TerminalCapability.CommandDetection) {
-						(e.capability as CommandDetectionCapability).onCommandFinished(() => progressAddon.progress = { state: 0, value: 0 });
+						this._register((e.capability as CommandDetectionCapability).onCommandFinished(() => progressAddon.progress = { state: 0, value: 0 }));
 						this._store.delete(disposable);
 					}
 				});

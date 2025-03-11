@@ -223,7 +223,7 @@ export class NotebookFindInputFilterButton extends Disposable {
 		this._actionbar = this._register(new ActionBar(container, {
 			actionViewItemProvider: (action, options) => {
 				if (action.id === this._filtersAction.id) {
-					return this.instantiationService.createInstance(NotebookFindFilterActionViewItem, this.filters, action, options, new ActionRunner());
+					return this.instantiationService.createInstance(NotebookFindFilterActionViewItem, this.filters, action, options, this._register(new ActionRunner()));
 				}
 				return undefined;
 			}
@@ -329,6 +329,8 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		protected readonly _notebookEditor: INotebookEditor,
 	) {
 		super();
+
+		this._register(this._state);
 
 		const findFilters = this._configurationService.getValue<{
 			markupSource: boolean;
@@ -566,7 +568,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._replaceInput = this._register(new ContextScopedReplaceInput(null, undefined, {
 			label: NLS_REPLACE_INPUT_LABEL,
 			placeholder: NLS_REPLACE_INPUT_PLACEHOLDER,
-			history: [],
+			history: new Set([]),
 			inputBoxStyles: defaultInputBoxStyles,
 			toggleStyles: defaultToggleStyles
 		}, contextKeyService, false));

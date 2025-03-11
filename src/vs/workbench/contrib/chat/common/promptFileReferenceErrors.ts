@@ -6,11 +6,15 @@
 import { URI } from '../../../../base/common/uri.js';
 
 /**
- * Base resolve error class used when file reference resolution fails.
+ * Base prompt parsing error class.
  */
-abstract class ResolveError extends Error {
+export abstract class ParseError extends Error {
+	/**
+	 * Error type name.
+	 */
+	public readonly abstract errorType: string;
+
 	constructor(
-		public readonly uri: URI,
 		message?: string,
 		options?: ErrorOptions,
 	) {
@@ -37,16 +41,50 @@ abstract class ResolveError extends Error {
 }
 
 /**
+ * A generic error for failing to resolve prompt contents stream.
+ */
+export class FailedToResolveContentsStream extends ParseError {
+	public override errorType = 'FailedToResolveContentsStream';
+
+	constructor(
+		public readonly uri: URI,
+		public readonly originalError: unknown,
+		message: string = `Failed to resolve prompt contents stream for '${uri.toString()}': ${originalError}.`,
+	) {
+		super(message);
+	}
+}
+
+
+/**
+ * Base resolve error class used when file reference resolution fails.
+ */
+export abstract class ResolveError extends ParseError {
+	public abstract override errorType: string;
+
+	constructor(
+		public readonly uri: URI,
+		message?: string,
+		options?: ErrorOptions,
+	) {
+		super(message, options);
+	}
+}
+
+/**
  * Error that reflects the case when attempt to open target file fails.
  */
-export class FileOpenFailed extends ResolveError {
+export class OpenFailed extends FailedToResolveContentsStream {
+	public override errorType = 'OpenError';
+
 	constructor(
 		uri: URI,
-		public readonly originalError: unknown,
+		originalError: unknown,
 	) {
 		super(
 			uri,
-			`Failed to open file '${uri.toString()}': ${originalError}.`,
+			originalError,
+			`Failed to open '${uri.fsPath}': ${originalError}.`,
 		);
 	}
 }
@@ -66,6 +104,8 @@ export class FileOpenFailed extends ResolveError {
  * ```
  */
 export class RecursiveReference extends ResolveError {
+	public override errorType = 'RecursiveReferenceError';
+
 	constructor(
 		uri: URI,
 		public readonly recursivePath: string[],
@@ -110,10 +150,11 @@ export class RecursiveReference extends ResolveError {
 }
 
 /**
- * Error that reflects the case when resource URI does not point to
- * a prompt snippet file, hence was not attempted to be resolved.
+ * Error for the case when a resource URI doesn't point to a prompt file.
  */
-export class NonPromptSnippetFile extends ResolveError {
+export class NotPromptFile extends ResolveError {
+	public override errorType = 'NotPromptFileError';
+
 	constructor(
 		uri: URI,
 		message: string = '',
@@ -123,7 +164,27 @@ export class NonPromptSnippetFile extends ResolveError {
 
 		super(
 			uri,
-			`Resource at ${uri.path} is not a prompt snippet file${suffix}`,
+			`Resource at ${uri.path} is not a prompt file${suffix}`,
+		);
+	}
+}
+
+/**
+ * Error for the case when a resource URI points to a folder.
+ */
+export class FolderReference extends NotPromptFile {
+	public override errorType = 'FolderReferenceError';
+
+	constructor(
+		uri: URI,
+		message: string = '',
+	) {
+
+		const suffix = message ? `: ${message}` : '';
+
+		super(
+			uri,
+			`Entity at '${uri.path}' is a folder${suffix}`,
 		);
 	}
 }

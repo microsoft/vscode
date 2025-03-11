@@ -52,6 +52,7 @@ import { getColorForSeverity } from './terminalStatusList.js';
 import { TerminalContextActionRunner } from './terminalContextMenu.js';
 import type { IHoverAction } from '../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
 const $ = DOM.$;
 
@@ -72,9 +73,9 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 
 	constructor(
 		container: HTMLElement,
+		disposableStore: DisposableStore,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
-		@IThemeService themeService: IThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
@@ -89,7 +90,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 				getHeight: () => TerminalTabsListSizes.TabHeight,
 				getTemplateId: () => 'terminal.tabs'
 			},
-			[instantiationService.createInstance(TerminalTabsRenderer, container, instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER), () => this.getSelectedElements())],
+			[disposableStore.add(instantiationService.createInstance(TerminalTabsRenderer, container, instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER), () => this.getSelectedElements()))],
 			{
 				horizontalScrolling: false,
 				supportDynamicHeights: false,
@@ -242,7 +243,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 	}
 }
 
-class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminalTabEntryTemplate> {
+class TerminalTabsRenderer extends Disposable implements IListRenderer<ITerminalInstance, ITerminalTabEntryTemplate> {
 	templateId = 'terminal.tabs';
 
 	constructor(
@@ -257,8 +258,10 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IListService private readonly _listService: IListService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@IContextViewService private readonly _contextViewService: IContextViewService
+		@IContextViewService private readonly _contextViewService: IContextViewService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
+		super();
 	}
 
 	renderTemplate(container: HTMLElement): ITerminalTabEntryTemplate {
@@ -288,13 +291,13 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 
 		const actionsContainer = DOM.append(label.element, $('.actions'));
 
-		const actionBar = new ActionBar(actionsContainer, {
-			actionRunner: new TerminalContextActionRunner(),
+		const actionBar = this._register(new ActionBar(actionsContainer, {
+			actionRunner: this._register(new TerminalContextActionRunner()),
 			actionViewItemProvider: (action, options) =>
 				action instanceof MenuItemAction
-					? this._instantiationService.createInstance(MenuEntryActionViewItem, action, { hoverDelegate: options.hoverDelegate })
+					? this._register(this._instantiationService.createInstance(MenuEntryActionViewItem, action, { hoverDelegate: options.hoverDelegate }))
 					: undefined
-		});
+		}));
 
 		return {
 			element,
@@ -495,15 +498,22 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 	fillActionBar(instance: ITerminalInstance, template: ITerminalTabEntryTemplate): void {
 		// If the instance is within the selection, split all selected
 		const actions = [
-			new Action(TerminalCommandId.SplitActiveTab, terminalStrings.split.short, ThemeIcon.asClassName(Codicon.splitHorizontal), true, async () => {
+			this._register(new Action(TerminalCommandId.SplitActiveTab, terminalStrings.split.short, ThemeIcon.asClassName(Codicon.splitHorizontal), true, async () => {
 				this._runForSelectionOrInstance(instance, async e => {
 					this._terminalService.createTerminal({ location: { parentTerminal: e } });
 				});
-			}),
-			new Action(TerminalCommandId.KillActiveTab, terminalStrings.kill.short, ThemeIcon.asClassName(Codicon.trashcan), true, async () => {
-				this._runForSelectionOrInstance(instance, e => this._terminalService.safeDisposeTerminal(e));
-			})
+			})),
 		];
+		if (instance.shellLaunchConfig.tabActions) {
+			for (const action of instance.shellLaunchConfig.tabActions) {
+				actions.push(this._register(new Action(action.id, action.label, action.icon ? ThemeIcon.asClassName(action.icon) : undefined, true, async () => {
+					this._runForSelectionOrInstance(instance, e => this._commandService.executeCommand(action.id, instance));
+				})));
+			}
+		}
+		actions.push(this._register(new Action(TerminalCommandId.KillActiveTab, terminalStrings.kill.short, ThemeIcon.asClassName(Codicon.trashcan), true, async () => {
+			this._runForSelectionOrInstance(instance, e => this._terminalService.safeDisposeTerminal(e));
+		})));
 		// TODO: Cache these in a way that will use the correct instance
 		template.actionBar.clear();
 		for (const action of actions) {

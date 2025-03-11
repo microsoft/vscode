@@ -8,24 +8,22 @@ import { assert } from '../../../../../../base/common/assert.js';
 import { IDynamicVariable } from '../../../common/chatVariables.js';
 import { IRange } from '../../../../../../editor/common/core/range.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { PromptFileReference } from '../../../common/promptFileReference.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { FilePromptParser } from '../../../common/promptSyntax/parsers/filePromptParser.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 
 /**
  * A wrapper class for an `IDynamicVariable` object that that adds functionality
  * to parse nested file references of this variable.
- * See {@link PromptFileReference} for details.
+ * See {@link FilePromptParser} for details.
  */
-export class ChatFileReference extends PromptFileReference implements IDynamicVariable {
+export class ChatFileReference extends FilePromptParser implements IDynamicVariable {
 	/**
 	 * @throws if the `data` reference is no an instance of `URI`.
 	 */
 	constructor(
 		public readonly reference: IDynamicVariable,
+		@IInstantiationService initService: IInstantiationService,
 		@ILogService logService: ILogService,
-		@IFileService fileService: IFileService,
-		@IConfigurationService configService: IConfigurationService,
 	) {
 		const { data } = reference;
 
@@ -34,7 +32,7 @@ export class ChatFileReference extends PromptFileReference implements IDynamicVa
 			`Variable data must be an URI, got '${data}'.`,
 		);
 
-		super(data, logService, fileService, configService);
+		super(data, [], initService, logService);
 	}
 
 	/**

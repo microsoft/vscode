@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as es from 'event-stream';
-import * as VinylFile from 'vinyl';
-import * as log from 'fancy-log';
-import * as ansiColors from 'ansi-colors';
-import * as crypto from 'crypto';
-import * as through2 from 'through2';
+import es from 'event-stream';
+import VinylFile from 'vinyl';
+import log from 'fancy-log';
+import ansiColors from 'ansi-colors';
+import crypto from 'crypto';
+import through2 from 'through2';
 import { Stream } from 'stream';
 
 export interface IFetchOptions {

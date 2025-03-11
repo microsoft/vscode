@@ -417,7 +417,7 @@ export class InstallAction extends ExtensionAction {
 		this.hideOnDisabled = false;
 		this.options = { isMachineScoped: false, ...options };
 		this.update();
-		this._register(allowedExtensionsService.onDidChangeAllowedExtensions(() => this.update()));
+		this._register(allowedExtensionsService.onDidChangeAllowedExtensionsConfigValue(() => this.update()));
 		this._register(this.labelService.onDidChangeFormatters(() => this.updateLabel(), this));
 	}
 
@@ -1024,7 +1024,7 @@ export class ToggleAutoUpdateForExtensionAction extends ExtensionAction {
 				this.update();
 			}
 		}));
-		this._register(allowedExtensionsService.onDidChangeAllowedExtensions(e => this.update()));
+		this._register(allowedExtensionsService.onDidChangeAllowedExtensionsConfigValue(e => this.update()));
 		this.update();
 	}
 
@@ -1161,8 +1161,8 @@ export abstract class DropDownExtensionAction extends ExtensionAction {
 		return this._actionViewItem;
 	}
 
-	public override run({ actionGroups, disposeActionsOnHide }: { actionGroups: IAction[][]; disposeActionsOnHide: boolean }): Promise<any> {
-		this._actionViewItem?.showMenu(actionGroups, disposeActionsOnHide);
+	public override run(actionGroups: IAction[][]): Promise<any> {
+		this._actionViewItem?.showMenu(actionGroups);
 		return Promise.resolve();
 	}
 }
@@ -1177,7 +1177,7 @@ export class DropDownExtensionActionViewItem extends ActionViewItem {
 		super(null, action, { ...options, icon: true, label: true });
 	}
 
-	public showMenu(menuActionGroups: IAction[][], disposeActionsOnHide: boolean): void {
+	public showMenu(menuActionGroups: IAction[][]): void {
 		if (this.element) {
 			const actions = this.getActions(menuActionGroups);
 			const elementPosition = DOM.getDomNodePagePosition(this.element);
@@ -1186,7 +1186,7 @@ export class DropDownExtensionActionViewItem extends ActionViewItem {
 				getAnchor: () => anchor,
 				getActions: () => actions,
 				actionRunner: this.actionRunner,
-				onHide: () => { if (disposeActionsOnHide) { disposeIfDisposable(actions); } }
+				onHide: () => disposeIfDisposable(actions)
 			});
 		}
 	}
@@ -1250,7 +1250,7 @@ async function getContextMenuActionsGroups(extension: IExtension | undefined | n
 			cksOverlay.push(['galleryExtensionHasPreReleaseVersion', extension.gallery?.hasPreReleaseVersion]);
 			cksOverlay.push(['extensionHasPreReleaseVersion', extension.hasPreReleaseVersion]);
 			cksOverlay.push(['extensionHasReleaseVersion', extension.hasReleaseVersion]);
-			cksOverlay.push(['extensionDisallowInstall', !!extension.deprecationInfo?.disallowInstall]);
+			cksOverlay.push(['extensionDisallowInstall', extension.isMalicious || extension.deprecationInfo?.disallowInstall]);
 			cksOverlay.push(['isExtensionAllowed', allowedExtensionsService.isAllowed({ id: extension.identifier.id, publisherDisplayName: extension.publisherDisplayName }) === true]);
 			cksOverlay.push(['isPreReleaseExtensionAllowed', allowedExtensionsService.isAllowed({ id: extension.identifier.id, publisherDisplayName: extension.publisherDisplayName, prerelease: true }) === true]);
 			cksOverlay.push(['extensionIsUnsigned', extension.gallery && !extension.gallery.isSigned]);
@@ -1359,7 +1359,7 @@ export class ManageExtensionAction extends DropDownExtensionAction {
 
 	override async run(): Promise<any> {
 		await this.extensionService.whenInstalledExtensionsRegistered();
-		return super.run({ actionGroups: await this.getActionGroups(), disposeActionsOnHide: true });
+		return super.run(await this.getActionGroups());
 	}
 
 	update(): void {
@@ -1393,7 +1393,7 @@ export class ExtensionEditorManageExtensionAction extends DropDownExtensionActio
 				extensionAction.extension = this.extension;
 			}
 		}));
-		return super.run({ actionGroups, disposeActionsOnHide: true });
+		return super.run(actionGroups);
 	}
 
 }
@@ -1458,7 +1458,7 @@ export class TogglePreReleaseExtensionAction extends ExtensionAction {
 		@IAllowedExtensionsService private readonly allowedExtensionsService: IAllowedExtensionsService,
 	) {
 		super(TogglePreReleaseExtensionAction.ID, TogglePreReleaseExtensionAction.LABEL, TogglePreReleaseExtensionAction.DisabledClass);
-		this._register(allowedExtensionsService.onDidChangeAllowedExtensions(() => this.update()));
+		this._register(allowedExtensionsService.onDidChangeAllowedExtensionsConfigValue(() => this.update()));
 		this.update();
 	}
 
@@ -1534,7 +1534,7 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 		@IAllowedExtensionsService private readonly allowedExtensionsService: IAllowedExtensionsService,
 	) {
 		super(InstallAnotherVersionAction.ID, InstallAnotherVersionAction.LABEL, ExtensionAction.LABEL_ACTION_CLASS);
-		this._register(allowedExtensionsService.onDidChangeAllowedExtensions(() => this.update()));
+		this._register(allowedExtensionsService.onDidChangeAllowedExtensionsConfigValue(() => this.update()));
 		this.extension = extension;
 		this.update();
 	}
@@ -2473,16 +2473,14 @@ export class ToggleSyncExtensionAction extends DropDownExtensionAction {
 	}
 
 	override async run(): Promise<any> {
-		return super.run({
-			actionGroups: [
-				[
-					new Action(
-						'extensions.syncignore',
-						this.extensionsWorkbenchService.isExtensionIgnoredToSync(this.extension!) ? localize('sync', "Sync this extension") : localize('do not sync', "Do not sync this extension")
-						, undefined, true, () => this.extensionsWorkbenchService.toggleExtensionIgnoredToSync(this.extension!))
-				]
-			], disposeActionsOnHide: true
-		});
+		return super.run([
+			[
+				new Action(
+					'extensions.syncignore',
+					this.extensionsWorkbenchService.isExtensionIgnoredToSync(this.extension!) ? localize('sync', "Sync this extension") : localize('do not sync', "Do not sync this extension")
+					, undefined, true, () => this.extensionsWorkbenchService.toggleExtensionIgnoredToSync(this.extension!))
+			]
+		]);
 	}
 }
 
@@ -2521,7 +2519,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 		this._register(this.labelService.onDidChangeFormatters(() => this.update(), this));
 		this._register(this.extensionService.onDidChangeExtensions(() => this.update()));
 		this._register(this.extensionFeaturesManagementService.onDidChangeAccessData(() => this.update()));
-		this._register(allowedExtensionsService.onDidChangeAllowedExtensions(() => this.update()));
+		this._register(allowedExtensionsService.onDidChangeAllowedExtensionsConfigValue(() => this.update()));
 		this.update();
 	}
 

@@ -86,6 +86,11 @@ export interface ILanguageModelChatMetadata {
 		readonly providerLabel: string;
 		readonly accountLabel?: string;
 	};
+	readonly capabilities?: {
+		readonly vision?: boolean;
+		readonly toolCalling?: boolean;
+		readonly agentMode?: boolean;
+	};
 }
 
 export interface ILanguageModelChatResponse {
@@ -111,11 +116,13 @@ export interface ILanguageModelChatSelector {
 
 export const ILanguageModelsService = createDecorator<ILanguageModelsService>('ILanguageModelsService');
 
+export interface ILanguageModelChatMetadataAndIdentifier {
+	metadata: ILanguageModelChatMetadata;
+	identifier: string;
+}
+
 export interface ILanguageModelsChangeEvent {
-	added?: {
-		identifier: string;
-		metadata: ILanguageModelChatMetadata;
-	}[];
+	added?: ILanguageModelChatMetadataAndIdentifier[];
 	removed?: string[];
 }
 

@@ -49,6 +49,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Color } from '../../../../base/common/color.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { getOuterEditor } from '../../../../editor/browser/widget/codeEditor/embeddedCodeEditorWidget.js';
+import { quickDiffDecorationCount } from './quickDiffDecorator.js';
 
 export const isQuickDiffVisible = new RawContextKey<boolean>('dirtyDiffVisible', false);
 
@@ -171,7 +172,7 @@ class QuickDiffWidget extends PeekViewWidget {
 	) {
 		super(editor, { isResizeable: true, frameWidth: 1, keepEditorSelection: true, className: 'dirty-diff' }, instantiationService);
 
-		this._disposables.add(themeService.onDidColorThemeChange(this._applyTheme, this));
+		this._disposables.add(themeService.onDidColorThemeChange(e => this._applyTheme(e.theme)));
 		this._applyTheme(themeService.getColorTheme());
 
 		if (!Iterable.isEmpty(this.model.originalTextModels)) {
@@ -332,7 +333,7 @@ class QuickDiffWidget extends PeekViewWidget {
 		this._actionbarWidget.clear();
 		this._actionbarWidget.push(actions.reverse(), { label: false, icon: true });
 		this._actionbarWidget.push([next, previous], { label: false, icon: true });
-		this._actionbarWidget.push(new Action('peekview.close', nls.localize('label.close', "Close"), ThemeIcon.asClassName(Codicon.close), true, () => this.dispose()), { label: false, icon: true });
+		this._actionbarWidget.push(this._disposables.add(new Action('peekview.close', nls.localize('label.close', "Close"), ThemeIcon.asClassName(Codicon.close), true, () => this.dispose())), { label: false, icon: true });
 	}
 
 	protected override _fillHead(container: HTMLElement): void {
@@ -350,13 +351,14 @@ class QuickDiffWidget extends PeekViewWidget {
 
 	protected override _getActionBarOptions(): IActionBarOptions {
 		const actionRunner = new QuickDiffWidgetActionRunner();
+		this._disposables.add(actionRunner);
 
 		// close widget on successful action
-		actionRunner.onDidRun(e => {
+		this._disposables.add(actionRunner.onDidRun(e => {
 			if (!(e.action instanceof QuickDiffWidgetEditorAction) && !e.error) {
 				this.dispose();
 			}
-		});
+		}));
 
 		return {
 			...super._getActionBarOptions(),
@@ -804,7 +806,7 @@ export class GotoPreviousChangeAction extends EditorAction {
 		super({
 			id: 'workbench.action.editor.previousChange',
 			label: nls.localize2('move to previous change', "Go to Previous Change"),
-			precondition: TextCompareEditorActiveContext.toNegated(),
+			precondition: ContextKeyExpr.and(TextCompareEditorActiveContext.toNegated(), quickDiffDecorationCount.notEqualsTo(0)),
 			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F5, weight: KeybindingWeight.EditorContrib }
 		});
 	}
@@ -844,7 +846,7 @@ export class GotoNextChangeAction extends EditorAction {
 		super({
 			id: 'workbench.action.editor.nextChange',
 			label: nls.localize2('move to next change', "Go to Next Change"),
-			precondition: TextCompareEditorActiveContext.toNegated(),
+			precondition: ContextKeyExpr.and(TextCompareEditorActiveContext.toNegated(), quickDiffDecorationCount.notEqualsTo(0)),
 			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Alt | KeyCode.F5, weight: KeybindingWeight.EditorContrib }
 		});
 	}

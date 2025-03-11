@@ -596,8 +596,8 @@ export namespace Event {
 	/**
 	 * Creates a promise out of an event, using the {@link Event.once} helper.
 	 */
-	export function toPromise<T>(event: Event<T>): Promise<T> {
-		return new Promise(resolve => once(event)(resolve));
+	export function toPromise<T>(event: Event<T>, disposables?: IDisposable[] | DisposableStore): Promise<T> {
+		return new Promise(resolve => once(event)(resolve, null, disposables));
 	}
 
 	/**

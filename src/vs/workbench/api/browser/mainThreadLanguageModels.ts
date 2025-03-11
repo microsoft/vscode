@@ -123,7 +123,13 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 	async $tryStartChatRequest(extension: ExtensionIdentifier, providerId: string, requestId: number, messages: IChatMessage[], options: {}, token: CancellationToken): Promise<any> {
 		this._logService.trace('[CHAT] request STARTED', extension.value, requestId);
 
-		const response = await this._chatProviderService.sendChatRequest(providerId, extension, messages, options, token);
+		let response: ILanguageModelChatResponse;
+		try {
+			response = await this._chatProviderService.sendChatRequest(providerId, extension, messages, options, token);
+		} catch (err) {
+			this._logService.error('[CHAT] request FAILED', extension.value, requestId, err);
+			throw err;
+		}
 
 		// !!! IMPORTANT !!!
 		// This method must return before the response is done (has streamed all parts)

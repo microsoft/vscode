@@ -6,7 +6,7 @@
 import './media/editortabscontrol.css';
 import { localize } from '../../../../nls.js';
 import { applyDragImage, DataTransfers } from '../../../../base/browser/dnd.js';
-import { Dimension, getActiveWindow, getWindow, isMouseEvent } from '../../../../base/browser/dom.js';
+import { $, Dimension, getActiveWindow, getWindow, isMouseEvent } from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { ActionsOrientation, IActionViewItem, prepareActions } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IAction, ActionRunner } from '../../../../base/common/actions.js';
@@ -177,7 +177,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	}
 
 	protected createEditorActionsToolBar(parent: HTMLElement, classes: string[]): void {
-		this.editorActionsToolbarContainer = document.createElement('div');
+		this.editorActionsToolbarContainer = $('div');
 		this.editorActionsToolbarContainer.classList.add(...classes);
 		parent.appendChild(this.editorActionsToolbarContainer);
 
