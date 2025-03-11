@@ -109,7 +109,7 @@ const editsViewDescriptor: IViewDescriptor[] = [{
 	},
 	ctorDescriptor: new SyncDescriptor(ChatViewPane, [{ location: ChatAgentLocation.EditingSession }]),
 	when: ContextKeyExpr.and(
-		ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedChatView}`),
+		ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedChatView}`).negate(),
 		ContextKeyExpr.or(
 			ChatContextKeys.Setup.hidden.negate(),
 			ChatContextKeys.Setup.installed,

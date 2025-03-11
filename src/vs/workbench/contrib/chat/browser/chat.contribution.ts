@@ -430,7 +430,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			locations: [ChatAgentLocation.Panel]
 		}, async (prompt, progress) => {
-			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
+			const defaultAgent = chatAgentService.getPrimaryDefaultAgent();
 			const agents = chatAgentService.getAgents();
 
 			// Report prefix

@@ -62,8 +62,10 @@ export abstract class EditingSessionAction extends Action2 {
 export function getEditingSessionContext(accessor: ServicesAccessor, args: any[]): { editingSession?: IChatEditingSession; chatWidget: IChatWidget } | undefined {
 	const context: IEditingSessionActionContext | undefined = args[0];
 
+	const chatService = accessor.get(IChatService);
 	const chatEditingService = accessor.get(IChatEditingService);
-	const chatWidget = context?.widget ?? accessor.get(IChatWidgetService).getWidgetsByLocations(ChatAgentLocation.EditingSession).at(0);
+	const editingLocation = chatService.unifiedViewEnabled ? ChatAgentLocation.Panel : ChatAgentLocation.EditingSession;
+	const chatWidget = context?.widget ?? accessor.get(IChatWidgetService).getWidgetsByLocations(editingLocation).at(0);
 
 	if (!chatWidget?.viewModel) {
 		return;

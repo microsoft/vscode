@@ -381,8 +381,9 @@ export function registerNewChatActions() {
 
 		async run(accessor: ServicesAccessor, ...args: any[]) {
 			const viewsService = accessor.get(IViewsService);
-			const chatView = await viewsService.openView(EditsViewId) as ChatViewPane;
-			chatView.widget.focusInput();
+			const chatView = await viewsService.openView<ChatViewPane>(EditsViewId)
+				?? await viewsService.openView<ChatViewPane>(ChatViewId);
+			chatView?.widget.focusInput();
 		}
 	});
 }

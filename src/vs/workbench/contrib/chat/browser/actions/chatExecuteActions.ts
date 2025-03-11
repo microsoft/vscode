@@ -23,7 +23,7 @@ import { EditsViewId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { discardAllEditsWithConfirmation, getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { CHAT_CATEGORY } from './chatActions.js';
-import { ChatDoneActionId } from './chatClearActions.js';
+import { ACTION_ID_NEW_CHAT, ChatDoneActionId } from './chatClearActions.js';
 
 export interface IVoiceChatExecuteActionContext {
 	readonly disableTimeout?: boolean;
@@ -139,6 +139,7 @@ class ToggleChatModeAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, ...args: any[]) {
 		const agentService = accessor.get(IChatAgentService);
+		const chatService = accessor.get(IChatService);
 		const commandService = accessor.get(ICommandService);
 		const dialogService = accessor.get(IDialogService);
 
@@ -159,7 +160,7 @@ class ToggleChatModeAction extends Action2 {
 			if (chatSession?.getRequests().length) {
 				const confirmation = await dialogService.confirm({
 					title: localize('agent.newSession', "Start new session?"),
-					message: localize('agent.newSessionMessage', "Toggling agent mode will start a new session. Would you like to continue?"),
+					message: localize('agent.newSessionMessage', "Changing the chat mode will start a new session. Would you like to continue?"),
 					primaryButton: localize('agent.newSession.confirm', "Yes"),
 					type: 'info'
 				});
@@ -175,7 +176,10 @@ class ToggleChatModeAction extends Action2 {
 			agentService.setChatMode(arg.mode);
 		}
 
-		await commandService.executeCommand(ChatDoneActionId);
+		if (context.chatWidget.viewModel?.model.getRequests().length) {
+			const clearAction = chatService.unifiedViewEnabled ? ACTION_ID_NEW_CHAT : ChatDoneActionId;
+			await commandService.executeCommand(clearAction);
+		}
 	}
 }
 

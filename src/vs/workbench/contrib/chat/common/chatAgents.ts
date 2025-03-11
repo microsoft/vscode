@@ -16,6 +16,7 @@ import { equalsIgnoreCase } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Command, ProviderResult } from '../../../../editor/common/languages.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -27,7 +28,7 @@ import { ChatContextKeys } from './chatContextKeys.js';
 import { IChatProgressHistoryResponseContent, IChatRequestVariableData, ISerializableChatAgentData } from './chatModel.js';
 import { IRawChatCommandContribution } from './chatParticipantContribTypes.js';
 import { IChatFollowup, IChatLocationData, IChatProgress, IChatResponseErrorDetails, IChatTaskDto } from './chatService.js';
-import { ChatAgentLocation, ChatMode } from './constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatMode } from './constants.js';
 
 //#region agent service, commands etc
 
@@ -188,6 +189,7 @@ export interface IChatAgentService {
 	readonly onDidChangeAgents: Event<IChatAgent | undefined>;
 	readonly onDidChangeToolsAgentModeEnabled: Event<void>;
 	readonly toolsAgentModeEnabled: boolean;
+	readonly currentChatMode: ChatMode;
 	setChatMode(mode: ChatMode): void;
 	registerAgent(id: string, data: IChatAgentData): IDisposable;
 	registerAgentImplementation(id: string, agent: IChatAgentImplementation): IDisposable;
@@ -212,6 +214,11 @@ export interface IChatAgentService {
 	 * Get the default agent (only if activated)
 	 */
 	getDefaultAgent(location: ChatAgentLocation): IChatAgent | undefined;
+
+	/**
+	 * Get the primary (panel) default agent which has some special metadata
+	 */
+	getPrimaryDefaultAgent(): IChatAgent | undefined;
 
 	/**
 	 * Get the default agent data that has been contributed (may not be activated yet)
@@ -248,13 +255,14 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 	/**
 	 * Should it live in a different service?
 	 */
-	private readonly _chatMode: ChatMode;
+	private _chatMode: ChatMode;
 
 	private _chatParticipantDetectionProviders = new Map<number, IChatParticipantDetectionProvider>();
 
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this._hasDefaultAgent = ChatContextKeys.enabled.bindTo(this.contextKeyService);
@@ -271,6 +279,10 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		this._agentModeContextKey.set(
 			this.storageService.getBoolean(ChatToolsAgentModeStorageKey, StorageScope.WORKSPACE, false));
 		this._chatMode = this.storageService.get(ChatModeStorageKey, StorageScope.WORKSPACE, ChatMode.Chat) as ChatMode;
+		if (this._chatMode !== ChatMode.Chat && !this.configurationService.getValue(ChatConfiguration.UnifiedChatView)) {
+			this._chatMode = ChatMode.Chat;
+		}
+
 		this._register(
 			this.storageService.onWillSaveState(() => this.saveState()));
 	}
@@ -405,6 +417,10 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 	}
 
 	getDefaultAgent(location: ChatAgentLocation): IChatAgent | undefined {
+		// if (location === ChatAgentLocation.Panel && this._chatMode !== ChatMode.Chat && this.uni) {
+		// 	location = ChatAgentLocation.EditingSession;
+		// }
+
 		return findLast(this.getActivatedAgents(), a => {
 			if (location === ChatAgentLocation.EditingSession && this.toolsAgentModeEnabled !== !!a.isToolsAgent) {
 				return false;
@@ -414,11 +430,22 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		});
 	}
 
+	getPrimaryDefaultAgent(): IChatAgent | undefined {
+		return findLast(this.getActivatedAgents(), a => {
+			return a.isDefault && a.locations.includes(ChatAgentLocation.Panel);
+		});
+	}
+
 	public get toolsAgentModeEnabled(): boolean {
 		return !!this._hasToolsAgentContextKey.get() && !!this._agentModeContextKey.get();
 	}
 
+	public get currentChatMode(): ChatMode {
+		return this._chatMode;
+	}
+
 	setChatMode(mode: ChatMode): void {
+		this._chatMode = mode;
 		this._agentModeContextKey.set(mode === ChatMode.Agent);
 		this._onDidChangeToolsAgentModeEnabled.fire();
 		this._onDidChangeAgents.fire(this.getDefaultAgent(ChatAgentLocation.EditingSession));

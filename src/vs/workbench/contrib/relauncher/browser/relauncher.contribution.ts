@@ -33,6 +33,7 @@ interface IConfiguration extends IWindowsConfiguration {
 	workbench?: { enableExperiments?: boolean };
 	_extensionsGallery?: { enablePPE?: boolean };
 	accessibility?: { verbosity?: { debug?: boolean } };
+	chat?: { experimental?: { unifiedChatView?: boolean } };
 }
 
 export class SettingsChangeRelauncher extends Disposable implements IWorkbenchContribution {
@@ -65,6 +66,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private readonly enablePPEExtensionsGallery = new ChangeObserver('boolean');
 	private readonly restrictUNCAccess = new ChangeObserver('boolean');
 	private readonly accessibilityVerbosityDebug = new ChangeObserver('boolean');
+	private readonly unifiedChatView = new ChangeObserver('boolean');
 
 	constructor(
 		@IHostService private readonly hostService: IHostService,
@@ -143,6 +145,9 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 			// Debug accessibility verbosity
 			processChanged(this.accessibilityVerbosityDebug.handleChange(config?.accessibility?.verbosity?.debug));
+
+			// Unified chat view
+			processChanged(this.unifiedChatView.handleChange(config.chat?.experimental?.unifiedChatView));
 		}
 
 		// Experiments

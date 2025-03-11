@@ -409,7 +409,12 @@ export function registerChatTitleActions() {
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.goToEditingSession,
-				precondition: ContextKeyExpr.and(ChatContextKeys.editingParticipantRegistered, ChatContextKeys.requestInProgress.toNegated(), ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel)),
+				precondition: ContextKeyExpr.and(
+					ChatContextKeys.editingParticipantRegistered,
+					ChatContextKeys.requestInProgress.toNegated(),
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
+					ChatContextKeys.inUnifiedChat.negate()
+				),
 				menu: {
 					id: MenuId.ChatMessageFooter,
 					group: 'navigation',

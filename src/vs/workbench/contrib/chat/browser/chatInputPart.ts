@@ -72,13 +72,13 @@ import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatEditingSession } from '../common/chatEditingService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../common/chatEntitlementService.js';
 import { IChatRequestVariableEntry, isImageVariableEntry, isLinkVariableEntry, isPasteVariableEntry } from '../common/chatModel.js';
-import { IChatFollowup } from '../common/chatService.js';
+import { IChatFollowup, IChatService } from '../common/chatService.js';
 import { IChatVariablesService } from '../common/chatVariables.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { ChatInputHistoryMaxEntries, IChatHistoryEntry, IChatInputState, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
-import { ChatConfiguration, ChatMode } from '../common/constants.js';
+import { ChatMode } from '../common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
-import { CancelAction, ChatSubmitAction, ChatSubmitSecondaryAgentAction, IChatExecuteActionContext, IToggleChatModeArgs, ChatSwitchToNextModelActionId, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
+import { CancelAction, ChatSubmitAction, ChatSubmitSecondaryAgentAction, ChatSwitchToNextModelActionId, IChatExecuteActionContext, IToggleChatModeArgs, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
 import { ImplicitContextAttachmentWidget } from './attachments/implicitContextAttachment.js';
 import { PromptAttachmentsCollectionWidget } from './attachments/promptAttachments/promptAttachmentsCollectionWidget.js';
 import { IChatWidget } from './chat.js';
@@ -1458,54 +1458,61 @@ const chatInputEditorContainerSelector = '.interactive-input-editor';
 setupSimpleEditorSelectionStyling(chatInputEditorContainerSelector);
 
 class ToggleChatModeActionViewItem extends DropdownMenuActionViewItemWithKeybinding {
-	private readonly agentStateActions: IAction[];
-
 	constructor(
 		action: MenuItemAction,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IChatService chatService: IChatService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 	) {
-		// TODO checked?
-		const agentStateActions = [
-			{
-				...action,
-				id: 'agentMode',
-				label: localize('chat.agentMode', "Agent"),
-				class: undefined,
-				enabled: true,
-				run: () => action.run({ mode: ChatMode.Agent } satisfies IToggleChatModeArgs)
-			},
-			{
-				...action,
-				id: 'normalMode',
-				label: localize('chat.normalMode', "Edit"),
-				class: undefined,
-				enabled: true,
-				run: () => action.run({ mode: ChatMode.Edit } satisfies IToggleChatModeArgs)
-			},
-		];
-		if (configurationService.getValue(ChatConfiguration.UnifiedChatView)) {
-			agentStateActions.push({
-				...action,
-				id: 'chatMode',
-				label: localize('chat.chatMode', "Chat"),
-				class: undefined,
-				enabled: true,
-				run: () => action.run({ mode: ChatMode.Chat } satisfies IToggleChatModeArgs)
-			});
-		}
+		const makeAction = (mode: ChatMode): IAction => ({
+			...action,
+			id: mode,
+			label: this.modeToString(mode),
+			class: undefined,
+			enabled: true,
+			checked: chatAgentService.currentChatMode === mode,
+			run: async () => {
+				const result = await action.run({ mode } satisfies IToggleChatModeArgs);
+				this.renderLabel(this.element!);
+				return result;
+			}
+		});
 
-		super(action, agentStateActions, contextMenuService, undefined, keybindingService, contextKeyService);
-		this.agentStateActions = agentStateActions;
+		const actionProvider: IActionProvider = {
+			getActions: () => {
+				const agentStateActions = [
+					makeAction(ChatMode.Agent),
+					makeAction(ChatMode.Edit),
+				];
+				if (chatService.unifiedViewEnabled) {
+					agentStateActions.unshift(makeAction(ChatMode.Chat));
+				}
+
+				return agentStateActions;
+			}
+		};
+
+		super(action, actionProvider, contextMenuService, undefined, keybindingService, contextKeyService);
+	}
+
+	private modeToString(mode: ChatMode) {
+		switch (mode) {
+			case ChatMode.Agent:
+				return localize('chat.agentMode', "Agent");
+			case ChatMode.Edit:
+				return localize('chat.normalMode', "Edit");
+			case ChatMode.Chat:
+				return localize('chat.chatMode', "Chat");
+		}
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
 		// Can't call super.renderLabel because it has a hack of forcing the 'codicon' class
 		this.setAriaLabelAttributes(element);
 
-		const state = this.agentStateActions.find(action => action.checked)?.label ?? '';
+		const state = this.modeToString(this.chatAgentService.currentChatMode);
 		dom.reset(element, dom.$('span.chat-model-label', undefined, state), ...renderLabelWithIcons(`$(chevron-down)`));
 		return null;
 	}
