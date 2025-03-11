@@ -140,7 +140,7 @@ async function createCommandDescriptionsCache(): Promise<void> {
 						console.info(`Using fallback description for ${cmd}`);
 						cachedCommandDescriptions.set(cmd, fallbackDescriptions[cmd]);
 					} else {
-						console.info(`Error getting help for ${cmd}`);
+						console.info(`No fallback description exists for ${cmd}`);
 					}
 				}
 			} catch {
