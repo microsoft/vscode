@@ -46,7 +46,7 @@ export class TestChatPromptDecoder extends TestDecoder<TChatPromptToken, ChatPro
 suite('ChatPromptDecoder', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('produces expected tokens', async () => {
+	test('• produces expected tokens', async () => {
 		const test = testDisposables.add(
 			new TestChatPromptDecoder(),
 		);
@@ -59,6 +59,7 @@ suite('ChatPromptDecoder', () => {
 			'## Heading Title',
 			' \t#file:a/b/c/filename2.md\t🖖\t#file:other-file.md',
 			' [#file:reference.md](./reference.md)some text #file:/some/file/with/absolute/path.md',
+			'text text #file: another text',
 		];
 
 		await test.run(
@@ -85,6 +86,10 @@ suite('ChatPromptDecoder', () => {
 				new FileReference(
 					new Range(7, 48, 7, 48 + 38),
 					'/some/file/with/absolute/path.md',
+				),
+				new FileReference(
+					new Range(8, 11, 8, 11 + 6),
+					'',
 				),
 			],
 		);

@@ -128,8 +128,6 @@ export class PartialPromptVariableName extends ParserBase<TSimpleToken, PartialP
 		const firstToken = this.currentTokens[0];
 		const lastToken = this.currentTokens[this.currentTokens.length - 1];
 
-		// TODO: @lego - validate that first and last tokens are defined?
-
 		// render the characters above into strings, excluding the starting `#` character
 		const variableNameTokens = this.currentTokens.slice(1);
 		const variableName = variableNameTokens.map(pick('text')).join('');
@@ -153,7 +151,7 @@ export class PartialPromptVariableName extends ParserBase<TSimpleToken, PartialP
 export class PartialPromptVariableWithData extends ParserBase<TSimpleToken, PartialPromptVariableWithData | PromptVariableWithData> {
 
 	constructor(tokens: readonly TSimpleToken[]) {
-		const firstToken = tokens;
+		const firstToken = tokens[0];
 		const lastToken = tokens[tokens.length - 1];
 
 		// sanity checks of our expectations about the tokens list
@@ -180,38 +178,30 @@ export class PartialPromptVariableWithData extends ParserBase<TSimpleToken, Part
 			// in any case, success of failure below, this is an end of the parsing process
 			this.isConsumed = true;
 
-			// if no tokens received after initial set of tokens, fail
-			if (this.currentTokens.length === this.startTokensCount) {
-				return {
-					result: 'failure',
-					wasTokenConsumed: false,
-				};
-			}
+			const firstToken = this.currentTokens[0];
+			const lastToken = this.currentTokens[this.currentTokens.length - 1];
 
 			// tokens representing variable name without the `#` character at the start and
 			// the `:` data separator character at the end
 			const variableNameTokens = this.currentTokens.slice(1, this.startTokensCount - 1);
 			// tokens representing variable data without the `:` separator character at the start
 			const variableDataTokens = this.currentTokens.slice(this.startTokensCount);
+			// compute the full range of the variable token
+			const fullRange = new Range(
+				firstToken.range.startLineNumber,
+				firstToken.range.startColumn,
+				lastToken.range.endLineNumber,
+				lastToken.range.endColumn,
+			);
 
 			// render the characters above into strings
 			const variableName = variableNameTokens.map(pick('text')).join('');
 			const variableData = variableDataTokens.map(pick('text')).join('');
 
-			const firstToken = this.currentTokens[0];
-			const lastToken = this.currentTokens[this.currentTokens.length - 1];
-
-			// TODO: @lego - validate that first and last tokens are defined?
-
 			return {
 				result: 'success',
 				nextParser: new PromptVariableWithData(
-					new Range(
-						firstToken.range.startLineNumber,
-						firstToken.range.startColumn,
-						lastToken.range.endLineNumber,
-						lastToken.range.endColumn,
-					),
+					fullRange,
 					variableName,
 					variableData,
 				),
@@ -219,7 +209,7 @@ export class PartialPromptVariableWithData extends ParserBase<TSimpleToken, Part
 			};
 		}
 
-		// otherwise, a valid data character - the data can contain almost any character,
+		// otherwise, token is a valid data character - the data can contain almost any character,
 		// including `:` and `#`, hence add it to the list of the current tokens and continue
 		this.currentTokens.push(token);
 
@@ -232,17 +222,8 @@ export class PartialPromptVariableWithData extends ParserBase<TSimpleToken, Part
 
 	/**
 	 * Try to convert current parser instance into a fully-parsed {@link asPromptVariableWithData} token.
-	 *
-	 * @throws if sequence of tokens received so far do not constitute a valid prompt variable with data.
 	 */
 	public asPromptVariableWithData(): PromptVariableWithData {
-		// if no tokens received after initial set of tokens, fail
-		// TODO: @lego - allow this to emit `#file:` tokens? (without path)
-		assert(
-			this.currentTokens.length > this.startTokensCount,
-			`No 'data' part of the token found.`,
-		);
-
 		// tokens representing variable name without the `#` character at the start and
 		// the `:` data separator character at the end
 		const variableNameTokens = this.currentTokens.slice(1, this.startTokensCount - 1);
@@ -255,8 +236,6 @@ export class PartialPromptVariableWithData extends ParserBase<TSimpleToken, Part
 
 		const firstToken = this.currentTokens[0];
 		const lastToken = this.currentTokens[this.currentTokens.length - 1];
-
-		// TODO: @lego - validate that first and last tokens are defined?
 
 		return new PromptVariableWithData(
 			new Range(

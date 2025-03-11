@@ -5,9 +5,9 @@
 
 import { PromptToken } from './promptToken.js';
 import { assert } from '../../../../../../../base/common/assert.js';
-import { INVALID_NAME_CHARACTERS, STOP_CHARACTERS } from '../parsers/promptVariableParser.js';
 import { IRange, Range } from '../../../../../../../editor/common/core/range.js';
 import { BaseToken } from '../../../../../../../editor/common/codecs/baseToken.js';
+import { INVALID_NAME_CHARACTERS, STOP_CHARACTERS } from '../parsers/promptVariableParser.js';
 
 /**
  * All prompt variables start with `#` character.
@@ -30,15 +30,12 @@ export class PromptVariable extends PromptToken {
 		 */
 		public readonly name: string,
 	) {
+		// sanity check of characters used in the provided variable name
 		for (const character of name) {
 			assert(
-				(INVALID_NAME_CHARACTERS.includes(character) === false),
-				`File name cannot contain character '${character}', got '${name}'.`,
-			);
-
-			assert(
+				(INVALID_NAME_CHARACTERS.includes(character) === false) &&
 				(STOP_CHARACTERS.includes(character) === false),
-				`File name cannot contain character '${character}', got '${name}'.`,
+				`Variable 'name' cannot contain character '${character}', got '${name}'.`,
 			);
 		}
 
@@ -83,7 +80,6 @@ export class PromptVariable extends PromptToken {
  * Represents a {@link PromptVariable} with additional data token in a prompt text.
  * (e.g., `#variable:/path/to/file.md`)
  */
-// TODO: @legomushroom - allow for empty `path`s?
 export class PromptVariableWithData extends PromptVariable {
 	constructor(
 		fullRange: Range,
@@ -98,6 +94,14 @@ export class PromptVariableWithData extends PromptVariable {
 		public readonly data: string,
 	) {
 		super(fullRange, name);
+
+		// sanity check of characters used in the provided variable data
+		for (const character of data) {
+			assert(
+				(STOP_CHARACTERS.includes(character) === false),
+				`Variable 'data' cannot contain character '${character}', got '${data}'.`,
+			);
+		}
 	}
 
 	/**
