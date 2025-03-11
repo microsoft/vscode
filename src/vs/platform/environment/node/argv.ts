@@ -125,6 +125,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'disable-gpu': { type: 'boolean', cat: 't', description: localize('disableGPU', "Disable GPU hardware acceleration.") },
 	'disable-chromium-sandbox': { type: 'boolean', cat: 't', description: localize('disableChromiumSandbox', "Use this option only when there is requirement to launch the application as sudo user on Linux or when running as an elevated user in an applocker environment on Windows.") },
 	'sandbox': { type: 'boolean' },
+	'locate-shell-integration-path': { type: 'string', cat: 't', args: ['shell'], description: localize('locateShellIntegrationPath', "Print the path to a terminal shell integration script. Allowed values are 'bash', 'pwsh', 'zsh' or 'fish'.") },
 	'telemetry': { type: 'boolean', cat: 't', description: localize('telemetry', "Shows all telemetry events which VS code collects.") },
 
 	'remote': { type: 'string', allowEmptyValue: true },
@@ -179,7 +180,6 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'__enable-file-policy': { type: 'boolean' },
 	'editSessionId': { type: 'string' },
 	'continueOn': { type: 'string' },
-	'locate-shell-integration-path': { type: 'string', args: ['bash', 'pwsh', 'zsh', 'fish'] },
 
 	'enable-coi': { type: 'boolean' },
 
