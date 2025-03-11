@@ -167,7 +167,7 @@ function fillInActions(
 
 export interface IMenuEntryActionViewItemOptions {
 	draggable?: boolean;
-	keybinding?: string;
+	keybinding?: string | null;
 	hoverDelegate?: IHoverDelegate;
 	keybindingNotRenderedWithLabel?: boolean;
 }

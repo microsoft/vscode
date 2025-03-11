@@ -219,11 +219,19 @@ export class McpTool implements IMcpTool {
 
 	readonly id: string;
 
+	private _enabled = observableValue<boolean>(this, true);
+
+	readonly enabled: IObservable<boolean> = this._enabled;
+
 	constructor(
 		private readonly _server: McpServer,
 		public readonly definition: MCP.Tool,
 	) {
 		this.id = `${_server.definition.id}_${definition.name}`.replaceAll('.', '_');
+	}
+
+	updateEnablement(value: boolean): void {
+		this._enabled.set(value, undefined);
 	}
 
 	call(params: Record<string, unknown>, token?: CancellationToken): Promise<MCP.CallToolResult> {

@@ -110,6 +110,11 @@ export interface IMcpTool {
 	readonly id: string;
 
 	readonly definition: MCP.Tool;
+
+	readonly enabled: IObservable<boolean>;
+
+	updateEnablement(value: boolean): void;
+
 	/**
 	 * Calls a tool
 	 * @throws {@link MpcResponseError} if the tool fails to execute

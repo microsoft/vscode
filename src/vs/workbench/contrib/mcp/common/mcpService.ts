@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../base/common/async.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun, autorunWithStore, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
+import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { ILanguageModelToolsService, IToolResult } from '../../chat/common/languageModelToolsService.js';
@@ -27,7 +28,8 @@ export class McpService extends Disposable implements IMcpService {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
-		@ILanguageModelToolsService toolsService: ILanguageModelToolsService
+		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super();
 
@@ -74,7 +76,7 @@ export class McpService extends Disposable implements IMcpService {
 
 		const tools = this._register(new MutableDisposable());
 
-		this._register(autorun(reader => {
+		this._register(autorunWithStore((reader, store) => {
 
 			const servers = this._servers.read(reader);
 
@@ -87,11 +89,19 @@ export class McpService extends Disposable implements IMcpService {
 
 				for (const tool of server.tools.read(reader)) {
 
+					const ctxKey = new RawContextKey<boolean>(`mcp.tool.${tool.id}.enabled`, true);
+					const ctxInst = contextKeyService.createKey<boolean>(ctxKey.key, true);
+					store.add(toDisposable(() => ctxInst.reset()));
+					store.add(autorun(reader => {
+						ctxInst.set(tool.enabled.read(reader));
+					}));
+
 					newStore.add(toolsService.registerToolData({
 						id: tool.id,
 						displayName: tool.definition.name,
 						modelDescription: tool.definition.description ?? '',
 						inputSchema: tool.definition.inputSchema,
+						when: ctxKey.isEqualTo(true),
 						tags: ['mcp', 'vscode_editing']
 					}));
 					newStore.add(toolsService.registerToolImplementation(tool.id, {

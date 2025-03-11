@@ -19,7 +19,9 @@ import { McpService } from '../common/mcpService.js';
 import { IMcpService } from '../common/mcpTypes.js';
 import { McpDiscovery } from './mcpDiscovery.js';
 
-import './mcpCommands.js';
+import { AttachMCPToolsAction, AttachMCPToolsActionRendering, ListMcpServerCommand, McpServerOptionsCommand } from './mcpCommands.js';
+
+import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 
 registerSingleton(IMcpRegistry, McpRegistry, InstantiationType.Delayed);
 registerSingleton(IMcpService, McpService, InstantiationType.Delayed);
@@ -28,6 +30,11 @@ mcpDiscoveryRegistry.register(new SyncDescriptor(RemoteNativeMpcDiscovery));
 mcpDiscoveryRegistry.register(new SyncDescriptor(ConfigMcpDiscovery));
 
 registerWorkbenchContribution2('mcpDiscovery', McpDiscovery, WorkbenchPhase.AfterRestored);
+
+registerAction2(ListMcpServerCommand);
+registerAction2(McpServerOptionsCommand);
+registerAction2(AttachMCPToolsAction);
+registerWorkbenchContribution2('mcpActionRendering', AttachMCPToolsActionRendering, WorkbenchPhase.BlockRestore);
 
 const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
 jsonRegistry.registerSchema(mcpSchemaId, mcpServerSchema);
