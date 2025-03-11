@@ -424,6 +424,10 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 				.pipe(replace('@@PRODNAME@@', product.nameLong))
 				.pipe(replace('@@APPNAME@@', product.applicationName))
 				.pipe(rename('bin/' + product.applicationName)));
+		} else if (platform === 'darwin') {
+			const policyDest = path.join(`${product.nameLong}.app`, 'Contents', 'Resources', 'app', 'policies');
+			result = es.merge(result, gulp.src('.build/policies/darwin/**', { base: '.build/policies/darwin' })
+				.pipe(rename(f => f.dirname = path.join(policyDest, f.dirname))));
 		}
 
 		result = inlineMeta(result, {

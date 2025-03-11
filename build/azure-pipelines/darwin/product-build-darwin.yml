@@ -193,21 +193,6 @@ steps:
         chmod +x "$APP_PATH/Contents/Resources/app/bin/$CLI_APP_NAME"
       displayName: Make CLI executable
 
-    - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
-      - script: |
-          set -e
-          APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
-          APP_NAME="`ls $APP_ROOT | head -n 1`"
-          APP_PATH="$APP_ROOT/$APP_NAME"
-          POLICIES_DIR=".build/policies/darwin"
-          if [ ! -d "$POLICIES_DIR" ]; then
-            echo "Missing $POLICIES_DIR"
-            exit 1
-          fi
-          mkdir -p "$APP_PATH/Contents/Resources/app/policies"
-          cp -r "$POLICIES_DIR/" "$APP_PATH/Contents/Resources/app/policies/"
-        displayName: Copy policy definitions
-
     - script: |
         set -e
         APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
