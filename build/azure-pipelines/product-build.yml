@@ -169,6 +169,8 @@ extends:
       tsa:
         enabled: true
         configFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/tsaoptions.json
+      binskim:
+        analyzeTargetGlob: '+:file|**\*.exe;-:file|**\VSCodeSetup*.exe'
       codeql:
         runSourceLanguagesInSourceAnalysis: true
         compiled:
