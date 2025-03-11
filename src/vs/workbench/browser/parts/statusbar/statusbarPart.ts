@@ -36,6 +36,7 @@ import { StatusBarFocused } from '../../../common/contextkeys.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IView } from '../../../../base/browser/ui/grid/grid.js';
 import { isManagedHoverTooltipHTMLElement, isManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 
 export interface IStatusbarEntryContainer extends IDisposable {
 
@@ -167,7 +168,11 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		{
 			persistence: {
 				hideOnKeyDown: true,
-				sticky: focus
+				sticky: focus,
+			},
+			position: {
+				forcePosition: true,
+				hoverPosition: HoverPosition.ABOVE,
 			}
 		}
 	)));
