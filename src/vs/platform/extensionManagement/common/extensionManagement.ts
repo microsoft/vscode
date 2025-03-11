@@ -279,14 +279,14 @@ export interface ILocalExtension extends IExtension {
 }
 
 export const enum SortBy {
-	NoneOrRelevance = 0,
-	LastUpdatedDate = 1,
-	Title = 2,
-	PublisherName = 3,
-	InstallCount = 4,
-	PublishedDate = 10,
-	AverageRating = 6,
-	WeightedRating = 12
+	NoneOrRelevance = 'NoneOrRelevance',
+	LastUpdatedDate = 'LastUpdatedDate',
+	Title = 'Title',
+	PublisherName = 'PublisherName',
+	InstallCount = 'InstallCount',
+	PublishedDate = 'PublishedDate',
+	AverageRating = 'AverageRating',
+	WeightedRating = 'WeightedRating'
 }
 
 export const enum SortOrder {
