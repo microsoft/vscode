@@ -5,7 +5,9 @@
 
 import * as electron from 'electron';
 import { memoize } from '../../../base/common/decorators.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
+import { asJson } from '../../request/common/request.js';
 import { hash } from '../../../base/common/hash.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
@@ -15,7 +17,7 @@ import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IRequestService } from '../../request/common/request.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { IUpdate, State, StateType, UpdateType } from '../common/update.js';
+import { AvailableForDownload, IUpdate, State, StateType, UpdateType } from '../common/update.js';
 import { AbstractUpdateService, createUpdateURL, UpdateErrorClassification, UpdateNotAvailableClassification } from './abstractUpdateService.js';
 
 export class DarwinUpdateService extends AbstractUpdateService implements IRelaunchHandler {
@@ -83,6 +85,7 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 		const url = createUpdateURL(assetID, quality, this.productService);
 		try {
 			electron.autoUpdater.setFeedURL({ url });
+			this.logService.info('Update feed URL set to:', url);
 		} catch (e) {
 			// application is very likely not signed
 			this.logService.error('Failed to set update feed URL', e);
@@ -92,23 +95,62 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 	}
 
 	protected doCheckForUpdates(context: any): void {
+		if (!this.url) {
+			return;
+		}
+
+		console.dir('Checking for updates...', { url: this.url, context });
+		this.logService.info('Checking for updates...', { url: this.url, context });
 		this.setState(State.CheckingForUpdates(context));
-		electron.autoUpdater.checkForUpdates();
+
+		this.requestService.request({ url: this.url }, CancellationToken.None)
+			.then<IUpdate | null>(asJson)
+			.then(update => {
+				console.dir('Update check response:', update);
+				this.logService.info('Update check response:', update);
+				if (!update || !update.version || !update.productVersion) {
+					console.dir('No update available');
+					this.telemetryService.publicLog2<{ explicit: boolean }, UpdateNotAvailableClassification>('update:notAvailable', { explicit: !!context });
+					this.setState(State.Idle(UpdateType.Archive));
+					return;
+				}
+
+				console.dir('Update available:', update);
+				this.logService.info('Update available:', update);
+				this.setState(State.AvailableForDownload(update));
+			})
+			.then(undefined, err => {
+				this.telemetryService.publicLog2<{ messageHash: string }, UpdateErrorClassification>('update:error', { messageHash: String(hash(String(err))) });
+				this.logService.error('UpdateService error:', err);
+
+				const message = (!!context) ? (err.message || err) : undefined;
+				this.setState(State.Idle(UpdateType.Archive, message));
+			});
 	}
 
 	private onUpdateAvailable(): void {
-		if (this.state.type !== StateType.CheckingForUpdates) {
+		if (this.state.type !== StateType.CheckingForUpdates && this.state.type !== StateType.Downloading) {
 			return;
 		}
 
+		// On macOS, the download starts automatically after update is available
+		if (this.state.type === StateType.Downloading) {
+			this.logService.info('Update is available and downloading automatically');
+		}
+	}
+
+	protected override async doDownloadUpdate(state: AvailableForDownload): Promise<void> {
+		console.dir('Starting download for update:', state.update);
+		this.logService.info('Starting download for update:', state.update);
 		this.setState(State.Downloading);
+
+		// On macOS, checkForUpdates() will automatically start the download if an update is available
+		electron.autoUpdater.checkForUpdates();
 	}
 
 	private onUpdateDownloaded(update: IUpdate): void {
-		if (this.state.type !== StateType.Downloading) {
-			return;
-		}
-
+		console.dir('Update downloaded successfully:', update);
+		this.logService.info('Update downloaded successfully:', update);
 		this.setState(State.Downloaded(update));
 
 		type UpdateDownloadedClassification = {
