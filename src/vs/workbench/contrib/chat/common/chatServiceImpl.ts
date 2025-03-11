@@ -23,6 +23,7 @@ import { Progress } from '../../../../platform/progress/common/progress.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { ChatAgentLocation, IChatAgent, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from './chatAgents.js';
@@ -46,6 +47,7 @@ interface IChatTransfer {
 	inputValue: string;
 	location: ChatAgentLocation;
 	toolsAgentModeEnabled: boolean;
+	isWorkspaceTrusted: boolean;
 }
 const SESSION_TRANSFER_EXPIRATION_IN_MILLISECONDS = 1000 * 60;
 
@@ -146,6 +148,7 @@ export class ChatService extends Disposable implements IChatService {
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService,
+		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
 
@@ -172,7 +175,9 @@ export class ChatService extends Disposable implements IChatService {
 				inputValue: transferredData.inputValue,
 				location: transferredData.location,
 				toolsAgentModeEnabled: transferredData.toolsAgentModeEnabled,
+				isWorkspaceTrusted: transferredData.isWorkspaceTrusted,
 			};
+			workspaceTrustManagementService.setWorkspaceTrust(transferredData.isWorkspaceTrusted);
 		}
 
 		this._register(storageService.onWillSaveState(() => this.saveState()));
@@ -1032,6 +1037,7 @@ export class ChatService extends Disposable implements IChatService {
 			inputValue: transferredSessionData.inputValue,
 			location: transferredSessionData.location,
 			toolsAgentModeEnabled: transferredSessionData.toolsAgentModeEnabled,
+			isWorkspaceTrusted: transferredSessionData.isWorkspaceTrusted
 		});
 
 		this.storageService.store(globalChatKey, JSON.stringify(existingRaw), StorageScope.PROFILE, StorageTarget.MACHINE);

@@ -412,6 +412,7 @@ export interface IChatTransferredSessionData {
 	inputValue: string;
 	location: ChatAgentLocation;
 	toolsAgentModeEnabled: boolean;
+	isWorkspaceTrusted: boolean;
 }
 
 export interface IChatSendRequestResponseState {
