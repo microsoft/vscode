@@ -2216,18 +2216,47 @@ export enum TaskRevealKind {
 	Never = 3
 }
 
-export const TaskEventKind = {
-	DependsOnStarted: 'dependsOnStarted',
-	AcquiredInput: 'acquiredInput',
-	Start: 'start',
-	ProcessStarted: 'processStarted',
-	Active: 'active',
-	Inactive: 'inactive',
-	Changed: 'changed',
-	Terminated: 'terminated',
-	ProcessEnded: 'processEnded',
-	End: 'end'
-};
+export enum TaskEventKind {
+	/** Indicates a task's properties or configuration have changed */
+	Changed = 'changed',
+
+	/** Indicates a task has begun executing */
+	ProcessStarted = 'processStarted',
+
+	/** Indicates a task process has completed */
+	ProcessEnded = 'processEnded',
+
+	/** Indicates a task was terminated, either by user action or by the system */
+	Terminated = 'terminated',
+
+	/** Indicates a task has started running */
+	Start = 'start',
+
+	/** Indicates a task has acquired all needed input/variables to execute */
+	AcquiredInput = 'acquiredInput',
+
+	/** Indicates a dependent task has started */
+	DependsOnStarted = 'dependsOnStarted',
+
+	/** Indicates a task is actively running/processing */
+	Active = 'active',
+
+	/** Indicates a task is paused/waiting but not complete */
+	Inactive = 'inactive',
+
+	/** Indicates a task has completed fully */
+	End = 'end',
+
+	/** Indicates the task's problem matcher has started */
+	ProblemMatcherStarted = 'problemMatcherStarted',
+
+	/** Indicates the task's problem matcher has ended */
+	ProblemMatcherEnded = 'problemMatcherEnded',
+
+	/** Indicates the task's problem matcher has found errors */
+	ProblemMatcherFoundErrors = 'problemMatcherFoundErrors'
+}
+
 
 export enum TaskPanelKind {
 	Shared = 1,

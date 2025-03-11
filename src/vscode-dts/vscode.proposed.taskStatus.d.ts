@@ -35,7 +35,16 @@ declare module 'vscode' {
 		Inactive = 'inactive',
 
 		/** Indicates the task has completed fully */
-		End = 'end'
+		End = 'end',
+
+		/** Indicates that a problem matcher has started */
+		ProblemMatcherStarted = 'problemMatcherStarted',
+
+		/** Indicates that a problem matcher has ended */
+		ProblemMatcherEnded = 'problemMatcherEnded',
+
+		/** Indicates that a problem matcher has found errors */
+		ProblemMatcherFoundErrors = 'problemMatcherFoundErrors'
 	}
 
 	export interface TaskStatusEvent {

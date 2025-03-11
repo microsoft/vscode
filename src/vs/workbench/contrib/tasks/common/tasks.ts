@@ -1115,16 +1115,44 @@ export interface ITaskChangedEvent {
 
 
 export enum TaskEventKind {
-	DependsOnStarted = 'dependsOnStarted',
-	AcquiredInput = 'acquiredInput',
-	Start = 'start',
-	ProcessStarted = 'processStarted',
-	Active = 'active',
-	Inactive = 'inactive',
+	/** Indicates that a task's properties or configuration have changed */
 	Changed = 'changed',
-	Terminated = 'terminated',
+
+	/** Indicates that a task has begun executing */
+	ProcessStarted = 'processStarted',
+
+	/** Indicates that a task process has completed */
 	ProcessEnded = 'processEnded',
-	End = 'end'
+
+	/** Indicates that a task was terminated, either by user action or by the system */
+	Terminated = 'terminated',
+
+	/** Indicates a task has started running */
+	Start = 'start',
+
+	/** Indicates task has acquired all needed input/variables to execute */
+	AcquiredInput = 'acquiredInput',
+
+	/** Indicates a dependent task has started */
+	DependsOnStarted = 'dependsOnStarted',
+
+	/** Indicates the task is actively running/processing */
+	Active = 'active',
+
+	/** Indicates the task is paused/waiting but not complete */
+	Inactive = 'inactive',
+
+	/** Indicates the task has completed fully */
+	End = 'end',
+
+	/** Indicates that a problem matcher has started */
+	ProblemMatcherStarted = 'problemMatcherStarted',
+
+	/** Indicates that a problem matcher has ended */
+	ProblemMatcherEnded = 'problemMatcherEnded',
+
+	/** Indicates that a problem matcher has found errors */
+	ProblemMatcherFoundErrors = 'problemMatcherFoundErrors'
 }
 
 
@@ -1161,7 +1189,7 @@ export interface ITaskStartedEvent extends ITaskCommon {
 }
 
 export interface ITaskGeneralEvent extends ITaskCommon {
-	kind: TaskEventKind.AcquiredInput | TaskEventKind.DependsOnStarted | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.End;
+	kind: TaskEventKind.AcquiredInput | TaskEventKind.DependsOnStarted | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.End | TaskEventKind.ProblemMatcherEnded | TaskEventKind.ProblemMatcherStarted | TaskEventKind.ProblemMatcherFoundErrors;
 	terminalId: number | undefined;
 }
 
@@ -1227,7 +1255,7 @@ export namespace TaskEvent {
 		};
 	}
 
-	export function general(kind: TaskEventKind.AcquiredInput | TaskEventKind.DependsOnStarted | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.End, task: Task, terminalId?: number): ITaskGeneralEvent {
+	export function general(kind: TaskEventKind.AcquiredInput | TaskEventKind.DependsOnStarted | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.End | TaskEventKind.ProblemMatcherEnded | TaskEventKind.ProblemMatcherStarted | TaskEventKind.ProblemMatcherFoundErrors, task: Task, terminalId?: number): ITaskGeneralEvent {
 		return {
 			...common(task),
 			kind,
