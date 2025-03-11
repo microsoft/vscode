@@ -75,6 +75,26 @@ const fallbackDescriptions: Record<string, ICommandDetails> = {
 		shortDescription: 'Resolve and print the absolute path.',
 		description: 'Convert each provided path to its absolute, canonical form by resolving symbolic links and relative path components.',
 		args: 'PATH...'
+	},
+	':': {
+		shortDescription: 'No operation command.',
+		description: 'The `:` command is a no-op (no operation) command that returns a successful (zero) exit status. It can be used as a placeholder in scripts where a command is syntactically required but no action is desired.',
+		args: undefined
+	},
+	'test': {
+		shortDescription: 'Evaluate conditional expressions.',
+		description: 'The `test` command evaluates conditional expressions and sets the exit status to 0 if the expression is true, and 1 if it is false. It supports various operators to evaluate expressions related to strings, numbers, and file attributes.',
+		args: 'EXPRESSION'
+	},
+	'true': {
+		shortDescription: 'Return a successful result.',
+		description: 'The `true` command always returns a successful (zero) exit status. It is often used in scripts and conditional statements where an unconditional success result is needed.',
+		args: undefined
+	},
+	'printf': {
+		shortDescription: 'Display formatted text.',
+		description: 'The `printf` command formats and prints text according to a specified format string. Unlike `echo`, `printf` does not append a newline unless explicitly included in the format.',
+		args: 'FORMAT [ARGUMENT...]'
 	}
 };
 
@@ -93,7 +113,7 @@ async function createCommandDescriptionsCache(): Promise<void> {
 			try {
 				// Get help info for each builtin
 				const helpOutput = await execAsync(`fish -c "${cmd} --help 2>&1"`).then(r => r.stdout);
-
+				let set = false;
 				if (helpOutput && !helpOutput.includes('No help for function') && !helpOutput.includes('See the web documentation')) {
 					// Clean up the text:
 					// 1. Remove ANSI escape codes for bold and colors
@@ -103,8 +123,6 @@ async function createCommandDescriptionsCache(): Promise<void> {
 					// Split the text into lines to process
 					const lines = cleanHelpText.split('\n');
 
-					// First line typically contains the command usage
-					const firstLine = lines[0]?.trim();
 
 					// Extract the short description, args, and full description
 					const { shortDescription, args, description } = extractHelpContent(cmd, lines);
@@ -112,9 +130,11 @@ async function createCommandDescriptionsCache(): Promise<void> {
 					cachedCommandDescriptions.set(cmd, {
 						shortDescription,
 						description,
-						args: args || firstLine
+						args
 					});
-				} else {
+					set = description !== '';
+				}
+				if (!set) {
 					// Use fallback descriptions for commands that don't return proper help
 					if (fallbackDescriptions[cmd]) {
 						console.info(`Using fallback description for ${cmd}`);
@@ -126,6 +146,7 @@ async function createCommandDescriptionsCache(): Promise<void> {
 			} catch {
 				// Use fallback descriptions for commands that throw an error
 				if (fallbackDescriptions[cmd]) {
+					console.info('Using fallback description for', cmd);
 					cachedCommandDescriptions.set(cmd, fallbackDescriptions[cmd]);
 				} else {
 					console.info(`Error getting help for ${cmd}`);
@@ -178,8 +199,7 @@ function extractHelpContent(cmd: string, lines: string[]): { shortDescription: s
 
 		if (i < lines.length) {
 			// Found a line after the short description - that's our args
-			// Ensure it's not just the command name
-			args = lines[i].trim() !== cmd ? lines[i].trim() : '';
+			args = lines[i].trim();
 			i++;
 		}
 	}
