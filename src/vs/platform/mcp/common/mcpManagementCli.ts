@@ -29,6 +29,11 @@ export class McpManagementCli {
 	) {
 		const configs = definitions.map((config) => this.validateConfiguration(config));
 
+		if (workspace) {
+			// todo (see below comments)
+			throw new InvalidMcpOperationError(`Installing into workspaces is not yet supported`);
+		}
+
 		if (!workspace) {
 			await this.updateMcpInConfig(this._userConfigurationService, configs);
 		} else if (hasWorkspaceFileExtension(workspace)) {
