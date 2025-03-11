@@ -33,9 +33,7 @@ interface ILanguagePackFile {
 
 export class LanguagePackCachedDataCleaner extends Disposable {
 
-	private readonly _DataMaxAge = this.productService.quality !== 'stable'
-		? 1000 * 60 * 60 * 24 * 7 		// roughly 1 week (insiders)
-		: 1000 * 60 * 60 * 24 * 30 * 3; // roughly 3 months (stable)
+	private readonly dataMaxAge: number;
 
 	constructor(
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
@@ -43,6 +41,10 @@ export class LanguagePackCachedDataCleaner extends Disposable {
 		@IProductService private readonly productService: IProductService
 	) {
 		super();
+
+		this.dataMaxAge = this.productService.quality !== 'stable'
+			? 1000 * 60 * 60 * 24 * 7 		// roughly 1 week (insiders)
+			: 1000 * 60 * 60 * 24 * 30 * 3; // roughly 3 months (stable)
 
 		// We have no Language pack support for dev version (run from source)
 		// So only cleanup when we have a build version.
@@ -95,7 +97,7 @@ export class LanguagePackCachedDataCleaner extends Disposable {
 
 					const candidate = join(folder, entry);
 					const stat = await fs.promises.stat(candidate);
-					if (stat.isDirectory() && (now - stat.mtime.getTime()) > this._DataMaxAge) {
+					if (stat.isDirectory() && (now - stat.mtime.getTime()) > this.dataMaxAge) {
 						this.logService.trace(`[language pack cache cleanup]: Removing language pack cache folder: ${join(packEntry, entry)}`);
 
 						await Promises.rm(candidate);
