@@ -83,6 +83,7 @@ export interface IExtension {
 	readonly installCount?: number;
 	readonly rating?: number;
 	readonly ratingCount?: number;
+	readonly ratingUrl?: string;
 	readonly outdated: boolean;
 	readonly outdatedTargetPlatform: boolean;
 	readonly runtimeState: ExtensionRuntimeState | undefined;
@@ -263,4 +264,5 @@ export interface IExtensionArg {
 	id: string;
 	version: string;
 	location: URI | undefined;
+	galleryLink: string | undefined;
 }
