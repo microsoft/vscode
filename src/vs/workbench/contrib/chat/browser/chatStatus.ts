@@ -136,7 +136,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			// TODO@bpasero: remove this eventually
 			const completionsStatusId = `${defaultChat.extensionId}.status`;
 			this.statusbarService.updateEntryVisibility(completionsStatusId, false);
-			this.statusbarService.overrideEntry(completionsStatusId, { name: localize('codeCompletionsStatus', "Copilot Code Completions") });
+			this.statusbarService.overrideEntry(completionsStatusId, { name: localize('codeCompletionsStatus', "Copilot Code Completions"), text: localize('codeCompletionsStatusText', "$(copilot) Completions") });
 		} else {
 			this.entry?.dispose();
 			this.entry = undefined;
