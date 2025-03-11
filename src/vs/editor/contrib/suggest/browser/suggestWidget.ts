@@ -238,15 +238,16 @@ export class SuggestWidget implements IDisposable {
 					let label = item.textLabel;
 					if (typeof item.completion.label !== 'string') {
 						const { detail, description } = item.completion.label;
+						const kind = item.completion.kind;
 						if (detail && description) {
-							label = nls.localize('label.full', '{0} {1}, {2}', label, detail, description);
+							label = nls.localize('label.full', '{0} {1}, {2}, {3}', label, detail, description, kind);
 						} else if (detail) {
-							label = nls.localize('label.detail', '{0} {1}', label, detail);
+							label = nls.localize('label.detail', '{0} {1}, {2}', label, detail, kind);
 						} else if (description) {
-							label = nls.localize('label.desc', '{0}, {1}', label, description);
+							label = nls.localize('label.desc', '{0}, {1}, {2}', label, description, kind);
 						}
 					}
-
+					console.log('aria label', label);
 					if (!item.isResolved || !this._isDetailsVisible()) {
 						return label;
 					}

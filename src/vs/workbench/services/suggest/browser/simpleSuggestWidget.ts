@@ -202,15 +202,16 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 					let label = item.textLabel;
 					if (typeof item.completion.label !== 'string') {
 						const { detail, description } = item.completion.label;
+						const kind = item.completion.type ?? '';
 						if (detail && description) {
-							label = localize('label.full', '{0}{1}, {2}', label, detail, description);
+							label = localize('label.full', '{0}{1}, {2} {3}', label, detail, description, kind);
 						} else if (detail) {
-							label = localize('label.detail', '{0}{1}', label, detail);
+							label = localize('label.detail', '{0}{1} {2}', label, detail, kind);
 						} else if (description) {
-							label = localize('label.desc', '{0}, {1}', label, description);
+							label = localize('label.desc', '{0}, {1} {2}', label, description, kind);
 						}
 					}
-
+					console.log('aria label', label);
 					const { documentation, detail } = item.completion;
 					const docs = strings.format(
 						'{0}{1}',
