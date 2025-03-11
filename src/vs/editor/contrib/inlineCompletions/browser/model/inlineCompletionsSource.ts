@@ -796,6 +796,23 @@ function reshapeEdit(edit: SingleOffsetEdit, originalText: string, totalInnerEdi
 		edit = reshapeMultiLineInsertion(edit, textModel);
 	}
 
+	// The diff algorithm extended a simple edit to the entire word
+	// shrink it back to a simple edit if it is deletion/insertion only
+	if (totalInnerEdits === 1) {
+		const prefixLength = commonPrefixLength(originalText, edit.newText);
+		const suffixLength = commonSuffixLength(originalText.slice(prefixLength), edit.newText.slice(prefixLength));
+
+		// reshape it back to an insertion
+		if (prefixLength + suffixLength === originalText.length) {
+			return new SingleOffsetEdit(edit.replaceRange.deltaStart(prefixLength).deltaEnd(-suffixLength), edit.newText.substring(prefixLength, edit.newText.length - suffixLength));
+		}
+
+		// reshape it back to a deletion
+		if (prefixLength + suffixLength === edit.newText.length) {
+			return new SingleOffsetEdit(edit.replaceRange.deltaStart(prefixLength).deltaEnd(-suffixLength), '');
+		}
+	}
+
 	return edit;
 }
 
