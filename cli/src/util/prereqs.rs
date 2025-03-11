@@ -156,7 +156,7 @@ async fn check_glibc_version() -> Result<bool, String> {
 
 	if let Some(v) = version {
 		return if v >= *MIN_LDD_VERSION {
-			Ok(false)
+			Ok(true)
 		} else {
 			Err(format!(
 				"find GLIBC >= {} (but found {} instead) for GNU environments",
