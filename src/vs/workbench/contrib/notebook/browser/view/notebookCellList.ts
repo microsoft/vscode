@@ -1036,7 +1036,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			}
 
 			const editorAttachedPromise = new Promise<void>((resolve, reject) => {
-				element.onDidChangeEditorAttachState(() => {
+				Event.once(element.onDidChangeEditorAttachState)(() => {
 					element.editorAttached ? resolve() : reject();
 				});
 			});
