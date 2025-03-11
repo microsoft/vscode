@@ -15,10 +15,9 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { isChatViewTitleActionContext } from '../../common/chatActions.js';
-import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingSession, WorkingSetEntryState } from '../../common/chatEditingService.js';
-import { ChatMode } from '../../common/constants.js';
+import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
 import { ChatViewId, EditsViewId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { EditingSessionAction } from '../chatEditing/chatEditingActions.js';
 import { ctxIsGlobalEditingSession } from '../chatEditing/chatEditingEditorContextKeys.js';
@@ -380,17 +379,18 @@ export function registerNewChatActions() {
 		async run(accessor: ServicesAccessor, opts?: string | IChatViewOpenOptions) {
 			opts = typeof opts === 'string' ? { query: opts } : opts;
 			const viewsService = accessor.get(IViewsService);
-			const chatView = await viewsService.openView(EditsViewId) as ChatViewPane;
+			const chatView = await viewsService.openView<ChatViewPane>(EditsViewId)
+				?? await viewsService.openView<ChatViewPane>(ChatViewId);
 
 			if (opts?.query) {
 				if (opts.isPartialQuery) {
-					chatView.widget.setInput(opts.query);
+					chatView?.widget.setInput(opts.query);
 				} else {
-					chatView.widget.acceptInput(opts.query);
+					chatView?.widget.acceptInput(opts.query);
 				}
 			}
 
-			chatView.widget.focusInput();
+			chatView?.widget.focusInput();
 		}
 	});
 }

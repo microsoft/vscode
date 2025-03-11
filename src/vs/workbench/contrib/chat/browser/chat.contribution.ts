@@ -102,6 +102,7 @@ import { Event } from '../../../../base/common/event.js';
 import { ChatEditingNotebookFileSystemProviderContrib } from './chatEditing/notebook/chatEditingNotebookFileSystemProvider.js';
 import { mcpConfigurationSection, mcpSchemaExampleServers } from '../../mcp/common/mcpConfiguration.js';
 import { mcpSchemaId } from '../../../services/configuration/common/configuration.js';
+import { ChatConfiguration } from '../common/constants.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -209,6 +210,12 @@ configurationRegistry.registerConfiguration({
 			},
 			description: nls.localize('workspaceConfig.mcp.description', "Model Context Protocol server configurations"),
 			$ref: mcpSchemaId
+		},
+		[ChatConfiguration.UnifiedChatView]: {
+			type: 'boolean',
+			description: nls.localize('chat.experimental.unifiedChatView', "Enables the unified view with Chat, Edit, and Agent in one place."),
+			default: false,
+			tags: ['experimental'],
 		},
 		[PromptsConfig.CONFIG_KEY]: {
 			type: 'boolean',

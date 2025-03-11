@@ -72,13 +72,13 @@ import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatEditingSession } from '../common/chatEditingService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../common/chatEntitlementService.js';
 import { IChatRequestVariableEntry, isImageVariableEntry, isLinkVariableEntry, isPasteVariableEntry } from '../common/chatModel.js';
-import { IChatFollowup } from '../common/chatService.js';
+import { IChatFollowup, IChatService } from '../common/chatService.js';
 import { IChatVariablesService } from '../common/chatVariables.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { ChatInputHistoryMaxEntries, IChatHistoryEntry, IChatInputState, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
 import { ChatMode } from '../common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
-import { CancelAction, ChatSubmitAction, ChatSubmitSecondaryAgentAction, ChatSwitchToNextModelActionId, IChatExecuteActionContext, IToggleAgentModeArgs, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
+import { CancelAction, ChatSubmitAction, ChatSubmitSecondaryAgentAction, ChatSwitchToNextModelActionId, IChatExecuteActionContext, IToggleChatModeArgs, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
 import { ImplicitContextAttachmentWidget } from './attachments/implicitContextAttachment.js';
 import { PromptAttachmentsCollectionWidget } from './attachments/promptAttachments/promptAttachmentsCollectionWidget.js';
 import { IChatWidget } from './chat.js';
@@ -936,7 +936,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						getMode: () => this._currentMode,
 						onDidChangeMode: this._onDidChangeCurrentChatMode.event
 					};
-					return this.instantiationService.createInstance(ToggleAgentActionViewItem, action, delegate);
+					return this.instantiationService.createInstance(ToggleChatModeActionViewItem, action, delegate);
 				}
 
 				return undefined;
@@ -1501,13 +1501,14 @@ interface IModePickerDelegate {
 	getMode(): ChatMode;
 }
 
-class ToggleAgentActionViewItem extends DropdownMenuActionViewItemWithKeybinding {
+class ToggleChatModeActionViewItem extends DropdownMenuActionViewItemWithKeybinding {
 	constructor(
 		action: MenuItemAction,
 		private readonly delegate: IModePickerDelegate,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IChatService chatService: IChatService,
 	) {
 		const makeAction = (mode: ChatMode): IAction => ({
 			...action,
@@ -1517,7 +1518,7 @@ class ToggleAgentActionViewItem extends DropdownMenuActionViewItemWithKeybinding
 			enabled: true,
 			checked: delegate.getMode() === mode,
 			run: async () => {
-				const result = await action.run({ agentMode: mode === ChatMode.Agent } satisfies IToggleAgentModeArgs);
+				const result = await action.run({ mode } satisfies IToggleChatModeArgs);
 				this.renderLabel(this.element!);
 				return result;
 			}
@@ -1529,13 +1530,15 @@ class ToggleAgentActionViewItem extends DropdownMenuActionViewItemWithKeybinding
 					makeAction(ChatMode.Agent),
 					makeAction(ChatMode.Edit),
 				];
+				if (chatService.unifiedViewEnabled) {
+					agentStateActions.unshift(makeAction(ChatMode.Chat));
+				}
+
 				return agentStateActions;
 			}
 		};
 
 		super(action, actionProvider, contextMenuService, undefined, keybindingService, contextKeyService);
-
-		this._register(delegate.onDidChangeMode(() => this.renderLabel(this.element!)));
 	}
 
 	private modeToString(mode: ChatMode) {
@@ -1553,8 +1556,8 @@ class ToggleAgentActionViewItem extends DropdownMenuActionViewItemWithKeybinding
 		// Can't call super.renderLabel because it has a hack of forcing the 'codicon' class
 		this.setAriaLabelAttributes(element);
 
-		const state = this.delegate.getMode();
-		dom.reset(element, dom.$('span.chat-model-label', undefined, this.modeToString(state)), ...renderLabelWithIcons(`$(chevron-down)`));
+		const state = this.modeToString(this.delegate.getMode());
+		dom.reset(element, dom.$('span.chat-model-label', undefined, state), ...renderLabelWithIcons(`$(chevron-down)`));
 		return null;
 	}
 

@@ -13,17 +13,17 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { IChatAgentService } from '../../common/chatAgents.js';
+import { ChatContextKeyExprs, ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { chatAgentLeader, extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatService } from '../../common/chatService.js';
-import { ChatMode } from '../../common/constants.js';
+import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
 import { EditsViewId, IChatWidget, IChatWidgetService } from '../chat.js';
-import { discardAllEditsWithConfirmation, EditingSessionAction } from '../chatEditing/chatEditingActions.js';
+import { discardAllEditsWithConfirmation, getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { CHAT_CATEGORY } from './chatActions.js';
-import { ChatDoneActionId } from './chatClearActions.js';
+import { ACTION_ID_NEW_CHAT, ChatDoneActionId } from './chatClearActions.js';
 
 export interface IVoiceChatExecuteActionContext {
 	readonly disableTimeout?: boolean;
@@ -93,29 +93,31 @@ export class ChatSubmitAction extends SubmitAction {
 
 export const ToggleAgentModeActionId = 'workbench.action.chat.toggleAgentMode';
 
-export interface IToggleAgentModeArgs {
-	agentMode: boolean;
+export interface IToggleChatModeArgs {
+	mode: ChatMode;
 }
 
-export class ToggleAgentModeAction extends EditingSessionAction {
+class ToggleChatModeAction extends Action2 {
 
 	static readonly ID = ToggleAgentModeActionId;
 
 	constructor() {
 		super({
-			id: ToggleAgentModeAction.ID,
-			title: localize2('interactive.toggleMode.label', "Toggle Chat Mode (Experimental)"),
+			id: ToggleChatModeAction.ID,
+			title: localize2('interactive.toggleAgent.label', "Set Chat Mode (Experimental)"),
 			f1: true,
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
-				ChatContextKeys.Editing.hasToolsAgent,
+				ContextKeyExpr.or(
+					ChatContextKeys.Editing.hasToolsAgent,
+					ChatContextKeyExprs.unifiedChatEnabled),
 				ChatContextKeys.requestInProgress.negate()),
 			tooltip: localize('setChatMode', "Set Mode (Experimental)"),
 			keybinding: {
 				when: ContextKeyExpr.and(
 					ChatContextKeys.inChatInput,
-					ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)),
+					ChatContextKeyExprs.inEditsOrUnified),
 				primary: KeyMod.CtrlCmd | KeyCode.Period,
 				weight: KeybindingWeight.EditorContrib
 			},
@@ -123,33 +125,42 @@ export class ToggleAgentModeAction extends EditingSessionAction {
 				{
 					id: MenuId.ChatExecute,
 					order: 1,
-					when: ContextKeyExpr.and(
-						ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
-						ChatContextKeys.Editing.hasToolsAgent),
+					// Either in edits with agent mode available, or in unified chat view
+					when: ContextKeyExpr.or(
+						ContextKeyExpr.and(
+							ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
+							ChatContextKeys.Editing.hasToolsAgent,
+						),
+						ChatContextKeyExprs.unifiedChatEnabled),
 					group: 'navigation',
 				},
 			]
 		});
 	}
 
-	override async runEditingSessionAction(accessor: ServicesAccessor, currentEditingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]) {
-
+	async run(accessor: ServicesAccessor, ...args: any[]) {
 		const chatService = accessor.get(IChatService);
 		const commandService = accessor.get(ICommandService);
 		const dialogService = accessor.get(IDialogService);
 
-		const entries = currentEditingSession.entries.get();
-		if (entries.length > 0 && entries.some(entry => entry.state.get() === WorkingSetEntryState.Modified)) {
-			if (!await discardAllEditsWithConfirmation(accessor, currentEditingSession)) {
+		const context = getEditingSessionContext(accessor, args);
+		if (!context?.chatWidget) {
+			return;
+		}
+
+		// TODO will not require discarding the session when we are able to switch modes mid-session
+		const entries = context.editingSession?.entries.get();
+		if (context.editingSession && entries && entries.length > 0 && entries.some(entry => entry.state.get() === WorkingSetEntryState.Modified)) {
+			if (!await discardAllEditsWithConfirmation(accessor, context.editingSession)) {
 				// User cancelled
 				return;
 			}
 		} else {
-			const chatSession = chatService.getSession(currentEditingSession.chatSessionId);
+			const chatSession = context.chatWidget.viewModel?.model;
 			if (chatSession?.getRequests().length) {
 				const confirmation = await dialogService.confirm({
 					title: localize('agent.newSession', "Start new session?"),
-					message: localize('agent.newSessionMessage', "Toggling agent mode will start a new session. Would you like to continue?"),
+					message: localize('agent.newSessionMessage', "Changing the chat mode will start a new session. Would you like to continue?"),
 					primaryButton: localize('agent.newSession.confirm', "Yes"),
 					type: 'info'
 				});
@@ -159,13 +170,16 @@ export class ToggleAgentModeAction extends EditingSessionAction {
 			}
 		}
 
-		const arg = args[0] as IToggleAgentModeArgs | undefined;
-		const setTo = arg ?
-			(arg.agentMode ? ChatMode.Agent : ChatMode.Edit) :
-			(chatWidget.input.toolsAgentModeEnabled ? ChatMode.Edit : ChatMode.Agent);
-		chatWidget.input.setChatMode(setTo);
+		const arg = args[0] as IToggleChatModeArgs | undefined;
+		if (arg?.mode) {
+			// TODO also use keybinding to advance modes
+			context.chatWidget.input.setChatMode(arg.mode);
+		}
 
-		await commandService.executeCommand(ChatDoneActionId);
+		if (context.chatWidget.viewModel?.model.getRequests().length) {
+			const clearAction = chatService.unifiedViewEnabled ? ACTION_ID_NEW_CHAT : ChatDoneActionId;
+			await commandService.executeCommand(clearAction);
+		}
 	}
 }
 
@@ -576,7 +590,7 @@ export function registerChatExecuteActions() {
 	registerAction2(SendToNewChatAction);
 	registerAction2(ChatSubmitSecondaryAgentAction);
 	registerAction2(SendToChatEditingAction);
-	registerAction2(ToggleAgentModeAction);
+	registerAction2(ToggleChatModeAction);
 	registerAction2(ToggleRequestPausedAction);
 	registerAction2(SwitchToNextModelAction);
 }

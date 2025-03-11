@@ -26,11 +26,11 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { IListService } from '../../../../../platform/list/browser/listService.js';
 import { GroupsOrder, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
+import { ChatAgentLocation } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
 
@@ -48,26 +48,37 @@ export abstract class EditingSessionAction extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor, ...args: any[]) {
-		const context: IEditingSessionActionContext | undefined = args[0];
-
-		const chatEditingService = accessor.get(IChatEditingService);
-		const chatWidget = context?.widget ?? accessor.get(IChatWidgetService).getWidgetsByLocations(ChatAgentLocation.EditingSession).at(0);
-
-		if (!chatWidget?.viewModel) {
+		const context = getEditingSessionContext(accessor, args);
+		if (!context || !context.editingSession) {
 			return;
 		}
 
-		const chatSessionId = chatWidget.viewModel.model.sessionId;
-		const editingSession = chatEditingService.getEditingSession(chatSessionId);
-
-		if (!editingSession) {
-			return;
-		}
-
-		return this.runEditingSessionAction(accessor, editingSession, chatWidget, ...args);
+		return this.runEditingSessionAction(accessor, context.editingSession, context.chatWidget, ...args);
 	}
 
 	abstract runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]): any;
+}
+
+export function getEditingSessionContext(accessor: ServicesAccessor, args: any[]): { editingSession?: IChatEditingSession; chatWidget: IChatWidget } | undefined {
+	const context: IEditingSessionActionContext | undefined = args[0];
+
+	const chatService = accessor.get(IChatService);
+	const chatEditingService = accessor.get(IChatEditingService);
+	const editingLocation = chatService.unifiedViewEnabled ? ChatAgentLocation.Panel : ChatAgentLocation.EditingSession;
+	const chatWidget = context?.widget ?? accessor.get(IChatWidgetService).getWidgetsByLocations(editingLocation).at(0);
+
+	if (!chatWidget?.viewModel) {
+		return;
+	}
+
+	const chatSessionId = chatWidget.viewModel.model.sessionId;
+	const editingSession = chatEditingService.getEditingSession(chatSessionId);
+
+	if (!editingSession) {
+		return;
+	}
+
+	return { editingSession, chatWidget };
 }
 
 

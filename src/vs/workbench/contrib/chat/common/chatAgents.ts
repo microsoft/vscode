@@ -25,9 +25,9 @@ import { asJson, IRequestService } from '../../../../platform/request/common/req
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ChatContextKeys } from './chatContextKeys.js';
 import { IChatProgressHistoryResponseContent, IChatRequestVariableData, ISerializableChatAgentData } from './chatModel.js';
-import { IRawChatCommandContribution, RawChatParticipantLocation } from './chatParticipantContribTypes.js';
+import { IRawChatCommandContribution } from './chatParticipantContribTypes.js';
 import { IChatFollowup, IChatLocationData, IChatProgress, IChatResponseErrorDetails, IChatTaskDto } from './chatService.js';
-import { ChatMode } from './constants.js';
+import { ChatAgentLocation, ChatMode } from './constants.js';
 
 //#region agent service, commands etc
 
@@ -35,27 +35,6 @@ export interface IChatAgentHistoryEntry {
 	request: IChatAgentRequest;
 	response: ReadonlyArray<IChatProgressHistoryResponseContent | IChatTaskDto>;
 	result: IChatAgentResult;
-}
-
-export enum ChatAgentLocation {
-	Panel = 'panel',
-	Terminal = 'terminal',
-	Notebook = 'notebook',
-	Editor = 'editor',
-	EditingSession = 'editing-session',
-}
-
-export namespace ChatAgentLocation {
-	export function fromRaw(value: RawChatParticipantLocation | string): ChatAgentLocation {
-		switch (value) {
-			case 'panel': return ChatAgentLocation.Panel;
-			case 'terminal': return ChatAgentLocation.Terminal;
-			case 'notebook': return ChatAgentLocation.Notebook;
-			case 'editor': return ChatAgentLocation.Editor;
-			case 'editing-session': return ChatAgentLocation.EditingSession;
-		}
-		return ChatAgentLocation.Panel;
-	}
 }
 
 export interface IChatAgentData {
@@ -765,3 +744,4 @@ export function reviveSerializedAgent(raw: ISerializableChatAgentData): IChatAge
 
 	return revive(agent);
 }
+export { ChatAgentLocation };
