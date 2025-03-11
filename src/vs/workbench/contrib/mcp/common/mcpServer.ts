@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Sequencer } from '../../../../base/common/async.js';
+import { raceCancellationError, Sequencer } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { CancellationError } from '../../../../base/common/errors.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
 import { autorun, autorunWithStore, derived, disposableObservableValue, IObservable, ITransaction, observableFromEvent, ObservablePromise, observableValue, transaction } from '../../../../base/common/observable.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -177,40 +176,42 @@ export class McpServer extends Disposable implements IMcpServer {
 	 * Helper function to call the function on the handler once it's online. The
 	 * connection started if it is not already.
 	 */
-	public async callOn<R>(fn: (handler: McpServerRequestHandler) => Promise<R>, token?: CancellationToken): Promise<R> {
-		const store = new DisposableStore();
-		this.start(); // idempotent
+	public async callOn<R>(fn: (handler: McpServerRequestHandler) => Promise<R>, token: CancellationToken = CancellationToken.None): Promise<R> {
 
-		try {
-			return await new Promise((resolve, reject) => {
-				if (token) {
-					store.add(token.onCancellationRequested(() => {
-						reject(new CancellationError());
-					}));
+		await this.start(); // idempotent
+
+		let ranOnce = false;
+		let d: IDisposable;
+
+		const callPromise = new Promise<R>((resolve, reject) => {
+
+			d = autorun(reader => {
+				const connection = this._connection.read(reader);
+				if (!connection || ranOnce) {
+					return;
 				}
-				store.add(autorun(reader => {
-					const connection = this._connection.read(reader);
-					if (!connection) {
+
+				const handler = connection.handler.read(reader);
+				if (!handler) {
+					const state = connection.state.read(reader);
+					if (state.state === McpConnectionState.Kind.Error) {
+						reject(new McpConnectionFailedError(`MCP server could not be started: ${state.message}`));
+						return;
+					} else if (state.state === McpConnectionState.Kind.Stopped) {
+						reject(new McpConnectionFailedError('MCP server has stopped'));
+						return;
+					} else {
+						// keep waiting for handler
 						return;
 					}
+				}
 
-					const handler = connection.handler.read(reader);
-					if (handler) {
-						resolve(fn(handler));
-						store.dispose(); // aggressive dispose to prevent multiple racey calls
-					} else {
-						const state = connection.state.read(reader);
-						if (state.state === McpConnectionState.Kind.Error) {
-							reject(new McpConnectionFailedError(`MCP server could not be started: ${state.message}`));
-						} else {
-							reject(new McpConnectionFailedError('MCP server has stopped'));
-						}
-					}
-				}));
+				resolve(fn(handler));
+				ranOnce = true; // aggressive prevent multiple racey calls, don't dispose because autorun is sync
 			});
-		} finally {
-			store.dispose();
-		}
+		});
+
+		return raceCancellationError(callPromise, token).finally(() => d.dispose());
 	}
 }
 
