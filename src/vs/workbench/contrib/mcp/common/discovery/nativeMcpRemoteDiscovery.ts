@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ProxyChannel } from '../../../../../base/parts/ipc/common/ipc.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { INativeMcpDiscoveryData, NativeMcpDiscoveryHelperChannelName } from '../../../../../platform/mcp/common/nativeMcpDiscoveryHelper.js';
-import { Dto } from '../../../../services/extensions/common/proxyIdentifier.js';
+import { INativeMcpDiscoveryHelperService, NativeMcpDiscoveryHelperChannelName } from '../../../../../platform/mcp/common/nativeMcpDiscoveryHelper.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { IMcpRegistry } from '../mcpRegistryTypes.js';
 import { FilesystemMpcDiscovery } from './nativeMcpDiscoveryAbstract.js';
@@ -34,15 +34,16 @@ export class RemoteNativeMpcDiscovery extends FilesystemMpcDiscovery {
 			return this.setDetails(undefined);
 		}
 
-		connection.withChannel(NativeMcpDiscoveryHelperChannelName, channel =>
-			channel.call<Dto<INativeMcpDiscoveryData>>('load', undefined))
+		await connection.withChannel(NativeMcpDiscoveryHelperChannelName, async channel => {
+			const service = ProxyChannel.toService<INativeMcpDiscoveryHelperService>(channel);
 
-			.then(
+			service.load().then(
 				data => this.setDetails(data),
 				err => {
 					this.logService.warn('Error getting remote process MCP environment', err);
 					this.setDetails(undefined);
 				}
 			);
+		});
 	}
 }
