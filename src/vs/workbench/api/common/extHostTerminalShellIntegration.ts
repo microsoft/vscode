@@ -238,7 +238,10 @@ class InternalTerminalShellIntegration extends Disposable {
 		// command detection
 		let currentExecution: InternalTerminalShellExecution | undefined;
 		if (commandLine.confidence === TerminalShellExecutionCommandLineConfidence.High) {
-			currentExecution = this._activeExecutions.find(e => e.value.commandLine.value === commandLine.value);
+			const index = this._activeExecutions.findIndex(e => e.value.commandLine.value === commandLine.value);
+			if (index !== -1) {
+				currentExecution = this._activeExecutions.splice(index, 1)[0];
+			}
 		} else {
 			currentExecution = this._activeExecutions.shift();
 		}
