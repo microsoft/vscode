@@ -24,10 +24,7 @@ const TS_CONFIG_PATH = path.join(__dirname, '../../', 'src', 'tsconfig.json');
 
 const ignored = new Set([
 	'vs/base/common/arrays.ts',
-	'vs/platform/workspace/common/workspace.ts',
-	'vs/platform/workspaces/electron-main/workspacesManagementMainService.ts',
 	'vs/platform/extensionManagement/common/extensionsScannerService.ts',
-	'vs/platform/utilityProcess/electron-main/utilityProcessWorkerMainService.ts',
 	'vs/platform/configuration/common/configurations.ts',
 	'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/tokenizer.ts',
 	'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/bracketPairsTree.ts',
