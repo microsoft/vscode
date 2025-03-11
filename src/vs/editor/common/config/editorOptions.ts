@@ -4302,7 +4302,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			suppressSuggestions: false,
 			keepOnBlur: false,
 			fontFamily: 'default',
-			syntaxHighlightingEnabled: false,
+			syntaxHighlightingEnabled: true,
 			edits: {
 				enabled: true,
 				showCollapsed: false,

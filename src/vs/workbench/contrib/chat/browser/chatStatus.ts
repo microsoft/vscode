@@ -8,13 +8,12 @@ import { safeIntl } from '../../../../base/common/date.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { language } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, ShowTooltipCommand, StatusbarAlignment, StatusbarEntryKind } from '../../../services/statusbar/browser/statusbar.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { OPEN_CHAT_QUOTA_EXCEEDED_DIALOG, CHAT_SETUP_ACTION_LABEL, CHAT_OPEN_ACTION_ID } from './actions/chatActions.js';
-import { $, addDisposableListener, append, clearNode, EventHelper, EventLike, EventType } from '../../../../base/browser/dom.js';
+import { OPEN_CHAT_QUOTA_EXCEEDED_DIALOG, CHAT_SETUP_ACTION_LABEL } from './actions/chatActions.js';
+import { $, addDisposableListener, append, clearNode, EventHelper, EventType } from '../../../../base/browser/dom.js';
 import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../common/chatEntitlementService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -25,12 +24,7 @@ import { CommandsRegistry, ICommandService } from '../../../../platform/commands
 import { Lazy } from '../../../../base/common/lazy.js';
 import { contrastBorder, inputValidationErrorBorder, inputValidationInfoBorder, inputValidationWarningBorder, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { coalesce } from '../../../../base/common/arrays.js';
-import { CTX_INLINE_CHAT_POSSIBLE } from '../../inlineChat/common/inlineChat.js';
-import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { Color } from '../../../../base/common/color.js';
-import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import product from '../../../../platform/product/common/product.js';
@@ -253,7 +247,6 @@ class ChatStatusDashboard extends Disposable {
 		@IHoverService private readonly hoverService: IHoverService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ILanguageService private readonly languageService: ILanguageService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ICommandService private readonly commandService: ICommandService
 	) {
 		super();
@@ -265,9 +258,12 @@ class ChatStatusDashboard extends Disposable {
 		const disposables = this.entryDisposables.value = new DisposableStore();
 		disposables.add(token.onCancellationRequested(() => disposables.dispose()));
 
+		let addSeparator = false;
+
 		// New to Copilot
 		if (isNewUser(this.contextKeyService, this.chatEntitlementService)) {
 			this.element.appendChild($('div.header', undefined, localize('setupCopilotForFreeHeader', "Use AI Features with Copilot")));
+			addSeparator = true;
 
 			this.element.appendChild(
 				$('div', undefined,
@@ -289,8 +285,6 @@ class ChatStatusDashboard extends Disposable {
 			const setupCopilotButton = disposables.add(new Button(this.element, { ...defaultButtonStyles }));
 			setupCopilotButton.label = localize('setupCopilotForFreeButton', "Setup Copilot for Free");
 			disposables.add(setupCopilotButton.onDidClick(() => this.runCommandAndClose('workbench.action.chat.triggerSetup')));
-
-			this.element.appendChild($('hr'));
 		}
 
 		// Quota Indicator
@@ -298,6 +292,7 @@ class ChatStatusDashboard extends Disposable {
 			const { chatTotal, chatRemaining, completionsTotal, completionsRemaining, quotaResetDate, chatQuotaExceeded, completionsQuotaExceeded } = this.chatEntitlementService.quotas;
 
 			this.element.appendChild($('div.header', undefined, localize('usageTitle', "Copilot Free Usage")));
+			addSeparator = true;
 
 			const chatQuotaIndicator = this.createQuotaIndicator(this.element, chatTotal, chatRemaining, localize('chatsLabel', "Chat messages"));
 			const completionsQuotaIndicator = this.createQuotaIndicator(this.element, completionsTotal, completionsRemaining, localize('completionsLabel', "Code completions"));
@@ -321,21 +316,19 @@ class ChatStatusDashboard extends Disposable {
 				chatQuotaIndicator(chatTotal, chatRemaining);
 				completionsQuotaIndicator(completionsTotal, completionsRemaining);
 			})();
-
-			this.element.appendChild($('hr'));
 		}
 
 		// Settings
 		if (!isNewUser(this.contextKeyService, this.chatEntitlementService)) {
-			this.element.appendChild($('div.header', undefined, localize('settingsTitle', "Settings")));
-			this.createSettings(this.element, disposables);
-			this.element.appendChild($('hr'));
-		}
+			if (addSeparator) {
+				this.element.appendChild($('hr'));
+				addSeparator = false;
+			}
 
-		// Shortcuts
-		{
-			this.element.appendChild($('div.header', undefined, localize('keybindingsTitle', "Keybindings")));
-			this.createShortcuts(this.element, disposables);
+			this.element.appendChild($('div.header', undefined, localize('settingsTitle', "Settings")));
+			addSeparator = true;
+
+			this.createSettings(this.element, disposables);
 		}
 
 		return this.element;
@@ -507,47 +500,5 @@ class ChatStatusDashboard extends Disposable {
 				}
 			}
 		}));
-	}
-
-	private createShortcuts(container: HTMLElement, disposables: DisposableStore): HTMLElement {
-		const shortcuts = container.appendChild($('div.shortcuts'));
-
-		const entries = coalesce([
-			{ text: localize('shortcuts.chat', "Chat"), id: CHAT_OPEN_ACTION_ID },
-			{ text: localize('shortcuts.copilotEdits', "Copilot Edits"), id: 'workbench.action.chat.openEditSession' },
-			this.contextKeyService.contextMatchesRules(ContextKeyExpr.and(
-				CTX_INLINE_CHAT_POSSIBLE,
-				EditorContextKeys.writable,
-				EditorContextKeys.editorSimpleInput.negate()
-			)) ? { text: localize('shortcuts.inlineChat', "Inline Chat"), id: 'inlineChat.start' } : undefined,
-			!isNewUser(this.contextKeyService, this.chatEntitlementService) ? { text: localize('shortcuts.quickChat', "Quick Chat"), id: 'workbench.action.quickchat.toggle' } : undefined,
-		]);
-
-		const onTrigger = (commandId: string, e: EventLike) => {
-			EventHelper.stop(e, true);
-
-			this.runCommandAndClose(commandId);
-		};
-
-		for (const entry of entries) {
-			const shortcut = append(shortcuts, $('div.shortcut', { tabIndex: 0, role: 'button', 'aria-label': entry.text },
-				$('span.shortcut-label', undefined, entry.text),
-				$('span.shortcut-value', undefined, this.keybindingService.lookupKeybinding(entry.id)?.getLabel() ?? '')
-			));
-
-			disposables.add(Gesture.addTarget(shortcut));
-			[EventType.CLICK, TouchEventType.Tap].forEach(eventType => {
-				disposables.add(addDisposableListener(shortcut, eventType, e => onTrigger(entry.id, e)));
-			});
-
-			disposables.add(addDisposableListener(shortcut, EventType.KEY_DOWN, e => {
-				const event = new StandardKeyboardEvent(e);
-				if ((event.equals(KeyCode.Enter) || event.equals(KeyCode.Space))) {
-					onTrigger(entry.id, e);
-				}
-			}));
-		}
-
-		return shortcuts;
 	}
 }

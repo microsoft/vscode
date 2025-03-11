@@ -353,9 +353,9 @@ class EditorStatus extends Disposable {
 	private readonly languageElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly metadataElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 
-	private readonly currentMarkerStatus = this._register(this.instantiationService.createInstance(ShowCurrentMarkerInStatusbarContribution));
-	private readonly tabFocusMode = this._register(this.instantiationService.createInstance(TabFocusMode));
-	private readonly inputMode = this._register(this.instantiationService.createInstance(StatusInputMode));
+	private readonly currentMarkerStatus: ShowCurrentMarkerInStatusbarContribution;
+	private readonly tabFocusMode: TabFocusMode;
+	private readonly inputMode: StatusInputMode;
 
 	private readonly state = new State();
 	private toRender: StateChange | undefined = undefined;
@@ -370,10 +370,14 @@ class EditorStatus extends Disposable {
 		@ILanguageService private readonly languageService: ILanguageService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
+
+		this.currentMarkerStatus = this._register(instantiationService.createInstance(ShowCurrentMarkerInStatusbarContribution));
+		this.tabFocusMode = this._register(instantiationService.createInstance(TabFocusMode));
+		this.inputMode = this._register(instantiationService.createInstance(StatusInputMode));
 
 		this.registerCommands();
 		this.registerListeners();
