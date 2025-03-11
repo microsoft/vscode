@@ -17,13 +17,13 @@
 import { LANGUAGE_SELECTOR } from '../constants.js';
 import { IPromptsService } from '../service/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { IPromptFileReference } from '../parsers/types.js';
 import { assertOneOf } from '../../../../../../base/common/types.js';
 import { isWindows } from '../../../../../../base/common/platform.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Position } from '../../../../../../editor/common/core/position.js';
+import { IPromptFileReference, IPromptReference } from '../parsers/types.js';
 import { dirname, extUri } from '../../../../../../base/common/resources.js';
 import { assert, assertNever } from '../../../../../../base/common/assert.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
@@ -56,7 +56,7 @@ type TTriggerCharacter = ':' | '.' | '/';
  * Finds a file reference that suites the provided `position`.
  */
 const findFileReference = (
-	references: readonly IPromptFileReference[],
+	references: readonly IPromptReference[],
 	position: Position,
 ): IPromptFileReference | undefined => {
 	for (const reference of references) {
@@ -67,11 +67,10 @@ const findFileReference = (
 			return undefined;
 		}
 
-		// TODO: @lego - put this back?
-		// // this ensures that we handle only the `#file:` references for now
-		// if (!reference.text.startsWith(FileReference.TOKEN_START)) {
-		// 	return undefined;
-		// }
+		// this ensures that we handle only the `#file:` references for now
+		if (reference.subtype !== 'prompt') {
+			return undefined;
+		}
 
 		// reference must match the provided position
 		const { startLineNumber, endColumn } = range;

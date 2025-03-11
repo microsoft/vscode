@@ -19,6 +19,8 @@ import { MarkdownDecoder, TMarkdownToken } from '../../../../../../editor/common
  */
 export type TChatPromptToken = MarkdownLink | PromptVariable | PromptVariableWithData;
 
+
+// TODO: @lego - cleanup
 // /**
 //  * The Parser responsible for processing a `prompt variable name` syntax from
 //  * a sequence of tokens (e.g., `#variable:`).
@@ -164,9 +166,8 @@ export type TChatPromptToken = MarkdownLink | PromptVariable | PromptVariableWit
 export class ChatPromptDecoder extends BaseDecoder<TChatPromptToken, TMarkdownToken> {
 	/**
 	 * Currently active parser object that is used to parse a well-known sequence of
-	 * tokens, for instance, a `file reference` that consists of `hash`, `word`, and
-	 * `colon` tokens sequence plus following file path part.
-	 * TODO: @lego - update the comment
+	 * tokens, for instance, a `#file:/path/to/file.md` link that consists of `hash`,
+	 * `word`, and `colon` tokens sequence plus the `file path` part that follows.
 	 */
 	private current?: PartialPromptVariableName | PartialPromptVariableWithData;
 
@@ -210,11 +211,11 @@ export class ChatPromptDecoder extends BaseDecoder<TChatPromptToken, TMarkdownTo
 		// process the parse result next
 		switch (parseResult.result) {
 			// in the case of success there might be 2 cases:
-			//   1) parsing fully completed and an parsed entity is returned back, in this case,
-			// 		emit the parsed token (e.g., a `link`) and reset current parser object
+			//   1) parsing fully completed and an instance of `PromptToken` is returned back,
+			//      in this case, emit the parsed token (e.g., a `link`) and reset the current
+			//      parser object reference so a new parsing process can be initiated next
 			//   2) parsing is still in progress and the next parser object is returned, hence
-			//  	we need to update the current parser object with a new one and continue
-			// TODO: @lego - update the comment
+			//      we need to replace the current parser object with a new one and continue
 			case 'success': {
 				const { nextParser } = parseResult;
 
@@ -246,7 +247,6 @@ export class ChatPromptDecoder extends BaseDecoder<TChatPromptToken, TMarkdownTo
 		}
 	}
 
-	// TODO: @lego - add/emit `EOF` token instead of doing this everywhere?
 	protected override onStreamEnd(): void {
 		try {
 			// if there is no currently active parser object present, nothing to do
@@ -268,10 +268,9 @@ export class ChatPromptDecoder extends BaseDecoder<TChatPromptToken, TMarkdownTo
 				`Unknown parser object '${this.current}'`,
 			);
 		} catch (error) {
-			// TODO: @lego - uncomment this when this decoder returns all tokens, not just `links`
-			// for (const token of this.current.tokens) {
-			// 	this._onData.fire(token);
-			// }
+			// note! when this decoder becomes consistent with other ones and hence starts emitting
+			// 		 all token types, not just links, we would need to re-emit all the tokens that
+			//       the parser object has accumulated so far
 		} finally {
 			delete this.current;
 			super.onStreamEnd();

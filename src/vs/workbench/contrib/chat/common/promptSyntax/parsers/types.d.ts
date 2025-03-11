@@ -25,18 +25,19 @@ export interface IResolveError {
 }
 
 /**
- * List of all available prompt reference types.
+ * Base interface for a generic prompt reference.
  */
-type PromptReferenceTypes = 'file';
-
-/**
- * Interface for a generic prompt reference.
- */
-export interface IPromptReference extends IDisposable {
+interface IPromptReferenceBase extends IDisposable {
 	/**
-	 * Type of the prompt reference.
+	 * Type of the prompt reference. E.g., `file`, `http`, `image`, etc.
 	 */
-	readonly type: PromptReferenceTypes;
+	readonly type: string;
+
+	/**
+	 * Subtype of the prompt reference. For instance a `file` reference
+	 * can be a `markdown link` or a prompt `#file:` variable reference.
+	 */
+	readonly subtype: string;
 
 	/**
 	 * URI component of the associated with this reference.
@@ -138,9 +139,20 @@ export interface IPromptReference extends IDisposable {
 }
 
 /**
- * The special case of the {@linkcode IPromptReference} that pertains
+ * The special case of the {@linkcode IPromptReferenceBase} that pertains
  * to a file resource on the disk.
  */
-export interface IPromptFileReference extends IPromptReference {
+export interface IPromptFileReference extends IPromptReferenceBase {
 	readonly type: 'file';
+
+	/**
+	 * Subtype of a file reference, - either a prompt `#file` variable,
+	 * or a `markdown link` (e.g., `[caption](/path/to/file.md)`).
+	 */
+	readonly subtype: 'prompt' | 'markdown';
 }
+
+/**
+ * List of all known prompt reference types.
+ */
+export type IPromptReference = IPromptFileReference;

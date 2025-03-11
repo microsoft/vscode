@@ -24,13 +24,13 @@ import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../../../.
 /**
  * List of characters that terminate the prompt variable sequence.
  */
-const STOP_CHARACTERS: readonly string[] = [Space, Tab, NewLine, CarriageReturn, VerticalTab, FormFeed]
+export const STOP_CHARACTERS: readonly string[] = [Space, Tab, NewLine, CarriageReturn, VerticalTab, FormFeed]
 	.map((token) => { return token.symbol; });
 
 /**
  * List of characters that cannot be in a variable name (excluding the {@link STOP_CHARACTERS}).
  */
-const INVALID_NAME_CHARACTERS: readonly string[] = [Hash, ExclamationMark, LeftAngleBracket, RightAngleBracket, LeftBracket, RightBracket]
+export const INVALID_NAME_CHARACTERS: readonly string[] = [Hash, Colon, ExclamationMark, LeftAngleBracket, RightAngleBracket, LeftBracket, RightBracket]
 	.map((token) => { return token.symbol; });
 
 /**
@@ -70,11 +70,11 @@ export class PartialPromptVariableName extends ParserBase<TSimpleToken, PartialP
 
 		// if a `:` character is encountered, we might transition to {@link PartialPromptVariableWithData}
 		if (token instanceof Colon) {
-			// if there is only one token before the `:` character
-			// must be the starting `#` one), then fail
-			if (this.currentTokens.length <= 1) {
-				this.isConsumed = true;
+			this.isConsumed = true;
 
+			// if there is only one token before the `:` character, it must be the starting
+			// `#` symbol, therefore fail because there is no variable name present
+			if (this.currentTokens.length <= 1) {
 				return {
 					result: 'failure',
 					wasTokenConsumed: false,
@@ -82,13 +82,10 @@ export class PartialPromptVariableName extends ParserBase<TSimpleToken, PartialP
 			}
 
 			// otherwise, if there are more characters after `#` available,
-			// we have a variable name, so with `:`, transition to {@link PromptVariableWithData}
-			this.currentTokens.push(token);
-			this.isConsumed = true;
-
+			// we have a variable name, so we can transition to {@link PromptVariableWithData}
 			return {
 				result: 'success',
-				nextParser: new PartialPromptVariableWithData(this.currentTokens),
+				nextParser: new PartialPromptVariableWithData([...this.currentTokens, token]),
 				wasTokenConsumed: true,
 			};
 		}

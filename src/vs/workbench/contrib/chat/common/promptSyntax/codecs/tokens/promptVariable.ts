@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { PromptToken } from './promptToken.js';
+import { assert } from '../../../../../../../base/common/assert.js';
+import { INVALID_NAME_CHARACTERS, STOP_CHARACTERS } from '../parsers/promptVariableParser.js';
 import { IRange, Range } from '../../../../../../../editor/common/core/range.js';
 import { BaseToken } from '../../../../../../../editor/common/codecs/baseToken.js';
 
@@ -24,11 +26,21 @@ export class PromptVariable extends PromptToken {
 	constructor(
 		range: Range,
 		/**
-		 * The name of the variable, excluding the starting `#` character.
+		 * The name of a prompt variable, excluding the `#` character at the start.
 		 */
 		public readonly name: string,
 	) {
-		// TODO: @lego - validate that name does not have `#` character (and no `:`?)
+		for (const character of name) {
+			assert(
+				(INVALID_NAME_CHARACTERS.includes(character) === false),
+				`File name cannot contain character '${character}', got '${name}'.`,
+			);
+
+			assert(
+				(STOP_CHARACTERS.includes(character) === false),
+				`File name cannot contain character '${character}', got '${name}'.`,
+			);
+		}
 
 		super(range);
 	}
