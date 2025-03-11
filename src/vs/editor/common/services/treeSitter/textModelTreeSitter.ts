@@ -14,7 +14,6 @@ import { setTimeout0 } from '../../../../base/common/platform.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { CancellationToken, cancelOnDispose } from '../../../../base/common/cancellation.js';
 import { Range } from '../../core/range.js';
-import { Position } from '../../core/position.js';
 import { LimitedQueue } from '../../../../base/common/async.js';
 import { TextLength } from '../../core/textLength.js';
 import { TreeSitterLanguages } from './treeSitterLanguages.js';
@@ -22,16 +21,6 @@ import { AppResourcePath, FileAccess } from '../../../../base/common/network.js'
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { getClosestPreviousNodes, gotoNthChild, gotoParent, nextSiblingOrParentSibling } from './cursorUtils.js';
-
-interface ChangedRange {
-	newNodeId: number;
-	newStartPosition: Position;
-	newEndPosition: Position;
-	newStartIndex: number;
-	newEndIndex: number;
-	oldStartIndex: number;
-	oldEndIndex: number;
-}
 
 export interface TextModelTreeSitterItem {
 	dispose(): void;
@@ -111,7 +100,7 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 				// Fire an event that includes the ranges per language
 				const ranges: Record<string, RangeChange[]> = {};
 				ranges[e.language] = e.ranges;
-				this._onDidChangeParseResult.fire({ ranges, versionId: e.versionId });
+				this._onDidChangeParseResult.fire({ ranges, versionId: e.versionId, tree: e.tree });
 			}
 		}));
 		this._parseSessionDisposables.add(this.model.onDidChangeContent(e => this._onDidChangeContent(treeSitterTree, e)));
@@ -145,14 +134,14 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 	}
 
 	private _handleTreeUpdate(e: TreeParseUpdateEvent) {
-		if (e.ranges && (e.versionId > this._versionId)) {
+		if (e.ranges && (e.versionId >= this._versionId)) {
 			this._versionId = e.versionId;
 			// kick off check for injected languages
 			this._parseInjected();
 
 			const ranges: Record<string, RangeChange[]> = {};
 			ranges[e.language] = e.ranges;
-			this._onDidChangeParseResult.fire({ ranges, versionId: e.versionId });
+			this._onDidChangeParseResult.fire({ ranges, versionId: e.versionId, tree: e.tree });
 		}
 	}
 
@@ -416,11 +405,15 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 			if (completed) {
 				let ranges: RangeChange[] | undefined;
 				if (!changedNodes) {
-					ranges = [{ newRange: model.getFullModelRange(), newRangeStartOffset: 0, newRangeEndOffset: model.getValueLength() }];
+					if (this._ranges) {
+						ranges = this._ranges.map(r => ({ newRange: new Range(r.startPosition.row + 1, r.startPosition.column + 1, r.endPosition.row + 1, r.endPosition.column + 1), oldRangeLength: r.endIndex - r.startIndex, newRangeStartOffset: r.startIndex, newRangeEndOffset: r.endIndex }));
+					} else {
+						ranges = [{ newRange: model.getFullModelRange(), newRangeStartOffset: 0, newRangeEndOffset: model.getValueLength() }];
+					}
 				} else if (oldTree && changedNodes) {
 					ranges = this.findTreeChanges(completed, changedNodes);
 				}
-				this._onDidUpdate.fire({ language: this._language, ranges, versionId: version });
+				this._onDidUpdate.fire({ language: this._language, ranges, versionId: version, tree: completed });
 			}
 		});
 	}
@@ -529,8 +522,6 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 			this._ranges = ranges;
 		}
 	}
-
-
 
 	private sendParseTimeTelemetry(parseType: TelemetryParseType, time: number, passes: number): void {
 		this._logService.debug(`Tree parsing (${parseType}) took ${time} ms and ${passes} passes.`);

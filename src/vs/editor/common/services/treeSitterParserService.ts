@@ -31,11 +31,13 @@ export interface TreeParseUpdateEvent {
 	ranges: RangeChange[] | undefined;
 	language: string;
 	versionId: number;
+	tree: Parser.Tree;
 }
 
 export interface ModelTreeUpdateEvent {
 	ranges: Record<string, RangeChange[]>;
 	versionId: number;
+	tree: Parser.Tree;
 }
 
 export interface TreeUpdateEvent extends ModelTreeUpdateEvent {
