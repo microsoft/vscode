@@ -36,6 +36,7 @@ import { GOLDEN_LINE_HEIGHT_RATIO, MINIMUM_LINE_HEIGHT } from '../../../../../ed
 import { TerminalCompletionModel } from './terminalCompletionModel.js';
 import { TerminalCompletionItem, TerminalCompletionItemKind, type ITerminalCompletion } from './terminalCompletionItem.js';
 import { IntervalTimer, TimeoutTimer } from '../../../../../base/common/async.js';
+import { localize } from '../../../../../nls.js';
 
 export interface ISuggestController {
 	isPasting: boolean;
@@ -102,16 +103,16 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	]);
 
 	private _kindToTypeMap = new Map<number, string>([
-		[TerminalCompletionItemKind.File, 'file'],
-		[TerminalCompletionItemKind.Folder, 'folder'],
-		[TerminalCompletionItemKind.Method, 'method'],
-		[TerminalCompletionItemKind.Alias, 'alias'],
-		[TerminalCompletionItemKind.Argument, 'argument'],
-		[TerminalCompletionItemKind.Option, 'option'],
-		[TerminalCompletionItemKind.OptionValue, 'option value'],
-		[TerminalCompletionItemKind.Flag, 'flag'],
-		[TerminalCompletionItemKind.InlineSuggestion, 'inline suggestion'],
-		[TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop, 'inline suggestion'],
+		[TerminalCompletionItemKind.File, localize('file', 'File')],
+		[TerminalCompletionItemKind.Folder, localize('folder', 'Folder')],
+		[TerminalCompletionItemKind.Method, localize('method', 'Method')],
+		[TerminalCompletionItemKind.Alias, localize('alias', 'Alias')],
+		[TerminalCompletionItemKind.Argument, localize('argument', 'Argument')],
+		[TerminalCompletionItemKind.Option, localize('option', 'Option')],
+		[TerminalCompletionItemKind.OptionValue, localize('optionValue', 'Option Value')],
+		[TerminalCompletionItemKind.Flag, localize('flag', 'Flag')],
+		[TerminalCompletionItemKind.InlineSuggestion, localize('inlineSuggestion', 'Inline Suggestion')],
+		[TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop, localize('inlineSuggestionAlwaysOnTop', 'Inline Suggestion')],
 	]);
 
 	private readonly _inlineCompletion: ITerminalCompletion = {
