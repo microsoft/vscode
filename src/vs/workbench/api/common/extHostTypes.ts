@@ -4758,19 +4758,19 @@ export enum ChatErrorLevel {
 
 export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage {
 
-	static User(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[], name?: string): LanguageModelChatMessage {
+	static User(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelImagePart)[], name?: string): LanguageModelChatMessage {
 		return new LanguageModelChatMessage(LanguageModelChatMessageRole.User, content, name);
 	}
 
-	static Assistant(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[], name?: string): LanguageModelChatMessage {
+	static Assistant(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelImagePart)[], name?: string): LanguageModelChatMessage {
 		return new LanguageModelChatMessage(LanguageModelChatMessageRole.Assistant, content, name);
 	}
 
 	role: vscode.LanguageModelChatMessageRole;
 
-	private _content: (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[] = [];
+	private _content: (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelImagePart)[] = [];
 
-	set content(value: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[]) {
+	set content(value: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelImagePart)[]) {
 		if (typeof value === 'string') {
 			// we changed this and still support setting content with a string property. this keep the API runtime stable
 			// despite the breaking change in the type definition.
@@ -4780,12 +4780,12 @@ export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage
 		}
 	}
 
-	get content(): (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[] {
+	get content(): (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelImagePart)[] {
 		return this._content;
 	}
 
 	// Temp to avoid breaking changes
-	set content2(value: (string | LanguageModelToolResultPart | LanguageModelToolCallPart)[] | undefined) {
+	set content2(value: (string | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelImagePart)[] | undefined) {
 		if (value) {
 			this.content = value.map(part => {
 				if (typeof part === 'string') {
@@ -4796,7 +4796,7 @@ export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage
 		}
 	}
 
-	get content2(): (string | LanguageModelToolResultPart | LanguageModelToolCallPart)[] | undefined {
+	get content2(): (string | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelImagePart)[] | undefined {
 		return this.content.map(part => {
 			if (part instanceof LanguageModelTextPart) {
 				return part.value;
@@ -4807,7 +4807,7 @@ export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage
 
 	name: string | undefined;
 
-	constructor(role: vscode.LanguageModelChatMessageRole, content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[], name?: string) {
+	constructor(role: vscode.LanguageModelChatMessageRole, content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelImagePart)[], name?: string) {
 		this.role = role;
 		this.content = content;
 		this.name = name;
@@ -4840,6 +4840,36 @@ export class LanguageModelTextPart implements vscode.LanguageModelTextPart {
 			value: this.value,
 		};
 	}
+}
+
+export class LanguageModelImagePart implements vscode.LanguageModelImagePart {
+	value: ChatImagePart;
+
+	constructor(value: ChatImagePart) {
+		this.value = value;
+	}
+
+	toJSON() {
+		return {
+			$mid: MarshalledId.LanguageModelImagePart,
+			value: this.value,
+		};
+	}
+}
+
+export interface ChatImagePart {
+	image_url: {
+		/**
+			 * Either a URL of the image or the base64 encoded image data.
+			 */
+		url: string;
+
+		/**
+		 * Specifies the detail level of the image. Learn more in the
+		 * [Vision guide](https://platform.openai.com/docs/guides/vision/low-or-high-fidelity-image-understanding).
+		 */
+		detail?: ImageDetailLevel;
+	};
 }
 
 export class LanguageModelPromptTsxPart {
@@ -4955,6 +4985,14 @@ export enum RelatedInformationType {
 	CommandInformation = 2,
 	SearchInformation = 3,
 	SettingInformation = 4
+}
+
+/**
+ * Specifies the detail level of the image.
+ */
+export enum ImageDetailLevel {
+	Low = 'low',
+	High = 'high'
 }
 
 //#endregion

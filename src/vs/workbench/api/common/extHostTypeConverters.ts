@@ -2326,6 +2326,8 @@ export namespace LanguageModelChatMessage {
 					}
 				});
 				return new types.LanguageModelToolResultPart(c.toolCallId, content, c.isError);
+			} else if (c.type === 'image_url') {
+				return new types.LanguageModelImagePart(c.value);
 			} else {
 				return new types.LanguageModelToolCallPart(c.toolCallId, c.name, c.parameters);
 			}
@@ -2367,6 +2369,11 @@ export namespace LanguageModelChatMessage {
 						}
 					})),
 					isError: c.isError
+				};
+			} else if (c instanceof types.LanguageModelImagePart) {
+				return {
+					type: 'image_url',
+					value: c.value
 				};
 			} else if (c instanceof types.LanguageModelToolCallPart) {
 				return {

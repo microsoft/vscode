@@ -29,6 +29,24 @@ export interface IChatMessageTextPart {
 	value: string;
 }
 
+export interface IChatMessageImagePart {
+	type: 'image_url';
+	value: IChatImageURLPart;
+}
+
+export interface IChatImageURLPart {
+	image_url: { url: string; detail?: ImageDetailLevel };
+}
+
+/**
+ * Specifies the detail level of the image.
+ */
+export enum ImageDetailLevel {
+	Low = 'low',
+	High = 'high'
+}
+
+
 export interface IChatMessageToolResultPart {
 	type: 'tool_result';
 	toolCallId: string;
@@ -36,7 +54,7 @@ export interface IChatMessageToolResultPart {
 	isError?: boolean;
 }
 
-export type IChatMessagePart = IChatMessageTextPart | IChatMessageToolResultPart | IChatResponseToolUsePart;
+export type IChatMessagePart = IChatMessageTextPart | IChatMessageToolResultPart | IChatResponseToolUsePart | IChatMessageImagePart;
 
 export interface IChatMessage {
 	readonly name?: string | undefined;

@@ -1,0 +1,94 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+declare module 'vscode' {
+
+	/**
+	 * Represents a message in a chat. Can assume different roles, like user or assistant.
+	 */
+	export class LanguageModelChatMessage {
+
+		/**
+		 * Utility to create a new user message.
+		 *
+		 * @param content The content of the message.
+		 * @param name The optional name of a user for the message.
+		 */
+		static User(content: string | Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelImagePart>, name?: string): LanguageModelChatMessage;
+
+		/**
+		 * Utility to create a new assistant message.
+		 *
+		 * @param content The content of the message.
+		 * @param name The optional name of a user for the message.
+		 */
+		static Assistant(content: string | Array<LanguageModelTextPart | LanguageModelToolCallPart | LanguageModelImagePart>, name?: string): LanguageModelChatMessage;
+
+		/**
+		 * The role of this message.
+		 */
+		role: LanguageModelChatMessageRole;
+
+		/**
+		 * A string or heterogeneous array of things that a message can contain as content. Some parts may be message-type
+		 * specific for some models.
+		 */
+		content: Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelImagePart>;
+
+		/**
+		 * The optional name of a user for this message.
+		 */
+		name: string | undefined;
+
+		/**
+		 * Create a new user message.
+		 *
+		 * @param role The role of the message.
+		 * @param content The content of the message.
+		 * @param name The optional name of a user for the message.
+		 */
+		constructor(role: LanguageModelChatMessageRole, content: string | Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelImagePart>, name?: string);
+	}
+
+	/**
+ * A language model response part containing an image, returned from a {@link LanguageModelChatResponse}.
+ */
+	export class LanguageModelImagePart {
+		/**
+		 * The image content of the part.
+		 */
+		value: ChatImagePart;
+
+		/**
+		 * Construct an image part with the given content.
+		 * @param value The image content of the part.
+		 */
+		constructor(value: ChatImagePart);
+	}
+
+	export interface ChatImagePart {
+		image_url: {
+			/**
+					 * Either a URL of the image or the base64 encoded image data.
+					 */
+			url: string;
+
+			/**
+			 * Specifies the detail level of the image. Learn more in the
+			 * [Vision guide](https://platform.openai.com/docs/guides/vision/low-or-high-fidelity-image-understanding).
+			 */
+			detail?: ImageDetailLevel;
+
+		};
+	}
+
+	/**
+	 * Specifies the detail level of the image.
+	 */
+	export enum ImageDetailLevel {
+		Low = 'low',
+		High = 'high'
+	}
+}
