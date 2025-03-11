@@ -1,0 +1,278 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import { platform } from 'os';
+
+if (platform() === 'win32') {
+	console.error('\x1b[31mThis command is not supported on Windows\x1b[0m');
+	process.exit(1);
+}
+
+const execAsync = promisify(exec);
+
+interface ICommandDetails {
+	description: string;
+	args: string | undefined;
+	shortDescription?: string;
+}
+
+let fishBuiltinsCommandDescriptionsCache = new Map<string, ICommandDetails>();
+
+// Fallback descriptions for commands that don't return proper help information
+const fallbackDescriptions: Record<string, ICommandDetails> = {
+	'[': {
+		shortDescription: 'Test if a statement is true.',
+		description: 'Evaluate an expression and return a status of true (0) or false (non-zero). Unlike the `test` command, the `[` command requires a closing `]`.',
+		args: 'EXPRESSION ]'
+	},
+	'break': {
+		shortDescription: 'Exit the current loop.',
+		description: 'Terminate the execution of the nearest enclosing `while` or `for` loop and proceed with the next command after the loop.',
+		args: undefined
+	},
+	'breakpoint': {
+		shortDescription: 'Launch debug mode.',
+		description: 'Pause execution and launch an interactive debug prompt. This is useful for inspecting the state of a script at a specific point.',
+		args: undefined
+	},
+	'case': {
+		shortDescription: 'Match a value against patterns.',
+		description: 'Within a `switch` block, the `case` command specifies patterns to match against the given value, executing the associated block if a match is found.',
+		args: 'PATTERN...'
+	},
+	'continue': {
+		shortDescription: 'Skip to the next iteration of a loop.',
+		description: 'Within a `while` or `for` loop, `continue` skips the remaining commands in the current iteration and proceeds to the next iteration of the loop.',
+		args: undefined
+	},
+	'else': {
+		shortDescription: 'Execute commands if the previous condition was false.',
+		description: 'In an `if` block, the `else` section contains commands that execute if none of the preceding `if` or `else if` conditions were true.',
+		args: undefined
+	},
+	'end': {
+		shortDescription: 'Terminate a block of code.',
+		description: 'Conclude a block of code initiated by constructs like `if`, `switch`, `while`, `for`, or `function`.',
+		args: undefined
+	},
+	'eval': {
+		shortDescription: 'Execute arguments as a command.',
+		description: 'Concatenate all arguments into a single command and execute it. This allows for dynamic construction and execution of commands.',
+		args: 'COMMAND...'
+	},
+	'false': {
+		shortDescription: 'Return an unsuccessful result.',
+		description: 'A command that returns a non-zero exit status, indicating failure. It is often used in scripts to represent a false condition.',
+		args: undefined
+	},
+	'realpath': {
+		shortDescription: 'Resolve and print the absolute path.',
+		description: 'Convert each provided path to its absolute, canonical form by resolving symbolic links and relative path components.',
+		args: 'PATH...'
+	}
+};
+
+
+async function createCommandDescriptionsCache(): Promise<void> {
+	const cachedCommandDescriptions: Map<string, { shortDescription?: string; description: string; args: string | undefined }> = new Map();
+
+	try {
+		// Get list of all builtins
+		const builtinsOutput = await execAsync('fish -c "builtin -n"').then(r => r.stdout.trim());
+		const builtins = builtinsOutput.split('\n');
+
+		console.log(`Found ${builtins.length} Fish builtin commands`);
+
+		for (const cmd of builtins) {
+			try {
+				// Get help info for each builtin
+				const helpOutput = await execAsync(`fish -c "${cmd} --help 2>&1"`).then(r => r.stdout);
+
+				if (helpOutput && !helpOutput.includes('No help for function') && !helpOutput.includes('See the web documentation')) {
+					// Clean up the text:
+					// 1. Remove ANSI escape codes for bold and colors
+					// 2. Remove backspace sequences like 'a\bb' that cause display artifacts
+					const cleanHelpText = cleanupText(helpOutput);
+
+					// Split the text into lines to process
+					const lines = cleanHelpText.split('\n');
+
+					// First line typically contains the command usage
+					const firstLine = lines[0]?.trim();
+
+					// Extract the short description, args, and full description
+					const { shortDescription, args, description } = extractHelpContent(cmd, lines);
+
+					cachedCommandDescriptions.set(cmd, {
+						shortDescription,
+						description,
+						args: args || firstLine
+					});
+				} else {
+					// Use fallback descriptions for commands that don't return proper help
+					if (fallbackDescriptions[cmd]) {
+						console.info(`Using fallback description for ${cmd}`);
+						cachedCommandDescriptions.set(cmd, fallbackDescriptions[cmd]);
+					} else {
+						console.info(`Error getting help for ${cmd}`);
+					}
+				}
+			} catch {
+				// Use fallback descriptions for commands that throw an error
+				if (fallbackDescriptions[cmd]) {
+					cachedCommandDescriptions.set(cmd, fallbackDescriptions[cmd]);
+				} else {
+					console.info(`Error getting help for ${cmd}`);
+				}
+			}
+		}
+	} catch (e) {
+		console.error('Error creating Fish builtins cache:', e);
+		process.exit(1);
+	}
+
+	fishBuiltinsCommandDescriptionsCache = cachedCommandDescriptions;
+}
+
+/**
+ * Extracts short description, args, and full description from help text lines
+ */
+function extractHelpContent(cmd: string, lines: string[]): { shortDescription: string; args: string | undefined; description: string } {
+	let shortDescription = '';
+	let args: string | undefined;
+	let description = '';
+
+	// Skip the first line (usually just command name and basic usage)
+	let i = 1;
+
+	// Skip any leading empty lines
+	while (i < lines.length && lines[i].trim().length === 0) {
+		i++;
+	}
+
+	// The next non-empty line after the command name is typically
+	// either the short description or additional usage info
+	const startLine = i;
+
+	// Find where the short description starts
+	if (i < lines.length) {
+		// First, check if the line has a command prefix and remove it
+		let firstContentLine = lines[i].trim();
+		const cmdPrefixRegex = new RegExp(`^${cmd}\\s*-\\s*`, 'i');
+		firstContentLine = firstContentLine.replace(cmdPrefixRegex, '');
+
+		// First non-empty line is the short description
+		shortDescription = firstContentLine;
+		i++;
+
+		// Next non-empty line (after short description) is typically args
+		while (i < lines.length && lines[i].trim().length === 0) {
+			i++;
+		}
+
+		if (i < lines.length) {
+			// Found a line after the short description - that's our args
+			// Ensure it's not just the command name
+			args = lines[i].trim() !== cmd ? lines[i].trim() : '';
+			i++;
+		}
+	}
+
+	// Find the DESCRIPTION marker which marks the end of args section
+	let descriptionIndex = -1;
+	for (let j = i; j < lines.length; j++) {
+		if (lines[j].trim() === 'DESCRIPTION') {
+			descriptionIndex = j;
+			break;
+		}
+	}
+
+	// If DESCRIPTION marker is found, consider everything between i and descriptionIndex as part of args
+	if (descriptionIndex > i) {
+		// Combine lines from i up to (but not including) descriptionIndex
+		const additionalArgs = lines.slice(i, descriptionIndex).join('\n').trim();
+		if (additionalArgs) {
+			args = args ? `${args}\n${additionalArgs}` : additionalArgs;
+		}
+		i = descriptionIndex + 1; // Move past the DESCRIPTION line
+	}
+
+	// The rest is the full description (skipping any empty lines after args)
+	while (i < lines.length && lines[i].trim().length === 0) {
+		i++;
+	}
+
+	// Combine the remaining lines into the full description
+	description = lines.slice(Math.max(i, startLine)).join('\n').trim();
+
+	// If description is empty, use the short description
+	if (!description && shortDescription) {
+		description = shortDescription;
+	}
+
+	// Extract just the first sentence for short description
+	const firstPeriodIndex = shortDescription.indexOf('.');
+	if (firstPeriodIndex > 0) {
+		shortDescription = shortDescription.substring(0, firstPeriodIndex + 1).trim();
+	} else if (shortDescription.length > 100) {
+		shortDescription = shortDescription.substring(0, 100) + '...';
+	}
+
+	return {
+		shortDescription,
+		args,
+		description
+	};
+}
+
+/**
+ * Cleans up text from terminal control sequences and formatting artifacts
+ */
+function cleanupText(text: string): string {
+	// Remove ANSI escape codes
+	let cleanedText = text.replace(/\x1b\[\d+m/g, '');
+
+	// Remove backspace sequences (like a\bb which tries to print a, move back, print b)
+	// This regex looks for a character followed by a backspace and another character
+	const backspaceRegex = /.\x08./g;
+	while (backspaceRegex.test(cleanedText)) {
+		cleanedText = cleanedText.replace(backspaceRegex, match => match.charAt(2));
+	}
+
+	// Remove any remaining backspaces and their preceding characters
+	cleanedText = cleanedText.replace(/.\x08/g, '');
+
+	// Remove underscores that are used for formatting in some fish help output
+	cleanedText = cleanedText.replace(/_\b/g, '');
+
+	return cleanedText;
+}
+
+const main = async () => {
+	try {
+		await createCommandDescriptionsCache();
+		console.log('Created Fish command descriptions cache with', fishBuiltinsCommandDescriptionsCache.size, 'entries');
+
+		// Save the cache to a TypeScript file
+		const cacheFilePath = path.join(__dirname, '../src/shell/fishBuiltinsCache.ts');
+		const cacheObject = Object.fromEntries(fishBuiltinsCommandDescriptionsCache);
+		const tsContent = `${copyright}\n\nexport const fishBuiltinsCommandDescriptionsCache = ${JSON.stringify(cacheObject, null, 2)} as const;`;
+		await fs.writeFile(cacheFilePath, tsContent, 'utf8');
+		console.log('Saved Fish command descriptions cache to fishBuiltinsCache.ts with', Object.keys(cacheObject).length, 'entries');
+	} catch (error) {
+		console.error('Error:', error);
+	}
+};
+
+const copyright = `/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/`;
+
+main();
