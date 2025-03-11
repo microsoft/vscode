@@ -20,11 +20,13 @@ export interface NativeMpcDiscoveryAdapter {
 }
 
 export class ClaudeDesktopMpcDiscoveryAdapter implements NativeMpcDiscoveryAdapter {
-	public readonly id: string = `claude-desktop.${this.remoteAuthority}`;
+	public readonly id: string;
 	public readonly label: string = 'Claude Desktop';
 	public readonly order = McpCollectionSortOrder.Filesystem;
 
-	constructor(public readonly remoteAuthority: string | null) { }
+	constructor(public readonly remoteAuthority: string | null) {
+		this.id = `claude-desktop.${this.remoteAuthority}`;
+	}
 
 	getFilePath({ platform, winAppData, homedir }: INativeMcpDiscoveryData): URI | undefined {
 		if (platform === Platform.Windows) {
