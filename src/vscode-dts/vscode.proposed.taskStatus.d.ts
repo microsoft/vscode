@@ -56,7 +56,7 @@ declare module 'vscode' {
 		/**
 		 * The task event kind
 		 */
-		readonly taskEventKind: TaskEventKind;
+		readonly eventKind: TaskEventKind;
 	}
 
 	export namespace tasks {

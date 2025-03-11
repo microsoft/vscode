@@ -558,7 +558,7 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 
 		this._onDidChangeTaskTerminalStatus.fire({
 			execution: execution,
-			taskEventKind: value.taskEventKind
+			eventKind: value.taskEventKind
 		});
 	}
 
