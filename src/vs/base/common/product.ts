@@ -188,6 +188,7 @@ export interface IProductConfiguration {
 
 	readonly 'editSessions.store'?: Omit<ConfigurationSyncStore, 'insidersUrl' | 'stableUrl'>;
 	readonly darwinUniversalAssetId?: string;
+	readonly darwinBundleIdentifier?: string;
 	readonly profileTemplatesUrl?: string;
 
 	readonly commonlyUsedSettings?: string[];
@@ -335,4 +336,5 @@ export interface IDefaultChatAgent {
 
 	readonly completionsAdvancedSetting: string;
 	readonly completionsEnablementSetting: string;
+	readonly nextEditSuggestionsSetting: string;
 }

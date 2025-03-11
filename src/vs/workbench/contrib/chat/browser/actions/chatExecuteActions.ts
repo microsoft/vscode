@@ -223,6 +223,7 @@ export class SwitchToNextModelAction extends Action2 {
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Period,
 				weight: KeybindingWeight.WorkbenchContrib,
+				when: ChatContextKeys.inChatInput
 			},
 			menu: {
 				id: MenuId.ChatExecute,
