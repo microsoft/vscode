@@ -12,12 +12,12 @@ import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../simpleC
 import { MarkdownLinkCaption, PartialMarkdownLink, PartialMarkdownLinkCaption } from './markdownLink.js';
 
 /**
- * The parser responsible for parsing the `<!--` sequence - the start of a `markdown comment`.
- * TODO: @lego - update the docs
+ * The parser responsible for parsing the `markdown image` sequence of characters.
+ * E.g., `![alt text](./path/to/image.jpeg)` syntax.
  */
 export class PartialMarkdownImage extends ParserBase<TSimpleToken, PartialMarkdownImage | MarkdownImage> {
 	/**
-	 * TODO: @lego
+	 * Current active parser instance, if in the mode of actively parsing the markdown link sequence.
 	 */
 	private markdownLinkParser: PartialMarkdownLinkCaption | MarkdownLinkCaption | PartialMarkdownLink | undefined;
 
@@ -26,7 +26,7 @@ export class PartialMarkdownImage extends ParserBase<TSimpleToken, PartialMarkdo
 	}
 
 	/**
-	 * TODO: @lego - implement
+	 * Get all currently available tokens of the `markdown link` sequence.
 	 */
 	public override get tokens(): readonly TSimpleToken[] {
 		const linkTokens = this.markdownLinkParser?.tokens ?? [];
