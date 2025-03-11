@@ -77,7 +77,7 @@ import { IChatVariablesService } from '../common/chatVariables.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { ChatInputHistoryMaxEntries, IChatHistoryEntry, IChatInputState, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
-import { CancelAction, ChatSubmitAction, ChatSubmitSecondaryAgentAction, IChatExecuteActionContext, IToggleAgentModeArgs, ChatSwitchToNextModelActionId, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
+import { CancelAction, ChatSubmitAction, ChatSubmitSecondaryAgentAction, ChatSwitchToNextModelActionId, IChatExecuteActionContext, IToggleAgentModeArgs, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
 import { ImplicitContextAttachmentWidget } from './attachments/implicitContextAttachment.js';
 import { PromptAttachmentsCollectionWidget } from './attachments/promptAttachments/promptAttachmentsCollectionWidget.js';
 import { IChatWidget } from './chat.js';
@@ -193,6 +193,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		contextArr
 			.push(...this.instructionAttachmentsPart.chatAttachments);
+
+
+		// // TODO@jrieken use only selected servers
+		// for (const server of this.mcpService.servers.get()) {
+		// 	for (const { id, definition } of server.tools.get()) {
+		// 		contextArr.push({
+		// 			isTool: true,
+		// 			id,
+		// 			name: definition.name,
+		// 			value: undefined
+		// 		});
+		// 	}
+		// }
 
 		return contextArr;
 	}
