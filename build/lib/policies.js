@@ -611,21 +611,7 @@ function renderProfileManifest(appName, bundleIdentifier, _versions, _categories
 			<string>Payload Organization</string>
 			<key>pfm_type</key>
 			<string>string</string>
-		</dict>
-		<dict>
-            <key>pfm_default</key>
-            <integer>5</integer>
-            <key>pfm_name</key>
-            <string>TargetDeviceType</string>
-            <key>pfm_title</key>
-            <string>Target Device Type</string>
-            <key>pfm_type</key>
-            <string>integer</string>
-            <key>pfm_range_list</key>
-            <array>
-                <integer>5</integer>
-            </array>
-        </dict>`;
+		</dict>`;
     const profileManifestSubkeys = policies.map(policy => {
         return policy.renderProfileManifest(translations);
     }).join('');
