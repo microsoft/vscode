@@ -3,16 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { ICommandAction } from '../../../../platform/action/common/action.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandMetadata } from '../../../../platform/commands/common/commands.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
-import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { IWorkbenchIssueService, IssueReporterData } from './issue.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IssueReporterData, IWorkbenchIssueService } from './issue.js';
 
 const OpenIssueReporterActionId = 'workbench.action.openIssueReporter';
 const OpenIssueReporterApiId = 'vscode.openIssueReporter';
@@ -64,6 +66,10 @@ export class BaseIssueContribution extends Disposable implements IWorkbenchContr
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
+
+		if (configurationService.getValue<boolean>('feedback.disableFeedback')) {
+			return;
+		}
 
 		if (!productService.reportIssueUrl) {
 			return;
@@ -117,3 +123,13 @@ export class BaseIssueContribution extends Disposable implements IWorkbenchContr
 		}));
 	}
 }
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	properties: {
+		'feedback.disableFeedback': {
+			type: 'boolean',
+			default: false,
+			description: 'Disable feedback options.',
+		},
+	}
+});
