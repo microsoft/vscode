@@ -8,7 +8,7 @@ import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { MenuRegistry, MenuId, registerAction2, Action2, IMenuItem, IAction2Options } from '../../../../platform/actions/common/actions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { ExtensionsLocalizedLabel, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, UseUnpkgResourceApiConfigKey, AllowedExtensionsConfigKey } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { ExtensionsLocalizedLabel, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, UseUnpkgResourceApiConfigKey, AllowedExtensionsConfigKey, SortBy, FilterType } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { EnablementState, IExtensionManagementServerService, IPublisherInfo, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
@@ -546,6 +546,8 @@ overrideActionForActiveExtensionEditorWebview(PasteAction, webview => webview.pa
 export const CONTEXT_HAS_LOCAL_SERVER = new RawContextKey<boolean>('hasLocalServer', false);
 export const CONTEXT_HAS_REMOTE_SERVER = new RawContextKey<boolean>('hasRemoteServer', false);
 export const CONTEXT_HAS_WEB_SERVER = new RawContextKey<boolean>('hasWebServer', false);
+const CONTEXT_GALLERY_SORT_CAPABILITIES = new RawContextKey<string>('gallerySortCapabilities', '');
+const CONTEXT_GALLERY_FILTER_CAPABILITIES = new RawContextKey<string>('galleryFilterCapabilities', '');
 
 async function runAction(action: IAction): Promise<void> {
 	try {
@@ -566,8 +568,8 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 	constructor(
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
-		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
@@ -597,9 +599,16 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			hasWebServerContext.set(true);
 		}
 
+		this.registerGalleryCapabilitiesContexts();
 		this.registerGlobalActions();
 		this.registerContextMenuActions();
 		this.registerQuickAccessProvider();
+	}
+
+	private async registerGalleryCapabilitiesContexts(): Promise<void> {
+		const capabilities = await this.extensionGalleryService.getCapabilities();
+		CONTEXT_GALLERY_SORT_CAPABILITIES.bindTo(this.contextKeyService).set(`_${capabilities.query.sortBy.join('_')}_UpdateDate_`);
+		CONTEXT_GALLERY_FILTER_CAPABILITIES.bindTo(this.contextKeyService).set(`_${capabilities.query.filters.join('_')}_`);
 	}
 
 	private registerQuickAccessProvider(): void {
@@ -994,16 +1003,17 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		});
 
 		const showFeaturedExtensionsId = 'extensions.filter.featured';
+		const featuresExtensionsWhenContext = ContextKeyExpr.and(CONTEXT_HAS_GALLERY, ContextKeyExpr.regex(CONTEXT_GALLERY_FILTER_CAPABILITIES.key, new RegExp(`_${FilterType.Featured}_`)));
 		this.registerExtensionAction({
 			id: showFeaturedExtensionsId,
 			title: localize2('showFeaturedExtensions', 'Show Featured Extensions'),
 			category: ExtensionsLocalizedLabel,
 			menu: [{
 				id: MenuId.CommandPalette,
-				when: CONTEXT_HAS_GALLERY
+				when: featuresExtensionsWhenContext
 			}, {
 				id: extensionsFilterSubMenu,
-				when: CONTEXT_HAS_GALLERY,
+				when: featuresExtensionsWhenContext,
 				group: '1_predefined',
 				order: 1,
 			}],
@@ -1074,7 +1084,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		MenuRegistry.appendMenuItem(extensionsFilterSubMenu, {
 			submenu: extensionsCategoryFilterSubMenu,
 			title: localize('filter by category', "Category"),
-			when: CONTEXT_HAS_GALLERY,
+			when: ContextKeyExpr.and(CONTEXT_HAS_GALLERY, ContextKeyExpr.regex(CONTEXT_GALLERY_FILTER_CAPABILITIES.key, new RegExp(`_${FilterType.Category}_`))),
 			group: '2_categories',
 			order: 1,
 		});
@@ -1193,19 +1203,20 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		});
 
 		[
-			{ id: 'installs', title: localize('sort by installs', "Install Count"), precondition: BuiltInExtensionsContext.negate() },
-			{ id: 'rating', title: localize('sort by rating', "Rating"), precondition: BuiltInExtensionsContext.negate() },
-			{ id: 'name', title: localize('sort by name', "Name"), precondition: BuiltInExtensionsContext.negate() },
-			{ id: 'publishedDate', title: localize('sort by published date', "Published Date"), precondition: BuiltInExtensionsContext.negate() },
-			{ id: 'updateDate', title: localize('sort by update date', "Updated Date"), precondition: ContextKeyExpr.and(SearchMarketplaceExtensionsContext.negate(), RecommendedExtensionsContext.negate(), BuiltInExtensionsContext.negate()) },
-		].map(({ id, title, precondition }, index) => {
+			{ id: 'installs', title: localize('sort by installs', "Install Count"), precondition: BuiltInExtensionsContext.negate(), sortCapability: SortBy.InstallCount },
+			{ id: 'rating', title: localize('sort by rating', "Rating"), precondition: BuiltInExtensionsContext.negate(), sortCapability: SortBy.WeightedRating },
+			{ id: 'name', title: localize('sort by name', "Name"), precondition: BuiltInExtensionsContext.negate(), sortCapability: SortBy.Title },
+			{ id: 'publishedDate', title: localize('sort by published date', "Published Date"), precondition: BuiltInExtensionsContext.negate(), sortCapability: SortBy.PublishedDate },
+			{ id: 'updateDate', title: localize('sort by update date', "Updated Date"), precondition: ContextKeyExpr.and(SearchMarketplaceExtensionsContext.negate(), RecommendedExtensionsContext.negate(), BuiltInExtensionsContext.negate()), sortCapability: 'UpdateDate' },
+		].map(({ id, title, precondition, sortCapability }, index) => {
+			const sortCapabilityContext = ContextKeyExpr.regex(CONTEXT_GALLERY_SORT_CAPABILITIES.key, new RegExp(`_${sortCapability}_`));
 			this.registerExtensionAction({
 				id: `extensions.sort.${id}`,
 				title,
-				precondition: ContextKeyExpr.and(precondition, ContextKeyExpr.regex(ExtensionsSearchValueContext.key, /^@feature:/).negate()),
+				precondition: ContextKeyExpr.and(precondition, ContextKeyExpr.regex(ExtensionsSearchValueContext.key, /^@feature:/).negate(), sortCapabilityContext),
 				menu: [{
 					id: extensionsSortSubMenu,
-					when: ContextKeyExpr.or(CONTEXT_HAS_GALLERY, DefaultViewsContext),
+					when: ContextKeyExpr.and(ContextKeyExpr.or(CONTEXT_HAS_GALLERY, DefaultViewsContext), sortCapabilityContext),
 					order: index,
 				}],
 				toggled: ExtensionsSortByContext.isEqualTo(id),
@@ -1645,12 +1656,10 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				group: '1_copy',
 				when: ContextKeyExpr.has('isGalleryExtension'),
 			},
-			run: async (accessor: ServicesAccessor, extensionId: string) => {
+			run: async (accessor: ServicesAccessor, _, extension: IExtensionArg) => {
 				const clipboardService = accessor.get(IClipboardService);
-				const productService = accessor.get(IProductService);
-				if (productService.extensionsGallery?.itemUrl) {
-					const link = `${productService.extensionsGallery.itemUrl}?itemName=${extensionId}`;
-					await clipboardService.writeText(link);
+				if (extension.galleryLink) {
+					await clipboardService.writeText(extension.galleryLink);
 				}
 			}
 		});

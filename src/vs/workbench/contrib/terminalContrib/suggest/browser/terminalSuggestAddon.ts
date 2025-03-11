@@ -502,7 +502,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 		const xtermBox = this._screen!.getBoundingClientRect();
-		this._suggestWidget.showSuggestions(0, false, false, {
+		this._suggestWidget.showSuggestions(0, false, true, {
 			left: xtermBox.left + this._terminal.buffer.active.cursorX * dimensions.width,
 			top: xtermBox.top + this._terminal.buffer.active.cursorY * dimensions.height,
 			height: dimensions.height
@@ -613,8 +613,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 		const xtermBox = this._screen!.getBoundingClientRect();
-
-		suggestWidget.showSuggestions(0, false, false, {
+		suggestWidget.showSuggestions(0, false, !explicitlyInvoked, {
 			left: xtermBox.left + this._terminal.buffer.active.cursorX * dimensions.width,
 			top: xtermBox.top + this._terminal.buffer.active.cursorY * dimensions.height,
 			height: dimensions.height
