@@ -346,7 +346,7 @@ export function sanitizeProcessEnvironment(env: Record<string, string>, ...prese
 	envKeys
 		.filter(key => !set[key])
 		.forEach(envKey => {
-			for (let i = 0; i < keysToRemove.length; i) {
+			for (let i = 0; i < keysToRemove.length; i++) {
 				if (envKey.search(keysToRemove[i]) !== -1) {
 					delete env[envKey];
 					break;
