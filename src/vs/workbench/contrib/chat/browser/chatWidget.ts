@@ -528,11 +528,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	focusInput(): void {
 		this.inputPart.focus();
-
-		// Sometimes focusing the input part is not possible,
-		// but we'd like to be the last focused chat widget,
-		// so we emit an optimistic onDidFocus event nonetheless.
-		this._onDidFocus.fire();
 	}
 
 	hasInputFocus(): boolean {
