@@ -13,11 +13,10 @@ import { FileReference } from '../../../../../common/promptSyntax/codecs/tokens/
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import { PromptVariable, PromptVariableWithData } from '../../../../../common/promptSyntax/codecs/tokens/promptVariable.js';
 
-// TODO: @lego - add test name separators
 suite('FileReference', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('linkRange', () => {
+	test('• linkRange', () => {
 		const lineNumber = randomInt(100, 1);
 		const columnStartNumber = randomInt(100, 1);
 		const path = `/temp/test/file-${randomInt(Number.MAX_SAFE_INTEGER)}.txt`;
@@ -49,7 +48,7 @@ suite('FileReference', () => {
 		);
 	});
 
-	test('path', () => {
+	test('• path', () => {
 		const lineNumber = randomInt(100, 1);
 		const columnStartNumber = randomInt(100, 1);
 		const link = `/temp/test/file-${randomInt(Number.MAX_SAFE_INTEGER)}.txt`;
@@ -70,7 +69,7 @@ suite('FileReference', () => {
 		);
 	});
 
-	test('extends `PromptVariableWithData` and others', () => {
+	test('• extends `PromptVariableWithData` and others', () => {
 		const lineNumber = randomInt(100, 1);
 		const columnStartNumber = randomInt(100, 1);
 		const link = `/temp/test/file-${randomInt(Number.MAX_SAFE_INTEGER)}.txt`;
