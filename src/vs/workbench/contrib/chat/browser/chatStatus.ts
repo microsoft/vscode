@@ -33,7 +33,7 @@ import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
+import product from '../../../../platform/product/common/product.js';
 import { isObject } from '../../../../base/common/types.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -94,6 +94,12 @@ registerColor('gauge.errorForeground', {
 
 //#endregion
 
+const defaultChat = {
+	extensionId: product.defaultChatAgent?.extensionId ?? '',
+	completionsEnablementSetting: product.defaultChatAgent?.completionsEnablementSetting ?? '',
+	nextEditSuggestionsSetting: product.defaultChatAgent?.nextEditSuggestionsSetting ?? ''
+};
+
 export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'chat.statusBarEntry';
@@ -111,7 +117,6 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IProductService private readonly productService: IProductService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
@@ -127,7 +132,11 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 		if (!hidden && !disabled) {
 			this.entry ||= this.statusbarService.addEntry(this.getEntryProps(), ChatStatusBarEntry.ID, StatusbarAlignment.RIGHT, { location: { id: 'status.editor.mode', priority: 100.1 }, alignment: StatusbarAlignment.RIGHT });
-			this.statusbarService.updateEntryVisibility(`${this.productService.defaultChatAgent?.extensionId}.status`, false); // TODO@bpasero: remove this eventually
+
+			// TODO@bpasero: remove this eventually
+			const completionsStatusId = `${defaultChat.extensionId}.status`;
+			this.statusbarService.updateEntryVisibility(completionsStatusId, false);
+			this.statusbarService.overrideEntry(completionsStatusId, { name: localize('codeCompletionsStatus', "Copilot Code Completions"), text: localize('codeCompletionsStatusText', "$(copilot) Completions") });
 		} else {
 			this.entry?.dispose();
 			this.entry = undefined;
@@ -225,6 +234,11 @@ function isNewUser(contextKeyService: IContextKeyService, chatEntitlementService
 		chatEntitlementService.entitlement === ChatEntitlement.Available;									// not yet signed up to copilot
 }
 
+interface ISettingsAccessor {
+	readSetting: () => boolean;
+	writeSetting: (value: boolean) => Promise<void>;
+}
+
 class ChatStatusDashboard extends Disposable {
 
 	private readonly element = $('div.chat-status-bar-entry-tooltip');
@@ -240,8 +254,7 @@ class ChatStatusDashboard extends Disposable {
 		@IEditorService private readonly editorService: IEditorService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IProductService private readonly productService: IProductService
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super();
 	}
@@ -374,7 +387,7 @@ class ChatStatusDashboard extends Disposable {
 	}
 
 	private createSettings(container: HTMLElement, disposables: DisposableStore): HTMLElement {
-		const language = this.editorService.activeTextEditorLanguageId;
+		const modeId = this.editorService.activeTextEditorLanguageId;
 		const settings = container.appendChild($('div.settings'));
 
 		// --- Code Completions
@@ -382,63 +395,116 @@ class ChatStatusDashboard extends Disposable {
 			const globalSetting = append(settings, $('div.setting'));
 			this.createCodeCompletionsSetting(globalSetting, localize('settings.codeCompletions', "Code completions (all files)"), '*', disposables);
 
-			if (language) {
+			if (modeId) {
 				const languageSetting = append(settings, $('div.setting'));
-				this.createCodeCompletionsSetting(languageSetting, localize('settings.codeCompletionsLanguage', "Code completions ({0})", this.languageService.getLanguageName(language) ?? language), language, disposables);
+				this.createCodeCompletionsSetting(languageSetting, localize('settings.codeCompletionsLanguage', "Code completions ({0})", this.languageService.getLanguageName(modeId) ?? modeId), modeId, disposables);
 			}
+		}
+
+		// --- Next Edit Suggestions
+		{
+			const setting = append(settings, $('div.setting'));
+			this.createNextEditSuggestionsSetting(setting, localize('settings.nextEditSuggestions', "Next Edit Suggestions"), modeId, this.getCompletionsSettingAccessor(modeId), disposables);
 		}
 
 		return settings;
 	}
 
-	private createCodeCompletionsSetting(container: HTMLElement, label: string, language: string | '*', disposables: DisposableStore): void {
-		const settingId = this.productService.defaultChatAgent?.completionsEnablementSetting ?? '';
-
-		const readSetting = () => {
-			const result = this.configurationService.getValue<Record<string, boolean>>(settingId);
-			if (!isObject(result)) {
-				return false;
-			}
-
-			if (typeof result[language] !== 'undefined') {
-				return Boolean(result[language]); // go with setting if explicitly defined
-			}
-
-			return Boolean(result['*']); // fallback to global setting otherwise
-		};
-		const writeSetting = (checkbox: Checkbox) => {
-			let result = this.configurationService.getValue<Record<string, boolean>>(settingId);
-			if (!isObject(result)) {
-				result = Object.create(null);
-			}
-
-			return this.configurationService.updateValue(settingId, { ...result, [language]: checkbox.checked });
-		};
-
-		const settingCheckbox = disposables.add(new Checkbox(label, readSetting(), defaultCheckboxStyles));
-		container.appendChild(settingCheckbox.domNode);
+	private createSetting(container: HTMLElement, settingId: string, label: string, accessor: ISettingsAccessor, disposables: DisposableStore): Checkbox {
+		const checkbox = disposables.add(new Checkbox(label, Boolean(accessor.readSetting()), defaultCheckboxStyles));
+		container.appendChild(checkbox.domNode);
 
 		const settingLabel = append(container, $('span.setting-label', undefined, label));
 		disposables.add(Gesture.addTarget(settingLabel));
 		[EventType.CLICK, TouchEventType.Tap].forEach(eventType => {
 			disposables.add(addDisposableListener(settingLabel, eventType, e => {
-				if (settingCheckbox?.enabled) {
+				if (checkbox?.enabled) {
 					EventHelper.stop(e, true);
 
-					settingCheckbox.checked = !settingCheckbox.checked;
-					writeSetting(settingCheckbox);
-					settingCheckbox.focus();
+					checkbox.checked = !checkbox.checked;
+					accessor.writeSetting(checkbox.checked);
+					checkbox.focus();
 				}
 			}));
 		});
 
-		disposables.add(settingCheckbox.onChange(() => {
-			writeSetting(settingCheckbox);
+		disposables.add(checkbox.onChange(() => {
+			accessor.writeSetting(checkbox.checked);
 		}));
 
 		disposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(settingId)) {
-				settingCheckbox.checked = readSetting();
+				checkbox.checked = Boolean(accessor.readSetting());
+			}
+		}));
+
+		return checkbox;
+	}
+
+	private createCodeCompletionsSetting(container: HTMLElement, label: string, modeId: string | undefined, disposables: DisposableStore): void {
+		this.createSetting(container, defaultChat.completionsEnablementSetting, label, this.getCompletionsSettingAccessor(modeId), disposables);
+	}
+
+	private getCompletionsSettingAccessor(modeId = '*'): ISettingsAccessor {
+		const settingId = defaultChat.completionsEnablementSetting;
+
+		return {
+			readSetting: () => {
+				const result = this.configurationService.getValue<Record<string, boolean>>(settingId);
+				if (!isObject(result)) {
+					return false;
+				}
+
+				if (typeof result[modeId] !== 'undefined') {
+					return Boolean(result[modeId]); // go with setting if explicitly defined
+				}
+
+				return Boolean(result['*']); // fallback to global setting otherwise
+			},
+			writeSetting: (value: boolean) => {
+				let result = this.configurationService.getValue<Record<string, boolean>>(settingId);
+				if (!isObject(result)) {
+					result = Object.create(null);
+				}
+
+				return this.configurationService.updateValue(settingId, { ...result, [modeId]: value });
+			}
+		};
+	}
+
+	private createNextEditSuggestionsSetting(container: HTMLElement, label: string, modeId: string | undefined, completionsSettingAccessor: ISettingsAccessor, disposables: DisposableStore): void {
+		const nesSettingId = defaultChat.nextEditSuggestionsSetting;
+		const completionsSettingId = defaultChat.completionsEnablementSetting;
+
+		const checkbox = this.createSetting(container, nesSettingId, label, {
+			readSetting: () => this.configurationService.getValue<boolean>(nesSettingId, { overrideIdentifier: modeId }),
+			writeSetting: (value: boolean) => {
+				const { overrideIdentifiers } = this.configurationService.inspect(nesSettingId, { overrideIdentifier: modeId });
+				if (modeId && overrideIdentifiers?.includes(modeId)) {
+					return this.configurationService.updateValue(nesSettingId, value, { overrideIdentifier: modeId });
+				}
+
+				return this.configurationService.updateValue(nesSettingId, value);
+			}
+		}, disposables);
+
+		// enablement of NES depends on completions setting
+		// so we have to update our checkbox state accordingly
+
+		if (!completionsSettingAccessor.readSetting()) {
+			container.classList.add('disabled');
+			checkbox.disable();
+		}
+
+		disposables.add(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(completionsSettingId)) {
+				if (completionsSettingAccessor.readSetting()) {
+					checkbox.enable();
+					container.classList.remove('disabled');
+				} else {
+					checkbox.disable();
+					container.classList.add('disabled');
+				}
 			}
 		}));
 	}
