@@ -35,8 +35,6 @@ export interface IMcpRegistry {
 	registerDelegate(delegate: IMcpHostDelegate): IDisposable;
 	registerCollection(collection: McpCollectionDefinition): IDisposable;
 
-	/** Gets whether there are saved inputs used to resolve the connection */
-	hasSavedInputs(collection: McpCollectionDefinition, definition: McpServerDefinition): boolean;
 	/** Resets any saved inputs for the connection. */
 	clearSavedInputs(collection: McpCollectionDefinition, definition: McpServerDefinition): void;
 	/** Createse a connection for the collection and definition. */

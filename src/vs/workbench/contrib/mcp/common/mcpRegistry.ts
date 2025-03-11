@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
-import { isEmptyObject } from '../../../../base/common/types.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
+import { McpRegistryInputStorage } from './mcpRegistryInputStorage.js';
 import { IMcpHostDelegate, IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServerConnection } from './mcpServerConnection.js';
-import { McpCollectionDefinition, IMcpServerConnection, McpServerDefinition } from './mcpTypes.js';
+import { IMcpServerConnection, McpCollectionDefinition, McpServerDefinition } from './mcpTypes.js';
 
 export class McpRegistry extends Disposable implements IMcpRegistry {
 	declare public readonly _serviceBrand: undefined;
@@ -21,6 +22,9 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 
 	public readonly collections: IObservable<readonly McpCollectionDefinition[]> = this._collections;
 
+	private readonly _workspaceStorage = new Lazy(() => this._register(this._instantiationService.createInstance(McpRegistryInputStorage, StorageScope.WORKSPACE, StorageTarget.USER)));
+	private readonly _profileStorage = new Lazy(() => this._register(this._instantiationService.createInstance(McpRegistryInputStorage, StorageScope.PROFILE, StorageTarget.USER)));
+
 	public get delegates(): readonly IMcpHostDelegate[] {
 		return this._delegates;
 	}
@@ -28,7 +32,6 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
-		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
 	}
@@ -57,16 +60,9 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		};
 	}
 
-	public hasSavedInputs(collection: McpCollectionDefinition, definition: McpServerDefinition): boolean {
-		const stored = this.getInputStorageData(collection, definition);
-		return !!stored && !!stored.map && !isEmptyObject(stored.map);
-	}
-
-	public clearSavedInputs(collection: McpCollectionDefinition, definition: McpServerDefinition) {
-		const stored = this.getInputStorageData(collection, definition);
-		if (stored) {
-			this._storageService.remove(stored.key, stored.scope);
-		}
+	public clearSavedInputs() {
+		this._profileStorage.value.clearAll();
+		this._workspaceStorage.value.clearAll();
 	}
 
 	public async resolveConnection(
@@ -80,17 +76,21 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 
 		let launch = definition.launch;
 
-		const storage = this.getInputStorageData(collection, definition);
-		if (definition.variableReplacement && storage) {
+		if (definition.variableReplacement) {
+			const inputStorage = definition.variableReplacement.folder ? this._workspaceStorage.value : this._profileStorage.value;
+			const previouslyStored = await inputStorage.getMap();
+
 			const { folder, section, target } = definition.variableReplacement;
+
 			// based on _configurationResolverService.resolveWithInteractionReplace
 			launch = await this._configurationResolverService.resolveAnyAsync(folder, launch);
 
-			const newVariables = await this._configurationResolverService.resolveWithInteraction(folder, launch, section, storage.map, target);
+			const newVariables = await this._configurationResolverService.resolveWithInteraction(folder, launch, section, previouslyStored, target);
 
 			if (newVariables?.size) {
-				launch = await this._configurationResolverService.resolveAnyAsync(folder, launch, Object.fromEntries(newVariables));
-				this._storageService.store(storage.key, JSON.stringify(Object.fromEntries(newVariables)), storage.scope, StorageTarget.MACHINE);
+				const completeVariables = { ...previouslyStored, ...Object.fromEntries(newVariables) };
+				launch = await this._configurationResolverService.resolveAnyAsync(folder, launch, completeVariables);
+				await inputStorage.setSecrets(completeVariables);
 			}
 		}
 
@@ -101,24 +101,6 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 			delegate,
 			launch,
 		);
-	}
-
-	private getInputStorageData(collection: McpCollectionDefinition, definition: McpServerDefinition) {
-		if (!definition.variableReplacement) {
-			return undefined;
-		}
-
-		const key = `mcpConfig.${collection.id}.${definition.id}`;
-		const scope = definition.variableReplacement.folder ? StorageScope.WORKSPACE : StorageScope.APPLICATION;
-
-		let map: Record<string, string> | undefined;
-		try {
-			map = this._storageService.getObject(key, scope);
-		} catch {
-			// ignord
-		}
-
-		return { key, scope, map };
 	}
 }
 

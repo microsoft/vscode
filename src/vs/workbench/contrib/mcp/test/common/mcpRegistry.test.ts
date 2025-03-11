@@ -22,6 +22,8 @@ import { IMcpHostDelegate, IMcpMessageTransport } from '../../common/mcpRegistry
 import { McpServerConnection } from '../../common/mcpServerConnection.js';
 import { McpCollectionDefinition, McpServerDefinition, McpServerTransportType } from '../../common/mcpTypes.js';
 import { TestMcpMessageTransport } from './mcpRegistryTypes.js';
+import { ISecretStorageService } from '../../../../../platform/secrets/common/secrets.js';
+import { TestSecretStorageService } from '../../../../../platform/secrets/test/common/testSecretStorageService.js';
 
 class TestConfigurationResolverService implements Partial<IConfigurationResolverService> {
 	declare readonly _serviceBrand: undefined;
@@ -131,6 +133,7 @@ suite('Workbench - MCP - Registry', () => {
 		const services = new ServiceCollection(
 			[IConfigurationResolverService, testConfigResolverService],
 			[IStorageService, testStorageService],
+			[ISecretStorageService, new TestSecretStorageService()],
 			[ILoggerService, store.add(new TestLoggerService())],
 			[IOutputService, upcast({ showChannel: () => { } })],
 		);
@@ -183,27 +186,6 @@ suite('Workbench - MCP - Registry', () => {
 
 		disposable.dispose();
 		assert.strictEqual(registry.delegates.length, 0);
-	});
-
-	test('hasSavedInputs returns false when no inputs are saved', () => {
-		assert.strictEqual(registry.hasSavedInputs(testCollection, baseDefinition), false);
-	});
-
-	test('clearSavedInputs removes stored inputs', () => {
-		const definition: McpServerDefinition = {
-			...baseDefinition,
-			variableReplacement: {
-				section: 'mcp'
-			}
-		};
-
-		// Save some mock inputs
-		const key = `mcpConfig.${testCollection.id}.${definition.id}`;
-		testStorageService.store(key, JSON.stringify({ 'input:foo': 'bar' }), StorageScope.APPLICATION, StorageTarget.MACHINE);
-
-		assert.strictEqual(registry.hasSavedInputs(testCollection, definition), true);
-		registry.clearSavedInputs(testCollection, definition);
-		assert.strictEqual(registry.hasSavedInputs(testCollection, definition), false);
 	});
 
 	test('resolveConnection creates connection with resolved variables and memorizes them', async () => {
