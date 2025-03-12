@@ -233,7 +233,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			return;
 		}
 
-		this._hoverService.showHover({
+		this._hoverService.showInstantHover({
 			...getInstanceHoverInfo(instance, this._storageService),
 			target: this.getHTMLElement(),
 			trapFocus: true

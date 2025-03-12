@@ -69,7 +69,7 @@ export class HoverService extends Disposable implements IHoverService {
 		}));
 	}
 
-	showHover(options: IHoverOptions, focus?: boolean, skipLastFocusedUpdate?: boolean, dontShow?: boolean): IHoverWidget | undefined {
+	showInstantHover(options: IHoverOptions, focus?: boolean, skipLastFocusedUpdate?: boolean, dontShow?: boolean): IHoverWidget | undefined {
 		const hover = this._createHover(options, skipLastFocusedUpdate);
 		if (!hover) {
 			return undefined;
@@ -100,7 +100,7 @@ export class HoverService extends Disposable implements IHoverService {
 
 			// Check group identity, if it's the same skip the delay and show the hover immediately
 			if (this._currentHover && !this._currentHover.isDisposed && this._currentDelayedHoverGroupId !== undefined && this._currentDelayedHoverGroupId === lifecycleOptions?.groupId) {
-				return this.showHover({
+				return this.showInstantHover({
 					...options,
 					appearance: {
 						...options.appearance,
@@ -177,12 +177,12 @@ export class HoverService extends Disposable implements IHoverService {
 			store.add(addDisposableListener(target, EventType.KEY_DOWN, e => {
 				const evt = new StandardKeyboardEvent(e);
 				if (evt.equals(KeyCode.Space) || evt.equals(KeyCode.Enter)) {
-					this.showHover(resolveHoverOptions(), true);
+					this.showInstantHover(resolveHoverOptions(), true);
 				}
 			}));
 		}
 
-		this._delayedHovers.set(target, { show: (focus: boolean) => { this.showHover(resolveHoverOptions(), focus); } });
+		this._delayedHovers.set(target, { show: (focus: boolean) => { this.showInstantHover(resolveHoverOptions(), focus); } });
 		store.add(toDisposable(() => this._delayedHovers.delete(target)));
 
 		return store;
@@ -320,7 +320,7 @@ export class HoverService extends Disposable implements IHoverService {
 		if (!this._lastHoverOptions) {
 			return;
 		}
-		this.showHover(this._lastHoverOptions, true, true);
+		this.showInstantHover(this._lastHoverOptions, true, true);
 	}
 
 	private _showAndFocusHoverForActiveElement(): void {

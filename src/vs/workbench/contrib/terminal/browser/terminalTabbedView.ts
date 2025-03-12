@@ -458,7 +458,7 @@ export class TerminalTabbedView extends Disposable {
 		if (!instance) {
 			return;
 		}
-		this._hoverService.showHover({
+		this._hoverService.showInstantHover({
 			...getInstanceHoverInfo(instance, this._storageService),
 			target: this._terminalContainer,
 			trapFocus: true

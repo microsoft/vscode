@@ -154,7 +154,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 		disposableStore.add(focusTracker.onDidFocus(() => this._focusIsInMenu.set(true, undefined)));
 		disposableStore.add(toDisposable(() => this._focusIsInMenu.set(false, undefined)));
 
-		const h = this._hoverService.showHover({
+		const h = this._hoverService.showInstantHover({
 			target: this._iconRef.element,
 			content: content.element,
 		}) as HoverWidget | undefined;
