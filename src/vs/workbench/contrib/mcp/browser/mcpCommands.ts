@@ -6,11 +6,11 @@
 import { reset } from '../../../../base/browser/dom.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { groupBy } from '../../../../base/common/collections.js';
+import { diffSets, groupBy } from '../../../../base/common/collections.js';
 import { Event } from '../../../../base/common/event.js';
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { autorun, derived } from '../../../../base/common/observable.js';
+import { autorun, derived, transaction } from '../../../../base/common/observable.js';
 import { assertType } from '../../../../base/common/types.js';
 import { ILocalizedString, localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
@@ -26,7 +26,7 @@ import { CHAT_CATEGORY } from '../../chat/browser/actions/chatActions.js';
 import { ChatAgentLocation } from '../../chat/common/chatAgents.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { McpContextKeys } from '../common/mcpContextKeys.js';
-import { IMcpService, IMcpTool, McpConnectionState } from '../common/mcpTypes.js';
+import { IMcpServer, IMcpService, IMcpTool, McpConnectionState } from '../common/mcpTypes.js';
 
 // acroynms do not get localized
 const category: ILocalizedString = {
@@ -180,12 +180,12 @@ export class AttachMCPToolsAction extends Action2 {
 			f1: false,
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(
-				McpContextKeys.serverCount.greater(0),
+				McpContextKeys.toolsCount.greater(0),
 				ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)
 			),
 			menu: {
 				when: ContextKeyExpr.and(
-					McpContextKeys.serverCount.greater(0),
+					McpContextKeys.toolsCount.greater(0),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)
 				),
 				id: MenuId.ChatInputAttachmentToolbar,
@@ -204,48 +204,131 @@ export class AttachMCPToolsAction extends Action2 {
 		const quickPickService = accessor.get(IQuickInputService);
 		const mcpService = accessor.get(IMcpService);
 
-		type IToolPick = IQuickPickItem & { tool: IMcpTool };
-		const picks: (IToolPick | IQuickPickSeparator)[] = [];
+		type ToolPick = IQuickPickItem & { picked: boolean; tool: IMcpTool; parent: ServerPick };
+		type ServerPick = IQuickPickItem & { picked: boolean; server: IMcpServer; toolPicks: ToolPick[] };
+		type McpPick = ToolPick | ServerPick;
+
+		function isServerPick(obj: any): obj is ServerPick {
+			return Boolean((obj as ServerPick).server);
+		}
+		function isToolPick(obj: any): obj is ToolPick {
+			return Boolean((obj as ToolPick).tool);
+		}
+
+		const store = new DisposableStore();
+		const picker = store.add(quickPickService.createQuickPick<McpPick>({ useSeparators: true }));
+
+		const picks: (McpPick | IQuickPickSeparator)[] = [];
 
 		for (const server of mcpService.servers.get()) {
 
+			const tools = server.tools.get();
+
+			if (tools.length === 0) {
+				continue;
+			}
 			picks.push({
 				type: 'separator',
-				label: server.definition.label
+				label: server.collection.label
 			});
 
-			for (const tool of server.tools.get()) {
-				picks.push({
-					type: 'item',
-					label: tool.definition.name,
-					detail: tool.definition.description,
-					tooltip: tool.definition.description,
-					picked: tool.enabled.get(),
+			const item: ServerPick = {
+				server,
+				type: 'item',
+				label: `$(server) ${server.definition.label}`,
+				description: McpConnectionState.toString(server.state.get()),
+				picked: tools.some(tool => tool.enabled.get()),
+				toolPicks: []
+			};
+
+			picks.push(item);
+
+			for (const tool of tools) {
+				const toolItem: ToolPick = {
 					tool,
-				});
+					parent: item,
+					type: 'item',
+					label: `$(tools) ${tool.definition.name}`,
+					description: tool.definition.description,
+					picked: tool.enabled.get()
+				};
+				item.toolPicks.push(toolItem);
+				picks.push(toolItem);
 			}
 		}
 
-		const result = await quickPickService.pick(picks, {
-			placeHolder: localize('placeholder', "Select tools that are available to chat"),
-			canPickMany: true
-		});
+		picker.placeholder = localize('placeholder', "Select tools that are available to chat");
+		picker.canSelectMany = true;
 
-		if (!result) {
-			return;
-		}
+		let lastSelectedItems = new Set<McpPick>();
+		let ignoreEvent = false;
 
-		const seen = new Set<IMcpTool>();
-		for (const item of result) {
-			item.tool.updateEnablement(true);
-			seen.add(item.tool);
-		}
-
-		for (const pick of picks) {
-			if (pick.type === 'item' && !seen.has(pick.tool)) {
-				pick.tool.updateEnablement(false);
+		const _update = () => {
+			ignoreEvent = true;
+			try {
+				const items = picks.filter((p): p is McpPick => p.type === 'item' && Boolean(p.picked));
+				lastSelectedItems = new Set(items);
+				picker.items = picks;
+				picker.selectedItems = items;
+			} finally {
+				ignoreEvent = false;
 			}
-		}
+		};
+
+		_update();
+		picker.show();
+
+		store.add(picker.onDidChangeSelection(selectedPicks => {
+			if (ignoreEvent) {
+				return;
+			}
+
+			const { added, removed } = diffSets(lastSelectedItems, new Set(selectedPicks));
+
+			for (const item of added) {
+				item.picked = true;
+
+				if (isServerPick(item)) {
+					// add server -> add back tools
+					for (const toolPick of item.toolPicks) {
+						toolPick.picked = true;
+					}
+				} else if (isToolPick(item)) {
+					// add server when tool is picked
+					item.parent.picked = true;
+				}
+			}
+
+			for (const item of removed) {
+				item.picked = false;
+
+				if (isServerPick(item)) {
+					// removed server -> remove tools
+					for (const toolPick of item.toolPicks) {
+						toolPick.picked = false;
+					}
+				} else if (isToolPick(item) && item.parent.toolPicks.every(child => !child.picked)) {
+					// remove LAST tool -> remove server
+					item.parent.picked = false;
+				}
+			}
+
+			transaction(tx => {
+				for (const item of picks) {
+					if (isToolPick(item)) {
+						item.tool.updateEnablement(item.picked, tx);
+					}
+				}
+			});
+
+			_update();
+		}));
+
+
+		await Promise.race([Event.toPromise(Event.any(picker.onDidAccept, picker.onDidHide))]);
+
+		store.dispose();
+
 	}
 }
 
