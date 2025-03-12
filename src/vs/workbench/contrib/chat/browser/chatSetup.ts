@@ -239,13 +239,13 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				});
 			}
 
-			override async run(accessor: ServicesAccessor): Promise<void> {
+			override async run(accessor: ServicesAccessor, from?: string): Promise<void> {
 				const openerService = accessor.get(IOpenerService);
 				const telemetryService = accessor.get(ITelemetryService);
 				const hostService = accessor.get(IHostService);
 				const commandService = accessor.get(ICommandService);
 
-				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: 'chat' });
+				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: from ?? 'chat' });
 
 				openerService.open(URI.parse(defaultChat.upgradePlanUrl));
 

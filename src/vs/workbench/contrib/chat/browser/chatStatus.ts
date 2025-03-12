@@ -282,7 +282,7 @@ class ChatStatusDashboard extends Disposable {
 
 			const button = disposables.add(new Button(setup, { ...defaultButtonStyles }));
 			button.label = newUser ? localize('setupCopilotForFreeButton', "Setup Copilot for Free") : localize('signInToUseCopilotButton', "Sign In to Use Copilot");
-			disposables.add(button.onDidClick(() => this.runCommandAndClose(newUser ? 'workbench.action.chat.triggerSetup' : () => this.chatEntitlementService.requests?.value.signIn())));
+			disposables.add(button.onDidClick(() => this.runCommandAndClose(newUser ? { id: 'workbench.action.chat.triggerSetup' } : () => this.chatEntitlementService.requests?.value.signIn())));
 		}
 
 		// Quota Indicator
@@ -300,7 +300,7 @@ class ChatStatusDashboard extends Disposable {
 			if (chatQuotaExceeded || completionsQuotaExceeded) {
 				const upgradePlanButton = disposables.add(new Button(this.element, { ...defaultButtonStyles, secondary: canUseCopilot(this.contextKeyService, this.chatEntitlementService) /* use secondary color when copilot can still be used */ }));
 				upgradePlanButton.label = localize('upgradeToCopilotPro', "Upgrade to Copilot Pro");
-				disposables.add(upgradePlanButton.onDidClick(() => this.runCommandAndClose('workbench.action.chat.upgradePlan')));
+				disposables.add(upgradePlanButton.onDidClick(() => this.runCommandAndClose({ id: 'workbench.action.chat.upgradePlan', args: ['chat-status'] })));
 			}
 
 			(async () => {
@@ -332,11 +332,11 @@ class ChatStatusDashboard extends Disposable {
 		return this.element;
 	}
 
-	private runCommandAndClose(commandId: string | Function): void {
-		if (typeof commandId === 'function') {
-			commandId();
+	private runCommandAndClose(command: { id: string; args?: unknown[] } | Function): void {
+		if (typeof command === 'function') {
+			command();
 		} else {
-			this.commandService.executeCommand(commandId);
+			this.commandService.executeCommand(command.id, ...(command.args ?? []));
 		}
 		this.hoverService.hideHover(true);
 	}

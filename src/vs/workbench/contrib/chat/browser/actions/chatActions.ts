@@ -608,7 +608,7 @@ export function registerChatActions() {
 				buttons: [
 					{
 						label: localize('upgradePro', "Upgrade to Copilot Pro"),
-						run: () => commandService.executeCommand('workbench.action.chat.upgradePlan')
+						run: () => commandService.executeCommand('workbench.action.chat.upgradePlan', 'chat-dialog')
 					},
 				],
 				custom: {
