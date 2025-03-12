@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
@@ -21,8 +22,9 @@ export class NativeMcpDiscovery extends FilesystemMpcDiscovery {
 		@IFileService fileService: IFileService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMcpRegistry mcpRegistry: IMcpRegistry,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(null, labelService, fileService, instantiationService, mcpRegistry);
+		super(null, labelService, fileService, instantiationService, mcpRegistry, configurationService);
 	}
 
 	public override start(): void {

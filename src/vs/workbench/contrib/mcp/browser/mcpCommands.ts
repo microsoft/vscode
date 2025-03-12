@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/mcp.css';
-import { reset } from '../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, h, reset } from '../../../../base/browser/dom.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { assertNever } from '../../../../base/common/assert.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { diffSets, groupBy } from '../../../../base/common/collections.js';
 import { Event } from '../../../../base/common/event.js';
-import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, transaction } from '../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { assertType } from '../../../../base/common/types.js';
 import { ILocalizedString, localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
@@ -22,12 +23,14 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
+import { spinningLoading } from '../../../../platform/theme/common/iconRegistry.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { CHAT_CATEGORY } from '../../chat/browser/actions/chatActions.js';
 import { ChatAgentLocation } from '../../chat/common/chatAgents.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { McpContextKeys } from '../common/mcpContextKeys.js';
-import { IMcpServer, IMcpService, IMcpTool, McpConnectionState } from '../common/mcpTypes.js';
+import { IMcpServer, IMcpService, IMcpTool, McpConnectionState, McpServerToolsState } from '../common/mcpTypes.js';
+import './media/mcp.css';
 
 // acroynms do not get localized
 const category: ILocalizedString = {
@@ -65,7 +68,7 @@ export class ListMcpServerCommand extends Action2 {
 					...servers.map(server => ({
 						id: server.definition.id,
 						label: server.definition.label,
-						description: McpConnectionState.toString(server.state.read(reader)),
+						description: McpConnectionState.toString(server.connectionState.read(reader)),
 					})),
 				];
 			});
@@ -117,7 +120,7 @@ export class McpServerOptionsCommand extends Action2 {
 		}
 
 		const items: ActionItem[] = [];
-		const serverState = server.state.get();
+		const serverState = server.connectionState.get();
 
 		// Only show start when server is stopped or in error state
 		if (McpConnectionState.canBeStarted(serverState.state)) {
@@ -230,14 +233,14 @@ export class AttachMCPToolsAction extends Action2 {
 			}
 			picks.push({
 				type: 'separator',
-				label: localize('desc', "MCP Server - {0}", McpConnectionState.toString(server.state.get()))
+				label: localize('desc', "MCP Server - {0}", McpConnectionState.toString(server.connectionState.get()))
 			});
 
 			const item: ServerPick = {
 				server,
 				type: 'item',
 				label: `${server.definition.label}`,
-				description: localize('desc', "MCP Server - {0}", McpConnectionState.toString(server.state.get())),
+				description: localize('desc', "MCP Server - {0}", McpConnectionState.toString(server.connectionState.get())),
 				picked: tools.some(tool => tool.enabled.get()),
 				toolPicks: []
 			};
@@ -340,10 +343,17 @@ export class AttachMCPToolsActionRendering extends Disposable implements IWorkbe
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IMcpService mcpService: IMcpService,
-		@IInstantiationService instaService: IInstantiationService
+		@IInstantiationService instaService: IInstantiationService,
+		@ICommandService commandService: ICommandService,
 	) {
 		super();
 
+		const enum DisplayedState {
+			None,
+			NewTools,
+			Error,
+			Refreshing,
+		}
 
 		const toolsCount = derived(r => {
 			let count = 0;
@@ -358,6 +368,30 @@ export class AttachMCPToolsActionRendering extends Disposable implements IWorkbe
 			return { count, enabled };
 		});
 
+		const displayedState = derived(reader => {
+			const servers = mcpService.servers.read(reader);
+			const serversPerState: IMcpServer[][] = [];
+			for (const server of servers) {
+				let thisState = DisplayedState.None;
+				switch (server.toolsState.read(reader)) {
+					case McpServerToolsState.Unknown:
+						thisState = server.connectionState.read(reader).state === McpConnectionState.Kind.Error ? DisplayedState.Error : DisplayedState.NewTools;
+						break;
+					case McpServerToolsState.RefreshingFromUnknown:
+						thisState = DisplayedState.Refreshing;
+						break;
+					case McpServerToolsState.Cached:
+						thisState = server.connectionState.read(reader).state === McpConnectionState.Kind.Error ? DisplayedState.Error : DisplayedState.None;
+						break;
+				}
+
+				serversPerState[thisState] ??= [];
+				serversPerState[thisState].push(server);
+			}
+
+			const maxState = (serversPerState.length - 1) as DisplayedState;
+			return { state: maxState, servers: serversPerState[maxState] };
+		});
 
 		this._store.add(actionViewItemService.register(MenuId.ChatInputAttachmentToolbar, AttachMCPToolsAction.id, (action, options) => {
 			if (!(action instanceof MenuItemAction)) {
@@ -371,6 +405,73 @@ export class AttachMCPToolsActionRendering extends Disposable implements IWorkbe
 					this.options.label = true;
 					container.classList.add('chat-mcp');
 					super.render(container);
+
+					const action = h('button.chat-mcp-action', [h('span@icon')]);
+
+					this._register(autorun(r => {
+						const { state, servers } = displayedState.read(r);
+						const { root, icon } = action;
+						this.updateTooltip();
+						container.classList.toggle('chat-mcp-has-action', state !== DisplayedState.None);
+
+						if (state === DisplayedState.None) {
+							root.remove();
+							return;
+						}
+
+						if (!root.parentElement) {
+							container.appendChild(root);
+						}
+
+						root.ariaLabel = this.getLabelForState({ state, servers });
+						root.className = 'chat-mcp-action';
+						icon.className = '';
+						if (state === DisplayedState.NewTools) {
+							root.classList.add('chat-mcp-action-new');
+							icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.refresh));
+						} else if (state === DisplayedState.Error) {
+							root.classList.add('chat-mcp-action-error');
+							icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.warning));
+						} else if (state === DisplayedState.Refreshing) {
+							root.classList.add('chat-mcp-action-refreshing');
+							icon.classList.add(...ThemeIcon.asClassNameArray(spinningLoading));
+						} else {
+							assertNever(state);
+						}
+					}));
+
+					this._register(addDisposableListener(action.root, EventType.CLICK, e => {
+						e.preventDefault();
+						e.stopPropagation();
+
+						const { state, servers } = displayedState.get();
+						if (state === DisplayedState.NewTools) {
+							servers.forEach(server => server.start());
+						} else if (state === DisplayedState.Refreshing) {
+							servers.at(-1)?.showOutput();
+						} else if (state === DisplayedState.Error) {
+							const server = servers.at(-1);
+							if (server) {
+								commandService.executeCommand(McpServerOptionsCommand.id, server.definition.id);
+							}
+						}
+					}));
+				}
+
+				protected override getTooltip(): string {
+					return this.getLabelForState() || super.getTooltip();
+				}
+
+				private getLabelForState({ state, servers } = displayedState.get()) {
+					if (state === DisplayedState.NewTools) {
+						return localize('mcp.newTools', "New tools available ({0})", servers.length);
+					} else if (state === DisplayedState.Error) {
+						return localize('mcp.toolError', "Error loading {0} tool(s)", servers.length);
+					} else if (state === DisplayedState.Refreshing) {
+						return localize('mcp.toolRefresh', "Discovering tools...");
+					} else {
+						return null;
+					}
 				}
 
 				protected override updateLabel(): void {

@@ -101,7 +101,7 @@ export const IMcpService = createDecorator<IMcpService>('IMcpService');
 export interface IMcpServer extends IDisposable {
 	readonly collection: McpCollectionDefinition;
 	readonly definition: McpServerDefinition;
-	readonly state: IObservable<McpConnectionState>;
+	readonly connectionState: IObservable<McpConnectionState>;
 	showOutput(): void;
 	/**
 	 * Starts the server and returns its resulting state. One of:
@@ -112,9 +112,22 @@ export interface IMcpServer extends IDisposable {
 	start(isFromInteraction?: boolean): Promise<McpConnectionState>;
 	stop(): Promise<void>;
 
+	readonly toolsState: IObservable<McpServerToolsState>;
 	readonly tools: IObservable<readonly IMcpTool[]>;
 }
 
+export const enum McpServerToolsState {
+	/** Tools have not been read before */
+	Unknown,
+	/** Tools were read from the cache */
+	Cached,
+	/** Tools are refreshing for the first time */
+	RefreshingFromUnknown,
+	/** Tools are refreshing and the current tools are cached */
+	RefreshingFromCached,
+	/** Tool state is live, server is connected */
+	Live,
+}
 
 export interface IMcpTool {
 
