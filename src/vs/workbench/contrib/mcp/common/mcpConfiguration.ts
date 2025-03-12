@@ -8,7 +8,7 @@ import { localize } from '../../../../nls.js';
 import { mcpSchemaId } from '../../../services/configuration/common/configuration.js';
 import { inputsSchema } from '../../../services/configurationResolver/common/configurationResolverSchema.js';
 
-export { IMcpConfigurationServer, IMcpConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
+export type { IMcpConfigurationServer, IMcpConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 
 const mcpSchemaExampleServer = {
 	command: 'node',
