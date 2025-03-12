@@ -17,6 +17,7 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { isChatViewTitleActionContext } from '../../common/chatActions.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../common/chatContextKeys.js';
 import { hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingSession, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
 import { ChatViewId, EditsViewId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { EditingSessionAction } from '../chatEditing/chatEditingActions.js';
@@ -200,6 +201,7 @@ export function registerNewChatActions() {
 			const widgetService = accessor.get(IChatWidgetService);
 			const dialogService = accessor.get(IDialogService);
 			const viewsService = accessor.get(IViewsService);
+			const chatService = accessor.get(IChatService);
 
 			if (!(await this._handleCurrentEditingSession(editingSession, dialogService))) {
 				return;
@@ -213,8 +215,9 @@ export function registerNewChatActions() {
 				widget = widgetService.getWidgetBySessionId(context.sessionId);
 			} else {
 				// Is running from f1 or keybinding
-				const chatView = await viewsService.openView(EditsViewId) as ChatViewPane;
-				widget = chatView.widget;
+				const view = chatService.unifiedViewEnabled ? ChatViewId : EditsViewId;
+				const chatView = await viewsService.openView<ChatViewPane>(view);
+				widget = chatView?.widget;
 			}
 
 			announceChatCleared(accessibilitySignalService);

@@ -26,6 +26,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { IListService } from '../../../../../platform/list/browser/listService.js';
 import { GroupsOrder, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { isChatViewTitleActionContext } from '../../common/chatActions.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatService } from '../../common/chatService.js';
@@ -33,10 +34,6 @@ import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
-
-export interface IEditingSessionActionContext {
-	widget?: IChatWidget;
-}
 
 export abstract class EditingSessionAction extends Action2 {
 
@@ -60,12 +57,13 @@ export abstract class EditingSessionAction extends Action2 {
 }
 
 export function getEditingSessionContext(accessor: ServicesAccessor, args: any[]): { editingSession?: IChatEditingSession; chatWidget: IChatWidget } | undefined {
-	const context: IEditingSessionActionContext | undefined = args[0];
+	const arg0 = args.at(0);
+	const context = isChatViewTitleActionContext(arg0) ? arg0 : undefined;
 
 	const chatService = accessor.get(IChatService);
 	const chatWidgetService = accessor.get(IChatWidgetService);
 	const chatEditingService = accessor.get(IChatEditingService);
-	let chatWidget = context?.widget;
+	let chatWidget = context ? chatWidgetService.getWidgetBySessionId(context.sessionId) : undefined;
 	if (!chatWidget) {
 		if (chatService.unifiedViewEnabled) {
 			// TODO ugly
