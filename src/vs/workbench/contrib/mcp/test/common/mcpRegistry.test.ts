@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import * as sinon from 'sinon';
 import { cloneAndChange } from '../../../../../base/common/objects.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { upcast } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILoggerService } from '../../../../../platform/log/common/log.js';
@@ -24,6 +26,7 @@ import { IMcpHostDelegate, IMcpMessageTransport } from '../../common/mcpRegistry
 import { McpServerConnection } from '../../common/mcpServerConnection.js';
 import { McpCollectionDefinition, McpServerDefinition, McpServerTransportType } from '../../common/mcpTypes.js';
 import { TestMcpMessageTransport } from './mcpRegistryTypes.js';
+import { Memento } from '../../../../common/memento.js';
 
 class TestConfigurationResolverService implements Partial<IConfigurationResolverService> {
 	declare readonly _serviceBrand: undefined;
@@ -117,18 +120,46 @@ class TestMcpHostDelegate implements IMcpHostDelegate {
 	}
 }
 
+class TestDialogService implements Partial<IDialogService> {
+	declare readonly _serviceBrand: undefined;
+
+	private _promptResult: boolean | undefined;
+	private _promptSpy: sinon.SinonStub;
+
+	constructor() {
+		this._promptSpy = sinon.stub();
+		this._promptSpy.callsFake(() => {
+			return Promise.resolve({ result: this._promptResult });
+		});
+	}
+
+	setPromptResult(result: boolean | undefined): void {
+		this._promptResult = result;
+	}
+
+	get promptSpy(): sinon.SinonStub {
+		return this._promptSpy;
+	}
+
+	prompt(options: any): Promise<any> {
+		return this._promptSpy(options);
+	}
+}
+
 suite('Workbench - MCP - Registry', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let registry: McpRegistry;
 	let testStorageService: TestStorageService;
 	let testConfigResolverService: TestConfigurationResolverService;
+	let testDialogService: TestDialogService;
 	let testCollection: McpCollectionDefinition;
 	let baseDefinition: McpServerDefinition;
 
 	setup(() => {
 		testConfigResolverService = new TestConfigurationResolverService();
 		testStorageService = store.add(new TestStorageService());
+		testDialogService = new TestDialogService();
 
 		const services = new ServiceCollection(
 			[IConfigurationResolverService, testConfigResolverService],
@@ -136,6 +167,7 @@ suite('Workbench - MCP - Registry', () => {
 			[ISecretStorageService, new TestSecretStorageService()],
 			[ILoggerService, store.add(new TestLoggerService())],
 			[IOutputService, upcast({ showChannel: () => { } })],
+			[IDialogService, testDialogService]
 		);
 
 		const instaService = store.add(new TestInstantiationService(services));
@@ -163,6 +195,10 @@ suite('Workbench - MCP - Registry', () => {
 				cwd: URI.parse('file:///test')
 			}
 		};
+	});
+
+	teardown(() => {
+		Memento.clear(StorageScope.APPLICATION);
 	});
 
 	test('registerCollection adds collection to registry', () => {
@@ -205,12 +241,10 @@ suite('Workbench - MCP - Registry', () => {
 			}
 		};
 
-		// Register a delegate that can handle the connection
 		const delegate = new TestMcpHostDelegate();
-		const disposable = registry.registerDelegate(delegate);
-		store.add(disposable);
+		store.add(registry.registerDelegate(delegate));
 
-		const connection = await registry.resolveConnection(testCollection, definition) as McpServerConnection;
+		const connection = await registry.resolveConnection({ collection: testCollection, definition }) as McpServerConnection;
 
 		assert.ok(connection);
 		assert.strictEqual(connection.definition, definition);
@@ -218,7 +252,7 @@ suite('Workbench - MCP - Registry', () => {
 		assert.strictEqual((connection.launchDefinition as any).env.PATH, 'interactiveValue0');
 		connection.dispose();
 
-		const connection2 = await registry.resolveConnection(testCollection, definition) as McpServerConnection;
+		const connection2 = await registry.resolveConnection({ collection: testCollection, definition }) as McpServerConnection;
 
 		assert.ok(connection2);
 		assert.strictEqual((connection2.launchDefinition as any).env.PATH, 'interactiveValue0');
@@ -226,10 +260,125 @@ suite('Workbench - MCP - Registry', () => {
 
 		registry.clearSavedInputs();
 
-		const connection3 = await registry.resolveConnection(testCollection, definition) as McpServerConnection;
+		const connection3 = await registry.resolveConnection({ collection: testCollection, definition }) as McpServerConnection;
 
 		assert.ok(connection3);
 		assert.strictEqual((connection3.launchDefinition as any).env.PATH, 'interactiveValue4');
 		connection3.dispose();
+	});
+
+	suite('Trust Management', () => {
+		setup(() => {
+			const delegate = new TestMcpHostDelegate();
+			store.add(registry.registerDelegate(delegate));
+		});
+		test('resolveConnection connects to server when trusted by default', async () => {
+			const definition = { ...baseDefinition };
+
+			const connection = await registry.resolveConnection({ collection: testCollection, definition });
+
+			assert.ok(connection);
+			assert.strictEqual(testDialogService.promptSpy.called, false);
+			connection?.dispose();
+		});
+
+		test('resolveConnection prompts for confirmation when not trusted by default', async () => {
+			const untrustedCollection: McpCollectionDefinition = {
+				...testCollection,
+				isTrustedByDefault: false
+			};
+
+			const definition = { ...baseDefinition };
+
+			testDialogService.setPromptResult(true);
+
+			const connection = await registry.resolveConnection({
+				collection: untrustedCollection,
+				definition
+			});
+
+			assert.ok(connection);
+			assert.strictEqual(testDialogService.promptSpy.called, true);
+			connection?.dispose();
+
+			testDialogService.promptSpy.resetHistory();
+			const connection2 = await registry.resolveConnection({
+				collection: untrustedCollection,
+				definition
+			});
+
+			assert.ok(connection2);
+			assert.strictEqual(testDialogService.promptSpy.called, false);
+			connection2?.dispose();
+		});
+
+		test('resolveConnection returns undefined when user does not trust the server', async () => {
+			const untrustedCollection: McpCollectionDefinition = {
+				...testCollection,
+				isTrustedByDefault: false
+			};
+
+			const definition = { ...baseDefinition };
+
+			testDialogService.setPromptResult(false);
+
+			const connection = await registry.resolveConnection({
+				collection: untrustedCollection,
+				definition
+			});
+
+			assert.strictEqual(connection, undefined);
+			assert.strictEqual(testDialogService.promptSpy.called, true);
+
+			testDialogService.promptSpy.resetHistory();
+			const connection2 = await registry.resolveConnection({
+				collection: untrustedCollection,
+				definition
+			});
+
+			assert.strictEqual(connection2, undefined);
+			assert.strictEqual(testDialogService.promptSpy.called, false);
+		});
+
+		test('resolveConnection honors forceTrust parameter', async () => {
+			const untrustedCollection: McpCollectionDefinition = {
+				...testCollection,
+				isTrustedByDefault: false
+			};
+
+			const definition = { ...baseDefinition };
+
+			testDialogService.setPromptResult(false);
+
+			const connection1 = await registry.resolveConnection({
+				collection: untrustedCollection,
+				definition
+			});
+
+			assert.strictEqual(connection1, undefined);
+
+			testDialogService.promptSpy.resetHistory();
+			testDialogService.setPromptResult(true);
+
+			const connection2 = await registry.resolveConnection({
+				collection: untrustedCollection,
+				definition,
+				forceTrust: true
+			});
+
+			assert.ok(connection2);
+			assert.strictEqual(testDialogService.promptSpy.called, true);
+			connection2?.dispose();
+
+			testDialogService.promptSpy.resetHistory();
+			const connection3 = await registry.resolveConnection({
+				collection: untrustedCollection,
+				definition
+			});
+
+			assert.ok(connection3);
+			assert.strictEqual(testDialogService.promptSpy.called, false);
+			connection3?.dispose();
+		});
 	});
 });

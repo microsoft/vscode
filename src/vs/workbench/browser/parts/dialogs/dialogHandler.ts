@@ -117,7 +117,12 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 			customOptions.markdownDetails?.forEach(markdownDetail => {
 				const result = this.markdownRenderer.render(markdownDetail.markdown, {
 					actionHandler: {
-						callback: link => openLinkFromMarkdown(this.openerService, link, markdownDetail.markdown.isTrusted, true /* skip URL validation to prevent another dialog from showing which is unsupported */),
+						callback: link => {
+							if (markdownDetail.dismissOnLinkClick) {
+								dialog.dispose();
+							}
+							return openLinkFromMarkdown(this.openerService, link, markdownDetail.markdown.isTrusted, true /* skip URL validation to prevent another dialog from showing which is unsupported */);
+						},
 						disposables: dialogDisposables
 					}
 				});

@@ -72,7 +72,10 @@ export abstract class FilesystemMpcDiscovery extends Disposable implements IMcpD
 				scope: StorageScope.PROFILE,
 				isTrustedByDefault: false,
 				serverDefinitions: observableValue<readonly McpServerDefinition[]>(this, []),
-				order: adapter.order + (adapter.remoteAuthority ? McpCollectionSortOrder.RemotePenalty : 0)
+				presentation: {
+					origin: file,
+					order: adapter.order + (adapter.remoteAuthority ? McpCollectionSortOrder.RemotePenalty : 0),
+				},
 			} satisfies McpCollectionDefinition;
 
 			const collectionRegistration = this._register(new MutableDisposable());
