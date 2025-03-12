@@ -296,27 +296,26 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			return undefined;
 		}
 		const change = firstOrLast ? changes[0] : changes[changes.length - 1];
-		this._revealChange(change, firstOrLast);
+		this._revealChange(change, firstOrLast ? 0 : this.lastChangeIndex(change));
 	}
 
-	private _revealChange(change: ICellDiffInfo, firstOrLast: boolean = true) {
+	private lastChangeIndex(change: ICellDiffInfo): number {
+		if (change.type === 'modified') {
+			return change.diff.get().changes.length - 1;
+		}
+		return 0;
+	}
+
+	private _revealChange(change: ICellDiffInfo, indexInCell: number) {
 		switch (change.type) {
 			case 'insert':
 			case 'modified':
 				{
-					const index = firstOrLast || change.type === 'insert' ? 0 : change.diff.get().changes.length - 1;
-					// TODO: check if this breaks for inserted cells
-					const textChange = change.diff.get().changes[index];
-					const cellIntegration = this.getCell(change.modifiedCellIndex);
-					if (cellIntegration) {
-						cellIntegration.reveal(firstOrLast);
-						this._currentChange.set({ change: change, index }, undefined);
-					} else {
-						const cellViewModel = this.getCellViewModel(change);
-						if (cellViewModel) {
-							this.revealChangeInView(cellViewModel, textChange.modified);
-							this._currentChange.set({ change: change, index }, undefined);
-						}
+					const textChange = change.diff.get().changes[indexInCell];
+					const cellViewModel = this.getCellViewModel(change);
+					if (cellViewModel) {
+						this.revealChangeInView(cellViewModel, textChange.modified);
+						this._currentChange.set({ change: change, index: indexInCell }, undefined);
 					}
 
 					return true;
@@ -344,7 +343,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 
 	private async revealChangeInView(cell: ICellViewModel, lines: LineRange): Promise<void> {
 		await this.notebookEditor.focusNotebookCell(cell, 'editor', { focusEditorLine: lines.startLineNumber });
-		await this.notebookEditor.revealRangeInCenterAsync(cell, new Range(lines.startLineNumber, 0, lines.endLineNumberExclusive, 0));
+		await this.notebookEditor.revealRangeInCenterIfOutsideViewportAsync(cell, new Range(lines.startLineNumber, 0, lines.endLineNumberExclusive, 0));
 	}
 
 	next(wrap: boolean): boolean {
@@ -354,28 +353,23 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			const firstChange = changes[0];
 
 			if (firstChange) {
-				return this._revealChange(firstChange);
+				return this._revealChange(firstChange, 0);
 			}
 
 			return false;
 		}
 
 		// go to next
-		// first check if we are at the end of the current change
 		switch (currentChange.change.type) {
 			case 'modified':
 				{
-					const cellIntegration = this.getCell(currentChange.change.modifiedCellIndex);
-					if (cellIntegration) {
-						if (cellIntegration.next(false)) {
-							this._currentChange.set({ change: currentChange.change, index: cellIntegration.currentIndex.get() }, undefined);
-							return true;
-						}
-					}
+					// first check if we are at the end of the current change
+					const isLastChangeInCell = currentChange.index === this.lastChangeIndex(currentChange.change);
+					const index = isLastChangeInCell ? 0 : currentChange.index + 1;
+					const change = isLastChangeInCell ? changes[changes.indexOf(currentChange.change) + 1] : currentChange.change;
 
-					const nextChange = changes[changes.indexOf(currentChange.change) + 1];
-					if (nextChange) {
-						return this._revealChange(nextChange, true);
+					if (change) {
+						return this._revealChange(change, index);
 					}
 				}
 				break;
@@ -385,7 +379,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 					// go to next change directly
 					const nextChange = changes[changes.indexOf(currentChange.change) + 1];
 					if (nextChange) {
-						return this._revealChange(nextChange, true);
+						return this._revealChange(nextChange, 0);
 					}
 				}
 				break;
@@ -406,7 +400,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 		if (!currentChange) {
 			const lastChange = changes[changes.length - 1];
 			if (lastChange) {
-				return this._revealChange(lastChange, false);
+				return this._revealChange(lastChange, this.lastChangeIndex(lastChange));
 			}
 
 			return false;
@@ -417,17 +411,13 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 		switch (currentChange.change.type) {
 			case 'modified':
 				{
-					const cellIntegration = this.getCell(currentChange.change.modifiedCellIndex);
-					if (cellIntegration) {
-						if (cellIntegration.previous(false)) {
-							this._currentChange.set({ change: currentChange.change, index: cellIntegration.currentIndex.get() }, undefined);
-							return true;
-						}
-					}
+					// first check if we are at the first change within the cell
+					const isFirstChangeInCell = currentChange.index === 0;
+					const change = isFirstChangeInCell ? changes[changes.indexOf(currentChange.change) - 1] : currentChange.change;
 
-					const nextChange = changes[changes.indexOf(currentChange.change) - 1];
-					if (nextChange) {
-						return this._revealChange(nextChange, false);
+					if (change) {
+						const index = isFirstChangeInCell ? this.lastChangeIndex(change) : currentChange.index - 1;
+						return this._revealChange(change, index);
 					}
 				}
 				break;
@@ -437,7 +427,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 					// go to previous change directly
 					const prevChange = changes[changes.indexOf(currentChange.change) - 1];
 					if (prevChange) {
-						return this._revealChange(prevChange, false);
+						return this._revealChange(prevChange, this.lastChangeIndex(prevChange));
 					}
 				}
 				break;
@@ -448,7 +438,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 		if (wrap) {
 			const lastChange = changes[changes.length - 1];
 			if (lastChange) {
-				return this._revealChange(lastChange, false);
+				return this._revealChange(lastChange, this.lastChangeIndex(lastChange));
 			}
 		}
 
