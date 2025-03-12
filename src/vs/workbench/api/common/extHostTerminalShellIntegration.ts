@@ -150,7 +150,7 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 }
 
 class InternalTerminalShellIntegration extends Disposable {
-	private _activeExecutions: InternalTerminalShellExecution[] = [];
+	private _pendingExecutions: InternalTerminalShellExecution[] = [];
 
 	private _currentExecution: InternalTerminalShellExecution | undefined;
 	get currentExecution(): InternalTerminalShellExecution | undefined { return this._currentExecution; }
@@ -220,7 +220,7 @@ class InternalTerminalShellIntegration extends Disposable {
 
 	requestNewShellExecution(commandLine: vscode.TerminalShellExecutionCommandLine, cwd: URI | undefined) {
 		const execution = new InternalTerminalShellExecution(commandLine, cwd ?? this._cwd);
-		this._activeExecutions.push(execution);
+		this._pendingExecutions.push(execution);
 		this._onDidRequestNewExecution.fire(commandLine.value);
 		return execution;
 	}
@@ -234,16 +234,16 @@ class InternalTerminalShellIntegration extends Disposable {
 			this._onDidRequestEndExecution.fire({ terminal: this._terminal, shellIntegration: this.value, execution: this._currentExecution.value, exitCode: undefined });
 		}
 
-		// Get the active execution, how strict this is depends on whether the terminal has rich
-		// command detection
+		// Get the matching pending execution, how strict this is depends on the confidence of the
+		// command line
 		let currentExecution: InternalTerminalShellExecution | undefined;
 		if (commandLine.confidence === TerminalShellExecutionCommandLineConfidence.High) {
-			const index = this._activeExecutions.findIndex(e => e.value.commandLine.value === commandLine.value);
+			const index = this._pendingExecutions.findIndex(e => e.value.commandLine.value === commandLine.value);
 			if (index !== -1) {
-				currentExecution = this._activeExecutions.splice(index, 1)[0];
+				currentExecution = this._pendingExecutions.splice(index, 1)[0];
 			}
 		} else {
-			currentExecution = this._activeExecutions.shift();
+			currentExecution = this._pendingExecutions.shift();
 		}
 
 		// If there is no execution, create a new one
