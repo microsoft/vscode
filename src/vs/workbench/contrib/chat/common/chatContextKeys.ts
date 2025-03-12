@@ -96,6 +96,10 @@ export namespace ChatContextKeyExprs {
 		ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
 		ChatContextKeys.inUnifiedChat);
 
+	export const nonUnifiedPanel = ContextKeyExpr.and(
+		ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
+		ChatContextKeys.inUnifiedChat.negate());
+
 	export const inEditingMode = ContextKeyExpr.or(
 		ChatContextKeys.chatMode.isEqualTo(ChatMode.Edit),
 		ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent),
