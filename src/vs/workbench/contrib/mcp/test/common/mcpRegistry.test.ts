@@ -13,7 +13,9 @@ import { ConfigurationTarget } from '../../../../../platform/configuration/commo
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILoggerService } from '../../../../../platform/log/common/log.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ISecretStorageService } from '../../../../../platform/secrets/common/secrets.js';
+import { TestSecretStorageService } from '../../../../../platform/secrets/test/common/testSecretStorageService.js';
+import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IConfigurationResolverService } from '../../../../services/configurationResolver/common/configurationResolver.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
 import { TestLoggerService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
@@ -131,6 +133,7 @@ suite('Workbench - MCP - Registry', () => {
 		const services = new ServiceCollection(
 			[IConfigurationResolverService, testConfigResolverService],
 			[IStorageService, testStorageService],
+			[ISecretStorageService, new TestSecretStorageService()],
 			[ILoggerService, store.add(new TestLoggerService())],
 			[IOutputService, upcast({ showChannel: () => { } })],
 		);
@@ -185,28 +188,7 @@ suite('Workbench - MCP - Registry', () => {
 		assert.strictEqual(registry.delegates.length, 0);
 	});
 
-	test('hasSavedInputs returns false when no inputs are saved', () => {
-		assert.strictEqual(registry.hasSavedInputs(testCollection, baseDefinition), false);
-	});
-
-	test('clearSavedInputs removes stored inputs', () => {
-		const definition: McpServerDefinition = {
-			...baseDefinition,
-			variableReplacement: {
-				section: 'mcp'
-			}
-		};
-
-		// Save some mock inputs
-		const key = `mcpConfig.${testCollection.id}.${definition.id}`;
-		testStorageService.store(key, JSON.stringify({ 'input:foo': 'bar' }), StorageScope.APPLICATION, StorageTarget.MACHINE);
-
-		assert.strictEqual(registry.hasSavedInputs(testCollection, definition), true);
-		registry.clearSavedInputs(testCollection, definition);
-		assert.strictEqual(registry.hasSavedInputs(testCollection, definition), false);
-	});
-
-	test('resolveConnection creates connection with resolved variables and memorizes them', async () => {
+	test('resolveConnection creates connection with resolved variables and memorizes them until cleared', async () => {
 		const definition: McpServerDefinition = {
 			...baseDefinition,
 			launch: {
@@ -241,36 +223,13 @@ suite('Workbench - MCP - Registry', () => {
 		assert.ok(connection2);
 		assert.strictEqual((connection2.launchDefinition as any).env.PATH, 'interactiveValue0');
 		connection2.dispose();
-	});
 
-	test('resolveConnection with stored variables resolves them', async () => {
-		const definition: McpServerDefinition = {
-			...baseDefinition,
-			launch: {
-				type: McpServerTransportType.Stdio,
-				command: '${storedVar}',
-				args: [],
-				env: {},
-				cwd: URI.parse('file:///test')
-			},
-			variableReplacement: {
-				section: 'mcp'
-			}
-		};
+		registry.clearSavedInputs();
 
-		// Save some mock inputs
-		const key = `mcpConfig.${testCollection.id}.${definition.id}`;
-		testStorageService.store(key, { 'storedVar': 'resolved-value' }, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const connection3 = await registry.resolveConnection(testCollection, definition) as McpServerConnection;
 
-		// Register a delegate that can handle the connection
-		const delegate = new TestMcpHostDelegate();
-		const disposable = registry.registerDelegate(delegate);
-		store.add(disposable);
-
-		const connection = await registry.resolveConnection(testCollection, definition) as McpServerConnection;
-
-		assert.ok(connection);
-		assert.strictEqual((connection.launchDefinition as any).command, 'resolved-value');
-		connection.dispose();
+		assert.ok(connection3);
+		assert.strictEqual((connection3.launchDefinition as any).env.PATH, 'interactiveValue4');
+		connection3.dispose();
 	});
 });
