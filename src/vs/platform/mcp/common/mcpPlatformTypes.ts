@@ -5,6 +5,8 @@
 
 export interface IMcpConfiguration {
 	inputs: unknown[];
+	/** @deprecated Only for rough cross-compat with other formats */
+	mcpServers?: Record<string, IMcpConfigurationServer>;
 	servers: Record<string, IMcpConfigurationServer>;
 }
 

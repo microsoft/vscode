@@ -32,6 +32,7 @@ export const mcpServerSchema: IJSONSchema = {
 	title: localize('app.mcp.json.title', "Model Context Protocol Servers"),
 	allowTrailingCommas: true,
 	allowComments: true,
+	additionalProperties: false,
 	properties: {
 		servers: {
 			examples: [mcpSchemaExampleServers],
