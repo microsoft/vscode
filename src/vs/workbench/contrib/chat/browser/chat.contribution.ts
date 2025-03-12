@@ -100,7 +100,7 @@ import { ChatStatusBarEntry } from './chatStatus.js';
 import product from '../../../../platform/product/common/product.js';
 import { Event } from '../../../../base/common/event.js';
 import { ChatEditingNotebookFileSystemProviderContrib } from './chatEditing/notebook/chatEditingNotebookFileSystemProvider.js';
-import { mcpConfigurationSection, mcpSchemaExampleServers } from '../../mcp/common/mcpConfiguration.js';
+import { mcpConfigurationSection, mcpDiscoverySection, mcpSchemaExampleServers } from '../../mcp/common/mcpConfiguration.js';
 import { mcpSchemaId } from '../../../services/configuration/common/configuration.js';
 import { ChatTransferService, IChatTransferService } from '../common/chatTransferService.js';
 import { ChatTransferContribution } from './actions/chatTransfer.js';
@@ -211,6 +211,11 @@ configurationRegistry.registerConfiguration({
 			},
 			description: nls.localize('workspaceConfig.mcp.description', "Model Context Protocol server configurations"),
 			$ref: mcpSchemaId
+		},
+		[mcpDiscoverySection]: {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('mpc.discovery.enabled', "Enable discovery of Model Context Protocol servers on the machine."),
 		},
 		[PromptsConfig.CONFIG_KEY]: {
 			type: 'boolean',

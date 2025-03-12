@@ -119,8 +119,10 @@ export class ConfigMcpDiscovery extends Disposable implements IMcpDiscovery {
 				continue;
 			}
 
+
 			if (!nextDefinitions.length) {
 				src.disposable.clear();
+				src.serverDefinitions.set(nextDefinitions, undefined);
 			} else {
 				src.serverDefinitions.set(nextDefinitions, undefined);
 				src.disposable.value ??= this._mcpRegistry.registerCollection({

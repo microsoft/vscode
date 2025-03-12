@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ProxyChannel } from '../../../../../base/parts/ipc/common/ipc.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -24,8 +25,9 @@ export class RemoteNativeMpcDiscovery extends FilesystemMpcDiscovery {
 		@IFileService fileService: IFileService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMcpRegistry mcpRegistry: IMcpRegistry,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(remoteAgent.getConnection()?.remoteAuthority || null, labelService, fileService, instantiationService, mcpRegistry);
+		super(remoteAgent.getConnection()?.remoteAuthority || null, labelService, fileService, instantiationService, mcpRegistry, configurationService);
 	}
 
 	public override async start() {
