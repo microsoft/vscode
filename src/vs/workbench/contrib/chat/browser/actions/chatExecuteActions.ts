@@ -224,6 +224,7 @@ export class SwitchToNextModelAction extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: ChatContextKeys.inChatInput
 			},
+			precondition: ChatContextKeys.enabled,
 			menu: {
 				id: MenuId.ChatExecute,
 				order: 3,

@@ -71,6 +71,10 @@
 	white-space: normal;
 }
 
+.monaco-dialog-box .dialog-message-row .dialog-message-container ul {
+	padding-inline-start: 20px; /* reduce excessive indent of list items in the dialog */
+}
+
 /** Dialog: Message */
 .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message {
 	line-height: 22px;

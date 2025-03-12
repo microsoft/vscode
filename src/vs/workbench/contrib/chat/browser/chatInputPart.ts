@@ -1462,7 +1462,7 @@ class ModelPickerActionViewItem extends DropdownMenuActionViewItemWithKeybinding
 				const actions = models.map(entry => setLanguageModelAction(entry));
 				if (chatEntitlementService.entitlement === ChatEntitlement.Limited) {
 					actions.push(new Separator());
-					actions.push(toAction({ id: 'moreModels', label: localize('chat.moreModels', "Add More Models..."), run: () => commandService.executeCommand('workbench.action.chat.upgradePlan') }));
+					actions.push(toAction({ id: 'moreModels', label: localize('chat.moreModels', "Add More Models..."), run: () => commandService.executeCommand('workbench.action.chat.upgradePlan', 'chat-models') }));
 				}
 
 				return actions;
