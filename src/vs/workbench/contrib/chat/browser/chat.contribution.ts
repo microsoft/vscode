@@ -30,7 +30,7 @@ import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { mcpSchemaId } from '../../../services/configuration/common/configuration.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
-import { mcpConfigurationSection, mcpSchemaExampleServers } from '../../mcp/common/mcpConfiguration.js';
+import { mcpConfigurationSection, mcpDiscoverySection, mcpSchemaExampleServers } from '../../mcp/common/mcpConfiguration.js';
 import { ChatAgentLocation, ChatAgentNameService, ChatAgentService, IChatAgentNameService, IChatAgentService } from '../common/chatAgents.js';
 import { CodeMapperService, ICodeMapperService } from '../common/chatCodeMapperService.js';
 import '../common/chatColors.js';
@@ -219,6 +219,11 @@ configurationRegistry.registerConfiguration({
 		// 	default: false,
 		// 	tags: ['experimental'],
 		// },
+		[mcpDiscoverySection]: {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('mpc.discovery.enabled', "Enable discovery of Model Context Protocol servers on the machine."),
+		},
 		[PromptsConfig.CONFIG_KEY]: {
 			type: 'boolean',
 			title: nls.localize(
