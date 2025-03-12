@@ -10,9 +10,7 @@ import { Categories } from '../../../../platform/action/common/actionCommonCateg
 import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandMetadata } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IssueReporterData, IWorkbenchIssueService } from './issue.js';
 
@@ -67,7 +65,7 @@ export class BaseIssueContribution extends Disposable implements IWorkbenchContr
 	) {
 		super();
 
-		if (configurationService.getValue<boolean>('feedback.disableFeedback')) {
+		if (configurationService.getValue<boolean>('telemetry.disableFeedback')) {
 			return;
 		}
 
@@ -123,13 +121,3 @@ export class BaseIssueContribution extends Disposable implements IWorkbenchContr
 		}));
 	}
 }
-
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
-	properties: {
-		'feedback.disableFeedback': {
-			type: 'boolean',
-			default: false,
-			description: 'Disable feedback options.',
-		},
-	}
-});

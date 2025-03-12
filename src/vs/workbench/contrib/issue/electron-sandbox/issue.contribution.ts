@@ -35,7 +35,7 @@ class NativeIssueContribution extends BaseIssueContribution {
 	) {
 		super(productService, configurationService);
 
-		if (configurationService.getValue<boolean>('feedback.disableFeedback')) {
+		if (configurationService.getValue<boolean>('telemetry.disableFeedback')) {
 			return;
 		}
 

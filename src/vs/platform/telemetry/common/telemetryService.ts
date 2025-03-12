@@ -224,6 +224,17 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 	}
 });
 
+Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+	'id': TELEMETRY_SECTION_ID,
+	properties: {
+		'telemetry.disableFeedback': {
+			type: 'boolean',
+			default: false,
+			description: 'Disable feedback options.',
+		},
+	}
+});
+
 // Deprecated telemetry setting
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 	'id': TELEMETRY_SECTION_ID,
