@@ -577,8 +577,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 		// if the `reusable prompt` feature is enabled and in vscode
 		// insiders, add the `Prompts` resource item to the list
-		const isInsiders = (this.productService.quality !== 'stable');
-		if (PromptsConfig.enabled(this.configService) && isInsiders) {
+		if (PromptsConfig.enabled(this.configService) === true) {
 			result.push({
 				id: SyncResource.Prompts,
 				label: getSyncAreaLabel(SyncResource.Prompts)
