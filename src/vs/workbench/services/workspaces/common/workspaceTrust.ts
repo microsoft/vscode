@@ -24,7 +24,7 @@ import { isEqualAuthority } from '../../../../base/common/resources.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { promiseWithResolvers } from '../../../../base/common/async.js';
-import { areWorkspaceFoldersEmpty, isChatTransferedWorkspace } from './workspaceUtils.js';
+import { areWorkspaceFoldersEmpty, isChatTransferredWorkspace } from './workspaceUtils.js';
 
 export const WORKSPACE_TRUST_ENABLED = 'security.workspace.trust.enabled';
 export const WORKSPACE_TRUST_STARTUP_PROMPT = 'security.workspace.trust.startupPrompt';
@@ -337,7 +337,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 			const workspace = this.workspaceService.getWorkspace();
 			if (!trusted &&
-				isChatTransferedWorkspace(workspace, this.storageService) &&
+				isChatTransferredWorkspace(workspace, this.storageService) &&
 				await areWorkspaceFoldersEmpty(workspace, this.fileService)) {
 
 				// Trust empty folders transferred from chat
