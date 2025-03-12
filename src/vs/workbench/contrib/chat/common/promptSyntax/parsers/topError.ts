@@ -13,15 +13,19 @@ import { OpenFailed, RecursiveReference, FailedToResolveContentsStream } from '.
  * The top-most error of the reference tree.
  */
 export class TopError implements ITopError {
-	public readonly originalError = this.options.originalError;
-	public readonly errorSubject = this.options.errorSubject;
-	public readonly errorsCount = this.options.errorsCount;
-	public readonly parentUri = this.options.parentUri;
+	public readonly originalError: ITopError['originalError'];
+	public readonly errorSubject: ITopError['errorSubject'];
+	public readonly errorsCount: ITopError['errorsCount'];
+	public readonly parentUri: ITopError['parentUri'];
 
 	constructor(
-		private readonly options: Omit<ITopError, 'localizedMessage'>,
-	) { }
-
+		readonly options: Omit<ITopError, 'localizedMessage'>,
+	) {
+		this.originalError = options.originalError;
+		this.errorSubject = options.errorSubject;
+		this.errorsCount = options.errorsCount;
+		this.parentUri = options.parentUri;
+	}
 
 	public get localizedMessage(): string {
 		const { originalError, parentUri, errorSubject: subject, errorsCount } = this;
