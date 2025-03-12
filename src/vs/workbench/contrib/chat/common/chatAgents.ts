@@ -379,6 +379,10 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 	}
 
 	getDefaultAgent(location: ChatAgentLocation, mode?: ChatMode): IChatAgent | undefined {
+		if (mode === ChatMode.Edit) {
+			location = ChatAgentLocation.EditingSession;
+		}
+
 		return findLast(this.getActivatedAgents(), a => {
 			if ((mode === ChatMode.Agent) !== !!a.isToolsAgent) {
 				return false;
