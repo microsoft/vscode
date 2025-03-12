@@ -403,16 +403,16 @@ suite('Arrays', () => {
 	suite('pick', () => {
 		suite('object', () => {
 			test('numbers', () => {
-				const array = [{ v: 3, foo: 'a' }, { v: 5, foo: 'b' }, { v: 2, foo: 'c' }, { v: 2, foo: 'd' }, { v: 17, bar: '1' }, { v: NaN, baz: '10' }];
+				const array = [{ v: 3, foo: 'a' }, { v: 5, foo: 'b' }, { v: 2, foo: 'c' }, { v: 2, foo: 'd' }, { v: 17, bar: '1' }, { v: -100, baz: '10' }];
 
 				assert.deepStrictEqual(
 					array.map(pick('v')),
-					[3, 5, 2, 2, 17, NaN],
+					[3, 5, 2, 2, 17, -100],
 				);
 			});
 
 			test('strings', () => {
-				const array = [{ v: 3, foo: 'a' }, { v: 5, foo: 'b' }, { v: 2, foo: 'c' }, { v: 2, foo: 'd' }, { v: 17, bar: '1' }, { v: NaN, baz: '10' }, { foo: '12' }];
+				const array = [{ v: 3, foo: 'a' }, { v: 5, foo: 'b' }, { v: 2, foo: 'c' }, { v: 2, foo: 'd' }, { v: 17, bar: '1' }, { v: -100, baz: '10' }, { foo: '12' }];
 
 				assert.deepStrictEqual(
 					array.map(pick('foo')),
@@ -421,7 +421,7 @@ suite('Arrays', () => {
 			});
 
 			test('booleans', () => {
-				const array = [{ v: 3, foo: 'a' }, { v: 5, foo: 'b' }, { v: 2, foo: 'c' }, { v: 2, foo: 'd' }, { v: 17, bar: true }, { v: NaN, bar: false }, { bar: false }];
+				const array = [{ v: 3, foo: 'a' }, { v: 5, foo: 'b' }, { v: 2, foo: 'c' }, { v: 2, foo: 'd' }, { v: 17, bar: true }, { v: -100, bar: false }, { bar: false }];
 
 				assert.deepStrictEqual(
 					array.map(pick('bar')),
