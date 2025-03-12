@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/mcp.css';
 import { reset } from '../../../../base/browser/dom.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -229,14 +230,14 @@ export class AttachMCPToolsAction extends Action2 {
 			}
 			picks.push({
 				type: 'separator',
-				label: server.collection.label
+				label: localize('desc', "MCP Server - {0}", McpConnectionState.toString(server.state.get()))
 			});
 
 			const item: ServerPick = {
 				server,
 				type: 'item',
-				label: `$(server) ${server.definition.label}`,
-				description: McpConnectionState.toString(server.state.get()),
+				label: `${server.definition.label}`,
+				description: localize('desc', "MCP Server - {0}", McpConnectionState.toString(server.state.get())),
 				picked: tools.some(tool => tool.enabled.get()),
 				toolPicks: []
 			};
@@ -250,7 +251,8 @@ export class AttachMCPToolsAction extends Action2 {
 					type: 'item',
 					label: `$(tools) ${tool.definition.name}`,
 					description: tool.definition.description,
-					picked: tool.enabled.get()
+					picked: tool.enabled.get(),
+					iconClasses: ['mcp-tool']
 				};
 				item.toolPicks.push(toolItem);
 				picks.push(toolItem);
