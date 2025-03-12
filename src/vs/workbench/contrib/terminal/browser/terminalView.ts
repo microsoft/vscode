@@ -676,7 +676,7 @@ class SingleTabHoverDelegate implements IHoverDelegate {
 			return;
 		}
 		const hoverInfo = getInstanceHoverInfo(instance);
-		return this._hoverService.showHover({
+		return this._hoverService.showInstantHover({
 			...options,
 			content: hoverInfo.content,
 			actions: hoverInfo.actions
