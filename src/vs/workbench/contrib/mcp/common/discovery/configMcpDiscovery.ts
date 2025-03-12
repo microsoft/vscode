@@ -126,7 +126,7 @@ export class ConfigMcpDiscovery extends Disposable implements IMcpDiscovery {
 				src.disposable.value ??= this._mcpRegistry.registerCollection({
 					id: collectionId,
 					label: src.label,
-					order: src.order,
+					presentation: { order: src.order },
 					remoteAuthority: src.remoteAuthority || null,
 					serverDefinitions: src.serverDefinitions,
 					isTrustedByDefault: true,

@@ -34,8 +34,13 @@ export interface McpCollectionDefinition {
 	readonly isTrustedByDefault: boolean;
 	/** Scope where associated collection info should be stored. */
 	readonly scope: StorageScope;
-	/** Sort order of the collection. */
-	readonly order?: number;
+
+	readonly presentation?: {
+		/** Sort order of the collection. */
+		readonly order?: number;
+		/** Place where this server is configured, used in workspac trust prompts */
+		readonly origin?: URI;
+	};
 }
 
 export const enum McpCollectionSortOrder {
@@ -98,7 +103,13 @@ export interface IMcpServer extends IDisposable {
 	readonly definition: McpServerDefinition;
 	readonly state: IObservable<McpConnectionState>;
 	showOutput(): void;
-	start(): Promise<McpConnectionState>;
+	/**
+	 * Starts the server and returns its resulting state. One of:
+	 * - Running, if all good
+	 * - Error, if the server failed to start
+	 * - Stopped, if the server was disposed or the user cancelled the launch
+	 */
+	start(isFromInteraction?: boolean): Promise<McpConnectionState>;
 	stop(): Promise<void>;
 
 	readonly tools: IObservable<readonly IMcpTool[]>;

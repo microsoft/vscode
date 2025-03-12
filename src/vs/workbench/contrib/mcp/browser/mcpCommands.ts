@@ -58,7 +58,7 @@ export class ListMcpServerCommand extends Action2 {
 
 		store.add(pick);
 		store.add(autorun(reader => {
-			const servers = groupBy(mcpService.servers.read(reader).slice().sort((a, b) => (a.collection.order || 0) - (b.collection.order || 0)), s => s.collection.id);
+			const servers = groupBy(mcpService.servers.read(reader).slice().sort((a, b) => (a.collection.presentation?.order || 0) - (b.collection.presentation?.order || 0)), s => s.collection.id);
 			pick.items = Object.values(servers).flatMap(servers => {
 				return [
 					{ type: 'separator', label: servers[0].collection.label, id: servers[0].collection.id },
@@ -151,7 +151,7 @@ export class McpServerOptionsCommand extends Action2 {
 
 		switch (pick.action) {
 			case 'start':
-				await server.start();
+				await server.start(true);
 				server.showOutput();
 				break;
 			case 'stop':
@@ -159,7 +159,7 @@ export class McpServerOptionsCommand extends Action2 {
 				break;
 			case 'restart':
 				await server.stop();
-				await server.start();
+				await server.start(true);
 				break;
 			case 'showOutput':
 				server.showOutput();
