@@ -230,8 +230,8 @@ export class McpTool implements IMcpTool {
 		this.id = `${_server.definition.id}_${definition.name}`.replaceAll('.', '_');
 	}
 
-	updateEnablement(value: boolean): void {
-		this._enabled.set(value, undefined);
+	updateEnablement(value: boolean, tx?: ITransaction): void {
+		this._enabled.set(value, tx);
 	}
 
 	call(params: Record<string, unknown>, token?: CancellationToken): Promise<MCP.CallToolResult> {
