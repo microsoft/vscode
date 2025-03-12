@@ -196,11 +196,7 @@ export class Extension implements IExtension {
 	}
 
 	get publisherUrl(): URI | undefined {
-		if (!this.productService.extensionsGallery || !this.gallery) {
-			return undefined;
-		}
-
-		return resources.joinPath(URI.parse(this.productService.extensionsGallery.publisherUrl), this.publisher);
+		return this.gallery?.publisherLink ? URI.parse(this.gallery.publisherLink) : undefined;
 	}
 
 	get publisherDomain(): { link: string; verified: boolean } | undefined {
@@ -228,11 +224,7 @@ export class Extension implements IExtension {
 	}
 
 	get url(): string | undefined {
-		if (!this.productService.extensionsGallery || !this.gallery) {
-			return undefined;
-		}
-
-		return `${this.productService.extensionsGallery.itemUrl}?itemName=${this.publisher}.${this.name}`;
+		return this.gallery?.detailsLink;
 	}
 
 	get iconUrl(): string {
@@ -312,6 +304,10 @@ export class Extension implements IExtension {
 
 	get ratingCount(): number | undefined {
 		return this.gallery ? this.gallery.ratingCount : undefined;
+	}
+
+	get ratingUrl(): string | undefined {
+		return this.gallery?.ratingLink;
 	}
 
 	get outdated(): boolean {
@@ -2282,7 +2278,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		if (extension.gallery) {
-			if (!extension.gallery.isSigned) {
+			if (!extension.gallery.isSigned && (await this.galleryService.getCapabilities()).allRepositorySigned) {
 				return new MarkdownString().appendText(nls.localize('not signed', "This extension is not signed."));
 			}
 

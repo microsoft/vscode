@@ -15,15 +15,16 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { isChatViewTitleActionContext } from '../../common/chatActions.js';
-import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
+import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingSession, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { ChatMode } from '../../common/constants.js';
 import { ChatViewId, EditsViewId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { EditingSessionAction } from '../chatEditing/chatEditingActions.js';
 import { ctxIsGlobalEditingSession } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
-import { CHAT_CATEGORY } from './chatActions.js';
+import { CHAT_CATEGORY, IChatViewOpenOptions } from './chatActions.js';
 import { clearChatEditor } from './chatClear.js';
 
 export const ACTION_ID_NEW_CHAT = `workbench.action.chat.newChat`;
@@ -198,7 +199,6 @@ export function registerNewChatActions() {
 			const widgetService = accessor.get(IChatWidgetService);
 			const dialogService = accessor.get(IDialogService);
 			const viewsService = accessor.get(IViewsService);
-			const agentService = accessor.get(IChatAgentService);
 
 			if (!(await this._handleCurrentEditingSession(editingSession, dialogService))) {
 				return;
@@ -233,7 +233,7 @@ export function registerNewChatActions() {
 			}
 
 			if (!isChatViewTitleAction && typeof context.agentMode === 'boolean') {
-				agentService.toggleToolsAgentMode(context.agentMode);
+				widget.input.setChatMode(context.agentMode ? ChatMode.Agent : ChatMode.Edit);
 			}
 
 			if (context.inputValue) {
@@ -377,9 +377,19 @@ export function registerNewChatActions() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor, ...args: any[]) {
+		async run(accessor: ServicesAccessor, opts?: string | IChatViewOpenOptions) {
+			opts = typeof opts === 'string' ? { query: opts } : opts;
 			const viewsService = accessor.get(IViewsService);
 			const chatView = await viewsService.openView(EditsViewId) as ChatViewPane;
+
+			if (opts?.query) {
+				if (opts.isPartialQuery) {
+					chatView.widget.setInput(opts.query);
+				} else {
+					chatView.widget.acceptInput(opts.query);
+				}
+			}
+
 			chatView.widget.focusInput();
 		}
 	});

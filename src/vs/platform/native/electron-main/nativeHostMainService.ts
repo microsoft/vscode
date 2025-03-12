@@ -73,6 +73,60 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
+
+		// Events
+		{
+			this.onDidOpenMainWindow = Event.map(this.windowsMainService.onDidOpenWindow, window => window.id);
+
+			this.onDidTriggerWindowSystemContextMenu = Event.any(
+				Event.map(this.windowsMainService.onDidTriggerSystemContextMenu, ({ window, x, y }) => ({ windowId: window.id, x, y })),
+				Event.map(this.auxiliaryWindowsMainService.onDidTriggerSystemContextMenu, ({ window, x, y }) => ({ windowId: window.id, x, y }))
+			);
+
+			this.onDidMaximizeWindow = Event.any(
+				Event.map(this.windowsMainService.onDidMaximizeWindow, window => window.id),
+				Event.map(this.auxiliaryWindowsMainService.onDidMaximizeWindow, window => window.id)
+			);
+			this.onDidUnmaximizeWindow = Event.any(
+				Event.map(this.windowsMainService.onDidUnmaximizeWindow, window => window.id),
+				Event.map(this.auxiliaryWindowsMainService.onDidUnmaximizeWindow, window => window.id)
+			);
+
+			this.onDidChangeWindowFullScreen = Event.any(
+				Event.map(this.windowsMainService.onDidChangeFullScreen, e => ({ windowId: e.window.id, fullscreen: e.fullscreen })),
+				Event.map(this.auxiliaryWindowsMainService.onDidChangeFullScreen, e => ({ windowId: e.window.id, fullscreen: e.fullscreen }))
+			);
+
+			this.onDidBlurMainWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-blur', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
+			this.onDidFocusMainWindow = Event.any(
+				Event.map(Event.filter(Event.map(this.windowsMainService.onDidChangeWindowsCount, () => this.windowsMainService.getLastActiveWindow()), window => !!window), window => window!.id),
+				Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-focus', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId))
+			);
+
+			this.onDidBlurMainOrAuxiliaryWindow = Event.any(
+				this.onDidBlurMainWindow,
+				Event.map(Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-blur', (event, window: BrowserWindow) => this.auxiliaryWindowsMainService.getWindowByWebContents(window.webContents)), window => !!window), window => window!.id)
+			);
+			this.onDidFocusMainOrAuxiliaryWindow = Event.any(
+				this.onDidFocusMainWindow,
+				Event.map(Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-focus', (event, window: BrowserWindow) => this.auxiliaryWindowsMainService.getWindowByWebContents(window.webContents)), window => !!window), window => window!.id)
+			);
+
+			this.onDidResumeOS = Event.fromNodeEventEmitter(powerMonitor, 'resume');
+
+			this.onDidChangeColorScheme = this.themeMainService.onDidChangeColorScheme;
+
+			this.onDidChangeDisplay = Event.debounce(Event.any(
+				Event.filter(Event.fromNodeEventEmitter(screen, 'display-metrics-changed', (event: Electron.Event, display: Display, changedMetrics?: string[]) => changedMetrics), changedMetrics => {
+					// Electron will emit 'display-metrics-changed' events even when actually
+					// going fullscreen, because the dock hides. However, we do not want to
+					// react on this event as there is no change in display bounds.
+					return !(Array.isArray(changedMetrics) && changedMetrics.length === 1 && changedMetrics[0] === 'workArea');
+				}),
+				Event.fromNodeEventEmitter(screen, 'display-added'),
+				Event.fromNodeEventEmitter(screen, 'display-removed')
+			), () => { }, 100);
+		}
 	}
 
 
@@ -85,59 +139,29 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#region Events
 
-	readonly onDidOpenMainWindow = Event.map(this.windowsMainService.onDidOpenWindow, window => window.id);
+	readonly onDidOpenMainWindow: Event<number>;
 
-	readonly onDidTriggerWindowSystemContextMenu = Event.any(
-		Event.map(this.windowsMainService.onDidTriggerSystemContextMenu, ({ window, x, y }) => ({ windowId: window.id, x, y })),
-		Event.map(this.auxiliaryWindowsMainService.onDidTriggerSystemContextMenu, ({ window, x, y }) => ({ windowId: window.id, x, y }))
-	);
+	readonly onDidTriggerWindowSystemContextMenu: Event<{ windowId: number; x: number; y: number }>;
 
-	readonly onDidMaximizeWindow = Event.any(
-		Event.map(this.windowsMainService.onDidMaximizeWindow, window => window.id),
-		Event.map(this.auxiliaryWindowsMainService.onDidMaximizeWindow, window => window.id)
-	);
-	readonly onDidUnmaximizeWindow = Event.any(
-		Event.map(this.windowsMainService.onDidUnmaximizeWindow, window => window.id),
-		Event.map(this.auxiliaryWindowsMainService.onDidUnmaximizeWindow, window => window.id)
-	);
+	readonly onDidMaximizeWindow: Event<number>;
+	readonly onDidUnmaximizeWindow: Event<number>;
 
-	readonly onDidChangeWindowFullScreen = Event.any(
-		Event.map(this.windowsMainService.onDidChangeFullScreen, e => ({ windowId: e.window.id, fullscreen: e.fullscreen })),
-		Event.map(this.auxiliaryWindowsMainService.onDidChangeFullScreen, e => ({ windowId: e.window.id, fullscreen: e.fullscreen }))
-	);
+	readonly onDidChangeWindowFullScreen: Event<{ readonly windowId: number; readonly fullscreen: boolean }>;
 
-	readonly onDidBlurMainWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-blur', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
-	readonly onDidFocusMainWindow = Event.any(
-		Event.map(Event.filter(Event.map(this.windowsMainService.onDidChangeWindowsCount, () => this.windowsMainService.getLastActiveWindow()), window => !!window), window => window!.id),
-		Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-focus', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId))
-	);
+	readonly onDidBlurMainWindow: Event<number>;
+	readonly onDidFocusMainWindow: Event<number>;
 
-	readonly onDidBlurMainOrAuxiliaryWindow = Event.any(
-		this.onDidBlurMainWindow,
-		Event.map(Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-blur', (event, window: BrowserWindow) => this.auxiliaryWindowsMainService.getWindowByWebContents(window.webContents)), window => !!window), window => window!.id)
-	);
-	readonly onDidFocusMainOrAuxiliaryWindow = Event.any(
-		this.onDidFocusMainWindow,
-		Event.map(Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-focus', (event, window: BrowserWindow) => this.auxiliaryWindowsMainService.getWindowByWebContents(window.webContents)), window => !!window), window => window!.id)
-	);
+	readonly onDidBlurMainOrAuxiliaryWindow: Event<number>;
+	readonly onDidFocusMainOrAuxiliaryWindow: Event<number>;
 
-	readonly onDidResumeOS = Event.fromNodeEventEmitter(powerMonitor, 'resume');
+	readonly onDidResumeOS: Event<void>;
 
-	readonly onDidChangeColorScheme = this.themeMainService.onDidChangeColorScheme;
+	readonly onDidChangeColorScheme: Event<IColorScheme>;
 
 	private readonly _onDidChangePassword = this._register(new Emitter<{ account: string; service: string }>());
 	readonly onDidChangePassword = this._onDidChangePassword.event;
 
-	readonly onDidChangeDisplay = Event.debounce(Event.any(
-		Event.filter(Event.fromNodeEventEmitter(screen, 'display-metrics-changed', (event: Electron.Event, display: Display, changedMetrics?: string[]) => changedMetrics), changedMetrics => {
-			// Electron will emit 'display-metrics-changed' events even when actually
-			// going fullscreen, because the dock hides. However, we do not want to
-			// react on this event as there is no change in display bounds.
-			return !(Array.isArray(changedMetrics) && changedMetrics.length === 1 && changedMetrics[0] === 'workArea');
-		}),
-		Event.fromNodeEventEmitter(screen, 'display-added'),
-		Event.fromNodeEventEmitter(screen, 'display-removed')
-	), () => { }, 100);
+	readonly onDidChangeDisplay: Event<void>;
 
 	//#endregion
 
@@ -258,6 +282,21 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async isMaximized(windowId: number | undefined, options?: INativeHostOptions): Promise<boolean> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 		return window?.win?.isMaximized() ?? false;
+	}
+
+	async maximizeWindow(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.win?.maximize();
+	}
+
+	async unmaximizeWindow(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.win?.unmaximize();
+	}
+
+	async minimizeWindow(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.win?.minimize();
 	}
 
 	async moveWindowTop(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {

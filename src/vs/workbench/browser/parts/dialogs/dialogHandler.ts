@@ -33,18 +33,20 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 		'editor.action.clipboardPasteAction'
 	];
 
-	private readonly markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
+	private readonly markdownRenderer: MarkdownRenderer;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IProductService private readonly productService: IProductService,
 		@IClipboardService private readonly clipboardService: IClipboardService,
 		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super();
+
+		this.markdownRenderer = instantiationService.createInstance(MarkdownRenderer, {});
 	}
 
 	async prompt<T>(prompt: IPrompt<T>): Promise<IAsyncPromptResult<T>> {

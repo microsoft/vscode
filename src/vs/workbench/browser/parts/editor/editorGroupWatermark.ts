@@ -73,14 +73,14 @@ export class EditorGroupWatermark extends Disposable {
 
 	private static readonly CACHED_WHEN = 'editorGroupWatermark.whenConditions';
 
-	private readonly cachedWhen: { [when: string]: boolean } = this.storageService.getObject(EditorGroupWatermark.CACHED_WHEN, StorageScope.PROFILE, Object.create(null));
+	private readonly cachedWhen: { [when: string]: boolean };
 
 	private readonly shortcuts: HTMLElement;
 	private readonly transientDisposables = this._register(new DisposableStore());
 	private readonly keybindingLabels = this._register(new DisposableStore());
 
 	private enabled = false;
-	private workbenchState = this.contextService.getWorkbenchState();
+	private workbenchState: WorkbenchState;
 
 	constructor(
 		container: HTMLElement,
@@ -91,6 +91,9 @@ export class EditorGroupWatermark extends Disposable {
 		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
+
+		this.cachedWhen = this.storageService.getObject(EditorGroupWatermark.CACHED_WHEN, StorageScope.PROFILE, Object.create(null));
+		this.workbenchState = this.contextService.getWorkbenchState();
 
 		const elements = h('.editor-group-watermark', [
 			h('.letterpress'),

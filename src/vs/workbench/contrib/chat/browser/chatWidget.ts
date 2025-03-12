@@ -48,6 +48,7 @@ import { IChatSlashCommandService } from '../common/chatSlashCommands.js';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { IChatInputState } from '../common/chatWidgetHistoryService.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
+import { ChatMode } from '../common/constants.js';
 import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from './chat.js';
 import { ChatAccessibilityProvider } from './chatAccessibilityProvider.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
@@ -200,7 +201,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				return { text: '', parts: [] };
 			}
 
-			this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(this.viewModel!.sessionId, this.getInput(), this.location, { selectedAgent: this._lastSelectedAgent });
+			this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(this.viewModel!.sessionId, this.getInput(), this.location, { selectedAgent: this._lastSelectedAgent, mode: this.input.currentMode });
 		}
 
 		return this.parsedChatRequest;
@@ -538,7 +539,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!this.viewModel) {
 			return;
 		}
-		this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(this.viewModel.sessionId, this.getInput(), this.location, { selectedAgent: this._lastSelectedAgent });
+		this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(this.viewModel.sessionId, this.getInput(), this.location, { selectedAgent: this._lastSelectedAgent, mode: this.input.currentMode });
 		this._onDidChangeParsedInput.fire();
 	}
 
@@ -638,7 +639,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				{ ...welcomeContent, tips, },
 				{
 					location: this.location,
-					isWidgetWelcomeViewContent: true
+					isWidgetAgentWelcomeViewContent: this.input?.currentMode === ChatMode.Agent
 				}
 			));
 			dom.append(this.welcomeMessageContainer, welcomePart.element);
@@ -859,7 +860,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			let msg = '';
-			if (e.followup.agentId && e.followup.agentId !== this.chatAgentService.getDefaultAgent(this.location)?.id) {
+			if (e.followup.agentId && e.followup.agentId !== this.chatAgentService.getDefaultAgent(this.location, this.input.currentMode)?.id) {
 				const agent = this.chatAgentService.getAgent(e.followup.agentId);
 				if (!agent) {
 					return;
@@ -1137,10 +1138,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionId);
 
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, {
+				mode: this.inputPart.currentMode,
 				userSelectedModelId: this.inputPart.currentLanguageModel,
 				location: this.location,
 				locationData: this._location.resolveData?.(),
-				parserContext: { selectedAgent: this._lastSelectedAgent },
+				parserContext: { selectedAgent: this._lastSelectedAgent, mode: this.inputPart.currentMode },
 				attachedContext,
 				noCommandDetection: options?.noCommandDetection,
 				hasInstructionAttachments: this.inputPart.hasInstructionAttachments,

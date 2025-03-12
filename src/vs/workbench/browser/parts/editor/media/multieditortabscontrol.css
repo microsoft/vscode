@@ -345,7 +345,7 @@
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container >  .tab.sizing-shrink > .tab-label.tab-label-has-badge::after,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container >  .tab.sizing-fixed > .tab-label.tab-label-has-badge::after {
-	padding-right: 5px; /* with tab sizing shrink/fixed and badges, we want a right-padding because the close button is hidden */
+	margin-right: 5px; /* with tab sizing shrink/fixed and badges, we want a right-margin because the close button is hidden. Use margin instead of padding to support animating the badge (https://github.com/microsoft/vscode/issues/242661) */
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink:not(.tab-actions-left):not(.close-action-off) .tab-label {
@@ -386,7 +386,7 @@
 	 * fully without clipping in case the parent container has `overflow: hidden`
 	 * and/or `flex: none`. We added those styles to fix other issues so a pragmatic
 	 * solution is to give the label container a bit more room to fully render.
-	 * 
+	 *
 	 * Refs: https://github.com/microsoft/vscode/issues/207409
 	 */
 	padding-right: 1px;

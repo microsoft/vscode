@@ -33,6 +33,7 @@ import { IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChat
 import { ChatServiceTelemetry } from './chatServiceTelemetry.js';
 import { IChatSlashCommandService } from './chatSlashCommands.js';
 import { IChatVariablesService } from './chatVariables.js';
+import { ChatMode } from './constants.js';
 import { ChatMessageRole, IChatMessage } from './languageModels.js';
 import { ILanguageModelToolsService } from './languageModelToolsService.js';
 
@@ -45,7 +46,7 @@ interface IChatTransfer {
 	chat: ISerializableChatData;
 	inputValue: string;
 	location: ChatAgentLocation;
-	toolsAgentModeEnabled: boolean;
+	mode: ChatMode;
 }
 const SESSION_TRANSFER_EXPIRATION_IN_MILLISECONDS = 1000 * 60;
 
@@ -171,7 +172,7 @@ export class ChatService extends Disposable implements IChatService {
 				sessionId: transferredChat.sessionId,
 				inputValue: transferredData.inputValue,
 				location: transferredData.location,
-				toolsAgentModeEnabled: transferredData.toolsAgentModeEnabled,
+				mode: transferredData.mode,
 			};
 		}
 
@@ -473,7 +474,8 @@ export class ChatService extends Disposable implements IChatService {
 
 		const isTransferred = this.transferredSessionData?.sessionId === sessionId;
 		if (isTransferred) {
-			this.chatAgentService.toggleToolsAgentMode(this.transferredSessionData.toolsAgentModeEnabled);
+			// TODO
+			// this.chatAgentService.toggleToolsAgentMode(this.transferredSessionData.toolsAgentModeEnabled);
 			this._transferredSessionData = undefined;
 		}
 
@@ -501,7 +503,7 @@ export class ChatService extends Disposable implements IChatService {
 		const location = options?.location ?? model.initialLocation;
 		const attempt = options?.attempt ?? 0;
 		const enableCommandDetection = !options?.noCommandDetection;
-		const defaultAgent = this.chatAgentService.getDefaultAgent(location)!;
+		const defaultAgent = this.chatAgentService.getDefaultAgent(location, options?.mode)!;
 
 		model.removeRequest(request.id, ChatRequestRemovalReason.Resend);
 
@@ -554,7 +556,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		const location = options?.location ?? model.initialLocation;
 		const attempt = options?.attempt ?? 0;
-		const defaultAgent = this.chatAgentService.getDefaultAgent(location)!;
+		const defaultAgent = this.chatAgentService.getDefaultAgent(location, options?.mode)!;
 
 		const parsedRequest = this.parseChatRequest(sessionId, request, location, options);
 		const agent = parsedRequest.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart)?.agent ?? defaultAgent;
@@ -575,7 +577,7 @@ export class ChatService extends Disposable implements IChatService {
 			if (!agent) {
 				throw new Error(`Unknown agent: ${options.agentId}`);
 			}
-			parserContext = { selectedAgent: agent };
+			parserContext = { selectedAgent: agent, mode: options.mode };
 			const commandPart = options.slashCommand ? ` ${chatSubcommandLeader}${options.slashCommand}` : '';
 			request = `${chatAgentLeader}${agent.name}${commandPart} ${request}`;
 		}
@@ -891,13 +893,13 @@ export class ChatService extends Disposable implements IChatService {
 
 	private getHistoryEntriesFromModel(requests: IChatRequestModel[], sessionId: string, location: ChatAgentLocation, forAgentId: string): IChatAgentHistoryEntry[] {
 		const history: IChatAgentHistoryEntry[] = [];
+		const agent = this.chatAgentService.getAgent(forAgentId);
 		for (const request of requests) {
 			if (!request.response) {
 				continue;
 			}
 
-			const defaultAgentId = this.chatAgentService.getDefaultAgent(location)?.id;
-			if (forAgentId !== request.response.agent?.id && forAgentId !== defaultAgentId) {
+			if (forAgentId !== request.response.agent?.id && !agent?.isDefault) {
 				// An agent only gets to see requests that were sent to this agent.
 				// The default agent (the undefined case) gets to see all of them.
 				continue;
@@ -1031,7 +1033,7 @@ export class ChatService extends Disposable implements IChatService {
 			toWorkspace: toWorkspace,
 			inputValue: transferredSessionData.inputValue,
 			location: transferredSessionData.location,
-			toolsAgentModeEnabled: transferredSessionData.toolsAgentModeEnabled,
+			mode: transferredSessionData.mode,
 		});
 
 		this.storageService.store(globalChatKey, JSON.stringify(existingRaw), StorageScope.PROFILE, StorageTarget.MACHINE);

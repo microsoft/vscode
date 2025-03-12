@@ -106,6 +106,8 @@ export const MENU_INLINE_CHAT_WIDGET_STATUS = MenuId.for('inlineChatWidget.statu
 export const MENU_INLINE_CHAT_WIDGET_SECONDARY = MenuId.for('inlineChatWidget.secondary');
 export const MENU_INLINE_CHAT_ZONE = MenuId.for('inlineChatWidget.changesZone');
 
+export const MENU_INLINE_CHAT_SIDE = MenuId.for('inlineChatWidget.side');
+
 // --- colors
 
 

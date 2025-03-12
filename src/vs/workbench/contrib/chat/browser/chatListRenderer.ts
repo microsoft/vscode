@@ -346,7 +346,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (ev.equals(KeyCode.Space) || ev.equals(KeyCode.Enter)) {
 				const content = hoverContent();
 				if (content) {
-					this.hoverService.showHover({ content, target: user, trapFocus: true, actions: hoverOptions.actions }, true);
+					this.hoverService.showInstantHover({ content, target: user, trapFocus: true, actions: hoverOptions.actions }, true);
 				}
 			} else if (ev.equals(KeyCode.Escape)) {
 				this.hoverService.hideHover();
@@ -898,12 +898,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return this.renderUndoStop(content);
 		}
 
-		// todo@connor4312/roblourens: should this throw or renderNoContent to avoid progressive render thrashing?
-		return undefined;
+		return this.renderNoContent(other => content.kind === other.kind);
 	}
 
 	private renderUndoStop(content: IChatUndoStop) {
-		return this.renderNoContent(other => other.kind === 'undoStop' && other.id === content.id);
+		return this.renderNoContent(other => other.kind === content.kind && other.id === content.id);
 	}
 
 	private renderNoContent(equals: (otherContent: IChatRendererContent) => boolean): IChatContentPart {

@@ -96,14 +96,6 @@ export interface IChatViewOpenRequestEntry {
 	response: string;
 }
 
-MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
-	command: {
-		id: 'update.showCurrentReleaseNotes',
-		title: localize2('chat.releaseNotes.label', "Show Release Notes"),
-	},
-	when: ContextKeyExpr.equals('view', ChatViewId)
-});
-
 export const OPEN_CHAT_QUOTA_EXCEEDED_DIALOG = 'workbench.action.chat.openQuotaExceededDialog';
 
 export function registerChatActions() {
@@ -616,7 +608,7 @@ export function registerChatActions() {
 				buttons: [
 					{
 						label: localize('upgradePro', "Upgrade to Copilot Pro"),
-						run: () => commandService.executeCommand('workbench.action.chat.upgradePlan')
+						run: () => commandService.executeCommand('workbench.action.chat.upgradePlan', 'chat-dialog')
 					},
 				],
 				custom: {

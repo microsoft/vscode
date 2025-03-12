@@ -320,12 +320,37 @@ function getShell(shellType: TerminalShellType): string | undefined {
 
 function getEnvAsRecord(shellIntegrationEnv: { [key: string]: string | undefined } | undefined): Record<string, string> {
 	const env: Record<string, string> = {};
-	if (shellIntegrationEnv) {
-		for (const [key, value] of Object.entries(shellIntegrationEnv)) {
-			if (typeof value === 'string') {
-				env[key] = value;
-			}
+	for (const [key, value] of Object.entries(shellIntegrationEnv ?? process.env)) {
+		if (typeof value === 'string') {
+			env[key] = value;
 		}
 	}
+	if (!shellIntegrationEnv) {
+		sanitizeProcessEnvironment(env);
+	}
 	return env;
+}
+
+export function sanitizeProcessEnvironment(env: Record<string, string>, ...preserve: string[]): void {
+	const set = preserve.reduce<Record<string, boolean>>((set, key) => {
+		set[key] = true;
+		return set;
+	}, {});
+	const keysToRemove = [
+		/^ELECTRON_.$/,
+		/^VSCODE_(?!(PORTABLE|SHELL_LOGIN|ENV_REPLACE|ENV_APPEND|ENV_PREPEND)).$/,
+		/^SNAP(|_.*)$/,
+		/^GDK_PIXBUF_.$/,
+	];
+	const envKeys = Object.keys(env);
+	envKeys
+		.filter(key => !set[key])
+		.forEach(envKey => {
+			for (let i = 0; i < keysToRemove.length; i++) {
+				if (envKey.search(keysToRemove[i]) !== -1) {
+					delete env[envKey];
+					break;
+				}
+			}
+		});
 }

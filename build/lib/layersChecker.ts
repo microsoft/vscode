@@ -80,7 +80,8 @@ const CORE_TYPES = [
 
 	// webcrypto has been available since Node.js 19, but still live in dom.d.ts
 	'Crypto',
-	'SubtleCrypto'
+	'SubtleCrypto',
+	'JsonWebKey',
 ];
 
 // Types that are defined in a common layer but are known to be only
