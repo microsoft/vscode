@@ -27,7 +27,7 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import Severity from '../../../../base/common/severity.js';
 import { errorIcon, infoIcon, warningIcon } from './extensionsIcons.js';
-import { SeverityIcon } from '../../../../platform/severityIcon/browser/severityIcon.js';
+import { SeverityIcon } from '../../../../base/browser/ui/severityIcon/severityIcon.js';
 import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { OS } from '../../../../base/common/platform.js';
 import { IMarkdownString, MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
