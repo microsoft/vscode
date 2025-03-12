@@ -8,7 +8,7 @@ import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/icon
 import { Codicon } from '../../../../base/common/codicons.js';
 import { groupBy } from '../../../../base/common/collections.js';
 import { Event } from '../../../../base/common/event.js';
-import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, derived } from '../../../../base/common/observable.js';
 import { assertType } from '../../../../base/common/types.js';
@@ -23,8 +23,8 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { CHAT_CATEGORY } from '../../chat/browser/actions/chatActions.js';
-import { ChatAgentLocation } from '../../chat/common/chatAgents.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
+import { ChatMode } from '../../chat/common/constants.js';
 import { McpContextKeys } from '../common/mcpContextKeys.js';
 import { IMcpService, IMcpTool, McpConnectionState } from '../common/mcpTypes.js';
 
@@ -181,18 +181,18 @@ export class AttachMCPToolsAction extends Action2 {
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(
 				McpContextKeys.serverCount.greater(0),
-				ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)
+				ChatContextKeys.chatMode.notEqualsTo(ChatMode.Chat)
 			),
 			menu: {
 				when: ContextKeyExpr.and(
 					McpContextKeys.serverCount.greater(0),
-					ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)
+					ChatContextKeys.chatMode.notEqualsTo(ChatMode.Chat)
 				),
 				id: MenuId.ChatInputAttachmentToolbar,
 				group: 'navigation'
 			},
 			keybinding: {
-				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)),
+				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.chatMode.notEqualsTo(ChatMode.Chat)),
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Slash,
 				weight: KeybindingWeight.EditorContrib
 			}

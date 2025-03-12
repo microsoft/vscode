@@ -31,7 +31,7 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
-import { ChatAgentLocation } from '../../common/constants.js';
+import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
 
@@ -254,7 +254,7 @@ export class ChatEditingAcceptAllAction extends EditingSessionAction {
 			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyCode.Enter,
-				when: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey, ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession), ChatContextKeys.inChatInput),
+				when: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey, ChatContextKeys.inChatInput),
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
 			menu: [
@@ -263,7 +263,7 @@ export class ChatEditingAcceptAllAction extends EditingSessionAction {
 					id: MenuId.ChatEditingWidgetToolbar,
 					group: 'navigation',
 					order: 0,
-					when: ContextKeyExpr.and(applyingChatEditsFailedContextKey.negate(), ContextKeyExpr.and(hasUndecidedChatEditingResourceContextKey, ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession))))
+					when: ContextKeyExpr.and(applyingChatEditsFailedContextKey.negate(), ContextKeyExpr.and(hasUndecidedChatEditingResourceContextKey))
 				}
 			]
 		});
@@ -289,11 +289,11 @@ export class ChatEditingDiscardAllAction extends EditingSessionAction {
 					id: MenuId.ChatEditingWidgetToolbar,
 					group: 'navigation',
 					order: 1,
-					when: ContextKeyExpr.and(applyingChatEditsFailedContextKey.negate(), ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession), hasUndecidedChatEditingResourceContextKey))
+					when: ContextKeyExpr.and(applyingChatEditsFailedContextKey.negate(), hasUndecidedChatEditingResourceContextKey)
 				}
 			],
 			keybinding: {
-				when: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey, ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession), ChatContextKeys.inChatInput, ChatContextKeys.inputHasText.negate()),
+				when: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey, ChatContextKeys.inChatInput, ChatContextKeys.inputHasText.negate()),
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 			},
@@ -345,7 +345,7 @@ export class ChatEditingRemoveAllFilesAction extends EditingSessionAction {
 					id: MenuId.ChatEditingWidgetToolbar,
 					group: 'navigation',
 					order: 5,
-					when: ContextKeyExpr.and(hasAppliedChatEditsContextKey.negate(), ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession))
+					when: hasAppliedChatEditsContextKey.negate()
 				}
 			]
 		});
@@ -381,7 +381,7 @@ export class ChatEditingShowChangesAction extends EditingSessionAction {
 					id: MenuId.ChatEditingWidgetToolbar,
 					group: 'navigation',
 					order: 4,
-					when: ContextKeyExpr.and(applyingChatEditsFailedContextKey.negate(), ContextKeyExpr.and(hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)))
+					when: ContextKeyExpr.and(applyingChatEditsFailedContextKey.negate(), ContextKeyExpr.and(hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey))
 				}
 			],
 		});
@@ -448,7 +448,7 @@ registerAction2(class RemoveAction extends Action2 {
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 				},
-				when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession), ChatContextKeys.inChatSession, ChatContextKeys.inChatInput.negate()),
+				when: ContextKeyExpr.and(ChatContextKeys.chatMode.notEqualsTo(ChatMode.Chat), ChatContextKeys.inChatSession, ChatContextKeys.inChatInput.negate()),
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
 			menu: [
@@ -456,7 +456,7 @@ registerAction2(class RemoveAction extends Action2 {
 					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession), ChatContextKeys.isRequest)
+					when: ContextKeyExpr.and(ChatContextKeys.chatMode.notEqualsTo(ChatMode.Chat), ChatContextKeys.isRequest)
 				}
 			]
 		});
@@ -620,7 +620,7 @@ registerAction2(class ResolveSymbolsContextAction extends EditingSessionAction {
 				id: MenuId.ChatInputSymbolAttachmentContext,
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession), EditorContextKeys.hasReferenceProvider)
+				when: ContextKeyExpr.and(ChatContextKeys.chatMode.isEqualTo(ChatMode.Chat), EditorContextKeys.hasReferenceProvider)
 			}
 		});
 	}
