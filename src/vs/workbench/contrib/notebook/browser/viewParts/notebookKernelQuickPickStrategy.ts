@@ -294,13 +294,11 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 			const extension = (await extensionWorkbenchService.getExtensions([{ id: extId }], CancellationToken.None))[0];
 			if (extension.enablementState === EnablementState.DisabledGlobally || extension.enablementState === EnablementState.DisabledWorkspace || extension.enablementState === EnablementState.DisabledByEnvironment) {
 				extensionsToEnable.push(extension);
-			} else {
-				// If the extension has already been installed, then there's no need to re-install this.
-				if (!extensionWorkbenchService.installed.some(e => areSameExtensions(e.identifier, extension.identifier))) {
-					const canInstall = await extensionWorkbenchService.canInstall(extension);
-					if (canInstall === true) {
-						extensionsToInstall.push(extension);
-					}
+			} else if (!extensionWorkbenchService.installed.some(e => areSameExtensions(e.identifier, extension.identifier))) {
+				// Install this extension only if it hasn't already been installed.
+				const canInstall = await extensionWorkbenchService.canInstall(extension);
+				if (canInstall === true) {
+					extensionsToInstall.push(extension);
 				}
 			}
 		}
