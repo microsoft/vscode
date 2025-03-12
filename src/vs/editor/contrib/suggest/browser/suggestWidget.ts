@@ -35,7 +35,7 @@ import { canExpandCompletionItem, SuggestDetailsOverlay, SuggestDetailsWidget } 
 import { ItemRenderer } from './suggestWidgetRenderer.js';
 import { getListStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
-import { CompletionItemKind } from '../../../common/languages.js';
+import { CompletionItemKinds } from '../../../common/languages.js';
 
 /**
  * Suggest widget colors
@@ -237,7 +237,7 @@ export class SuggestWidget implements IDisposable {
 				getAriaLabel: (item: CompletionItem) => {
 
 					let label = item.textLabel;
-					const kindLabel = getLabelForKind(item.completion.kind);
+					const kindLabel = CompletionItemKinds.toLabel(item.completion.kind);
 					if (typeof item.completion.label !== 'string') {
 						const { detail, description } = item.completion.label;
 						if (detail && description) {
@@ -1045,36 +1045,3 @@ export class SuggestContentWidget implements IContentWidget {
 	}
 }
 
-function getLabelForKind(kind: CompletionItemKind): string {
-	switch (kind) {
-		case CompletionItemKind.Method: return nls.localize('suggestWidget.kind.method', 'Method');
-		case CompletionItemKind.Function: return nls.localize('suggestWidget.kind.function', 'Function');
-		case CompletionItemKind.Constructor: return nls.localize('suggestWidget.kind.constructor', 'Constructor');
-		case CompletionItemKind.Field: return nls.localize('suggestWidget.kind.field', 'Field');
-		case CompletionItemKind.Variable: return nls.localize('suggestWidget.kind.variable', 'Variable');
-		case CompletionItemKind.Class: return nls.localize('suggestWidget.kind.class', 'Class');
-		case CompletionItemKind.Struct: return nls.localize('suggestWidget.kind.struct', 'Struct');
-		case CompletionItemKind.Interface: return nls.localize('suggestWidget.kind.interface', 'Interface');
-		case CompletionItemKind.Module: return nls.localize('suggestWidget.kind.module', 'Module');
-		case CompletionItemKind.Property: return nls.localize('suggestWidget.kind.property', 'Property');
-		case CompletionItemKind.Event: return nls.localize('suggestWidget.kind.event', 'Event');
-		case CompletionItemKind.Operator: return nls.localize('suggestWidget.kind.operator', 'Operator');
-		case CompletionItemKind.Unit: return nls.localize('suggestWidget.kind.unit', 'Unit');
-		case CompletionItemKind.Value: return nls.localize('suggestWidget.kind.value', 'Value');
-		case CompletionItemKind.Constant: return nls.localize('suggestWidget.kind.constant', 'Constant');
-		case CompletionItemKind.Enum: return nls.localize('suggestWidget.kind.enum', 'Enum');
-		case CompletionItemKind.EnumMember: return nls.localize('suggestWidget.kind.enumMember', 'Enum Member');
-		case CompletionItemKind.Keyword: return nls.localize('suggestWidget.kind.keyword', 'Keyword');
-		case CompletionItemKind.Text: return nls.localize('suggestWidget.kind.text', 'Text');
-		case CompletionItemKind.Color: return nls.localize('suggestWidget.kind.color', 'Color');
-		case CompletionItemKind.File: return nls.localize('suggestWidget.kind.file', 'File');
-		case CompletionItemKind.Reference: return nls.localize('suggestWidget.kind.reference', 'Reference');
-		case CompletionItemKind.Customcolor: return nls.localize('suggestWidget.kind.customcolor', 'Custom Color');
-		case CompletionItemKind.Folder: return nls.localize('suggestWidget.kind.folder', 'Folder');
-		case CompletionItemKind.TypeParameter: return nls.localize('suggestWidget.kind.typeParameter', 'Type Parameter');
-		case CompletionItemKind.User: return nls.localize('suggestWidget.kind.user', 'User');
-		case CompletionItemKind.Issue: return nls.localize('suggestWidget.kind.issue', 'Issue');
-		case CompletionItemKind.Snippet: return nls.localize('suggestWidget.kind.snippet', 'Snippet');
-		default: return '';
-	}
-}
