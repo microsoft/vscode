@@ -27,6 +27,7 @@ type Writeable<T> = { -readonly [P in keyof T]: T[P] };
 	const isHttps = window.location.protocol === 'https:';
 	const isDev = window.location.hostname === 'localhost';
 	const extensionUrl = {
+		authority: window.location.host,
 		scheme: isHttps ? 'https' : 'http',
 		path: isDev ? '/membrane-dev' : '/membrane',
 	};
