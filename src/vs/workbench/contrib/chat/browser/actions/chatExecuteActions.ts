@@ -56,7 +56,7 @@ export class ChatSubmitAction extends SubmitAction {
 			// without text present - having instructions is enough context for a request
 			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.instructionsAttached),
 			whenNotInProgressOrPaused,
-			ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession),
+			ChatContextKeys.chatMode.isEqualTo(ChatMode.Chat),
 		);
 
 		super({
@@ -82,7 +82,7 @@ export class ChatSubmitAction extends SubmitAction {
 					order: 4,
 					when: ContextKeyExpr.and(
 						whenNotInProgressOrPaused,
-						ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession),
+						ChatContextKeys.chatMode.isEqualTo(ChatMode.Chat),
 					),
 					group: 'navigation',
 				},
@@ -214,7 +214,7 @@ export class ToggleRequestPausedAction extends Action2 {
 					when: ContextKeyExpr.and(
 						ChatContextKeys.canRequestBePaused,
 						ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent),
-						ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
+						ChatContextKeyExprs.inEditsOrUnified,
 						ContextKeyExpr.or(ChatContextKeys.isRequestPaused.negate(), ChatContextKeys.inputHasText.negate()),
 					),
 					group: 'navigation',
@@ -280,7 +280,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 			// without text present - having instructions is enough context for a request
 			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.instructionsAttached),
 			whenNotInProgressOrPaused,
-			ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
+			ChatContextKeys.chatMode.notEqualsTo(ChatMode.Chat),
 		);
 
 		super({
@@ -299,7 +299,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 				{
 					id: MenuId.ChatExecuteSecondary,
 					group: 'group_1',
-					when: ContextKeyExpr.and(whenNotInProgressOrPaused, ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)),
+					when: ContextKeyExpr.and(whenNotInProgressOrPaused, ChatContextKeys.chatMode.notEqualsTo(ChatMode.Chat),),
 					order: 1
 				},
 				{
@@ -310,8 +310,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 							ContextKeyExpr.and(ChatContextKeys.isRequestPaused, ChatContextKeys.inputHasText),
 							ChatContextKeys.requestInProgress.negate(),
 						),
-						ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
-					),
+						ChatContextKeys.chatMode.notEqualsTo(ChatMode.Chat),),
 					group: 'navigation',
 				},
 			]
@@ -328,10 +327,7 @@ class SubmitWithoutDispatchingAction extends Action2 {
 			// without text present - having instructions is enough context for a request
 			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.instructionsAttached),
 			whenNotInProgressOrPaused,
-			ContextKeyExpr.and(ContextKeyExpr.or(
-				ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
-				ChatContextKeys.location.isEqualTo(ChatAgentLocation.Editor),
-			)),
+			ChatContextKeys.chatMode.isEqualTo(ChatMode.Chat),
 		);
 
 		super({
@@ -349,8 +345,9 @@ class SubmitWithoutDispatchingAction extends Action2 {
 				{
 					id: MenuId.ChatExecuteSecondary,
 					group: 'group_1',
-					order: 2
-				} // need 'when'?
+					order: 2,
+					when: ChatContextKeys.chatMode.isEqualTo(ChatMode.Chat),
+				}
 			]
 		});
 	}
@@ -374,6 +371,7 @@ export class ChatSubmitSecondaryAgentAction extends Action2 {
 			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.instructionsAttached),
 			ChatContextKeys.inputHasAgent.negate(),
 			whenNotInProgressOrPaused,
+			ChatContextKeys.chatMode.isEqualTo(ChatMode.Chat),
 		);
 
 		super({
@@ -384,7 +382,10 @@ export class ChatSubmitSecondaryAgentAction extends Action2 {
 				id: MenuId.ChatExecuteSecondary,
 				group: 'group_1',
 				order: 3,
-				when: ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel)
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel),
+					ChatContextKeys.chatMode.isEqualTo(ChatMode.Chat),
+				),
 			},
 			keybinding: {
 				when: ChatContextKeys.inChatInput,
@@ -425,6 +426,7 @@ class SendToChatEditingAction extends Action2 {
 			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.instructionsAttached),
 			ChatContextKeys.inputHasAgent.negate(),
 			whenNotInProgressOrPaused,
+			ChatContextKeyExprs.inNonUnifiedPanel
 		);
 
 		super({
@@ -441,7 +443,8 @@ class SendToChatEditingAction extends Action2 {
 					ChatContextKeys.enabled,
 					ChatContextKeys.editingParticipantRegistered,
 					ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession),
-					ChatContextKeys.location.notEqualsTo(ChatAgentLocation.Editor)
+					ChatContextKeys.location.notEqualsTo(ChatAgentLocation.Editor),
+					ChatContextKeyExprs.inNonUnifiedPanel
 				)
 			},
 			keybinding: {
@@ -451,7 +454,7 @@ class SendToChatEditingAction extends Action2 {
 					ChatContextKeys.enabled,
 					ChatContextKeys.editingParticipantRegistered,
 					ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession),
-					ChatContextKeys.location.notEqualsTo(ChatAgentLocation.Editor),
+					ChatContextKeys.location.notEqualsTo(ChatAgentLocation.Editor)
 				)
 			}
 		});

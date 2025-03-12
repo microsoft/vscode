@@ -507,13 +507,13 @@ export class AttachContextAction extends Action2 {
 			when: ContextKeyExpr.and(
 				ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession),
 				ChatContextKeys.inChatInput,
-				ChatContextKeyExprs.nonUnifiedPanel),
+				ChatContextKeyExprs.inNonUnifiedPanel),
 			primary: KeyMod.CtrlCmd | KeyCode.Slash,
 			weight: KeybindingWeight.EditorContrib
 		},
 		menu: [
 			{
-				when: ChatContextKeyExprs.nonUnifiedPanel,
+				when: ChatContextKeyExprs.inNonUnifiedPanel,
 				id: MenuId.ChatInputAttachmentToolbar,
 				group: 'navigation'
 			}
