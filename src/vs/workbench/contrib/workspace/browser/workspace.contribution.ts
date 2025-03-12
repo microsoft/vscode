@@ -50,6 +50,7 @@ import { basename, dirname as uriDirname } from '../../../../base/common/resourc
 import { URI } from '../../../../base/common/uri.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
+import { areWorkspaceFoldersEmpty, isChatTransferedWorkspace } from '../../../services/workspaces/common/workspaceUtils.js';
 
 const BANNER_RESTRICTED_MODE = 'workbench.banner.restrictedMode';
 const STARTUP_PROMPT_SHOWN_KEY = 'workspace.trust.startupPrompt.shown';
@@ -436,6 +437,13 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 
 		// Don't show modal prompt for empty workspaces by default
 		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+			this.updateWorkbenchIndicators(false);
+			return;
+		}
+
+		// Don't show modal prompt for empty folders transferred from chat
+		const workspace = this.workspaceContextService.getWorkspace();
+		if (isChatTransferedWorkspace(workspace, this.storageService) && await areWorkspaceFoldersEmpty(workspace, this.fileService)) {
 			this.updateWorkbenchIndicators(false);
 			return;
 		}
