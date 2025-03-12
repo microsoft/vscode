@@ -30,6 +30,7 @@ import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatModelInitState, IChatModel } from '../common/chatModel.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatService } from '../common/chatService.js';
+import { ChatMode } from '../common/constants.js';
 import { ChatWidget, IChatViewState } from './chatWidget.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/chatViewWelcomeController.js';
 
@@ -76,8 +77,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._register(this.chatAgentService.onDidChangeAgents(() => {
 			if (this.chatAgentService.getDefaultAgent(this.chatOptions?.location)) {
 				if (!this._widget?.viewModel) {
-					const sessionId = this.getSessionId();
-					const model = sessionId ? this.chatService.getOrRestoreSession(sessionId) : undefined;
+					const info = this.getTransferredOrPersistedSessionInfo();
+					const model = info.sessionId ? this.chatService.getOrRestoreSession(info.sessionId) : undefined;
 
 					// The widget may be hidden at this point, because welcome views were allowed. Use setVisible to
 					// avoid doing a render while the widget is hidden. This is changing the condition in `shouldShowWelcome`
@@ -85,7 +86,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					const wasVisible = this._widget.visible;
 					try {
 						this._widget.setVisible(false);
-						this.updateModel(model);
+						this.updateModel(model, info.inputValue || info.mode ? { inputState: { chatMode: info.mode }, inputValue: info.inputValue } : undefined);
 						this.defaultParticipantRegistrationFailed = false;
 						this.didUnregisterProvider = false;
 						this._onDidChangeViewWelcomeState.fire();
@@ -144,15 +145,17 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		return !!shouldShow;
 	}
 
-	private getSessionId() {
-		let sessionId: string | undefined;
+	private getTransferredOrPersistedSessionInfo(): { sessionId?: string; inputValue?: string; mode?: ChatMode } {
 		if (this.chatService.transferredSessionData?.location === this.chatOptions.location) {
-			sessionId = this.chatService.transferredSessionData.sessionId;
-			this.viewState.inputValue = this.chatService.transferredSessionData.inputValue;
+			const sessionId = this.chatService.transferredSessionData.sessionId;
+			return {
+				sessionId,
+				inputValue: this.chatService.transferredSessionData.inputValue,
+				mode: this.chatService.transferredSessionData.mode
+			};
 		} else {
-			sessionId = this.viewState.sessionId;
+			return { sessionId: this.viewState.sessionId };
 		}
-		return sessionId;
 	}
 
 	protected override renderBody(parent: HTMLElement): void {
@@ -201,7 +204,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this._register(this._widget.onDidClear(() => this.clear()));
 			this._widget.render(parent);
 
-			const sessionId = this.getSessionId();
+			const info = this.getTransferredOrPersistedSessionInfo();
 			const disposeListener = this._register(this.chatService.onDidDisposeSession((e) => {
 				// Render the welcome view if provider registration fails, eg when signed out. This activates for any session, but the problem is the same regardless
 				if (e.reason === 'initializationFailed') {
@@ -210,9 +213,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					this._onDidChangeViewWelcomeState.fire();
 				}
 			}));
-			const model = sessionId ? this.chatService.getOrRestoreSession(sessionId) : undefined;
+			const model = info.sessionId ? this.chatService.getOrRestoreSession(info.sessionId) : undefined;
 
-			this.updateModel(model);
+			this.updateModel(model, info.inputValue || info.mode ? { inputState: { chatMode: info.mode }, inputValue: info.inputValue } : undefined);
 		} catch (e) {
 			this.logService.error(e);
 			throw e;

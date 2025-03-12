@@ -404,7 +404,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		const { request, location, history } = await this._createRequest(requestDto, context, detector.extension);
 
 		const model = await this.getModelForRequest(request, detector.extension);
-		const extRequest = typeConvert.ChatAgentRequest.to(request, location, model, this.getDiagnosticsWhenEnabled(detector.extension));
+		const includeInteractionId = isProposedApiEnabled(detector.extension, 'chatParticipantPrivate');
+		const extRequest = typeConvert.ChatAgentRequest.to(includeInteractionId ? request : { ...request, requestId: '' }, location, model, this.getDiagnosticsWhenEnabled(detector.extension));
 
 		return detector.provider.provideParticipantDetection(
 			extRequest,
@@ -488,7 +489,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			stream = new ChatAgentResponseStream(agent.extension, request, this._proxy, this._commands.converter, sessionDisposables);
 
 			const model = await this.getModelForRequest(request, agent.extension);
-			const extRequest = typeConvert.ChatAgentRequest.to(request, location, model, this.getDiagnosticsWhenEnabled(agent.extension));
+			const includeInteractionId = isProposedApiEnabled(agent.extension, 'chatParticipantPrivate');
+			const extRequest = typeConvert.ChatAgentRequest.to(includeInteractionId ? request : { ...request, requestId: '' }, location, model, this.getDiagnosticsWhenEnabled(agent.extension));
 			inFlightRequest = { requestId: requestDto.requestId, extRequest };
 			this._inFlightRequests.add(inFlightRequest);
 

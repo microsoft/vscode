@@ -21,6 +21,7 @@ import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, ICh
 import { IParsedChatRequest } from './chatParserTypes.js';
 import { IChatParserContext } from './chatRequestParser.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
+import { ChatMode } from './constants.js';
 import { IPreparedToolInvocation, IToolConfirmationMessages, IToolResult } from './languageModelToolsService.js';
 
 export interface IChatRequest {
@@ -411,7 +412,7 @@ export interface IChatTransferredSessionData {
 	sessionId: string;
 	inputValue: string;
 	location: ChatAgentLocation;
-	toolsAgentModeEnabled: boolean;
+	mode: ChatMode;
 }
 
 export interface IChatSendRequestResponseState {
@@ -444,6 +445,7 @@ export interface IChatTerminalLocationData {
 export type IChatLocationData = IChatEditorLocationData | IChatNotebookLocationData | IChatTerminalLocationData;
 
 export interface IChatSendRequestOptions {
+	mode?: ChatMode;
 	userSelectedModelId?: string;
 	location?: ChatAgentLocation;
 	locationData?: IChatLocationData;

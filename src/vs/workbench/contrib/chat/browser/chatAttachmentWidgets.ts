@@ -33,6 +33,7 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { basename, dirname } from '../../../../base/common/path.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 
 abstract class AbstractChatAttachmentWidget extends Disposable {
 	public readonly element: HTMLElement;
@@ -203,6 +204,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		@IOpenerService openerService: IOpenerService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super(attachment, shouldFocusClearButton, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
 
@@ -228,9 +230,28 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		const hoverElement = dom.$('div.chat-attached-context-hover');
 		hoverElement.setAttribute('aria-label', ariaLabel);
 
-		if (!this.modelSupportsVision()) {
+		type AttachImageEvent = {
+			currentModel: string;
+			supportsVision: boolean;
+		};
+		type AttachImageEventClassification = {
+			currentModel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model at the point of attaching the image.' };
+			supportsVision: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the current model supports vision or not.' };
+			owner: 'justschen';
+			comment: 'Event used to gain insights when images are attached, and if the model supported vision or not.';
+		};
+
+		const currentLanguageModelName = this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name ?? this.currentLanguageModel.identifier : 'unknown';
+		const supportsVision = this.modelSupportsVision();
+
+		this.telemetryService.publicLog2<AttachImageEvent, AttachImageEventClassification>('copilot.attachImage', {
+			currentModel: currentLanguageModelName,
+			supportsVision: supportsVision
+		});
+
+		if (!supportsVision && this.currentLanguageModel) {
 			this.element.classList.add('warning');
-			hoverElement.textContent = localize('chat.fileAttachmentHover', "{0} does not support this {1} type.", this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name : this.currentLanguageModel, 'image');
+			hoverElement.textContent = localize('chat.fileAttachmentHover', "{0} does not support this {1} type.", currentLanguageModelName, 'image');
 			this._register(this.hoverService.setupManagedHover(hoverDelegate, this.element, hoverElement, { trapFocus: true }));
 		} else {
 			const buffer = attachment.value as Uint8Array;

@@ -265,7 +265,7 @@ class AgentCompletions extends Disposable {
 				return {
 					suggestions: justAgents.concat(
 						coalesce(agents.flatMap(agent => agent.slashCommands.map((c, i) => {
-							if (agent.isDefault && this.chatAgentService.getDefaultAgent(widget.location)?.id !== agent.id) {
+							if (agent.isDefault && this.chatAgentService.getDefaultAgent(widget.location, widget.input.currentMode)?.id !== agent.id) {
 								return;
 							}
 
@@ -324,7 +324,7 @@ class AgentCompletions extends Disposable {
 
 				return {
 					suggestions: coalesce(agents.flatMap(agent => agent.slashCommands.map((c, i) => {
-						if (agent.isDefault && this.chatAgentService.getDefaultAgent(widget.location)?.id !== agent.id) {
+						if (agent.isDefault && this.chatAgentService.getDefaultAgent(widget.location, widget.input.currentMode)?.id !== agent.id) {
 							return;
 						}
 

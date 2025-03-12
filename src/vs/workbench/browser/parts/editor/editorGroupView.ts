@@ -680,16 +680,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			}
 		}
 
-		/* __GDPR__
-			"editorClosed" : {
-				"owner": "isidorn",
-				"${include}": [
-					"${EditorTelemetryDescriptor}"
-				]
-			}
-		*/
-		this.telemetryService.publicLog('editorClosed', this.toEditorTelemetryDescriptor(editor));
-
 		// Update container
 		this.updateContainer();
 

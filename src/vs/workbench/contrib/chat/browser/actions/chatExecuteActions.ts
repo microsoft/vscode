@@ -18,6 +18,7 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { chatAgentLeader, extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatService } from '../../common/chatService.js';
+import { ChatMode } from '../../common/constants.js';
 import { EditsViewId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { discardAllEditsWithConfirmation, EditingSessionAction } from '../chatEditing/chatEditingActions.js';
 import { ChatViewPane } from '../chatViewPane.js';
@@ -103,18 +104,14 @@ export class ToggleAgentModeAction extends EditingSessionAction {
 	constructor() {
 		super({
 			id: ToggleAgentModeAction.ID,
-			title: localize2('interactive.toggleAgent.label', "Toggle Agent Mode (Experimental)"),
+			title: localize2('interactive.toggleMode.label', "Toggle Chat Mode (Experimental)"),
 			f1: true,
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
 				ChatContextKeys.Editing.hasToolsAgent,
 				ChatContextKeys.requestInProgress.negate()),
-			toggled: {
-				condition: ChatContextKeys.Editing.agentMode,
-				tooltip: localize('agentEnabled', "Agent Mode Enabled (Experimental)"),
-			},
-			tooltip: localize('agentDisabled', "Agent Mode Disabled"),
+			tooltip: localize('setChatMode', "Set Mode (Experimental)"),
 			keybinding: {
 				when: ContextKeyExpr.and(
 					ChatContextKeys.inChatInput,
@@ -137,7 +134,6 @@ export class ToggleAgentModeAction extends EditingSessionAction {
 
 	override async runEditingSessionAction(accessor: ServicesAccessor, currentEditingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]) {
 
-		const agentService = accessor.get(IChatAgentService);
 		const chatService = accessor.get(IChatService);
 		const commandService = accessor.get(ICommandService);
 		const dialogService = accessor.get(IDialogService);
@@ -164,7 +160,10 @@ export class ToggleAgentModeAction extends EditingSessionAction {
 		}
 
 		const arg = args[0] as IToggleAgentModeArgs | undefined;
-		agentService.toggleToolsAgentMode(typeof arg?.agentMode === 'boolean' ? arg.agentMode : undefined);
+		const setTo = arg ?
+			(arg.agentMode ? ChatMode.Agent : ChatMode.Edit) :
+			(chatWidget.input.toolsAgentModeEnabled ? ChatMode.Edit : ChatMode.Agent);
+		chatWidget.input.setChatMode(setTo);
 
 		await commandService.executeCommand(ChatDoneActionId);
 	}

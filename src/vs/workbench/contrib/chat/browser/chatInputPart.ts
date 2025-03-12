@@ -76,8 +76,9 @@ import { IChatFollowup } from '../common/chatService.js';
 import { IChatVariablesService } from '../common/chatVariables.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { ChatInputHistoryMaxEntries, IChatHistoryEntry, IChatInputState, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
+import { ChatMode } from '../common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
-import { CancelAction, ChatSubmitAction, ChatSubmitSecondaryAgentAction, IChatExecuteActionContext, IToggleAgentModeArgs, ChatSwitchToNextModelActionId, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
+import { CancelAction, ChatSubmitAction, ChatSubmitSecondaryAgentAction, ChatSwitchToNextModelActionId, IChatExecuteActionContext, IToggleAgentModeArgs, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
 import { ImplicitContextAttachmentWidget } from './attachments/implicitContextAttachment.js';
 import { PromptAttachmentsCollectionWidget } from './attachments/promptAttachments/promptAttachmentsCollectionWidget.js';
 import { IChatWidget } from './chat.js';
@@ -194,6 +195,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		contextArr
 			.push(...this.instructionAttachmentsPart.chatAttachments);
 
+
+		// // TODO@jrieken use only selected servers
+		// for (const server of this.mcpService.servers.get()) {
+		// 	for (const { id, definition } of server.tools.get()) {
+		// 		contextArr.push({
+		// 			isTool: true,
+		// 			id,
+		// 			name: definition.name,
+		// 			value: undefined
+		// 		});
+		// 	}
+		// }
+
 		return contextArr;
 	}
 
@@ -287,6 +301,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._currentLanguageModel?.identifier;
 	}
 
+	private _onDidChangeCurrentChatMode = this._register(new Emitter<void>());
+	private _currentMode: ChatMode = ChatMode.Chat;
+	public get toolsAgentModeEnabled(): boolean {
+		return this._currentMode === ChatMode.Agent;
+	}
+
+	public get currentMode(): ChatMode {
+		return this._currentMode === ChatMode.Agent && !this.agentService.hasToolsAgent ? ChatMode.Edit : this._currentMode;
+	}
+
 	private cachedDimensions: dom.Dimension | undefined;
 	private cachedExecuteToolbarWidth: number | undefined;
 	private cachedInputToolbarWidth: number | undefined;
@@ -348,7 +372,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IStorageService private readonly storageService: IStorageService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IChatVariablesService private readonly variableService: IChatVariablesService,
-		@IChatAgentService private readonly chatAgentService: IChatAgentService,
+		@IChatAgentService private readonly agentService: IChatAgentService,
 	) {
 		super();
 
@@ -359,6 +383,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return {
 				...getContribsInputState(),
 				chatContextAttachments: this._attachmentModel.attachments,
+				chatMode: this._currentMode,
 			};
 		};
 		this.inputEditorMaxHeight = this.options.renderStyle === 'compact' ? INPUT_EDITOR_MAX_HEIGHT / 3 : INPUT_EDITOR_MAX_HEIGHT;
@@ -423,7 +448,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}
 
-		this._register(this.chatAgentService.onDidChangeToolsAgentModeEnabled(() => {
+		this._register(this._onDidChangeCurrentChatMode.event(() => {
 			this.checkModelSupported();
 		}));
 	}
@@ -443,9 +468,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
+	setChatMode(mode: ChatMode): void {
+		this._currentMode = mode;
+		this._onDidChangeCurrentChatMode.fire();
+	}
+
 	private modelSupportedForDefaultAgent(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 		// Probably this logic could live in configuration on the agent, or somewhere else, if it gets more complex
-		if (this.chatAgentService.getDefaultAgent(this.location)?.isToolsAgent) {
+		if (this._currentMode === ChatMode.Agent) {
 			if (this.configurationService.getValue('chat.agent.allModels')) {
 				return true;
 			}
@@ -524,6 +554,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		if (state.inputValue) {
 			this.setValue(state.inputValue, false);
+		}
+
+		if (state.inputState?.chatMode) {
+			this._currentMode = state.inputState.chatMode;
+		} else if (this.location === ChatAgentLocation.EditingSession) {
+			this._currentMode = ChatMode.Edit;
 		}
 	}
 
@@ -896,7 +932,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						return this.instantiationService.createInstance(ModelPickerActionViewItem, action, this._currentLanguageModel, itemDelegate);
 					}
 				} else if (action.id === ToggleAgentModeActionId && action instanceof MenuItemAction) {
-					return this.instantiationService.createInstance(ToggleAgentActionViewItem, action);
+					const delegate: IModePickerDelegate = {
+						getMode: () => this._currentMode,
+						onDidChangeMode: this._onDidChangeCurrentChatMode.event
+					};
+					return this.instantiationService.createInstance(ToggleAgentActionViewItem, action, delegate);
 				}
 
 				return undefined;
@@ -1456,45 +1496,65 @@ class ModelPickerActionViewItem extends DropdownMenuActionViewItemWithKeybinding
 const chatInputEditorContainerSelector = '.interactive-input-editor';
 setupSimpleEditorSelectionStyling(chatInputEditorContainerSelector);
 
-class ToggleAgentActionViewItem extends DropdownMenuActionViewItemWithKeybinding {
-	private readonly agentStateActions: IAction[];
+interface IModePickerDelegate {
+	onDidChangeMode: Event<void>;
+	getMode(): ChatMode;
+}
 
+class ToggleAgentActionViewItem extends DropdownMenuActionViewItemWithKeybinding {
 	constructor(
 		action: MenuItemAction,
+		private readonly delegate: IModePickerDelegate,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		const agentStateActions = [
-			{
-				...action,
-				id: 'agentMode',
-				label: localize('chat.agentMode', "Agent"),
-				class: undefined,
-				enabled: true,
-				run: () => action.run({ agentMode: true } satisfies IToggleAgentModeArgs)
-			},
-			{
-				...action,
-				id: 'normalMode',
-				label: localize('chat.normalMode', "Edit"),
-				class: undefined,
-				enabled: true,
-				checked: !action.checked,
-				run: () => action.run({ agentMode: false } satisfies IToggleAgentModeArgs)
-			},
-		];
+		const makeAction = (mode: ChatMode): IAction => ({
+			...action,
+			id: mode,
+			label: this.modeToString(mode),
+			class: undefined,
+			enabled: true,
+			checked: delegate.getMode() === mode,
+			run: async () => {
+				const result = await action.run({ agentMode: mode === ChatMode.Agent } satisfies IToggleAgentModeArgs);
+				this.renderLabel(this.element!);
+				return result;
+			}
+		});
 
-		super(action, agentStateActions, contextMenuService, undefined, keybindingService, contextKeyService);
-		this.agentStateActions = agentStateActions;
+		const actionProvider: IActionProvider = {
+			getActions: () => {
+				const agentStateActions = [
+					makeAction(ChatMode.Agent),
+					makeAction(ChatMode.Edit),
+				];
+				return agentStateActions;
+			}
+		};
+
+		super(action, actionProvider, contextMenuService, undefined, keybindingService, contextKeyService);
+
+		this._register(delegate.onDidChangeMode(() => this.renderLabel(this.element!)));
+	}
+
+	private modeToString(mode: ChatMode) {
+		switch (mode) {
+			case ChatMode.Agent:
+				return localize('chat.agentMode', "Agent");
+			case ChatMode.Edit:
+				return localize('chat.normalMode', "Edit");
+			case ChatMode.Chat:
+				return localize('chat.chatMode', "Chat");
+		}
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
 		// Can't call super.renderLabel because it has a hack of forcing the 'codicon' class
 		this.setAriaLabelAttributes(element);
 
-		const state = this.agentStateActions.find(action => action.checked)?.label ?? '';
-		dom.reset(element, dom.$('span.chat-model-label', undefined, state), ...renderLabelWithIcons(`$(chevron-down)`));
+		const state = this.delegate.getMode();
+		dom.reset(element, dom.$('span.chat-model-label', undefined, this.modeToString(state)), ...renderLabelWithIcons(`$(chevron-down)`));
 		return null;
 	}
 

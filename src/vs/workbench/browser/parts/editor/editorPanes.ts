@@ -87,9 +87,11 @@ export class EditorPanes extends Disposable {
 	private readonly mapEditorPaneToPendingSetInput = new Map<EditorPane, Promise<void>>();
 
 	private readonly activeEditorPaneDisposables = this._register(new DisposableStore());
+
 	private pagePosition: IDomNodePagePosition | undefined;
 	private boundarySashes: IBoundarySashes | undefined;
-	private readonly editorOperation = this._register(new LongRunningOperation(this.editorProgressService));
+
+	private readonly editorOperation: LongRunningOperation;
 	private readonly editorPanesRegistry = Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane);
 
 	constructor(
@@ -98,13 +100,15 @@ export class EditorPanes extends Disposable {
 		private readonly groupView: IEditorGroupView,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
+		@IEditorProgressService editorProgressService: IEditorProgressService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustService: IWorkspaceTrustManagementService,
 		@ILogService private readonly logService: ILogService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IHostService private readonly hostService: IHostService
 	) {
 		super();
+
+		this.editorOperation = this._register(new LongRunningOperation(editorProgressService));
 
 		this.registerListeners();
 	}

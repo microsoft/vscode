@@ -108,6 +108,15 @@ import { ExtHostWebviewPanels } from './extHostWebviewPanels.js';
 import { ExtHostWebviewViews } from './extHostWebviewView.js';
 import { IExtHostWindow } from './extHostWindow.js';
 import { IExtHostWorkspace } from './extHostWorkspace.js';
+import { DebugConfigurationProviderTriggerKind } from '../../contrib/debug/common/debug.js';
+import { ExtensionDescriptionRegistry } from '../../services/extensions/common/extensionDescriptionRegistry.js';
+import { UIKind } from '../../services/extensions/common/extensionHostProtocol.js';
+import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { ProxyIdentifier } from '../../services/extensions/common/proxyIdentifier.js';
+import { ExcludeSettingOptions, TextSearchCompleteMessageType, TextSearchContext2, TextSearchMatch2 } from '../../services/search/common/searchExtTypes.js';
+import type * as vscode from 'vscode';
+import { ExtHostCodeMapper } from './extHostCodeMapper.js';
+import { IExtHostMpcService } from './extHostMcp.js';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
@@ -218,6 +227,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostStatusBar = rpcProtocol.set(ExtHostContext.ExtHostStatusBar, new ExtHostStatusBar(rpcProtocol, extHostCommands.converter));
 	const extHostSpeech = rpcProtocol.set(ExtHostContext.ExtHostSpeech, new ExtHostSpeech(rpcProtocol));
 	const extHostEmbeddings = rpcProtocol.set(ExtHostContext.ExtHostEmbeddings, new ExtHostEmbeddings(rpcProtocol));
+	rpcProtocol.set(ExtHostContext.ExtHostMcp, accessor.get(IExtHostMpcService));
 
 	// Check that no named customers are missing
 	const expected = Object.values<ProxyIdentifier<any>>(ExtHostContext);

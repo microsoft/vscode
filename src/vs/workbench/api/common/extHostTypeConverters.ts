@@ -2775,7 +2775,7 @@ export namespace ChatAgentRequest {
 	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined, model: vscode.LanguageModelChat, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][]): vscode.ChatRequest {
 		const toolReferences = request.variables.variables.filter(v => v.isTool);
 		const variableReferences = request.variables.variables.filter(v => !v.isTool);
-		return {
+		const requestWithoutId = {
 			prompt: request.message,
 			command: request.command,
 			attempt: request.attempt ?? 0,
@@ -2790,6 +2790,14 @@ export namespace ChatAgentRequest {
 			toolInvocationToken: Object.freeze({ sessionId: request.sessionId }) as never,
 			model
 		};
+		if (request.requestId) {
+			return {
+				...requestWithoutId,
+				id: request.requestId
+			};
+		}
+		// This cast is done to allow sending the stabl version of ChatRequest which does not have an id property
+		return requestWithoutId as unknown as vscode.ChatRequest;
 	}
 }
 

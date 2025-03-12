@@ -39,7 +39,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	private readonly _toDispose = new DisposableStore();
 	private readonly _activeCancelTokens: { [id: number]: CancellationTokenSource } = Object.create(null);
 	private readonly _proxy: ExtHostWorkspaceShape;
-	private readonly _queryBuilder = this._instantiationService.createInstance(QueryBuilder);
+	private readonly _queryBuilder: QueryBuilder;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -59,6 +59,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
 	) {
+		this._queryBuilder = this._instantiationService.createInstance(QueryBuilder);
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostWorkspace);
 		const workspace = this._contextService.getWorkspace();
 		// The workspace file is provided be a unknown file system provider. It might come
