@@ -420,6 +420,7 @@ export class InstallAction extends ExtensionAction {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IAllowedExtensionsService private readonly allowedExtensionsService: IAllowedExtensionsService,
+		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 	) {
 		super('extensions.install', localize('install', "Install"), InstallAction.CLASS, false);
 		this.hideOnDisabled = false;
@@ -468,7 +469,7 @@ export class InstallAction extends ExtensionAction {
 			return;
 		}
 
-		if (this.extension.gallery && !this.extension.gallery.isSigned) {
+		if (this.extension.gallery && !this.extension.gallery.isSigned && (await this.galleryService.getCapabilities()).allRepositorySigned) {
 			const { result } = await this.dialogService.prompt({
 				type: Severity.Warning,
 				message: localize('not signed', "'{0}' is an extension from an unknown source. Are you sure you want to install?", this.extension.displayName),
@@ -2523,6 +2524,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 		@IAllowedExtensionsService private readonly allowedExtensionsService: IAllowedExtensionsService,
 		@IWorkbenchExtensionEnablementService private readonly workbenchExtensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IExtensionFeaturesManagementService private readonly extensionFeaturesManagementService: IExtensionFeaturesManagementService,
+		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 	) {
 		super('extensions.status', '', `${ExtensionStatusAction.CLASS} hide`, false);
 		this._register(this.labelService.onDidChangeFormatters(() => this.update(), this));
@@ -2549,7 +2551,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 			return;
 		}
 
-		if (this.extension.state === ExtensionState.Uninstalled && this.extension.gallery && !this.extension.gallery.isSigned) {
+		if (this.extension.state === ExtensionState.Uninstalled && this.extension.gallery && !this.extension.gallery.isSigned && (await this.galleryService.getCapabilities()).allRepositorySigned) {
 			this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('not signed tooltip', "This extension is not signed by the Extension Marketplace.")) }, true);
 			return;
 		}

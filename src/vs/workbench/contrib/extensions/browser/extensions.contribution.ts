@@ -548,6 +548,7 @@ export const CONTEXT_HAS_REMOTE_SERVER = new RawContextKey<boolean>('hasRemoteSe
 export const CONTEXT_HAS_WEB_SERVER = new RawContextKey<boolean>('hasWebServer', false);
 const CONTEXT_GALLERY_SORT_CAPABILITIES = new RawContextKey<string>('gallerySortCapabilities', '');
 const CONTEXT_GALLERY_FILTER_CAPABILITIES = new RawContextKey<string>('galleryFilterCapabilities', '');
+const CONTEXT_GALLERY_ALL_REPOSITORY_SIGNED = new RawContextKey<boolean>('galleryAllRepositorySigned', false);
 
 async function runAction(action: IAction): Promise<void> {
 	try {
@@ -609,6 +610,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		const capabilities = await this.extensionGalleryService.getCapabilities();
 		CONTEXT_GALLERY_SORT_CAPABILITIES.bindTo(this.contextKeyService).set(`_${capabilities.query.sortBy.join('_')}_UpdateDate_`);
 		CONTEXT_GALLERY_FILTER_CAPABILITIES.bindTo(this.contextKeyService).set(`_${capabilities.query.filters.join('_')}_`);
+		CONTEXT_GALLERY_ALL_REPOSITORY_SIGNED.bindTo(this.contextKeyService).set(capabilities.allRepositorySigned);
 	}
 
 	private registerQuickAccessProvider(): void {
@@ -1532,7 +1534,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '0_install',
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'uninstalled'), ContextKeyExpr.has('isGalleryExtension'), ContextKeyExpr.not('extensionDisallowInstall'), ContextKeyExpr.has('extensionIsUnsigned')),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'uninstalled'), ContextKeyExpr.has('isGalleryExtension'), ContextKeyExpr.not('extensionDisallowInstall'), ContextKeyExpr.has('extensionIsUnsigned'), CONTEXT_GALLERY_ALL_REPOSITORY_SIGNED),
 				order: 1
 			},
 			run: async (accessor: ServicesAccessor, extensionId: string) => {
