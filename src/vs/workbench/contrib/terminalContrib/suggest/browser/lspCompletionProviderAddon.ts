@@ -44,16 +44,15 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 
 		// TODO: Create and use a fake document in our target language
 		// TODO: How come real python path does not work?
+		// TODO: Get Virtual file to work.
+		//       TODO: look for adding new scheme, look how existing ones were created.
 
-		const uri = URI.from({
-			scheme: 'untitled',
-			path: '/Users/anthonykim/Desktop/vscode/extensions/vscode-colorize-tests/test/colorize-fixtures/test.py'
-		});
+		// const uri = URI.file('/Users/anthonykim/Desktop/vscode/src/vs/workbench/contrib/terminalContrib/suggest/browser/dummy.ts');
+		const uri = URI.file('/Users/anthonykim/Desktop/vscode/src/vs/workbench/contrib/terminalContrib/suggest/browser/dummy1.py');
 		const textModel = await this._textModelService.createModelReference(uri);
-		textModel.object.textEditorModel.setLanguage('python');
 		const providers = this._languageFeaturesService.completionProvider.all(textModel.object.textEditorModel);
 
-		// TODO: Use the actual position based on cursorPosition, is this how you do it?
+		// TODO: Use the actual position based on cursorPosition:
 		const textBeforeCursor = value.substring(0, cursorPosition);
 		const lines = textBeforeCursor.split('\n');
 		const lineNumber = lines.length;
@@ -61,7 +60,6 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 		const position = new Position(lineNumber, column);
 
 		// TODO: Scan back to start of nearest word like other providers? Is this needed for `ILanguageFeaturesService`?
-
 
 		const completions: ITerminalCompletion[] = [];
 		for (const provider of providers) {
