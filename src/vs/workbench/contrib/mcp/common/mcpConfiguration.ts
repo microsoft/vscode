@@ -8,6 +8,7 @@ import { localize } from '../../../../nls.js';
 import { mcpSchemaId } from '../../../services/configuration/common/configuration.js';
 import { inputsSchema } from '../../../services/configurationResolver/common/configurationResolverSchema.js';
 
+export type { IMcpConfigurationServer, IMcpConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 
 const mcpSchemaExampleServer = {
 	command: 'node',
@@ -16,17 +17,6 @@ const mcpSchemaExampleServer = {
 };
 
 export const mcpConfigurationSection = 'mcp';
-
-export interface IMcpConfiguration {
-	inputs: unknown[];
-	servers: Record<string, IMcpConfigurationServer>;
-}
-
-export interface IMcpConfigurationServer {
-	command: string;
-	args: readonly string[];
-	env: Record<string, string | number | null>;
-}
 
 export const mcpSchemaExampleServers = {
 	'mcp-server-time': {

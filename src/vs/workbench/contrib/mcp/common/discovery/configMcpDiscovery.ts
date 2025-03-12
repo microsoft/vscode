@@ -97,9 +97,9 @@ export class ConfigMcpDiscovery extends Disposable implements IMcpDiscovery {
 				label: name,
 				launch: {
 					type: McpServerTransportType.Stdio,
-					args: value.args,
+					args: value.args || [],
 					command: value.command,
-					env: value.env,
+					env: value.env || {},
 					cwd: undefined,
 				},
 				variableReplacement: {
