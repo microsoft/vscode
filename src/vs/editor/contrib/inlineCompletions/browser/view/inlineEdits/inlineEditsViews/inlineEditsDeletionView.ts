@@ -9,7 +9,7 @@ import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, derived, derivedObservableWithCache, IObservable } from '../../../../../../../base/common/observable.js';
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
-import { observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
+import { ObservableCodeEditor, observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
 import { Point } from '../../../../../../browser/point.js';
 import { LineRange } from '../../../../../../common/core/lineRange.js';
 import { Position } from '../../../../../../common/core/position.js';
@@ -20,10 +20,16 @@ import { getOriginalBorderColor, originalBackgroundColor } from '../theme.js';
 import { createRectangle, getPrefixTrim, mapOutFalsy, maxContentWidthInRange } from '../utils/utils.js';
 
 export class InlineEditsDeletionView extends Disposable implements IInlineEditsView {
-	private readonly _editorObs = observableCodeEditor(this._editor);
 
 	private readonly _onDidClick = this._register(new Emitter<IMouseEvent>());
 	readonly onDidClick = this._onDidClick.event;
+
+	private readonly _editorObs: ObservableCodeEditor;
+
+	private readonly _originalVerticalStartPosition: IObservable<number | undefined>;
+	private readonly _originalVerticalEndPosition: IObservable<number | undefined>;
+
+	private readonly _originalDisplayRange: IObservable<LineRange | undefined>;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -35,6 +41,22 @@ export class InlineEditsDeletionView extends Disposable implements IInlineEditsV
 		private readonly _tabAction: IObservable<InlineEditTabAction>,
 	) {
 		super();
+
+		this._editorObs = observableCodeEditor(this._editor);
+
+		const originalStartPosition = derived(this, (reader) => {
+			const inlineEdit = this._edit.read(reader);
+			return inlineEdit ? new Position(inlineEdit.originalLineRange.startLineNumber, 1) : null;
+		});
+
+		const originalEndPosition = derived(this, (reader) => {
+			const inlineEdit = this._edit.read(reader);
+			return inlineEdit ? new Position(inlineEdit.originalLineRange.endLineNumberExclusive, 1) : null;
+		});
+
+		this._originalDisplayRange = this._uiState.map(s => s?.originalRange);
+		this._originalVerticalStartPosition = this._editorObs.observePosition(originalStartPosition, this._store).map(p => p?.y);
+		this._originalVerticalEndPosition = this._editorObs.observePosition(originalEndPosition, this._store).map(p => p?.y);
 
 		this._register(this._editorObs.createOverlayWidget({
 			domNode: this._nonOverflowView.element,
@@ -50,20 +72,6 @@ export class InlineEditsDeletionView extends Disposable implements IInlineEditsV
 
 	private readonly _display = derived(this, reader => !!this._uiState.read(reader) ? 'block' : 'none');
 
-	private readonly _originalStartPosition = derived(this, (reader) => {
-		const inlineEdit = this._edit.read(reader);
-		return inlineEdit ? new Position(inlineEdit.originalLineRange.startLineNumber, 1) : null;
-	});
-
-	private readonly _originalEndPosition = derived(this, (reader) => {
-		const inlineEdit = this._edit.read(reader);
-		return inlineEdit ? new Position(inlineEdit.originalLineRange.endLineNumberExclusive, 1) : null;
-	});
-
-	private readonly _originalVerticalStartPosition = this._editorObs.observePosition(this._originalStartPosition, this._store).map(p => p?.y);
-	private readonly _originalVerticalEndPosition = this._editorObs.observePosition(this._originalEndPosition, this._store).map(p => p?.y);
-
-	private readonly _originalDisplayRange = this._uiState.map(s => s?.originalRange);
 	private readonly _editorMaxContentWidthInRange = derived(this, reader => {
 		const originalDisplayRange = this._originalDisplayRange.read(reader);
 		if (!originalDisplayRange) {
