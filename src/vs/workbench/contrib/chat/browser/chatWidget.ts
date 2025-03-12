@@ -37,6 +37,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { checkModeOption } from '../common/chat.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService, IChatWelcomeMessageContent, isChatWelcomeMessageContent } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, WorkingSetEntryState } from '../common/chatEditingService.js';
@@ -697,7 +698,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const rendererDelegate: IChatRendererDelegate = {
 			getListLength: () => this.tree.getNode(null).visibleChildrenCount,
 			onDidScroll: this.onDidScroll,
-			container: listContainer
+			container: listContainer,
+			currentChatMode: () => this.input.currentMode,
 		};
 
 		// Create a dom element to hold UI from editor widgets embedded in chat messages
@@ -1081,7 +1083,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (this.viewModel) {
 			this._onDidAcceptInput.fire();
-			if (!this.viewOptions.autoScroll) {
+			if (!checkModeOption(this.input.currentMode, this.viewOptions.autoScroll)) {
 				this.scrollLock = false;
 			}
 
@@ -1213,8 +1215,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight - 2;
 
 		const listHeight = Math.max(0, height - inputPartHeight);
-		if (!this.viewOptions.autoScroll) {
+		if (!checkModeOption(this.input.currentMode, this.viewOptions.autoScroll)) {
 			this.listContainer.style.setProperty('--chat-current-response-min-height', listHeight * .75 + 'px');
+		} else {
+			this.listContainer.style.removeProperty('--chat-current-response-min-height');
 		}
 
 		this.tree.layout(listHeight, width);
@@ -1233,7 +1237,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const lastItem = this.viewModel?.getItems().at(-1);
 		const lastResponseIsRendering = isResponseVM(lastItem) && lastItem.renderData;
-		if (lastElementVisible && (!lastResponseIsRendering || this.viewOptions.autoScroll)) {
+		if (lastElementVisible && (!lastResponseIsRendering || checkModeOption(this.input.currentMode, this.viewOptions.autoScroll))) {
 			this.scrollToEnd();
 		}
 

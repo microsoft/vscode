@@ -435,11 +435,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding: 8px 20px;
 }
 
-.interactive-item-container.interactive-item-compact.no-padding {
-	padding: unset;
-	gap: unset;
-}
-
 .interactive-item-container.interactive-item-compact .header {
 	height: 16px;
 }

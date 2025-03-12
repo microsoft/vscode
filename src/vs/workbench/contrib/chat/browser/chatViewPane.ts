@@ -174,18 +174,17 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				this.chatOptions.location,
 				{ viewId: this.id },
 				{
-					autoScroll: this.chatService.isEditingLocation(this.chatOptions.location), // TODO based on current mode for the session
+					autoScroll: mode => mode !== ChatMode.Chat,
 					renderFollowups: this.chatOptions.location === ChatAgentLocation.Panel,
 					supportsFileReferences: true,
 					supportsAdditionalParticipants: this.chatOptions.location === ChatAgentLocation.Panel,
 					rendererOptions: {
-						renderCodeBlockPills: this.chatService.isEditingLocation(this.chatOptions.location),
+						renderCodeBlockPills: mode => mode !== ChatMode.Chat,
 						renderTextEditsAsSummary: (uri) => {
 							return this.chatService.isEditingLocation(this.chatOptions.location);
 						},
 						referencesExpandedWhenEmptyResponse: !this.chatService.isEditingLocation(this.chatOptions.location),
 						progressMessageAtBottomOfResponse: this.chatService.isEditingLocation(this.chatOptions.location),
-						hasEditingEnabled: this.chatService.isEditingLocation(this.chatOptions.location),
 					},
 					editorOverflowWidgetsDomNode: editorOverflowNode,
 					enableImplicitContext: this.chatOptions.location === ChatAgentLocation.Panel || this.chatService.isEditingLocation(this.chatOptions.location),

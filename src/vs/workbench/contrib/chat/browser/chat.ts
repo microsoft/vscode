@@ -19,7 +19,7 @@ import { IChatResponseModel } from '../common/chatModel.js';
 import { IParsedChatRequest } from '../common/chatParserTypes.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel } from '../common/chatViewModel.js';
-import { ChatAgentLocation } from '../common/constants.js';
+import { ChatAgentLocation, ChatMode } from '../common/constants.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { ChatInputPart } from './chatInputPart.js';
 import { ChatViewPane } from './chatViewPane.js';
@@ -156,18 +156,16 @@ export type ChatTreeItem = IChatRequestViewModel | IChatResponseViewModel;
 export interface IChatListItemRendererOptions {
 	readonly renderStyle?: 'compact' | 'minimal';
 	readonly noHeader?: boolean;
-	readonly noPadding?: boolean;
 	readonly editableCodeBlock?: boolean;
-	readonly renderCodeBlockPills?: boolean;
+	readonly renderCodeBlockPills?: boolean | ((mode: ChatMode) => boolean);
 	readonly renderDetectedCommandsWithRequest?: boolean;
 	readonly renderTextEditsAsSummary?: (uri: URI) => boolean;
-	readonly referencesExpandedWhenEmptyResponse?: boolean;
-	readonly progressMessageAtBottomOfResponse?: boolean;
-	readonly hasEditingEnabled?: boolean;
+	readonly referencesExpandedWhenEmptyResponse?: boolean | ((mode: ChatMode) => boolean);
+	readonly progressMessageAtBottomOfResponse?: boolean | ((mode: ChatMode) => boolean);
 }
 
 export interface IChatWidgetViewOptions {
-	autoScroll?: boolean;
+	autoScroll?: boolean | ((mode: ChatMode) => boolean);
 	renderInputOnTop?: boolean;
 	renderFollowups?: boolean;
 	renderStyle?: 'compact' | 'minimal';

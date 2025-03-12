@@ -347,12 +347,16 @@ export function registerNewChatActions() {
 				precondition: ChatContextKeys.Setup.hidden.toNegated(),
 				menu: [{
 					id: MenuId.ViewTitle,
-					when: ContextKeyExpr.and(ContextKeyExpr.equals('view', ChatViewId), ChatContextKeys.editingParticipantRegistered,
+					when: ContextKeyExpr.and(
+						ContextKeyExpr.equals('view', ChatViewId),
+						ChatContextKeys.editingParticipantRegistered,
 						ContextKeyExpr.equals(`view.${EditsViewId}.visible`, false),
 						ContextKeyExpr.or(
 							ContextKeyExpr.and(ContextKeyExpr.equals(`workbench.panel.chat.defaultViewContainerLocation`, true), ContextKeyExpr.equals(`workbench.panel.chatEditing.defaultViewContainerLocation`, false)),
 							ContextKeyExpr.and(ContextKeyExpr.equals(`workbench.panel.chat.defaultViewContainerLocation`, false), ContextKeyExpr.equals(`workbench.panel.chatEditing.defaultViewContainerLocation`, true)),
-						)),
+						),
+						ChatContextKeys.inUnifiedChat.negate()
+					),
 					group: 'navigation',
 					order: 1
 				}, {
