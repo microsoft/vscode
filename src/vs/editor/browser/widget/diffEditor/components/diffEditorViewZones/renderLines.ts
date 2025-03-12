@@ -198,11 +198,11 @@ function renderOriginalLine(
 		options.fontInfo.middotWidth,
 		options.fontInfo.wsmiddotWidth,
 		options.stopRenderingLineAfter,
-		options.renderWhitespace,
-		options.renderControlCharacters,
-		options.fontLigatures !== EditorFontLigatures.OFF,
-		null // Send no selections, original line cannot be selected
-	), sb);
+			options.renderWhitespace,
+			options.renderControlCharacters,
+			options.fontLigatures !== EditorFontLigatures.OFF,
+			[] // Allow selections by passing empty array instead of null
+		), sb);
 
 	sb.appendString('</div>');
 
