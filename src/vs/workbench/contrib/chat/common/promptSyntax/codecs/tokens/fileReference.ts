@@ -56,7 +56,7 @@ export class FileReference extends PromptVariableWithData {
 	 * Get the range of the `link` part of the token (e.g.,
 	 * the `/path/to/file.md` part of `#file:/path/to/file.md`).
 	 */
-	public get linkRange(): IRange {
+	public get linkRange(): IRange | undefined {
 		return super.dataRange;
 	}
 }
