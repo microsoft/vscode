@@ -177,5 +177,6 @@
 		"*": "error",
 		"ts": "warning",
 		"eslint": "warning"
-	}
+	},
+	"editor.experimental.preferTreeSitter.typescript": true
 }
