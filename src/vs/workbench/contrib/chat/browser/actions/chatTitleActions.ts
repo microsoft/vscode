@@ -30,7 +30,7 @@ import { INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
 import { CellEditType, CellKind, NOTEBOOK_EDITOR_ID } from '../../../notebook/common/notebookCommon.js';
 import { NOTEBOOK_IS_ACTIVE_EDITOR } from '../../../notebook/common/notebookContextKeys.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatContextKeyExprs, ChatContextKeys } from '../../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, ChatEditingSessionState, IChatEditingService, isChatEditingActionContext } from '../../common/chatEditingService.js';
 import { IChatRequestModel } from '../../common/chatModel.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatService } from '../../common/chatService.js';
@@ -413,13 +413,13 @@ export function registerChatTitleActions() {
 					ChatContextKeys.editingParticipantRegistered,
 					ChatContextKeys.requestInProgress.toNegated(),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
-					ChatContextKeys.inUnifiedChat.negate()
+					ChatContextKeyExprs.unifiedChatEnabled.negate()
 				),
 				menu: {
 					id: MenuId.ChatMessageFooter,
 					group: 'navigation',
 					order: 4,
-					when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.isResponse, ChatContextKeys.editingParticipantRegistered, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel), ChatContextKeys.inUnifiedChat.negate())
+					when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.isResponse, ChatContextKeys.editingParticipantRegistered, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel), ChatContextKeyExprs.unifiedChatEnabled.negate())
 				}
 			});
 		}

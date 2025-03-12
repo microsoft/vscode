@@ -188,7 +188,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					},
 					editorOverflowWidgetsDomNode: editorOverflowNode,
 					enableImplicitContext: this.chatOptions.location === ChatAgentLocation.Panel || this.chatService.isEditingLocation(this.chatOptions.location),
-					enableWorkingSet: this.chatService.isEditingLocation(this.chatOptions.location) ? 'explicit' : undefined
+					enableWorkingSet: this.chatService.isEditingLocation(this.chatOptions.location) ? 'explicit' : undefined,
+					supportsChangingModes: this.chatService.isEditingLocation(this.chatOptions.location),
 				},
 				{
 					listForeground: SIDE_BAR_FOREGROUND,

@@ -117,6 +117,7 @@ interface IChatInputPartOptions {
 	editorOverflowWidgetsDomNode?: HTMLElement;
 	renderWorkingSet?: boolean;
 	enableImplicitContext?: boolean;
+	supportsChangingModes?: boolean;
 }
 
 export interface IWorkingSetEntry {
@@ -474,6 +475,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	setChatMode(mode: ChatMode): void {
+		if (!this.options.supportsChangingModes) {
+			return;
+		}
+
 		this._currentMode = mode;
 		this._onDidChangeCurrentChatMode.fire();
 	}

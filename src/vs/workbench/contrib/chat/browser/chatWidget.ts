@@ -255,7 +255,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		ChatContextKeys.inChatSession.bindTo(contextKeyService).set(true);
 		ChatContextKeys.location.bindTo(contextKeyService).set(this._location.location);
 		ChatContextKeys.inQuickChat.bindTo(contextKeyService).set(isQuickChat(this));
-		ChatContextKeys.inUnifiedChat.bindTo(contextKeyService).set(this.configurationService.getValue(ChatConfiguration.UnifiedChatView));
+		ChatContextKeys.inUnifiedChat.bindTo(contextKeyService)
+			.set(this._location.location === ChatAgentLocation.Panel && !!this.viewOptions.supportsChangingModes && this.configurationService.getValue(ChatConfiguration.UnifiedChatView));
 		this.agentInInput = ChatContextKeys.inputHasAgent.bindTo(contextKeyService);
 		this.requestInProgress = ChatContextKeys.requestInProgress.bindTo(contextKeyService);
 		this.isRequestPaused = ChatContextKeys.isRequestPaused.bindTo(contextKeyService);
@@ -840,7 +841,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				menus: { executeToolbar: MenuId.ChatExecute, ...this.viewOptions.menus },
 				editorOverflowWidgetsDomNode: this.viewOptions.editorOverflowWidgetsDomNode,
 				enableImplicitContext: this.viewOptions.enableImplicitContext,
-				renderWorkingSet: this.viewOptions.enableWorkingSet === 'explicit'
+				renderWorkingSet: this.viewOptions.enableWorkingSet === 'explicit',
+				supportsChangingModes: this.viewOptions.supportsChangingModes,
 			},
 			this.styles,
 			() => this.collectInputState()

@@ -131,7 +131,7 @@ class ToggleChatModeAction extends Action2 {
 							ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
 							ChatContextKeys.Editing.hasToolsAgent,
 						),
-						ChatContextKeyExprs.unifiedChatEnabled),
+						ChatContextKeys.inUnifiedChat),
 					group: 'navigation',
 				},
 			]

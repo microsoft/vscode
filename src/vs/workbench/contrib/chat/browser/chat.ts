@@ -191,6 +191,7 @@ export interface IChatWidgetViewOptions {
 	editorOverflowWidgetsDomNode?: HTMLElement;
 	enableImplicitContext?: boolean;
 	enableWorkingSet?: 'explicit' | 'implicit';
+	supportsChangingModes?: boolean;
 }
 
 export interface IChatViewViewContext {

@@ -379,7 +379,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 	}
 
 	getDefaultAgent(location: ChatAgentLocation, mode?: ChatMode): IChatAgent | undefined {
-		if (mode === ChatMode.Edit) {
+		if (mode === ChatMode.Edit || mode === ChatMode.Agent) {
 			location = ChatAgentLocation.EditingSession;
 		}
 
