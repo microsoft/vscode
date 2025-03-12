@@ -292,7 +292,7 @@ class RuntimeStatusMarkdownRenderer extends Disposable implements IExtensionFeat
 				highlightCircle.style.display = 'block';
 				tooltip.style.left = `${closestPoint.x + 24}px`;
 				tooltip.style.top = `${closestPoint.y + 14}px`;
-				hoverDisposable.value = this.hoverService.showHover({
+				hoverDisposable.value = this.hoverService.showInstantHover({
 					content: new MarkdownString(`${closestPoint.date}: ${closestPoint.count} requests`),
 					target: tooltip,
 					appearance: {
