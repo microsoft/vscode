@@ -219,9 +219,13 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			'default': TelemetryConfiguration.ON,
 			'restricted': true,
 			'scope': ConfigurationScope.APPLICATION,
-			'tags': ['usesOnlineServices', 'telemetry']
+			'tags': ['usesOnlineServices', 'telemetry'],
+			'policy': {
+				name: 'TelemetryLevel',
+				minimumVersion: '1.99',
+			}
 		}
-	}
+	},
 });
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
@@ -231,8 +235,12 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			type: 'boolean',
 			default: false,
 			description: 'Disable feedback options.',
+			policy: {
+				name: 'DisableFeedback',
+				minimumVersion: '1.99',
+			}
 		},
-	}
+	},
 });
 
 // Deprecated telemetry setting
