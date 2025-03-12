@@ -7,14 +7,17 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/230165
 
-	// Part of TerminalState since the shellType can change multiple times and this comes with an event.
 	export interface TerminalState {
+
 		/**
-		 * The current detected shell type of the terminal.
-		 * Standardize on shell binaries (serve as command-line interpreters). Compiled programs that read and execute command from user.
+		 * The shell type of the terminal that may change throughout terminal's change of state.
+		 *
+		 * Use the {@link window.onDidChangeTerminalState onDidChangeTerminalState} event to
+		 * get notified when the terminal shell changes.
+		 * Note that we attempt to provide name of shell from its binary.
 		 * For example, bash, zsh, pwsh will be bash, zsh, pwsh accordingly.
 		 */
 		readonly shell: string | undefined;
 	}
-	// TODO: Remove this against vscode.d.ts to finalize.
+
 }
