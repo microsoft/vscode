@@ -228,10 +228,10 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			const currentChange = this.currentChange.read(r);
 			if (currentChange) {
 				const indexInChange = currentChange.index;
-				const modifiedCellIndex = currentChange.change.modifiedCellIndex;
+				const cellIndex = currentChange.change.modifiedCellIndex ?? currentChange.change.originalCellIndex;
 
-				const changesBeforeCell = modifiedCellIndex !== undefined && modifiedCellIndex > 0 ?
-					this.diffIndexPrefixSum.getPrefixSum(modifiedCellIndex - 1) : 0;
+				const changesBeforeCell = cellIndex !== undefined && cellIndex > 0 ?
+					this.diffIndexPrefixSum.getPrefixSum(cellIndex - 1) : 0;
 
 				this._currentIndex.set(changesBeforeCell + indexInChange, undefined);
 			} else {
