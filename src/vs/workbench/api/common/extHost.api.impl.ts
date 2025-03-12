@@ -67,6 +67,7 @@ import { IExtHostLanguageModels } from './extHostLanguageModels.js';
 import { ExtHostLanguages } from './extHostLanguages.js';
 import { IExtHostLocalizationService } from './extHostLocalizationService.js';
 import { IExtHostManagedSockets } from './extHostManagedSockets.js';
+import { IExtHostMpcService } from './extHostMcp.js';
 import { ExtHostMessageService } from './extHostMessageService.js';
 import { ExtHostNotebookController } from './extHostNotebook.js';
 import { ExtHostNotebookDocumentSaveParticipant } from './extHostNotebookDocumentSaveParticipant.js';
@@ -108,15 +109,6 @@ import { ExtHostWebviewPanels } from './extHostWebviewPanels.js';
 import { ExtHostWebviewViews } from './extHostWebviewView.js';
 import { IExtHostWindow } from './extHostWindow.js';
 import { IExtHostWorkspace } from './extHostWorkspace.js';
-import { DebugConfigurationProviderTriggerKind } from '../../contrib/debug/common/debug.js';
-import { ExtensionDescriptionRegistry } from '../../services/extensions/common/extensionDescriptionRegistry.js';
-import { UIKind } from '../../services/extensions/common/extensionHostProtocol.js';
-import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
-import { ProxyIdentifier } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExcludeSettingOptions, TextSearchCompleteMessageType, TextSearchContext2, TextSearchMatch2 } from '../../services/search/common/searchExtTypes.js';
-import type * as vscode from 'vscode';
-import { ExtHostCodeMapper } from './extHostCodeMapper.js';
-import { IExtHostMpcService } from './extHostMcp.js';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
