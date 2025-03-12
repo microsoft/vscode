@@ -26,6 +26,13 @@ export interface IMcpHostDelegate {
 	start(collectionDefinition: McpCollectionDefinition, serverDefinition: McpServerDefinition, resolvedLaunch: McpServerLaunch): IMcpMessageTransport;
 }
 
+export interface IMcpResolveConnectionOptions {
+	collection: McpCollectionDefinition;
+	definition: McpServerDefinition;
+	/** If set, the user will be asked to trust the collection even if they untrusted it previously */
+	forceTrust?: boolean;
+}
+
 export interface IMcpRegistry {
 	readonly _serviceBrand: undefined;
 
@@ -35,10 +42,8 @@ export interface IMcpRegistry {
 	registerDelegate(delegate: IMcpHostDelegate): IDisposable;
 	registerCollection(collection: McpCollectionDefinition): IDisposable;
 
-	/** Gets whether there are saved inputs used to resolve the connection */
-	hasSavedInputs(collection: McpCollectionDefinition, definition: McpServerDefinition): boolean;
 	/** Resets any saved inputs for the connection. */
 	clearSavedInputs(collection: McpCollectionDefinition, definition: McpServerDefinition): void;
-	/** Createse a connection for the collection and definition. */
-	resolveConnection(collection: McpCollectionDefinition, definition: McpServerDefinition): Promise<IMcpServerConnection>;
+	/** Creates a connection for the collection and definition. */
+	resolveConnection(options: IMcpResolveConnectionOptions): Promise<IMcpServerConnection | undefined>;
 }

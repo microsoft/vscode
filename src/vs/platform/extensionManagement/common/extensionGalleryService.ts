@@ -645,7 +645,8 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			query: {
 				sortBy,
 				filters
-			}
+			},
+			allRepositorySigned: !extensionGalleryManifest.capabilities.signing?.allRepositorySigned,
 		};
 	}
 
@@ -1855,7 +1856,48 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		return { malicious, deprecated, search, extensionsEnabledWithPreRelease };
 	}
 
+	private extensionGalleryManifestPromise: Promise<IExtensionGalleryManifest> | undefined;
 	private async getExtensionGalleryManifest(): Promise<IExtensionGalleryManifest> {
+		if (!this.extensionGalleryManifestPromise) {
+			const configuredServiceUrl = this.configurationService.inspect<string>('extensions.gallery.serviceUrl').userLocalValue;
+			if (configuredServiceUrl) {
+				this.extensionGalleryManifestPromise = this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl);
+			} else {
+				this.extensionGalleryManifestPromise = this.getExtensionGalleryManifestFromProduct();
+			}
+		}
+		return this.extensionGalleryManifestPromise;
+	}
+
+	private async getExtensionGalleryManifestFromServiceUrl(url: string): Promise<IExtensionGalleryManifest> {
+		const commonHeaders = await this.commonHeadersPromise;
+		const headers = {
+			...commonHeaders,
+			'Content-Type': 'application/json',
+			'Accept-Encoding': 'gzip',
+		};
+
+		try {
+			const context = await this.requestService.request({
+				type: 'GET',
+				url,
+				headers,
+			}, CancellationToken.None);
+
+			const extensionGalleryManifest = await asJson<IExtensionGalleryManifest>(context);
+
+			if (!extensionGalleryManifest) {
+				throw new Error('Unable to retrieve extension gallery manifest.');
+			}
+
+			return extensionGalleryManifest;
+		} catch (error) {
+			this.logService.error(error);
+			throw error;
+		}
+	}
+
+	private async getExtensionGalleryManifestFromProduct(): Promise<IExtensionGalleryManifest> {
 		const extensionsGallery = this.productService.extensionsGallery as ExtensionGalleryConfig | undefined;
 		if (!extensionsGallery?.serviceUrl) {
 			throw new Error('No extension gallery service configured.');

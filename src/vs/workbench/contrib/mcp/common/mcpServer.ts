@@ -128,11 +128,19 @@ export class McpServer extends Disposable implements IMcpServer {
 		this._connection.get()?.showOutput();
 	}
 
-	public start(): Promise<McpConnectionState> {
+	public start(isFromInteraction?: boolean): Promise<McpConnectionState> {
 		return this._connectionSequencer.queue(async () => {
 			let connection = this._connection.get();
 			if (!connection) {
-				connection = await this._mcpRegistry.resolveConnection(this.collection, this.definition);
+				connection = await this._mcpRegistry.resolveConnection({
+					collection: this.collection,
+					definition: this.definition,
+					forceTrust: isFromInteraction,
+				});
+				if (!connection) {
+					return { state: McpConnectionState.Kind.Stopped };
+				}
+
 				if (this._store.isDisposed) {
 					connection.dispose();
 					return { state: McpConnectionState.Kind.Stopped };
@@ -230,8 +238,8 @@ export class McpTool implements IMcpTool {
 		this.id = `${_server.definition.id}_${definition.name}`.replaceAll('.', '_');
 	}
 
-	updateEnablement(value: boolean): void {
-		this._enabled.set(value, undefined);
+	updateEnablement(value: boolean, tx?: ITransaction): void {
+		this._enabled.set(value, tx);
 	}
 
 	call(params: Record<string, unknown>, token?: CancellationToken): Promise<MCP.CallToolResult> {

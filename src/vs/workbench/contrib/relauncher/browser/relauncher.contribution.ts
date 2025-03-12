@@ -31,6 +31,7 @@ interface IConfiguration extends IWindowsConfiguration {
 	security?: { workspace?: { trust?: { enabled?: boolean } }; restrictUNCAccess?: boolean };
 	window: IWindowSettings;
 	workbench?: { enableExperiments?: boolean };
+	telemetry?: { disableFeedback?: boolean };
 	_extensionsGallery?: { enablePPE?: boolean };
 	accessibility?: { verbosity?: { debug?: boolean } };
 	chat?: { experimental?: { unifiedChatView?: boolean } };
@@ -51,7 +52,8 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'_extensionsGallery.enablePPE',
 		'security.restrictUNCAccess',
 		'accessibility.verbosity.debug',
-		ChatConfiguration.UnifiedChatView
+		ChatConfiguration.UnifiedChatView,
+		'telemetry.disableFeedback'
 	];
 
 	private readonly titleBarStyle = new ChangeObserver<TitlebarStyle>('string');
@@ -67,6 +69,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private readonly restrictUNCAccess = new ChangeObserver('boolean');
 	private readonly accessibilityVerbosityDebug = new ChangeObserver('boolean');
 	private readonly unifiedChatView = new ChangeObserver('boolean');
+	private readonly telemetryDisableFeedback = new ChangeObserver('boolean');
 
 	constructor(
 		@IHostService private readonly hostService: IHostService,
@@ -155,6 +158,9 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 		// Profiles
 		processChanged(this.productService.quality !== 'stable' && this.enablePPEExtensionsGallery.handleChange(config._extensionsGallery?.enablePPE));
+
+		// Disable Feedback
+		processChanged(this.telemetryDisableFeedback.handleChange(config.telemetry?.disableFeedback));
 
 		if (askToRelaunch && changed && this.hostService.hasFocus) {
 			this.doConfirm(

@@ -380,6 +380,7 @@ export interface IExtensionGalleryCapabilities {
 		readonly sortBy: readonly SortBy[];
 		readonly filters: readonly FilterType[];
 	};
+	readonly allRepositorySigned: boolean;
 }
 
 export const IExtensionGalleryService = createDecorator<IExtensionGalleryService>('extensionGalleryService');

@@ -201,17 +201,19 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 				getWidgetRole: () => 'listbox',
 				getAriaLabel: (item: SimpleCompletionItem) => {
 					let label = item.textLabel;
+					const kindLabel = item.completion.kindLabel ?? '';
 					if (typeof item.completion.label !== 'string') {
 						const { detail, description } = item.completion.label;
 						if (detail && description) {
-							label = localize('label.full', '{0}{1}, {2}', label, detail, description);
+							label = localize('label.full', '{0}{1}, {2} {3}', label, detail, description, kindLabel);
 						} else if (detail) {
-							label = localize('label.detail', '{0}{1}', label, detail);
+							label = localize('label.detail', '{0}{1} {2}', label, detail, kindLabel);
 						} else if (description) {
-							label = localize('label.desc', '{0}, {1}', label, description);
+							label = localize('label.desc', '{0}, {1} {2}', label, description, kindLabel);
 						}
+					} else {
+						label = localize('label', '{0}, {1}', label, kindLabel);
 					}
-
 					const { documentation, detail } = item.completion;
 					const docs = strings.format(
 						'{0}{1}',

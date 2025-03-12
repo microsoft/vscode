@@ -15,11 +15,13 @@ import { IMcpService } from './mcpTypes.js';
 export namespace McpContextKeys {
 
 	export const serverCount = new RawContextKey<number>('mcp.serverCount', undefined, { type: 'number', description: localize('mcp.serverCount.description', "Context key that has the number of registered MCP servers") });
+	export const toolsCount = new RawContextKey<number>('mcp.toolsCount', undefined, { type: 'number', description: localize('mcp.toolsCount.description', "Context key that has the number of registered MCP tools") });
 }
 
 
 export class McpContextKeysController extends Disposable implements IWorkbenchContribution {
-	public static readonly ID = 'workbench.contrib.mcp.contextKey';
+
+	static readonly ID = 'workbench.contrib.mcp.contextKey';
 
 	constructor(
 		@IMcpService mcpService: IMcpService,
@@ -28,9 +30,11 @@ export class McpContextKeysController extends Disposable implements IWorkbenchCo
 		super();
 
 		const ctxServerCount = McpContextKeys.serverCount.bindTo(contextKeyService);
+		const ctxToolsCount = McpContextKeys.toolsCount.bindTo(contextKeyService);
 
 		this._store.add(autorun(r => {
 			ctxServerCount.set(mcpService.servers.read(r).length);
+			ctxToolsCount.set(mcpService.servers.read(r).reduce((count, server) => count + server.tools.read(r).length, 0));
 		}));
 	}
 }

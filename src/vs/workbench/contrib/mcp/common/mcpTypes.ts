@@ -7,7 +7,7 @@ import { assertNever } from '../../../../base/common/assert.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
-import { IObservable } from '../../../../base/common/observable.js';
+import { IObservable, ITransaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
@@ -34,8 +34,13 @@ export interface McpCollectionDefinition {
 	readonly isTrustedByDefault: boolean;
 	/** Scope where associated collection info should be stored. */
 	readonly scope: StorageScope;
-	/** Sort order of the collection. */
-	readonly order?: number;
+
+	readonly presentation?: {
+		/** Sort order of the collection. */
+		readonly order?: number;
+		/** Place where this server is configured, used in workspac trust prompts */
+		readonly origin?: URI;
+	};
 }
 
 export const enum McpCollectionSortOrder {
@@ -98,7 +103,13 @@ export interface IMcpServer extends IDisposable {
 	readonly definition: McpServerDefinition;
 	readonly state: IObservable<McpConnectionState>;
 	showOutput(): void;
-	start(): Promise<McpConnectionState>;
+	/**
+	 * Starts the server and returns its resulting state. One of:
+	 * - Running, if all good
+	 * - Error, if the server failed to start
+	 * - Stopped, if the server was disposed or the user cancelled the launch
+	 */
+	start(isFromInteraction?: boolean): Promise<McpConnectionState>;
 	stop(): Promise<void>;
 
 	readonly tools: IObservable<readonly IMcpTool[]>;
@@ -113,7 +124,7 @@ export interface IMcpTool {
 
 	readonly enabled: IObservable<boolean>;
 
-	updateEnablement(value: boolean): void;
+	updateEnablement(value: boolean, tx?: ITransaction): void;
 
 	/**
 	 * Calls a tool

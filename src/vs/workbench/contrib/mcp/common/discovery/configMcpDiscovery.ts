@@ -91,15 +91,22 @@ export class ConfigMcpDiscovery extends Disposable implements IMcpDiscovery {
 
 		for (const src of this.configSources) {
 			const collectionId = `mcp.config.${src.key}`;
-			const value = configurationKey[src.key];
+			let value = configurationKey[src.key];
+
+			// If we see there are MCP servers, migrate them automatically
+			if (value?.mcpServers) {
+				value = { ...value, servers: { ...value.servers, ...value.mcpServers }, mcpServers: undefined };
+				this._configurationService.updateValue(mcpConfigurationSection, value, {}, src.target, { donotNotifyError: true });
+			}
+
 			const nextDefinitions = Object.entries(value?.servers || {}).map(([name, value]): McpServerDefinition => ({
 				id: `${collectionId}.${name}`,
 				label: name,
 				launch: {
 					type: McpServerTransportType.Stdio,
-					args: value.args,
+					args: value.args || [],
 					command: value.command,
-					env: value.env,
+					env: value.env || {},
 					cwd: undefined,
 				},
 				variableReplacement: {
@@ -119,7 +126,7 @@ export class ConfigMcpDiscovery extends Disposable implements IMcpDiscovery {
 				src.disposable.value ??= this._mcpRegistry.registerCollection({
 					id: collectionId,
 					label: src.label,
-					order: src.order,
+					presentation: { order: src.order },
 					remoteAuthority: src.remoteAuthority || null,
 					serverDefinitions: src.serverDefinitions,
 					isTrustedByDefault: true,
