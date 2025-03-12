@@ -7,7 +7,7 @@ import { localize } from '../../../../nls.js';
 import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { RemoteNameContext } from '../../../common/contextkeys.js';
-import { ChatAgentLocation, ChatConfiguration } from './constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatMode } from './constants.js';
 
 export namespace ChatContextKeys {
 	export const responseVote = new RawContextKey<string>('chatSessionResponseVote', '', { type: 'string', description: localize('interactiveSessionResponseVote', "When the response has been voted up, is set to 'up'. When voted down, is set to 'down'. Otherwise an empty string.") });
@@ -32,6 +32,7 @@ export namespace ChatContextKeys {
 	export const inChatSession = new RawContextKey<boolean>('inChat', false, { type: 'boolean', description: localize('inChat', "True when focus is in the chat widget, false otherwise.") });
 	export const inUnifiedChat = new RawContextKey<boolean>('inUnifiedChat', false, { type: 'boolean', description: localize('inUnifiedChat', "True when focus is in the unified chat widget, false otherwise.") });
 	export const instructionsAttached = new RawContextKey<boolean>('chatInstructionsAttached', false, { type: 'boolean', description: localize('chatInstructionsAttachedContextDescription', "True when the chat has a prompt instructions attached.") });
+	export const chatMode = new RawContextKey<ChatMode>('chatMode', ChatMode.Chat, { type: 'string', description: localize('chatMode', "The current chat mode.") });
 
 	export const supported = ContextKeyExpr.or(IsWebContext.toNegated(), RemoteNameContext.notEqualsTo('')); // supported on desktop and in web only with a remote connection
 	export const enabled = new RawContextKey<boolean>('chatIsEnabled', false, { type: 'boolean', description: localize('chatIsEnabled', "True when chat is enabled because a default chat participant is activated with an implementation.") });
@@ -83,7 +84,6 @@ export namespace ChatContextKeys {
 
 	export const Editing = {
 		hasToolsAgent: new RawContextKey<boolean>('chatHasToolsAgent', false, { type: 'boolean', description: localize('chatEditingHasToolsAgent', "True when a tools agent is registered.") }),
-		agentMode: new RawContextKey<boolean>('chatAgentMode', false, { type: 'boolean', description: localize('chatEditingAgentMode', "True when edits is in agent mode.") }),
 		agentModeDisallowed: new RawContextKey<boolean>('chatAgentModeDisallowed', undefined, { type: 'boolean', description: localize('chatAgentModeDisallowed', "True when agent mode is not allowed.") }), // experiment-driven disablement
 		hasToolConfirmation: new RawContextKey<boolean>('chatHasToolConfirmation', false, { type: 'boolean', description: localize('chatEditingHasToolConfirmation', "True when a tool confirmation is present.") }),
 	};
@@ -95,4 +95,9 @@ export namespace ChatContextKeyExprs {
 	export const inEditsOrUnified = ContextKeyExpr.or(
 		ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
 		ChatContextKeys.inUnifiedChat);
+
+	export const inEditingMode = ContextKeyExpr.or(
+		ChatContextKeys.chatMode.isEqualTo(ChatMode.Edit),
+		ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent),
+	);
 }

@@ -15,7 +15,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { isChatViewTitleActionContext } from '../../common/chatActions.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatContextKeyExprs, ChatContextKeys } from '../../common/chatContextKeys.js';
 import { hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingSession, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
 import { ChatViewId, EditsViewId, IChatWidget, IChatWidgetService } from '../chat.js';
@@ -94,7 +94,9 @@ export function registerNewChatActions() {
 				},
 				{
 					id: MenuId.ViewTitle,
-					when: ContextKeyExpr.equals('view', ChatViewId),
+					when: ContextKeyExpr.and(
+						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
+						ChatContextKeys.inUnifiedChat.negate()),
 					group: 'navigation',
 					order: -1
 				}]
@@ -136,7 +138,7 @@ export function registerNewChatActions() {
 				},
 				{
 					id: MenuId.ViewTitle,
-					when: ContextKeyExpr.equals('view', EditsViewId),
+					when: ChatContextKeyExprs.inEditsOrUnified,
 					group: 'navigation',
 					order: -1
 				}],
@@ -146,7 +148,7 @@ export function registerNewChatActions() {
 					mac: {
 						primary: KeyMod.WinCtrl | KeyCode.KeyL
 					},
-					when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession))
+					when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeyExprs.inEditingMode)
 				}
 			});
 		}

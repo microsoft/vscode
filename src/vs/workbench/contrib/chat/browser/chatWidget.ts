@@ -8,6 +8,7 @@ import { Button } from '../../../../base/browser/ui/button/button.js';
 import { ITreeContextMenuEvent, ITreeElement } from '../../../../base/browser/ui/tree/tree.js';
 import { disposableTimeout, timeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { memoize } from '../../../../base/common/decorators.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
@@ -159,6 +160,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private canRequestBePaused: IContextKey<boolean>;
 	private agentInInput: IContextKey<boolean>;
 
+
 	private _visible = false;
 	public get visible() {
 		return this._visible;
@@ -218,6 +220,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	readonly viewContext: IChatWidgetViewContext;
+
+	@memoize
+	get isUnifiedPanelWidget(): boolean {
+		return this._location.location === ChatAgentLocation.Panel && !!this.viewOptions.supportsChangingModes && this.configurationService.getValue(ChatConfiguration.UnifiedChatView);
+	}
 
 	constructor(
 		location: ChatAgentLocation | IChatWidgetLocationOptions,
@@ -923,7 +930,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// Tools agent loads -> welcome content changes
 			this.renderWelcomeViewContentIfNeeded();
 		}));
-		this._register(this.input.onDidChangeCurrentChatMode(() => this.renderWelcomeViewContentIfNeeded()));
+		this._register(this.input.onDidChangeCurrentChatMode(() => {
+			this.renderWelcomeViewContentIfNeeded();
+		}));
 	}
 
 	private onDidStyleChange(): void {

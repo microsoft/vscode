@@ -63,9 +63,17 @@ export function getEditingSessionContext(accessor: ServicesAccessor, args: any[]
 	const context: IEditingSessionActionContext | undefined = args[0];
 
 	const chatService = accessor.get(IChatService);
+	const chatWidgetService = accessor.get(IChatWidgetService);
 	const chatEditingService = accessor.get(IChatEditingService);
-	const editingLocation = chatService.unifiedViewEnabled ? ChatAgentLocation.Panel : ChatAgentLocation.EditingSession;
-	const chatWidget = context?.widget ?? accessor.get(IChatWidgetService).getWidgetsByLocations(editingLocation).at(0);
+	let chatWidget = context?.widget;
+	if (!chatWidget) {
+		if (chatService.unifiedViewEnabled) {
+			// TODO ugly
+			chatWidget = chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel).find(w => w.isUnifiedPanelWidget);
+		} else {
+			chatWidget = chatWidgetService.getWidgetsByLocations(ChatAgentLocation.EditingSession).at(0);
+		}
+	}
 
 	if (!chatWidget?.viewModel) {
 		return;

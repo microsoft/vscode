@@ -213,7 +213,7 @@ export class ToggleRequestPausedAction extends Action2 {
 					order: 3.5,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.canRequestBePaused,
-						ChatContextKeys.Editing.agentMode,
+						ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent),
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
 						ContextKeyExpr.or(ChatContextKeys.isRequestPaused.negate(), ChatContextKeys.inputHasText.negate()),
 					),

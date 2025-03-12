@@ -294,6 +294,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * Context key is set when prompt instructions are attached.
 	 */
 	private promptInstructionsAttached: IContextKey<boolean>;
+	private chatMode: IContextKey<ChatMode>;
 
 	private readonly _waitForPersistedLanguageModel = this._register(new MutableDisposable<IDisposable>());
 	private _onDidChangeCurrentLanguageModel = this._register(new Emitter<ILanguageModelChatMetadataAndIdentifier>());
@@ -398,6 +399,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatCursorAtTop = ChatContextKeys.inputCursorAtTop.bindTo(contextKeyService);
 		this.inputEditorHasFocus = ChatContextKeys.inputHasFocus.bindTo(contextKeyService);
 		this.promptInstructionsAttached = ChatContextKeys.instructionsAttached.bindTo(contextKeyService);
+		this.chatMode = ChatContextKeys.chatMode.bindTo(contextKeyService);
 
 		this.history = this.loadHistory();
 		this._register(this.historyService.onDidClearHistory(() => this.history = new HistoryNavigator2([{ text: '' }], ChatInputHistoryMaxEntries, historyKeyFn)));
@@ -480,6 +482,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		this._currentMode = mode;
+		this.chatMode.set(mode);
 		this._onDidChangeCurrentChatMode.fire();
 	}
 
