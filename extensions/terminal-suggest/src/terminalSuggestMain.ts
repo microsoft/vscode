@@ -26,9 +26,16 @@ import { createCompletionItem } from './helpers/completionItem';
 import { getFigSuggestions } from './fig/figInterface';
 import { executeCommand, executeCommandTimeout, IFigExecuteExternals } from './fig/execute';
 
+export const enum TerminalShellType {
+	Bash = 'bash',
+	Fish = 'fish',
+	Zsh = 'zsh',
+	PowerShell = 'pwsh',
+	Python = 'python'
+}
 
 const isWindows = osIsWindows();
-const cachedGlobals: Map<string, ICompletionResource[] | undefined> = new Map();
+const cachedGlobals: Map<TerminalShellType, ICompletionResource[] | undefined> = new Map();
 let pathExecutableCache: PathExecutableCache;
 
 export const availableSpecs: Fig.Spec[] = [
@@ -42,15 +49,15 @@ for (const spec of upstreamSpecs) {
 	availableSpecs.push(require(`./completions/upstream/${spec}`).default);
 }
 
-const getShellSpecificGlobals: Map<string, (options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>) => Promise<(string | ICompletionResource)[]>> = new Map([
-	['bash', getBashGlobals],
-	['zsh', getZshGlobals],
+const getShellSpecificGlobals: Map<TerminalShellType, (options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>) => Promise<(string | ICompletionResource)[]>> = new Map([
+	[TerminalShellType.Bash, getBashGlobals],
+	[TerminalShellType.Zsh, getZshGlobals],
 	// TODO: Ghost text in the command line prevents completions from working ATM for fish
-	['fish', getFishGlobals],
-	['pwsh', getPwshGlobals],
+	[TerminalShellType.Fish, getFishGlobals],
+	[TerminalShellType.PowerShell, getPwshGlobals],
 ]);
 
-async function getShellGlobals(shellType: string, existingCommands?: Set<string>): Promise<ICompletionResource[] | undefined> {
+async function getShellGlobals(shellType: TerminalShellType, existingCommands?: Set<string>): Promise<ICompletionResource[] | undefined> {
 	try {
 		const cachedCommands = cachedGlobals.get(shellType);
 		if (cachedCommands) {
@@ -84,13 +91,14 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 
 			const shellType: string | undefined = 'shell' in terminal.state ? terminal.state.shell as string : undefined;
-			if (!shellType) {
+			const terminalShellType = getTerminalShellType(shellType);
+			if (!terminalShellType) {
 				console.debug('#terminalCompletions No shell type found for terminal');
 				return;
 			}
 
 			const commandsInPath = await pathExecutableCache.getExecutablesInPath(terminal.shellIntegration?.env?.value);
-			const shellGlobals = await getShellGlobals(shellType, commandsInPath?.labels) ?? [];
+			const shellGlobals = await getShellGlobals(terminalShellType, commandsInPath?.labels) ?? [];
 			if (!commandsInPath?.completionResources) {
 				console.debug('#terminalCompletions No commands found in path');
 				return;
@@ -99,7 +107,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			const commands = [...shellGlobals, ...commandsInPath.completionResources];
 			const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
 			const pathSeparator = isWindows ? '\\' : '/';
-			const tokenType = getTokenType(terminalContext, shellType);
+			const tokenType = getTokenType(terminalContext, terminalShellType);
 			const result = await getCompletionItemsFromSpecs(availableSpecs, terminalContext, commands, prefix, tokenType, terminal.shellIntegration?.cwd, getEnvAsRecord(terminal.shellIntegration?.env?.value), terminal.name, token);
 			if (terminal.shellIntegration?.env) {
 				const homeDirCompletion = result.items.find(i => i.label === '~');
@@ -296,6 +304,23 @@ function getEnvAsRecord(shellIntegrationEnv: { [key: string]: string | undefined
 		sanitizeProcessEnvironment(env);
 	}
 	return env;
+}
+
+function getTerminalShellType(shellType: string | undefined): TerminalShellType | undefined {
+	switch (shellType) {
+		case 'bash':
+			return TerminalShellType.Bash;
+		case 'zsh':
+			return TerminalShellType.Zsh;
+		case 'pwsh':
+			return TerminalShellType.PowerShell;
+		case 'fish':
+			return TerminalShellType.Fish;
+		case 'python':
+			return TerminalShellType.Python;
+		default:
+			return undefined;
+	}
 }
 
 export function sanitizeProcessEnvironment(env: Record<string, string>, ...preserve: string[]): void {

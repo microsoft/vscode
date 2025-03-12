@@ -6,6 +6,7 @@
 import 'mocha';
 import { strictEqual } from 'node:assert';
 import { getTokenType, TokenType } from '../tokens';
+import { TerminalShellType } from '../terminalSuggestMain';
 
 suite('Terminal Suggest', () => {
 	test('simple command', () => {
@@ -36,16 +37,16 @@ suite('Terminal Suggest', () => {
 	});
 	suite('pwsh', () => {
 		test('simple command', () => {
-			strictEqual(getTokenType({ commandLine: 'Write-Host', cursorPosition: 'Write-Host'.length }, 'pwsh'), TokenType.Command);
+			strictEqual(getTokenType({ commandLine: 'Write-Host', cursorPosition: 'Write-Host'.length }, TerminalShellType.PowerShell), TokenType.Command);
 		});
 		test('simple argument', () => {
-			strictEqual(getTokenType({ commandLine: 'Write-Host hello', cursorPosition: 'Write-Host hello'.length }, 'pwsh'), TokenType.Argument);
+			strictEqual(getTokenType({ commandLine: 'Write-Host hello', cursorPosition: 'Write-Host hello'.length }, TerminalShellType.PowerShell), TokenType.Argument);
 		});
 		test('reset char', () => {
-			strictEqual(getTokenType({ commandLine: `Write-Host hello -and `, cursorPosition: `Write-Host hello -and `.length }, 'pwsh'), TokenType.Command);
+			strictEqual(getTokenType({ commandLine: `Write-Host hello -and `, cursorPosition: `Write-Host hello -and `.length }, TerminalShellType.PowerShell), TokenType.Command);
 		});
 		test('arguments after reset char', () => {
-			strictEqual(getTokenType({ commandLine: `Write-Host hello -and $true `, cursorPosition: `Write-Host hello -and $true `.length }, 'pwsh'), TokenType.Argument);
+			strictEqual(getTokenType({ commandLine: `Write-Host hello -and $true `, cursorPosition: `Write-Host hello -and $true `.length }, TerminalShellType.PowerShell), TokenType.Argument);
 		});
 	});
 });

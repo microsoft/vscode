@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { TerminalShellType } from './terminalSuggestMain';
+
 
 export const enum TokenType {
 	Command,
@@ -10,14 +12,14 @@ export const enum TokenType {
 }
 
 const shellTypeResetChars: { [key: string]: string[] | undefined } = {
-	['bash']: ['>', '>>', '<', '2>', '2>>', '&>', '&>>', '|', '|&', '&&', '||', '&', ';', '(', '{', '<<'],
-	['zsh']: ['>', '>>', '<', '2>', '2>>', '&>', '&>>', '<>', '|', '|&', '&&', '||', '&', ';', '(', '{', '<<', '<<<', '<('],
-	['pwsh']: ['>', '>>', '<', '2>', '2>>', '*>', '*>>', '|', '-and', '-or', '-not', '!', '&', '-eq', '-ne', '-gt', '-lt', '-ge', '-le', '-like', '-notlike', '-match', '-notmatch', '-contains', '-notcontains', '-in', '-notin']
+	[TerminalShellType.Bash]: ['>', '>>', '<', '2>', '2>>', '&>', '&>>', '|', '|&', '&&', '||', '&', ';', '(', '{', '<<'],
+	[TerminalShellType.Zsh]: ['>', '>>', '<', '2>', '2>>', '&>', '&>>', '<>', '|', '|&', '&&', '||', '&', ';', '(', '{', '<<', '<<<', '<('],
+	[TerminalShellType.PowerShell]: ['>', '>>', '<', '2>', '2>>', '*>', '*>>', '|', '-and', '-or', '-not', '!', '&', '-eq', '-ne', '-gt', '-lt', '-ge', '-le', '-like', '-notlike', '-match', '-notmatch', '-contains', '-notcontains', '-in', '-notin']
 };
 
-const defaultShellTypeResetChars = shellTypeResetChars['bash']!;
+const defaultShellTypeResetChars = shellTypeResetChars[TerminalShellType.Bash]!;
 
-export function getTokenType(ctx: { commandLine: string; cursorPosition: number }, shellType: string | undefined): TokenType {
+export function getTokenType(ctx: { commandLine: string; cursorPosition: number }, shellType: TerminalShellType | undefined): TokenType {
 	const spaceIndex = ctx.commandLine.substring(0, ctx.cursorPosition).lastIndexOf(' ');
 	if (spaceIndex === -1) {
 		return TokenType.Command;
