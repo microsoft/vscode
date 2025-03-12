@@ -35,7 +35,21 @@ export interface IChatMessageImagePart {
 }
 
 export interface IChatImageURLPart {
-	image_url: { url: string; detail?: ImageDetailLevel };
+	/**
+	 * The image's MIME type (e.g., "image/png", "image/jpeg").
+	 */
+	mimeType: string;
+
+	/**
+	 * The raw binary data of the image, encoded as a Uint8Array. Note: do not use base64 encoding. Maximum image size is 5MB.
+	 */
+	data: Uint8Array;
+
+	/**
+	 * Specifies the detail level of the image. Learn more in the
+	 * [Vision guide](https://platform.openai.com/docs/guides/vision/low-or-high-fidelity-image-understanding).
+	 */
+	detail?: ImageDetailLevel;
 }
 
 /**

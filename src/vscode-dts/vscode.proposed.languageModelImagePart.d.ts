@@ -74,19 +74,22 @@ declare module 'vscode' {
 	}
 
 	export interface ChatImagePart {
-		image_url: {
-			/**
-					 * Either a URL of the image or the base64 encoded image data.
-					 */
-			url: string;
+		/**
+		 * The image's MIME type (e.g., "image/png", "image/jpeg").
+		 */
+		mimeType: string;
 
-			/**
-			 * Specifies the detail level of the image. Learn more in the
-			 * [Vision guide](https://platform.openai.com/docs/guides/vision/low-or-high-fidelity-image-understanding).
-			 */
-			detail?: ImageDetailLevel;
+		/**
+		 * The raw binary data of the image, encoded as a Uint8Array. Note: do not use base64 encoding. Maximum image size is 5MB.
+		 */
+		data: Uint8Array;
 
-		};
+		/**
+		 * Specifies the detail level of the image. Learn more in the
+		 * [Vision guide](https://platform.openai.com/docs/guides/vision/low-or-high-fidelity-image-understanding).
+		 */
+		detail?: ImageDetailLevel;
+
 	}
 
 	/**
