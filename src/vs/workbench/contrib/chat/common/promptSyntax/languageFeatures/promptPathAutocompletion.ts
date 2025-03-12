@@ -244,21 +244,20 @@ export class PromptPathAutocompletion extends Disposable implements CompletionIt
 		// when character is `:`, there must be no link present yet
 		// otherwise the `:` was used in the middle of the link hence
 		// we don't want to provide suggestions for that
-		if (character === ':' && linkRange !== undefined) {
+		if ((character === ':') && (linkRange !== undefined)) {
 			return [];
 		}
 
 		// otherwise when the `.` character is present, it is inside the link part
 		// of the reference, hence we always expect the link range to be present
-		if (character === '.' && linkRange === undefined) {
+		if ((character === '.') && (linkRange === undefined)) {
 			return [];
 		}
 
 		const suggestions = await this.getFolderSuggestions(fileFolderUri);
 
-		// replacement range of the suggestions
-		// when character is `.` we want to also replace it, because we add
-		// the `./` at the beginning of all the relative paths
+		// replacement range for suggestions; when character is `.`, we want to also
+		// replace it, because we add `./` at the beginning of all the relative paths
 		const startColumnOffset = (character === '.') ? 1 : 0;
 		const range = {
 			...fileReference.range,

@@ -125,17 +125,28 @@ export class PromptVariableWithData extends PromptVariable {
 	/**
 	 * Range of the `data` part of the variable.
 	 */
-	public get dataRange(): IRange {
+	public get dataRange(): IRange | undefined {
 		const { range } = this;
+
+		// calculate the start column number of the `data` part of the variable
 		const dataStartColumn = range.startColumn +
 			START_CHARACTER.length + this.name.length +
 			DATA_SEPARATOR.length;
 
-		return new Range(
+		// create `range` of the `data` part of the variable
+		const result = new Range(
 			range.startLineNumber,
 			dataStartColumn,
 			range.endLineNumber,
 			range.endColumn,
 		);
+
+		// if the resulting range is empty, return `undefined`
+		// because there is no `data` part present in the variable
+		if (result.isEmpty()) {
+			return undefined;
+		}
+
+		return result;
 	}
 }
