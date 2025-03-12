@@ -459,7 +459,7 @@ export class TerminalTabbedView extends Disposable {
 			return;
 		}
 		this._hoverService.showInstantHover({
-			...getInstanceHoverInfo(instance),
+			...getInstanceHoverInfo(instance, this._storageService),
 			target: this._terminalContainer,
 			trapFocus: true
 		}, true);
