@@ -172,8 +172,16 @@ class ToggleChatModeAction extends Action2 {
 
 		const arg = args[0] as IToggleChatModeArgs | undefined;
 		if (arg?.mode) {
-			// TODO also use keybinding to advance modes
 			context.chatWidget.input.setChatMode(arg.mode);
+		} else {
+			const modes = [ChatMode.Agent, ChatMode.Edit];
+			if (context.chatWidget.location === ChatAgentLocation.Panel) {
+				modes.push(ChatMode.Chat);
+			}
+
+			const modeIndex = modes.indexOf(context.chatWidget.input.currentMode);
+			const newMode = modes[(modeIndex + 1) % modes.length];
+			context.chatWidget.input.setChatMode(newMode);
 		}
 
 		if (context.chatWidget.viewModel?.model.getRequests().length) {

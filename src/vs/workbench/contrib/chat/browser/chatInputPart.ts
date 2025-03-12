@@ -302,13 +302,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private _onDidChangeCurrentChatMode = this._register(new Emitter<void>());
-	private _currentMode: ChatMode = ChatMode.Chat;
-	public get toolsAgentModeEnabled(): boolean {
-		return this._currentMode === ChatMode.Agent;
-	}
+	readonly onDidChangeCurrentChatMode = this._onDidChangeCurrentChatMode.event;
 
+	private _currentMode: ChatMode = ChatMode.Chat;
 	public get currentMode(): ChatMode {
-		return this._currentMode === ChatMode.Agent && !this.agentService.hasToolsAgent ? ChatMode.Edit : this._currentMode;
+		if (this.location === ChatAgentLocation.Panel && !this.chatService.unifiedViewEnabled) {
+			return ChatMode.Chat;
+		}
+
+		return this._currentMode === ChatMode.Agent && !this.agentService.hasToolsAgent ?
+			ChatMode.Edit :
+			this._currentMode;
 	}
 
 	private cachedDimensions: dom.Dimension | undefined;
@@ -373,6 +377,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@ILabelService private readonly labelService: ILabelService,
 		@IChatVariablesService private readonly variableService: IChatVariablesService,
 		@IChatAgentService private readonly agentService: IChatAgentService,
+		@IChatService private readonly chatService: IChatService,
 	) {
 		super();
 
@@ -475,7 +480,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private modelSupportedForDefaultAgent(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 		// Probably this logic could live in configuration on the agent, or somewhere else, if it gets more complex
-		if (this._currentMode === ChatMode.Agent) {
+		if (this.currentMode === ChatMode.Agent) {
 			if (this.configurationService.getValue('chat.agent.allModels')) {
 				return true;
 			}
@@ -557,15 +562,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		if (state.inputState?.chatMode) {
-			this._currentMode = state.inputState.chatMode;
+			this.setChatMode(state.inputState.chatMode);
 		} else if (this.location === ChatAgentLocation.EditingSession) {
-			this._currentMode = ChatMode.Edit;
+			this.setChatMode(ChatMode.Edit);
 		}
 
 		if (state.inputState?.chatMode) {
-			this._currentMode = state.inputState.chatMode;
+			this.setChatMode(state.inputState.chatMode);
 		} else if (this.location === ChatAgentLocation.EditingSession) {
-			this._currentMode = ChatMode.Edit;
+			this.setChatMode(ChatMode.Edit);
 		}
 	}
 
@@ -939,7 +944,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					}
 				} else if (action.id === ToggleAgentModeActionId && action instanceof MenuItemAction) {
 					const delegate: IModePickerDelegate = {
-						getMode: () => this._currentMode,
+						getMode: () => this.currentMode,
 						onDidChangeMode: this._onDidChangeCurrentChatMode.event
 					};
 					return this.instantiationService.createInstance(ToggleChatModeActionViewItem, action, delegate);
@@ -1545,6 +1550,7 @@ class ToggleChatModeActionViewItem extends DropdownMenuActionViewItemWithKeybind
 		};
 
 		super(action, actionProvider, contextMenuService, undefined, keybindingService, contextKeyService);
+		this._register(delegate.onDidChangeMode(() => this.renderLabel(this.element!)));
 	}
 
 	private modeToString(mode: ChatMode) {

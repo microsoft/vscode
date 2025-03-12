@@ -919,6 +919,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// Tools agent loads -> welcome content changes
 			this.renderWelcomeViewContentIfNeeded();
 		}));
+		this._register(this.input.onDidChangeCurrentChatMode(() => this.renderWelcomeViewContentIfNeeded()));
 	}
 
 	private onDidStyleChange(): void {
