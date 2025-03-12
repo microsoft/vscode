@@ -35,7 +35,7 @@ import { applyingChatEditsFailedContextKey, ChatEditingSessionState, IChatEditin
 import { IChatRequestModel } from '../../common/chatModel.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
-import { ChatAgentLocation } from '../../common/constants.js';
+import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
 import { ChatTreeItem, EditsViewId, IChatWidgetService } from '../chat.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { CHAT_CATEGORY } from './chatActions.js';
@@ -230,7 +230,9 @@ export function registerChatTitleActions() {
 				return;
 			}
 			const itemIndex = chatRequests?.findIndex(request => request.id === item.requestId);
-			if (chatModel?.initialLocation === ChatAgentLocation.EditingSession) {
+			const widget = chatWidgetService.getWidgetBySessionId(item.sessionId);
+			const mode = widget?.input.currentMode;
+			if (chatModel?.initialLocation === ChatAgentLocation.EditingSession || chatModel && (mode === ChatMode.Edit || mode === ChatMode.Agent)) {
 				const configurationService = accessor.get(IConfigurationService);
 				const dialogService = accessor.get(IDialogService);
 				const chatEditingService = accessor.get(IChatEditingService);
@@ -355,20 +357,20 @@ export function registerChatTitleActions() {
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.x,
-				precondition: ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession),
+				precondition: ChatContextKeys.chatMode.isEqualTo(ChatMode.Chat),
 				keybinding: {
 					primary: KeyCode.Delete,
 					mac: {
 						primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 					},
-					when: ContextKeyExpr.and(ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession), ChatContextKeys.inChatSession, ChatContextKeys.inChatInput.negate()),
+					when: ContextKeyExpr.and(ChatContextKeys.chatMode.isEqualTo(ChatMode.Chat), ChatContextKeys.inChatSession, ChatContextKeys.inChatInput.negate()),
 					weight: KeybindingWeight.WorkbenchContrib,
 				},
 				menu: {
 					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession), ChatContextKeys.isRequest)
+					when: ContextKeyExpr.and(ChatContextKeys.chatMode.isEqualTo(ChatMode.Chat), ChatContextKeys.isRequest)
 				}
 			});
 		}
