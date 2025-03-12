@@ -88,7 +88,6 @@ const ignored = new Set([
     'vs/editor/contrib/inlineCompletions/browser/view/ghostText/ghostTextView.ts',
     'vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditWithChanges.ts',
     'vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/components/gutterIndicatorView.ts',
-    'vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditsViews/inlineEditsInsertionView.ts',
     'vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditsViews/inlineEditsWordReplacementView.ts',
     'vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditsViews/inlineEditsLineReplacementView.ts',
     'vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditsViews/inlineEditsSideBySideView.ts',
