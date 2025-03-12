@@ -310,7 +310,6 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 					{
 						installPreReleaseVersion: isInsiders ?? false,
 						context: { skipWalkthrough: true },
-						// enable: true
 					},
 					ProgressLocation.Notification
 				);
