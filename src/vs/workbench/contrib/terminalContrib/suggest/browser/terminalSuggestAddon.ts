@@ -37,6 +37,7 @@ import { TerminalCompletionModel } from './terminalCompletionModel.js';
 import { TerminalCompletionItem, TerminalCompletionItemKind, type ITerminalCompletion } from './terminalCompletionItem.js';
 import { IntervalTimer, TimeoutTimer } from '../../../../../base/common/async.js';
 import { localize } from '../../../../../nls.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 
 export interface ISuggestController {
 	isPasting: boolean;
@@ -45,7 +46,7 @@ export interface ISuggestController {
 	selectNextSuggestion(): void;
 	selectNextPageSuggestion(): void;
 	acceptSelectedSuggestion(suggestion?: Pick<ISimpleSelectedSuggestion<TerminalCompletionItem>, 'item' | 'model'>): void;
-	hideSuggestWidget(cancelAnyRequests: boolean): void;
+	hideSuggestWidget(cancelAnyRequests: boolean, wasClosedByUser?: boolean): void;
 }
 export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggestController {
 	private _terminal?: Terminal;
@@ -131,6 +132,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private readonly _inlineCompletionItem = new TerminalCompletionItem(this._inlineCompletion);
 
 	private _shouldSyncWhenReady: boolean = false;
+	private _mostRecentAcceptedCompletion: { label: string; kindLabel?: string } | undefined;
 
 	constructor(
 		shellType: TerminalShellType | undefined,
@@ -141,6 +143,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -178,9 +181,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 					this._promptInputModelSubscriptions.value = combinedDisposable(
 						this._promptInputModel.onDidChangeInput(e => this._sync(e)),
 						this._promptInputModel.onDidFinishInput(() => {
+							this._sendTelemetryInfo();
 							this._mostRecentPromptInputState = undefined;
 							this.hideSuggestWidget(true);
-						}),
+						})
 					);
 					if (this._shouldSyncWhenReady) {
 						this._sync(this._promptInputModel);
@@ -218,6 +222,59 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._lastUserData = e.key;
 			this._lastUserDataTimestamp = Date.now();
 		}));
+	}
+
+	private _sendTelemetryInfo(): void {
+		const commandLine = this._mostRecentPromptInputState?.value;
+		const label = this._mostRecentAcceptedCompletion?.label;
+		const kind = this._mostRecentAcceptedCompletion?.kindLabel;
+		if (label === undefined || commandLine === undefined || kind === undefined) {
+			return;
+		}
+
+		let outcome: CompletionOutcome;
+		if (commandLine.endsWith(label)) {
+			outcome = CompletionOutcome.Kept;
+		} else if (inputMostlyMatchesLabel(commandLine, label)) {
+			outcome = CompletionOutcome.Edited;
+		} else {
+			outcome = CompletionOutcome.Deleted;
+		}
+
+		this._telemetryService.publicLog2<{
+			label: string;
+			kind: string | undefined;
+			commandLine: string;
+			outcome: CompletionOutcome;
+		}, {
+			owner: 'meganrogge';
+			comment: 'This data is collected to understand the outcome of a terminal completion acceptance.';
+			label: {
+				classification: 'SystemMetaData';
+				purpose: 'FeatureInsight';
+				comment: 'The completion item\'s label';
+			};
+			kind: {
+				classification: 'SystemMetaData';
+				purpose: 'FeatureInsight';
+				comment: 'The completion item\'s kind';
+			};
+			commandLine: {
+				classification: 'SystemMetaData';
+				purpose: 'FeatureInsight';
+				comment: 'The full command line';
+			};
+			outcome: {
+				classification: 'SystemMetaData';
+				purpose: 'FeatureInsight';
+				comment: 'The outcome of the accepted completion';
+			};
+		}>('terminal.suggest.acceptedCompletion', {
+			label,
+			kind,
+			commandLine,
+			outcome
+		});
 	}
 
 	private async _handleCompletionProviders(terminal: Terminal | undefined, token: CancellationToken, explicitlyInvoked?: boolean): Promise<void> {
@@ -711,6 +768,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		const initialPromptInputState = this._mostRecentPromptInputState;
 		if (!suggestion || !initialPromptInputState || this._leadingLineContent === undefined || !this._model) {
+			this._mostRecentAcceptedCompletion = undefined;
 			return;
 		}
 		SuggestAddon.lastAcceptedCompletionTimestamp = Date.now();
@@ -796,10 +854,14 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		// Send the completion
 		this._onAcceptedCompletion.fire(resultSequence);
+		this._mostRecentAcceptedCompletion = { label: typeof completion.label === 'string' ? completion.label : completion.label.label, kindLabel: completion.kindLabel };
 		this.hideSuggestWidget(true);
 	}
 
-	hideSuggestWidget(cancelAnyRequest: boolean): void {
+	hideSuggestWidget(cancelAnyRequest: boolean, wasClosedByUser?: boolean): void {
+		if (wasClosedByUser) {
+			this._mostRecentAcceptedCompletion = undefined;
+		}
 		if (cancelAnyRequest) {
 			this._cancellationTokenSource?.cancel();
 			this._cancellationTokenSource = undefined;
@@ -846,4 +908,31 @@ export function normalizePathSeparator(path: string, sep: string): string {
 		return path.replaceAll('\\', '/');
 	}
 	return path.replaceAll('/', '\\');
+}
+
+function inputMostlyMatchesLabel(commandLine: string, label: string): boolean {
+	const lastWordOfCommandLine = commandLine.split(' ').pop() ?? '';
+	let labelIndex = 0;
+	let matchedChars = 0;
+	// At least half of label must be matched
+	const requiredMatches = Math.ceil(label.length / 2);
+
+	for (const char of lastWordOfCommandLine) {
+		if (char === label[labelIndex]) {
+			matchedChars++;
+			labelIndex++;
+		}
+		if (matchedChars >= requiredMatches) {
+			// We've matched enough in order
+			return true;
+		}
+	}
+
+	return false;
+}
+
+const enum CompletionOutcome {
+	Kept = 'Kept',
+	Deleted = 'Deleted',
+	Edited = 'Edited'
 }
