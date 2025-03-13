@@ -43,7 +43,7 @@ export function setup(logger: Logger) {
 			});
 		});
 
-		it.skip('inserts/edits code cell', async function () {
+		it('inserts/edits code cell', async function () {
 			const app = this.app as Application;
 			await app.workbench.notebook.openNotebook();
 			await app.workbench.notebook.focusNextCell();
@@ -52,7 +52,7 @@ export function setup(logger: Logger) {
 			await app.workbench.notebook.stopEditingCell();
 		});
 
-		it.skip('inserts/edits markdown cell', async function () {
+		it('inserts/edits markdown cell', async function () {
 			const app = this.app as Application;
 			await app.workbench.notebook.openNotebook();
 			await app.workbench.notebook.focusNextCell();
@@ -62,7 +62,7 @@ export function setup(logger: Logger) {
 			await app.workbench.notebook.waitForMarkdownContents('h2', 'hello2!');
 		});
 
-		it.skip('moves focus as it inserts/deletes a cell', async function () {
+		it('moves focus as it inserts/deletes a cell', async function () {
 			const app = this.app as Application;
 			await app.workbench.notebook.openNotebook();
 			await app.workbench.notebook.insertNotebookCell('code');
@@ -72,7 +72,7 @@ export function setup(logger: Logger) {
 			await app.workbench.notebook.waitForMarkdownContents('p', 'Markdown Cell');
 		});
 
-		it.skip('moves focus in and out of output', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/139270
+		it('moves focus in and out of output', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/139270
 			const app = this.app as Application;
 			await app.workbench.notebook.openNotebook();
 			await app.workbench.notebook.executeActiveCell();
@@ -81,7 +81,7 @@ export function setup(logger: Logger) {
 			await app.workbench.notebook.waitForActiveCellEditorContents('code()');
 		});
 
-		it.skip('cell action execution', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/139270
+		it('cell action execution', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/139270
 			const app = this.app as Application;
 			await app.workbench.notebook.openNotebook();
 			await app.workbench.notebook.insertNotebookCell('code');
