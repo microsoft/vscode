@@ -65,7 +65,6 @@ export namespace ChatContextKeys {
 
 	export const SetupViewKeys = new Set([ChatContextKeys.Setup.hidden.key, ChatContextKeys.Setup.installed.key, ChatContextKeys.Setup.signedOut.key, ChatContextKeys.Setup.canSignUp.key]);
 	export const SetupViewCondition = ContextKeyExpr.or(
-
 		ContextKeyExpr.and(
 			ChatContextKeys.Setup.canSignUp,
 			ChatContextKeys.Setup.installed

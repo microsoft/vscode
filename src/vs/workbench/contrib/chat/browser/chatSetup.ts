@@ -88,6 +88,29 @@ const defaultChat = {
 
 class SetupChatAgentImplementation implements IChatAgentImplementation {
 
+	static register(chatAgentService: IChatAgentService, location: ChatAgentLocation) {
+
+		// TODO@bpasero: expand this to more cases (installed, not signed in / not signed up)
+		const setupChatAgentContext = ContextKeyExpr.and(
+			ChatContextKeys.Setup.hidden.negate(),
+			ChatContextKeys.Setup.installed.negate()
+		);
+
+		chatAgentService.registerDynamicAgent({
+			id: location === ChatAgentLocation.Panel ? 'setup.chat' : 'setup.edits',
+			name: 'Copilot',
+			isDefault: true,
+			when: setupChatAgentContext?.serialize(),
+			slashCommands: [],
+			disambiguation: [],
+			locations: [location],
+			metadata: {},
+			extensionId: nullExtensionDescription.identifier,
+			extensionDisplayName: nullExtensionDescription.name,
+			extensionPublisherId: nullExtensionDescription.publisher
+		}, new SetupChatAgentImplementation(location));
+	}
+
 	constructor(private readonly location: ChatAgentLocation) { }
 
 	async invoke() {
@@ -136,33 +159,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			return; // disabled
 		}
 
-		chatAgentService.registerDynamicAgent({
-			id: 'setup.chat',
-			name: 'Copilot',
-			isDefault: true,
-			when: ChatContextKeys.Setup.installed.negate().serialize(),
-			slashCommands: [],
-			disambiguation: [],
-			locations: [ChatAgentLocation.Panel],
-			metadata: {},
-			extensionId: nullExtensionDescription.identifier,
-			extensionDisplayName: nullExtensionDescription.name,
-			extensionPublisherId: nullExtensionDescription.publisher
-		}, new SetupChatAgentImplementation(ChatAgentLocation.Panel));
-
-		chatAgentService.registerDynamicAgent({
-			id: 'setup.edits',
-			name: 'Copilot',
-			isDefault: true,
-			when: ChatContextKeys.Setup.installed.negate().serialize(),
-			slashCommands: [],
-			disambiguation: [],
-			locations: [ChatAgentLocation.EditingSession],
-			metadata: {},
-			extensionId: nullExtensionDescription.identifier,
-			extensionDisplayName: nullExtensionDescription.name,
-			extensionPublisherId: nullExtensionDescription.publisher
-		}, new SetupChatAgentImplementation(ChatAgentLocation.EditingSession));
+		SetupChatAgentImplementation.register(chatAgentService, ChatAgentLocation.Panel);
+		SetupChatAgentImplementation.register(chatAgentService, ChatAgentLocation.EditingSession);
 
 		const controller = new Lazy(() => this._register(this.instantiationService.createInstance(ChatSetupController, context, requests)));
 
