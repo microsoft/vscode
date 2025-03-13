@@ -250,27 +250,15 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			outcome = CompletionOutcome.Deleted;
 		}
 		this._telemetryService.publicLog2<{
-			label: string;
 			kind: string | undefined;
-			commandLine: string;
 			outcome: CompletionOutcome;
 		}, {
 			owner: 'meganrogge';
 			comment: 'This data is collected to understand the outcome of a terminal completion acceptance.';
-			label: {
-				classification: 'SystemMetaData';
-				purpose: 'FeatureInsight';
-				comment: 'The completion item\'s label';
-			};
 			kind: {
 				classification: 'SystemMetaData';
 				purpose: 'FeatureInsight';
 				comment: 'The completion item\'s kind';
-			};
-			commandLine: {
-				classification: 'SystemMetaData';
-				purpose: 'FeatureInsight';
-				comment: 'The full command line';
 			};
 			outcome: {
 				classification: 'SystemMetaData';
@@ -278,9 +266,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				comment: 'The outcome of the accepted completion';
 			};
 		}>('terminal.suggest.acceptedCompletion', {
-			label,
 			kind,
-			commandLine,
 			outcome
 		});
 	}
