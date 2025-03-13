@@ -18,7 +18,7 @@ export class TerminalSuggestTelemetry extends Disposable {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
-		this._register(commandDetection?.onCommandFinished((e) => {
+		this._register(commandDetection.onCommandFinished((e) => {
 			this._sendTelemetryInfo(false, e.exitCode);
 			this._acceptedCompletions = undefined;
 		}));
