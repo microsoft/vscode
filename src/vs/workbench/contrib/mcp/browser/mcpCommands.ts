@@ -30,7 +30,6 @@ import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { ChatMode } from '../../chat/common/constants.js';
 import { McpContextKeys } from '../common/mcpContextKeys.js';
 import { IMcpServer, IMcpService, IMcpTool, McpConnectionState, McpServerToolsState } from '../common/mcpTypes.js';
-import './media/mcp.css';
 
 // acroynms do not get localized
 const category: ILocalizedString = {
