@@ -154,8 +154,9 @@ interface IExecutionProperties {
 	unresolvedCommandLines: string[] | undefined;
 }
 
-class InternalTerminalShellIntegration extends Disposable {
+export class InternalTerminalShellIntegration extends Disposable {
 	private _pendingExecutions: InternalTerminalShellExecution[] = [];
+	private _pendingEndingExecution: InternalTerminalShellExecution | undefined;
 
 	private _currentExecutionProperties: IExecutionProperties | undefined;
 	private _currentExecution: InternalTerminalShellExecution | undefined;
@@ -234,7 +235,7 @@ class InternalTerminalShellIntegration extends Disposable {
 	requestNewShellExecution(commandLine: vscode.TerminalShellExecutionCommandLine, cwd: URI | undefined) {
 		const execution = new InternalTerminalShellExecution(commandLine, cwd ?? this._cwd);
 		const unresolvedCommandLines = splitAndSanitizeCommandLine(commandLine.value);
-		if (unresolvedCommandLines.length > 0) {
+		if (unresolvedCommandLines.length > 1) {
 			this._currentExecutionProperties = {
 				isMultiLine: true,
 				unresolvedCommandLines: splitAndSanitizeCommandLine(commandLine.value),
@@ -246,6 +247,14 @@ class InternalTerminalShellIntegration extends Disposable {
 	}
 
 	startShellExecution(commandLine: vscode.TerminalShellExecutionCommandLine, cwd: URI | undefined): undefined {
+		// Since an execution is starting, fire the end event for any execution that is awaiting to
+		// end. When this happens it means that the data stream may not be flushed and therefore may
+		// fire events after the end event.
+		if (this._pendingEndingExecution) {
+			this._onDidRequestEndExecution.fire({ terminal: this._terminal, shellIntegration: this.value, execution: this._pendingEndingExecution.value, exitCode: undefined });
+			this._pendingEndingExecution = undefined;
+		}
+
 		if (this._currentExecution) {
 			// If the current execution is multi-line, check if this command line is part of it.
 			if (this._currentExecutionProperties?.isMultiLine && this._currentExecutionProperties.unresolvedCommandLines) {
@@ -255,11 +264,11 @@ class InternalTerminalShellIntegration extends Disposable {
 					return;
 				}
 			}
-
 			if (this._hasRichCommandDetection) {
 				console.warn('Rich command detection is enabled but an execution started before the last ended');
 			}
 			this._currentExecution.endExecution(undefined);
+			this._currentExecution.flush();
 			this._onDidRequestEndExecution.fire({ terminal: this._terminal, shellIntegration: this.value, execution: this._currentExecution.value, exitCode: undefined });
 		}
 
@@ -321,14 +330,16 @@ class InternalTerminalShellIntegration extends Disposable {
 			const commandLineForEvent = this._currentExecutionProperties?.isMultiLine ? this._currentExecution.value.commandLine : commandLine;
 			this._currentExecution.endExecution(commandLineForEvent);
 			const currentExecution = this._currentExecution;
+			this._pendingEndingExecution = currentExecution;
+			this._currentExecution = undefined;
 			// IMPORTANT: Ensure the current execution's data events are flushed in order to
 			// prevent data events firing after the end event fires.
 			currentExecution.flush().then(() => {
 				// Only fire if it's still the same execution, if it's changed it would have already
 				// been fired.
-				if (this._currentExecution === currentExecution) {
+				if (this._pendingEndingExecution === currentExecution) {
 					this._onDidRequestEndExecution.fire({ terminal: this._terminal, shellIntegration: this.value, execution: currentExecution.value, exitCode });
-					this._currentExecution = undefined;
+					this._pendingEndingExecution = undefined;
 				}
 			});
 		}
@@ -403,7 +414,9 @@ class InternalTerminalShellExecution {
 	}
 
 	emitData(data: string): void {
-		this._dataStream?.emitData(data);
+		if (!this._isEnded) {
+			this._dataStream?.emitData(data);
+		}
 	}
 
 	endExecution(commandLine: vscode.TerminalShellExecutionCommandLine | undefined): void {
@@ -411,12 +424,15 @@ class InternalTerminalShellExecution {
 			this._commandLine = commandLine;
 		}
 		this._dataStream?.endExecution();
-		this._dataStream = undefined;
 		this._isEnded = true;
 	}
 
 	async flush(): Promise<void> {
-		await this._dataStream?.flush();
+		if (this._dataStream) {
+			await this._dataStream.flush();
+			this._dataStream.dispose();
+			this._dataStream = undefined;
+		}
 	}
 }
 
