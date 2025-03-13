@@ -26,8 +26,8 @@ import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../.
 import { spinningLoading } from '../../../../platform/theme/common/iconRegistry.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { CHAT_CATEGORY } from '../../chat/browser/actions/chatActions.js';
-import { ChatAgentLocation } from '../../chat/common/chatAgents.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
+import { ChatMode } from '../../chat/common/constants.js';
 import { McpContextKeys } from '../common/mcpContextKeys.js';
 import { IMcpServer, IMcpService, IMcpTool, McpConnectionState, McpServerToolsState } from '../common/mcpTypes.js';
 import './media/mcp.css';
@@ -185,18 +185,18 @@ export class AttachMCPToolsAction extends Action2 {
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(
 				McpContextKeys.toolsCount.greater(0),
-				ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)
+				ChatContextKeys.chatMode.notEqualsTo(ChatMode.Chat)
 			),
 			menu: {
 				when: ContextKeyExpr.and(
 					McpContextKeys.toolsCount.greater(0),
-					ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)
+					ChatContextKeys.chatMode.notEqualsTo(ChatMode.Chat)
 				),
 				id: MenuId.ChatInputAttachmentToolbar,
 				group: 'navigation'
 			},
 			keybinding: {
-				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)),
+				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.chatMode.notEqualsTo(ChatMode.Chat)),
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Slash,
 				weight: KeybindingWeight.EditorContrib
 			}

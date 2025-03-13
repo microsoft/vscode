@@ -22,6 +22,7 @@ import { IWorkbenchEnvironmentService } from '../../../services/environment/comm
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IUserDataSyncEnablementService, IUserDataSyncService, SyncStatus } from '../../../../platform/userDataSync/common/userDataSync.js';
 import { IUserDataSyncWorkbenchService } from '../../../services/userDataSync/common/userDataSync.js';
+import { ChatConfiguration } from '../../chat/common/constants.js';
 
 interface IConfiguration extends IWindowsConfiguration {
 	update?: { mode?: string };
@@ -33,6 +34,7 @@ interface IConfiguration extends IWindowsConfiguration {
 	telemetry?: { disableFeedback?: boolean };
 	_extensionsGallery?: { enablePPE?: boolean };
 	accessibility?: { verbosity?: { debug?: boolean } };
+	chat?: { experimental?: { unifiedChatView?: boolean } };
 }
 
 export class SettingsChangeRelauncher extends Disposable implements IWorkbenchContribution {
@@ -50,6 +52,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'_extensionsGallery.enablePPE',
 		'security.restrictUNCAccess',
 		'accessibility.verbosity.debug',
+		ChatConfiguration.UnifiedChatView,
 		'telemetry.disableFeedback'
 	];
 
@@ -65,6 +68,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private readonly enablePPEExtensionsGallery = new ChangeObserver('boolean');
 	private readonly restrictUNCAccess = new ChangeObserver('boolean');
 	private readonly accessibilityVerbosityDebug = new ChangeObserver('boolean');
+	private readonly unifiedChatView = new ChangeObserver('boolean');
 	private readonly telemetryDisableFeedback = new ChangeObserver('boolean');
 
 	constructor(
@@ -144,6 +148,9 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 			// Debug accessibility verbosity
 			processChanged(this.accessibilityVerbosityDebug.handleChange(config?.accessibility?.verbosity?.debug));
+
+			// Unified chat view
+			processChanged(this.unifiedChatView.handleChange(config.chat?.experimental?.unifiedChatView));
 		}
 
 		// Experiments
