@@ -7733,13 +7733,15 @@ declare module 'vscode' {
 		readonly isInteractedWith: boolean;
 
 		/**
-		 * The shell type of the terminal that may change throughout terminal's change of state.
+		 * The shell type of the {@link Terminal}.
+		 * Examples of some of the identifiable shells include: bash, fish, node, pwsh, python, zsh, etc.
+		 *
+		 * {@link Terminal}'s shell may change throughout its lifetime, such as when user launches bash from zsh.
+		 * Shell type may be undefined if it outside of internal TerminalShellType that is defined in
+		 * https://github.com/microsoft/vscode/blob/main/src/vs/platform/terminal/common/terminal.ts
 		 *
 		 * Use the {@link window.onDidChangeTerminalState onDidChangeTerminalState} event to
 		 * get notified when the terminal shell changes.
-		 *
-		 * Note that we attempt to provide name of shell from its binary.
-		 * For example, bash, zsh, pwsh will be bash, zsh, pwsh accordingly.
 		 */
 		readonly shell: string | undefined;
 	}
