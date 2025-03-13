@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AsyncIterableSource, DeferredPromise } from '../../../base/common/async.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { SerializedError, transformErrorForSerialization, transformErrorFromSerialization } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
@@ -12,6 +13,7 @@ import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
+import { resizeImage } from '../../contrib/chat/browser/imageUtils.js';
 import { ILanguageModelIgnoredFilesService } from '../../contrib/chat/common/ignoredFiles.js';
 import { ILanguageModelStatsService } from '../../contrib/chat/common/languageModelStats.js';
 import { IChatMessage, IChatResponseFragment, ILanguageModelChatMetadata, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../contrib/chat/common/languageModels.js';
@@ -64,6 +66,13 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 
 				try {
 					this._pendingProgress.set(requestId, { defer, stream });
+					await Promise.all(
+						messages.flatMap(msg => msg.content)
+							.filter(part => part.type === 'image_url')
+							.map(async part => {
+								part.value.data = VSBuffer.wrap(await resizeImage(part.value.data.buffer));
+							})
+					);
 					await this._proxy.$startChatRequest(handle, requestId, from, new SerializableObjectWithBuffers(messages), options, token);
 				} catch (err) {
 					this._pendingProgress.delete(requestId);
