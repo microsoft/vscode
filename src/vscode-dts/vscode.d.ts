@@ -7737,8 +7737,8 @@ declare module 'vscode' {
 		/**
 		 * The detected shell type of the {@link Terminal}. This will be `undefined` when there is
 		 * not a clear signal as to what the shell is, or the shell is not supported yet. This
-		 * value should change to the shell type of a sub-shell when launched (for example running
-		 * `bash` inside `sh`).
+		 * value should change to the shell type of a sub-shell when launched (for example, running
+		 * `bash` inside `zsh`).
 		 *
 		 * Note that the possible values are currently defined as any of the following:
 		 * 'bash', 'cmd', 'csh', 'fish', 'gitbash', 'julia', 'ksh', 'node', 'nu', 'pwsh', 'python',
