@@ -109,7 +109,7 @@ suite('PromptFilesLocator', () => {
 				const locator = await createPromptsLocator(undefined, EMPTY_WORKSPACE, []);
 
 				assert.deepStrictEqual(
-					await locator.listFiles([]),
+					await locator.listFiles(),
 					[],
 					'No prompts must be found.',
 				);
@@ -122,7 +122,7 @@ suite('PromptFilesLocator', () => {
 				}, EMPTY_WORKSPACE, []);
 
 				assert.deepStrictEqual(
-					await locator.listFiles([]),
+					await locator.listFiles(),
 					[],
 					'No prompts must be found.',
 				);
@@ -135,7 +135,7 @@ suite('PromptFilesLocator', () => {
 				], EMPTY_WORKSPACE, []);
 
 				assert.deepStrictEqual(
-					await locator.listFiles([]),
+					await locator.listFiles(),
 					[],
 					'No prompts must be found.',
 				);
@@ -145,7 +145,7 @@ suite('PromptFilesLocator', () => {
 				const locator = await createPromptsLocator(null, EMPTY_WORKSPACE, []);
 
 				assert.deepStrictEqual(
-					await locator.listFiles([]),
+					await locator.listFiles(),
 					[],
 					'No prompts must be found.',
 				);
@@ -155,7 +155,7 @@ suite('PromptFilesLocator', () => {
 				const locator = await createPromptsLocator('/etc/hosts/prompts', EMPTY_WORKSPACE, []);
 
 				assert.deepStrictEqual(
-					await locator.listFiles([]),
+					await locator.listFiles(),
 					[],
 					'No prompts must be found.',
 				);
@@ -207,7 +207,7 @@ suite('PromptFilesLocator', () => {
 					]);
 
 				assert.deepStrictEqual(
-					await locator.listFiles([]),
+					await locator.listFiles(),
 					[
 						createURI('/Users/legomushroom/repos/prompts/test.prompt.md'),
 						createURI('/Users/legomushroom/repos/prompts/refactor-tests.prompt.md'),
@@ -291,7 +291,7 @@ suite('PromptFilesLocator', () => {
 						]);
 
 					assert.deepStrictEqual(
-						await locator.listFiles([]),
+						await locator.listFiles(),
 						[
 							createURI('/Users/legomushroom/repos/vscode/.github/prompts/my.prompt.md'),
 							createURI('/Users/legomushroom/repos/prompts/test.prompt.md'),
@@ -377,7 +377,7 @@ suite('PromptFilesLocator', () => {
 						]);
 
 					assert.deepStrictEqual(
-						await locator.listFiles([]),
+						await locator.listFiles(),
 						[
 							createURI('/Users/legomushroom/repos/prompts/test.prompt.md'),
 							createURI('/Users/legomushroom/repos/prompts/refactor-tests.prompt.md'),
@@ -501,7 +501,7 @@ suite('PromptFilesLocator', () => {
 						]);
 
 					assert.deepStrictEqual(
-						await locator.listFiles([]),
+						await locator.listFiles(),
 						[
 							createURI('/Users/legomushroom/repos/vscode/.github/prompts/default.prompt.md'),
 							createURI('/Users/legomushroom/repos/node/.github/prompts/refactor-static-classes.prompt.md'),
@@ -621,7 +621,7 @@ suite('PromptFilesLocator', () => {
 						]);
 
 					assert.deepStrictEqual(
-						await locator.listFiles([]),
+						await locator.listFiles(),
 						[
 							createURI('/Users/legomushroom/repos/vscode/.github/prompts/default.prompt.md'),
 							createURI('/Users/legomushroom/repos/node/.github/prompts/refactor-static-classes.prompt.md'),
@@ -744,7 +744,7 @@ suite('PromptFilesLocator', () => {
 						]);
 
 					assert.deepStrictEqual(
-						await locator.listFiles([]),
+						await locator.listFiles(),
 						[
 							createURI('/Users/legomushroom/repos/prompts/test.prompt.md'),
 							createURI('/Users/legomushroom/repos/prompts/refactor-tests.prompt.md'),
