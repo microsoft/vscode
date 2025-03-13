@@ -26,17 +26,17 @@
 }
 
 .chat-status-bar-entry-tooltip .monaco-button {
-	margin-top: 4px;
-	margin-bottom: 4px;
+	margin-top: 5px;
+	margin-bottom: 5px;
 }
 
 /* Setup for New User */
 
-.chat-feature-container {
+.chat-status-bar-entry-tooltip .setup .chat-feature-container {
 	display: flex;
 	align-items: center;
 	gap: 5px;
-	padding: 3px;
+	padding: 4px;
 }
 
 /* Quota Indicator */

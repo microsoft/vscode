@@ -2493,7 +2493,7 @@ export class ReOpenInTextEditorAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.reopenTextEditor',
-			title: localize2('reopenTextEditor', 'Reopen Editor With Text Editor'),
+			title: localize2('reopenTextEditor', 'Reopen Editor with Text Editor'),
 			f1: true,
 			category: Categories.View,
 			precondition: ActiveEditorAvailableEditorIdsContext

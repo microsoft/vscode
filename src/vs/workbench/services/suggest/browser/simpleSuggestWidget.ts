@@ -24,6 +24,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { canExpandCompletionItem, SimpleSuggestDetailsOverlay, SimpleSuggestDetailsWidget } from './simpleSuggestWidgetDetails.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import * as strings from '../../../../base/common/strings.js';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
 
 const $ = dom.$;
 
@@ -200,17 +201,19 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 				getWidgetRole: () => 'listbox',
 				getAriaLabel: (item: SimpleCompletionItem) => {
 					let label = item.textLabel;
+					const kindLabel = item.completion.kindLabel ?? '';
 					if (typeof item.completion.label !== 'string') {
 						const { detail, description } = item.completion.label;
 						if (detail && description) {
-							label = localize('label.full', '{0}{1}, {2}', label, detail, description);
+							label = localize('label.full', '{0}{1}, {2} {3}', label, detail, description, kindLabel);
 						} else if (detail) {
-							label = localize('label.detail', '{0}{1}', label, detail);
+							label = localize('label.detail', '{0}{1} {2}', label, detail, kindLabel);
 						} else if (description) {
-							label = localize('label.desc', '{0}, {1}', label, description);
+							label = localize('label.desc', '{0}, {1} {2}', label, description, kindLabel);
 						}
+					} else {
+						label = localize('label', '{0}, {1}', label, kindLabel);
 					}
-
 					const { documentation, detail } = item.completion;
 					const docs = strings.format(
 						'{0}{1}',
@@ -439,7 +442,6 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 	}
 
 	private _setState(state: State): void {
-
 		if (this._state === state) {
 			return;
 		}
@@ -451,9 +453,11 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		switch (state) {
 			case State.Hidden:
 				if (this._status) {
-					dom.hide(this._messageElement, this._listElement, this._status.element);
+					dom.hide(this._status.element);
 				}
 				dom.hide(this._listElement);
+				dom.hide(this._messageElement);
+				dom.hide(this.element.domNode);
 				this._details.hide(true);
 				this._status?.hide();
 				// this._contentWidget.hide();
@@ -490,6 +494,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 				this._details.hide();
 				this._show();
 				this._focusedItem = undefined;
+				status(SimpleSuggestWidget.NO_SUGGESTIONS_MESSAGE);
 				break;
 			case State.Open:
 				dom.hide(this._messageElement);

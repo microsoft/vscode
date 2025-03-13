@@ -93,6 +93,7 @@ export interface NativeParsedArgs {
 	'disable-telemetry'?: boolean;
 	'export-default-configuration'?: string;
 	'install-source'?: string;
+	'add-mcp'?: string[];
 	'disable-updates'?: boolean;
 	'use-inmemory-secretstorage'?: boolean;
 	'password-store'?: string;

@@ -833,15 +833,18 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					eventCounter++;
 					this._busyTasks[mapKey] = task;
 					this._fireTaskEvent(TaskEvent.general(TaskEventKind.Active, task, terminal?.instanceId));
+					this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherStarted, task, terminal?.instanceId));
 				} else if (event.kind === ProblemCollectorEventKind.BackgroundProcessingEnds) {
 					eventCounter--;
 					if (this._busyTasks[mapKey]) {
 						delete this._busyTasks[mapKey];
 					}
 					this._fireTaskEvent(TaskEvent.general(TaskEventKind.Inactive, task, terminal?.instanceId));
+					this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherEnded, task, terminal?.instanceId));
 					if (eventCounter === 0) {
 						if ((watchingProblemMatcher.numberOfMatches > 0) && watchingProblemMatcher.maxMarkerSeverity &&
 							(watchingProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error)) {
+							this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherFoundErrors, task, terminal?.instanceId));
 							const reveal = task.command.presentation!.reveal;
 							const revealProblems = task.command.presentation!.revealProblems;
 							if (revealProblems === RevealProblemKind.OnProblem) {
@@ -981,7 +984,16 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			const problemMatchers = await this._resolveMatchers(resolver, task.configurationProperties.problemMatchers);
 			const startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this._markerService, this._modelService, ProblemHandlingStrategy.Clean, this._fileService);
 			this._terminalStatusManager.addTerminal(task, terminal, startStopProblemMatcher);
-
+			startStopProblemMatcher.onDidStateChange((event) => {
+				if (event.kind === ProblemCollectorEventKind.BackgroundProcessingBegins) {
+					this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherStarted, task, terminal?.instanceId));
+				} else if (event.kind === ProblemCollectorEventKind.BackgroundProcessingEnds) {
+					this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherEnded, task, terminal?.instanceId));
+					if (startStopProblemMatcher.numberOfMatches) {
+						this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherFoundErrors, task, terminal?.instanceId));
+					}
+				}
+			});
 			let processStartedSignaled = false;
 			terminal.processReady.then(() => {
 				if (!processStartedSignaled) {
@@ -1044,6 +1056,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 						delete this._busyTasks[mapKey];
 					}
 					this._fireTaskEvent(TaskEvent.general(TaskEventKind.Inactive, task, terminal?.instanceId));
+					this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherEnded, task, terminal?.instanceId));
 					this._fireTaskEvent(TaskEvent.general(TaskEventKind.End, task, terminal?.instanceId));
 					resolve({ exitCode: exitCode ?? undefined });
 				});

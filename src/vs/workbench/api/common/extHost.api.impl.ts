@@ -108,6 +108,7 @@ import { ProxyIdentifier } from '../../services/extensions/common/proxyIdentifie
 import { ExcludeSettingOptions, TextSearchCompleteMessageType, TextSearchContext2, TextSearchMatch2 } from '../../services/search/common/searchExtTypes.js';
 import type * as vscode from 'vscode';
 import { ExtHostCodeMapper } from './extHostCodeMapper.js';
+import { IExtHostMpcService } from './extHostMcp.js';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
@@ -218,6 +219,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostStatusBar = rpcProtocol.set(ExtHostContext.ExtHostStatusBar, new ExtHostStatusBar(rpcProtocol, extHostCommands.converter));
 	const extHostSpeech = rpcProtocol.set(ExtHostContext.ExtHostSpeech, new ExtHostSpeech(rpcProtocol));
 	const extHostEmbeddings = rpcProtocol.set(ExtHostContext.ExtHostEmbeddings, new ExtHostEmbeddings(rpcProtocol));
+	rpcProtocol.set(ExtHostContext.ExtHostMcp, accessor.get(IExtHostMpcService));
 
 	// Check that no named customers are missing
 	const expected = Object.values<ProxyIdentifier<any>>(ExtHostContext);
@@ -1355,6 +1357,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			onDidEndTaskProcess: (listeners, thisArgs?, disposables?) => {
 				return _asExtensionEvent(extHostTask.onDidEndTaskProcess)(listeners, thisArgs, disposables);
+			},
+			onDidChangeTaskStatus: (listeners) => {
+				checkProposedApiEnabled(extension, 'taskStatus');
+				return _asExtensionEvent(extHostTask.onDidChangeTaskTerminalStatus)(listeners);
 			}
 		};
 
@@ -1652,6 +1658,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			SymbolKind: extHostTypes.SymbolKind,
 			SymbolTag: extHostTypes.SymbolTag,
 			Task: extHostTypes.Task,
+			TaskEventKind: extHostTypes.TaskEventKind,
 			TaskGroup: extHostTypes.TaskGroup,
 			TaskPanelKind: extHostTypes.TaskPanelKind,
 			TaskRevealKind: extHostTypes.TaskRevealKind,

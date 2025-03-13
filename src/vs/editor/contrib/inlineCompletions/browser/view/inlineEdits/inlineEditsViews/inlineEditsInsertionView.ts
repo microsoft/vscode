@@ -10,7 +10,7 @@ import { constObservable, derived, derivedWithStore, IObservable, observableValu
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
-import { observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
+import { ObservableCodeEditor, observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
 import { Rect } from '../../../../../../browser/rect.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../../../browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
@@ -28,7 +28,7 @@ import { getModifiedBorderColor, modifiedChangedLineBackgroundColor } from '../t
 import { createRectangle, getPrefixTrim, mapOutFalsy } from '../utils/utils.js';
 
 export class InlineEditsInsertionView extends Disposable implements IInlineEditsView {
-	private readonly _editorObs = observableCodeEditor(this._editor);
+	private readonly _editorObs: ObservableCodeEditor;
 
 	private readonly _onDidClick = this._register(new Emitter<IMouseEvent>());
 	readonly onDidClick = this._onDidClick.event;
@@ -86,18 +86,8 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 		return new GhostText(state.lineNumber, [new GhostTextPart(state.column, state.text, false, inlineDecorations)]);
 	});
 
-	protected readonly _ghostTextView = this._register(this._instantiationService.createInstance(GhostTextView,
-		this._editor,
-		{
-			ghostText: this._ghostText,
-			minReservedLineCount: constObservable(0),
-			targetTextModel: this._editorObs.model.map(model => model ?? undefined),
-			warning: constObservable(undefined),
-		},
-		observableValue(this, { syntaxHighlightingEnabled: true, extraClasses: ['inline-edit'] }),
-		true,
-		true
-	));
+	protected readonly _ghostTextView: GhostTextView;
+	readonly isHovered: IObservable<boolean>;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -107,10 +97,27 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 			text: string;
 		} | undefined>,
 		private readonly _tabAction: IObservable<InlineEditTabAction>,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 	) {
 		super();
+
+		this._editorObs = observableCodeEditor(this._editor);
+
+		this._ghostTextView = this._register(instantiationService.createInstance(GhostTextView,
+			this._editor,
+			{
+				ghostText: this._ghostText,
+				minReservedLineCount: constObservable(0),
+				targetTextModel: this._editorObs.model.map(model => model ?? undefined),
+				warning: constObservable(undefined),
+			},
+			observableValue(this, { syntaxHighlightingEnabled: true, extraClasses: ['inline-edit'] }),
+			true,
+			true
+		));
+
+		this.isHovered = this._ghostTextView.isHovered;
 
 		this._register(this._ghostTextView.onDidClick((e) => {
 			this._onDidClick.fire(e);
@@ -283,6 +290,4 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 	}, [
 		[this._foregroundSvg],
 	]).keepUpdated(this._store);
-
-	readonly isHovered = this._ghostTextView.isHovered;
 }
