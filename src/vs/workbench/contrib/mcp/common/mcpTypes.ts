@@ -102,6 +102,12 @@ export interface IMcpServer extends IDisposable {
 	readonly collection: McpCollectionDefinition;
 	readonly definition: McpServerDefinition;
 	readonly connectionState: IObservable<McpConnectionState>;
+	/**
+	 * Reflects the MCP server trust state. True if trusted, false if untrusted,
+	 * undefined if consent is required but not indicated.
+	 */
+	readonly trusted: IObservable<boolean | undefined>;
+
 	showOutput(): void;
 	/**
 	 * Starts the server and returns its resulting state. One of:

@@ -79,7 +79,9 @@ export class McpServer extends Disposable implements IMcpServer {
 
 	public readonly toolsState = derived(reader => {
 		const fromServer = this.toolsFromServerPromise.read(reader);
-		if (!fromServer) {
+		const connectionState = this.connectionState.read(reader);
+		const isIdle = McpConnectionState.canBeStarted(connectionState.state) && !fromServer;
+		if (isIdle) {
 			return this.toolsFromCache ? McpServerToolsState.Cached : McpServerToolsState.Unknown;
 		}
 
@@ -90,6 +92,10 @@ export class McpServer extends Disposable implements IMcpServer {
 
 		return fromServerResult.error ? (this.toolsFromCache ? McpServerToolsState.Cached : McpServerToolsState.Unknown) : McpServerToolsState.Live;
 	});
+
+	public get trusted() {
+		return this._mcpRegistry.getTrust(this.collection);
+	}
 
 	constructor(
 		public readonly collection: McpCollectionDefinition,
