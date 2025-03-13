@@ -14,7 +14,7 @@ import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../base/common/lazy.js';
-import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, dispose, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -88,7 +88,7 @@ const defaultChat = {
 
 class SetupChatAgentImplementation implements IChatAgentImplementation {
 
-	static register(chatAgentService: IChatAgentService, location: ChatAgentLocation) {
+	static register(chatAgentService: IChatAgentService, location: ChatAgentLocation): IDisposable {
 
 		// TODO@bpasero: expand this to more cases (installed, not signed in / not signed up)
 		const setupChatAgentContext = ContextKeyExpr.and(
@@ -96,7 +96,7 @@ class SetupChatAgentImplementation implements IChatAgentImplementation {
 			ChatContextKeys.Setup.installed.negate()
 		);
 
-		chatAgentService.registerDynamicAgent({
+		return chatAgentService.registerDynamicAgent({
 			id: location === ChatAgentLocation.Panel ? 'setup.chat' : 'setup.edits',
 			name: 'Copilot',
 			isDefault: true,
@@ -149,7 +149,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		@ICommandService private readonly commandService: ICommandService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IChatEntitlementService chatEntitlementService: ChatEntitlementService,
-		@IChatAgentService chatAgentService: IChatAgentService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 	) {
 		super();
 
@@ -159,17 +159,32 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			return; // disabled
 		}
 
-		SetupChatAgentImplementation.register(chatAgentService, ChatAgentLocation.Panel);
-		SetupChatAgentImplementation.register(chatAgentService, ChatAgentLocation.EditingSession);
-
-		const controller = new Lazy(() => this._register(this.instantiationService.createInstance(ChatSetupController, context, requests)));
-
-		this.registerChatWelcome(controller, context);
+		this.registerSetupAgents(context);
+		this.registerChatWelcome(context, requests);
 		this.registerActions(context, requests);
 		this.registerUrlLinkHandler();
 	}
 
-	private registerChatWelcome(controller: Lazy<ChatSetupController>, context: ChatSetupContext): void {
+	private registerSetupAgents(context: ChatSetupContext): void {
+		if (context.state.installed) {
+			return; // never register our fake setup related agents over the real ones
+		}
+
+		const registrations = [
+			SetupChatAgentImplementation.register(this.chatAgentService, ChatAgentLocation.Panel),
+			SetupChatAgentImplementation.register(this.chatAgentService, ChatAgentLocation.EditingSession)
+		];
+
+		this._register(context.onDidChange(() => {
+			if (context.state.installed) {
+				dispose(registrations);
+			}
+		}));
+	}
+
+	private registerChatWelcome(context: ChatSetupContext, requests: ChatSetupRequests): void {
+		const controller = new Lazy(() => this._register(this.instantiationService.createInstance(ChatSetupController, context, requests)));
+
 		Registry.as<IChatViewsWelcomeContributionRegistry>(ChatViewsWelcomeExtensions.ChatViewsWelcomeRegistry).register({
 			title: localize('welcomeChat', "Welcome to Copilot"),
 			when: ChatContextKeys.SetupViewCondition,
