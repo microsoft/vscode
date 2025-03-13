@@ -712,15 +712,11 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 			let primaryActionId: string;
 			let primaryActionTitle: string;
 			let primaryActionIcon: ThemeIcon;
-			if (!chatExtensionInstalled) {
-				primaryActionId = CHAT_SETUP_ACTION_ID;
-				primaryActionTitle = CHAT_SETUP_ACTION_LABEL.value;
-				primaryActionIcon = Codicon.copilot;
-			} else if (signedOut) {
+			if (chatExtensionInstalled && signedOut) {
 				primaryActionId = TOGGLE_CHAT_ACTION_ID;
 				primaryActionTitle = localize('signInToChatSetup', "Sign in to Use Copilot...");
 				primaryActionIcon = Codicon.copilotNotConnected;
-			} else if (chatQuotaExceeded || completionsQuotaExceeded) {
+			} else if (chatExtensionInstalled && (chatQuotaExceeded || completionsQuotaExceeded)) {
 				primaryActionId = OPEN_CHAT_QUOTA_EXCEEDED_DIALOG;
 				if (chatQuotaExceeded && !completionsQuotaExceeded) {
 					primaryActionTitle = localize('chatQuotaExceededButton', "Monthly chat messages limit reached. Click for details.");
