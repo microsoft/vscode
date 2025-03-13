@@ -17,7 +17,7 @@ const mcpSchemaExampleServer = {
 };
 
 export const mcpConfigurationSection = 'mcp';
-export const mcpDiscoverySection = 'chat.mpc.discovery.enabled';
+export const mcpDiscoverySection = 'chat.mcp.discovery.enabled';
 
 export const mcpSchemaExampleServers = {
 	'mcp-server-time': {
