@@ -1767,7 +1767,16 @@ export class DebugModel extends Disposable implements IDebugModel {
 		this.breakpoints.forEach(bp => {
 			const bpData = data.get(bp.getId());
 			if (bpData) {
-				bp.update(bpData);
+				const existingHitCount = bp.hitCondition;
+				const existingExpression = bp.condition;
+				const existingLogMessage = bp.logMessage;
+				const updatedData: IBreakpointUpdateData = {
+					...bpData,
+					hitCondition: bpData.hitCondition !== undefined ? bpData.hitCondition : existingHitCount,
+					condition: bpData.condition !== undefined ? bpData.condition : existingExpression,
+					logMessage: bpData.logMessage !== undefined ? bpData.logMessage : existingLogMessage,
+				};
+				bp.update(updatedData);
 				updated.push(bp);
 			}
 		});
