@@ -54,27 +54,32 @@ export class ExtHostMcpService implements IExtHostMpcService {
 
 			const list = await provider.provideMcpServerDefinitions(CancellationToken.None);
 
-			if (!list) {
-				this._proxy.$deleteMcpCollection(mcp.id);
-			} else {
+			function isSSEConfig(candidate: vscode.McpServerDefinition): candidate is vscode.McpSSEServerDefinition {
+				return typeof (candidate as vscode.McpSSEServerDefinition).url === 'string';
+			}
 
-				const arr: McpServerDefinition[] = [];
-				for (const item of list) {
-					arr.push({
-						id: ExtensionIdentifier.toKey(extension.identifier),
-						label: item.label,
-						launch: {
+			const servers: McpServerDefinition[] = [];
+
+			for (const item of list ?? []) {
+				servers.push({
+					id: ExtensionIdentifier.toKey(extension.identifier),
+					label: item.label,
+					launch: isSSEConfig(item)
+						? {
+							type: McpServerTransportType.SSE,
+							url: item.url
+						}
+						: {
 							type: McpServerTransportType.Stdio,
 							cwd: item.cwd,
 							args: item.args,
 							command: item.command,
 							env: item.env
 						}
-					});
-				}
-
-				this._proxy.$upsertMcpCollection(mcp, arr);
+				});
 			}
+
+			this._proxy.$upsertMcpCollection(mcp, servers);
 		};
 
 		store.add(toDisposable(() => {

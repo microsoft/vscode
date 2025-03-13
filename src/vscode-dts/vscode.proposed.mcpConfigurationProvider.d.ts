@@ -17,7 +17,16 @@ declare module 'vscode' {
 		// constructor(label: string, command: string, args: string[], env: { [key: string]: string });
 	}
 
-	export type McpServerDefinition = McpStdioServerDefinition;
+	export interface McpSSEServerDefinition {
+
+		label: string;
+
+		url: string;
+
+		// constructor(label: string, url:string);
+	}
+
+	export type McpServerDefinition = McpStdioServerDefinition | McpSSEServerDefinition;
 
 	export interface McpConfigurationProvider {
 
