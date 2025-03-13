@@ -862,8 +862,8 @@ function renderProfileManifest(appName: string, bundleIdentifier: string, _versi
 function renderMacOSPolicy(policies: Policy[], translations: Translations) {
 	const appName = product.nameLong;
 	const bundleIdentifier = product.darwinBundleIdentifier;
-	const payloadUUID = '9F957DE8-6596-4CD6-A54E-D3A20F2B1C37';
-	const contentUUID = '3AD1E08A-673E-4C62-AA68-D43ED8180249';
+	const payloadUUID = product.darwinProfilePayloadUUID;
+	const UUID = product.darwinProfileUUID;
 
 	const versions = [...new Set(policies.map(p => p.minimumVersion)).values()].sort();
 	const categories = [...new Set(policies.map(p => p.category))];
@@ -886,11 +886,11 @@ function renderMacOSPolicy(policies: Policy[], translations: Translations) {
 				<key>PayloadDisplayName</key>
 				<string>${appName}</string>
 				<key>PayloadIdentifier</key>
-				<string>${bundleIdentifier}.${contentUUID}</string>
+				<string>${bundleIdentifier}.${UUID}</string>
 				<key>PayloadType</key>
 				<string>${bundleIdentifier}</string>
 				<key>PayloadUUID</key>
-				<string>${contentUUID}</string>
+				<string>${UUID}</string>
 				<key>PayloadVersion</key>
 				<integer>1</integer>
 ${policyEntries}
@@ -1084,7 +1084,7 @@ async function windowsMain(policies: Policy[], translations: Translations) {
 
 async function darwinMain(policies: Policy[], translations: Translations) {
 	const bundleIdentifier = product.darwinBundleIdentifier;
-	if (!bundleIdentifier) {
+	if (!bundleIdentifier || !product.darwinProfilePayloadUUID || !product.darwinProfileUUID) {
 		throw new Error(`Missing required product information.`);
 	}
 	const root = '.build/policies/darwin';
