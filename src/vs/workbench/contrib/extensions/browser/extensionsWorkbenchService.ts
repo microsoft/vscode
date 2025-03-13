@@ -211,6 +211,10 @@ export class Extension implements IExtension {
 		return this.local ? this.local.manifest.version : this.latestVersion;
 	}
 
+	get private(): boolean {
+		return this.local ? this.local.private : this.gallery ? this.gallery.private : false;
+	}
+
 	get pinned(): boolean {
 		return !!this.local?.pinned;
 	}

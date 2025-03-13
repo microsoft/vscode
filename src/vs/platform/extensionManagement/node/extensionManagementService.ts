@@ -869,6 +869,7 @@ export class ExtensionsScanner extends Disposable {
 			installedTimestamp: extension.metadata?.installedTimestamp,
 			updated: !!extension.metadata?.updated,
 			pinned: !!extension.metadata?.pinned,
+			private: !!extension.metadata?.private,
 			isWorkspaceScoped: false,
 			source: extension.metadata?.source ?? (extension.identifier.uuid ? 'gallery' : 'vsix'),
 			size: extension.metadata?.size ?? 0,
@@ -1041,6 +1042,7 @@ class InstallExtensionInProfileTask extends AbstractExtensionTask<ILocalExtensio
 			metadata.publisherDisplayName = this.source.publisherDisplayName;
 			metadata.targetPlatform = this.source.properties.targetPlatform;
 			metadata.updated = !!existingExtension;
+			metadata.private = this.source.private;
 			metadata.isPreReleaseVersion = this.source.properties.isPreReleaseVersion;
 			metadata.hasPreReleaseVersion = existingExtension?.hasPreReleaseVersion || this.source.properties.isPreReleaseVersion;
 			metadata.preRelease = isBoolean(this.options.preRelease)
