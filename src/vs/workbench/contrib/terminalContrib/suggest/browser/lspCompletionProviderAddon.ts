@@ -43,12 +43,11 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 		console.log('provideCompletions', value, cursorPosition);
 
 		// TODO: Create and use a fake document in our target language
-		// TODO: How come real python path does not work?
+
 		// TODO: Get Virtual file to work.
 		//       TODO: look for adding new scheme, look how existing ones were created.
 
-		// const uri = URI.file('/Users/anthonykim/Desktop/vscode/src/vs/workbench/contrib/terminalContrib/suggest/browser/dummy.ts');
-		const uri = URI.file('/Users/anthonykim/Desktop/vscode/src/vs/workbench/contrib/terminalContrib/suggest/browser/dummy1.py');
+		const uri = URI.file('/Users/anthonykim/Desktop/vscode/src/vs/workbench/contrib/terminalContrib/suggest/browser/usePylance.py');
 		const textModel = await this._textModelService.createModelReference(uri);
 		const providers = this._languageFeaturesService.completionProvider.all(textModel.object.textEditorModel);
 
@@ -58,6 +57,25 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 		const lineNumber = lines.length;
 		const column = lines[lines.length - 1].length + 1;
 		const position = new Position(lineNumber, column);
+
+		// Calculate replacement index and length, similar to pwshCompletionProviderAddon
+		let replacementIndex = 0;
+		let replacementLength = 0;
+
+		// Scan backwards from cursor position to find the start of the current word
+		const lastLine = lines[lines.length - 1];
+		const wordStartRegex = /[a-zA-Z0-9_\-\.]*$/;
+		const match = lastLine.match(wordStartRegex);
+
+		if (match && match.index !== undefined) {
+			// Calculate the replacement index - position where the word starts
+			replacementIndex = match.index;
+			// Calculate replacement length - length of the word being replaced
+			replacementLength = match[0].length;
+		} else {
+			// If no match, set replacement length to cursor position on current line
+			replacementLength = lastLine.length;
+		}
 
 		// TODO: Scan back to start of nearest word like other providers? Is this needed for `ILanguageFeaturesService`?
 
@@ -73,18 +91,13 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 				detail: e.detail,
 				// TODO: Map kind to terminal kind
 				kind: TerminalCompletionItemKind.Method,
-				// TODO: Use actual replacement index and length
-				replacementIndex: 0,
-				replacementLength: 0,
+				// Use calculated replacement index and length
+				replacementIndex,
+				replacementLength,
 			})));
 			console.log(result?.suggestions);
 		}
 
 		return completions;
 	}
-	// Main issues:
-	// Pylance never shows up as one of the provider even when we pass in Python file
-	// Inside REPL (Python subshell under supershell), prompt input is not tracked, so there is no trigger
-	// Label does not show up
-	// Currently only enabled for pwsh, even though register happens in broader scope.
 }
