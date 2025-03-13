@@ -48,8 +48,6 @@ const enum ExtensionGalleryResourceType {
 	PublisherViewUri = 'PublisherViewUriTemplate',
 	ExtensionDetailsViewUri = 'ExtensionDetailsViewUriTemplate',
 	ExtensionRatingViewUri = 'ExtensionRatingViewUriTemplate',
-	WebLanguagePackService = 'WebLanguagePackService',
-	ExtensionUriTemplate = 'ExtensionUriTemplate',
 }
 
 const enum Flag {
@@ -187,6 +185,7 @@ const PropertyType = {
 	SponsorLink: 'Microsoft.VisualStudio.Code.SponsorLink',
 	SupportLink: 'Microsoft.VisualStudio.Services.Links.Support',
 	ExecutesCode: 'Microsoft.VisualStudio.Code.ExecutesCode',
+	Private: 'PrivateMarketplace',
 };
 
 interface ICriterium {
@@ -402,6 +401,11 @@ function isPreReleaseVersion(version: IRawGalleryExtensionVersion): boolean {
 	return values.length > 0 && values[0].value === 'true';
 }
 
+function isPrivateExtension(version: IRawGalleryExtensionVersion): boolean {
+	const values = version.properties ? version.properties.filter(p => p.key === PropertyType.Private) : [];
+	return values.length > 0 && values[0].value === 'true';
+}
+
 function executesCode(version: IRawGalleryExtensionVersion): boolean | undefined {
 	const values = version.properties ? version.properties.filter(p => p.key === PropertyType.ExecutesCode) : [];
 	return values.length > 0 ? values[0].value === 'true' : undefined;
@@ -557,6 +561,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 		},
 		hasPreReleaseVersion: isPreReleaseVersion(latestVersion),
 		hasReleaseVersion: true,
+		private: isPrivateExtension(latestVersion),
 		preview: getIsPreview(galleryExtension.flags),
 		isSigned: !!assets.signature,
 		queryContext,
@@ -1937,20 +1942,6 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			resources.push({
 				id: `${extensionsGallery.itemUrl}/?itemName={publisher}.{name}&ssr=false#review-details`,
 				type: ExtensionGalleryResourceType.ExtensionRatingViewUri
-			});
-		}
-
-		if (extensionsGallery.resourceUrlTemplate) {
-			resources.push({
-				id: extensionsGallery.resourceUrlTemplate,
-				type: ExtensionGalleryResourceType.ExtensionUriTemplate
-			});
-		}
-
-		if (extensionsGallery.nlsBaseUrl) {
-			resources.push({
-				id: extensionsGallery.nlsBaseUrl,
-				type: ExtensionGalleryResourceType.WebLanguagePackService
 			});
 		}
 
