@@ -42,6 +42,12 @@ export interface IMcpRegistry {
 	registerDelegate(delegate: IMcpHostDelegate): IDisposable;
 	registerCollection(collection: McpCollectionDefinition): IDisposable;
 
+	/** Resets the trust state of all collections. */
+	resetTrust(): void;
+
+	/** Gets whether the collection is trusted. */
+	getTrust(collection: McpCollectionDefinition): IObservable<boolean | undefined>;
+
 	/** Resets any saved inputs for the connection. */
 	clearSavedInputs(collection: McpCollectionDefinition, definition: McpServerDefinition): void;
 	/** Creates a connection for the collection and definition. */
