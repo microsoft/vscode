@@ -175,14 +175,16 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._capabilities.onDidRemoveCapabilityType
 		), () => {
 			const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
+			commandDetection?.onCommandFinished((e) => {
+				this._sendTelemetryInfo(false, e.exitCode);
+				this._mostRecentPromptInputState = undefined;
+			});
 			if (commandDetection) {
 				if (this._promptInputModel !== commandDetection.promptInputModel) {
 					this._promptInputModel = commandDetection.promptInputModel;
 					this._promptInputModelSubscriptions.value = combinedDisposable(
 						this._promptInputModel.onDidChangeInput(e => this._sync(e)),
 						this._promptInputModel.onDidFinishInput(() => {
-							this._sendTelemetryInfo();
-							this._mostRecentPromptInputState = undefined;
 							this.hideSuggestWidget(true, true);
 						})
 					);
@@ -231,7 +233,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}));
 	}
 
-	private _sendTelemetryInfo(fromInterrupt?: boolean): void {
+	private _sendTelemetryInfo(fromInterrupt?: boolean, exitCode?: number): void {
 		const commandLine = this._mostRecentPromptInputState?.value;
 		const label = this._mostRecentAcceptedCompletion?.label;
 		const kind = this._mostRecentAcceptedCompletion?.kindLabel;
@@ -252,6 +254,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._telemetryService.publicLog2<{
 			kind: string | undefined;
 			outcome: CompletionOutcome;
+			exitCode: number | undefined;
 		}, {
 			owner: 'meganrogge';
 			comment: 'This data is collected to understand the outcome of a terminal completion acceptance.';
@@ -265,9 +268,15 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				purpose: 'FeatureInsight';
 				comment: 'The outcome of the accepted completion';
 			};
+			exitCode: {
+				classification: 'SystemMetaData';
+				purpose: 'FeatureInsight';
+				comment: 'The exit code from the command if non-zero';
+			};
 		}>('terminal.suggest.acceptedCompletion', {
 			kind,
-			outcome
+			outcome,
+			exitCode: exitCode && exitCode !== 0 ? exitCode : undefined
 		});
 	}
 
