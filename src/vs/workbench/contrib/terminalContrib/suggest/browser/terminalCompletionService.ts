@@ -169,7 +169,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			}
 			const completions = await Promise.race([
 				provider.provideCompletions(promptValue, cursorPosition, allowFallbackCompletions, token),
-				timeout(5000)
+				timeout(300)
 			]);
 			if (!completions) {
 				return undefined;
