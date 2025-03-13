@@ -143,10 +143,6 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		this._activeShellIntegrations.get(instanceId)?.dispose();
 		this._activeShellIntegrations.delete(instanceId);
 	}
-
-	public $setHasRichCommandDetection(instanceId: number, value: boolean): void {
-		this._activeShellIntegrations.get(instanceId)?.setHasRichCommandDetection(value);
-	}
 }
 
 interface IExecutionProperties {
@@ -165,7 +161,6 @@ export class InternalTerminalShellIntegration extends Disposable {
 
 	private _env: vscode.TerminalShellIntegrationEnvironment | undefined;
 	private _cwd: URI | undefined;
-	private _hasRichCommandDetection: boolean = false;
 
 	readonly store: DisposableStore = this._register(new DisposableStore());
 
@@ -199,9 +194,6 @@ export class InternalTerminalShellIntegration extends Disposable {
 					isTrusted: that._env.isTrusted,
 					value: Object.freeze({ ...that._env.value })
 				});
-			},
-			get hasRichCommandDetection(): boolean {
-				return that._hasRichCommandDetection;
 			},
 			// executeCommand(commandLine: string): vscode.TerminalShellExecution;
 			// executeCommand(executable: string, args: string[]): vscode.TerminalShellExecution;
@@ -263,9 +255,6 @@ export class InternalTerminalShellIntegration extends Disposable {
 					this._currentExecutionProperties.unresolvedCommandLines = subExecutionResult.unresolvedCommandLines;
 					return;
 				}
-			}
-			if (this._hasRichCommandDetection) {
-				console.warn('Rich command detection is enabled but an execution started before the last ended');
 			}
 			this._currentExecution.endExecution(undefined);
 			this._currentExecution.flush();
@@ -342,13 +331,6 @@ export class InternalTerminalShellIntegration extends Disposable {
 					this._pendingEndingExecution = undefined;
 				}
 			});
-		}
-	}
-
-	setHasRichCommandDetection(value: boolean): void {
-		if (this._hasRichCommandDetection !== value) {
-			this._hasRichCommandDetection = value;
-			this._fireChangeEvent();
 		}
 	}
 
