@@ -15,8 +15,8 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { localize } from '../../../../nls.js';
-import { getContextMenuActions, getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { getContextMenuActions, /*getFlatContextMenuActions*/ } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { Action2, /*IMenu, */IMenuService, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -32,10 +32,10 @@ import { ViewAction, ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
 import { FocusedViewContext } from '../../../common/contextkeys.js';
 import { IViewDescriptorService } from '../../../common/views.js';
-import { CONTEXT_CAN_VIEW_MEMORY, CONTEXT_EXPRESSION_SELECTED, CONTEXT_VARIABLE_IS_READONLY, CONTEXT_WATCH_EXPRESSIONS_EXIST, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_WATCH_ITEM_TYPE, IDebugConfiguration, IDebugService, IDebugViewWithVariables, IExpression, WATCH_VIEW_ID } from '../common/debug.js';
+import { CONTEXT_CAN_VIEW_MEMORY, CONTEXT_EXPRESSION_SELECTED, CONTEXT_VARIABLE_IS_READONLY, CONTEXT_WATCH_EXPRESSIONS_EXIST, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_WATCH_ITEM_TYPE, IDebugConfiguration, IDebugService, IDebugViewWithVariables, IExpression, CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED, WATCH_VIEW_ID, CONTEXT_DEBUG_TYPE } from '../common/debug.js';
 import { Expression, Variable, VisualizedExpression } from '../common/debugModel.js';
 import { AbstractExpressionDataSource, AbstractExpressionsRenderer, expressionAndScopeLabelProvider, IExpressionTemplateData, IInputBoxOptions, renderViewTree } from './baseDebugView.js';
-import { COPY_WATCH_EXPRESSION_COMMAND_ID } from './debugCommands.js';
+import { COPY_WATCH_EXPRESSION_COMMAND_ID, setDataBreakpointInfoResponse } from './debugCommands.js';
 import { DebugExpressionRenderer } from './debugExpressionRenderer.js';
 import { watchExpressionsAdd, watchExpressionsRemoveAll } from './debugIcons.js';
 import { VariablesRenderer, VisualizedVariableRenderer } from './variablesView.js';
@@ -52,7 +52,6 @@ export class WatchExpressionsView extends ViewPane implements IDebugViewWithVari
 	private watchExpressionsExist: IContextKey<boolean>;
 	private watchItemType: IContextKey<string | undefined>;
 	private variableReadonly: IContextKey<boolean>;
-	private menu: IMenu;
 	private expressionRenderer: DebugExpressionRenderer;
 
 	public get treeSelection() {
@@ -71,12 +70,10 @@ export class WatchExpressionsView extends ViewPane implements IDebugViewWithVari
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
-		@IMenuService menuService: IMenuService
+		@IMenuService private readonly menuService: IMenuService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
-		this.menu = menuService.createMenu(MenuId.DebugWatchContext, contextKeyService);
-		this._register(this.menu);
 		this.watchExpressionsUpdatedScheduler = new RunOnceScheduler(() => {
 			this.needsRefresh = false;
 			this.tree.updateChildren();
@@ -220,17 +217,26 @@ export class WatchExpressionsView extends ViewPane implements IDebugViewWithVari
 		}
 	}
 
-	private onContextMenu(e: ITreeContextMenuEvent<IExpression>): void {
+	private async onContextMenu(e: ITreeContextMenuEvent<IExpression>): Promise<void> {
 		const element = e.element;
+		if (!element) {
+			return;
+		}
+
 		const selection = this.tree.getSelection();
 
 		this.watchItemType.set(element instanceof Expression ? 'expression' : element instanceof Variable ? 'variable' : undefined);
 		const attributes = element instanceof Variable ? element.presentationHint?.attributes : undefined;
 		this.variableReadonly.set(!!attributes && attributes.indexOf('readOnly') >= 0 || !!element?.presentationHint?.lazy);
-		const actions = getFlatContextMenuActions(this.menu.getActions({ arg: element, shouldForwardArgs: true }));
+
+		const contextKeyService = element && await getContextForWatchExpressionMenuWithDataAccess(this.contextKeyService, element);
+		const menu = this.menuService.getMenuActions(MenuId.DebugWatchContext, contextKeyService, { arg: element, shouldForwardArgs: false });
+		const { secondary } = getContextMenuActions(menu, 'inline');
+
+		//		const actions = getFlatContextMenuActions(this.menu.getActions({ arg: element, shouldForwardArgs: true }));
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
-			getActions: () => actions,
+			getActions: () => secondary,
 			getActionsContext: () => element && selection.includes(element) ? selection : element ? [element] : [],
 		});
 	}
@@ -395,12 +401,54 @@ export class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 /**
  * Gets a context key overlay that has context for the given expression.
  */
-function getContextForWatchExpressionMenu(parentContext: IContextKeyService, expression: IExpression) {
+function getContextForWatchExpressionMenu(parentContext: IContextKeyService, expression: IExpression, additionalContext: [string, unknown][] = []) {
+	const session = expression.getSession();
 	return parentContext.createOverlay([
-		[CONTEXT_CAN_VIEW_MEMORY.key, expression.memoryReference !== undefined],
-		[CONTEXT_WATCH_ITEM_TYPE.key, 'expression']
+		//[CONTEXT_DEBUG_PROTOCOL_VARIABLE_MENU_CONTEXT.key, expression.variableMenuContext || ''],
+		//[CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT.key, !!expression.evaluateName],
+		[CONTEXT_CAN_VIEW_MEMORY.key, !!session?.capabilities.supportsReadMemoryRequest && expression.memoryReference !== undefined],
+		[CONTEXT_VARIABLE_IS_READONLY.key, !!expression.presentationHint?.attributes?.includes('readOnly') || expression.presentationHint?.lazy],
+		[CONTEXT_DEBUG_TYPE.key, session?.configuration.type],
+		...additionalContext
 	]);
 }
+
+/**
+ * Gets a context key overlay that has context for the given expression, including data access info.
+ */
+async function getContextForWatchExpressionMenuWithDataAccess(parentContext: IContextKeyService, expression: IExpression) {
+	const session = expression.getSession();
+	if (!session || !session.capabilities.supportsDataBreakpoints) {
+		return getContextForWatchExpressionMenu(parentContext, expression);
+	}
+
+	const contextKeys: [string, unknown][] = [];
+	const dataBreakpointInfoResponse = await session.dataBreakpointInfo(expression.name);
+	const dataBreakpointId = dataBreakpointInfoResponse?.dataId;
+	const dataBreakpointAccessTypes = dataBreakpointInfoResponse?.accessTypes;
+	setDataBreakpointInfoResponse(dataBreakpointInfoResponse);
+
+	if (!dataBreakpointAccessTypes) {
+		contextKeys.push([CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED.key, !!dataBreakpointId]);
+	} else {
+		for (const accessType of dataBreakpointAccessTypes) {
+			switch (accessType) {
+				case 'read':
+					contextKeys.push([CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED.key, !!dataBreakpointId]);
+					break;
+				case 'write':
+					contextKeys.push([CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED.key, !!dataBreakpointId]);
+					break;
+				case 'readWrite':
+					contextKeys.push([CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED.key, !!dataBreakpointId]);
+					break;
+			}
+		}
+	}
+
+	return getContextForWatchExpressionMenu(parentContext, expression, contextKeys);
+}
+
 
 class WatchExpressionsAccessibilityProvider implements IListAccessibilityProvider<IExpression> {
 
