@@ -651,7 +651,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 				sortBy,
 				filters
 			},
-			allRepositorySigned: !extensionGalleryManifest.capabilities.signing?.allRepositorySigned,
+			allRepositorySigned: !!extensionGalleryManifest.capabilities.signing?.allRepositorySigned,
 		};
 	}
 
