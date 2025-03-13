@@ -183,7 +183,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 						this._promptInputModel.onDidFinishInput(() => {
 							this._sendTelemetryInfo();
 							this._mostRecentPromptInputState = undefined;
-							this.hideSuggestWidget(true);
+							this.hideSuggestWidget(true, true);
 						})
 					);
 					if (this._shouldSyncWhenReady) {
