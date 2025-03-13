@@ -149,11 +149,18 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 	}
 }
 
+interface IExecutionProperties {
+	isMultiLine: boolean;
+	unresolvedCommandLines: string[] | undefined;
+}
+
 class InternalTerminalShellIntegration extends Disposable {
 	private _pendingExecutions: InternalTerminalShellExecution[] = [];
 
+	private _currentExecutionProperties: IExecutionProperties | undefined;
 	private _currentExecution: InternalTerminalShellExecution | undefined;
 	get currentExecution(): InternalTerminalShellExecution | undefined { return this._currentExecution; }
+
 
 	private _env: vscode.TerminalShellIntegrationEnvironment | undefined;
 	private _cwd: URI | undefined;
@@ -226,13 +233,42 @@ class InternalTerminalShellIntegration extends Disposable {
 
 	requestNewShellExecution(commandLine: vscode.TerminalShellExecutionCommandLine, cwd: URI | undefined) {
 		const execution = new InternalTerminalShellExecution(commandLine, cwd ?? this._cwd);
+		const unresolvedCommandLines = splitAndSanitizeCommandLine(commandLine.value);
+		if (unresolvedCommandLines.length > 0) {
+			this._currentExecutionProperties = {
+				isMultiLine: true,
+				unresolvedCommandLines: splitAndSanitizeCommandLine(commandLine.value),
+			};
+		}
 		this._pendingExecutions.push(execution);
 		this._onDidRequestNewExecution.fire(commandLine.value);
 		return execution;
 	}
 
-	startShellExecution(commandLine: vscode.TerminalShellExecutionCommandLine, cwd: URI | undefined): InternalTerminalShellExecution {
+	startShellExecution(commandLine: vscode.TerminalShellExecutionCommandLine, cwd: URI | undefined): undefined {
 		if (this._currentExecution) {
+			// If the current execution is multi-line, check if this command line is part of it.
+			if (this._currentExecutionProperties?.isMultiLine) {
+				const unresolvedCommandLines = this._currentExecutionProperties.unresolvedCommandLines;
+				const subExecutionLines = splitAndSanitizeCommandLine(commandLine.value);
+				if (unresolvedCommandLines && unresolvedCommandLines.length > 0) {
+					// If all sub-exeuction lines are in the command line, this is part of the
+					// multi-line execution.
+					for (let i = 0; i < unresolvedCommandLines.length; i++) {
+						if (unresolvedCommandLines[i] !== subExecutionLines[i]) {
+							break;
+						}
+						unresolvedCommandLines.shift();
+						subExecutionLines.shift();
+					}
+
+					if (subExecutionLines.length === 0) {
+						this._currentExecutionProperties.unresolvedCommandLines = unresolvedCommandLines;
+						return;
+					}
+				}
+			}
+
 			if (this._hasRichCommandDetection) {
 				console.warn('Rich command detection is enabled but an execution started before the last ended');
 			}
@@ -244,9 +280,43 @@ class InternalTerminalShellIntegration extends Disposable {
 		// command line
 		let currentExecution: InternalTerminalShellExecution | undefined;
 		if (commandLine.confidence === TerminalShellExecutionCommandLineConfidence.High) {
-			const index = this._pendingExecutions.findIndex(e => e.value.commandLine.value === commandLine.value);
-			if (index !== -1) {
-				currentExecution = this._pendingExecutions.splice(index, 1)[0];
+			for (const [i, execution] of this._pendingExecutions.entries()) {
+				if (execution.value.commandLine.value === commandLine.value) {
+					currentExecution = execution;
+					this._currentExecutionProperties = {
+						isMultiLine: false,
+						unresolvedCommandLines: undefined,
+					};
+					currentExecution = this._pendingExecutions.splice(i, 1)[0];
+					break;
+				} else {
+					// When executing something that the shell considers multiple commands, such as
+					// a comment followed by a command, this needs to all be tracked under a single
+					// execution.
+					if (execution.value.commandLine.value.includes('\n')) {
+						const unresolvedCommandLines = splitAndSanitizeCommandLine(execution.value.commandLine.value);
+						const subExecutionLines = splitAndSanitizeCommandLine(commandLine.value);
+
+						// If all sub-exeuction lines are in the command line, this is part of the
+						// multi-line execution.
+						for (let i = 0; i < unresolvedCommandLines.length; i++) {
+							if (unresolvedCommandLines[i] !== subExecutionLines[i]) {
+								break;
+							}
+							unresolvedCommandLines.shift();
+							subExecutionLines.shift();
+						}
+
+						if (subExecutionLines.length === 0) {
+							this._currentExecutionProperties = {
+								isMultiLine: true,
+								unresolvedCommandLines,
+							};
+							currentExecution = this._pendingExecutions.splice(i, 1)[0];
+							break;
+						}
+					}
+				}
 			}
 		} else {
 			currentExecution = this._pendingExecutions.shift();
@@ -259,9 +329,7 @@ class InternalTerminalShellIntegration extends Disposable {
 		}
 
 		this._currentExecution = currentExecution;
-
 		this._onDidStartTerminalShellExecution.fire({ terminal: this._terminal, shellIntegration: this.value, execution: this._currentExecution.value });
-		return this._currentExecution;
 	}
 
 	emitData(data: string): void {
@@ -269,8 +337,17 @@ class InternalTerminalShellIntegration extends Disposable {
 	}
 
 	endShellExecution(commandLine: vscode.TerminalShellExecutionCommandLine | undefined, exitCode: number | undefined): void {
+		// If the current execution is multi-line, don't end it until the next command line is
+		// confirmed to not be a part of it.
+		if (this._currentExecutionProperties?.isMultiLine) {
+			if (this._currentExecutionProperties.unresolvedCommandLines && this._currentExecutionProperties.unresolvedCommandLines.length > 0) {
+				return;
+			}
+		}
+
 		if (this._currentExecution) {
-			this._currentExecution.endExecution(commandLine);
+			const commandLineForEvent = this._currentExecutionProperties?.isMultiLine ? this._currentExecution.value.commandLine : commandLine;
+			this._currentExecution.endExecution(commandLineForEvent);
 			const currentExecution = this._currentExecution;
 			// IMPORTANT: Ensure the current execution's data events are flushed in order to
 			// prevent data events firing after the end event fires.
@@ -320,11 +397,10 @@ class InternalTerminalShellIntegration extends Disposable {
 }
 
 class InternalTerminalShellExecution {
-	private _dataStream: ShellExecutionDataStream | undefined;
-
-	private _ended: boolean = false;
-
 	readonly value: vscode.TerminalShellExecution;
+
+	private _dataStream: ShellExecutionDataStream | undefined;
+	private _isEnded: boolean = false;
 
 	constructor(
 		private _commandLine: vscode.TerminalShellExecutionCommandLine,
@@ -346,7 +422,7 @@ class InternalTerminalShellExecution {
 
 	private _createDataStream(): AsyncIterable<string> {
 		if (!this._dataStream) {
-			if (this._ended) {
+			if (this._isEnded) {
 				return AsyncIterableObject.EMPTY;
 			}
 			this._dataStream = new ShellExecutionDataStream();
@@ -364,7 +440,7 @@ class InternalTerminalShellExecution {
 		}
 		this._dataStream?.endExecution();
 		this._dataStream = undefined;
-		this._ended = true;
+		this._isEnded = true;
 	}
 
 	async flush(): Promise<void> {
@@ -404,4 +480,11 @@ class ShellExecutionDataStream extends Disposable {
 	async flush(): Promise<void> {
 		await Promise.all(this._iterables.map(e => e.toPromise()));
 	}
+}
+
+function splitAndSanitizeCommandLine(commandLine: string): string[] {
+	return commandLine
+		.split('\n')
+		.map(line => line.trim())
+		.filter(line => line.length > 0);
 }
