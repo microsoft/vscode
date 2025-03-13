@@ -242,9 +242,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		let outcome: CompletionOutcome;
 		if (fromInterrupt) {
 			outcome = CompletionOutcome.Interrupted;
-		} else if (commandLine.trim() && commandLine.endsWith(label)) {
+		} else if (commandLine.trim() && commandLine.includes(label)) {
 			outcome = CompletionOutcome.Accepted;
-		} else if (inputMostlyMatchesLabel(commandLine, label)) {
+		} else if (inputContainsFirstHalfOfLabel(commandLine, label)) {
 			outcome = CompletionOutcome.AcceptedWithEdit;
 		} else {
 			outcome = CompletionOutcome.Deleted;
@@ -904,25 +904,8 @@ export function normalizePathSeparator(path: string, sep: string): string {
 	return path.replaceAll('/', '\\');
 }
 
-function inputMostlyMatchesLabel(commandLine: string, label: string): boolean {
-	const lastWordOfCommandLine = commandLine.split(' ').pop() ?? '';
-	let labelIndex = 0;
-	let matchedChars = 0;
-	// At least half of label must be matched
-	const requiredMatches = Math.ceil(label.length / 2);
-
-	for (const char of lastWordOfCommandLine) {
-		if (char === label[labelIndex]) {
-			matchedChars++;
-			labelIndex++;
-		}
-		if (matchedChars >= requiredMatches) {
-			// We've matched enough in order
-			return true;
-		}
-	}
-
-	return false;
+function inputContainsFirstHalfOfLabel(commandLine: string, label: string): boolean {
+	return commandLine.includes(label.substring(0, Math.ceil(label.length / 2)));
 }
 
 const enum CompletionOutcome {
