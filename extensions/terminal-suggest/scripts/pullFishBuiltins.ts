@@ -3,18 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { platform } from 'os';
+import { cleanupText, checkWindows, execAsync, copyright } from './terminalScriptHelpers';
 
-if (platform() === 'win32') {
-	console.error('\x1b[31mThis command is not supported on Windows\x1b[0m');
-	process.exit(1);
-}
-
-const execAsync = promisify(exec);
+checkWindows();
 
 interface ICommandDetails {
 	description: string;
@@ -115,9 +108,6 @@ async function createCommandDescriptionsCache(): Promise<void> {
 				const helpOutput = await execAsync(`fish -c "${cmd} --help 2>&1"`).then(r => r.stdout);
 				let set = false;
 				if (helpOutput && !helpOutput.includes('No help for function') && !helpOutput.includes('See the web documentation')) {
-					// Clean up the text:
-					// 1. Remove ANSI escape codes for bold and colors
-					// 2. Remove backspace sequences like 'a\bb' that cause display artifacts
 					const cleanHelpText = cleanupText(helpOutput);
 
 					// Split the text into lines to process
@@ -251,29 +241,6 @@ function extractHelpContent(cmd: string, lines: string[]): { shortDescription: s
 	};
 }
 
-/**
- * Cleans up text from terminal control sequences and formatting artifacts
- */
-function cleanupText(text: string): string {
-	// Remove ANSI escape codes
-	let cleanedText = text.replace(/\x1b\[\d+m/g, '');
-
-	// Remove backspace sequences (like a\bb which tries to print a, move back, print b)
-	// This regex looks for a character followed by a backspace and another character
-	const backspaceRegex = /.\x08./g;
-	while (backspaceRegex.test(cleanedText)) {
-		cleanedText = cleanedText.replace(backspaceRegex, match => match.charAt(2));
-	}
-
-	// Remove any remaining backspaces and their preceding characters
-	cleanedText = cleanedText.replace(/.\x08/g, '');
-
-	// Remove underscores that are used for formatting in some fish help output
-	cleanedText = cleanedText.replace(/_\b/g, '');
-
-	return cleanedText;
-}
-
 const main = async () => {
 	try {
 		await createCommandDescriptionsCache();
@@ -289,10 +256,5 @@ const main = async () => {
 		console.error('Error:', error);
 	}
 };
-
-const copyright = `/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/`;
 
 main();
