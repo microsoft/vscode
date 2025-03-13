@@ -186,6 +186,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 						this._promptInputModel.onDidChangeInput(e => this._sync(e)),
 						this._promptInputModel.onDidFinishInput(() => {
 							this.hideSuggestWidget(true);
+						}),
+						this._promptInputModel.onDidInterrupt(() => {
+							this._sendTelemetryInfo(true);
+							this._mostRecentAcceptedCompletionsForCurrentExecution = undefined;
 						})
 					);
 					if (this._shouldSyncWhenReady) {
@@ -223,13 +227,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._register(xterm.onKey(async e => {
 			this._lastUserData = e.key;
 			this._lastUserDataTimestamp = Date.now();
-		}));
-		this._register(this._terminal.onData(e => {
-			if (e === '\x03') {
-				// Ctrl+C
-				this._sendTelemetryInfo(true);
-				this._mostRecentAcceptedCompletionsForCurrentExecution = undefined;
-			}
 		}));
 	}
 
