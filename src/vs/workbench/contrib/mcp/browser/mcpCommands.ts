@@ -240,7 +240,6 @@ export class AttachMCPToolsAction extends Action2 {
 				server,
 				type: 'item',
 				label: `${server.definition.label}`,
-				description: localize('desc', "MCP Server - {0}", McpConnectionState.toString(server.connectionState.get())),
 				picked: tools.some(tool => tool.enabled.get()),
 				toolPicks: []
 			};
