@@ -54,7 +54,7 @@ export class InstallRemoteExtensionsContribution implements IWorkbenchContributi
 		}
 
 		const settingValue = this.configurationService.getValue<string[]>(REMOTE_DEFAULT_EXTENSIONS);
-		if (!settingValue.length) {
+		if (!settingValue?.length) {
 			return;
 		}
 
@@ -67,7 +67,7 @@ export class InstallRemoteExtensionsContribution implements IWorkbenchContributi
 		const prereleaseExtensionInfo: InstallExtensionInfo[] = [];
 		const extensionInfo: InstallExtensionInfo[] = [];
 		for (const id of settingValue) {
-			const alreadyInstalled = alreadyInstalledExtensions.filter(e => areSameExtensions(e.identifier, { id })).length > 0;
+			const alreadyInstalled = alreadyInstalledExtensions.some(e => areSameExtensions(e.identifier, { id }));
 			if (alreadyInstalled) {
 				this.logService.trace(`Default remote extension '${id}' is already installed`);
 				continue;
