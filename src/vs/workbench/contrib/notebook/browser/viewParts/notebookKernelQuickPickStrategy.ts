@@ -34,6 +34,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { INotebookTextModel } from '../../common/notebookCommon.js';
 import { SELECT_KERNEL_ID } from '../controller/coreActions.js';
 import { EnablementState } from '../../../../services/extensionManagement/common/extensionManagement.js';
+import { areSameExtensions } from '../../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 
 type KernelPick = IQuickPickItem & { kernel: INotebookKernel };
 function isKernelPick(item: QuickPickInput<IQuickPickItem>): item is KernelPick {
@@ -293,9 +294,10 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 			const extension = (await extensionWorkbenchService.getExtensions([{ id: extId }], CancellationToken.None))[0];
 			if (extension.enablementState === EnablementState.DisabledGlobally || extension.enablementState === EnablementState.DisabledWorkspace || extension.enablementState === EnablementState.DisabledByEnvironment) {
 				extensionsToEnable.push(extension);
-			} else {
+			} else if (!extensionWorkbenchService.installed.some(e => areSameExtensions(e.identifier, extension.identifier))) {
+				// Install this extension only if it hasn't already been installed.
 				const canInstall = await extensionWorkbenchService.canInstall(extension);
-				if (canInstall) {
+				if (canInstall === true) {
 					extensionsToInstall.push(extension);
 				}
 			}
@@ -307,7 +309,7 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 					extension,
 					{
 						installPreReleaseVersion: isInsiders ?? false,
-						context: { skipWalkthrough: true }
+						context: { skipWalkthrough: true },
 					},
 					ProgressLocation.Notification
 				);

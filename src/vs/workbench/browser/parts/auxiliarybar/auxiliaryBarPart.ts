@@ -14,7 +14,7 @@ import { IStorageService } from '../../../../platform/storage/common/storage.js'
 import { contrastBorder } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ActiveAuxiliaryContext, AuxiliaryBarFocusContext } from '../../../common/contextkeys.js';
-import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_TOP_ACTIVE_BORDER, ACTIVITY_BAR_TOP_DRAG_AND_DROP_BORDER, ACTIVITY_BAR_TOP_FOREGROUND, ACTIVITY_BAR_TOP_INACTIVE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_DRAG_AND_DROP_BORDER, PANEL_INACTIVE_TITLE_FOREGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_BORDER, SIDE_BAR_FOREGROUND } from '../../../common/theme.js';
+import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_TOP_ACTIVE_BORDER, ACTIVITY_BAR_TOP_DRAG_AND_DROP_BORDER, ACTIVITY_BAR_TOP_FOREGROUND, ACTIVITY_BAR_TOP_INACTIVE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_DRAG_AND_DROP_BORDER, PANEL_INACTIVE_TITLE_FOREGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_BORDER, SIDE_BAR_TITLE_BORDER, SIDE_BAR_FOREGROUND } from '../../../common/theme.js';
 import { IViewDescriptorService } from '../../../common/views.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position } from '../../../services/layout/browser/layoutService.js';
@@ -37,10 +37,17 @@ import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser
 import { CompositeMenuActions } from '../../actions.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
+interface IAuxiliaryBarPartConfiguration {
+	position: ActivityBarPosition;
+
+	canShowLabels: boolean;
+	showLabels: boolean;
+}
+
 export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 
-	static readonly activePanelSettingsKey = 'workbench.auxiliarybar.activepanelid';
-	static readonly pinnedPanelsKey = 'workbench.auxiliarybar.pinnedPanels';
+	static readonly activeViewSettingsKey = 'workbench.auxiliarybar.activepanelid';
+	static readonly pinnedViewsKey = 'workbench.auxiliarybar.pinnedPanels';
 	static readonly placeholdeViewContainersKey = 'workbench.auxiliarybar.placeholderPanels';
 	static readonly viewContainersWorkspaceStateKey = 'workbench.auxiliarybar.viewContainersWorkspaceState';
 
@@ -73,6 +80,8 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 
 	readonly priority = LayoutPriority.Low;
 
+	private configuration: IAuxiliaryBarPartConfiguration;
+
 	constructor(
 		@INotificationService notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
@@ -95,12 +104,13 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 				hasTitle: true,
 				borderWidth: () => (this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder)) ? 1 : 0,
 			},
-			AuxiliaryBarPart.activePanelSettingsKey,
+			AuxiliaryBarPart.activeViewSettingsKey,
 			ActiveAuxiliaryContext.bindTo(contextKeyService),
 			AuxiliaryBarFocusContext.bindTo(contextKeyService),
 			'auxiliarybar',
 			'auxiliarybar',
 			undefined,
+			SIDE_BAR_TITLE_BORDER,
 			notificationService,
 			storageService,
 			contextMenuService,
@@ -115,11 +125,26 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			menuService,
 		);
 
+		this.configuration = this.resolveConfiguration();
+
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION)) {
+				this.configuration = this.resolveConfiguration();
 				this.onDidChangeActivityBarLocation();
+			} else if (e.affectsConfiguration('workbench.secondarySideBar.showLabels')) {
+				this.configuration = this.resolveConfiguration();
+				this.updateCompositeBar(true);
 			}
 		}));
+	}
+
+	private resolveConfiguration(): IAuxiliaryBarPartConfiguration {
+		const position = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
+
+		const canShowLabels = position !== ActivityBarPosition.TOP; // otherwise labels would repeat vertically
+		const showLabels = canShowLabels && this.configurationService.getValue('workbench.secondarySideBar.showLabels') !== false;
+
+		return { position, canShowLabels, showLabels };
 	}
 
 	private onDidChangeActivityBarLocation(): void {
@@ -155,10 +180,10 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		const $this = this;
 		return {
 			partContainerClass: 'auxiliarybar',
-			pinnedViewContainersKey: AuxiliaryBarPart.pinnedPanelsKey,
+			pinnedViewContainersKey: AuxiliaryBarPart.pinnedViewsKey,
 			placeholderViewContainersKey: AuxiliaryBarPart.placeholdeViewContainersKey,
 			viewContainersWorkspaceStateKey: AuxiliaryBarPart.viewContainersWorkspaceStateKey,
-			icon: true,
+			icon: !this.configuration.showLabels,
 			orientation: ActionsOrientation.HORIZONTAL,
 			recomputeSizes: true,
 			activityHoverOptions: {
@@ -185,31 +210,40 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 
 	private fillExtraContextMenuActions(actions: IAction[]): void {
 		const currentPositionRight = this.layoutService.getSideBarPosition() === Position.LEFT;
-		const viewsSubmenuAction = this.getViewsSubmenuAction();
-		if (viewsSubmenuAction) {
-			actions.push(new Separator());
-			actions.push(viewsSubmenuAction);
+
+		if (this.getCompositeBarPosition() === CompositeBarPosition.TITLE) {
+			const viewsSubmenuAction = this.getViewsSubmenuAction();
+			if (viewsSubmenuAction) {
+				actions.push(new Separator());
+				actions.push(viewsSubmenuAction);
+			}
 		}
 
 		const activityBarPositionMenu = this.menuService.getMenuActions(MenuId.ActivityBarPositionMenu, this.contextKeyService, { shouldForwardArgs: true, renderShortTitle: true });
 		const positionActions = getContextMenuActions(activityBarPositionMenu).secondary;
 
+		const toggleShowLabelsAction = toAction({
+			id: 'workbench.action.auxiliarybar.toggleShowLabels',
+			label: this.configuration.showLabels ? localize('showIcons', "Show Icons") : localize('showLabels', "Show Labels"),
+			enabled: this.configuration.canShowLabels,
+			run: () => this.configurationService.updateValue('workbench.secondarySideBar.showLabels', !this.configuration.showLabels)
+		});
+
 		actions.push(...[
 			new Separator(),
 			new SubmenuAction('workbench.action.panel.position', localize('activity bar position', "Activity Bar Position"), positionActions),
 			toAction({ id: ToggleSidebarPositionAction.ID, label: currentPositionRight ? localize('move second side bar left', "Move Secondary Side Bar Left") : localize('move second side bar right', "Move Secondary Side Bar Right"), run: () => this.commandService.executeCommand(ToggleSidebarPositionAction.ID) }),
+			toggleShowLabelsAction,
 			toAction({ id: ToggleAuxiliaryBarAction.ID, label: localize('hide second side bar', "Hide Secondary Side Bar"), run: () => this.commandService.executeCommand(ToggleAuxiliaryBarAction.ID) })
 		]);
 	}
 
 	protected shouldShowCompositeBar(): boolean {
-		return this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION) !== ActivityBarPosition.HIDDEN;
+		return this.configuration.position !== ActivityBarPosition.HIDDEN;
 	}
 
-	// TODO@benibenj chache this
 	protected getCompositeBarPosition(): CompositeBarPosition {
-		const activityBarPosition = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
-		switch (activityBarPosition) {
+		switch (this.configuration.position) {
 			case ActivityBarPosition.TOP: return CompositeBarPosition.TOP;
 			case ActivityBarPosition.BOTTOM: return CompositeBarPosition.BOTTOM;
 			case ActivityBarPosition.HIDDEN: return CompositeBarPosition.TITLE;

@@ -5,10 +5,10 @@
 
 import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
-import * as path from 'path';
-import * as byline from 'byline';
+import path from 'path';
+import byline from 'byline';
 import { rgPath } from '@vscode/ripgrep';
-import * as Parser from 'tree-sitter';
+import Parser from 'tree-sitter';
 const { typescript } = require('tree-sitter-typescript');
 const product = require('../../product.json');
 const packageJson = require('../../package.json');
@@ -33,10 +33,16 @@ interface Category {
 }
 
 enum PolicyType {
-	StringEnum
+	Boolean = 'boolean',
+	Number = 'number',
+	Object = 'object',
+	String = 'string',
+	StringEnum = 'stringEnum',
 }
 
 interface Policy {
+	readonly name: string;
+	readonly type: PolicyType;
 	readonly category: Category;
 	readonly minimumVersion: string;
 	renderADMX(regKey: string): string[];
@@ -59,13 +65,13 @@ function renderADMLString(prefix: string, moduleName: string, nlsString: NlsStri
 		value = nlsString.value;
 	}
 
-	return `<string id="${prefix}_${nlsString.nlsKey}">${value}</string>`;
+	return `<string id="${prefix}_${nlsString.nlsKey.replace(/\./g, '_')}">${value}</string>`;
 }
 
 abstract class BasePolicy implements Policy {
 	constructor(
-		protected policyType: PolicyType,
-		protected name: string,
+		readonly type: PolicyType,
+		readonly name: string,
 		readonly category: Category,
 		readonly minimumVersion: string,
 		protected description: NlsString,
@@ -78,7 +84,7 @@ abstract class BasePolicy implements Policy {
 
 	renderADMX(regKey: string) {
 		return [
-			`<policy name="${this.name}" class="Both" displayName="$(string.${this.name})" explainText="$(string.${this.name}_${this.description.nlsKey})" key="Software\\Policies\\Microsoft\\${regKey}" presentation="$(presentation.${this.name})">`,
+			`<policy name="${this.name}" class="Both" displayName="$(string.${this.name})" explainText="$(string.${this.name}_${this.description.nlsKey.replace(/\./g, '_')})" key="Software\\Policies\\Microsoft\\${regKey}" presentation="$(presentation.${this.name})">`,
 			`	<parentCategory ref="${this.category.name.nlsKey}" />`,
 			`	<supportedOn ref="Supported_${this.minimumVersion.replace(/\./g, '_')}" />`,
 			`	<elements>`,
@@ -114,7 +120,7 @@ class BooleanPolicy extends BasePolicy {
 		moduleName: string,
 		settingNode: Parser.SyntaxNode
 	): BooleanPolicy | undefined {
-		const type = getStringProperty(settingNode, 'type');
+		const type = getStringProperty(moduleName, settingNode, 'type');
 
 		if (type !== 'boolean') {
 			return undefined;
@@ -130,7 +136,7 @@ class BooleanPolicy extends BasePolicy {
 		description: NlsString,
 		moduleName: string,
 	) {
-		super(PolicyType.StringEnum, name, category, minimumVersion, description, moduleName);
+		super(PolicyType.Boolean, name, category, minimumVersion, description, moduleName);
 	}
 
 	protected renderADMXElements(): string[] {
@@ -146,7 +152,13 @@ class BooleanPolicy extends BasePolicy {
 	}
 }
 
-class IntPolicy extends BasePolicy {
+class ParseError extends Error {
+	constructor(message: string, moduleName: string, node: Parser.SyntaxNode) {
+		super(`${message}. ${moduleName}.ts:${node.startPosition.row + 1}`);
+	}
+}
+
+class NumberPolicy extends BasePolicy {
 
 	static from(
 		name: string,
@@ -155,20 +167,20 @@ class IntPolicy extends BasePolicy {
 		description: NlsString,
 		moduleName: string,
 		settingNode: Parser.SyntaxNode
-	): IntPolicy | undefined {
-		const type = getStringProperty(settingNode, 'type');
+	): NumberPolicy | undefined {
+		const type = getStringProperty(moduleName, settingNode, 'type');
 
 		if (type !== 'number') {
 			return undefined;
 		}
 
-		const defaultValue = getIntProperty(settingNode, 'default');
+		const defaultValue = getNumberProperty(moduleName, settingNode, 'default');
 
 		if (typeof defaultValue === 'undefined') {
-			throw new Error(`Missing required 'default' property.`);
+			throw new ParseError(`Missing required 'default' property.`, moduleName, settingNode);
 		}
 
-		return new IntPolicy(name, category, minimumVersion, description, moduleName, defaultValue);
+		return new NumberPolicy(name, category, minimumVersion, description, moduleName, defaultValue);
 	}
 
 	private constructor(
@@ -204,7 +216,7 @@ class StringPolicy extends BasePolicy {
 		moduleName: string,
 		settingNode: Parser.SyntaxNode
 	): StringPolicy | undefined {
-		const type = getStringProperty(settingNode, 'type');
+		const type = getStringProperty(moduleName, settingNode, 'type');
 
 		if (type !== 'string') {
 			return undefined;
@@ -220,7 +232,7 @@ class StringPolicy extends BasePolicy {
 		description: NlsString,
 		moduleName: string,
 	) {
-		super(PolicyType.StringEnum, name, category, minimumVersion, description, moduleName);
+		super(PolicyType.String, name, category, minimumVersion, description, moduleName);
 	}
 
 	protected renderADMXElements(): string[] {
@@ -229,6 +241,44 @@ class StringPolicy extends BasePolicy {
 
 	renderADMLPresentationContents() {
 		return `<textBox refId="${this.name}"><label>${this.name}:</label></textBox>`;
+	}
+}
+
+class ObjectPolicy extends BasePolicy {
+
+	static from(
+		name: string,
+		category: Category,
+		minimumVersion: string,
+		description: NlsString,
+		moduleName: string,
+		settingNode: Parser.SyntaxNode
+	): ObjectPolicy | undefined {
+		const type = getStringProperty(moduleName, settingNode, 'type');
+
+		if (type !== 'object' && type !== 'array') {
+			return undefined;
+		}
+
+		return new ObjectPolicy(name, category, minimumVersion, description, moduleName);
+	}
+
+	private constructor(
+		name: string,
+		category: Category,
+		minimumVersion: string,
+		description: NlsString,
+		moduleName: string,
+	) {
+		super(PolicyType.Object, name, category, minimumVersion, description, moduleName);
+	}
+
+	protected renderADMXElements(): string[] {
+		return [`<multiText id="${this.name}" valueName="${this.name}" required="true" />`];
+	}
+
+	renderADMLPresentationContents() {
+		return `<multiTextBox refId="${this.name}" />`;
 	}
 }
 
@@ -242,28 +292,28 @@ class StringEnumPolicy extends BasePolicy {
 		moduleName: string,
 		settingNode: Parser.SyntaxNode
 	): StringEnumPolicy | undefined {
-		const type = getStringProperty(settingNode, 'type');
+		const type = getStringProperty(moduleName, settingNode, 'type');
 
 		if (type !== 'string') {
 			return undefined;
 		}
 
-		const enum_ = getStringArrayProperty(settingNode, 'enum');
+		const enum_ = getStringArrayProperty(moduleName, settingNode, 'enum');
 
 		if (!enum_) {
 			return undefined;
 		}
 
 		if (!isStringArray(enum_)) {
-			throw new Error(`Property 'enum' should not be localized.`);
+			throw new ParseError(`Property 'enum' should not be localized.`, moduleName, settingNode);
 		}
 
-		const enumDescriptions = getStringArrayProperty(settingNode, 'enumDescriptions');
+		const enumDescriptions = getStringArrayProperty(moduleName, settingNode, 'enumDescriptions');
 
 		if (!enumDescriptions) {
-			throw new Error(`Missing required 'enumDescriptions' property.`);
+			throw new ParseError(`Missing required 'enumDescriptions' property.`, moduleName, settingNode);
 		} else if (!isNlsStringArray(enumDescriptions)) {
-			throw new Error(`Property 'enumDescriptions' should be localized.`);
+			throw new ParseError(`Property 'enumDescriptions' should be localized.`, moduleName, settingNode);
 		}
 
 		return new StringEnumPolicy(name, category, minimumVersion, description, moduleName, enum_, enumDescriptions);
@@ -306,7 +356,7 @@ interface QType<T> {
 	value(matches: Parser.QueryMatch[]): T | undefined;
 }
 
-const IntQ: QType<number> = {
+const NumberQ: QType<number> = {
 	Q: `(number) @value`,
 
 	value(matches: Parser.QueryMatch[]): number | undefined {
@@ -369,7 +419,7 @@ const StringArrayQ: QType<(string | NlsString)[]> = {
 	}
 };
 
-function getProperty<T>(qtype: QType<T>, node: Parser.SyntaxNode, key: string): T | undefined {
+function getProperty<T>(qtype: QType<T>, moduleName: string, node: Parser.SyntaxNode, key: string): T | undefined {
 	const query = new Parser.Query(
 		typescript,
 		`(
@@ -377,31 +427,36 @@ function getProperty<T>(qtype: QType<T>, node: Parser.SyntaxNode, key: string): 
 				key: [(property_identifier)(string)] @key
 				value: ${qtype.Q}
 			)
-			(#eq? @key ${key})
+			(#any-of? @key "${key}" "'${key}'")
 		)`
 	);
 
-	return qtype.value(query.matches(node));
+	try {
+		return qtype.value(query.matches(node));
+	} catch (e) {
+		throw new ParseError(e.message, moduleName, node);
+	}
 }
 
-function getIntProperty(node: Parser.SyntaxNode, key: string): number | undefined {
-	return getProperty(IntQ, node, key);
+function getNumberProperty(moduleName: string, node: Parser.SyntaxNode, key: string): number | undefined {
+	return getProperty(NumberQ, moduleName, node, key);
 }
 
-function getStringProperty(node: Parser.SyntaxNode, key: string): string | NlsString | undefined {
-	return getProperty(StringQ, node, key);
+function getStringProperty(moduleName: string, node: Parser.SyntaxNode, key: string): string | NlsString | undefined {
+	return getProperty(StringQ, moduleName, node, key);
 }
 
-function getStringArrayProperty(node: Parser.SyntaxNode, key: string): (string | NlsString)[] | undefined {
-	return getProperty(StringArrayQ, node, key);
+function getStringArrayProperty(moduleName: string, node: Parser.SyntaxNode, key: string): (string | NlsString)[] | undefined {
+	return getProperty(StringArrayQ, moduleName, node, key);
 }
 
 // TODO: add more policy types
 const PolicyTypes = [
 	BooleanPolicy,
-	IntPolicy,
+	NumberPolicy,
 	StringEnumPolicy,
 	StringPolicy,
+	ObjectPolicy
 ];
 
 function getPolicy(
@@ -411,20 +466,20 @@ function getPolicy(
 	policyNode: Parser.SyntaxNode,
 	categories: Map<string, Category>
 ): Policy {
-	const name = getStringProperty(policyNode, 'name');
+	const name = getStringProperty(moduleName, policyNode, 'name');
 
 	if (!name) {
-		throw new Error(`Missing required 'name' property.`);
+		throw new ParseError(`Missing required 'name' property`, moduleName, policyNode);
 	} else if (isNlsString(name)) {
-		throw new Error(`Property 'name' should be a literal string.`);
+		throw new ParseError(`Property 'name' should be a literal string`, moduleName, policyNode);
 	}
 
-	const categoryName = getStringProperty(configurationNode, 'title');
+	const categoryName = getStringProperty(moduleName, configurationNode, 'title');
 
 	if (!categoryName) {
-		throw new Error(`Missing required 'title' property.`);
+		throw new ParseError(`Missing required 'title' property`, moduleName, configurationNode);
 	} else if (!isNlsString(categoryName)) {
-		throw new Error(`Property 'title' should be localized.`);
+		throw new ParseError(`Property 'title' should be localized`, moduleName, configurationNode);
 	}
 
 	const categoryKey = `${categoryName.nlsKey}:${categoryName.value}`;
@@ -435,20 +490,20 @@ function getPolicy(
 		categories.set(categoryKey, category);
 	}
 
-	const minimumVersion = getStringProperty(policyNode, 'minimumVersion');
+	const minimumVersion = getStringProperty(moduleName, policyNode, 'minimumVersion');
 
 	if (!minimumVersion) {
-		throw new Error(`Missing required 'minimumVersion' property.`);
+		throw new ParseError(`Missing required 'minimumVersion' property.`, moduleName, policyNode);
 	} else if (isNlsString(minimumVersion)) {
-		throw new Error(`Property 'minimumVersion' should be a literal string.`);
+		throw new ParseError(`Property 'minimumVersion' should be a literal string.`, moduleName, policyNode);
 	}
 
-	const description = getStringProperty(settingNode, 'description');
+	const description = getStringProperty(moduleName, policyNode, 'description') ?? getStringProperty(moduleName, settingNode, 'description');
 
 	if (!description) {
-		throw new Error(`Missing required 'description' property.`);
+		throw new ParseError(`Missing required 'description' property.`, moduleName, settingNode);
 	} if (!isNlsString(description)) {
-		throw new Error(`Property 'description' should be localized.`);
+		throw new ParseError(`Property 'description' should be localized.`, moduleName, settingNode);
 	}
 
 	let result: Policy | undefined;
@@ -460,7 +515,7 @@ function getPolicy(
 	}
 
 	if (!result) {
-		throw new Error(`Failed to parse policy '${name}'.`);
+		throw new ParseError(`Failed to parse policy '${name}'.`, moduleName, settingNode);
 	}
 
 	return result;
@@ -472,11 +527,11 @@ function getPolicies(moduleName: string, node: Parser.SyntaxNode): Policy[] {
 			(call_expression
 				function: (member_expression property: (property_identifier) @registerConfigurationFn) (#eq? @registerConfigurationFn registerConfiguration)
 				arguments: (arguments	(object	(pair
-					key: [(property_identifier)(string)] @propertiesKey (#eq? @propertiesKey properties)
+					key: [(property_identifier)(string)] @propertiesKey (#any-of? @propertiesKey "properties" "'properties'")
 					value: (object (pair
-						key: [(property_identifier)(string)]
+						key: [(property_identifier)(string)(computed_property_name)]
 						value: (object (pair
-							key: [(property_identifier)(string)] @policyKey (#eq? @policyKey policy)
+							key: [(property_identifier)(string)] @policyKey (#any-of? @policyKey "policy" "'policy'")
 							value: (object) @policy
 						)) @setting
 					))
@@ -698,6 +753,13 @@ async function getTranslations(): Promise<Translations> {
 
 async function main() {
 	const [policies, translations] = await Promise.all([parsePolicies(), getTranslations()]);
+
+	console.log(`Found ${policies.length} policies:`);
+
+	for (const policy of policies) {
+		console.log(`- ${policy.name} (${policy.type})`);
+	}
+
 	const { admx, adml } = await renderGP(policies, translations);
 
 	const root = '.build/policies/win32';
@@ -715,7 +777,11 @@ async function main() {
 
 if (require.main === module) {
 	main().catch(err => {
-		console.error(err);
+		if (err instanceof ParseError) {
+			console.error(`Parse Error:`, err.message);
+		} else {
+			console.error(err);
+		}
 		process.exit(1);
 	});
 }

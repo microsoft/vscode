@@ -133,14 +133,12 @@ import './contrib/terminal/electron-sandbox/terminal.contribution.js';
 // Themes
 import './contrib/themes/browser/themes.test.contribution.js';
 import './services/themes/electron-sandbox/themes.contribution.js';
-
 // User Data Sync
 import './contrib/userDataSync/electron-sandbox/userDataSync.contribution.js';
 
 // Tags
 import './contrib/tags/electron-sandbox/workspaceTagsService.js';
 import './contrib/tags/electron-sandbox/tags.contribution.js';
-
 // Performance
 import './contrib/performance/electron-sandbox/performance.contribution.js';
 
@@ -171,14 +169,14 @@ import './contrib/remoteTunnel/electron-sandbox/remoteTunnel.contribution.js';
 // Chat
 import './contrib/chat/electron-sandbox/chat.contribution.js';
 import './contrib/inlineChat/electron-sandbox/inlineChat.contribution.js';
-import './contrib/chat/common/chatInstallEntitlement.contribution.js';
-import './contrib/chat/browser/chatMovedView.contribution.js';
-
 // Encryption
 import './contrib/encryption/electron-sandbox/encryption.contribution.js';
 
 // Emergency Alert
 import './contrib/emergencyAlert/electron-sandbox/emergencyAlert.contribution.js';
+
+// MCP
+import './contrib/mcp/electron-sandbox/mcp.contribution.js';
 
 //#endregion
 

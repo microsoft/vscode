@@ -19,11 +19,11 @@ import { Memento } from '../../../common/memento.js';
 import { clearChatEditor } from './actions/chatClear.js';
 import { ChatEditorInput } from './chatEditorInput.js';
 import { ChatWidget, IChatViewState } from './chatWidget.js';
-import { ChatAgentLocation } from '../common/chatAgents.js';
 import { IChatModel, IExportableChatData, ISerializableChatData } from '../common/chatModel.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../common/theme.js';
+import { ChatAgentLocation } from '../common/constants.js';
 
 export interface IChatEditorOptions extends IEditorOptions {
 	target?: { sessionId: string } | { data: IExportableChatData | ISerializableChatData };
@@ -66,7 +66,10 @@ export class ChatEditor extends EditorPane {
 				ChatWidget,
 				ChatAgentLocation.Panel,
 				undefined,
-				{ supportsFileReferences: true },
+				{
+					supportsFileReferences: true,
+					enableImplicitContext: true,
+				},
 				{
 					listForeground: editorForeground,
 					listBackground: editorBackground,
@@ -125,7 +128,6 @@ export class ChatEditor extends EditorPane {
 
 			// Need to set props individually on the memento
 			this._viewState.inputValue = widgetViewState.inputValue;
-			this._viewState.selectedLanguageModelId = widgetViewState.selectedLanguageModelId;
 			this._memento.saveMemento();
 		}
 	}

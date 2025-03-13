@@ -2,29 +2,41 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { $, createStyleSheet, isHTMLInputElement, isHTMLTextAreaElement, reset, windowOpenNoOpener } from '../../../../base/browser/dom.js';
+import { $, isHTMLInputElement, isHTMLTextAreaElement, reset, windowOpenNoOpener } from '../../../../base/browser/dom.js';
+import { createStyleSheet } from '../../../../base/browser/domStylesheets.js';
 import { Button, unthemedButtonStyles } from '../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { Delayer, RunOnceScheduler } from '../../../../base/common/async.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { groupBy } from '../../../../base/common/collections.js';
 import { debounce } from '../../../../base/common/decorators.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { isLinuxSnap, isMacintosh } from '../../../../base/common/platform.js';
 import { IProductConfiguration } from '../../../../base/common/product.js';
+import { joinPath } from '../../../../base/common/resources.js';
 import { escape } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { getIconsStyleSheet } from '../../../../platform/theme/browser/iconsStyleSheet.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from './issueReporterModel.js';
 import { IIssueFormService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IssueType } from '../common/issue.js';
 import { normalizeGitHubUrl } from '../common/issueReporterUtil.js';
+import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from './issueReporterModel.js';
 
 const MAX_URL_LENGTH = 7500;
+
+// Github API and issues on web has a limit of 65536. If extension data is too large, we will allow users to downlaod and attach it as a file.
+// We round down to be safe.
+// ref https://github.com/github/issues/issues/12858
+
+const MAX_EXTENSION_DATA_LENGTH = 60000;
 
 interface SearchResult {
 	html_url: string;
@@ -53,6 +65,8 @@ export class BaseIssueReporterService extends Disposable {
 	public delayedSubmit = new Delayer<void>(300);
 	public previewButton!: Button;
 	public nonGitHubIssueUrl = false;
+	public needsUpdate = false;
+	public acknowledged = false;
 
 	constructor(
 		public disableExtensions: boolean,
@@ -67,6 +81,8 @@ export class BaseIssueReporterService extends Disposable {
 		public readonly isWeb: boolean,
 		@IIssueFormService public readonly issueFormService: IIssueFormService,
 		@IThemeService public readonly themeService: IThemeService,
+		@IFileService public readonly fileService: IFileService,
+		@IFileDialogService public readonly fileDialogService: IFileDialogService,
 	) {
 		super();
 		const targetExtension = data.extensionId ? data.enabledExtensions.find(extension => extension.id.toLocaleLowerCase() === data.extensionId?.toLocaleLowerCase()) : undefined;
@@ -89,7 +105,7 @@ export class BaseIssueReporterService extends Disposable {
 		//TODO: Handle case where extension is not activated
 		const issueReporterElement = this.getElementById('issue-reporter');
 		if (issueReporterElement) {
-			this.previewButton = new Button(issueReporterElement, unthemedButtonStyles);
+			this.previewButton = this._register(new Button(issueReporterElement, unthemedButtonStyles));
 			const issueRepoName = document.createElement('a');
 			issueReporterElement.appendChild(issueRepoName);
 			issueRepoName.id = 'show-repo-name';
@@ -127,7 +143,7 @@ export class BaseIssueReporterService extends Disposable {
 		}
 
 		const delayer = new RunOnceScheduler(updateAll, 0);
-		iconsStyleSheet.onDidChange(() => delayer.schedule());
+		this._register(iconsStyleSheet.onDidChange(() => delayer.schedule()));
 		delayer.schedule();
 
 		this.handleExtensionData(data.enabledExtensions);
@@ -373,12 +389,25 @@ export class BaseIssueReporterService extends Disposable {
 		}
 	}
 
+	private updateAcknowledgementState() {
+		const acknowledgementCheckbox = this.getElementById<HTMLInputElement>('includeAcknowledgement');
+		if (acknowledgementCheckbox) {
+			this.acknowledged = acknowledgementCheckbox.checked;
+			this.updatePreviewButtonState();
+		}
+	}
+
 	public setEventHandlers(): void {
 		(['includeSystemInfo', 'includeProcessInfo', 'includeWorkspaceInfo', 'includeExtensions', 'includeExperiments', 'includeExtensionData'] as const).forEach(elementId => {
 			this.addEventListener(elementId, 'click', (event: Event) => {
 				event.stopPropagation();
 				this.issueReporterModel.update({ [elementId]: !this.issueReporterModel.getData()[elementId] });
 			});
+		});
+
+		this.addEventListener('includeAcknowledgement', 'click', (event: Event) => {
+			event.stopPropagation();
+			this.updateAcknowledgementState();
 		});
 
 		const showInfoElements = this.window.document.getElementsByClassName('showInfo');
@@ -476,11 +505,11 @@ export class BaseIssueReporterService extends Disposable {
 			this.searchIssues(title, fileOnExtension, fileOnMarketplace);
 		});
 
-		this.previewButton.onDidClick(async () => {
+		this._register(this.previewButton.onDidClick(async () => {
 			this.delayedSubmit.trigger(async () => {
 				this.createIssue();
 			});
-		});
+		}));
 
 		this.addEventListener('disableExtensions', 'click', () => {
 			this.issueFormService.reloadWithExtensionsDisabled();
@@ -547,7 +576,11 @@ export class BaseIssueReporterService extends Disposable {
 	}
 
 	public updatePreviewButtonState() {
-		if (this.isPreviewEnabled()) {
+
+		if (!this.acknowledged && this.needsUpdate) {
+			this.previewButton.label = localize('acknowledge', "Confirm Version Acknowledgement");
+			this.previewButton.enabled = false;
+		} else if (this.isPreviewEnabled()) {
 			if (this.data.githubAccessToken) {
 				this.previewButton.label = localize('createOnGitHub', "Create on GitHub");
 			} else {
@@ -860,7 +893,7 @@ export class BaseIssueReporterService extends Disposable {
 		}
 	}
 
-	public renderBlocks(): void {
+	public async renderBlocks(): Promise<void> {
 		// Depending on Issue Type, we render different blocks and text
 		const { issueType, fileOnExtension, fileOnMarketplace, selectedExtension } = this.issueReporterModel.getData();
 		const blockContainer = this.getElementById('block-container');
@@ -875,6 +908,7 @@ export class BaseIssueReporterService extends Disposable {
 		const descriptionTitle = this.getElementById('issue-description-label')!;
 		const descriptionSubtitle = this.getElementById('issue-description-subtitle')!;
 		const extensionSelector = this.getElementById('extension-selection')!;
+		const downloadExtensionDataLink = <HTMLAnchorElement>this.getElementById('extension-data-download')!;
 
 		const titleTextArea = this.getElementById('issue-title-container')!;
 		const descriptionTextArea = this.getElementById('description')!;
@@ -890,6 +924,7 @@ export class BaseIssueReporterService extends Disposable {
 		hide(extensionSelector);
 		hide(extensionDataTextArea);
 		hide(extensionDataBlock);
+		hide(downloadExtensionDataLink);
 
 		show(problemSource);
 		show(titleTextArea);
@@ -899,6 +934,31 @@ export class BaseIssueReporterService extends Disposable {
 			show(extensionSelector);
 		}
 
+		const extensionData = this.issueReporterModel.getData().extensionData;
+		if (extensionData && extensionData.length > MAX_EXTENSION_DATA_LENGTH) {
+			show(downloadExtensionDataLink);
+			const date = new Date();
+			const formattedDate = date.toISOString().split('T')[0]; // YYYY-MM-DD
+			const formattedTime = date.toTimeString().split(' ')[0].replace(/:/g, '-'); // HH-MM-SS
+			const fileName = `extensionData_${formattedDate}_${formattedTime}.md`;
+			const handleLinkClick = async () => {
+				const downloadPath = await this.fileDialogService.showSaveDialog({
+					title: localize('saveExtensionData', "Save Extension Data"),
+					availableFileSystems: [Schemas.file],
+					defaultUri: joinPath(await this.fileDialogService.defaultFilePath(Schemas.file), fileName),
+				});
+
+				if (downloadPath) {
+					await this.fileService.writeFile(downloadPath, VSBuffer.fromString(extensionData));
+				}
+			};
+
+			downloadExtensionDataLink.addEventListener('click', handleLinkClick);
+
+			this._register({
+				dispose: () => downloadExtensionDataLink.removeEventListener('click', handleLinkClick)
+			});
+		}
 
 		if (selectedExtension && this.nonGitHubIssueUrl) {
 			hide(titleTextArea);

@@ -603,7 +603,8 @@ export class PtyService extends Disposable implements IPtyService {
 			isFeatureTerminal: persistentProcess.shellLaunchConfig.isFeatureTerminal,
 			type: persistentProcess.shellLaunchConfig.type,
 			hasChildProcesses: persistentProcess.hasChildProcesses,
-			shellIntegrationNonce: persistentProcess.processLaunchOptions.options.shellIntegration.nonce
+			shellIntegrationNonce: persistentProcess.processLaunchOptions.options.shellIntegration.nonce,
+			tabActions: persistentProcess.shellLaunchConfig.tabActions
 		};
 		performance.mark(`code/didBuildProcessDetails/${id}`);
 		return result;

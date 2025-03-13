@@ -85,6 +85,7 @@ export class TestNativeHostService implements INativeHostService {
 	async getWindows(): Promise<IOpenedMainWindow[]> { return []; }
 	async getActiveWindowId(): Promise<number | undefined> { return undefined; }
 	async getActiveWindowPosition(): Promise<IRectangle | undefined> { return undefined; }
+	async getNativeWindowHandle(windowId: number): Promise<VSBuffer | undefined> { return undefined; }
 
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
@@ -93,7 +94,6 @@ export class TestNativeHostService implements INativeHostService {
 	}
 
 	async toggleFullScreen(): Promise<void> { }
-	async handleTitleDoubleClick(): Promise<void> { }
 	async isMaximized(): Promise<boolean> { return true; }
 	async isFullScreen(): Promise<boolean> { return true; }
 	async maximizeWindow(): Promise<void> { }

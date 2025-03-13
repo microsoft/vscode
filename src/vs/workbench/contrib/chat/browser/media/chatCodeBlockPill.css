@@ -44,3 +44,25 @@
 	background-repeat: no-repeat;
 	flex-shrink: 0;
 }
+
+span.label-detail {
+	padding-left: 4px;
+	font-style: italic;
+	color: var(--vscode-descriptionForeground);
+
+	&:empty {
+		display: none;
+	}
+}
+
+span.label-added {
+	font-weight: bold;
+	padding-left: 4px;
+	color: var(--vscode-editorGutter-addedBackground);
+}
+
+span.label-removed {
+	font-weight: bold;
+	padding-left: 4px;
+	color: var(--vscode-editorGutter-deletedBackground);
+}

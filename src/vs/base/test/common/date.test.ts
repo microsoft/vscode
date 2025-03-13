@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual } from 'assert';
-import { fromNow, fromNowByDay, getDurationString } from '../../common/date.js';
+import { fromNow, fromNowByDay, getDurationString, safeIntl } from '../../common/date.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
+import { LANGUAGE_DEFAULT } from '../../common/platform.js';
 
 suite('Date', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -36,11 +37,13 @@ suite('Date', () => {
 		test('yesterday', () => {
 			const yesterday = new Date();
 			yesterday.setDate(yesterday.getDate() - 1);
+			yesterday.setHours(yesterday.getHours() - 2); // 2 hours further to avoid DST issues.
 			strictEqual(fromNowByDay(yesterday), 'Yesterday');
 		});
 		test('daysAgo', () => {
 			const daysAgo = new Date();
 			daysAgo.setDate(daysAgo.getDate() - 5);
+			daysAgo.setHours(daysAgo.getHours() - 2); // 2 hours further to avoid DST issues.
 			strictEqual(fromNowByDay(daysAgo, true), '5 days ago');
 		});
 	});
@@ -67,6 +70,19 @@ suite('Date', () => {
 			strictEqual(getDurationString(1000 * 60 * 60, true), '1 hours');
 			strictEqual(getDurationString(1000 * 60 * 60 * 24 - 1, true), '24 hours');
 			strictEqual(getDurationString(1000 * 60 * 60 * 24, true), '1 days');
+		});
+
+		suite('safeIntl', () => {
+			test('Collator fallback', () => {
+				const collator = safeIntl.Collator('en_IT');
+				const comparison = collator.compare('a', 'b');
+				strictEqual(comparison, -1);
+			});
+
+			test('Locale fallback', () => {
+				const locale = safeIntl.Locale('en_IT');
+				strictEqual(locale.baseName, LANGUAGE_DEFAULT);
+			});
 		});
 	});
 });

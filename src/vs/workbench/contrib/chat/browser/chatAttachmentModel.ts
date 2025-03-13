@@ -3,24 +3,52 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { basename } from '../../../../base/common/resources.js';
 import { IRange } from '../../../../editor/common/core/range.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ChatPromptAttachmentsCollection } from './chatAttachmentModel/chatPromptAttachmentsCollection.js';
 
 export class ChatAttachmentModel extends Disposable {
+	/**
+	 * Collection on prompt instruction attachments.
+	 */
+	public readonly promptInstructions: ChatPromptAttachmentsCollection;
+
+	constructor(
+		@IInstantiationService private readonly initService: IInstantiationService,
+	) {
+		super();
+
+		this.promptInstructions = this._register(
+			this.initService.createInstance(ChatPromptAttachmentsCollection),
+		).onUpdate(() => {
+			this._onDidChangeContext.fire();
+		});
+	}
+
 	private _attachments = new Map<string, IChatRequestVariableEntry>();
 	get attachments(): ReadonlyArray<IChatRequestVariableEntry> {
 		return Array.from(this._attachments.values());
 	}
 
-	private _onDidChangeContext = this._register(new Emitter<void>());
+	protected _onDidChangeContext = this._register(new Emitter<void>());
 	readonly onDidChangeContext = this._onDidChangeContext.event;
 
 	get size(): number {
 		return this._attachments.size;
+	}
+
+	get fileAttachments(): URI[] {
+		return this.attachments.reduce<URI[]>((acc, file) => {
+			if (file.isFile && URI.isUri(file.value)) {
+				acc.push(file.value);
+			}
+			return acc;
+		}, []);
 	}
 
 	getAttachmentIDs() {
@@ -32,8 +60,10 @@ export class ChatAttachmentModel extends Disposable {
 		this._onDidChangeContext.fire();
 	}
 
-	delete(variableEntryId: string) {
-		this._attachments.delete(variableEntryId);
+	delete(...variableEntryIds: string[]) {
+		for (const variableEntryId of variableEntryIds) {
+			this._attachments.delete(variableEntryId);
+		}
 		this._onDidChangeContext.fire();
 	}
 
@@ -41,24 +71,38 @@ export class ChatAttachmentModel extends Disposable {
 		this.addContext(this.asVariableEntry(uri, range));
 	}
 
-	asVariableEntry(uri: URI, range?: IRange) {
-		return {
+	addFolder(uri: URI) {
+		this.addContext({
 			value: uri,
+			id: uri.toString(),
+			name: basename(uri),
+			isFile: false,
+			isDirectory: true,
+		});
+	}
+
+	asVariableEntry(uri: URI, range?: IRange): IChatRequestVariableEntry {
+		return {
+			value: range ? { uri, range } : uri,
 			id: uri.toString() + (range?.toString() ?? ''),
 			name: basename(uri),
 			isFile: true,
-			isDynamic: true
 		};
 	}
 
 	addContext(...attachments: IChatRequestVariableEntry[]) {
+		let hasAdded = false;
+
 		for (const attachment of attachments) {
 			if (!this._attachments.has(attachment.id)) {
 				this._attachments.set(attachment.id, attachment);
+				hasAdded = true;
 			}
 		}
 
-		this._onDidChangeContext.fire();
+		if (hasAdded) {
+			this._onDidChangeContext.fire();
+		}
 	}
 
 	clearAndSetContext(...attachments: IChatRequestVariableEntry[]) {

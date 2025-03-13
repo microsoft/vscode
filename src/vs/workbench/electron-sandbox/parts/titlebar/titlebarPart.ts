@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
-import { getZoomFactor, isWCOEnabled } from '../../../../base/browser/browser.js';
+import { getZoomFactor } from '../../../../base/browser/browser.js';
 import { $, addDisposableListener, append, EventType, getWindow, getWindowId, hide, show } from '../../../../base/browser/dom.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationService, IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-sandbox/environmentService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
-import { isMacintosh, isWindows, isLinux, isNative, isBigSurOrNewer } from '../../../../base/common/platform.js';
+import { isMacintosh, isWindows, isLinux, isBigSurOrNewer } from '../../../../base/common/platform.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { BrowserTitlebarPart as BrowserTitlebarPart, BrowserTitleService, IAuxiliaryTitlebarPart } from '../../../browser/parts/titlebar/titlebarPart.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -54,6 +54,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 
 	private maxRestoreControl: HTMLElement | undefined;
 	private resizer: HTMLElement | undefined;
+
 	private cachedWindowControlStyles: { bgColor: string; fgColor: string } | undefined;
 	private cachedWindowControlHeight: number | undefined;
 
@@ -156,8 +157,12 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 			})));
 		}
 
-		// Window Controls (Native Linux when WCO is disabled)
-		if (isLinux && !hasNativeTitlebar(this.configurationService) && !isWCOEnabled() && this.windowControlsContainer) {
+		// Custom Window Controls (Native Windows/Linux)
+		if (
+			!hasNativeTitlebar(this.configurationService) &&		// not for native title bars
+			!useWindowControlsOverlay(this.configurationService) &&	// not when controls are natively drawn
+			this.windowControlsContainer
+		) {
 
 			// Minimize
 			const minimizeIcon = append(this.windowControlsContainer, $('div.window-icon.window-minimize' + ThemeIcon.asCSSSelector(Codicon.chromeMinimize)));
@@ -200,7 +205,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 				}
 
 				const zoomFactor = getZoomFactor(getWindow(this.element));
-				this.onContextMenu(new MouseEvent('mouseup', { clientX: x / zoomFactor, clientY: y / zoomFactor }), MenuId.TitleBarContext);
+				this.onContextMenu(new MouseEvent(EventType.MOUSE_UP, { clientX: x / zoomFactor, clientY: y / zoomFactor }), MenuId.TitleBarContext);
 			}));
 		}
 
@@ -230,18 +235,20 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 	override updateStyles(): void {
 		super.updateStyles();
 
-		// WCO styles only supported on Windows currently
-		if (useWindowControlsOverlay(this.configurationService)) {
-			if (
-				!this.cachedWindowControlStyles ||
-				this.cachedWindowControlStyles.bgColor !== this.element.style.backgroundColor ||
-				this.cachedWindowControlStyles.fgColor !== this.element.style.color
-			) {
-				this.nativeHostService.updateWindowControls({
-					targetWindowId: getWindowId(getWindow(this.element)),
-					backgroundColor: this.element.style.backgroundColor,
-					foregroundColor: this.element.style.color
-				});
+		// Part container
+		if (this.element) {
+			if (useWindowControlsOverlay(this.configurationService)) {
+				if (
+					!this.cachedWindowControlStyles ||
+					this.cachedWindowControlStyles.bgColor !== this.element.style.backgroundColor ||
+					this.cachedWindowControlStyles.fgColor !== this.element.style.color
+				) {
+					this.nativeHostService.updateWindowControls({
+						targetWindowId: getWindowId(getWindow(this.element)),
+						backgroundColor: this.element.style.backgroundColor,
+						foregroundColor: this.element.style.color
+					});
+				}
 			}
 		}
 	}
@@ -249,10 +256,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 	override layout(width: number, height: number): void {
 		super.layout(width, height);
 
-		if (
-			useWindowControlsOverlay(this.configurationService) ||
-			(isMacintosh && isNative && !hasNativeTitlebar(this.configurationService))
-		) {
+		if (useWindowControlsOverlay(this.configurationService)) {
 
 			// When the user goes into full screen mode, the height of the title bar becomes 0.
 			// Instead, set it back to the default titlebar height for Catalina users

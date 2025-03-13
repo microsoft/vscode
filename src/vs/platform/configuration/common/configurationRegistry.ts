@@ -126,13 +126,17 @@ export interface IConfigurationRegistry {
 
 export const enum ConfigurationScope {
 	/**
-	 * Application specific configuration, which can be configured only in local user settings.
+	 * Application specific configuration, which can be configured only in default profile user settings.
 	 */
 	APPLICATION = 1,
 	/**
 	 * Machine specific configuration, which can be configured only in local and remote user settings.
 	 */
 	MACHINE,
+	/**
+	 * An application machine specific configuration, which can be configured only in default profile user settings and remote user settings.
+	 */
+	APPLICATION_MACHINE,
 	/**
 	 * Window specific configuration, which can be configured in the user or workspace settings.
 	 */
@@ -160,8 +164,13 @@ export interface IPolicy {
 
 	/**
 	 * The Code version in which this policy was introduced.
-	 */
+	*/
 	readonly minimumVersion: `${number}.${number}`;
+
+	/**
+	 * The policy description (optional).
+	 */
+	readonly description?: string;
 }
 
 export interface IConfigurationPropertySchema extends IJSONSchema {
@@ -269,6 +278,7 @@ export interface IConfigurationDefaultOverrideValue {
 
 export const allSettings: { properties: IStringDictionary<IConfigurationPropertySchema>; patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
 export const applicationSettings: { properties: IStringDictionary<IConfigurationPropertySchema>; patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
+export const applicationMachineSettings: { properties: IStringDictionary<IConfigurationPropertySchema>; patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
 export const machineSettings: { properties: IStringDictionary<IConfigurationPropertySchema>; patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
 export const machineOverridableSettings: { properties: IStringDictionary<IConfigurationPropertySchema>; patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
 export const windowSettings: { properties: IStringDictionary<IConfigurationPropertySchema>; patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
@@ -744,6 +754,9 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 			case ConfigurationScope.MACHINE:
 				machineSettings.properties[key] = property;
 				break;
+			case ConfigurationScope.APPLICATION_MACHINE:
+				applicationMachineSettings.properties[key] = property;
+				break;
 			case ConfigurationScope.MACHINE_OVERRIDABLE:
 				machineOverridableSettings.properties[key] = property;
 				break;
@@ -768,6 +781,9 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 				break;
 			case ConfigurationScope.MACHINE:
 				delete machineSettings.properties[key];
+				break;
+			case ConfigurationScope.APPLICATION_MACHINE:
+				delete applicationMachineSettings.properties[key];
 				break;
 			case ConfigurationScope.MACHINE_OVERRIDABLE:
 				delete machineOverridableSettings.properties[key];
@@ -795,6 +811,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 			this.updatePropertyDefaultValue(overrideIdentifierProperty, resourceLanguagePropertiesSchema);
 			allSettings.properties[overrideIdentifierProperty] = resourceLanguagePropertiesSchema;
 			applicationSettings.properties[overrideIdentifierProperty] = resourceLanguagePropertiesSchema;
+			applicationMachineSettings.properties[overrideIdentifierProperty] = resourceLanguagePropertiesSchema;
 			machineSettings.properties[overrideIdentifierProperty] = resourceLanguagePropertiesSchema;
 			machineOverridableSettings.properties[overrideIdentifierProperty] = resourceLanguagePropertiesSchema;
 			windowSettings.properties[overrideIdentifierProperty] = resourceLanguagePropertiesSchema;
@@ -811,6 +828,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		};
 		allSettings.patternProperties[OVERRIDE_PROPERTY_PATTERN] = resourceLanguagePropertiesSchema;
 		applicationSettings.patternProperties[OVERRIDE_PROPERTY_PATTERN] = resourceLanguagePropertiesSchema;
+		applicationMachineSettings.patternProperties[OVERRIDE_PROPERTY_PATTERN] = resourceLanguagePropertiesSchema;
 		machineSettings.patternProperties[OVERRIDE_PROPERTY_PATTERN] = resourceLanguagePropertiesSchema;
 		machineOverridableSettings.patternProperties[OVERRIDE_PROPERTY_PATTERN] = resourceLanguagePropertiesSchema;
 		windowSettings.patternProperties[OVERRIDE_PROPERTY_PATTERN] = resourceLanguagePropertiesSchema;

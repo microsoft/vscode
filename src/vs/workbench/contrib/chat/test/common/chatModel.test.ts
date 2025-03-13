@@ -16,11 +16,12 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
-import { ChatAgentLocation, ChatAgentService, IChatAgentService } from '../../common/chatAgents.js';
+import { ChatAgentService, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatModel, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, normalizeSerializableChatData, Response } from '../../common/chatModel.js';
 import { ChatRequestTextPart } from '../../common/chatParserTypes.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { TestExtensionService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { ChatAgentLocation } from '../../common/constants.js';
 
 suite('ChatModel', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -151,6 +152,21 @@ suite('ChatModel', () => {
 
 		assert.strictEqual(request1.response.response.toString(), 'Hello');
 	});
+
+	test('addCompleteRequest', async function () {
+		const model1 = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
+
+		model1.startInitialize();
+		model1.initialize(undefined);
+
+		const text = 'hello';
+		const request1 = model1.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, true);
+
+		assert.strictEqual(request1.isCompleteAddedRequest, true);
+		assert.strictEqual(request1.response!.isCompleteAddedRequest, true);
+		assert.strictEqual(request1.shouldBeRemovedOnSend, undefined);
+		assert.strictEqual(request1.response!.shouldBeRemovedOnSend, undefined);
+	});
 });
 
 suite('Response', () => {
@@ -176,10 +192,13 @@ suite('Response', () => {
 
 	test('inline reference', async () => {
 		const response = store.add(new Response([]));
-		response.updateContent({ content: new MarkdownString('text before'), kind: 'markdownContent' });
-		response.updateContent({ inlineReference: URI.parse('https://microsoft.com'), kind: 'inlineReference' });
-		response.updateContent({ content: new MarkdownString('text after'), kind: 'markdownContent' });
+		response.updateContent({ content: new MarkdownString('text before '), kind: 'markdownContent' });
+		response.updateContent({ inlineReference: URI.parse('https://microsoft.com/'), kind: 'inlineReference' });
+		response.updateContent({ content: new MarkdownString(' text after'), kind: 'markdownContent' });
 		await assertSnapshot(response.value);
+
+		assert.strictEqual(response.toString(), 'text before https://microsoft.com/ text after');
+
 	});
 });
 

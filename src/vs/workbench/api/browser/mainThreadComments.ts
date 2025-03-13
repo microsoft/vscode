@@ -102,7 +102,7 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 		return this._canReply;
 	}
 
-	private _collapsibleState: languages.CommentThreadCollapsibleState | undefined;
+	private _collapsibleState: languages.CommentThreadCollapsibleState | undefined = languages.CommentThreadCollapsibleState.Collapsed;
 	get collapsibleState() {
 		return this._collapsibleState;
 	}
@@ -577,11 +577,14 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		this._commentService.registerCommentController(providerId, provider);
 		this._commentControllers.set(handle, provider);
 
-		const commentsPanelAlreadyConstructed = !!this._viewDescriptorService.getViewDescriptorById(COMMENTS_VIEW_ID);
-		if (!commentsPanelAlreadyConstructed) {
-			this.registerView(commentsPanelAlreadyConstructed);
-		}
-		this.registerViewListeners(commentsPanelAlreadyConstructed);
+		this._register(this._commentService.onResourceHasCommentingRanges(e => {
+			this.registerView();
+		}));
+
+		this._register(this._commentService.onDidUpdateCommentThreads(e => {
+			this.registerView();
+		}));
+
 		this._commentService.setWorkspaceComments(String(handle), []);
 	}
 
@@ -693,8 +696,9 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		thread.collapsibleState = languages.CommentThreadCollapsibleState.Collapsed;
 	}
 
-	private registerView(commentsViewAlreadyRegistered: boolean) {
-		if (!commentsViewAlreadyRegistered) {
+	private registerView() {
+		const commentsPanelAlreadyConstructed = !!this._viewDescriptorService.getViewDescriptorById(COMMENTS_VIEW_ID);
+		if (!commentsPanelAlreadyConstructed) {
 			const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 				id: COMMENTS_VIEW_ID,
 				title: COMMENTS_VIEW_TITLE,
@@ -717,6 +721,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 				}
 			}], VIEW_CONTAINER);
 		}
+		this.registerViewListeners(commentsPanelAlreadyConstructed);
 	}
 
 	private setComments() {
@@ -737,7 +742,6 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 					this.setComments();
 					if (this._openViewListener) {
 						this._openViewListener.dispose();
-						this._openViewListener = null;
 					}
 				}
 			});

@@ -17,6 +17,7 @@ import './findInput.css';
 import * as nls from '../../../../nls.js';
 import { DisposableStore, MutableDisposable } from '../../../common/lifecycle.js';
 import { createInstantHoverDelegate } from '../hover/hoverDelegateFactory.js';
+import { IHistory } from '../../../common/history.js';
 
 
 export interface IFindInputOptions {
@@ -32,11 +33,11 @@ export interface IFindInputOptions {
 	readonly appendCaseSensitiveLabel?: string;
 	readonly appendWholeWordsLabel?: string;
 	readonly appendRegexLabel?: string;
-	readonly history?: string[];
 	readonly additionalToggles?: Toggle[];
 	readonly showHistoryHint?: () => boolean;
 	readonly toggleStyles: IToggleStyles;
 	readonly inputBoxStyles: IInputBoxStyles;
+	readonly history?: IHistory<string>;
 }
 
 const NLS_DEFAULT_LABEL = nls.localize('defaultLabel', "input");
@@ -92,7 +93,6 @@ export class FindInput extends Widget {
 		const appendCaseSensitiveLabel = options.appendCaseSensitiveLabel || '';
 		const appendWholeWordsLabel = options.appendWholeWordsLabel || '';
 		const appendRegexLabel = options.appendRegexLabel || '';
-		const history = options.history || [];
 		const flexibleHeight = !!options.flexibleHeight;
 		const flexibleWidth = !!options.flexibleWidth;
 		const flexibleMaxHeight = options.flexibleMaxHeight;
@@ -106,12 +106,12 @@ export class FindInput extends Widget {
 			validationOptions: {
 				validation: this.validation
 			},
-			history,
 			showHistoryHint: options.showHistoryHint,
 			flexibleHeight,
 			flexibleWidth,
 			flexibleMaxHeight,
 			inputBoxStyles: options.inputBoxStyles,
+			history: options.history
 		}));
 
 		const hoverDelegate = this._register(createInstantHoverDelegate());

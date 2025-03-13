@@ -3,14 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { $, reset } from '../../../../base/browser/dom.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationError } from '../../../../base/common/errors.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { IProductConfiguration } from '../../../../base/common/product.js';
+import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { isRemoteDiagnosticError } from '../../../../platform/diagnostics/common/diagnostics.js';
-import { IProcessMainService } from '../../../../platform/process/common/process.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { IProcessMainService } from '../../../../platform/process/common/process.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
 import { applyZoom } from '../../../../platform/window/electron-sandbox/window.js';
 import { BaseIssueReporterService } from '../browser/baseIssueReporterService.js';
 import { IssueReporterData as IssueReporterModelData } from '../browser/issueReporterModel.js';
@@ -19,6 +25,10 @@ import { IIssueFormService, IssueReporterData, IssueType } from '../common/issue
 // GitHub has let us know that we could up our limit here to 8k. We chose 7500 to play it safe.
 // ref https://github.com/microsoft/vscode/issues/159191
 const MAX_URL_LENGTH = 7500;
+
+// Github API and issues on web has a limit of 65536. We chose 65500 to play it safe.
+// ref https://github.com/github/issues/issues/12858
+const MAX_GITHUB_API_LENGTH = 65500;
 
 
 export class IssueReporter extends BaseIssueReporterService {
@@ -36,9 +46,12 @@ export class IssueReporter extends BaseIssueReporterService {
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IIssueFormService issueFormService: IIssueFormService,
 		@IProcessMainService processMainService: IProcessMainService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IFileService fileService: IFileService,
+		@IFileDialogService fileDialogService: IFileDialogService,
+		@IUpdateService private readonly updateService: IUpdateService
 	) {
-		super(disableExtensions, data, os, product, window, false, issueFormService, themeService);
+		super(disableExtensions, data, os, product, window, false, issueFormService, themeService, fileService, fileDialogService);
 		this.processMainService = processMainService;
 		this.processMainService.$getSystemInfo().then(info => {
 			this.issueReporterModel.update({ systemInfo: info });
@@ -53,11 +66,26 @@ export class IssueReporter extends BaseIssueReporterService {
 			});
 		}
 
+		this.checkForUpdates();
 		this.setEventHandlers();
 		applyZoom(this.data.zoomLevel, this.window);
 		this.updateExperimentsInfo(this.data.experiments);
 		this.updateRestrictedMode(this.data.restrictedMode);
 		this.updateUnsupportedMode(this.data.isUnsupported);
+	}
+
+	private async checkForUpdates(): Promise<void> {
+		const updateState = this.updateService.state;
+		if (updateState.type === StateType.Ready || updateState.type === StateType.Downloaded) {
+			this.needsUpdate = true;
+			const includeAcknowledgement = this.getElementById('version-acknowledgements');
+			const updateBanner = this.getElementById('update-banner');
+			if (updateBanner && includeAcknowledgement) {
+				includeAcknowledgement.classList.remove('hidden');
+				updateBanner.classList.remove('hidden');
+				updateBanner.textContent = localize('updateAvailable', "A new version of {0} is available.", this.product.nameLong);
+			}
+		}
 	}
 
 	public override setEventHandlers(): void {
@@ -85,6 +113,33 @@ export class IssueReporter extends BaseIssueReporterService {
 	}
 
 	public override async submitToGitHub(issueTitle: string, issueBody: string, gitHubDetails: { owner: string; repositoryName: string }): Promise<boolean> {
+		if (issueBody.length > MAX_GITHUB_API_LENGTH) {
+			const extensionData = this.issueReporterModel.getData().extensionData;
+			if (extensionData) {
+				issueBody = issueBody.replace(extensionData, '');
+				const date = new Date();
+				const formattedDate = date.toISOString().split('T')[0]; // YYYY-MM-DD
+				const formattedTime = date.toTimeString().split(' ')[0].replace(/:/g, '-'); // HH-MM-SS
+				const fileName = `extensionData_${formattedDate}_${formattedTime}.md`;
+				try {
+					const downloadPath = await this.fileDialogService.showSaveDialog({
+						title: localize('saveExtensionData', "Save Extension Data"),
+						availableFileSystems: [Schemas.file],
+						defaultUri: joinPath(await this.fileDialogService.defaultFilePath(Schemas.file), fileName),
+					});
+
+					if (downloadPath) {
+						await this.fileService.writeFile(downloadPath, VSBuffer.fromString(extensionData));
+					}
+				} catch (e) {
+					console.error('Writing extension data to file failed');
+					return false;
+				}
+			} else {
+				console.error('Issue body too large to submit to GitHub');
+				return false;
+			}
+		}
 		const url = `https://api.github.com/repos/${gitHubDetails.owner}/${gitHubDetails.repositoryName}/issues`;
 		const init = {
 			method: 'POST',
@@ -174,14 +229,18 @@ export class IssueReporter extends BaseIssueReporterService {
 		let url = baseUrl + `&body=${encodeURIComponent(issueBody)}`;
 
 		if (this.data.githubAccessToken && gitHubDetails) {
-			return this.submitToGitHub(issueTitle, issueBody, gitHubDetails);
-		} else if (url.length > MAX_URL_LENGTH) {
-			try {
-				url = await this.writeToClipboard(baseUrl, issueBody);
-			} catch (_) {
-				console.error('Writing to clipboard failed');
-				return false;
+			if (await this.submitToGitHub(issueTitle, issueBody, gitHubDetails)) {
+				return true;
 			}
+		}
+
+		try {
+			if (url.length > MAX_URL_LENGTH || issueBody.length > MAX_GITHUB_API_LENGTH) {
+				url = await this.writeToClipboard(baseUrl, issueBody);
+			}
+		} catch (_) {
+			console.error('Writing to clipboard failed');
+			return false;
 		}
 
 		await this.nativeHostService.openExternal(url);

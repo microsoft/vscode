@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getFontSnippets } from '../../../../base/browser/fonts.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isIOS, isWindows } from '../../../../base/common/platform.js';
@@ -66,7 +67,7 @@ registerWorkbenchContribution2(RemoteTerminalBackendContribution.ID, RemoteTermi
 
 // Register configurations
 registerTerminalPlatformConfiguration();
-registerTerminalConfiguration();
+registerTerminalConfiguration(getFontSnippets);
 
 // Register editor/dnd contributions
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(TerminalEditorInput.ID, TerminalInputSerializer);
@@ -116,7 +117,7 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 	id: TERMINAL_VIEW_ID,
 	name: nls.localize2('terminal', "Terminal"),
 	containerIcon: terminalViewIcon,
-	canToggleVisibility: false,
+	canToggleVisibility: true,
 	canMoveView: true,
 	ctorDescriptor: new SyncDescriptor(TerminalViewPane),
 	openCommandActionDescriptor: {

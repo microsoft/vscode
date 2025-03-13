@@ -3,18 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
-import { DisposableMap } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { ExtensionIdentifier, IExtensionManifest } from '../../../../../platform/extensions/common/extensions.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
-import { ILanguageModelToolsService, IToolData } from '../languageModelToolsService.js';
+import { Extensions, IExtensionFeaturesRegistry, IExtensionFeatureTableRenderer, IRenderedData, IRowData, ITableData } from '../../../../services/extensionManagement/common/extensionFeatures.js';
+import { isProposedApiEnabled } from '../../../../services/extensions/common/extensions.js';
 import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
+import { ILanguageModelToolsService, IToolData } from '../languageModelToolsService.js';
 import { toolsParametersSchemaSchemaId } from './languageModelToolsParametersSchema.js';
 
 export interface IRawToolContribution {
@@ -27,12 +31,6 @@ export interface IRawToolContribution {
 	tags?: string[];
 	userDescription?: string;
 	inputSchema?: IJSONSchema;
-
-	/**
-	 * TODO@API backwards compat, remove
-	 * @deprecated
-	 */
-	parametersSchema?: IJSONSchema;
 	canBeReferencedInPrompt?: boolean;
 }
 
@@ -69,8 +67,8 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 				name: {
 					description: localize('toolName', "A unique name for this tool. This name must be a globally unique identifier, and is also used as a name when presenting this tool to a language model."),
 					type: 'string',
-					// Borrow OpenAI's requirement for tool names
-					pattern: '^[\\w-]+$'
+					// [\\w-]+ is OpenAI's requirement for tool names
+					pattern: '^(?!copilot_|vscode_)[\\w-]+$'
 				},
 				toolReferenceName: {
 					markdownDescription: localize('toolName2', "If {0} is enabled for this tool, the user may use '#' with this name to invoke the tool in a query. Otherwise, the name is not required. Name must not contain whitespace.", '`canBeReferencedInPrompt`'),
@@ -91,7 +89,7 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 				},
 				inputSchema: {
 					description: localize('parametersSchema', "A JSON schema for the input this tool accepts. The input must be an object at the top level. A particular language model may not support all JSON schema features. See the documentation for the language model family you are using for more information."),
-					$ref: toolsParametersSchemaSchemaId,
+					$ref: toolsParametersSchemaSchemaId
 				},
 				canBeReferencedInPrompt: {
 					markdownDescription: localize('canBeReferencedInPrompt', "If true, this tool shows up as an attachment that the user can add manually to their request. Chat participants will receive the tool in {0}.", '`ChatRequest#toolReferences`'),
@@ -124,7 +122,8 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 					description: localize('toolTags', "A set of tags that roughly describe the tool's capabilities. A tool user may use these to filter the set of tools to just ones that are relevant for the task at hand, or they may want to pick a tag that can be used to identify just the tools contributed by this extension."),
 					type: 'array',
 					items: {
-						type: 'string'
+						type: 'string',
+						pattern: '^(?!copilot_|vscode_)'
 					}
 				}
 			}
@@ -135,6 +134,8 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 function toToolKey(extensionIdentifier: ExtensionIdentifier, toolName: string) {
 	return `${extensionIdentifier.value}/${toolName}`;
 }
+
+const CopilotAgentModeTag = 'vscode_editing';
 
 export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.toolsExtensionPointHandler';
@@ -163,6 +164,23 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 						continue;
 					}
 
+					if ((rawTool.name.startsWith('copilot_') || rawTool.name.startsWith('vscode_')) && !isProposedApiEnabled(extension.description, 'chatParticipantPrivate')) {
+						logService.error(`Extension '${extension.description.identifier.value}' CANNOT register tool with name starting with "vscode_" or "copilot_"`);
+						continue;
+					}
+
+					if (rawTool.tags?.includes(CopilotAgentModeTag)) {
+						if (!isProposedApiEnabled(extension.description, 'languageModelToolsForAgent') && !isProposedApiEnabled(extension.description, 'chatParticipantPrivate')) {
+							logService.error(`Extension '${extension.description.identifier.value}' CANNOT register tool with tag "${CopilotAgentModeTag}" without enabling 'languageModelToolsForAgent' proposal`);
+							continue;
+						}
+					}
+
+					if (rawTool.tags?.some(tag => tag !== CopilotAgentModeTag && (tag.startsWith('copilot_') || tag.startsWith('vscode_'))) && !isProposedApiEnabled(extension.description, 'chatParticipantPrivate')) {
+						logService.error(`Extension '${extension.description.identifier.value}' CANNOT register tool with tags starting with "vscode_" or "copilot_"`);
+						continue;
+					}
+
 					const rawIcon = rawTool.icon;
 					let icon: IToolData['icon'] | undefined;
 					if (typeof rawIcon === 'string') {
@@ -179,7 +197,8 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 
 					const tool: IToolData = {
 						...rawTool,
-						inputSchema: rawTool.inputSchema ?? rawTool.parametersSchema, // BACKWARDS compatibility
+						extensionId: extension.description.identifier,
+						inputSchema: rawTool.inputSchema,
 						id: rawTool.name,
 						icon,
 						when: rawTool.when ? ContextKeyExpr.deserialize(rawTool.when) : undefined,
@@ -197,3 +216,49 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 		});
 	}
 }
+
+class LanguageModelToolDataRenderer extends Disposable implements IExtensionFeatureTableRenderer {
+	readonly type = 'table';
+
+	shouldRender(manifest: IExtensionManifest): boolean {
+		return !!manifest.contributes?.languageModelTools;
+	}
+
+	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
+		const contribs = manifest.contributes?.languageModelTools ?? [];
+		if (!contribs.length) {
+			return { data: { headers: [], rows: [] }, dispose: () => { } };
+		}
+
+		const headers = [
+			localize('toolTableName', "Name"),
+			localize('toolTableDisplayName', "Display Name"),
+			localize('toolTableDescription', "Description"),
+		];
+
+		const rows: IRowData[][] = contribs.map(t => {
+			return [
+				new MarkdownString(`\`${t.name}\``),
+				t.displayName,
+				t.userDescription ?? t.modelDescription,
+			];
+		});
+
+		return {
+			data: {
+				headers,
+				rows
+			},
+			dispose: () => { }
+		};
+	}
+}
+
+Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: 'languageModelTools',
+	label: localize('langModelTools', "Language Model Tools"),
+	access: {
+		canToggle: false
+	},
+	renderer: new SyncDescriptor(LanguageModelToolDataRenderer),
+});

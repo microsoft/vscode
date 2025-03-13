@@ -17,6 +17,7 @@ import { IMainProcessService } from '../../../../platform/ipc/common/mainProcess
 import { disposableWindowInterval, getActiveDocument, getWindowId, getWindowsCount, hasWindow, onDidRegisterWindow } from '../../../../base/browser/dom.js';
 import { memoize } from '../../../../base/common/decorators.js';
 import { isAuxiliaryWindow } from '../../../../base/browser/window.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 
 class WorkbenchNativeHostService extends NativeHostService {
 
@@ -38,17 +39,21 @@ class WorkbenchHostService extends Disposable implements IHostService {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
+
+		this.onDidChangeFocus = Event.latch(
+			Event.any(
+				Event.map(Event.filter(this.nativeHostService.onDidFocusMainOrAuxiliaryWindow, id => hasWindow(id), this._store), () => this.hasFocus, this._store),
+				Event.map(Event.filter(this.nativeHostService.onDidBlurMainOrAuxiliaryWindow, id => hasWindow(id), this._store), () => this.hasFocus, this._store),
+				Event.map(this.onDidChangeActiveWindow, () => this.hasFocus, this._store)
+			), undefined, this._store
+		);
+
+		this.onDidChangeFullScreen = Event.filter(this.nativeHostService.onDidChangeWindowFullScreen, e => hasWindow(e.windowId), this._store);
 	}
 
 	//#region Focus
 
-	readonly onDidChangeFocus = Event.latch(
-		Event.any(
-			Event.map(Event.filter(this.nativeHostService.onDidFocusMainOrAuxiliaryWindow, id => hasWindow(id), this._store), () => this.hasFocus, this._store),
-			Event.map(Event.filter(this.nativeHostService.onDidBlurMainOrAuxiliaryWindow, id => hasWindow(id), this._store), () => this.hasFocus, this._store),
-			Event.map(this.onDidChangeActiveWindow, () => this.hasFocus, this._store)
-		), undefined, this._store
-	);
+	readonly onDidChangeFocus: Event<boolean>;
 
 	get hasFocus(): boolean {
 		return getActiveDocument().hasFocus();
@@ -93,7 +98,7 @@ class WorkbenchHostService extends Disposable implements IHostService {
 		return Event.latch(emitter.event, undefined, this._store);
 	}
 
-	readonly onDidChangeFullScreen = Event.filter(this.nativeHostService.onDidChangeWindowFullScreen, e => hasWindow(e.windowId), this._store);
+	readonly onDidChangeFullScreen: Event<{ readonly windowId: number; readonly fullscreen: boolean }>;
 
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
@@ -129,7 +134,7 @@ class WorkbenchHostService extends Disposable implements IHostService {
 			return this.labelService.getWorkspaceLabel({ id: '', configPath: openable.workspaceUri }, { verbose: Verbosity.LONG });
 		}
 
-		return this.labelService.getUriLabel(openable.fileUri);
+		return this.labelService.getUriLabel(openable.fileUri, { appendWorkspaceSuffix: true });
 	}
 
 	private doOpenEmptyWindow(options?: IOpenEmptyWindowOptions): Promise<void> {
@@ -190,6 +195,18 @@ class WorkbenchHostService extends Disposable implements IHostService {
 
 	getScreenshot(): Promise<ArrayBufferLike | undefined> {
 		return this.nativeHostService.getScreenshot();
+	}
+
+	//#endregion
+
+	//#region Native Handle
+
+	private _nativeWindowHandleCache = new Map<number, Promise<VSBuffer | undefined>>();
+	async getNativeWindowHandle(windowId: number): Promise<VSBuffer | undefined> {
+		if (!this._nativeWindowHandleCache.has(windowId)) {
+			this._nativeWindowHandleCache.set(windowId, this.nativeHostService.getNativeWindowHandle(windowId));
+		}
+		return this._nativeWindowHandleCache.get(windowId)!;
 	}
 
 	//#endregion

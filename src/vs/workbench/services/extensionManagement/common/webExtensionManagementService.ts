@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ExtensionIdentifier, ExtensionType, IExtension, IExtensionIdentifier, IExtensionManifest, TargetPlatform } from '../../../../platform/extensions/common/extensions.js';
-import { ILocalExtension, IGalleryExtension, InstallOperation, IExtensionGalleryService, Metadata, InstallOptions, IProductVersion } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { ILocalExtension, IGalleryExtension, InstallOperation, IExtensionGalleryService, Metadata, InstallOptions, IProductVersion, IAllowedExtensionsService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { areSameExtensions, getGalleryExtensionId } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
@@ -58,10 +58,11 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IProductService productService: IProductService,
+		@IAllowedExtensionsService allowedExtensionsService: IAllowedExtensionsService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(extensionGalleryService, telemetryService, uriIdentityService, logService, productService, userDataProfilesService);
+		super(extensionGalleryService, telemetryService, uriIdentityService, logService, productService, allowedExtensionsService, userDataProfilesService);
 		this._register(userDataProfileService.onDidChangeCurrentProfile(e => {
 			if (!this.uriIdentityService.extUri.isEqual(e.previous.extensionsResource, e.profile.extensionsResource)) {
 				e.join(this.whenProfileChanged(e));
@@ -78,14 +79,11 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		return TargetPlatform.WEB;
 	}
 
-	override async canInstall(gallery: IGalleryExtension): Promise<boolean> {
-		if (await super.canInstall(gallery)) {
+	protected override async isExtensionPlatformCompatible(extension: IGalleryExtension): Promise<boolean> {
+		if (this.isConfiguredToExecuteOnWeb(extension)) {
 			return true;
 		}
-		if (this.isConfiguredToExecuteOnWeb(gallery)) {
-			return true;
-		}
-		return false;
+		return super.isExtensionPlatformCompatible(extension);
 	}
 
 	async getInstalled(type?: ExtensionType, profileLocation?: URI): Promise<ILocalExtension[]> {
@@ -119,6 +117,10 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 
 	installFromLocation(location: URI, profileLocation: URI): Promise<ILocalExtension> {
 		return this.install(location, { profileLocation });
+	}
+
+	protected async removeExtension(extension: ILocalExtension): Promise<void> {
+		// do nothing
 	}
 
 	protected async copyExtension(extension: ILocalExtension, fromProfileLocation: URI, toProfileLocation: URI, metadata: Partial<Metadata>): Promise<ILocalExtension> {
@@ -203,7 +205,6 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 	zip(extension: ILocalExtension): Promise<URI> { throw new Error('unsupported'); }
 	getManifest(vsix: URI): Promise<IExtensionManifest> { throw new Error('unsupported'); }
 	download(): Promise<URI> { throw new Error('unsupported'); }
-	reinstallFromGallery(): Promise<ILocalExtension> { throw new Error('unsupported'); }
 
 	async cleanUp(): Promise<void> { }
 
@@ -232,7 +233,7 @@ function toLocalExtension(extension: IExtension): ILocalExtension {
 		installedTimestamp: metadata.installedTimestamp,
 		isPreReleaseVersion: !!metadata.isPreReleaseVersion,
 		hasPreReleaseVersion: !!metadata.hasPreReleaseVersion,
-		preRelease: !!metadata.preRelease,
+		preRelease: extension.preRelease,
 		targetPlatform: TargetPlatform.WEB,
 		updated: !!metadata.updated,
 		pinned: !!metadata?.pinned,

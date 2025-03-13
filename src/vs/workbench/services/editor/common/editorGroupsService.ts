@@ -101,6 +101,13 @@ export const enum MergeGroupMode {
 export interface IMergeGroupOptions {
 	mode?: MergeGroupMode;
 	readonly index?: number;
+
+	/**
+	 * Set this to prevent editors already present in the
+	 * target group from moving to a different index as
+	 * they are in the source group.
+	 */
+	readonly preserveExistingIndex?: boolean;
 }
 
 export interface ICloseEditorOptions {

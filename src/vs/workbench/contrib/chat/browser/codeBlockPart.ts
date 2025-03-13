@@ -11,13 +11,12 @@ import { Button } from '../../../../base/browser/ui/button/button.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { combinedDisposable, Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { assertType } from '../../../../base/common/types.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { IEditorConstructionOptions } from '../../../../editor/browser/config/editorConfiguration.js';
-import { TabFocus } from '../../../../editor/browser/config/tabFocus.js';
 import { IDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
@@ -31,7 +30,7 @@ import { EndOfLinePreference, ITextModel } from '../../../../editor/common/model
 import { TextModelText } from '../../../../editor/common/model/textModelText.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { DefaultModelSHA1Computer } from '../../../../editor/common/services/modelService.js';
-import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { ITextModelContentProvider, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { BracketMatchingController } from '../../../../editor/contrib/bracketMatching/browser/bracketMatching.js';
 import { ColorDetector } from '../../../../editor/contrib/colorPicker/browser/colorDetector.js';
 import { ContextMenuController } from '../../../../editor/contrib/contextmenu/browser/contextmenu.js';
@@ -69,14 +68,16 @@ import { IChatResponseViewModel, isResponseVM } from '../common/chatViewModel.js
 import { ChatTreeItem } from './chat.js';
 import { IChatRendererDelegate } from './chatListRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
+import { emptyProgressRunner, IEditorProgressService } from '../../../../platform/progress/common/progress.js';
 
 const $ = dom.$;
 
 export interface ICodeBlockData {
 	readonly codeBlockIndex: number;
+	readonly codeBlockPartIndex: number;
 	readonly element: unknown;
 
-	readonly textModel: Promise<IResolvedTextEditorModel>;
+	readonly textModel: Promise<ITextModel>;
 	readonly languageId: string;
 
 	readonly codemapperUri?: URI;
@@ -85,7 +86,7 @@ export interface ICodeBlockData {
 	readonly range?: Range;
 
 	readonly parentContextKeyService?: IContextKeyService;
-	readonly hideToolbar?: boolean;
+	readonly renderOptions?: ICodeBlockRenderOptions;
 }
 
 /**
@@ -134,6 +135,13 @@ export interface ICodeBlockActionContext {
 	element: unknown;
 }
 
+export interface ICodeBlockRenderOptions {
+	hideToolbar?: boolean;
+	verticalPadding?: number;
+	reserveWidth?: number;
+	editorOptions?: IEditorOptions;
+}
+
 const defaultCodeblockPadding = 10;
 export class CodeBlockPart extends Disposable {
 	protected readonly _onDidChangeContentHeight = this._register(new Emitter<void>());
@@ -151,13 +159,16 @@ export class CodeBlockPart extends Disposable {
 	private currentCodeBlockData: ICodeBlockData | undefined;
 	private currentScrollWidth = 0;
 
-	private readonly disposableStore = this._register(new DisposableStore());
 	private isDisposed = false;
 
 	private resourceContextKey: ResourceContextKey;
 
+	private get verticalPadding(): number {
+		return this.currentCodeBlockData?.renderOptions?.verticalPadding ?? defaultCodeblockPadding;
+	}
+
 	constructor(
-		private readonly options: ChatEditorOptions,
+		private readonly editorOptions: ChatEditorOptions,
 		readonly menuId: MenuId,
 		delegate: IChatRendererDelegate,
 		overflowWidgetsDomNode: HTMLElement | undefined,
@@ -182,7 +193,7 @@ export class CodeBlockPart extends Disposable {
 			scrollBeyondLastLine: false,
 			lineDecorationsWidth: 8,
 			dragAndDrop: false,
-			padding: { top: defaultCodeblockPadding, bottom: defaultCodeblockPadding },
+			padding: { top: this.verticalPadding, bottom: this.verticalPadding },
 			mouseWheelZoom: false,
 			scrollbar: {
 				vertical: 'hidden',
@@ -246,7 +257,7 @@ export class CodeBlockPart extends Disposable {
 			}
 		}));
 
-		this._register(this.options.onDidChange(() => {
+		this._register(this.editorOptions.onDidChange(() => {
 			this.editor.updateOptions(this.getEditorOptionsFromConfig());
 		}));
 
@@ -319,9 +330,9 @@ export class CodeBlockPart extends Disposable {
 		const horizontalScrollbarVisible = this.currentScrollWidth > this.editor.getLayoutInfo().contentWidth;
 		const scrollbarHeight = this.editor.getLayoutInfo().horizontalScrollbarHeight;
 		const bottomPadding = horizontalScrollbarVisible ?
-			Math.max(defaultCodeblockPadding - scrollbarHeight, 2) :
-			defaultCodeblockPadding;
-		this.editor.updateOptions({ padding: { top: defaultCodeblockPadding, bottom: bottomPadding } });
+			Math.max(this.verticalPadding - scrollbarHeight, 2) :
+			this.verticalPadding;
+		this.editor.updateOptions({ padding: { top: this.verticalPadding, bottom: bottomPadding } });
 	}
 
 	private _configureForScreenReader(): void {
@@ -336,22 +347,24 @@ export class CodeBlockPart extends Disposable {
 
 	private getEditorOptionsFromConfig(): IEditorOptions {
 		return {
-			wordWrap: this.options.configuration.resultEditor.wordWrap,
-			fontLigatures: this.options.configuration.resultEditor.fontLigatures,
-			bracketPairColorization: this.options.configuration.resultEditor.bracketPairColorization,
-			fontFamily: this.options.configuration.resultEditor.fontFamily === 'default' ?
+			wordWrap: this.editorOptions.configuration.resultEditor.wordWrap,
+			fontLigatures: this.editorOptions.configuration.resultEditor.fontLigatures,
+			bracketPairColorization: this.editorOptions.configuration.resultEditor.bracketPairColorization,
+			fontFamily: this.editorOptions.configuration.resultEditor.fontFamily === 'default' ?
 				EDITOR_FONT_DEFAULTS.fontFamily :
-				this.options.configuration.resultEditor.fontFamily,
-			fontSize: this.options.configuration.resultEditor.fontSize,
-			fontWeight: this.options.configuration.resultEditor.fontWeight,
-			lineHeight: this.options.configuration.resultEditor.lineHeight,
+				this.editorOptions.configuration.resultEditor.fontFamily,
+			fontSize: this.editorOptions.configuration.resultEditor.fontSize,
+			fontWeight: this.editorOptions.configuration.resultEditor.fontWeight,
+			lineHeight: this.editorOptions.configuration.resultEditor.lineHeight,
+			...this.currentCodeBlockData?.renderOptions?.editorOptions,
 		};
 	}
 
 	layout(width: number): void {
 		const contentHeight = this.getContentHeight();
 		const editorBorder = 2;
-		this.editor.layout({ width: width - editorBorder, height: contentHeight });
+		width = width - editorBorder - (this.currentCodeBlockData?.renderOptions?.reserveWidth ?? 0);
+		this.editor.layout({ width, height: contentHeight });
 		this.updatePaddingForLayout();
 	}
 
@@ -364,13 +377,13 @@ export class CodeBlockPart extends Disposable {
 		return this.editor.getContentHeight();
 	}
 
-	async render(data: ICodeBlockData, width: number, editable: boolean | undefined) {
+	async render(data: ICodeBlockData, width: number) {
 		this.currentCodeBlockData = data;
 		if (data.parentContextKeyService) {
 			this.contextKeyService.updateParent(data.parentContextKeyService);
 		}
 
-		if (this.options.configuration.resultEditor.wordWrap === 'on') {
+		if (this.getEditorOptionsFromConfig().wordWrap === 'on') {
 			// Initialize the editor with the new proper width so that getContentHeight
 			// will be computed correctly in the next call to layout()
 			this.layout(width);
@@ -382,14 +395,12 @@ export class CodeBlockPart extends Disposable {
 		}
 
 		this.layout(width);
-		if (editable) {
-			this.disposableStore.clear();
-			this.disposableStore.add(this.editor.onDidFocusEditorWidget(() => TabFocus.setTabFocusMode(true)));
-			this.disposableStore.add(this.editor.onDidBlurEditorWidget(() => TabFocus.setTabFocusMode(false)));
-		}
-		this.editor.updateOptions({ ariaLabel: localize('chat.codeBlockLabel', "Code block {0}", data.codeBlockIndex + 1), readOnly: !editable });
-
-		if (data.hideToolbar) {
+		this.editor.updateOptions({
+			...this.getEditorOptionsFromConfig(),
+			ariaLabel: localize('chat.codeBlockLabel', "Code block {0}", data.codeBlockIndex + 1),
+		});
+		this.toolbar.setAriaLabel(localize('chat.codeBlockToolbarLabel', "Toolbar for code block {0}", data.codeBlockIndex + 1));
+		if (data.renderOptions?.hideToolbar) {
 			dom.hide(this.toolbar.getElement());
 		} else {
 			dom.show(this.toolbar.getElement());
@@ -412,11 +423,11 @@ export class CodeBlockPart extends Disposable {
 
 	private clearWidgets() {
 		ContentHoverController.get(this.editor)?.hideContentHover();
-		GlyphHoverController.get(this.editor)?.hideContentHover();
+		GlyphHoverController.get(this.editor)?.hideGlyphHover();
 	}
 
 	private async updateEditor(data: ICodeBlockData): Promise<void> {
-		const textModel = (await data.textModel).textEditorModel;
+		const textModel = await data.textModel;
 		this.editor.setModel(textModel);
 		if (data.range) {
 			this.editor.setSelection(data.range);
@@ -528,7 +539,18 @@ export class CodeCompareBlockPart extends Disposable {
 		this.messageElement.tabIndex = 0;
 
 		this.contextKeyService = this._register(contextKeyService.createScoped(this.element));
-		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService])));
+		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection(
+			[IContextKeyService, this.contextKeyService],
+			[IEditorProgressService, new class implements IEditorProgressService {
+				_serviceBrand: undefined;
+				show(_total: unknown, _delay?: unknown) {
+					return emptyProgressRunner;
+				}
+				async showWhile(promise: Promise<unknown>, _delay?: number): Promise<void> {
+					await promise;
+				}
+			}],
+		)));
 		const editorHeader = dom.append(this.element, $('.interactive-result-header.show-file-icons'));
 		const editorElement = dom.append(this.element, $('.interactive-result-editor'));
 		this.diffEditor = this.createDiffEditor(scopedInstantiationService, editorElement, {
@@ -736,8 +758,8 @@ export class CodeCompareBlockPart extends Disposable {
 	private clearWidgets() {
 		ContentHoverController.get(this.diffEditor.getOriginalEditor())?.hideContentHover();
 		ContentHoverController.get(this.diffEditor.getModifiedEditor())?.hideContentHover();
-		GlyphHoverController.get(this.diffEditor.getOriginalEditor())?.hideContentHover();
-		GlyphHoverController.get(this.diffEditor.getModifiedEditor())?.hideContentHover();
+		GlyphHoverController.get(this.diffEditor.getOriginalEditor())?.hideGlyphHover();
+		GlyphHoverController.get(this.diffEditor.getModifiedEditor())?.hideGlyphHover();
 	}
 
 	private async updateEditor(data: ICodeCompareBlockData, token: CancellationToken): Promise<void> {
@@ -759,11 +781,11 @@ export class CodeCompareBlockPart extends Disposable {
 
 			let template: string;
 			if (data.edit.state.applied === 1) {
-				template = localize('chat.edits.1', "Made 1 change in [[``{0}``]]", uriLabel);
+				template = localize('chat.edits.1', "Applied 1 change in [[``{0}``]]", uriLabel);
 			} else if (data.edit.state.applied < 0) {
 				template = localize('chat.edits.rejected', "Edits in [[``{0}``]] have been rejected", uriLabel);
 			} else {
-				template = localize('chat.edits.N', "Made {0} changes in [[``{1}``]]", data.edit.state.applied, uriLabel);
+				template = localize('chat.edits.N', "Applied {0} changes in [[``{1}``]]", data.edit.state.applied, uriLabel);
 			}
 
 			const message = renderFormattedText(template, {
@@ -933,4 +955,6 @@ export class DefaultChatTextEditor {
 
 		response.setEditApplied(item, -1);
 	}
+
+
 }

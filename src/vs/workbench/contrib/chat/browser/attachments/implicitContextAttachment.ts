@@ -4,17 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { basename, dirname } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../nls.js';
-import { FileKind } from '../../../../../platform/files/common/files.js';
+import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { FileKind, IFileService } from '../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ResourceLabels } from '../../../../browser/labels.js';
+import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { IChatRequestImplicitVariableEntry } from '../../common/chatModel.js';
 
 export class ImplicitContextAttachmentWidget extends Disposable {
@@ -25,8 +33,14 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 	constructor(
 		private readonly attachment: IChatRequestImplicitVariableEntry,
 		private readonly resourceLabels: ResourceLabels,
-		@ILabelService private readonly labelService: ILabelService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@ILabelService private readonly labelService: ILabelService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IFileService private readonly fileService: IFileService,
+		@ILanguageService private readonly languageService: ILanguageService,
+		@IModelService private readonly modelService: IModelService,
 	) {
 		super();
 
@@ -70,6 +84,26 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		this.renderDisposables.add(toggleButton.onDidClick((e) => {
 			e.stopPropagation(); // prevent it from triggering the click handler on the parent immediately after rerendering
 			this.attachment.enabled = !this.attachment.enabled;
+		}));
+
+		// Context menu
+		const scopedContextKeyService = this.renderDisposables.add(this.contextKeyService.createScoped(this.domNode));
+
+		const resourceContextKey = this.renderDisposables.add(new ResourceContextKey(scopedContextKeyService, this.fileService, this.languageService, this.modelService));
+		resourceContextKey.set(file);
+
+		this.renderDisposables.add(dom.addDisposableListener(this.domNode, dom.EventType.CONTEXT_MENU, async domEvent => {
+			const event = new StandardMouseEvent(dom.getWindow(domEvent), domEvent);
+			dom.EventHelper.stop(domEvent, true);
+
+			this.contextMenuService.showContextMenu({
+				contextKeyService: scopedContextKeyService,
+				getAnchor: () => event,
+				getActions: () => {
+					const menu = this.menuService.getMenuActions(MenuId.ChatInputResourceAttachmentContext, scopedContextKeyService, { arg: file });
+					return getFlatContextMenuActions(menu);
+				},
+			});
 		}));
 	}
 }

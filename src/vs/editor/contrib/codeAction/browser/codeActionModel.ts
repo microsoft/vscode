@@ -6,24 +6,22 @@
 import { CancelablePromise, createCancelablePromise, TimeoutTimer } from '../../../../base/common/async.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
+import { Disposable, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IMarkerService } from '../../../../platform/markers/common/markers.js';
+import { IEditorProgressService, Progress } from '../../../../platform/progress/common/progress.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorOption, ShowLightbulbIconMode } from '../../../common/config/editorOptions.js';
 import { Position } from '../../../common/core/position.js';
 import { Selection } from '../../../common/core/selection.js';
 import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry.js';
 import { CodeActionProvider, CodeActionTriggerType } from '../../../common/languages.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { IMarkerService } from '../../../../platform/markers/common/markers.js';
-import { IEditorProgressService, Progress } from '../../../../platform/progress/common/progress.js';
 import { CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types.js';
 import { getCodeActions } from './codeAction.js';
-import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
-import { StopWatch } from '../../../../base/common/stopwatch.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 
 export const SUPPORTED_CODE_ACTIONS = new RawContextKey<string>('supportedCodeAction', '');
 
@@ -165,6 +163,8 @@ export class CodeActionModel extends Disposable {
 	private readonly _onDidChangeState = this._register(new Emitter<CodeActionsState.State>());
 	public readonly onDidChangeState = this._onDidChangeState.event;
 
+	private readonly codeActionsDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
+
 	private _disposed = false;
 
 	constructor(
@@ -174,7 +174,6 @@ export class CodeActionModel extends Disposable {
 		contextKeyService: IContextKeyService,
 		private readonly _progressService?: IEditorProgressService,
 		private readonly _configurationService?: IConfigurationService,
-		private readonly _telemetryService?: ITelemetryService
 	) {
 		super();
 		this._supportedCodeActions = SUPPORTED_CODE_ACTIONS.bindTo(contextKeyService);
@@ -235,6 +234,7 @@ export class CodeActionModel extends Disposable {
 						const codeActionSet = await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
 						const allCodeActions = [...codeActionSet.allActions];
 						if (token.isCancellationRequested) {
+							codeActionSet.dispose();
 							return emptyCodeActionSet;
 						}
 
@@ -247,9 +247,9 @@ export class CodeActionModel extends Disposable {
 									action.action.diagnostics = [...allMarkers.filter(marker => marker.relatedInformation)];
 								}
 							}
-							return { validActions: codeActionSet.validActions, allActions: allCodeActions, documentation: codeActionSet.documentation, hasAutoFix: codeActionSet.hasAutoFix, hasAIFix: codeActionSet.hasAIFix, allAIFixes: codeActionSet.allAIFixes, dispose: () => { codeActionSet.dispose(); } };
+							return { validActions: codeActionSet.validActions, allActions: allCodeActions, documentation: codeActionSet.documentation, hasAutoFix: codeActionSet.hasAutoFix, hasAIFix: codeActionSet.hasAIFix, allAIFixes: codeActionSet.allAIFixes, dispose: () => { this.codeActionsDisposable.value = codeActionSet; } };
 						} else if (!foundQuickfix) {
-							// If markers exists, and there are no quickfixes found or length is zero, check for quickfixes on that line.
+							// If markers exist, and there are no quickfixes found or length is zero, check for quickfixes on that line.
 							if (allMarkers.length > 0) {
 								const currPosition = trigger.selection.getPosition();
 								let trackedPosition = currPosition;
@@ -274,6 +274,10 @@ export class CodeActionModel extends Disposable {
 
 										const selectionAsPosition = new Selection(trackedPosition.lineNumber, trackedPosition.column, trackedPosition.lineNumber, trackedPosition.column);
 										const actionsAtMarker = await getCodeActions(this._registry, model, selectionAsPosition, newCodeActionTrigger, Progress.None, token);
+										if (token.isCancellationRequested) {
+											actionsAtMarker.dispose();
+											return emptyCodeActionSet;
+										}
 
 										if (actionsAtMarker.validActions.length !== 0) {
 											for (const action of actionsAtMarker.validActions) {
@@ -314,41 +318,22 @@ export class CodeActionModel extends Disposable {
 								});
 
 								// Only retriggers if actually found quickfix on the same line as cursor
-								return { validActions: filteredActions, allActions: allCodeActions, documentation: codeActionSet.documentation, hasAutoFix: codeActionSet.hasAutoFix, hasAIFix: codeActionSet.hasAIFix, allAIFixes: codeActionSet.allAIFixes, dispose: () => { codeActionSet.dispose(); } };
+								return { validActions: filteredActions, allActions: allCodeActions, documentation: codeActionSet.documentation, hasAutoFix: codeActionSet.hasAutoFix, hasAIFix: codeActionSet.hasAIFix, allAIFixes: codeActionSet.allAIFixes, dispose: () => { this.codeActionsDisposable.value = codeActionSet; } };
 							}
 						}
 					}
 
 					// Case for manual triggers - specifically Source Actions and Refactors
 					if (trigger.trigger.type === CodeActionTriggerType.Invoke) {
-						const sw = new StopWatch();
 						const codeActions = await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
-
-						// Telemetry for duration of each code action on save.
-						if (this._telemetryService) {
-							type RenderActionMenu = {
-								codeActions: number;
-								duration: number;
-							};
-
-							type RenderActionMenuClassification = {
-								owner: 'justschen';
-								comment: 'Information about how long it took for code actions to be received from the provider and shown in the UI.';
-								codeActions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of valid code actions received from TS.' };
-								duration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Duration it took for TS to return the action to run for each kind. ' };
-							};
-
-							this._telemetryService.publicLog2<RenderActionMenu, RenderActionMenuClassification>('codeAction.invokedDurations', {
-								codeActions: codeActions.validActions.length,
-								duration: sw.elapsed()
-							});
-						}
-
 						return codeActions;
 					}
 
-					return getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
+					const codeActionSet = await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
+					this.codeActionsDisposable.value = codeActionSet;
+					return codeActionSet;
 				});
+
 				if (trigger.trigger.type === CodeActionTriggerType.Invoke) {
 					this._progressService?.showWhile(actions, 250);
 				}
@@ -380,6 +365,7 @@ export class CodeActionModel extends Disposable {
 
 	public trigger(trigger: CodeActionTrigger) {
 		this._codeActionOracle.value?.trigger(trigger);
+		this.codeActionsDisposable.clear();
 	}
 
 	private setState(newState: CodeActionsState.State, skipNotify?: boolean) {

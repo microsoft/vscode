@@ -260,15 +260,32 @@ suite('MarkdownRenderer', () => {
 
 		test('test code, blockquote, heading, list, listitem, paragraph, table, tablerow, tablecell, strong, em, br, del, text are rendered plaintext', () => {
 			const markdown = { value: '`code`\n>quote\n# heading\n- list\n\ntable | table2\n--- | --- \none | two\n\n\nbo**ld**\n_italic_\n~~del~~\nsome text' };
-			const expected = 'code\nquote\nheading\nlist\n\ntable table2\none two\nbold\nitalic\ndel\nsome text\n';
+			const expected = 'code\nquote\nheading\nlist\n\ntable table2\none two\nbold\nitalic\ndel\nsome text';
 			const result: string = renderMarkdownAsPlaintext(markdown);
 			assert.strictEqual(result, expected);
 		});
 
 		test('test html, hr, image, link are rendered plaintext', () => {
 			const markdown = { value: '<div>html</div>\n\n---\n![image](imageLink)\n[text](textLink)' };
-			const expected = '\ntext\n';
+			const expected = 'text';
 			const result: string = renderMarkdownAsPlaintext(markdown);
+			assert.strictEqual(result, expected);
+		});
+
+		test(`Should not remove html inside of code blocks`, () => {
+			const markdown = {
+				value: [
+					'```html',
+					'<form>html</form>',
+					'```',
+				].join('\n')
+			};
+			const expected = [
+				'```',
+				'<form>html</form>',
+				'```',
+			].join('\n');
+			const result: string = renderMarkdownAsPlaintext(markdown, true);
 			assert.strictEqual(result, expected);
 		});
 	});
@@ -675,6 +692,27 @@ suite('MarkdownRenderer', () => {
 				const completeTokens = marked.marked.lexer(incomplete + '\`](https://microsoft.com)');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
+
+			test('list with incomplete subitem', () => {
+				const incomplete = `1. list item one
+	- `;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + '&nbsp;');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('list with incomplete nested subitem', () => {
+				const incomplete = `1. list item one
+	- item 2
+		- `;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + '&nbsp;');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
 		});
 
 		suite('codespan', () => {
@@ -814,7 +852,7 @@ suite('MarkdownRenderer', () => {
 			});
 
 			test('incomplete link target with incomplete arg 2', () => {
-				const incomplete = '[text](command:_github.copilot.openRelativePath "arg';
+				const incomplete = '[text](command:vscode.openRelativePath "arg';
 				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 

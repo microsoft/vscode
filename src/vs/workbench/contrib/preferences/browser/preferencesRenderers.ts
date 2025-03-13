@@ -40,7 +40,7 @@ import { IWorkspaceTrustManagementService } from '../../../../platform/workspace
 import { RangeHighlightDecorations } from '../../../browser/codeeditor.js';
 import { settingsEditIcon } from './preferencesIcons.js';
 import { EditPreferenceWidget } from './preferencesWidgets.js';
-import { APPLY_ALL_PROFILES_SETTING, IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
+import { APPLICATION_SCOPES, APPLY_ALL_PROFILES_SETTING, IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorModel, ISettingsGroup } from '../../../services/preferences/common/preferences.js';
 import { DefaultSettingsEditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel } from '../../../services/preferences/common/preferencesModels.js';
@@ -176,7 +176,7 @@ class EditSettingRenderer extends Disposable {
 	associatedPreferencesModel!: IPreferencesEditorModel<ISetting>;
 	private toggleEditPreferencesForMouseMoveDelayer: Delayer<void>;
 
-	private readonly _onUpdateSetting: Emitter<{ key: string; value: any; source: IIndexedSetting }> = new Emitter<{ key: string; value: any; source: IIndexedSetting }>();
+	private readonly _onUpdateSetting: Emitter<{ key: string; value: any; source: IIndexedSetting }> = this._register(new Emitter<{ key: string; value: any; source: IIndexedSetting }>());
 	readonly onUpdateSetting: Event<{ key: string; value: any; source: IIndexedSetting }> = this._onUpdateSetting.event;
 
 	constructor(private editor: ICodeEditor, private primarySettingsModel: ISettingsEditorModel,
@@ -187,8 +187,8 @@ class EditSettingRenderer extends Disposable {
 	) {
 		super();
 
-		this.editPreferenceWidgetForCursorPosition = <EditPreferenceWidget<IIndexedSetting>>this._register(this.instantiationService.createInstance(EditPreferenceWidget, editor));
-		this.editPreferenceWidgetForMouseMove = <EditPreferenceWidget<IIndexedSetting>>this._register(this.instantiationService.createInstance(EditPreferenceWidget, editor));
+		this.editPreferenceWidgetForCursorPosition = this._register(this.instantiationService.createInstance(EditPreferenceWidget<IIndexedSetting>, editor));
+		this.editPreferenceWidgetForMouseMove = this._register(this.instantiationService.createInstance(EditPreferenceWidget<IIndexedSetting>, editor));
 		this.toggleEditPreferencesForMouseMoveDelayer = new Delayer<void>(75);
 
 		this._register(this.editPreferenceWidgetForCursorPosition.onClick(e => this.onEditSettingClicked(this.editPreferenceWidgetForCursorPosition, e)));
@@ -623,7 +623,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 					message: nls.localize('defaultProfileSettingWhileNonDefaultActive', "This setting cannot be applied while a non-default profile is active. It will be applied when the default profile is active.")
 				});
 			} else if (isEqual(this.userDataProfileService.currentProfile.settingsResource, this.settingsEditorModel.uri)) {
-				if (configuration.scope === ConfigurationScope.APPLICATION) {
+				if (configuration.scope && APPLICATION_SCOPES.includes(configuration.scope)) {
 					// If we're in a profile setting file, and the setting is application-scoped, fade it out.
 					markerData.push(this.generateUnsupportedApplicationSettingMarker(setting));
 				} else if (this.configurationService.isSettingAppliedForAllProfiles(setting.key)) {
@@ -637,7 +637,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 				}
 			}
 		}
-		if (this.environmentService.remoteAuthority && (configuration.scope === ConfigurationScope.MACHINE || configuration.scope === ConfigurationScope.MACHINE_OVERRIDABLE)) {
+		if (this.environmentService.remoteAuthority && (configuration.scope === ConfigurationScope.MACHINE || configuration.scope === ConfigurationScope.APPLICATION_MACHINE || configuration.scope === ConfigurationScope.MACHINE_OVERRIDABLE)) {
 			markerData.push({
 				severity: MarkerSeverity.Hint,
 				tags: [MarkerTag.Unnecessary],
@@ -654,7 +654,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 	}
 
 	private handleWorkspaceConfiguration(setting: ISetting, configuration: IConfigurationPropertySchema, markerData: IMarkerData[]): void {
-		if (configuration.scope === ConfigurationScope.APPLICATION) {
+		if (configuration.scope && APPLICATION_SCOPES.includes(configuration.scope)) {
 			markerData.push(this.generateUnsupportedApplicationSettingMarker(setting));
 		}
 
@@ -671,7 +671,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 	}
 
 	private handleWorkspaceFolderConfiguration(setting: ISetting, configuration: IConfigurationPropertySchema, markerData: IMarkerData[]): void {
-		if (configuration.scope === ConfigurationScope.APPLICATION) {
+		if (configuration.scope && APPLICATION_SCOPES.includes(configuration.scope)) {
 			markerData.push(this.generateUnsupportedApplicationSettingMarker(setting));
 		}
 
@@ -787,7 +787,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 class WorkspaceConfigurationRenderer extends Disposable {
 	private static readonly supportedKeys = ['folders', 'tasks', 'launch', 'extensions', 'settings', 'remoteAuthority', 'transient'];
 
-	private readonly decorations = this.editor.createDecorationsCollection();
+	private readonly decorations: editorCommon.IEditorDecorationsCollection;
 	private renderingDelayer: Delayer<void> = new Delayer<void>(200);
 
 	constructor(private editor: ICodeEditor, private workspaceSettingsEditorModel: SettingsEditorModel,
@@ -795,6 +795,7 @@ class WorkspaceConfigurationRenderer extends Disposable {
 		@IMarkerService private readonly markerService: IMarkerService
 	) {
 		super();
+		this.decorations = this.editor.createDecorationsCollection();
 		this._register(this.editor.getModel()!.onDidChangeContent(() => this.renderingDelayer.trigger(() => this.render())));
 	}
 

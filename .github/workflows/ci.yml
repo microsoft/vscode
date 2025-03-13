@@ -299,6 +299,9 @@ jobs:
       - name: Run Valid Layers Checks
         run: npm run valid-layers-check
 
+      - name: Run Property Init Order Checks
+        run: npm run property-init-order-check
+
       - name: Compile /build/
         run: npm run compile
         working-directory: build

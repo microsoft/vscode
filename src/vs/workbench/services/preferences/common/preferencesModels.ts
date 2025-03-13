@@ -71,6 +71,7 @@ abstract class AbstractSettingsModel extends EditorModel {
 							setting,
 							matches: settingMatchResult && settingMatchResult.matches,
 							matchType: settingMatchResult?.matchType ?? SettingMatchType.None,
+							keyMatchScore: settingMatchResult?.keyMatchScore ?? 0,
 							score: settingMatchResult?.score ?? 0
 						});
 					}
@@ -95,7 +96,7 @@ abstract class AbstractSettingsModel extends EditorModel {
 		return undefined;
 	}
 
-	protected collectMetadata(groups: ISearchResultGroup[]): IStringDictionary<IFilterMetadata> {
+	protected collectMetadata(groups: ISearchResultGroup[]): IStringDictionary<IFilterMetadata> | null {
 		const metadata = Object.create(null);
 		let hasMetadata = false;
 		groups.forEach(g => {
@@ -208,7 +209,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 			allGroups: this.settingsGroups,
 			filteredGroups: filteredGroup ? [filteredGroup] : [],
 			matches,
-			metadata
+			metadata: metadata ?? undefined
 		};
 	}
 }
@@ -849,7 +850,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 				allGroups: this.settingsGroups,
 				filteredGroups,
 				matches,
-				metadata
+				metadata: metadata ?? undefined
 			} :
 			undefined;
 	}
@@ -899,6 +900,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 					setting: filteredMatch.setting,
 					score: filteredMatch.score,
 					matchType: filteredMatch.matchType,
+					keyMatchScore: filteredMatch.keyMatchScore,
 					matches: filteredMatch.matches && filteredMatch.matches.map(match => {
 						return new Range(
 							match.startLineNumber - filteredMatch.setting.range.startLineNumber,

@@ -578,8 +578,7 @@ export class DisableHighlightingInCommentsAction extends EditorAction implements
 	constructor() {
 		super({
 			id: DisableHighlightingOfAmbiguousCharactersAction.ID,
-			label: nls.localize('action.unicodeHighlight.disableHighlightingInComments', 'Disable highlighting of characters in comments'),
-			alias: 'Disable highlighting of characters in comments',
+			label: nls.localize2('action.unicodeHighlight.disableHighlightingInComments', "Disable highlighting of characters in comments"),
 			precondition: undefined
 		});
 	}
@@ -602,8 +601,7 @@ export class DisableHighlightingInStringsAction extends EditorAction implements 
 	constructor() {
 		super({
 			id: DisableHighlightingOfAmbiguousCharactersAction.ID,
-			label: nls.localize('action.unicodeHighlight.disableHighlightingInStrings', 'Disable highlighting of characters in strings'),
-			alias: 'Disable highlighting of characters in strings',
+			label: nls.localize2('action.unicodeHighlight.disableHighlightingInStrings', "Disable highlighting of characters in strings"),
 			precondition: undefined
 		});
 	}
@@ -626,8 +624,7 @@ export class DisableHighlightingOfAmbiguousCharactersAction extends EditorAction
 	constructor() {
 		super({
 			id: DisableHighlightingOfAmbiguousCharactersAction.ID,
-			label: nls.localize('action.unicodeHighlight.disableHighlightingOfAmbiguousCharacters', 'Disable highlighting of ambiguous characters'),
-			alias: 'Disable highlighting of ambiguous characters',
+			label: nls.localize2('action.unicodeHighlight.disableHighlightingOfAmbiguousCharacters', "Disable highlighting of ambiguous characters"),
 			precondition: undefined
 		});
 	}
@@ -650,8 +647,7 @@ export class DisableHighlightingOfInvisibleCharactersAction extends EditorAction
 	constructor() {
 		super({
 			id: DisableHighlightingOfInvisibleCharactersAction.ID,
-			label: nls.localize('action.unicodeHighlight.disableHighlightingOfInvisibleCharacters', 'Disable highlighting of invisible characters'),
-			alias: 'Disable highlighting of invisible characters',
+			label: nls.localize2('action.unicodeHighlight.disableHighlightingOfInvisibleCharacters', "Disable highlighting of invisible characters"),
 			precondition: undefined
 		});
 	}
@@ -674,8 +670,7 @@ export class DisableHighlightingOfNonBasicAsciiCharactersAction extends EditorAc
 	constructor() {
 		super({
 			id: DisableHighlightingOfNonBasicAsciiCharactersAction.ID,
-			label: nls.localize('action.unicodeHighlight.disableHighlightingOfNonBasicAsciiCharacters', 'Disable highlighting of non basic ASCII characters'),
-			alias: 'Disable highlighting of non basic ASCII characters',
+			label: nls.localize2('action.unicodeHighlight.disableHighlightingOfNonBasicAsciiCharacters', "Disable highlighting of non basic ASCII characters"),
 			precondition: undefined
 		});
 	}
@@ -704,8 +699,7 @@ export class ShowExcludeOptions extends EditorAction {
 	constructor() {
 		super({
 			id: ShowExcludeOptions.ID,
-			label: nls.localize('action.unicodeHighlight.showExcludeOptions', "Show Exclude Options"),
-			alias: 'Show Exclude Options',
+			label: nls.localize2('action.unicodeHighlight.showExcludeOptions', "Show Exclude Options"),
 			precondition: undefined
 		});
 	}

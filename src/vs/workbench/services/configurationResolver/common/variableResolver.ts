@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as paths from '../../../../base/common/path.js';
-import * as process from '../../../../base/common/process.js';
-import * as types from '../../../../base/common/types.js';
-import * as objects from '../../../../base/common/objects.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
-import { IProcessEnvironment, isWindows, isMacintosh, isLinux } from '../../../../base/common/platform.js';
 import { normalizeDriveLetter } from '../../../../base/common/labels.js';
-import { localize } from '../../../../nls.js';
-import { URI as uri } from '../../../../base/common/uri.js';
-import { IConfigurationResolverService, VariableError, VariableKind } from './configurationResolver.js';
-import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
-import { ILabelService } from '../../../../platform/label/common/label.js';
+import * as objects from '../../../../base/common/objects.js';
+import * as paths from '../../../../base/common/path.js';
+import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from '../../../../base/common/platform.js';
+import * as process from '../../../../base/common/process.js';
 import { replaceAsync } from '../../../../base/common/strings.js';
+import * as types from '../../../../base/common/types.js';
+import { URI as uri } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
+import { IConfigurationResolverService, VariableError, VariableKind } from './configurationResolver.js';
 
 interface IVariableResolveContext {
 	getFolderUri(folderName: string): uri | undefined;
@@ -27,6 +27,7 @@ interface IVariableResolveContext {
 	getWorkspaceFolderPathForFile?(): string | undefined;
 	getSelectedText(): string | undefined;
 	getLineNumber(): string | undefined;
+	getColumnNumber(): string | undefined;
 	getExtension(id: string): Promise<{ readonly extensionLocation: uri } | undefined>;
 }
 
@@ -68,14 +69,14 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		return envVariables;
 	}
 
-	public resolveWithEnvironment(environment: IProcessEnvironment, root: IWorkspaceFolder | undefined, value: string): Promise<string> {
+	public resolveWithEnvironment(environment: IProcessEnvironment, root: IWorkspaceFolderData | undefined, value: string): Promise<string> {
 		return this.recursiveResolve({ env: this.prepareEnv(environment), userHome: undefined }, root ? root.uri : undefined, value);
 	}
 
-	public async resolveAsync(root: IWorkspaceFolder | undefined, value: string): Promise<string>;
-	public async resolveAsync(root: IWorkspaceFolder | undefined, value: string[]): Promise<string[]>;
-	public async resolveAsync(root: IWorkspaceFolder | undefined, value: IStringDictionary<string>): Promise<IStringDictionary<string>>;
-	public async resolveAsync(root: IWorkspaceFolder | undefined, value: any): Promise<any> {
+	public async resolveAsync(root: IWorkspaceFolderData | undefined, value: string): Promise<string>;
+	public async resolveAsync(root: IWorkspaceFolderData | undefined, value: string[]): Promise<string[]>;
+	public async resolveAsync(root: IWorkspaceFolderData | undefined, value: IStringDictionary<string>): Promise<IStringDictionary<string>>;
+	public async resolveAsync(root: IWorkspaceFolderData | undefined, value: any): Promise<any> {
 		const environment: Environment = {
 			env: await this._envVariablesPromise,
 			userHome: await this._userHomePromise
@@ -83,7 +84,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		return this.recursiveResolve(environment, root ? root.uri : undefined, value);
 	}
 
-	private async resolveAnyBase(workspaceFolder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>, resolvedVariables?: Map<string, string>): Promise<any> {
+	private async resolveAnyBase(workspaceFolder: IWorkspaceFolderData | undefined, config: any, commandValueMapping?: IStringDictionary<string>, resolvedVariables?: Map<string, string>): Promise<any> {
 
 		const result = objects.deepClone(config);
 
@@ -109,21 +110,21 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		return this.recursiveResolve(environmentPromises, workspaceFolder ? workspaceFolder.uri : undefined, result, commandValueMapping, resolvedVariables);
 	}
 
-	public async resolveAnyAsync(workspaceFolder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>): Promise<any> {
+	public async resolveAnyAsync(workspaceFolder: IWorkspaceFolderData | undefined, config: any, commandValueMapping?: IStringDictionary<string>): Promise<any> {
 		return this.resolveAnyBase(workspaceFolder, config, commandValueMapping);
 	}
 
-	public async resolveAnyMap(workspaceFolder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>): Promise<{ newConfig: any; resolvedVariables: Map<string, string> }> {
+	public async resolveAnyMap(workspaceFolder: IWorkspaceFolderData | undefined, config: any, commandValueMapping?: IStringDictionary<string>): Promise<{ newConfig: any; resolvedVariables: Map<string, string> }> {
 		const resolvedVariables = new Map<string, string>();
 		const newConfig = await this.resolveAnyBase(workspaceFolder, config, commandValueMapping, resolvedVariables);
 		return { newConfig, resolvedVariables };
 	}
 
-	public resolveWithInteractionReplace(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>): Promise<any> {
+	public resolveWithInteractionReplace(folder: IWorkspaceFolderData | undefined, config: any, section?: string, variables?: IStringDictionary<string>): Promise<any> {
 		throw new Error('resolveWithInteractionReplace not implemented.');
 	}
 
-	public resolveWithInteraction(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>): Promise<Map<string, string> | undefined> {
+	public resolveWithInteraction(folder: IWorkspaceFolderData | undefined, config: any, section?: string, variables?: IStringDictionary<string>): Promise<Map<string, string> | undefined> {
 		throw new Error('resolveWithInteraction not implemented.');
 	}
 
@@ -306,6 +307,13 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 							return lineNumber;
 						}
 						throw new VariableError(VariableKind.LineNumber, localize('canNotResolveLineNumber', "Variable {0} can not be resolved. Make sure to have a line selected in the active editor.", match));
+					}
+					case 'columnNumber': {
+						const columnNumber = this._context.getColumnNumber();
+						if (columnNumber) {
+							return columnNumber;
+						}
+						throw new Error(localize('canNotResolveColumnNumber', "Variable {0} can not be resolved. Make sure to have a column selected in the active editor.", match));
 					}
 					case 'selectedText': {
 						const selectedText = this._context.getSelectedText();

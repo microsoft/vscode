@@ -140,7 +140,7 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 	id: Markers.MARKERS_VIEW_ID,
 	containerIcon: markersViewIcon,
 	name: Messages.MARKERS_PANEL_TITLE_PROBLEMS,
-	canToggleVisibility: false,
+	canToggleVisibility: true,
 	canMoveView: true,
 	ctorDescriptor: new SyncDescriptor(MarkersView),
 	openCommandActionDescriptor: {

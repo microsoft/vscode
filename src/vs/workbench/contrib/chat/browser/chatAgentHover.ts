@@ -17,8 +17,8 @@ import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { getFullyQualifiedId, IChatAgentData, IChatAgentNameService, IChatAgentService } from '../common/chatAgents.js';
 import { showExtensionsWithIdsCommandId } from '../../extensions/browser/extensionsActions.js';
-import { verifiedPublisherIcon } from '../../extensions/browser/extensionsIcons.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
+import { verifiedPublisherIcon } from '../../../services/extensionManagement/common/extensionsIcons.js';
 
 export class ChatAgentHover extends Disposable {
 	public readonly domNode: HTMLElement;

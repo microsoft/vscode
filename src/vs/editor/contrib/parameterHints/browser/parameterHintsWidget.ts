@@ -26,8 +26,6 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { listHighlightForeground, registerColor } from '../../../../platform/theme/common/colorRegistry.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { StopWatch } from '../../../../base/common/stopwatch.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 
 const $ = dom.$;
 
@@ -62,12 +60,11 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		private readonly model: ParameterHintsModel,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService openerService: IOpenerService,
-		@ILanguageService languageService: ILanguageService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILanguageService languageService: ILanguageService
 	) {
 		super();
 
-		this.markdownRenderer = this._register(new MarkdownRenderer({ editor }, languageService, openerService));
+		this.markdownRenderer = new MarkdownRenderer({ editor }, languageService, openerService);
 
 		this.keyVisible = Context.Visible.bindTo(contextKeyService);
 		this.keyMultipleSignatures = Context.MultipleSignatures.bindTo(contextKeyService);
@@ -275,30 +272,12 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 	}
 
 	private renderMarkdownDocs(markdown: IMarkdownString | undefined): IMarkdownRenderResult {
-		const stopWatch = new StopWatch();
 		const renderedContents = this.renderDisposeables.add(this.markdownRenderer.render(markdown, {
 			asyncRenderCallback: () => {
 				this.domNodes?.scrollbar.scanDomNode();
 			}
 		}));
 		renderedContents.element.classList.add('markdown-docs');
-
-		type RenderMarkdownPerformanceClassification = {
-			owner: 'donjayamanne';
-			comment: 'Measure the time taken to render markdown for parameter hints';
-			renderDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Time in ms to render the markdown' };
-		};
-
-		type RenderMarkdownPerformanceEvent = {
-			renderDuration: number;
-		};
-		const renderDuration = stopWatch.elapsed();
-		if (renderDuration > 300) {
-			this.telemetryService.publicLog2<RenderMarkdownPerformanceEvent, RenderMarkdownPerformanceClassification>('parameterHints.parseMarkdown', {
-				renderDuration
-			});
-		}
-
 		return renderedContents;
 	}
 

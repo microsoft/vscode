@@ -6,7 +6,7 @@
 import { localize, localize2 } from '../../../../nls.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContributionsRegistry, registerWorkbenchContribution2, Extensions as WorkbenchExtensions, WorkbenchPhase } from '../../../common/contributions.js';
-import { DirtyDiffWorkbenchController } from './dirtydiffDecorator.js';
+import { QuickDiffWorkbenchController } from './quickDiffDecorator.js';
 import { VIEWLET_ID, ISCMService, VIEW_PANE_ID, ISCMProvider, ISCMViewService, REPOSITORIES_VIEW_PANE_ID, HISTORY_VIEW_PANE_ID } from '../common/scm.js';
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { MenuRegistry, MenuId } from '../../../../platform/actions/common/actions.js';
@@ -38,8 +38,13 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IListService, WorkbenchList } from '../../../../platform/list/browser/listService.js';
 import { isSCMRepository } from './util.js';
 import { SCMHistoryViewPane } from './scmHistoryViewPane.js';
-import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
+import { QuickDiffModelService, IQuickDiffModelService } from './quickDiffModel.js';
+import { QuickDiffEditorController } from './quickDiffWidget.js';
+import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
 import { RemoteNameContext } from '../../../common/contextkeys.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { SCMAccessibilityHelp } from './scmAccessibilityHelp.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 
 ModesRegistry.registerLanguage({
 	id: 'scminput',
@@ -49,7 +54,10 @@ ModesRegistry.registerLanguage({
 });
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(DirtyDiffWorkbenchController, LifecyclePhase.Restored);
+	.registerWorkbenchContribution(QuickDiffWorkbenchController, LifecyclePhase.Restored);
+
+registerEditorContribution(QuickDiffEditorController.ID,
+	QuickDiffEditorController, EditorContributionInstantiation.AfterFirstRender);
 
 const sourceControlViewIcon = registerIcon('source-control-view-icon', Codicon.sourceControl, localize('sourceControlViewIcon', 'View icon of the Source Control view.'));
 
@@ -65,6 +73,7 @@ const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensio
 }, ViewContainerLocation.Sidebar, { doNotRegisterOpenCommand: true });
 
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
+const containerTitle = localize('source control view', "Source Control");
 
 viewsRegistry.registerViewWelcomeContent(VIEW_PANE_ID, {
 	content: localize('no open repo', "No source control providers registered."),
@@ -88,7 +97,9 @@ viewsRegistry.registerViewWelcomeContent(HISTORY_VIEW_PANE_ID, {
 
 viewsRegistry.registerViews([{
 	id: REPOSITORIES_VIEW_PANE_ID,
-	name: localize2('source control repositories', "Source Control Repositories"),
+	containerTitle,
+	name: localize2('scmRepositories', "Repositories"),
+	singleViewPaneContainerTitle: localize('source control repositories', "Source Control Repositories"),
 	ctorDescriptor: new SyncDescriptor(SCMRepositoriesViewPane),
 	canToggleVisibility: true,
 	hideByDefault: true,
@@ -102,7 +113,9 @@ viewsRegistry.registerViews([{
 
 viewsRegistry.registerViews([{
 	id: VIEW_PANE_ID,
-	name: localize2('source control', 'Source Control'),
+	containerTitle,
+	name: localize2('scmChanges', 'Changes'),
+	singleViewPaneContainerTitle: containerTitle,
 	ctorDescriptor: new SyncDescriptor(SCMViewPane),
 	canToggleVisibility: true,
 	canMoveView: true,
@@ -124,21 +137,17 @@ viewsRegistry.registerViews([{
 
 viewsRegistry.registerViews([{
 	id: HISTORY_VIEW_PANE_ID,
-	name: localize2('source control history', "Source Control Graph"),
+	containerTitle,
+	name: localize2('scmGraph', "Graph"),
+	singleViewPaneContainerTitle: localize('source control graph', "Source Control Graph"),
 	ctorDescriptor: new SyncDescriptor(SCMHistoryViewPane),
 	canToggleVisibility: true,
 	canMoveView: true,
 	weight: 40,
 	order: 2,
 	when: ContextKeyExpr.and(
-		// Repository Count
-		ContextKeyExpr.and(
-			ContextKeyExpr.has('scm.providerCount'),
-			ContextKeyExpr.notEquals('scm.providerCount', 0)),
-		// Not Serverless
-		ContextKeyExpr.and(
-			IsWebContext,
-			RemoteNameContext.isEqualTo(''))?.negate()
+		ContextKeyExpr.has('scm.historyProviderCount'),
+		ContextKeyExpr.notEquals('scm.historyProviderCount', 0),
 	),
 	containerIcon: sourceControlViewIcon
 }], viewContainer);
@@ -417,7 +426,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'scm.clearInput',
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(ContextKeyExpr.has('scmRepository'), SuggestContext.Visible.toNegated()),
+	when: ContextKeyExpr.and(ContextKeyExpr.has('scmRepository'), SuggestContext.Visible.toNegated(), EditorContextKeys.hasNonEmptySelection.toNegated()),
 	primary: KeyCode.Escape,
 	handler: async (accessor) => {
 		const scmService = accessor.get(ISCMService);
@@ -531,7 +540,12 @@ MenuRegistry.appendMenuItem(MenuId.SCMSourceControl, {
 		id: 'scm.openInTerminal',
 		title: localize('open in external terminal', "Open in External Terminal")
 	},
-	when: ContextKeyExpr.and(ContextKeyExpr.equals('scmProviderHasRootUri', true), ContextKeyExpr.or(ContextKeyExpr.equals('config.terminal.sourceControlRepositoriesKind', 'external'), ContextKeyExpr.equals('config.terminal.sourceControlRepositoriesKind', 'both')))
+	when: ContextKeyExpr.and(
+		RemoteNameContext.isEqualTo(''),
+		ContextKeyExpr.equals('scmProviderHasRootUri', true),
+		ContextKeyExpr.or(
+			ContextKeyExpr.equals('config.terminal.sourceControlRepositoriesKind', 'external'),
+			ContextKeyExpr.equals('config.terminal.sourceControlRepositoriesKind', 'both')))
 });
 
 MenuRegistry.appendMenuItem(MenuId.SCMSourceControl, {
@@ -540,7 +554,11 @@ MenuRegistry.appendMenuItem(MenuId.SCMSourceControl, {
 		id: 'scm.openInIntegratedTerminal',
 		title: localize('open in integrated terminal', "Open in Integrated Terminal")
 	},
-	when: ContextKeyExpr.and(ContextKeyExpr.equals('scmProviderHasRootUri', true), ContextKeyExpr.or(ContextKeyExpr.equals('config.terminal.sourceControlRepositoriesKind', 'integrated'), ContextKeyExpr.equals('config.terminal.sourceControlRepositoriesKind', 'both')))
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.equals('scmProviderHasRootUri', true),
+		ContextKeyExpr.or(
+			ContextKeyExpr.equals('config.terminal.sourceControlRepositoriesKind', 'integrated'),
+			ContextKeyExpr.equals('config.terminal.sourceControlRepositoriesKind', 'both')))
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -596,3 +614,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 registerSingleton(ISCMService, SCMService, InstantiationType.Delayed);
 registerSingleton(ISCMViewService, SCMViewService, InstantiationType.Delayed);
 registerSingleton(IQuickDiffService, QuickDiffService, InstantiationType.Delayed);
+registerSingleton(IQuickDiffModelService, QuickDiffModelService, InstantiationType.Delayed);
+
+AccessibleViewRegistry.register(new SCMAccessibilityHelp());

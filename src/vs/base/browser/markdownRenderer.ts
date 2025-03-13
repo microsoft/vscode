@@ -113,7 +113,8 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		// The defaults are applied by parse but not lexer()/parser(), and they need to be present
 		const opts: MarkedOptions = {
 			...marked.defaults,
-			...markedOptions
+			...markedOptions,
+			renderer
 		};
 		const tokens = marked.lexer(value, opts);
 		const newTokens = fillInIncompleteTokens(tokens);
@@ -555,8 +556,11 @@ export function renderStringAsPlaintext(string: IMarkdownString | string) {
 }
 
 /**
- * Strips all markdown from `markdown`. For example `# Header` would be output as `Header`.
- * provide @param withCodeBlocks to retain code blocks
+ * Strips all markdown from `markdown`
+ *
+ * For example `# Header` would be output as `Header`.
+ *
+ * @param withCodeBlocks Include the ``` of code blocks as well
  */
 export function renderMarkdownAsPlaintext(markdown: IMarkdownString, withCodeBlocks?: boolean) {
 	// values that are too long will freeze the UI
@@ -566,7 +570,10 @@ export function renderMarkdownAsPlaintext(markdown: IMarkdownString, withCodeBlo
 	}
 
 	const html = marked.parse(value, { async: false, renderer: withCodeBlocks ? plainTextWithCodeBlocksRenderer.value : plainTextRenderer.value });
-	return sanitizeRenderedMarkdown({ isTrusted: false }, html).toString().replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m);
+	return sanitizeRenderedMarkdown({ isTrusted: false }, html)
+		.toString()
+		.replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m)
+		.trim();
 }
 
 const unescapeInfo = new Map<string, string>([
@@ -578,11 +585,11 @@ const unescapeInfo = new Map<string, string>([
 	['&gt;', '>'],
 ]);
 
-function createRenderer(): marked.Renderer {
+function createPlainTextRenderer(): marked.Renderer {
 	const renderer = new marked.Renderer();
 
 	renderer.code = ({ text }: marked.Tokens.Code): string => {
-		return text;
+		return escape(text);
 	};
 	renderer.blockquote = ({ text }: marked.Tokens.Blockquote): string => {
 		return text + '\n';
@@ -621,7 +628,7 @@ function createRenderer(): marked.Renderer {
 		return text;
 	};
 	renderer.codespan = ({ text }: marked.Tokens.Codespan): string => {
-		return text;
+		return escape(text);
 	};
 	renderer.br = (_: marked.Tokens.Br): string => {
 		return '\n';
@@ -640,11 +647,12 @@ function createRenderer(): marked.Renderer {
 	};
 	return renderer;
 }
-const plainTextRenderer = new Lazy<marked.Renderer>((withCodeBlocks?: boolean) => createRenderer());
+const plainTextRenderer = new Lazy<marked.Renderer>(createPlainTextRenderer);
+
 const plainTextWithCodeBlocksRenderer = new Lazy<marked.Renderer>(() => {
-	const renderer = createRenderer();
+	const renderer = createPlainTextRenderer();
 	renderer.code = ({ text }: marked.Tokens.Code): string => {
-		return `\n\`\`\`\n${text}\n\`\`\`\n`;
+		return `\n\`\`\`\n${escape(text)}\n\`\`\`\n`;
 	};
 	return renderer;
 });
@@ -764,9 +772,25 @@ function completeListItemPattern(list: marked.Tokens.List): marked.Tokens.List |
 		codespan
 	*/
 
+	const listEndsInHeading = (list: marked.Tokens.List): boolean => {
+		// A list item can be rendered as a heading for some reason when it has a subitem where we haven't rendered the text yet like this:
+		// 1. list item
+		//    -
+		const lastItem = list.items.at(-1);
+		const lastToken = lastItem?.tokens.at(-1);
+		return lastToken?.type === 'heading' || lastToken?.type === 'list' && listEndsInHeading(lastToken as marked.Tokens.List);
+	};
+
 	let newToken: marked.Token | undefined;
 	if (lastListSubToken?.type === 'text' && !('inRawBlock' in lastListItem)) { // Why does Tag have a type of 'text'
 		newToken = completeSingleLinePattern(lastListSubToken as marked.Tokens.Text);
+	} else if (listEndsInHeading(list)) {
+		const newList = marked.lexer(list.raw.trim() + ' &nbsp;')[0] as marked.Tokens.List;
+		if (newList.type !== 'list') {
+			// Something went wrong
+			return;
+		}
+		return newList;
 	}
 
 	if (!newToken || newToken.type !== 'paragraph') { // 'text' item inside the list item turns into paragraph

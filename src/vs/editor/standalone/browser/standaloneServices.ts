@@ -712,7 +712,8 @@ export class StandaloneConfigurationService implements IConfigurationService {
 			defaults: emptyModel,
 			policy: emptyModel,
 			application: emptyModel,
-			user: emptyModel,
+			userLocal: emptyModel,
+			userRemote: emptyModel,
 			workspace: emptyModel,
 			folders: []
 		};

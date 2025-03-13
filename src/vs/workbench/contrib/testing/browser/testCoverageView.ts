@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IIdentityProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { ICompressedTreeElement, ICompressedTreeNode } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
 import { ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/objectTree.js';
@@ -24,7 +25,9 @@ import { Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { getActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { Action2, IMenuService, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -37,22 +40,21 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { WorkbenchCompressibleObjectTree } from '../../../../platform/list/browser/listService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IResourceLabel, ResourceLabels } from '../../../browser/labels.js';
 import { IViewPaneOptions, ViewAction, ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { IViewDescriptorService } from '../../../common/views.js';
-import * as coverUtils from './codeCoverageDisplayUtils.js';
-import { testingStatesToIcons, testingWasCovered } from './icons.js';
-import { CoverageBarSource, ManagedTestCoverageBars } from './testCoverageBars.js';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { TestCommandId, Testing } from '../common/constants.js';
 import { onObservableChange } from '../common/observableUtils.js';
 import { BypassedFileCoverage, ComputedFileCoverage, FileCoverage, TestCoverage, getTotalCoveragePercent } from '../common/testCoverage.js';
 import { ITestCoverageService } from '../common/testCoverageService.js';
 import { TestId } from '../common/testId.js';
 import { TestingContextKeys } from '../common/testingContextKeys.js';
-import { CoverageDetails, DetailType, ICoverageCount, IDeclarationCoverage, TestResultState } from '../common/testTypes.js';
-import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import { CoverageDetails, DetailType, ICoverageCount, IDeclarationCoverage, ITestItem, TestResultState } from '../common/testTypes.js';
+import * as coverUtils from './codeCoverageDisplayUtils.js';
+import { testingStatesToIcons, testingWasCovered } from './icons.js';
+import { CoverageBarSource, ManagedTestCoverageBars } from './testCoverageBars.js';
 
 const enum CoverageSortOrder {
 	Coverage,
@@ -74,11 +76,10 @@ export class TestCoverageView extends ViewPane {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@ITestCoverageService private readonly coverageService: ITestCoverageService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -94,13 +95,6 @@ export class TestCoverageView extends ViewPane {
 			} else {
 				this.tree.clear();
 			}
-		}));
-
-		this._register(autorun(reader => {
-			this.element.classList.toggle(
-				'coverage-view-is-filtered',
-				!!this.coverageService.filterToTest.read(reader),
-			);
 		}));
 	}
 
@@ -197,6 +191,16 @@ class RevealUncoveredDeclarations {
 	constructor(public readonly n: number) { }
 }
 
+class CurrentlyFilteredTo {
+	public readonly id = String(fnNodeId++);
+
+	public get label() {
+		return localize('filteredToTest', "Showing coverage for \"{0}\"", this.testItem.label);
+	}
+
+	constructor(public readonly testItem: ITestItem) { }
+}
+
 class LoadingDetails {
 	public readonly id = String(fnNodeId++);
 	public readonly label = localize('loadingCoverageDetails', "Loading Coverage Details...");
@@ -204,7 +208,7 @@ class LoadingDetails {
 
 /** Type of nodes returned from {@link TestCoverage}. Note: value is *always* defined. */
 type TestCoverageFileNode = IPrefixTreeNode<ComputedFileCoverage | FileCoverage>;
-type CoverageTreeElement = TestCoverageFileNode | DeclarationCoverageNode | LoadingDetails | RevealUncoveredDeclarations;
+type CoverageTreeElement = TestCoverageFileNode | DeclarationCoverageNode | LoadingDetails | RevealUncoveredDeclarations | CurrentlyFilteredTo;
 
 const isFileCoverage = (c: CoverageTreeElement): c is TestCoverageFileNode => typeof c === 'object' && 'value' in c;
 const isDeclarationCoverage = (c: CoverageTreeElement): c is DeclarationCoverageNode => c instanceof DeclarationCoverageNode;
@@ -221,11 +225,14 @@ class TestCoverageTree extends Disposable {
 		sortOrder: IObservable<CoverageSortOrder>,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IEditorService editorService: IEditorService,
+		@ICommandService commandService: ICommandService,
 	) {
 		super();
 
-		this.tree = <WorkbenchCompressibleObjectTree<CoverageTreeElement, void>>instantiationService.createInstance(
-			WorkbenchCompressibleObjectTree,
+		container.classList.add('testing-stdtree');
+
+		this.tree = instantiationService.createInstance(
+			WorkbenchCompressibleObjectTree<CoverageTreeElement, void>,
 			'TestCoverageView',
 			container,
 			new TestCoverageTreeListDelegate(),
@@ -233,6 +240,7 @@ class TestCoverageTree extends Disposable {
 				instantiationService.createInstance(FileCoverageRenderer, labels),
 				instantiationService.createInstance(DeclarationCoverageRenderer),
 				instantiationService.createInstance(BasicRenderer),
+				instantiationService.createInstance(CurrentlyFilteredToRenderer),
 			],
 			{
 				expandOnlyOnTwistieClick: true,
@@ -289,6 +297,9 @@ class TestCoverageTree extends Disposable {
 				} else if (isDeclarationCoverage(e.element)) {
 					resource = e.element.uri;
 					selection = e.element.location;
+				} else if (e.element instanceof CurrentlyFilteredTo) {
+					commandService.executeCommand(TestCommandId.CoverageFilterToTest);
+					return;
 				}
 			}
 			if (!resource) {
@@ -351,7 +362,19 @@ class TestCoverageTree extends Disposable {
 			}
 		}));
 
-		this.tree.setChildren(null, Iterable.map(files, toChild));
+		let children = Iterable.map(files, toChild);
+		const filteredTo = showOnlyTest && coverage.result.getTestById(showOnlyTest.toString());
+		if (filteredTo) {
+			children = Iterable.concat(
+				Iterable.single<ICompressedTreeElement<CoverageTreeElement>>({
+					element: new CurrentlyFilteredTo(filteredTo),
+					incompressible: true,
+				}),
+				children,
+			);
+		}
+
+		this.tree.setChildren(null, children);
 	}
 
 	public layout(height: number, width: number) {
@@ -409,6 +432,9 @@ class TestCoverageTreeListDelegate implements IListVirtualDelegate<CoverageTreeE
 		if (element instanceof LoadingDetails || element instanceof RevealUncoveredDeclarations) {
 			return BasicRenderer.ID;
 		}
+		if (element instanceof CurrentlyFilteredTo) {
+			return CurrentlyFilteredToRenderer.ID;
+		}
 		assertNever(element);
 	}
 }
@@ -448,6 +474,51 @@ class Sorter implements ITreeSorter<CoverageTreeElement> {
 	}
 }
 
+interface IFilteredToTemplate {
+	label: HTMLElement;
+	actions: ActionBar;
+}
+
+class CurrentlyFilteredToRenderer implements ICompressibleTreeRenderer<CoverageTreeElement, FuzzyScore, IFilteredToTemplate> {
+	public static readonly ID = 'C';
+	public readonly templateId = CurrentlyFilteredToRenderer.ID;
+
+	constructor(
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+	) { }
+
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<CoverageTreeElement>, FuzzyScore>, index: number, templateData: IFilteredToTemplate, height: number | undefined): void {
+		this.renderInner(node.element.elements[node.element.elements.length - 1] as CurrentlyFilteredTo, templateData);
+	}
+
+	renderTemplate(container: HTMLElement): IFilteredToTemplate {
+		container.classList.add('testing-stdtree-container');
+		const label = dom.append(container, dom.$('.label'));
+		const menu = this.menuService.getMenuActions(MenuId.TestCoverageFilterItem, this.contextKeyService, {
+			shouldForwardArgs: true,
+		});
+
+		const actions = new ActionBar(container);
+		actions.push(getActionBarActions(menu, 'inline').primary, { icon: true, label: false });
+		actions.domNode.style.display = 'block';
+
+		return { label, actions };
+	}
+
+	renderElement(element: ITreeNode<CoverageTreeElement, FuzzyScore>, index: number, templateData: IFilteredToTemplate, height: number | undefined): void {
+		this.renderInner(element.element as CurrentlyFilteredTo, templateData);
+	}
+
+	disposeTemplate(templateData: IFilteredToTemplate): void {
+		templateData.actions.dispose();
+	}
+
+	private renderInner(element: CurrentlyFilteredTo, container: IFilteredToTemplate) {
+		container.label.innerText = element.label;
+	}
+}
+
 interface FileTemplateData {
 	container: HTMLElement;
 	bars: ManagedTestCoverageBars;
@@ -469,7 +540,7 @@ class FileCoverageRenderer implements ICompressibleTreeRenderer<CoverageTreeElem
 	/** @inheritdoc */
 	public renderTemplate(container: HTMLElement): FileTemplateData {
 		const templateDisposables = new DisposableStore();
-		container.classList.add('test-coverage-list-item');
+		container.classList.add('testing-stdtree-container', 'test-coverage-list-item');
 
 		return {
 			container,
@@ -518,7 +589,7 @@ class FileCoverageRenderer implements ICompressibleTreeRenderer<CoverageTreeElem
 			fileKind: stat.children?.size ? FileKind.FOLDER : FileKind.FILE,
 			matches: createMatches(filterData),
 			separator: this.labelService.getSeparator(file.uri.scheme, file.uri.authority),
-			extraClasses: ['test-coverage-list-item-label'],
+			extraClasses: ['label'],
 		});
 	}
 }
@@ -542,9 +613,10 @@ class DeclarationCoverageRenderer implements ICompressibleTreeRenderer<CoverageT
 	/** @inheritdoc */
 	public renderTemplate(container: HTMLElement): DeclarationTemplateData {
 		const templateDisposables = new DisposableStore();
-		container.classList.add('test-coverage-list-item');
+		container.classList.add('test-coverage-list-item', 'testing-stdtree-container');
+
 		const icon = dom.append(container, dom.$('.state'));
-		const label = dom.append(container, dom.$('.name'));
+		const label = dom.append(container, dom.$('.label'));
 
 		return {
 			container,
@@ -626,6 +698,7 @@ registerAction2(class TestCoverageChangePerTestFilterAction extends Action2 {
 			},
 			menu: [
 				{ id: MenuId.CommandPalette, when: TestingContextKeys.hasPerTestCoverage },
+				{ id: MenuId.TestCoverageFilterItem, group: 'inline' },
 				{
 					id: MenuId.ViewTitle,
 					when: ContextKeyExpr.and(TestingContextKeys.hasPerTestCoverage, ContextKeyExpr.equals('view', Testing.CoverageViewId)),

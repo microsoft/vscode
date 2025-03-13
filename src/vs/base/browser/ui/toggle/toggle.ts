@@ -266,6 +266,10 @@ export class Checkbox extends Widget {
 		return this.checkbox.checked;
 	}
 
+	get enabled(): boolean {
+		return this.checkbox.enabled;
+	}
+
 	set checked(newIsChecked: boolean) {
 		this.checkbox.checked = newIsChecked;
 

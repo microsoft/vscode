@@ -14,7 +14,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IKeyMods } from '../../../../platform/quickinput/common/quickInput.js';
 import { IMarkProperties, ITerminalCapabilityImplMap, ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IMergedEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariable.js';
-import { IExtensionTerminalProfile, IReconnectionProperties, IShellIntegration, IShellLaunchConfig, ITerminalBackend, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalShellType, TerminalType, TitleEventSource, WaitOnExitValue } from '../../../../platform/terminal/common/terminal.js';
+import { IExtensionTerminalProfile, IReconnectionProperties, IShellIntegration, IShellLaunchConfig, ITerminalBackend, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalShellType, TerminalType, TitleEventSource, WaitOnExitValue, type IDecorationAddon } from '../../../../platform/terminal/common/terminal.js';
 import { IColorTheme } from '../../../../platform/theme/common/themeService.js';
 import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -31,6 +31,7 @@ import type { ICurrentPartialCommand } from '../../../../platform/terminal/commo
 import type { IXtermCore } from './xterm-private.js';
 import type { IMenu } from '../../../../platform/actions/common/actions.js';
 import type { Barrier } from '../../../../base/common/async.js';
+import type { IProgressState } from '@xterm/addon-progress';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalConfigurationService = createDecorator<ITerminalConfigurationService>('terminalConfigurationService');
@@ -275,6 +276,8 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	readonly onAnyInstanceProcessIdReady: Event<ITerminalInstance>;
 	readonly onAnyInstanceSelectionChange: Event<ITerminalInstance>;
 	readonly onAnyInstanceTitleChange: Event<ITerminalInstance>;
+	readonly onAnyInstanceShellTypeChanged: Event<ITerminalInstance>;
+	readonly onAnyInstanceAddedCapabilityType: Event<TerminalCapability>;
 
 	/**
 	 * Creates a terminal.
@@ -610,6 +613,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	readonly processName: string;
 	readonly sequence?: string;
 	readonly staticTitle?: string;
+	readonly progressState?: IProgressState;
 	readonly workspaceFolder?: IWorkspaceFolder;
 	readonly cwd?: string;
 	readonly initialCwd?: string;
@@ -970,7 +974,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 
 	/**
 	 * Sets the terminal instance's dimensions to the values provided via the onDidOverrideDimensions event,
-	 * which allows overriding the the regular dimensions (fit to the size of the panel).
+	 * which allows overriding the regular dimensions (fit to the size of the panel).
 	 */
 	setOverrideDimensions(dimensions: ITerminalDimensions): void;
 
@@ -1063,6 +1067,8 @@ export interface IXtermTerminal extends IDisposable {
 	 */
 	readonly shellIntegration: IShellIntegration;
 
+	readonly decorationAddon: IDecorationAddon;
+
 	readonly onDidChangeSelection: Event<void>;
 	readonly onDidChangeFindResults: Event<{ resultIndex: number; resultCount: number }>;
 	readonly onDidRequestRunCommand: Event<{ command: ITerminalCommand; noNewLine?: boolean }>;
@@ -1092,6 +1098,11 @@ export interface IXtermTerminal extends IDisposable {
 	 * Whether a canvas-based renderer is being used.
 	 */
 	readonly isGpuAccelerated: boolean;
+
+	/**
+	 * The last `onData` input event fired by {@link RawXtermTerminal.onData}.
+	 */
+	readonly lastInputEvent: string | undefined;
 
 	/**
 	 * Attached the terminal to the given element

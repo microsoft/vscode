@@ -87,6 +87,7 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		this._container.classList.add('monaco-dropdown-with-primary');
 		const primaryContainer = DOM.$('.action-container');
 		primaryContainer.role = 'button';
+		primaryContainer.ariaDisabled = String(!this.action.enabled);
 		this._primaryAction.render(DOM.append(this._container, primaryContainer));
 		this._dropdownContainer = DOM.$('.dropdown-action-container');
 		this._dropdown.render(DOM.append(this._container, this._dropdownContainer));
@@ -143,7 +144,7 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 	update(dropdownAction: IAction, dropdownMenuActions: IAction[], dropdownIcon?: string): void {
 		this._dropdown.dispose();
 		this._dropdown = new DropdownMenuActionViewItem(dropdownAction, dropdownMenuActions, this._contextMenuProvider, {
-			menuAsChild: true,
+			menuAsChild: this._options?.menuAsChild ?? true,
 			classNames: ['codicon', dropdownIcon || 'codicon-chevron-down'],
 			actionRunner: this._options?.actionRunner,
 			hoverDelegate: this._options?.hoverDelegate,
@@ -152,6 +153,10 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		if (this._dropdownContainer) {
 			this._dropdown.render(this._dropdownContainer);
 		}
+	}
+
+	showDropdown(): void {
+		this._dropdown.show();
 	}
 
 	override dispose() {

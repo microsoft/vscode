@@ -19,7 +19,6 @@ import { IUserDataProfilesService } from '../../userDataProfile/common/userDataP
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { Mutable, isObject, isString, isUndefined } from '../../../base/common/types.js';
 import { getErrorMessage } from '../../../base/common/errors.js';
-import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 
 interface IStoredProfileExtension {
 	identifier: IExtensionIdentifier;
@@ -85,7 +84,7 @@ export interface IExtensionsProfileScannerService {
 	scanProfileExtensions(profileLocation: URI, options?: IProfileExtensionsScanOptions): Promise<IScannedProfileExtension[]>;
 	addExtensionsToProfile(extensions: [IExtension, Metadata | undefined][], profileLocation: URI, keepExistingVersions?: boolean): Promise<IScannedProfileExtension[]>;
 	updateMetadata(extensions: [IExtension, Metadata | undefined][], profileLocation: URI): Promise<IScannedProfileExtension[]>;
-	removeExtensionFromProfile(extension: IExtension, profileLocation: URI): Promise<void>;
+	removeExtensionsFromProfile(extensions: IExtensionIdentifier[], profileLocation: URI): Promise<void>;
 }
 
 export abstract class AbstractExtensionsProfileScannerService extends Disposable implements IExtensionsProfileScannerService {
@@ -110,7 +109,6 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 		@IFileService private readonly fileService: IFileService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
@@ -193,13 +191,13 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 		return updatedExtensions;
 	}
 
-	async removeExtensionFromProfile(extension: IExtension, profileLocation: URI): Promise<void> {
+	async removeExtensionsFromProfile(extensions: IExtensionIdentifier[], profileLocation: URI): Promise<void> {
 		const extensionsToRemove: IScannedProfileExtension[] = [];
 		try {
 			await this.withProfileExtensions(profileLocation, profileExtensions => {
 				const result: IScannedProfileExtension[] = [];
 				for (const e of profileExtensions) {
-					if (areSameExtensions(e.identifier, extension.identifier)) {
+					if (extensions.some(extension => areSameExtensions(e.identifier, extension))) {
 						extensionsToRemove.push(e);
 					} else {
 						result.push(e);
@@ -244,13 +242,13 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 			}
 			if (storedProfileExtensions) {
 				if (!Array.isArray(storedProfileExtensions)) {
-					this.reportAndThrowInvalidConentError(file);
+					this.throwInvalidConentError(file);
 				}
 				// TODO @sandy081: Remove this migration after couple of releases
 				let migrate = false;
 				for (const e of storedProfileExtensions) {
 					if (!isStoredProfileExtension(e)) {
-						this.reportAndThrowInvalidConentError(file);
+						this.throwInvalidConentError(file);
 					}
 					let location: URI;
 					if (isString(e.relativeLocation) && e.relativeLocation) {
@@ -272,8 +270,9 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 						migrate = true;
 						e.metadata.hasPreReleaseVersion = true;
 					}
+					const uuid = e.metadata?.id ?? e.identifier.uuid;
 					extensions.push({
-						identifier: e.identifier,
+						identifier: uuid ? { id: e.identifier.id, uuid } : { id: e.identifier.id },
 						location,
 						version: e.version,
 						metadata: e.metadata,
@@ -302,15 +301,8 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 		});
 	}
 
-	private reportAndThrowInvalidConentError(file: URI): void {
-		type ErrorClassification = {
-			owner: 'sandy081';
-			comment: 'Information about the error that occurred while scanning';
-			code: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'error code' };
-		};
-		const error = new ExtensionsProfileScanningError(`Invalid extensions content in ${file.toString()}`, ExtensionsProfileScanningErrorCode.ERROR_INVALID_CONTENT);
-		this.telemetryService.publicLogError2<{ code: string }, ErrorClassification>('extensionsProfileScanningError', { code: error.code });
-		throw error;
+	private throwInvalidConentError(file: URI): void {
+		throw new ExtensionsProfileScanningError(`Invalid extensions content in ${file.toString()}`, ExtensionsProfileScanningErrorCode.ERROR_INVALID_CONTENT);
 	}
 
 	private toRelativePath(extensionLocation: URI): string | undefined {

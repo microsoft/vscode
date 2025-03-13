@@ -10,7 +10,7 @@ import * as viewEvents from '../../../common/viewEvents.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import type { ViewGpuContext } from '../../gpu/viewGpuContext.js';
 import type { IObjectCollectionBufferEntry } from '../../gpu/objectCollectionBuffer.js';
-import type { RectangleRendererEntrySpec } from '../../gpu/rectangleRenderer.js';
+import type { RectangleRenderer, RectangleRendererEntrySpec } from '../../gpu/rectangleRenderer.js';
 import { Color } from '../../../../base/common/color.js';
 import { editorRuler } from '../../../common/core/editorColorRegistry.js';
 import { autorun, type IReader } from '../../../../base/common/observable.js';
@@ -57,7 +57,7 @@ export class RulersGpu extends ViewPart {
 			const ruler = rulers[i];
 			const shape = this._gpuShapes[i];
 			const color = ruler.color ? Color.fromHex(ruler.color) : this._context.theme.getColor(editorRuler) ?? Color.white;
-			const rulerData = [
+			const rulerData: Parameters<RectangleRenderer['register']> = [
 				ruler.column * typicalHalfwidthCharacterWidth * devicePixelRatio,
 				0,
 				Math.max(1, Math.ceil(devicePixelRatio)),
@@ -66,7 +66,7 @@ export class RulersGpu extends ViewPart {
 				color.rgba.g / 255,
 				color.rgba.b / 255,
 				color.rgba.a,
-			] as const;
+			];
 			if (!shape) {
 				this._gpuShapes[i] = this._viewGpuContext.rectangleRenderer.register(...rulerData);
 			} else {

@@ -25,7 +25,6 @@ import { FuzzyScore } from '../../../../base/common/filters.js';
 import { basename } from '../../../../base/common/resources.js';
 import { IViewDescriptorService } from '../../../common/views.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { OutlineViewState } from './outlineViewState.js';
 import { IOutline, IOutlineComparator, IOutlineService, OutlineTarget } from '../../../services/outline/browser/outline.js';
 import { EditorResourceAccessor, IEditorPane } from '../../../common/editor.js';
@@ -34,7 +33,7 @@ import { Event } from '../../../../base/common/event.js';
 import { ITreeSorter } from '../../../../base/browser/ui/tree/tree.js';
 import { AbstractTreeViewState, IAbstractTreeViewState, TreeFindMode } from '../../../../base/browser/ui/tree/abstractTree.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ctxAllCollapsed, ctxFilterOnType, ctxFollowsCursor, ctxSortMode, IOutlinePane, OutlineSortOrder } from './outline.js';
+import { ctxAllCollapsed, ctxFilterOnType, ctxFocused, ctxFollowsCursor, ctxSortMode, IOutlinePane, OutlineSortOrder } from './outline.js';
 import { defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
@@ -94,10 +93,9 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, hoverService);
 		this._outlineViewState.restore(this._storageService);
 		this._disposables.add(this._outlineViewState);
 
@@ -126,8 +124,10 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 	}
 
 	override focus(): void {
-		super.focus();
-		this._tree?.domFocus();
+		this._editorControlChangePromise.then(() => {
+			super.focus();
+			this._tree?.domFocus();
+		});
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -197,17 +197,18 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 		return false;
 	}
 
+	private _editorControlChangePromise: Promise<void> = Promise.resolve();
 	private _handleEditorChanged(pane: IEditorPane | undefined): void {
 		this._editorPaneDisposables.clear();
 
 		if (pane) {
 			// react to control changes from within pane (https://github.com/microsoft/vscode/issues/134008)
 			this._editorPaneDisposables.add(pane.onDidChangeControl(() => {
-				this._handleEditorControlChanged(pane);
+				this._editorControlChangePromise = this._handleEditorControlChanged(pane);
 			}));
 		}
 
-		this._handleEditorControlChanged(pane);
+		this._editorControlChangePromise = this._handleEditorControlChanged(pane);
 	}
 
 	private async _handleEditorControlChanged(pane: IEditorPane | undefined): Promise<void> {
@@ -251,8 +252,8 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 
 		const sorter = new OutlineTreeSorter(newOutline.config.comparator, this._outlineViewState.sortBy);
 
-		const tree = <WorkbenchDataTree<IOutline<any> | undefined, any, FuzzyScore>>this._instantiationService.createInstance(
-			WorkbenchDataTree,
+		const tree = this._instantiationService.createInstance(
+			WorkbenchDataTree<IOutline<any> | undefined, any, FuzzyScore>,
 			'OutlinePane',
 			this._treeContainer,
 			newOutline.config.delegate,
@@ -269,6 +270,8 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 				overrideStyles: this.getLocationBasedColors().listOverrideStyles
 			}
 		);
+
+		ctxFocused.bindTo(tree.contextKeyService);
 
 		// update tree, listen to changes
 		const updateTree = () => {

@@ -129,8 +129,7 @@ export class CursorUndo extends EditorAction {
 	constructor() {
 		super({
 			id: 'cursorUndo',
-			label: nls.localize('cursor.undo', "Cursor Undo"),
-			alias: 'Cursor Undo',
+			label: nls.localize2('cursor.undo', "Cursor Undo"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
@@ -149,8 +148,7 @@ export class CursorRedo extends EditorAction {
 	constructor() {
 		super({
 			id: 'cursorRedo',
-			label: nls.localize('cursor.redo', "Cursor Redo"),
-			alias: 'Cursor Redo',
+			label: nls.localize2('cursor.redo', "Cursor Redo"),
 			precondition: undefined
 		});
 	}

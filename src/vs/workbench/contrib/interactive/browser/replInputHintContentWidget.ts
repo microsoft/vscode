@@ -17,7 +17,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
-import { InteractiveWindowSetting } from './interactiveCommon.js';
+import { ReplEditorSettings } from './interactiveCommon.js';
 
 
 export class ReplInputHintContentWidget extends Disposable implements IContentWidget {
@@ -46,7 +46,7 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 			}
 		}));
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(InteractiveWindowSetting.executeWithShiftEnter)) {
+			if (e.affectsConfiguration(ReplEditorSettings.executeWithShiftEnter)) {
 				this.setHint();
 			}
 		}));
@@ -127,7 +127,7 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 
 	private getKeybinding() {
 		const keybindings = this.keybindingService.lookupKeybindings('interactive.execute');
-		const shiftEnterConfig = this.configurationService.getValue(InteractiveWindowSetting.executeWithShiftEnter);
+		const shiftEnterConfig = this.configurationService.getValue(ReplEditorSettings.executeWithShiftEnter);
 		const hasEnterChord = (kb: ResolvedKeybinding, modifier: string = '') => {
 			const chords = kb.getDispatchChords();
 			const chord = modifier + 'Enter';

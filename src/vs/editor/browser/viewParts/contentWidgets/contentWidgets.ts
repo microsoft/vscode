@@ -5,7 +5,7 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { FastDomNode, createFastDomNode } from '../../../../base/browser/fastDomNode.js';
-import { ContentWidgetPositionPreference, IContentWidget } from '../../editorBrowser.js';
+import { ContentWidgetPositionPreference, IContentWidget, IContentWidgetRenderedCoordinate } from '../../editorBrowser.js';
 import { PartFingerprint, PartFingerprints, ViewPart } from '../../view/viewPart.js';
 import { RenderingContext, RestrictedRenderingContext } from '../../view/renderingContext.js';
 import { ViewContext } from '../../../common/viewModel/viewContext.js';
@@ -567,7 +567,7 @@ class Widget {
 			}
 
 			if (typeof this._actual.afterRender === 'function') {
-				safeInvoke(this._actual.afterRender, this._actual, null);
+				safeInvoke(this._actual.afterRender, this._actual, null, null);
 			}
 			return;
 		}
@@ -588,7 +588,7 @@ class Widget {
 		}
 
 		if (typeof this._actual.afterRender === 'function') {
-			safeInvoke(this._actual.afterRender, this._actual, this._renderData.position);
+			safeInvoke(this._actual.afterRender, this._actual, this._renderData.position, this._renderData.coordinate);
 		}
 	}
 }
@@ -600,7 +600,7 @@ class PositionPair {
 	) { }
 }
 
-class Coordinate {
+class Coordinate implements IContentWidgetRenderedCoordinate {
 	_coordinateBrand: void = undefined;
 
 	constructor(

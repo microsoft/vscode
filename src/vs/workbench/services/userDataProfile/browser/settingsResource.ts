@@ -81,7 +81,7 @@ export class SettingsResource implements IProfileResource {
 
 	private getIgnoredSettings(): string[] {
 		const allSettings = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
-		const ignoredSettings = Object.keys(allSettings).filter(key => allSettings[key]?.scope === ConfigurationScope.MACHINE || allSettings[key]?.scope === ConfigurationScope.MACHINE_OVERRIDABLE);
+		const ignoredSettings = Object.keys(allSettings).filter(key => allSettings[key]?.scope === ConfigurationScope.MACHINE || allSettings[key]?.scope === ConfigurationScope.APPLICATION_MACHINE || allSettings[key]?.scope === ConfigurationScope.MACHINE_OVERRIDABLE);
 		return ignoredSettings;
 	}
 

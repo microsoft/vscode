@@ -7,14 +7,15 @@ import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, type ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatCodeBlockContextProviderService, showChatView } from '../../../chat/browser/chat.js';
-import { IChatProgress, IChatService } from '../../../chat/common/chatService.js';
+import { IChatService } from '../../../chat/common/chatService.js';
 import { isDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { TerminalChatWidget } from './terminalChatWidget.js';
 
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import type { ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
+import type { IChatModel } from '../../../chat/common/chatModel.js';
 
 export class TerminalChatController extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.chat';
@@ -45,22 +46,16 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		return this._lastResponseContent;
 	}
 
-	private _terminalAgentName = 'terminal';
-
 	get scopedContextKeyService(): IContextKeyService {
 		return this._terminalChatWidget?.value.inlineChatWidget.scopedContextKeyService ?? this._contextKeyService;
 	}
 
-	private _currentRequestId: string | undefined;
-
 	constructor(
 		private readonly _ctx: ITerminalContributionContext,
 		@IChatCodeBlockContextProviderService chatCodeBlockContextProviderService: IChatCodeBlockContextProviderService,
-		@IChatService private readonly _chatService: IChatService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IViewsService private readonly _viewsService: IViewsService,
 	) {
 		super();
 
@@ -142,39 +137,25 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	}
 
 	async viewInChat(): Promise<void> {
-		//TODO: is this necessary? better way?
-		const widget = await showChatView(this._viewsService);
-		const currentRequest = this.terminalChatWidget?.inlineChatWidget.chatWidget.viewModel?.model.getRequests().find(r => r.id === this._currentRequestId);
-		if (!widget || !currentRequest?.response) {
-			return;
+		const chatModel = this.terminalChatWidget?.inlineChatWidget.chatWidget.viewModel?.model;
+		if (chatModel) {
+			await this._instantiationService.invokeFunction(moveToPanelChat, chatModel);
 		}
-
-		const message: IChatProgress[] = [];
-		for (const item of currentRequest.response.response.value) {
-			if (item.kind === 'textEditGroup') {
-				for (const group of item.edits) {
-					message.push({
-						kind: 'textEdit',
-						edits: group,
-						uri: item.uri
-					});
-				}
-			} else {
-				message.push(item);
-			}
-		}
-
-		this._chatService.addCompleteRequest(widget!.viewModel!.sessionId,
-			// DEBT: Add hardcoded agent name until its removed
-			`@${this._terminalAgentName} ${currentRequest.message.text}`,
-			currentRequest.variableData,
-			currentRequest.attempt,
-			{
-				message,
-				result: currentRequest.response!.result,
-				followups: currentRequest.response!.followups
-			});
-		widget.focusLastMessage();
 		this._terminalChatWidget?.rawValue?.hide();
+	}
+}
+
+async function moveToPanelChat(accessor: ServicesAccessor, model: IChatModel | undefined) {
+
+	const viewsService = accessor.get(IViewsService);
+	const chatService = accessor.get(IChatService);
+
+	const widget = await showChatView(viewsService);
+
+	if (widget && widget.viewModel && model) {
+		for (const request of model.getRequests().slice()) {
+			await chatService.adoptRequest(widget.viewModel.model.sessionId, request);
+		}
+		widget.focusLastMessage();
 	}
 }

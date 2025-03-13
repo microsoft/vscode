@@ -8,16 +8,16 @@ import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { MenuRegistry, MenuId, registerAction2, Action2, IMenuItem, IAction2Options } from '../../../../platform/actions/common/actions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { ExtensionsLocalizedLabel, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource } from '../../../../platform/extensionManagement/common/extensionManagement.js';
-import { EnablementState, IExtensionManagementServerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService, extensionsConfigurationNodeBase } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { ExtensionsLocalizedLabel, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, UseUnpkgResourceApiConfigKey, AllowedExtensionsConfigKey, SortBy, FilterType } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { EnablementState, IExtensionManagementServerService, IPublisherInfo, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
-import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID, IWorkspaceRecommendedExtensionsView, AutoUpdateConfigurationKey, HasOutdatedExtensionsContext, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, ExtensionEditorTab, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, OUTDATED_EXTENSIONS_VIEW_ID, CONTEXT_HAS_GALLERY, extensionsSearchActionsMenu, UPDATE_ACTIONS_GROUP, IExtensionArg, ExtensionRuntimeActionType } from '../common/extensions.js';
-import { ReinstallAction, InstallSpecificVersionOfExtensionAction, ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, SetColorThemeAction, SetFileIconThemeAction, SetProductIconThemeAction, ClearLanguageAction, ToggleAutoUpdateForExtensionAction, ToggleAutoUpdatesForPublisherAction, TogglePreReleaseExtensionAction, InstallAnotherVersionAction, InstallAction } from './extensionsActions.js';
+import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID, IWorkspaceRecommendedExtensionsView, AutoUpdateConfigurationKey, HasOutdatedExtensionsContext, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, ExtensionEditorTab, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, OUTDATED_EXTENSIONS_VIEW_ID, CONTEXT_HAS_GALLERY, extensionsSearchActionsMenu, UPDATE_ACTIONS_GROUP, IExtensionArg, ExtensionRuntimeActionType, EXTENSIONS_CATEGORY, AutoRestartConfigurationKey } from '../common/extensions.js';
+import { InstallSpecificVersionOfExtensionAction, ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, SetColorThemeAction, SetFileIconThemeAction, SetProductIconThemeAction, ClearLanguageAction, ToggleAutoUpdateForExtensionAction, ToggleAutoUpdatesForPublisherAction, TogglePreReleaseExtensionAction, InstallAnotherVersionAction, InstallAction } from './extensionsActions.js';
 import { ExtensionsInput } from '../common/extensionsInput.js';
 import { ExtensionEditor } from './extensionEditor.js';
-import { StatusUpdater, MaliciousExtensionChecker, ExtensionsViewletViewsContribution, ExtensionsViewPaneContainer, BuiltInExtensionsContext, SearchMarketplaceExtensionsContext, RecommendedExtensionsContext, DefaultViewsContext, ExtensionsSortByContext, SearchHasTextContext } from './extensionsViewlet.js';
+import { StatusUpdater, MaliciousExtensionChecker, ExtensionsViewletViewsContribution, ExtensionsViewPaneContainer, BuiltInExtensionsContext, SearchMarketplaceExtensionsContext, RecommendedExtensionsContext, DefaultViewsContext, ExtensionsSortByContext, SearchHasTextContext, ExtensionsSearchValueContext } from './extensionsViewlet.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
 import * as jsonContributionRegistry from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { ExtensionsConfigurationSchema, ExtensionsConfigurationSchemaId } from '../common/extensionsFileTemplate.js';
@@ -58,7 +58,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { ShowRuntimeExtensionsAction } from './abstractRuntimeExtensionsEditor.js';
 import { ExtensionEnablementWorkspaceTrustTransitionParticipant } from './extensionEnablementWorkspaceTrustTransitionParticipant.js';
 import { clearSearchResultsIcon, configureRecommendedIcon, extensionsViewIcon, filterIcon, installWorkspaceRecommendedIcon, refreshIcon } from './extensionsIcons.js';
-import { EXTENSION_CATEGORIES } from '../../../../platform/extensions/common/extensions.js';
+import { EXTENSION_CATEGORIES, ExtensionType } from '../../../../platform/extensions/common/extensions.js';
 import { Disposable, DisposableStore, IDisposable, isDisposable } from '../../../../base/common/lifecycle.js';
 import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { mnemonicButtonLabel } from '../../../../base/common/labels.js';
@@ -69,14 +69,17 @@ import { ExtensionsCompletionItemsProvider } from './extensionsCompletionItemsPr
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { Event } from '../../../../base/common/event.js';
 import { UnsupportedExtensionsMigrationContrib } from './unsupportedExtensionsMigrationContribution.js';
-import { isLinux, isNative, isWeb } from '../../../../base/common/platform.js';
+import { isNative, isWeb } from '../../../../base/common/platform.js';
 import { ExtensionStorageService } from '../../../../platform/extensionManagement/common/extensionStorage.js';
-import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { CONTEXT_KEYBINDINGS_EDITOR } from '../../preferences/common/preferences.js';
 import { ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IConfigurationMigrationRegistry, Extensions as ConfigurationMigrationExtensions } from '../../../common/configuration.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import product from '../../../../platform/product/common/product.js';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService, InstantiationType.Eager /* Auto updates extensions */);
@@ -121,7 +124,10 @@ Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegis
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({
-		...extensionsConfigurationNodeBase,
+		id: 'extensions',
+		order: 30,
+		title: localize('extensionsConfigurationTitle', "Extensions"),
+		type: 'object',
 		properties: {
 			'extensions.autoUpdate': {
 				enum: [true, 'onlyEnabledExtensions', false,],
@@ -258,7 +264,83 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				description: localize('extensions.verifySignature', "When enabled, extensions are verified to be signed before getting installed."),
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
-				included: isNative && !isLinux
+				included: isNative
+			},
+			[AutoRestartConfigurationKey]: {
+				type: 'boolean',
+				description: localize('autoRestart', "If activated, extensions will automatically restart following an update if the window is not in focus. There can be a data loss if you have open Notebooks or Custom Editors."),
+				default: false,
+				included: product.quality !== 'stable'
+			},
+			[UseUnpkgResourceApiConfigKey]: {
+				type: 'boolean',
+				description: localize('extensions.gallery.useUnpkgResourceApi', "When enabled, extensions to update are fetched from Unpkg service."),
+				default: true,
+				scope: ConfigurationScope.APPLICATION,
+				tags: ['onExp', 'usesOnlineServices']
+			},
+			[AllowedExtensionsConfigKey]: {
+				// Note: Type is set only to object because to support policies generation during build time, where single type is expected.
+				type: 'object',
+				markdownDescription: localize('extensions.allowed', "Specify a list of extensions that are allowed to use. This helps maintain a secure and consistent development environment by restricting the use of unauthorized extensions. For more information on how to configure this setting, please visit the [Configure Allowed Extensions](https://code.visualstudio.com/docs/setup/enterprise#_configure-allowed-extensions) section."),
+				default: '*',
+				defaultSnippets: [{
+					body: {},
+					description: localize('extensions.allowed.none', "No extensions are allowed."),
+				}, {
+					body: {
+						'*': true
+					},
+					description: localize('extensions.allowed.all', "All extensions are allowed."),
+				}],
+				scope: ConfigurationScope.APPLICATION,
+				policy: {
+					name: 'AllowedExtensions',
+					minimumVersion: '1.96',
+				},
+				additionalProperties: false,
+				patternProperties: {
+					'([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
+						anyOf: [
+							{
+								type: ['boolean', 'string'],
+								enum: [true, false, 'stable'],
+								description: localize('extensions.allow.description', "Allow or disallow the extension."),
+								enumDescriptions: [
+									localize('extensions.allowed.enable.desc', "Extension is allowed."),
+									localize('extensions.allowed.disable.desc', "Extension is not allowed."),
+									localize('extensions.allowed.disable.stable.desc', "Allow only stable versions of the extension."),
+								],
+							},
+							{
+								type: 'array',
+								items: {
+									type: 'string',
+								},
+								description: localize('extensions.allow.version.description', "Allow or disallow specific versions of the extension. To specifcy a platform specific version, use the format `platform@1.2.3`, e.g. `win32-x64@1.2.3`. Supported platforms are `win32-x64`, `win32-arm64`, `linux-x64`, `linux-arm64`, `linux-armhf`, `alpine-x64`, `alpine-arm64`, `darwin-x64`, `darwin-arm64`"),
+							},
+						]
+					},
+					'([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
+						type: ['boolean', 'string'],
+						enum: [true, false, 'stable'],
+						description: localize('extension.publisher.allow.description', "Allow or disallow all extensions from the publisher."),
+						enumDescriptions: [
+							localize('extensions.publisher.allowed.enable.desc', "All extensions from the publisher are allowed."),
+							localize('extensions.publisher.allowed.disable.desc', "All extensions from the publisher are not allowed."),
+							localize('extensions.publisher.allowed.disable.stable.desc', "Allow only stable versions of the extensions from the publisher."),
+						],
+					},
+					'\\*': {
+						type: 'boolean',
+						enum: [true, false],
+						description: localize('extensions.allow.all.description', "Allow or disallow all extensions."),
+						enumDescriptions: [
+							localize('extensions.allow.all.enable', "Allow all extensions."),
+							localize('extensions.allow.all.disable', "Disallow all extensions.")
+						],
+					}
+				}
 			}
 		}
 	});
@@ -381,7 +463,7 @@ CommandsRegistry.registerCommand({
 				}
 			} else {
 				const vsix = URI.revive(arg);
-				await extensionsWorkbenchService.install(vsix, { installOnlyNewlyAddedFromExtensionPack: options?.installOnlyNewlyAddedFromExtensionPackVSIX, installGivenVersion: true });
+				await extensionsWorkbenchService.install(vsix, { installGivenVersion: true });
 			}
 		} catch (e) {
 			onUnexpectedError(e);
@@ -464,6 +546,9 @@ overrideActionForActiveExtensionEditorWebview(PasteAction, webview => webview.pa
 export const CONTEXT_HAS_LOCAL_SERVER = new RawContextKey<boolean>('hasLocalServer', false);
 export const CONTEXT_HAS_REMOTE_SERVER = new RawContextKey<boolean>('hasRemoteServer', false);
 export const CONTEXT_HAS_WEB_SERVER = new RawContextKey<boolean>('hasWebServer', false);
+const CONTEXT_GALLERY_SORT_CAPABILITIES = new RawContextKey<string>('gallerySortCapabilities', '');
+const CONTEXT_GALLERY_FILTER_CAPABILITIES = new RawContextKey<string>('galleryFilterCapabilities', '');
+const CONTEXT_GALLERY_ALL_REPOSITORY_SIGNED = new RawContextKey<boolean>('galleryAllRepositorySigned', false);
 
 async function runAction(action: IAction): Promise<void> {
 	try {
@@ -484,14 +569,15 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 	constructor(
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
-		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 		const hasGalleryContext = CONTEXT_HAS_GALLERY.bindTo(contextKeyService);
@@ -514,9 +600,17 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			hasWebServerContext.set(true);
 		}
 
+		this.registerGalleryCapabilitiesContexts();
 		this.registerGlobalActions();
 		this.registerContextMenuActions();
 		this.registerQuickAccessProvider();
+	}
+
+	private async registerGalleryCapabilitiesContexts(): Promise<void> {
+		const capabilities = await this.extensionGalleryService.getCapabilities();
+		CONTEXT_GALLERY_SORT_CAPABILITIES.bindTo(this.contextKeyService).set(`_${capabilities.query.sortBy.join('_')}_UpdateDate_`);
+		CONTEXT_GALLERY_FILTER_CAPABILITIES.bindTo(this.contextKeyService).set(`_${capabilities.query.filters.join('_')}_`);
+		CONTEXT_GALLERY_ALL_REPOSITORY_SIGNED.bindTo(this.contextKeyService).set(capabilities.allRepositorySigned);
 	}
 
 	private registerQuickAccessProvider(): void {
@@ -822,7 +916,8 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (requireReload) {
 					notificationService.prompt(
 						Severity.Info,
-						localize('InstallVSIXAction.successReload', "Completed installing extension from VSIX. Please reload Visual Studio Code to enable it."),
+						vsixs.length > 1 ? localize('InstallVSIXs.successReload', "Completed installing extensions. Please reload Visual Studio Code to enable them.")
+							: localize('InstallVSIXAction.successReload', "Completed installing extension. Please reload Visual Studio Code to enable it."),
 						[{
 							label: localize('InstallVSIXAction.reloadNow', "Reload Now"),
 							run: () => hostService.reload()
@@ -832,7 +927,8 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				else if (requireRestart) {
 					notificationService.prompt(
 						Severity.Info,
-						localize('InstallVSIXAction.successRestart', "Completed installing extension from VSIX. Please restart extensions to enable it."),
+						vsixs.length > 1 ? localize('InstallVSIXs.successRestart', "Completed installing extensions. Please restart extensions to enable them.")
+							: localize('InstallVSIXAction.successRestart', "Completed installing extension. Please restart extensions to enable it."),
 						[{
 							label: localize('InstallVSIXAction.restartExtensions', "Restart Extensions"),
 							run: () => extensionsWorkbenchService.updateRunningExtensions()
@@ -842,7 +938,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				else {
 					notificationService.prompt(
 						Severity.Info,
-						localize('InstallVSIXAction.successNoReload', "Completed installing extension."),
+						vsixs.length > 1 ? localize('InstallVSIXs.successNoReload', "Completed installing extensions.") : localize('InstallVSIXAction.successNoReload', "Completed installing extension."),
 						[]
 					);
 				}
@@ -909,16 +1005,17 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		});
 
 		const showFeaturedExtensionsId = 'extensions.filter.featured';
+		const featuresExtensionsWhenContext = ContextKeyExpr.and(CONTEXT_HAS_GALLERY, ContextKeyExpr.regex(CONTEXT_GALLERY_FILTER_CAPABILITIES.key, new RegExp(`_${FilterType.Featured}_`)));
 		this.registerExtensionAction({
 			id: showFeaturedExtensionsId,
 			title: localize2('showFeaturedExtensions', 'Show Featured Extensions'),
 			category: ExtensionsLocalizedLabel,
 			menu: [{
 				id: MenuId.CommandPalette,
-				when: CONTEXT_HAS_GALLERY
+				when: featuresExtensionsWhenContext
 			}, {
 				id: extensionsFilterSubMenu,
-				when: CONTEXT_HAS_GALLERY,
+				when: featuresExtensionsWhenContext,
 				group: '1_predefined',
 				order: 1,
 			}],
@@ -989,7 +1086,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		MenuRegistry.appendMenuItem(extensionsFilterSubMenu, {
 			submenu: extensionsCategoryFilterSubMenu,
 			title: localize('filter by category', "Category"),
-			when: CONTEXT_HAS_GALLERY,
+			when: ContextKeyExpr.and(CONTEXT_HAS_GALLERY, ContextKeyExpr.regex(CONTEXT_GALLERY_FILTER_CAPABILITIES.key, new RegExp(`_${FilterType.Category}_`))),
 			group: '2_categories',
 			order: 1,
 		});
@@ -1108,19 +1205,20 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		});
 
 		[
-			{ id: 'installs', title: localize('sort by installs', "Install Count"), precondition: BuiltInExtensionsContext.negate() },
-			{ id: 'rating', title: localize('sort by rating', "Rating"), precondition: BuiltInExtensionsContext.negate() },
-			{ id: 'name', title: localize('sort by name', "Name"), precondition: BuiltInExtensionsContext.negate() },
-			{ id: 'publishedDate', title: localize('sort by published date', "Published Date"), precondition: BuiltInExtensionsContext.negate() },
-			{ id: 'updateDate', title: localize('sort by update date', "Updated Date"), precondition: ContextKeyExpr.and(SearchMarketplaceExtensionsContext.negate(), RecommendedExtensionsContext.negate(), BuiltInExtensionsContext.negate()) },
-		].map(({ id, title, precondition }, index) => {
+			{ id: 'installs', title: localize('sort by installs', "Install Count"), precondition: BuiltInExtensionsContext.negate(), sortCapability: SortBy.InstallCount },
+			{ id: 'rating', title: localize('sort by rating', "Rating"), precondition: BuiltInExtensionsContext.negate(), sortCapability: SortBy.WeightedRating },
+			{ id: 'name', title: localize('sort by name', "Name"), precondition: BuiltInExtensionsContext.negate(), sortCapability: SortBy.Title },
+			{ id: 'publishedDate', title: localize('sort by published date', "Published Date"), precondition: BuiltInExtensionsContext.negate(), sortCapability: SortBy.PublishedDate },
+			{ id: 'updateDate', title: localize('sort by update date', "Updated Date"), precondition: ContextKeyExpr.and(SearchMarketplaceExtensionsContext.negate(), RecommendedExtensionsContext.negate(), BuiltInExtensionsContext.negate()), sortCapability: 'UpdateDate' },
+		].map(({ id, title, precondition, sortCapability }, index) => {
+			const sortCapabilityContext = ContextKeyExpr.regex(CONTEXT_GALLERY_SORT_CAPABILITIES.key, new RegExp(`_${sortCapability}_`));
 			this.registerExtensionAction({
 				id: `extensions.sort.${id}`,
 				title,
-				precondition: precondition,
+				precondition: ContextKeyExpr.and(precondition, ContextKeyExpr.regex(ExtensionsSearchValueContext.key, /^@feature:/).negate(), sortCapabilityContext),
 				menu: [{
 					id: extensionsSortSubMenu,
-					when: ContextKeyExpr.or(CONTEXT_HAS_GALLERY, DefaultViewsContext),
+					when: ContextKeyExpr.and(ContextKeyExpr.or(CONTEXT_HAS_GALLERY, DefaultViewsContext), sortCapabilityContext),
 					order: index,
 				}],
 				toggled: ExtensionsSortByContext.isEqualTo(id),
@@ -1217,17 +1315,6 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			},
 			run: () => runAction(this.instantiationService.createInstance(InstallSpecificVersionOfExtensionAction, InstallSpecificVersionOfExtensionAction.ID, InstallSpecificVersionOfExtensionAction.LABEL))
 		});
-
-		this.registerExtensionAction({
-			id: ReinstallAction.ID,
-			title: { value: ReinstallAction.LABEL, original: 'Reinstall Extension...' },
-			category: Categories.Developer,
-			menu: {
-				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.and(CONTEXT_HAS_GALLERY, ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER))
-			},
-			run: () => runAction(this.instantiationService.createInstance(ReinstallAction, ReinstallAction.ID, ReinstallAction.LABEL))
-		});
 	}
 
 	// Extension Context Menu
@@ -1303,7 +1390,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				id: MenuId.ExtensionContext,
 				group: INSTALL_ACTIONS_GROUP,
 				order: 0,
-				when: ContextKeyExpr.and(ContextKeyExpr.has('inExtensionEditor'), ContextKeyExpr.has('galleryExtensionHasPreReleaseVersion'), ContextKeyExpr.not('showPreReleaseVersion'), ContextKeyExpr.not('isBuiltinExtension'))
+				when: ContextKeyExpr.and(ContextKeyExpr.has('inExtensionEditor'), ContextKeyExpr.has('galleryExtensionHasPreReleaseVersion'), ContextKeyExpr.has('isPreReleaseExtensionAllowed'), ContextKeyExpr.not('showPreReleaseVersion'), ContextKeyExpr.not('isBuiltinExtension'))
 			},
 			run: async (accessor: ServicesAccessor, extensionId: string) => {
 				const extensionWorkbenchService = accessor.get(IExtensionsWorkbenchService);
@@ -1332,7 +1419,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			id: ToggleAutoUpdateForExtensionAction.ID,
 			title: ToggleAutoUpdateForExtensionAction.LABEL,
 			category: ExtensionsLocalizedLabel,
-			precondition: ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.notEquals(`config.${AutoUpdateConfigurationKey}`, 'onlyEnabledExtensions'), ContextKeyExpr.equals('isExtensionEnabled', true)), ContextKeyExpr.not('extensionDisallowInstall')),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.notEquals(`config.${AutoUpdateConfigurationKey}`, 'onlyEnabledExtensions'), ContextKeyExpr.equals('isExtensionEnabled', true)), ContextKeyExpr.not('extensionDisallowInstall'), ContextKeyExpr.has('isExtensionAllowed')),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: UPDATE_ACTIONS_GROUP,
@@ -1386,7 +1473,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				id: MenuId.ExtensionContext,
 				group: INSTALL_ACTIONS_GROUP,
 				order: 2,
-				when: ContextKeyExpr.and(CONTEXT_HAS_GALLERY, ContextKeyExpr.has('galleryExtensionHasPreReleaseVersion'), ContextKeyExpr.not('installedExtensionIsOptedToPreRelease'), ContextKeyExpr.not('inExtensionEditor'), ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.not('isBuiltinExtension'))
+				when: ContextKeyExpr.and(CONTEXT_HAS_GALLERY, ContextKeyExpr.has('galleryExtensionHasPreReleaseVersion'), ContextKeyExpr.has('isPreReleaseExtensionAllowed'), ContextKeyExpr.not('installedExtensionIsOptedToPreRelease'), ContextKeyExpr.not('inExtensionEditor'), ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.not('isBuiltinExtension'))
 			},
 			run: async (accessor: ServicesAccessor, id: string) => {
 				const instantiationService = accessor.get(IInstantiationService);
@@ -1408,7 +1495,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				id: MenuId.ExtensionContext,
 				group: INSTALL_ACTIONS_GROUP,
 				order: 2,
-				when: ContextKeyExpr.and(CONTEXT_HAS_GALLERY, ContextKeyExpr.has('galleryExtensionHasPreReleaseVersion'), ContextKeyExpr.has('installedExtensionIsOptedToPreRelease'), ContextKeyExpr.not('inExtensionEditor'), ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.not('isBuiltinExtension'))
+				when: ContextKeyExpr.and(CONTEXT_HAS_GALLERY, ContextKeyExpr.has('galleryExtensionHasPreReleaseVersion'), ContextKeyExpr.has('isExtensionAllowed'), ContextKeyExpr.has('installedExtensionIsOptedToPreRelease'), ContextKeyExpr.not('inExtensionEditor'), ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.not('isBuiltinExtension'))
 			},
 			run: async (accessor: ServicesAccessor, id: string) => {
 				const instantiationService = accessor.get(IInstantiationService);
@@ -1447,7 +1534,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '0_install',
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'uninstalled'), ContextKeyExpr.has('isGalleryExtension'), ContextKeyExpr.not('extensionDisallowInstall'), ContextKeyExpr.has('extensionIsUnsigned')),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'uninstalled'), ContextKeyExpr.has('isGalleryExtension'), ContextKeyExpr.not('extensionDisallowInstall'), ContextKeyExpr.has('extensionIsUnsigned'), CONTEXT_GALLERY_ALL_REPOSITORY_SIGNED),
 				order: 1
 			},
 			run: async (accessor: ServicesAccessor, extensionId: string) => {
@@ -1468,7 +1555,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '0_install',
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'uninstalled'), ContextKeyExpr.has('isGalleryExtension'), ContextKeyExpr.not('extensionDisallowInstall'), CONTEXT_SYNC_ENABLEMENT),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'uninstalled'), ContextKeyExpr.has('isGalleryExtension'), ContextKeyExpr.has('isExtensionAllowed'), ContextKeyExpr.not('extensionDisallowInstall'), CONTEXT_SYNC_ENABLEMENT),
 				order: 1
 			},
 			run: async (accessor: ServicesAccessor, extensionId: string) => {
@@ -1492,7 +1579,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '0_install',
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'uninstalled'), ContextKeyExpr.has('isGalleryExtension'), ContextKeyExpr.has('extensionHasPreReleaseVersion'), ContextKeyExpr.not('extensionDisallowInstall'), CONTEXT_SYNC_ENABLEMENT),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'uninstalled'), ContextKeyExpr.has('isGalleryExtension'), ContextKeyExpr.has('extensionHasPreReleaseVersion'), ContextKeyExpr.has('isPreReleaseExtensionAllowed'), ContextKeyExpr.not('extensionDisallowInstall'), CONTEXT_SYNC_ENABLEMENT),
 				order: 2
 			},
 			run: async (accessor: ServicesAccessor, extensionId: string) => {
@@ -1516,7 +1603,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '0_install',
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'uninstalled'), ContextKeyExpr.has('isGalleryExtension'), ContextKeyExpr.not('extensionDisallowInstall')),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'uninstalled'), ContextKeyExpr.has('isGalleryExtension'), ContextKeyExpr.has('isExtensionAllowed'), ContextKeyExpr.not('extensionDisallowInstall')),
 				order: 3
 			},
 			run: async (accessor: ServicesAccessor, extensionId: string) => {
@@ -1564,6 +1651,22 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		});
 
 		this.registerExtensionAction({
+			id: 'workbench.extensions.action.copyLink',
+			title: localize2('workbench.extensions.action.copyLink', 'Copy Link'),
+			menu: {
+				id: MenuId.ExtensionContext,
+				group: '1_copy',
+				when: ContextKeyExpr.has('isGalleryExtension'),
+			},
+			run: async (accessor: ServicesAccessor, _, extension: IExtensionArg) => {
+				const clipboardService = accessor.get(IClipboardService);
+				if (extension.galleryLink) {
+					await clipboardService.writeText(extension.galleryLink);
+				}
+			}
+		});
+
+		this.registerExtensionAction({
 			id: 'workbench.extensions.action.configure',
 			title: localize2('workbench.extensions.action.configure', 'Settings'),
 			menu: {
@@ -1573,6 +1676,32 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				order: 1
 			},
 			run: async (accessor: ServicesAccessor, id: string) => accessor.get(IPreferencesService).openSettings({ jsonEditor: false, query: `@ext:${id}` })
+		});
+
+		this.registerExtensionAction({
+			id: 'workbench.extensions.action.download',
+			title: localize('download VSIX', "Download VSIX"),
+			menu: {
+				id: MenuId.ExtensionContext,
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'uninstalled'), ContextKeyExpr.not('extensionDisallowInstall'), ContextKeyExpr.has('isGalleryExtension')),
+				order: this.productService.quality === 'stable' ? 0 : 1
+			},
+			run: async (accessor: ServicesAccessor, extensionId: string) => {
+				accessor.get(IExtensionsWorkbenchService).downloadVSIX(extensionId, false);
+			}
+		});
+
+		this.registerExtensionAction({
+			id: 'workbench.extensions.action.downloadPreRelease',
+			title: localize('download pre-release', "Download Pre-Release VSIX"),
+			menu: {
+				id: MenuId.ExtensionContext,
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'uninstalled'), ContextKeyExpr.not('extensionDisallowInstall'), ContextKeyExpr.has('isGalleryExtension'), ContextKeyExpr.has('extensionHasPreReleaseVersion')),
+				order: this.productService.quality === 'stable' ? 1 : 0
+			},
+			run: async (accessor: ServicesAccessor, extensionId: string) => {
+				accessor.get(IExtensionsWorkbenchService).downloadVSIX(extensionId, true);
+			}
 		});
 
 		this.registerExtensionAction({
@@ -1686,7 +1815,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.addToWorkspaceRecommendations',
 			title: localize2('workbench.extensions.action.addToWorkspaceRecommendations', "Add Extension to Workspace Recommendations"),
-			category: localize('extensions', "Extensions"),
+			category: EXTENSIONS_CATEGORY,
 			menu: {
 				id: MenuId.CommandPalette,
 				when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace'), ContextKeyExpr.equals('resourceScheme', Schemas.extension)),
@@ -1709,7 +1838,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.addToWorkspaceFolderRecommendations',
 			title: localize2('workbench.extensions.action.addToWorkspaceFolderRecommendations', "Add Extension to Workspace Folder Recommendations"),
-			category: localize('extensions', "Extensions"),
+			category: EXTENSIONS_CATEGORY,
 			menu: {
 				id: MenuId.CommandPalette,
 				when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('folder'), ContextKeyExpr.equals('resourceScheme', Schemas.extension)),
@@ -1720,7 +1849,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.addToWorkspaceIgnoredRecommendations',
 			title: localize2('workbench.extensions.action.addToWorkspaceIgnoredRecommendations', "Add Extension to Workspace Ignored Recommendations"),
-			category: localize('extensions', "Extensions"),
+			category: EXTENSIONS_CATEGORY,
 			menu: {
 				id: MenuId.CommandPalette,
 				when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace'), ContextKeyExpr.equals('resourceScheme', Schemas.extension)),
@@ -1743,7 +1872,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.addToWorkspaceFolderIgnoredRecommendations',
 			title: localize2('workbench.extensions.action.addToWorkspaceFolderIgnoredRecommendations', "Add Extension to Workspace Folder Ignored Recommendations"),
-			category: localize('extensions', "Extensions"),
+			category: EXTENSIONS_CATEGORY,
 			menu: {
 				id: MenuId.CommandPalette,
 				when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('folder'), ContextKeyExpr.equals('resourceScheme', Schemas.extension)),
@@ -1754,12 +1883,45 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		this.registerExtensionAction({
 			id: ConfigureWorkspaceRecommendedExtensionsAction.ID,
 			title: { value: ConfigureWorkspaceRecommendedExtensionsAction.LABEL, original: 'Configure Recommended Extensions (Workspace)' },
-			category: localize('extensions', "Extensions"),
+			category: EXTENSIONS_CATEGORY,
 			menu: {
 				id: MenuId.CommandPalette,
 				when: WorkbenchStateContext.isEqualTo('workspace'),
 			},
 			run: () => runAction(this.instantiationService.createInstance(ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceRecommendedExtensionsAction.ID, ConfigureWorkspaceRecommendedExtensionsAction.LABEL))
+		});
+
+		this.registerExtensionAction({
+			id: 'workbench.extensions.action.manageTrustedPublishers',
+			title: localize2('workbench.extensions.action.manageTrustedPublishers', "Manage Trusted Extension Publishers"),
+			category: EXTENSIONS_CATEGORY,
+			f1: true,
+			run: async (accessor: ServicesAccessor) => {
+				const quickInputService = accessor.get(IQuickInputService);
+				const extensionManagementService = accessor.get(IWorkbenchExtensionManagementService);
+				const trustedPublishers = extensionManagementService.getTrustedPublishers();
+				const trustedPublisherItems = trustedPublishers.map(publisher => ({
+					id: publisher.publisher,
+					label: publisher.publisherDisplayName,
+					description: publisher.publisher,
+					picked: true,
+				})).sort((a, b) => a.label.localeCompare(b.label));
+				const result = await quickInputService.pick(trustedPublisherItems, {
+					canPickMany: true,
+					title: localize('trustedPublishers', "Manage Trusted Extension Publishers"),
+					placeHolder: localize('trustedPublishersPlaceholder', "Choose which publishers to trust"),
+				});
+				if (result) {
+					const untrustedPublishers = [];
+					for (const { publisher } of trustedPublishers) {
+						if (!result.some(r => r.id === publisher)) {
+							untrustedPublishers.push(publisher);
+						}
+					}
+					trustedPublishers.filter(publisher => !result.some(r => r.id === publisher.publisher));
+					extensionManagementService.untrustPublishers(...untrustedPublishers);
+				}
+			}
 		});
 
 	}
@@ -1811,6 +1973,40 @@ class ExtensionStorageCleaner implements IWorkbenchContribution {
 	}
 }
 
+class TrustedPublishersInitializer implements IWorkbenchContribution {
+	constructor(
+		@IWorkbenchExtensionManagementService extensionManagementService: IWorkbenchExtensionManagementService,
+		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
+		@IProductService productService: IProductService,
+		@IStorageService storageService: IStorageService,
+	) {
+		const trustedPublishersInitStatusKey = 'trusted-publishers-init-migration';
+		if (!storageService.get(trustedPublishersInitStatusKey, StorageScope.APPLICATION)) {
+			for (const profile of userDataProfilesService.profiles) {
+				extensionManagementService.getInstalled(ExtensionType.User, profile.extensionsResource)
+					.then(async extensions => {
+						const trustedPublishers = new Map<string, IPublisherInfo>();
+						for (const extension of extensions) {
+							if (!extension.publisherDisplayName) {
+								continue;
+							}
+							const publisher = extension.manifest.publisher.toLowerCase();
+							if (productService.trustedExtensionPublishers?.includes(publisher)
+								|| (extension.publisherDisplayName && productService.trustedExtensionPublishers?.includes(extension.publisherDisplayName.toLowerCase()))) {
+								continue;
+							}
+							trustedPublishers.set(publisher, { publisher, publisherDisplayName: extension.publisherDisplayName });
+						}
+						if (trustedPublishers.size) {
+							extensionManagementService.trustPublishers(...trustedPublishers.values());
+						}
+						storageService.store(trustedPublishersInitStatusKey, 'true', StorageScope.APPLICATION, StorageTarget.MACHINE);
+					});
+			}
+		}
+	}
+}
+
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(ExtensionsContributions, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(StatusUpdater, LifecyclePhase.Eventually);
@@ -1822,6 +2018,7 @@ workbenchRegistry.registerWorkbenchContribution(ExtensionDependencyChecker, Life
 workbenchRegistry.registerWorkbenchContribution(ExtensionEnablementWorkspaceTrustTransitionParticipant, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(ExtensionsCompletionItemsProvider, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(UnsupportedExtensionsMigrationContrib, LifecyclePhase.Eventually);
+workbenchRegistry.registerWorkbenchContribution(TrustedPublishersInitializer, LifecyclePhase.Eventually);
 if (isWeb) {
 	workbenchRegistry.registerWorkbenchContribution(ExtensionStorageCleaner, LifecyclePhase.Eventually);
 }

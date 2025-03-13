@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../nls.js';
+import { LANGUAGE_DEFAULT } from './platform.js';
 
 const minute = 60;
 const hour = minute * 60;
@@ -261,3 +262,34 @@ export function toLocalISOString(date: Date): string {
 		'.' + (date.getMilliseconds() / 1000).toFixed(3).slice(2, 5) +
 		'Z';
 }
+
+export const safeIntl = {
+	DateTimeFormat(locales?: Intl.LocalesArgument, options?: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+		try {
+			return new Intl.DateTimeFormat(locales, options);
+		} catch {
+			return new Intl.DateTimeFormat(undefined, options);
+		}
+	},
+	Collator(locales?: Intl.LocalesArgument, options?: Intl.CollatorOptions): Intl.Collator {
+		try {
+			return new Intl.Collator(locales, options);
+		} catch {
+			return new Intl.Collator(undefined, options);
+		}
+	},
+	Segmenter(locales?: Intl.LocalesArgument, options?: Intl.SegmenterOptions): Intl.Segmenter {
+		try {
+			return new Intl.Segmenter(locales, options);
+		} catch {
+			return new Intl.Segmenter(undefined, options);
+		}
+	},
+	Locale(tag: Intl.Locale | string, options?: Intl.LocaleOptions): Intl.Locale {
+		try {
+			return new Intl.Locale(tag, options);
+		} catch {
+			return new Intl.Locale(LANGUAGE_DEFAULT, options);
+		}
+	}
+};

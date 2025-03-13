@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { IDiffResult, IDiffChange } from '../../../../../base/common/diff/diff.js';
+import { IDiffResult } from '../../../../../base/common/diff/diff.js';
 import { Emitter, type IValueWithChangeEvent } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, dispose } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -17,11 +17,12 @@ import { DiffElementCellViewModelBase, DiffElementPlaceholderViewModel, IDiffEle
 import { NotebookDiffEditorEventDispatcher } from './eventDispatcher.js';
 import { INotebookDiffViewModel, INotebookDiffViewModelUpdateEvent, NOTEBOOK_DIFF_ITEM_DIFF_STATE, NOTEBOOK_DIFF_ITEM_KIND } from './notebookDiffEditorBrowser.js';
 import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
-import { CellUri, INotebookDiffEditorModel, INotebookDiffResult } from '../../common/notebookCommon.js';
+import { CellUri, INotebookDiffEditorModel } from '../../common/notebookCommon.js';
 import { INotebookService } from '../../common/notebookService.js';
 import { INotebookEditorWorkerService } from '../../common/services/notebookWorkerService.js';
 import { IDiffEditorHeightCalculatorService } from './editorHeightCalculator.js';
 import { raceCancellation } from '../../../../../base/common/async.js';
+import { computeDiff } from '../../common/notebookDiff.js';
 
 export class NotebookDiffViewModel extends Disposable implements INotebookDiffViewModel, IValueWithChangeEvent<readonly MultiDiffEditorItem[]> {
 	private readonly placeholderAndRelatedCells = new Map<DiffElementPlaceholderViewModel, DiffElementCellViewModelBase[]>();
@@ -138,9 +139,9 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 			return;
 		}
 
-		prettyChanges(this.model, diffResult.cellsDiff);
+		prettyChanges(this.model.original.notebook, this.model.modified.notebook, diffResult.cellsDiff);
 
-		const { cellDiffInfo, firstChangeIndex } = computeDiff(this.model, diffResult);
+		const { cellDiffInfo, firstChangeIndex } = computeDiff(this.model.original.notebook, this.model.modified.notebook, diffResult);
 		if (isEqual(cellDiffInfo, this.originalCellViewModels, this.model)) {
 			return;
 		} else {
@@ -367,7 +368,7 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 /**
  * making sure that swapping cells are always translated to `insert+delete`.
  */
-export function prettyChanges(model: INotebookDiffEditorModel, diffResult: IDiffResult) {
+export function prettyChanges(original: NotebookTextModel, modified: NotebookTextModel, diffResult: IDiffResult) {
 	const changes = diffResult.changes;
 	for (let i = 0; i < diffResult.changes.length - 1; i++) {
 		// then we know there is another change after current one
@@ -383,8 +384,8 @@ export function prettyChanges(model: INotebookDiffEditorModel, diffResult: IDiff
 			&& next.originalLength === 0
 			&& next.modifiedStart === y + 1
 			&& next.modifiedLength === 1
-			&& model.original.notebook.cells[x].getHashValue() === model.modified.notebook.cells[y + 1].getHashValue()
-			&& model.original.notebook.cells[x + 1].getHashValue() === model.modified.notebook.cells[y].getHashValue()
+			&& original.cells[x].getHashValue() === modified.cells[y + 1].getHashValue()
+			&& original.cells[x + 1].getHashValue() === modified.cells[y].getHashValue()
 		) {
 			// this is a swap
 			curr.originalStart = x;
@@ -402,7 +403,7 @@ export function prettyChanges(model: INotebookDiffEditorModel, diffResult: IDiff
 	}
 }
 
-type CellDiffInfo = {
+export type CellDiffInfo = {
 	originalCellIndex: number;
 	modifiedCellIndex: number;
 	type: 'unchanged' | 'modified';
@@ -415,64 +416,7 @@ type CellDiffInfo = {
 	modifiedCellIndex: number;
 	type: 'insert';
 };
-function computeDiff(model: INotebookDiffEditorModel, diffResult: INotebookDiffResult) {
-	const cellChanges = diffResult.cellsDiff.changes;
-	const cellDiffInfo: CellDiffInfo[] = [];
-	const originalModel = model.original.notebook;
-	const modifiedModel = model.modified.notebook;
-	let originalCellIndex = 0;
-	let modifiedCellIndex = 0;
 
-	let firstChangeIndex = -1;
-
-	for (let i = 0; i < cellChanges.length; i++) {
-		const change = cellChanges[i];
-		// common cells
-
-		for (let j = 0; j < change.originalStart - originalCellIndex; j++) {
-			const originalCell = originalModel.cells[originalCellIndex + j];
-			const modifiedCell = modifiedModel.cells[modifiedCellIndex + j];
-			if (originalCell.getHashValue() === modifiedCell.getHashValue()) {
-				cellDiffInfo.push({
-					originalCellIndex: originalCellIndex + j,
-					modifiedCellIndex: modifiedCellIndex + j,
-					type: 'unchanged'
-				});
-			} else {
-				if (firstChangeIndex === -1) {
-					firstChangeIndex = cellDiffInfo.length;
-				}
-				cellDiffInfo.push({
-					originalCellIndex: originalCellIndex + j,
-					modifiedCellIndex: modifiedCellIndex + j,
-					type: 'modified'
-				});
-			}
-		}
-
-		const modifiedLCS = computeModifiedLCS(change, originalModel, modifiedModel);
-		if (modifiedLCS.length && firstChangeIndex === -1) {
-			firstChangeIndex = cellDiffInfo.length;
-		}
-
-		cellDiffInfo.push(...modifiedLCS);
-		originalCellIndex = change.originalStart + change.originalLength;
-		modifiedCellIndex = change.modifiedStart + change.modifiedLength;
-	}
-
-	for (let i = originalCellIndex; i < originalModel.cells.length; i++) {
-		cellDiffInfo.push({
-			originalCellIndex: i,
-			modifiedCellIndex: i - originalCellIndex + modifiedCellIndex,
-			type: 'unchanged'
-		});
-	}
-
-	return {
-		cellDiffInfo,
-		firstChangeIndex
-	};
-}
 function isEqual(cellDiffInfo: CellDiffInfo[], viewModels: IDiffElementViewModelBase[], model: INotebookDiffEditorModel) {
 	if (cellDiffInfo.length !== viewModels.length) {
 		return false;
@@ -512,40 +456,6 @@ function isEqual(cellDiffInfo: CellDiffInfo[], viewModels: IDiffElementViewModel
 
 	return true;
 }
-
-function computeModifiedLCS(change: IDiffChange, originalModel: NotebookTextModel, modifiedModel: NotebookTextModel) {
-	const result: CellDiffInfo[] = [];
-	// modified cells
-	const modifiedLen = Math.min(change.originalLength, change.modifiedLength);
-
-	for (let j = 0; j < modifiedLen; j++) {
-		const isTheSame = originalModel.cells[change.originalStart + j].equal(modifiedModel.cells[change.modifiedStart + j]);
-		result.push({
-			originalCellIndex: change.originalStart + j,
-			modifiedCellIndex: change.modifiedStart + j,
-			type: isTheSame ? 'unchanged' : 'modified'
-		});
-	}
-
-	for (let j = modifiedLen; j < change.originalLength; j++) {
-		// deletion
-		result.push({
-			originalCellIndex: change.originalStart + j,
-			type: 'delete'
-		});
-	}
-
-	for (let j = modifiedLen; j < change.modifiedLength; j++) {
-		result.push({
-			modifiedCellIndex: change.modifiedStart + j,
-			type: 'insert'
-		});
-	}
-
-	return result;
-}
-
-
 export abstract class NotebookMultiDiffEditorItem extends MultiDiffEditorItem {
 	constructor(
 		originalUri: URI | undefined,

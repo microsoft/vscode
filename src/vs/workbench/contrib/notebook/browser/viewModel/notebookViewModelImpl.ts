@@ -199,7 +199,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@IUndoRedoService private readonly _undoService: IUndoRedoService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
-		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService,
+		@INotebookExecutionStateService private readonly notebookExecutionStateService: INotebookExecutionStateService,
 	) {
 		super();
 
@@ -361,6 +361,11 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 	getSelections() {
 		return this._selectionCollection.selections;
+	}
+
+	getMostRecentlyExecutedCell(): ICellViewModel | undefined {
+		const handle = this.notebookExecutionStateService.getLastCompletedCellForNotebook(this._notebook.uri);
+		return handle !== undefined ? this.getCellByHandle(handle) : undefined;
 	}
 
 	setEditorFocus(focused: boolean) {

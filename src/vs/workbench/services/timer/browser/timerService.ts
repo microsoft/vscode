@@ -37,7 +37,6 @@ export interface IMemoryInfo {
 
 /* __GDPR__FRAGMENT__
 	"IStartupMetrics" : {
-		"version" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 		"ellapsed" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"isLatestVersion": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 		"didUseCachedData": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
@@ -87,11 +86,6 @@ export interface IMemoryInfo {
 	}
 */
 export interface IStartupMetrics {
-
-	/**
-	 * The version of these metrics.
-	 */
-	readonly version: 2;
 
 	/**
 	 * If this started the main process and renderer or just a renderer (new or reloaded).
@@ -514,7 +508,7 @@ export abstract class AbstractTimerService implements ITimerService {
 
 	private readonly _barrier = new Barrier();
 	private readonly _marks = new PerfMarks();
-	private readonly _rndValueShouldSendTelemetry = Math.random() < .05; // 5% of users
+	private readonly _rndValueShouldSendTelemetry = Math.random() < .03; // 3% of users
 
 	private _startupMetrics?: IStartupMetrics;
 
@@ -684,7 +678,7 @@ export abstract class AbstractTimerService implements ITimerService {
 		const activeViewlet = this._paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 		const activePanel = this._paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
 		const info: Writeable<IStartupMetrics> = {
-			version: 2,
+
 			ellapsed: this._marks.getDuration(startMark, 'code/didStartWorkbench'),
 
 			// reflections

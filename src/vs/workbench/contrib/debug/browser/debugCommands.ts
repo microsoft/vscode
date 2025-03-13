@@ -66,6 +66,7 @@ export const DEBUG_CONFIGURE_COMMAND_ID = 'workbench.action.debug.configure';
 export const DEBUG_START_COMMAND_ID = 'workbench.action.debug.start';
 export const DEBUG_RUN_COMMAND_ID = 'workbench.action.debug.run';
 export const EDIT_EXPRESSION_COMMAND_ID = 'debug.renameWatchExpression';
+export const COPY_WATCH_EXPRESSION_COMMAND_ID = 'debug.copyWatchExpression';
 export const SET_EXPRESSION_COMMAND_ID = 'debug.setWatchExpression';
 export const REMOVE_EXPRESSION_COMMAND_ID = 'debug.removeWatchExpression';
 export const NEXT_DEBUG_CONSOLE_ID = 'workbench.action.debug.nextConsole';
@@ -676,14 +677,6 @@ CommandsRegistry.registerCommand({
 	id: SHOW_LOADED_SCRIPTS_ID,
 	handler: async (accessor) => {
 		await showLoadedScriptMenu(accessor);
-	}
-});
-
-CommandsRegistry.registerCommand({
-	id: FOCUS_REPL_ID,
-	handler: async (accessor) => {
-		const viewsService = accessor.get(IViewsService);
-		await viewsService.openView(REPL_VIEW_ID, true);
 	}
 });
 
