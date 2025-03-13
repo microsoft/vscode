@@ -18,6 +18,9 @@ Welcome to the PearAI app! PearAI is a fork of VSCode (and Continue), with most 
 
 After cloning and building the repo, check out our [issues list](https://github.com/trypear/pearai-app/issues). For first-time contributors, issues labeled [`good first issue`](https://github.com/trypear/pearai-app/issues?q=is%3Aissue+is%3Aopen+label%3A%22Good+First+Issue%22) are great starting points. If you're contributing significant changes, or if the issue is already assigned to a specific milestone, please discuss with the assignee first on [Discord](https://discord.gg/7QMraJUsQt).
 
+### IMPORTANT ‼️
+If you are using mac, you WONT BE able to run the submodule in normal pearai, due to some notarization BS. You have to use a dev version: https://drive.google.com/drive/u/0/folders/13Tnz9cL7AAUuB_eyc5n-4wJQmhN3mPWt
+
 ## 🛠 Prerequisites
 
 Ensure you have the following tools installed:
