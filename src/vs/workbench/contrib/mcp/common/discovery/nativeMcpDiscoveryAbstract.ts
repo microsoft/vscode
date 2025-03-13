@@ -6,15 +6,18 @@
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { autorunWithStore, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { INativeMcpDiscoveryData } from '../../../../../platform/mcp/common/nativeMcpDiscoveryHelper.js';
+import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { Dto } from '../../../../services/extensions/common/proxyIdentifier.js';
+import { mcpDiscoverySection } from '../mcpConfiguration.js';
 import { IMcpRegistry } from '../mcpRegistryTypes.js';
 import { McpCollectionDefinition, McpCollectionSortOrder, McpServerDefinition } from '../mcpTypes.js';
 import { IMcpDiscovery } from './mcpDiscovery.js';
@@ -26,6 +29,7 @@ import { ClaudeDesktopMpcDiscoveryAdapter, NativeMpcDiscoveryAdapter } from './n
  */
 export abstract class FilesystemMpcDiscovery extends Disposable implements IMcpDiscovery {
 	private readonly adapters: readonly NativeMpcDiscoveryAdapter[];
+	private _fsDiscoveryEnabled: IObservable<boolean>;
 	private suffix = '';
 
 	constructor(
@@ -34,11 +38,14 @@ export abstract class FilesystemMpcDiscovery extends Disposable implements IMcpD
 		@IFileService private readonly fileService: IFileService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMcpRegistry private readonly mcpRegistry: IMcpRegistry,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 		if (remoteAuthority) {
 			this.suffix = ' ' + localize('onRemoteLabel', ' on {0}', labelService.getHostLabel(Schemas.vscodeRemote, remoteAuthority));
 		}
+
+		this._fsDiscoveryEnabled = observableConfigValue(mcpDiscoverySection, false, configurationService);
 
 		this.adapters = [
 			instantiationService.createInstance(ClaudeDesktopMpcDiscoveryAdapter, remoteAuthority)
@@ -72,7 +79,10 @@ export abstract class FilesystemMpcDiscovery extends Disposable implements IMcpD
 				scope: StorageScope.PROFILE,
 				isTrustedByDefault: false,
 				serverDefinitions: observableValue<readonly McpServerDefinition[]>(this, []),
-				order: adapter.order + (adapter.remoteAuthority ? McpCollectionSortOrder.RemotePenalty : 0)
+				presentation: {
+					origin: file,
+					order: adapter.order + (adapter.remoteAuthority ? McpCollectionSortOrder.RemotePenalty : 0),
+				},
 			} satisfies McpCollectionDefinition;
 
 			const collectionRegistration = this._register(new MutableDisposable());
@@ -94,10 +104,17 @@ export abstract class FilesystemMpcDiscovery extends Disposable implements IMcpD
 				}
 			};
 
-			const watcher = this._register(this.fileService.createWatcher(file, { recursive: false, excludes: [] }));
-			const throttler = this._register(new RunOnceScheduler(updateFile, 500));
-			this._register(watcher.onDidChange(() => throttler.schedule()));
-			updateFile();
+			this._register(autorunWithStore((reader, store) => {
+				if (!this._fsDiscoveryEnabled.read(reader)) {
+					collectionRegistration.clear();
+					return;
+				}
+
+				const throttler = store.add(new RunOnceScheduler(updateFile, 500));
+				const watcher = store.add(this.fileService.createWatcher(file, { recursive: false, excludes: [] }));
+				store.add(watcher.onDidChange(() => throttler.schedule()));
+				updateFile();
+			}));
 		}
 	}
 }

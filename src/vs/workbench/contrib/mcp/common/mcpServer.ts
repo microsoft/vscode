@@ -12,7 +12,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
-import { McpCollectionDefinition, IMcpServer, IMcpServerConnection, McpServerDefinition, IMcpTool, McpConnectionFailedError, McpConnectionState } from './mcpTypes.js';
+import { McpCollectionDefinition, IMcpServer, IMcpServerConnection, McpServerDefinition, IMcpTool, McpConnectionFailedError, McpConnectionState, McpServerToolsState } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
 
 
@@ -63,7 +63,7 @@ export class McpServer extends Disposable implements IMcpServer {
 	private readonly _connectionSequencer = new Sequencer();
 	private readonly _connection = this._register(disposableObservableValue<IMcpServerConnection | undefined>(this, undefined));
 
-	public readonly state: IObservable<McpConnectionState> = derived(reader => this._connection.read(reader)?.state.read(reader) ?? { state: McpConnectionState.Kind.Stopped });
+	public readonly connectionState: IObservable<McpConnectionState> = derived(reader => this._connection.read(reader)?.state.read(reader) ?? { state: McpConnectionState.Kind.Stopped });
 
 	private get toolsFromCache() {
 		return this._toolCache.getTools(this.definition.id);
@@ -75,6 +75,20 @@ export class McpServer extends Disposable implements IMcpServer {
 		const serverTools = this.toolsFromServer.read(reader);
 		const definitions = serverTools ?? this.toolsFromCache ?? [];
 		return definitions.map(def => new McpTool(this, def));
+	});
+
+	public readonly toolsState = derived(reader => {
+		const fromServer = this.toolsFromServerPromise.read(reader);
+		if (!fromServer) {
+			return this.toolsFromCache ? McpServerToolsState.Cached : McpServerToolsState.Unknown;
+		}
+
+		const fromServerResult = fromServer?.promiseResult.read(reader);
+		if (!fromServerResult) {
+			return this.toolsFromCache ? McpServerToolsState.RefreshingFromCached : McpServerToolsState.RefreshingFromUnknown;
+		}
+
+		return fromServerResult.error ? (this.toolsFromCache ? McpServerToolsState.Cached : McpServerToolsState.Unknown) : McpServerToolsState.Live;
 	});
 
 	constructor(
@@ -128,11 +142,19 @@ export class McpServer extends Disposable implements IMcpServer {
 		this._connection.get()?.showOutput();
 	}
 
-	public start(): Promise<McpConnectionState> {
+	public start(isFromInteraction?: boolean): Promise<McpConnectionState> {
 		return this._connectionSequencer.queue(async () => {
 			let connection = this._connection.get();
 			if (!connection) {
-				connection = await this._mcpRegistry.resolveConnection(this.collection, this.definition);
+				connection = await this._mcpRegistry.resolveConnection({
+					collection: this.collection,
+					definition: this.definition,
+					forceTrust: isFromInteraction,
+				});
+				if (!connection) {
+					return { state: McpConnectionState.Kind.Stopped };
+				}
+
 				if (this._store.isDisposed) {
 					connection.dispose();
 					return { state: McpConnectionState.Kind.Stopped };
@@ -230,8 +252,8 @@ export class McpTool implements IMcpTool {
 		this.id = `${_server.definition.id}_${definition.name}`.replaceAll('.', '_');
 	}
 
-	updateEnablement(value: boolean): void {
-		this._enabled.set(value, undefined);
+	updateEnablement(value: boolean, tx?: ITransaction): void {
+		this._enabled.set(value, tx);
 	}
 
 	call(params: Record<string, unknown>, token?: CancellationToken): Promise<MCP.CallToolResult> {

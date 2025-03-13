@@ -41,6 +41,7 @@ import { IChatEditingService } from '../../common/chatEditingService.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestTextPart, ChatRequestToolPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from '../../common/chatParserTypes.js';
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { IDynamicVariable } from '../../common/chatVariables.js';
+import { ChatMode } from '../../common/constants.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { ChatEditingSessionSubmitAction, ChatSubmitAction } from '../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
@@ -691,7 +692,7 @@ class BuiltinDynamicCompletions extends Disposable {
 		const len = result.suggestions.length;
 
 		// RELATED FILES
-		if (widget.location === ChatAgentLocation.EditingSession && widget.viewModel && this._chatEditingService.getEditingSession(widget.viewModel.sessionId)) {
+		if (widget.input.currentMode !== ChatMode.Chat && widget.viewModel && this._chatEditingService.getEditingSession(widget.viewModel.sessionId)) {
 			const relatedFiles = (await raceTimeout(this._chatEditingService.getRelatedFiles(widget.viewModel.sessionId, widget.getInput(), widget.attachmentModel.fileAttachments, token), 200)) ?? [];
 			for (const relatedFileGroup of relatedFiles) {
 				for (const relatedFile of relatedFileGroup.files) {

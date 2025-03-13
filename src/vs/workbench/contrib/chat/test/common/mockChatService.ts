@@ -90,4 +90,9 @@ export class MockChatService implements IChatService {
 	setChatSessionTitle(sessionId: string, title: string): void {
 		throw new Error('Method not implemented.');
 	}
+
+	unifiedViewEnabled = false;
+	isEditingLocation(location: ChatAgentLocation): boolean {
+		throw new Error('Method not implemented.');
+	}
 }

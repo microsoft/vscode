@@ -4,16 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import * as sinon from 'sinon';
 import { cloneAndChange } from '../../../../../base/common/objects.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { upcast } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILoggerService } from '../../../../../platform/log/common/log.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ISecretStorageService } from '../../../../../platform/secrets/common/secrets.js';
+import { TestSecretStorageService } from '../../../../../platform/secrets/test/common/testSecretStorageService.js';
+import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IConfigurationResolverService } from '../../../../services/configurationResolver/common/configurationResolver.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
 import { TestLoggerService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
@@ -22,6 +26,7 @@ import { IMcpHostDelegate, IMcpMessageTransport } from '../../common/mcpRegistry
 import { McpServerConnection } from '../../common/mcpServerConnection.js';
 import { McpCollectionDefinition, McpServerDefinition, McpServerTransportType } from '../../common/mcpTypes.js';
 import { TestMcpMessageTransport } from './mcpRegistryTypes.js';
+import { Memento } from '../../../../common/memento.js';
 
 class TestConfigurationResolverService implements Partial<IConfigurationResolverService> {
 	declare readonly _serviceBrand: undefined;
@@ -115,24 +120,54 @@ class TestMcpHostDelegate implements IMcpHostDelegate {
 	}
 }
 
+class TestDialogService implements Partial<IDialogService> {
+	declare readonly _serviceBrand: undefined;
+
+	private _promptResult: boolean | undefined;
+	private _promptSpy: sinon.SinonStub;
+
+	constructor() {
+		this._promptSpy = sinon.stub();
+		this._promptSpy.callsFake(() => {
+			return Promise.resolve({ result: this._promptResult });
+		});
+	}
+
+	setPromptResult(result: boolean | undefined): void {
+		this._promptResult = result;
+	}
+
+	get promptSpy(): sinon.SinonStub {
+		return this._promptSpy;
+	}
+
+	prompt(options: any): Promise<any> {
+		return this._promptSpy(options);
+	}
+}
+
 suite('Workbench - MCP - Registry', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let registry: McpRegistry;
 	let testStorageService: TestStorageService;
 	let testConfigResolverService: TestConfigurationResolverService;
+	let testDialogService: TestDialogService;
 	let testCollection: McpCollectionDefinition;
 	let baseDefinition: McpServerDefinition;
 
 	setup(() => {
 		testConfigResolverService = new TestConfigurationResolverService();
 		testStorageService = store.add(new TestStorageService());
+		testDialogService = new TestDialogService();
 
 		const services = new ServiceCollection(
 			[IConfigurationResolverService, testConfigResolverService],
 			[IStorageService, testStorageService],
+			[ISecretStorageService, new TestSecretStorageService()],
 			[ILoggerService, store.add(new TestLoggerService())],
 			[IOutputService, upcast({ showChannel: () => { } })],
+			[IDialogService, testDialogService]
 		);
 
 		const instaService = store.add(new TestInstantiationService(services));
@@ -162,6 +197,10 @@ suite('Workbench - MCP - Registry', () => {
 		};
 	});
 
+	teardown(() => {
+		Memento.clear(StorageScope.APPLICATION);
+	});
+
 	test('registerCollection adds collection to registry', () => {
 		const disposable = registry.registerCollection(testCollection);
 		store.add(disposable);
@@ -185,28 +224,7 @@ suite('Workbench - MCP - Registry', () => {
 		assert.strictEqual(registry.delegates.length, 0);
 	});
 
-	test('hasSavedInputs returns false when no inputs are saved', () => {
-		assert.strictEqual(registry.hasSavedInputs(testCollection, baseDefinition), false);
-	});
-
-	test('clearSavedInputs removes stored inputs', () => {
-		const definition: McpServerDefinition = {
-			...baseDefinition,
-			variableReplacement: {
-				section: 'mcp'
-			}
-		};
-
-		// Save some mock inputs
-		const key = `mcpConfig.${testCollection.id}.${definition.id}`;
-		testStorageService.store(key, JSON.stringify({ 'input:foo': 'bar' }), StorageScope.APPLICATION, StorageTarget.MACHINE);
-
-		assert.strictEqual(registry.hasSavedInputs(testCollection, definition), true);
-		registry.clearSavedInputs(testCollection, definition);
-		assert.strictEqual(registry.hasSavedInputs(testCollection, definition), false);
-	});
-
-	test('resolveConnection creates connection with resolved variables and memorizes them', async () => {
+	test('resolveConnection creates connection with resolved variables and memorizes them until cleared', async () => {
 		const definition: McpServerDefinition = {
 			...baseDefinition,
 			launch: {
@@ -223,12 +241,10 @@ suite('Workbench - MCP - Registry', () => {
 			}
 		};
 
-		// Register a delegate that can handle the connection
 		const delegate = new TestMcpHostDelegate();
-		const disposable = registry.registerDelegate(delegate);
-		store.add(disposable);
+		store.add(registry.registerDelegate(delegate));
 
-		const connection = await registry.resolveConnection(testCollection, definition) as McpServerConnection;
+		const connection = await registry.resolveConnection({ collection: testCollection, definition }) as McpServerConnection;
 
 		assert.ok(connection);
 		assert.strictEqual(connection.definition, definition);
@@ -236,41 +252,133 @@ suite('Workbench - MCP - Registry', () => {
 		assert.strictEqual((connection.launchDefinition as any).env.PATH, 'interactiveValue0');
 		connection.dispose();
 
-		const connection2 = await registry.resolveConnection(testCollection, definition) as McpServerConnection;
+		const connection2 = await registry.resolveConnection({ collection: testCollection, definition }) as McpServerConnection;
 
 		assert.ok(connection2);
 		assert.strictEqual((connection2.launchDefinition as any).env.PATH, 'interactiveValue0');
 		connection2.dispose();
+
+		registry.clearSavedInputs();
+
+		const connection3 = await registry.resolveConnection({ collection: testCollection, definition }) as McpServerConnection;
+
+		assert.ok(connection3);
+		assert.strictEqual((connection3.launchDefinition as any).env.PATH, 'interactiveValue4');
+		connection3.dispose();
 	});
 
-	test('resolveConnection with stored variables resolves them', async () => {
-		const definition: McpServerDefinition = {
-			...baseDefinition,
-			launch: {
-				type: McpServerTransportType.Stdio,
-				command: '${storedVar}',
-				args: [],
-				env: {},
-				cwd: URI.parse('file:///test')
-			},
-			variableReplacement: {
-				section: 'mcp'
-			}
-		};
+	suite('Trust Management', () => {
+		setup(() => {
+			const delegate = new TestMcpHostDelegate();
+			store.add(registry.registerDelegate(delegate));
+		});
+		test('resolveConnection connects to server when trusted by default', async () => {
+			const definition = { ...baseDefinition };
 
-		// Save some mock inputs
-		const key = `mcpConfig.${testCollection.id}.${definition.id}`;
-		testStorageService.store(key, { 'storedVar': 'resolved-value' }, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			const connection = await registry.resolveConnection({ collection: testCollection, definition });
 
-		// Register a delegate that can handle the connection
-		const delegate = new TestMcpHostDelegate();
-		const disposable = registry.registerDelegate(delegate);
-		store.add(disposable);
+			assert.ok(connection);
+			assert.strictEqual(testDialogService.promptSpy.called, false);
+			connection?.dispose();
+		});
 
-		const connection = await registry.resolveConnection(testCollection, definition) as McpServerConnection;
+		test('resolveConnection prompts for confirmation when not trusted by default', async () => {
+			const untrustedCollection: McpCollectionDefinition = {
+				...testCollection,
+				isTrustedByDefault: false
+			};
 
-		assert.ok(connection);
-		assert.strictEqual((connection.launchDefinition as any).command, 'resolved-value');
-		connection.dispose();
+			const definition = { ...baseDefinition };
+
+			testDialogService.setPromptResult(true);
+
+			const connection = await registry.resolveConnection({
+				collection: untrustedCollection,
+				definition
+			});
+
+			assert.ok(connection);
+			assert.strictEqual(testDialogService.promptSpy.called, true);
+			connection?.dispose();
+
+			testDialogService.promptSpy.resetHistory();
+			const connection2 = await registry.resolveConnection({
+				collection: untrustedCollection,
+				definition
+			});
+
+			assert.ok(connection2);
+			assert.strictEqual(testDialogService.promptSpy.called, false);
+			connection2?.dispose();
+		});
+
+		test('resolveConnection returns undefined when user does not trust the server', async () => {
+			const untrustedCollection: McpCollectionDefinition = {
+				...testCollection,
+				isTrustedByDefault: false
+			};
+
+			const definition = { ...baseDefinition };
+
+			testDialogService.setPromptResult(false);
+
+			const connection = await registry.resolveConnection({
+				collection: untrustedCollection,
+				definition
+			});
+
+			assert.strictEqual(connection, undefined);
+			assert.strictEqual(testDialogService.promptSpy.called, true);
+
+			testDialogService.promptSpy.resetHistory();
+			const connection2 = await registry.resolveConnection({
+				collection: untrustedCollection,
+				definition
+			});
+
+			assert.strictEqual(connection2, undefined);
+			assert.strictEqual(testDialogService.promptSpy.called, false);
+		});
+
+		test('resolveConnection honors forceTrust parameter', async () => {
+			const untrustedCollection: McpCollectionDefinition = {
+				...testCollection,
+				isTrustedByDefault: false
+			};
+
+			const definition = { ...baseDefinition };
+
+			testDialogService.setPromptResult(false);
+
+			const connection1 = await registry.resolveConnection({
+				collection: untrustedCollection,
+				definition
+			});
+
+			assert.strictEqual(connection1, undefined);
+
+			testDialogService.promptSpy.resetHistory();
+			testDialogService.setPromptResult(true);
+
+			const connection2 = await registry.resolveConnection({
+				collection: untrustedCollection,
+				definition,
+				forceTrust: true
+			});
+
+			assert.ok(connection2);
+			assert.strictEqual(testDialogService.promptSpy.called, true);
+			connection2?.dispose();
+
+			testDialogService.promptSpy.resetHistory();
+			const connection3 = await registry.resolveConnection({
+				collection: untrustedCollection,
+				definition
+			});
+
+			assert.ok(connection3);
+			assert.strictEqual(testDialogService.promptSpy.called, false);
+			connection3?.dispose();
+		});
 	});
 });

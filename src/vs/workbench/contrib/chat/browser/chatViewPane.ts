@@ -25,12 +25,12 @@ import { Memento } from '../../../common/memento.js';
 import { SIDE_BAR_FOREGROUND } from '../../../common/theme.js';
 import { IViewDescriptorService } from '../../../common/views.js';
 import { IChatViewTitleActionContext } from '../common/chatActions.js';
-import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
+import { IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatModelInitState, IChatModel } from '../common/chatModel.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatService } from '../common/chatService.js';
-import { ChatMode } from '../common/constants.js';
+import { ChatAgentLocation, ChatMode } from '../common/constants.js';
 import { ChatWidget, IChatViewState } from './chatWidget.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/chatViewWelcomeController.js';
 
@@ -174,21 +174,22 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				this.chatOptions.location,
 				{ viewId: this.id },
 				{
-					autoScroll: this.chatOptions.location === ChatAgentLocation.EditingSession,
+					autoScroll: mode => mode !== ChatMode.Chat,
 					renderFollowups: this.chatOptions.location === ChatAgentLocation.Panel,
 					supportsFileReferences: true,
 					supportsAdditionalParticipants: this.chatOptions.location === ChatAgentLocation.Panel,
 					rendererOptions: {
-						renderCodeBlockPills: this.chatOptions.location === ChatAgentLocation.EditingSession,
+						renderCodeBlockPills: mode => mode !== ChatMode.Chat,
 						renderTextEditsAsSummary: (uri) => {
-							return this.chatOptions.location === ChatAgentLocation.EditingSession;
+							return this.chatService.isEditingLocation(this.chatOptions.location);
 						},
-						referencesExpandedWhenEmptyResponse: this.chatOptions.location !== ChatAgentLocation.EditingSession,
-						progressMessageAtBottomOfResponse: this.chatOptions.location === ChatAgentLocation.EditingSession,
+						referencesExpandedWhenEmptyResponse: !this.chatService.isEditingLocation(this.chatOptions.location),
+						progressMessageAtBottomOfResponse: this.chatService.isEditingLocation(this.chatOptions.location),
 					},
 					editorOverflowWidgetsDomNode: editorOverflowNode,
-					enableImplicitContext: this.chatOptions.location === ChatAgentLocation.Panel || this.chatOptions.location === ChatAgentLocation.EditingSession,
-					enableWorkingSet: this.chatOptions.location === ChatAgentLocation.EditingSession ? 'explicit' : undefined
+					enableImplicitContext: this.chatOptions.location === ChatAgentLocation.Panel || this.chatService.isEditingLocation(this.chatOptions.location),
+					enableWorkingSet: this.chatService.isEditingLocation(this.chatOptions.location) ? 'explicit' : undefined,
+					supportsChangingModes: this.chatService.isEditingLocation(this.chatOptions.location),
 				},
 				{
 					listForeground: SIDE_BAR_FOREGROUND,

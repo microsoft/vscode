@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, autorunWithStore, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { ILanguageModelToolsService, IToolResult } from '../../chat/common/languageModelToolsService.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
@@ -29,7 +31,8 @@ export class McpService extends Disposable implements IMcpService {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
 		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IProductService productService: IProductService
 	) {
 		super();
 
@@ -96,6 +99,7 @@ export class McpService extends Disposable implements IMcpService {
 						ctxInst.set(tool.enabled.read(reader));
 					}));
 
+
 					newStore.add(toolsService.registerToolData({
 						id: tool.id,
 						displayName: tool.definition.name,
@@ -107,11 +111,20 @@ export class McpService extends Disposable implements IMcpService {
 					newStore.add(toolsService.registerToolImplementation(tool.id, {
 
 						async prepareToolInvocation(parameters, token) {
+
+							const mcpToolWarning = localize(
+								'mcp.tool.warning',
+								"MCP servers or malicious conversation content may attempt to misuse '{0}' through the installed tools. Please carefully review any requested actions.",
+								productService.nameShort
+							);
+
 							return {
 								confirmationMessages: {
-									title: localize('aaa', "Run tool from {0}", server.definition.label),
-									message: localize('ddd', "Do you allow to run `{0}` from `{1}`?", tool.definition.name, server.definition.label)
-								}
+									title: localize('msg.title', "Run `{0}` from $(server) `{1}` (MCP server)", tool.definition.name, server.definition.label),
+									message: new MarkdownString(localize('msg.msg', "{0}\n\nInput:\n\n```json\n{1}\n```\n\n$(warning) {2}", tool.definition.description, JSON.stringify(parameters, undefined, 2), mcpToolWarning), { supportThemeIcons: true })
+								},
+								invocationMessage: new MarkdownString(localize('msg.run', "Running `{0}`", tool.definition.name, server.definition.label)),
+								pastTenseMessage: new MarkdownString(localize('msg.ran', "Ran `{0}` ", tool.definition.name, server.definition.label))
 							};
 						},
 
@@ -132,6 +145,8 @@ export class McpService extends Disposable implements IMcpService {
 									// TODO@jrieken handle different item types
 								}
 							}
+
+							// result.toolResultMessage = new MarkdownString(localize('reuslt.pattern', "```json\n{0}\n```", JSON.stringify(callResult, undefined, 2)));
 
 							return result;
 						},

@@ -2278,7 +2278,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		if (extension.gallery) {
-			if (!extension.gallery.isSigned) {
+			if (!extension.gallery.isSigned && (await this.galleryService.getCapabilities()).allRepositorySigned) {
 				return new MarkdownString().appendText(nls.localize('not signed', "This extension is not signed."));
 			}
 

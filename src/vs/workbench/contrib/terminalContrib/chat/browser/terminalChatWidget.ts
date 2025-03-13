@@ -12,7 +12,6 @@ import './media/terminalChatWidget.css';
 import { localize } from '../../../../../nls.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ChatAgentLocation } from '../../../chat/common/chatAgents.js';
 import { InlineChatWidget } from '../../../inlineChat/browser/inlineChatWidget.js';
 import { ITerminalInstance, type IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { MENU_TERMINAL_CHAT_WIDGET_INPUT_SIDE_TOOLBAR, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from './terminalChat.js';
@@ -28,6 +27,7 @@ import { CancellationTokenSource } from '../../../../../base/common/cancellation
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import type { IChatViewState } from '../../../chat/browser/chatWidget.js';
 import { autorun, observableValue, type IObservable } from '../../../../../base/common/observable.js';
+import { ChatAgentLocation } from '../../../chat/common/constants.js';
 
 const enum Constants {
 	HorizontalMargin = 10,

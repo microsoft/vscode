@@ -17,6 +17,7 @@ const mcpSchemaExampleServer = {
 };
 
 export const mcpConfigurationSection = 'mcp';
+export const mcpDiscoverySection = 'chat.mpc.discovery.enabled';
 
 export const mcpSchemaExampleServers = {
 	'mcp-server-time': {
@@ -32,6 +33,7 @@ export const mcpServerSchema: IJSONSchema = {
 	title: localize('app.mcp.json.title', "Model Context Protocol Servers"),
 	allowTrailingCommas: true,
 	allowComments: true,
+	additionalProperties: false,
 	properties: {
 		servers: {
 			examples: [mcpSchemaExampleServers],

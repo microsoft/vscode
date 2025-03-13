@@ -465,7 +465,7 @@ registerEditorAction(class ShowLensesInCurrentLine extends EditorAction {
 		super({
 			id: 'codelens.showLensesInCurrentLine',
 			precondition: EditorContextKeys.hasCodeLensProvider,
-			label: localize2('showLensOnLine', "Show CodeLens Commands For Current Line"),
+			label: localize2('showLensOnLine', "Show CodeLens Commands for Current Line"),
 		});
 	}
 
