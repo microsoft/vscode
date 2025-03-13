@@ -184,20 +184,19 @@ export class AttachMCPToolsAction extends Action2 {
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(
 				McpContextKeys.toolsCount.greater(0),
-				ChatContextKeys.chatMode.notEqualsTo(ChatMode.Chat),
-				ChatContextKeys.Editing.hasToolsAgent
+				ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent)
 			),
 			menu: {
 				when: ContextKeyExpr.and(
 					McpContextKeys.toolsCount.greater(0),
-					ChatContextKeys.chatMode.notEqualsTo(ChatMode.Chat),
-					ChatContextKeys.Editing.hasToolsAgent
+					ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent)
 				),
 				id: MenuId.ChatInputAttachmentToolbar,
-				group: 'navigation'
+				group: 'navigation',
+				order: 1
 			},
 			keybinding: {
-				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.chatMode.notEqualsTo(ChatMode.Chat)),
+				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent)),
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Slash,
 				weight: KeybindingWeight.EditorContrib
 			}
