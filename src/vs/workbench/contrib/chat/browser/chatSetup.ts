@@ -123,8 +123,7 @@ class SetupChatAgentImplementation implements IChatAgentImplementation {
 	async invoke() {
 		return {
 			errorDetails: {
-				message: localize('setupCopilot', "You need to setup Copilot first."),
-				isSetupNeeded: true
+				message: localize('setupCopilot', "You need to setup Copilot first.")
 			}
 		};
 	}
