@@ -146,6 +146,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostManagedSockets = accessor.get(IExtHostManagedSockets);
 	const extHostAuthentication = accessor.get(IExtHostAuthentication);
 	const extHostLanguageModels = accessor.get(IExtHostLanguageModels);
+	const extHostMcp = accessor.get(IExtHostMpcService);
 
 	// register addressable instances
 	rpcProtocol.set(ExtHostContext.ExtHostFileSystemInfo, extHostFileSystemInfo);
@@ -1514,6 +1515,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			registerIgnoredFileProvider(provider: vscode.LanguageModelIgnoredFileProvider) {
 				return extHostLanguageModels.registerIgnoredFileProvider(extension, provider);
+			},
+			registerMcpConfigurationProvider(provider, metadata) {
+				checkProposedApiEnabled(extension, 'mcpConfigurationProvider');
+				return extHostMcp.registerMcpConfigurationProvider(extension, provider, metadata);
 			}
 		};
 

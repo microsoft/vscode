@@ -241,6 +241,7 @@ export class AttachMCPToolsAction extends Action2 {
 				server,
 				type: 'item',
 				label: `${server.definition.label}`,
+				description: server.collection.label,
 				picked: tools.some(tool => tool.enabled.get()),
 				toolPicks: []
 			};
