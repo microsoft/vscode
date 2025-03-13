@@ -152,7 +152,6 @@ const ignored = new Set([
     'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService.ts',
     'vs/workbench/contrib/output/browser/outputServices.ts',
     'vs/workbench/contrib/terminalContrib/typeAhead/browser/terminalTypeAheadAddon.ts',
-    'vs/workbench/contrib/remote/browser/remoteIndicator.ts',
     'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoLineQuickAccess.ts',
     'vs/workbench/contrib/editSessions/browser/editSessionsStorageService.ts',
     'vs/workbench/contrib/accessibilitySignals/browser/editorTextPropertySignalsContribution.ts',

@@ -3,6 +3,4 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.quick-input-list .quick-input-list-rows > .quick-input-list-row .monaco-icon-label.mcp-tool .codicon[class*='codicon-'] {
-	font-size: 14px;
-}
+export const REMOTE_DEFAULT_EXTENSIONS = 'remote.defaultExtensions';

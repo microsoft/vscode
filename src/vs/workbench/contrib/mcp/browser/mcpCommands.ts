@@ -30,7 +30,6 @@ import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { ChatMode } from '../../chat/common/constants.js';
 import { McpContextKeys } from '../common/mcpContextKeys.js';
 import { IMcpServer, IMcpService, IMcpTool, McpConnectionState, McpServerToolsState } from '../common/mcpTypes.js';
-import './media/mcp.css';
 
 // acroynms do not get localized
 const category: ILocalizedString = {
@@ -185,18 +184,19 @@ export class AttachMCPToolsAction extends Action2 {
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(
 				McpContextKeys.toolsCount.greater(0),
-				ChatContextKeys.chatMode.notEqualsTo(ChatMode.Chat)
+				ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent)
 			),
 			menu: {
 				when: ContextKeyExpr.and(
 					McpContextKeys.toolsCount.greater(0),
-					ChatContextKeys.chatMode.notEqualsTo(ChatMode.Chat)
+					ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent)
 				),
 				id: MenuId.ChatInputAttachmentToolbar,
-				group: 'navigation'
+				group: 'navigation',
+				order: 1
 			},
 			keybinding: {
-				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.chatMode.notEqualsTo(ChatMode.Chat)),
+				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent)),
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Slash,
 				weight: KeybindingWeight.EditorContrib
 			}
@@ -240,7 +240,6 @@ export class AttachMCPToolsAction extends Action2 {
 				server,
 				type: 'item',
 				label: `${server.definition.label}`,
-				description: localize('desc', "MCP Server - {0}", McpConnectionState.toString(server.connectionState.get())),
 				picked: tools.some(tool => tool.enabled.get()),
 				toolPicks: []
 			};
