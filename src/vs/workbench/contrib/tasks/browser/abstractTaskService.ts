@@ -47,8 +47,8 @@ import { ITextFileService } from '../../../services/textfile/common/textfiles.js
 import { ITerminalGroupService, ITerminalService } from '../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../terminal/common/terminal.js';
 
-import { ConfiguringTask, ContributedTask, CustomTask, ExecutionEngine, InMemoryTask, ITaskEvent, ITaskIdentifier, ITaskSet, JsonSchemaVersion, KeyedTaskIdentifier, RuntimeType, Task, TASK_RUNNING_STATE, TaskDefinition, TaskEventKind, TaskGroup, TaskRunSource, TaskSettingId, TaskSorter, TaskSourceKind, TasksSchemaProperties, USER_TASKS_GROUP_KEY } from '../common/tasks.js';
-import { CustomExecutionSupportedContext, ICustomizationProperties, IProblemMatcherRunOptions, ITaskFilter, ITaskProvider, ITaskService, IWorkspaceFolderTaskResult, ProcessExecutionSupportedContext, ServerlessWebContext, ShellExecutionSupportedContext, TaskCommandsRegistered, TaskExecutionSupportedContext } from '../common/taskService.js';
+import { ConfiguringTask, ContributedTask, CustomTask, ExecutionEngine, InMemoryTask, ITaskEvent, ITaskIdentifier, ITaskSet, JsonSchemaVersion, KeyedTaskIdentifier, RuntimeType, Task, TASK_RUNNING_STATE, TaskDefinition, TaskGroup, TaskRunSource, TaskSettingId, TaskSorter, TaskSourceKind, TasksSchemaProperties, USER_TASKS_GROUP_KEY, TaskEventKind } from '../common/tasks.js';
+import { CustomExecutionSupportedContext, ICustomizationProperties, IProblemMatcherRunOptions, ITaskFilter, ITaskProvider, ITaskService, ITaskTerminalStatus, IWorkspaceFolderTaskResult, ProcessExecutionSupportedContext, ServerlessWebContext, ShellExecutionSupportedContext, TaskCommandsRegistered, TaskExecutionSupportedContext } from '../common/taskService.js';
 import { ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSystemInfo, ITaskTerminateResponse, TaskError, TaskErrors, TaskExecuteKind } from '../common/taskSystem.js';
 import { getTemplates as getTaskTemplates } from '../common/taskTemplates.js';
 
@@ -83,6 +83,7 @@ import { IPaneCompositePartService } from '../../../services/panecomposite/brows
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
@@ -236,6 +237,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	public get isReconnected(): boolean { return this._tasksReconnected; }
 	private _onDidChangeTaskProviders = this._register(new Emitter<void>());
 	public onDidChangeTaskProviders = this._onDidChangeTaskProviders.event;
+	private _onDidChangeTaskTerminalStatus: Emitter<ITaskTerminalStatus> = new Emitter<ITaskTerminalStatus>();
+	public readonly onDidChangeTaskTerminalStatus: Event<ITaskTerminalStatus> = this._onDidChangeTaskTerminalStatus.event;
 
 	private _activatedTaskProviders: Set<string> = new Set();
 
@@ -2006,7 +2009,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._contextService, this._environmentService,
 			AbstractTaskService.OutputChannelId, this._fileService, this._terminalProfileResolverService,
 			this._pathService, this._viewDescriptorService, this._logService, this._notificationService,
-			this._instantiationService,
+			this._contextKeyService, this._instantiationService,
 			(workspaceFolder: IWorkspaceFolder | undefined) => {
 				if (workspaceFolder) {
 					return this._getTaskSystemInfo(workspaceFolder.uri.scheme);
@@ -2055,12 +2058,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			};
 			const error = (error: any) => {
 				try {
-					if (error && Types.isString(error.message)) {
-						this._log(`Error: ${error.message}\n`);
-						this._showOutput();
-					} else {
-						this._log('Unknown error received while collecting tasks from providers.');
-						this._showOutput();
+					if (!isCancellationError(error)) {
+						if (error && Types.isString(error.message)) {
+							this._log(`Error: ${error.message}\n`);
+							this._showOutput();
+						} else {
+							this._log('Unknown error received while collecting tasks from providers.');
+							this._showOutput();
+						}
 					}
 				} finally {
 					if (--counter === 0) {
@@ -2500,17 +2505,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			const workspaceFolder: IWorkspaceFolder = this._contextService.getWorkspace().folders[0];
 			workspaceFolders.push(workspaceFolder);
 			executionEngine = this._computeExecutionEngine(workspaceFolder);
-			const telemetryData: { [key: string]: any } = {
-				executionEngineVersion: executionEngine
-			};
-			/* __GDPR__
-				"taskService.engineVersion" : {
-					"owner": "alexr00",
-					"comment": "The engine version of tasks. Used to determine if a user is using a deprecated version.",
-					"executionEngineVersion" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The engine version of tasks." }
-				}
-			*/
-			this._telemetryService.publicLog('taskService.engineVersion', telemetryData);
 			schemaVersion = this._computeJsonSchemaVersion(workspaceFolder);
 		} else if (this._contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			workspace = this._contextService.getWorkspace();
@@ -2520,7 +2514,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				} else {
 					ignoredWorkspaceFolders.push(workspaceFolder);
 					this._log(nls.localize(
-						'taskService.ignoreingFolder',
+						'taskService.ignoringFolder',
 						'Ignoring task configurations for workspace folder {0}. Multi folder workspace task support requires that all folders use task version 2.0.0',
 						workspaceFolder.uri.fsPath));
 				}
@@ -2945,7 +2939,17 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		});
 	}
 
-	private _reRunTaskCommand(): void {
+
+	rerun(terminalInstanceId: number): void {
+		const task = this._taskSystem?.getTaskForTerminal(terminalInstanceId);
+		if (task) {
+			this._restart(task);
+		} else {
+			this._reRunTaskCommand(true);
+		}
+	}
+
+	private _reRunTaskCommand(onlyRerun?: boolean): void {
 
 		ProblemMatcherRegistry.onReady().then(() => {
 			return this._editorService.saveAll({ reason: SaveReason.AUTO }).then(() => { // make sure all dirty editors are saved
@@ -2953,7 +2957,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				if (executeResult) {
 					return this._handleExecuteResult(executeResult);
 				} else {
-					if (!this._taskRunningState.get()) {
+					if (!onlyRerun && !this._taskRunningState.get()) {
 						// No task running, prompt to ask which to run
 						this._doRunTaskCommand();
 					}

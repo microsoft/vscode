@@ -10,11 +10,8 @@
   "enabledApiProposals": [
     "workspaceTrust",
     "multiDocumentHighlightProvider",
-    "mappedEditsProvider",
     "codeActionAI",
-    "codeActionRanges",
-    "documentPaste",
-    "editorHoverVerbosityLevel"
+    "codeActionRanges"
   ],
   "capabilities": {
     "virtualWorkspaces": {
@@ -527,6 +524,12 @@
           ]
         },
         "typescript.format.indentSwitchCase": {
+          "type": "boolean",
+          "default": true,
+          "description": "%format.indentSwitchCase%",
+          "scope": "resource"
+        },
+        "javascript.format.indentSwitchCase": {
           "type": "boolean",
           "default": true,
           "description": "%format.indentSwitchCase%",
@@ -1511,15 +1514,6 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "%configuration.updateImportsOnPaste%"
-        },
-        "typescript.experimental.expandableHover": {
-          "type": "boolean",
-          "default": false,
-          "description": "%configuration.expandableHover%",
-          "scope": "window",
-          "tags": [
-            "experimental"
-          ]
         }
       }
     },

@@ -42,13 +42,8 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 	private _onDidAccountPreferenceChange: Emitter<{ providerId: string; extensionIds: string[] }> = this._register(new Emitter<{ providerId: string; extensionIds: string[] }>());
 	readonly onDidChangeAccountPreference = this._onDidAccountPreferenceChange.event;
 
-	private _inheritAuthAccountPreferenceParentToChildren: Record<string, string[]> = this._productService.inheritAuthAccountPreference || {};
-	private _inheritAuthAccountPreferenceChildToParent = Object.entries(this._inheritAuthAccountPreferenceParentToChildren).reduce<{ [extensionId: string]: string }>((acc, [parent, children]) => {
-		children.forEach((child: string) => {
-			acc[child] = parent;
-		});
-		return acc;
-	}, {});
+	private _inheritAuthAccountPreferenceParentToChildren: Record<string, string[]>;
+	private _inheritAuthAccountPreferenceChildToParent: { [extensionId: string]: string };
 
 	constructor(
 		@IActivityService private readonly activityService: IActivityService,
@@ -61,6 +56,13 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		@IAuthenticationAccessService private readonly _authenticationAccessService: IAuthenticationAccessService
 	) {
 		super();
+		this._inheritAuthAccountPreferenceParentToChildren = this._productService.inheritAuthAccountPreference || {};
+		this._inheritAuthAccountPreferenceChildToParent = Object.entries(this._inheritAuthAccountPreferenceParentToChildren).reduce<{ [extensionId: string]: string }>((acc, [parent, children]) => {
+			children.forEach((child: string) => {
+				acc[child] = parent;
+			});
+			return acc;
+		}, {});
 		this.registerListeners();
 	}
 

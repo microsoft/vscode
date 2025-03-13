@@ -6,7 +6,7 @@
 import { $ } from '../../dom.js';
 import { IBoundarySashes, Orientation, Sash } from '../sash/sash.js';
 import { DistributeSizing, ISplitViewStyles, IView as ISplitView, LayoutPriority, Sizing, AutoSizing, SplitView } from '../splitview/splitview.js';
-import { equals as arrayEquals, tail2 as tail } from '../../../common/arrays.js';
+import { equals as arrayEquals, tail } from '../../../common/arrays.js';
 import { Color } from '../../../common/color.js';
 import { Emitter, Event, Relay } from '../../../common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../common/lifecycle.js';

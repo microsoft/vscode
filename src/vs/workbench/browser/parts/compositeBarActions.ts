@@ -9,7 +9,7 @@ import { $, addDisposableListener, append, clearNode, EventHelper, EventType, ge
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { toDisposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
-import { IThemeService, IColorTheme } from '../../../platform/theme/common/themeService.js';
+import { IThemeService, IColorTheme, IThemeChangeEvent } from '../../../platform/theme/common/themeService.js';
 import { NumberBadge, IBadge, IActivity, ProgressBadge, IconBadge } from '../../services/activity/common/activity.js';
 import { IInstantiationService, ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { DelayedDragHandler } from '../../../base/browser/dnd.js';
@@ -289,7 +289,7 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 		this.updateTitle();
 	}
 
-	private onThemeChange(theme: IColorTheme): void {
+	private onThemeChange(theme: IThemeChangeEvent): void {
 		this.updateStyles();
 	}
 
@@ -514,26 +514,11 @@ export class CompositeOverflowActivityActionViewItem extends CompositeBarActionV
 	}
 }
 
-class ManageExtensionAction extends Action {
-
-	constructor(
-		@ICommandService private readonly commandService: ICommandService
-	) {
-		super('activitybar.manage.extension', localize('manageExtension', "Manage Extension"));
-	}
-
-	override run(id: string): Promise<void> {
-		return this.commandService.executeCommand('_extensions.manage', id);
-	}
-}
-
 export class CompositeActionViewItem extends CompositeBarActionViewItem {
-
-	private static manageExtensionAction: ManageExtensionAction;
 
 	constructor(
 		options: ICompositeBarActionViewItemOptions,
-		private readonly compositeActivityAction: CompositeBarAction,
+		compositeActivityAction: CompositeBarAction,
 		private readonly toggleCompositePinnedAction: IAction,
 		private readonly toggleCompositeBadgeAction: IAction,
 		private readonly compositeContextMenuActionsProvider: (compositeId: string) => IAction[],
@@ -557,10 +542,6 @@ export class CompositeActionViewItem extends CompositeBarActionViewItem {
 			configurationService,
 			keybindingService
 		);
-
-		if (!CompositeActionViewItem.manageExtensionAction) {
-			CompositeActionViewItem.manageExtensionAction = instantiationService.createInstance(ManageExtensionAction);
-		}
 	}
 
 	override render(container: HTMLElement): void {
@@ -667,11 +648,6 @@ export class CompositeActionViewItem extends CompositeBarActionViewItem {
 		const compositeContextMenuActions = this.compositeContextMenuActionsProvider(this.compositeBarActionItem.id);
 		if (compositeContextMenuActions.length) {
 			actions.push(...compositeContextMenuActions);
-		}
-
-		if ((<any>this.compositeActivityAction.compositeBarActionItem).extensionId) {
-			actions.push(new Separator());
-			actions.push(CompositeActionViewItem.manageExtensionAction);
 		}
 
 		const isPinned = this.compositeBar.isPinned(this.compositeBarActionItem.id);

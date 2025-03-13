@@ -929,7 +929,18 @@ export interface IQuickInputService {
 	cancel(): Promise<void>;
 
 	/**
+	 * Toggles hover for the current quick input item
+	 */
+	toggleHover(): void;
+
+	/**
 	 * The current quick pick that is visible. Undefined if none is open.
 	 */
 	currentQuickInput: IQuickInput | undefined;
+
+	/**
+	 * Set the alignment of the quick input.
+	 * @param alignment either a preset or a custom alignment
+	 */
+	setAlignment(alignment: 'top' | 'center' | { top: number; left: number }): void;
 }

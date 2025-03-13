@@ -42,6 +42,9 @@ import { QuickDiffModelService, IQuickDiffModelService } from './quickDiffModel.
 import { QuickDiffEditorController } from './quickDiffWidget.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
 import { RemoteNameContext } from '../../../common/contextkeys.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { SCMAccessibilityHelp } from './scmAccessibilityHelp.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 
 ModesRegistry.registerLanguage({
 	id: 'scminput',
@@ -70,6 +73,7 @@ const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensio
 }, ViewContainerLocation.Sidebar, { doNotRegisterOpenCommand: true });
 
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
+const containerTitle = localize('source control view', "Source Control");
 
 viewsRegistry.registerViewWelcomeContent(VIEW_PANE_ID, {
 	content: localize('no open repo', "No source control providers registered."),
@@ -93,7 +97,9 @@ viewsRegistry.registerViewWelcomeContent(HISTORY_VIEW_PANE_ID, {
 
 viewsRegistry.registerViews([{
 	id: REPOSITORIES_VIEW_PANE_ID,
-	name: localize2('source control repositories', "Source Control Repositories"),
+	containerTitle,
+	name: localize2('scmRepositories', "Repositories"),
+	singleViewPaneContainerTitle: localize('source control repositories', "Source Control Repositories"),
 	ctorDescriptor: new SyncDescriptor(SCMRepositoriesViewPane),
 	canToggleVisibility: true,
 	hideByDefault: true,
@@ -107,7 +113,9 @@ viewsRegistry.registerViews([{
 
 viewsRegistry.registerViews([{
 	id: VIEW_PANE_ID,
-	name: localize2('source control', 'Source Control'),
+	containerTitle,
+	name: localize2('scmChanges', 'Changes'),
+	singleViewPaneContainerTitle: containerTitle,
 	ctorDescriptor: new SyncDescriptor(SCMViewPane),
 	canToggleVisibility: true,
 	canMoveView: true,
@@ -129,7 +137,9 @@ viewsRegistry.registerViews([{
 
 viewsRegistry.registerViews([{
 	id: HISTORY_VIEW_PANE_ID,
-	name: localize2('source control history', "Source Control Graph"),
+	containerTitle,
+	name: localize2('scmGraph', "Graph"),
+	singleViewPaneContainerTitle: localize('source control graph', "Source Control Graph"),
 	ctorDescriptor: new SyncDescriptor(SCMHistoryViewPane),
 	canToggleVisibility: true,
 	canMoveView: true,
@@ -416,7 +426,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'scm.clearInput',
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(ContextKeyExpr.has('scmRepository'), SuggestContext.Visible.toNegated()),
+	when: ContextKeyExpr.and(ContextKeyExpr.has('scmRepository'), SuggestContext.Visible.toNegated(), EditorContextKeys.hasNonEmptySelection.toNegated()),
 	primary: KeyCode.Escape,
 	handler: async (accessor) => {
 		const scmService = accessor.get(ISCMService);
@@ -605,3 +615,5 @@ registerSingleton(ISCMService, SCMService, InstantiationType.Delayed);
 registerSingleton(ISCMViewService, SCMViewService, InstantiationType.Delayed);
 registerSingleton(IQuickDiffService, QuickDiffService, InstantiationType.Delayed);
 registerSingleton(IQuickDiffModelService, QuickDiffModelService, InstantiationType.Delayed);
+
+AccessibleViewRegistry.register(new SCMAccessibilityHelp());

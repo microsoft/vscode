@@ -692,6 +692,27 @@ suite('MarkdownRenderer', () => {
 				const completeTokens = marked.marked.lexer(incomplete + '\`](https://microsoft.com)');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
+
+			test('list with incomplete subitem', () => {
+				const incomplete = `1. list item one
+	- `;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + '&nbsp;');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('list with incomplete nested subitem', () => {
+				const incomplete = `1. list item one
+	- item 2
+		- `;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + '&nbsp;');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
 		});
 
 		suite('codespan', () => {
@@ -831,7 +852,7 @@ suite('MarkdownRenderer', () => {
 			});
 
 			test('incomplete link target with incomplete arg 2', () => {
-				const incomplete = '[text](command:_github.copilot.openRelativePath "arg';
+				const incomplete = '[text](command:vscode.openRelativePath "arg';
 				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 

@@ -55,6 +55,11 @@ fsevents/test/**
 @vscode/windows-registry/build/**
 !@vscode/windows-registry/build/Release/*.node
 
+@vscode/tree-sitter-wasm/wasm/tree-sitter-*.wasm
+!@vscode/tree-sitter-wasm/wasm/tree-sitter-typescript.wasm
+!@vscode/tree-sitter-wasm/wasm/tree-sitter-regex.wasm
+!@vscode/tree-sitter-wasm/wasm/tree-sitter-ini.wasm
+
 native-keymap/binding.gyp
 native-keymap/build/**
 native-keymap/src/**
@@ -130,6 +135,7 @@ vsda/**
 !@vscode/windows-ca-certs/package.json
 !@vscode/windows-ca-certs/**/*.node
 
+@vscode/node-addon-api/**/*
 node-addon-api/**/*
 prebuild-install/**/*
 

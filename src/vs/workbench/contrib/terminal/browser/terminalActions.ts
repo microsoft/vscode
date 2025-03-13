@@ -61,6 +61,7 @@ import { isKeyboardEvent, isMouseEvent, isPointerEvent } from '../../../../base/
 import { editorGroupToColumn } from '../../../services/editor/common/editorGroupColumn.js';
 import { InstanceContext } from './terminalContextMenu.js';
 import { AccessibleViewProviderId } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { TerminalTabList } from './terminalTabsList.js';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -203,7 +204,7 @@ export function registerContextualInstanceAction(
 		activeInstanceType?: 'view' | 'editor';
 		run: (instance: ITerminalInstance, c: ITerminalServicesCollection, accessor: ServicesAccessor, args?: unknown) => void | Promise<unknown>;
 		/**
-		 * A callback to run after the the `run` callbacks have completed.
+		 * A callback to run after the `run` callbacks have completed.
 		 * @param instances The selected instance(s) that the command was run on.
 		 */
 		runAfter?: (instances: ITerminalInstance[], c: ITerminalServicesCollection, accessor: ServicesAccessor, args?: unknown) => void | Promise<unknown>;
@@ -317,8 +318,8 @@ export function registerTerminalActions() {
 					return;
 				}
 				c.service.setActiveInstance(instance);
+				await focusActiveTerminal(instance, c);
 			}
-			await c.groupService.showPanel(true);
 		}
 	});
 
@@ -903,7 +904,7 @@ export function registerTerminalActions() {
 
 	registerActiveInstanceAction({
 		id: TerminalCommandId.SelectToPreviousCommand,
-		title: localize2('workbench.action.terminal.selectToPreviousCommand', 'Select To Previous Command'),
+		title: localize2('workbench.action.terminal.selectToPreviousCommand', 'Select to Previous Command'),
 		keybinding: {
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow,
 			when: TerminalContextKeys.focus,
@@ -918,7 +919,7 @@ export function registerTerminalActions() {
 
 	registerActiveInstanceAction({
 		id: TerminalCommandId.SelectToNextCommand,
-		title: localize2('workbench.action.terminal.selectToNextCommand', 'Select To Next Command'),
+		title: localize2('workbench.action.terminal.selectToNextCommand', 'Select to Next Command'),
 		keybinding: {
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow,
 			when: TerminalContextKeys.focus,
@@ -933,7 +934,7 @@ export function registerTerminalActions() {
 
 	registerActiveXtermAction({
 		id: TerminalCommandId.SelectToPreviousLine,
-		title: localize2('workbench.action.terminal.selectToPreviousLine', 'Select To Previous Line'),
+		title: localize2('workbench.action.terminal.selectToPreviousLine', 'Select to Previous Line'),
 		precondition: sharedWhenClause.terminalAvailable,
 		run: async (xterm, _, instance) => {
 			xterm.markTracker.selectToPreviousLine();
@@ -944,7 +945,7 @@ export function registerTerminalActions() {
 
 	registerActiveXtermAction({
 		id: TerminalCommandId.SelectToNextLine,
-		title: localize2('workbench.action.terminal.selectToNextLine', 'Select To Next Line'),
+		title: localize2('workbench.action.terminal.selectToNextLine', 'Select to Next Line'),
 		precondition: sharedWhenClause.terminalAvailable,
 		run: async (xterm, _, instance) => {
 			xterm.markTracker.selectToNextLine();
@@ -1463,7 +1464,8 @@ function getSelectedInstances(accessor: ServicesAccessor, args?: unknown, args2?
 	const terminalGroupService = accessor.get(ITerminalGroupService);
 	const result: ITerminalInstance[] = [];
 
-	const list = listService.lastFocusedList;
+	// Assign list only if it's an instance of TerminalTabList (#234791)
+	const list = listService.lastFocusedList instanceof TerminalTabList ? listService.lastFocusedList : undefined;
 	// Get selected tab list instance(s)
 	const selections = list?.getSelection();
 	// Get inline tab instance if there are not tab list selections #196578

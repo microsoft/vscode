@@ -19,6 +19,11 @@ export abstract class BaseToken {
 	}
 
 	/**
+	 * Return text representation of the token.
+	 */
+	public abstract get text(): string;
+
+	/**
 	 * Check if this token has the same range as another one.
 	 */
 	public sameRange(other: Range): boolean {

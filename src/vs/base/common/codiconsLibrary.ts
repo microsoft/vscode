@@ -586,4 +586,10 @@ export const codiconsLibrary = {
 	python: register('python', 0xec39),
 	copilotLarge: register('copilot-large', 0xec3a),
 	copilotWarningLarge: register('copilot-warning-large', 0xec3b),
+	keyboardTab: register('keyboard-tab', 0xec3c),
+	copilotBlocked: register('copilot-blocked', 0xec3d),
+	copilotNotConnected: register('copilot-not-connected', 0xec3e),
+	flag: register('flag', 0xec3f),
+	lightbulbEmpty: register('lightbulb-empty', 0xec40),
+	symbolMethodArrow: register('symbol-method-arrow', 0xec41),
 } as const;

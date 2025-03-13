@@ -51,13 +51,13 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		'timeline.pageSize': {
 			type: ['number', 'null'],
-			default: null,
-			markdownDescription: localize('timeline.pageSize', "The number of items to show in the Timeline view by default and when loading more items. Setting to `null` (the default) will automatically choose a page size based on the visible area of the Timeline view."),
+			default: 50,
+			markdownDescription: localize('timeline.pageSize', "The number of items to show in the Timeline view by default and when loading more items. Setting to `null` will automatically choose a page size based on the visible area of the Timeline view."),
 		},
 		'timeline.pageOnScroll': {
 			type: 'boolean',
-			default: false,
-			description: localize('timeline.pageOnScroll', "Experimental. Controls whether the Timeline view will load the next page of items when you scroll to the end of the list."),
+			default: true,
+			description: localize('timeline.pageOnScroll', "Controls whether the Timeline view will load the next page of items when you scroll to the end of the list."),
 		},
 	}
 });

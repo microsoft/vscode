@@ -5,9 +5,11 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Disposable, DisposableMap, IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
+import { TextEdit } from '../../../editor/common/languages.js';
 import { ICodeMapperProvider, ICodeMapperRequest, ICodeMapperResponse, ICodeMapperService } from '../../contrib/chat/common/chatCodeMapperService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { ExtHostCodeMapperShape, ExtHostContext, ICodeMapperProgressDto, ICodeMapperRequestDto, MainContext, MainThreadCodeMapperShape } from '../common/extHost.protocol.js';
+import { NotebookDto } from './mainThreadNotebookDto.js';
 
 @extHostNamedCustomer(MainContext.MainThreadCodeMapper)
 export class MainThreadChatCodemapper extends Disposable implements MainThreadCodeMapperShape {
@@ -25,15 +27,17 @@ export class MainThreadChatCodemapper extends Disposable implements MainThreadCo
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostCodeMapper);
 	}
 
-	$registerCodeMapperProvider(handle: number): void {
+	$registerCodeMapperProvider(handle: number, displayName: string): void {
 		const impl: ICodeMapperProvider = {
+			displayName,
 			mapCode: async (uiRequest: ICodeMapperRequest, response: ICodeMapperResponse, token: CancellationToken) => {
 				const requestId = String(MainThreadChatCodemapper._requestHandlePool++);
 				this._responseMap.set(requestId, response);
 				const extHostRequest: ICodeMapperRequestDto = {
 					requestId,
 					codeBlocks: uiRequest.codeBlocks,
-					conversation: uiRequest.conversation
+					chatRequestId: uiRequest.chatRequestId,
+					location: uiRequest.location
 				};
 				try {
 					return await this._proxy.$mapCode(handle, extHostRequest, token).then((result) => result ?? undefined);
@@ -54,8 +58,15 @@ export class MainThreadChatCodemapper extends Disposable implements MainThreadCo
 	$handleProgress(requestId: string, data: ICodeMapperProgressDto): Promise<void> {
 		const response = this._responseMap.get(requestId);
 		if (response) {
+			const edits = data.edits;
 			const resource = URI.revive(data.uri);
-			response.textEdit(resource, data.edits);
+			if (!edits.length) {
+				response.textEdit(resource, []);
+			} else if (edits.every(TextEdit.isTextEdit)) {
+				response.textEdit(resource, edits);
+			} else {
+				response.notebookEdit(resource, edits.map(NotebookDto.fromCellEditOperationDto));
+			}
 		}
 		return Promise.resolve();
 	}

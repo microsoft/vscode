@@ -26,6 +26,7 @@ import { assertIsDefined } from '../../../../base/common/types.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { DEFINE_KEYBINDING_EDITOR_CONTRIB_ID, IDefineKeybindingEditorContribution } from '../../../services/preferences/common/preferences.js';
+import { IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
 
 const NLS_KB_LAYOUT_ERROR_MESSAGE = nls.localize('defineKeybinding.kbLayoutErrorMessage', "You won't be able to produce this key combination under your current keyboard layout.");
 
@@ -88,13 +89,14 @@ class DefineKeybindingEditorContribution extends Disposable implements IDefineKe
 export class KeybindingEditorDecorationsRenderer extends Disposable {
 
 	private _updateDecorations: RunOnceScheduler;
-	private readonly _dec = this._editor.createDecorationsCollection();
+	private readonly _dec: IEditorDecorationsCollection;
 
 	constructor(
 		private _editor: ICodeEditor,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
+		this._dec = this._editor.createDecorationsCollection();
 
 		this._updateDecorations = this._register(new RunOnceScheduler(() => this._updateDecorationsNow(), 500));
 

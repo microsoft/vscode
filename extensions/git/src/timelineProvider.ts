@@ -3,13 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, ConfigurationChangeEvent, Disposable, env, Event, EventEmitter, MarkdownString, ThemeIcon, Timeline, TimelineChangeEvent, TimelineItem, TimelineOptions, TimelineProvider, Uri, workspace, l10n } from 'vscode';
+import { CancellationToken, ConfigurationChangeEvent, Disposable, env, Event, EventEmitter, MarkdownString, ThemeIcon, Timeline, TimelineChangeEvent, TimelineItem, TimelineOptions, TimelineProvider, Uri, workspace, l10n, Command } from 'vscode';
 import { Model } from './model';
 import { Repository, Resource } from './repository';
 import { debounce } from './decorators';
 import { emojify, ensureEmojis } from './emoji';
 import { CommandCenter } from './commands';
 import { OperationKind, OperationResult } from './operation';
+import { getCommitShortHash } from './util';
+import { CommitShortStat } from './git';
+import { provideSourceControlHistoryItemAvatar, provideSourceControlHistoryItemHoverCommands, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailsProvider';
+import { AvatarQuery, AvatarQueryCommit } from './api/git';
+
+const AVATAR_SIZE = 20;
 
 export class GitTimelineItem extends TimelineItem {
 	static is(item: TimelineItem): item is GitTimelineItem {
@@ -48,18 +54,60 @@ export class GitTimelineItem extends TimelineItem {
 		return this.shortenRef(this.previousRef);
 	}
 
-	setItemDetails(author: string, email: string | undefined, date: string, message: string): void {
+	setItemDetails(uri: Uri, hash: string | undefined, avatar: string | undefined, author: string, email: string | undefined, date: string, message: string, shortStat?: CommitShortStat, remoteSourceCommands: Command[] = []): void {
 		this.tooltip = new MarkdownString('', true);
+		this.tooltip.isTrusted = true;
+		this.tooltip.supportHtml = true;
+
+		const avatarMarkdown = avatar
+			? `![${author}](${avatar}|width=${AVATAR_SIZE},height=${AVATAR_SIZE})`
+			: '$(account)';
 
 		if (email) {
 			const emailTitle = l10n.t('Email');
-			this.tooltip.appendMarkdown(`$(account) [**${author}**](mailto:${email} "${emailTitle} ${author}")\n\n`);
+			this.tooltip.appendMarkdown(`${avatarMarkdown} [**${author}**](mailto:${email} "${emailTitle} ${author}")`);
 		} else {
-			this.tooltip.appendMarkdown(`$(account) **${author}**\n\n`);
+			this.tooltip.appendMarkdown(`${avatarMarkdown} **${author}**`);
 		}
 
-		this.tooltip.appendMarkdown(`$(history) ${date}\n\n`);
-		this.tooltip.appendMarkdown(message);
+		this.tooltip.appendMarkdown(`, $(history) ${date}\n\n`);
+		this.tooltip.appendMarkdown(`${message}\n\n`);
+
+		if (shortStat) {
+			this.tooltip.appendMarkdown(`---\n\n`);
+
+			const labels: string[] = [];
+			if (shortStat.insertions) {
+				labels.push(`<span style="color:var(--vscode-scmGraph-historyItemHoverAdditionsForeground);">${shortStat.insertions === 1 ?
+					l10n.t('{0} insertion{1}', shortStat.insertions, '(+)') :
+					l10n.t('{0} insertions{1}', shortStat.insertions, '(+)')}</span>`);
+			}
+
+			if (shortStat.deletions) {
+				labels.push(`<span style="color:var(--vscode-scmGraph-historyItemHoverDeletionsForeground);">${shortStat.deletions === 1 ?
+					l10n.t('{0} deletion{1}', shortStat.deletions, '(-)') :
+					l10n.t('{0} deletions{1}', shortStat.deletions, '(-)')}</span>`);
+			}
+
+			this.tooltip.appendMarkdown(`${labels.join(', ')}\n\n`);
+		}
+
+		if (hash) {
+			this.tooltip.appendMarkdown(`---\n\n`);
+
+			this.tooltip.appendMarkdown(`[\`$(git-commit) ${getCommitShortHash(uri, hash)} \`](command:git.viewCommit?${encodeURIComponent(JSON.stringify([uri, hash]))} "${l10n.t('Open Commit')}")`);
+			this.tooltip.appendMarkdown('&nbsp;');
+			this.tooltip.appendMarkdown(`[$(copy)](command:git.copyContentToClipboard?${encodeURIComponent(JSON.stringify(hash))} "${l10n.t('Copy Commit Hash')}")`);
+
+			// Remote commands
+			if (remoteSourceCommands.length > 0) {
+				this.tooltip.appendMarkdown('&nbsp;&nbsp;|&nbsp;&nbsp;');
+
+				const remoteCommandsMarkdown = remoteSourceCommands
+					.map(command => `[${command.title}](command:${command.command}?${encodeURIComponent(JSON.stringify([...command.arguments ?? [], hash]))} "${command.tooltip}")`);
+				this.tooltip.appendMarkdown(remoteCommandsMarkdown.join('&nbsp;'));
+			}
+		}
 	}
 
 	private shortenRef(ref: string): string {
@@ -153,6 +201,7 @@ export class GitTimelineProvider implements TimelineProvider {
 			maxEntries: limit,
 			hash: options.cursor,
 			follow: true,
+			shortStats: true,
 			// sortByAuthorDate: true
 		});
 
@@ -173,18 +222,39 @@ export class GitTimelineProvider implements TimelineProvider {
 
 		const openComparison = l10n.t('Open Comparison');
 
-		const items = commits.map<GitTimelineItem>((c, i) => {
+		const emptyTree = await repo.getEmptyTree();
+		const unpublishedCommits = await repo.getUnpublishedCommits();
+		const remoteHoverCommands = await provideSourceControlHistoryItemHoverCommands(this.model, repo);
+
+		const avatarQuery = {
+			commits: commits.map(c => ({
+				hash: c.hash,
+				authorName: c.authorName,
+				authorEmail: c.authorEmail
+			}) satisfies AvatarQueryCommit),
+			size: 20
+		} satisfies AvatarQuery;
+		const avatars = await provideSourceControlHistoryItemAvatar(this.model, repo, avatarQuery);
+
+		const items: GitTimelineItem[] = [];
+		for (let index = 0; index < commits.length; index++) {
+			const c = commits[index];
+
 			const date = dateType === 'authored' ? c.authorDate : c.commitDate;
 
 			const message = emojify(c.message);
 
-			const item = new GitTimelineItem(c.hash, commits[i + 1]?.hash ?? `${c.hash}^`, message, date?.getTime() ?? 0, c.hash, 'git:file:commit');
+			const previousRef = commits[index + 1]?.hash ?? emptyTree;
+			const item = new GitTimelineItem(c.hash, previousRef, message, date?.getTime() ?? 0, c.hash, 'git:file:commit');
 			item.iconPath = new ThemeIcon('git-commit');
 			if (showAuthor) {
 				item.description = c.authorName;
 			}
 
-			item.setItemDetails(c.authorName!, c.authorEmail, dateFormatter.format(date), message);
+			const commitRemoteSourceCommands = !unpublishedCommits.has(c.hash) ? remoteHoverCommands : [];
+			const messageWithLinks = await provideSourceControlHistoryItemMessageLinks(this.model, repo, message) ?? message;
+
+			item.setItemDetails(uri, c.hash, avatars?.get(c.hash), c.authorName!, c.authorEmail, dateFormatter.format(date), messageWithLinks, c.shortStat, commitRemoteSourceCommands);
 
 			const cmd = this.commands.resolveTimelineOpenDiffCommand(item, uri);
 			if (cmd) {
@@ -195,8 +265,8 @@ export class GitTimelineProvider implements TimelineProvider {
 				};
 			}
 
-			return item;
-		});
+			items.push(item);
+		}
 
 		if (options.cursor === undefined) {
 			const you = l10n.t('You');
@@ -209,7 +279,7 @@ export class GitTimelineProvider implements TimelineProvider {
 				// TODO@eamodio: Replace with a better icon -- reflecting its status maybe?
 				item.iconPath = new ThemeIcon('git-commit');
 				item.description = '';
-				item.setItemDetails(you, undefined, dateFormatter.format(date), Resource.getStatusText(index.type));
+				item.setItemDetails(uri, undefined, undefined, you, undefined, dateFormatter.format(date), Resource.getStatusText(index.type));
 
 				const cmd = this.commands.resolveTimelineOpenDiffCommand(item, uri);
 				if (cmd) {
@@ -231,7 +301,7 @@ export class GitTimelineProvider implements TimelineProvider {
 					const item = new GitTimelineItem('', index ? '~' : 'HEAD', l10n.t('Uncommitted Changes'), date.getTime(), 'working', 'git:file:working');
 					item.iconPath = new ThemeIcon('circle-outline');
 					item.description = '';
-					item.setItemDetails(you, undefined, dateFormatter.format(date), Resource.getStatusText(working.type));
+					item.setItemDetails(uri, undefined, undefined, you, undefined, dateFormatter.format(date), Resource.getStatusText(working.type));
 
 					const cmd = this.commands.resolveTimelineOpenDiffCommand(item, uri);
 					if (cmd) {

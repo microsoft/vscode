@@ -8,6 +8,7 @@ import { formatError } from '../utils/runner';
 import { RequestService, RuntimeEnvironment, startServer } from '../jsonServer';
 
 import { xhr, XHRResponse, configure as configureHttpRequests, getErrorStatusDescription } from 'request-light';
+import { URI as Uri } from 'vscode-uri';
 import { promises as fs } from 'fs';
 import * as l10n from '@vscode/l10n';
 
@@ -38,7 +39,8 @@ function getFileRequestService(): RequestService {
 	return {
 		async getContent(location: string, encoding?: BufferEncoding) {
 			try {
-				return (await fs.readFile(location, encoding)).toString();
+				const uri = Uri.parse(location);
+				return (await fs.readFile(uri.fsPath, encoding)).toString();
 			} catch (e) {
 				if (e.code === 'ENOENT') {
 					throw new Error(l10n.t('Schema not found: {0}', location));

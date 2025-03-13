@@ -44,7 +44,6 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { UnmanagedProgress } from '../../../../platform/progress/common/progress.js';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { foreground } from '../../../../platform/theme/common/colorRegistry.js';
 import { spinningLoading } from '../../../../platform/theme/common/iconRegistry.js';
@@ -115,14 +114,13 @@ export class TestingExplorerView extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITestService private readonly testService: ITestService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@ITestProfileService private readonly testProfileService: ITestProfileService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ITestingContinuousRunService private readonly crService: ITestingContinuousRunService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		const relayout = this._register(new RunOnceScheduler(() => this.layoutBody(), 1));
 		this._register(this.onDidChangeViewWelcomeState(() => {
@@ -323,7 +321,7 @@ export class TestingExplorerView extends ViewPane {
 	}
 
 	/** @override  */
-	public override getActionViewItem(action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined {
+	public override createActionViewItem(action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined {
 		switch (action.id) {
 			case TestCommandId.FilterAction:
 				this.filter.value = this.instantiationService.createInstance(TestingExplorerFilter, action, options);
@@ -337,7 +335,7 @@ export class TestingExplorerView extends ViewPane {
 			case TestCommandId.StopContinousRun:
 				return this.getContinuousRunDropdown(action, options);
 			default:
-				return super.getActionViewItem(action, options);
+				return super.createActionViewItem(action, options);
 		}
 	}
 
@@ -444,7 +442,7 @@ export class TestingExplorerView extends ViewPane {
 	private getRunGroupDropdown(group: TestRunProfileBitset, defaultAction: IAction, options: IActionViewItemOptions) {
 		const dropdownActions = this.getTestConfigGroupActions(group);
 		if (dropdownActions.numberOfProfiles < 2) {
-			return super.getActionViewItem(defaultAction, options);
+			return super.createActionViewItem(defaultAction, options);
 		}
 
 		const primaryAction = this.instantiationService.createInstance(MenuItemAction, {
@@ -476,7 +474,7 @@ export class TestingExplorerView extends ViewPane {
 		})];
 
 		if (allProfiles.length <= 1) {
-			return super.getActionViewItem(defaultAction, options);
+			return super.createActionViewItem(defaultAction, options);
 		}
 
 		const primaryAction = this.instantiationService.createInstance(MenuItemAction, {
@@ -530,7 +528,7 @@ export class TestingExplorerView extends ViewPane {
 
 	private createFilterActionBar() {
 		const bar = new ActionBar(this.treeHeader, {
-			actionViewItemProvider: (action, options) => this.getActionViewItem(action, options),
+			actionViewItemProvider: (action, options) => this.createActionViewItem(action, options),
 			triggerKeys: { keyDown: false, keys: [] },
 		});
 		bar.push(new Action(TestCommandId.FilterAction));
@@ -706,7 +704,7 @@ class TestingExplorerViewModel extends Disposable {
 	private readonly _viewMode = TestingContextKeys.viewMode.bindTo(this.contextKeyService);
 	private readonly _viewSorting = TestingContextKeys.viewSorting.bindTo(this.contextKeyService);
 	private readonly welcomeVisibilityEmitter = new Emitter<WelcomeExperience>();
-	private readonly actionRunner = new TestExplorerActionRunner(() => this.tree.getSelection().filter(isDefined));
+	private readonly actionRunner = this._register(new TestExplorerActionRunner(() => this.tree.getSelection().filter(isDefined)));
 	private readonly lastViewState = this._register(new StoredValue<ISerializedTestTreeCollapseState>({
 		key: 'testing.treeState',
 		scope: StorageScope.WORKSPACE,

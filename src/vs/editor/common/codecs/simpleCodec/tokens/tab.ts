@@ -14,12 +14,19 @@ import { Position } from '../../../../../editor/common/core/position.js';
  */
 export class Tab extends BaseToken {
 	/**
-	 * The underlying symbol of the `Tab` token.
+	 * The underlying symbol of the token.
 	 */
 	public static readonly symbol: string = '\t';
 
 	/**
-	 * Create new `Tab` token with range inside
+	 * Return text representation of the token.
+	 */
+	public get text(): string {
+		return Tab.symbol;
+	}
+
+	/**
+	 * Create new token with range inside
 	 * the given `Line` at the given `column number`.
 	 */
 	public static newOnLine(
@@ -29,7 +36,6 @@ export class Tab extends BaseToken {
 		const { range } = line;
 
 		const startPosition = new Position(range.startLineNumber, atColumnNumber);
-		// the tab token length is 1, hence `+ 1`
 		const endPosition = new Position(range.startLineNumber, atColumnNumber + this.symbol.length);
 
 		return new Tab(Range.fromPositions(
