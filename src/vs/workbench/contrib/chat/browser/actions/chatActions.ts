@@ -21,7 +21,7 @@ import { IActionViewItemService } from '../../../../../platform/actions/browser/
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { Action2, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -689,7 +689,8 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IChatAgentService agentService: IChatAgentService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IChatEntitlementService chatEntitlementService: IChatEntitlementService
+		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -704,7 +705,7 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 				run() { }
 			});
 
-			const chatExtensionInstalled = agentService.getAgents().some(agent => agent.isDefault);
+			const chatExtensionInstalled = contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.installed.key) === true;
 			const { chatQuotaExceeded, completionsQuotaExceeded } = chatEntitlementService.quotas;
 			const signedOut = chatEntitlementService.entitlement === ChatEntitlement.Unknown;
 
@@ -715,26 +716,24 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 				primaryActionId = CHAT_SETUP_ACTION_ID;
 				primaryActionTitle = CHAT_SETUP_ACTION_LABEL.value;
 				primaryActionIcon = Codicon.copilot;
-			} else {
-				if (signedOut) {
-					primaryActionId = TOGGLE_CHAT_ACTION_ID;
-					primaryActionTitle = localize('signInToChatSetup', "Sign in to Use Copilot...");
-					primaryActionIcon = Codicon.copilotNotConnected;
-				} else if (chatQuotaExceeded || completionsQuotaExceeded) {
-					primaryActionId = OPEN_CHAT_QUOTA_EXCEEDED_DIALOG;
-					if (chatQuotaExceeded && !completionsQuotaExceeded) {
-						primaryActionTitle = localize('chatQuotaExceededButton', "Monthly chat messages limit reached. Click for details.");
-					} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
-						primaryActionTitle = localize('completionsQuotaExceededButton', "Monthly code completions limit reached. Click for details.");
-					} else {
-						primaryActionTitle = localize('chatAndCompletionsQuotaExceededButton', "Copilot Free plan limit reached. Click for details.");
-					}
-					primaryActionIcon = Codicon.copilotWarning;
+			} else if (signedOut) {
+				primaryActionId = TOGGLE_CHAT_ACTION_ID;
+				primaryActionTitle = localize('signInToChatSetup', "Sign in to Use Copilot...");
+				primaryActionIcon = Codicon.copilotNotConnected;
+			} else if (chatQuotaExceeded || completionsQuotaExceeded) {
+				primaryActionId = OPEN_CHAT_QUOTA_EXCEEDED_DIALOG;
+				if (chatQuotaExceeded && !completionsQuotaExceeded) {
+					primaryActionTitle = localize('chatQuotaExceededButton', "Monthly chat messages limit reached. Click for details.");
+				} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
+					primaryActionTitle = localize('completionsQuotaExceededButton', "Monthly code completions limit reached. Click for details.");
 				} else {
-					primaryActionId = TOGGLE_CHAT_ACTION_ID;
-					primaryActionTitle = TOGGLE_CHAT_ACTION_LABEL;
-					primaryActionIcon = Codicon.copilot;
+					primaryActionTitle = localize('chatAndCompletionsQuotaExceededButton', "Copilot Free plan limit reached. Click for details.");
 				}
+				primaryActionIcon = Codicon.copilotWarning;
+			} else {
+				primaryActionId = TOGGLE_CHAT_ACTION_ID;
+				primaryActionTitle = TOGGLE_CHAT_ACTION_LABEL;
+				primaryActionIcon = Codicon.copilot;
 			}
 			return instantiationService.createInstance(DropdownWithPrimaryActionViewItem, instantiationService.createInstance(MenuItemAction, {
 				id: primaryActionId,
