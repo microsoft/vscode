@@ -200,7 +200,8 @@ ${deprecatedSettingNote}
 	return telemetryDescription;
 }
 
-Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+configurationRegistry.registerConfiguration({
 	'id': TELEMETRY_SECTION_ID,
 	'order': 1,
 	'type': 'object',
@@ -223,33 +224,19 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			'policy': {
 				name: 'TelemetryLevel',
 				minimumVersion: '1.99',
+				description: localize('telemetry.telemetryLevel.policyDescription', "Controls the level of telemetry."),
 			}
-		}
-	},
-});
-
-Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-	'id': TELEMETRY_SECTION_ID,
-	properties: {
+		},
 		'telemetry.disableFeedback': {
 			type: 'boolean',
 			default: false,
-			description: 'Disable feedback options.',
+			description: localize('telemetry.disableFeedback', "Disable feedback options."),
 			policy: {
 				name: 'DisableFeedback',
 				minimumVersion: '1.99',
 			}
 		},
-	},
-});
-
-// Deprecated telemetry setting
-Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-	'id': TELEMETRY_SECTION_ID,
-	'order': 110,
-	'type': 'object',
-	'title': localize('telemetryConfigurationTitle', "Telemetry"),
-	'properties': {
+		// Deprecated telemetry setting
 		[TELEMETRY_OLD_SETTING_ID]: {
 			'type': 'boolean',
 			'markdownDescription':
@@ -262,6 +249,5 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			'scope': ConfigurationScope.APPLICATION,
 			'tags': ['usesOnlineServices', 'telemetry']
 		}
-	}
+	},
 });
-
