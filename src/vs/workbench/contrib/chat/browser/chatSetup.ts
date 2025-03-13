@@ -14,7 +14,7 @@ import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../base/common/lazy.js';
-import { Disposable, dispose, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, dispose, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -97,19 +97,25 @@ class SetupChatAgentImplementation implements IChatAgentImplementation {
 			ContextKeyExpr.has('config.chat.experimental.setupFromChatResponse')
 		);
 
-		return chatAgentService.registerDynamicAgent({
-			id: location === ChatAgentLocation.Panel ? 'setup.chat' : 'setup.edits',
-			name: 'Copilot',
-			isDefault: true,
-			when: setupChatAgentContext?.serialize(),
-			slashCommands: [],
-			disambiguation: [],
-			locations: [location],
-			metadata: {},
-			extensionId: nullExtensionDescription.identifier,
-			extensionDisplayName: nullExtensionDescription.name,
-			extensionPublisherId: nullExtensionDescription.publisher
-		}, new SetupChatAgentImplementation(location));
+		const id = location === ChatAgentLocation.Panel ? 'setup.chat' : 'setup.edits';
+
+		return combinedDisposable(
+			chatAgentService.registerAgent(id, {
+				id,
+				name: 'Copilot',
+				isDefault: true,
+				when: setupChatAgentContext?.serialize(),
+				slashCommands: [],
+				disambiguation: [],
+				locations: [location],
+				metadata: {},
+				description: location === ChatAgentLocation.Panel ? localize('chatDescription', "Ask Copilot") : localize('editsDescription', "Edit files in your workspace"),
+				extensionId: nullExtensionDescription.identifier,
+				extensionDisplayName: nullExtensionDescription.name,
+				extensionPublisherId: nullExtensionDescription.publisher
+			}),
+			chatAgentService.registerAgentImplementation(id, new SetupChatAgentImplementation(location))
+		);
 	}
 
 	constructor(private readonly location: ChatAgentLocation) { }
