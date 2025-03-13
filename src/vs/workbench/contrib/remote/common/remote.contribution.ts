@@ -26,6 +26,10 @@ import { PersistentConnection } from '../../../../platform/remote/common/remoteA
 import { IDownloadService } from '../../../../platform/download/common/download.js';
 import { DownloadServiceChannel } from '../../../../platform/download/common/downloadIpc.js';
 import { RemoteLoggerChannelClient } from '../../../../platform/log/common/logIpc.js';
+import { REMOTE_DEFAULT_EXTENSIONS } from '../../../../platform/remote/common/remote.js';
+
+
+const EXTENSION_IDENTIFIER_PATTERN = '([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$';
 
 export class LabelContribution implements IWorkbenchContribution {
 
@@ -205,7 +209,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				type: 'object',
 				markdownDescription: localize('remote.extensionKind', "Override the kind of an extension. `ui` extensions are installed and run on the local machine while `workspace` extensions are run on the remote. By overriding an extension's default kind using this setting, you specify if that extension should be installed and enabled locally or remotely."),
 				patternProperties: {
-					'([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
+					[EXTENSION_IDENTIFIER_PATTERN]: {
 						oneOf: [{ type: 'array', items: extensionKindSchema }, extensionKindSchema],
 						default: ['ui'],
 					},
@@ -355,6 +359,19 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				enum: ['localhost', 'allInterfaces'],
 				default: 'localhost',
 				description: localize('remote.localPortHost', "Specifies the local host name that will be used for port forwarding.")
+			},
+			[REMOTE_DEFAULT_EXTENSIONS]: {
+				type: 'array',
+				markdownDescription: localize('remote.defaultExtensions.markdownDescription', 'List of extensions to install automatically on all remotes.'),
+				default: [
+					'GitHub.copilot',
+					'GitHub.copilot-chat'
+				],
+				items: {
+					type: 'string',
+					pattern: EXTENSION_IDENTIFIER_PATTERN,
+					patternErrorMessage: localize('remote.defaultExtensions.invalidFormat', 'Extension identifier must be in format "publisher.name".')
+				},
 			}
 		}
 	});

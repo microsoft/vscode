@@ -29,6 +29,7 @@ import { CHAT_CATEGORY } from '../../chat/browser/actions/chatActions.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { ChatMode } from '../../chat/common/constants.js';
 import { McpContextKeys } from '../common/mcpContextKeys.js';
+import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
 import { IMcpServer, IMcpService, IMcpTool, McpConnectionState, McpServerToolsState } from '../common/mcpTypes.js';
 
 // acroynms do not get localized
@@ -183,21 +184,20 @@ export class AttachMCPToolsAction extends Action2 {
 			f1: false,
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(
-				McpContextKeys.toolsCount.greater(0),
-				ChatContextKeys.chatMode.notEqualsTo(ChatMode.Chat),
-				ChatContextKeys.Editing.hasToolsAgent
+				ContextKeyExpr.or(McpContextKeys.toolsCount.greater(0), McpContextKeys.hasUnknownTools),
+				ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent)
 			),
 			menu: {
 				when: ContextKeyExpr.and(
-					McpContextKeys.toolsCount.greater(0),
-					ChatContextKeys.chatMode.notEqualsTo(ChatMode.Chat),
-					ChatContextKeys.Editing.hasToolsAgent
+					ContextKeyExpr.or(McpContextKeys.toolsCount.greater(0), McpContextKeys.hasUnknownTools),
+					ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent)
 				),
 				id: MenuId.ChatInputAttachmentToolbar,
-				group: 'navigation'
+				group: 'navigation',
+				order: 1
 			},
 			keybinding: {
-				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.chatMode.notEqualsTo(ChatMode.Chat)),
+				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent)),
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Slash,
 				weight: KeybindingWeight.EditorContrib
 			}
@@ -376,7 +376,11 @@ export class AttachMCPToolsActionRendering extends Disposable implements IWorkbe
 				let thisState = DisplayedState.None;
 				switch (server.toolsState.read(reader)) {
 					case McpServerToolsState.Unknown:
-						thisState = server.connectionState.read(reader).state === McpConnectionState.Kind.Error ? DisplayedState.Error : DisplayedState.NewTools;
+						if (server.trusted.read(reader) === false) {
+							thisState = DisplayedState.None;
+						} else {
+							thisState = server.connectionState.read(reader).state === McpConnectionState.Kind.Error ? DisplayedState.Error : DisplayedState.NewTools;
+						}
 						break;
 					case McpServerToolsState.RefreshingFromUnknown:
 						thisState = DisplayedState.Refreshing;
@@ -498,3 +502,23 @@ export class AttachMCPToolsActionRendering extends Disposable implements IWorkbe
 		}, Event.fromObservable(toolsCount)));
 	}
 }
+
+export class ResetMcpTrustCommand extends Action2 {
+	static readonly ID = 'workbench.mcp.resetTrust';
+
+	constructor() {
+		super({
+			id: ResetMcpTrustCommand.ID,
+			title: localize2('mcp.resetTrust', "Reset MCP Trust"),
+			category,
+			f1: true,
+			precondition: McpContextKeys.toolsCount.greater(0),
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const mcpService = accessor.get(IMcpRegistry);
+		mcpService.resetTrust();
+	}
+}
+
