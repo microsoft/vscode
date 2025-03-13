@@ -419,7 +419,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			}
 
 			dom.append(tbody, $('tr', undefined,
-				$('td.tiw-metadata-key', undefined, 'tree-sitter scopes' as string),
+				$('td.tiw-metadata-key', undefined, 'tree-sitter tree' as string),
 				$('td.tiw-metadata-value.tiw-metadata-scopes', undefined, ...scopes),
 			));
 
@@ -428,7 +428,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			if (captures && captures.length > 0) {
 				dom.append(tbody, $('tr', undefined,
 					$('td.tiw-metadata-key', undefined, 'foreground'),
-					$('td.tiw-metadata-value', undefined, captures[captures.length - 1].name),
+					$('td.tiw-metadata-value', undefined, captures.map(cap => cap.name).join(' ')),
 				));
 			}
 		}

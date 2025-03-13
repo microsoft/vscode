@@ -39,7 +39,7 @@ import { IMarkerData, IRelatedInformation, MarkerSeverity, MarkerTag } from '../
 import { ProgressLocation as MainProgressLocation } from '../../../platform/progress/common/progress.js';
 import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from '../../common/editor.js';
 import { IViewBadge } from '../../common/views.js';
-import { ChatAgentLocation, IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/chatAgents.js';
+import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/chatAgents.js';
 import { IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 import { IChatRequestVariableEntry } from '../../contrib/chat/common/chatModel.js';
 import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
@@ -62,6 +62,7 @@ import { CommandsConverter } from './extHostCommands.js';
 import { getPrivateApiFor } from './extHostTestingPrivateApi.js';
 import * as types from './extHostTypes.js';
 import { LanguageModelPromptTsxPart, LanguageModelTextPart } from './extHostTypes.js';
+import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 
 export namespace Command {
 
@@ -2765,16 +2766,16 @@ export namespace ChatResponsePart {
 }
 
 export namespace ChatAgentRequest {
-	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined, model: vscode.LanguageModelChat, hasReadonlyProposal: boolean, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][]): vscode.ChatRequest {
+	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined, model: vscode.LanguageModelChat, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][]): vscode.ChatRequest {
 		const toolReferences = request.variables.variables.filter(v => v.isTool);
 		const variableReferences = request.variables.variables.filter(v => !v.isTool);
-		return {
+		const requestWithoutId = {
 			prompt: request.message,
 			command: request.command,
 			attempt: request.attempt ?? 0,
 			enableCommandDetection: request.enableCommandDetection ?? true,
 			isParticipantDetected: request.isParticipantDetected ?? false,
-			references: variableReferences.map(v => ChatPromptReference.to(v, hasReadonlyProposal, diagnostics)),
+			references: variableReferences.map(v => ChatPromptReference.to(v, diagnostics)),
 			toolReferences: toolReferences.map(ChatLanguageModelToolReference.to),
 			location: ChatLocation.to(request.location),
 			acceptedConfirmationData: request.acceptedConfirmationData,
@@ -2783,6 +2784,14 @@ export namespace ChatAgentRequest {
 			toolInvocationToken: Object.freeze({ sessionId: request.sessionId }) as never,
 			model
 		};
+		if (request.requestId) {
+			return {
+				...requestWithoutId,
+				id: request.requestId
+			};
+		}
+		// This cast is done to allow sending the stabl version of ChatRequest which does not have an id property
+		return requestWithoutId as unknown as vscode.ChatRequest;
 	}
 }
 
@@ -2818,7 +2827,7 @@ export namespace ChatLocation {
 }
 
 export namespace ChatPromptReference {
-	export function to(variable: IChatRequestVariableEntry, hasReadonlyProposal: boolean, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][]): vscode.ChatPromptReference {
+	export function to(variable: IChatRequestVariableEntry, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][]): vscode.ChatPromptReference {
 		let value: vscode.ChatPromptReference['value'] = variable.value;
 		if (!value) {
 			throw new Error('Invalid value reference');
@@ -2861,7 +2870,6 @@ export namespace ChatPromptReference {
 			range: variable.range && [variable.range.start, variable.range.endExclusive],
 			value,
 			modelDescription: variable.modelDescription,
-			isReadonly: hasReadonlyProposal ? variable.isMarkedReadonly : undefined,
 		};
 	}
 }

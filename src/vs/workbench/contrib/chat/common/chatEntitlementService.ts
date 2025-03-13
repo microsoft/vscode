@@ -12,7 +12,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IRequestContext } from '../../../../base/parts/request/common/request.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -22,7 +22,7 @@ import { asText, IRequestService } from '../../../../platform/request/common/req
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { AuthenticationSession, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import { AuthenticationSession, IAuthenticationExtensionsService, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtension, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { ChatContextKeys } from './chatContextKeys.js';
@@ -81,13 +81,16 @@ export interface IChatEntitlementService {
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
+	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
 	upgradePlanUrl: product.defaultChatAgent?.upgradePlanUrl ?? '',
 	providerId: product.defaultChatAgent?.providerId ?? '',
 	enterpriseProviderId: product.defaultChatAgent?.enterpriseProviderId ?? '',
-	providerSetting: product.defaultChatAgent?.providerSetting ?? '',
 	providerScopes: product.defaultChatAgent?.providerScopes ?? [[]],
 	entitlementUrl: product.defaultChatAgent?.entitlementUrl ?? '',
 	entitlementSignupLimitedUrl: product.defaultChatAgent?.entitlementSignupLimitedUrl ?? '',
+	completionsAdvancedSetting: product.defaultChatAgent?.completionsAdvancedSetting ?? '',
+	chatQuotaExceededContext: product.defaultChatAgent?.chatQuotaExceededContext ?? '',
+	completionsQuotaExceededContext: product.defaultChatAgent?.completionsQuotaExceededContext ?? ''
 };
 
 interface IChatQuotasAccessor {
@@ -110,10 +113,25 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	) {
 		super();
 
+		this.chatQuotaExceededContextKey = ChatContextKeys.chatQuotaExceeded.bindTo(this.contextKeyService);
+		this.completionsQuotaExceededContextKey = ChatContextKeys.completionsQuotaExceeded.bindTo(this.contextKeyService);
+
+		this.onDidChangeEntitlement = Event.map(
+			Event.filter(
+				this.contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([
+					ChatContextKeys.Setup.pro.key,
+					ChatContextKeys.Setup.limited.key,
+					ChatContextKeys.Setup.canSignUp.key,
+					ChatContextKeys.Setup.signedOut.key
+				])), this._store
+			), () => { }, this._store
+		);
+
 		if (
 			!productService.defaultChatAgent ||				// needs product config
 			(isWeb && !environmentService.remoteAuthority)	// only enabled locally or a remote backend
 		) {
+			ChatContextKeys.Setup.hidden.bindTo(this.contextKeyService).set(true); // hide copilot UI
 			return;
 		}
 
@@ -128,16 +146,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 
 	//#region --- Entitlements
 
-	readonly onDidChangeEntitlement = Event.map(
-		Event.filter(
-			this.contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([
-				ChatContextKeys.Setup.pro.key,
-				ChatContextKeys.Setup.limited.key,
-				ChatContextKeys.Setup.canSignUp.key,
-				ChatContextKeys.Setup.signedOut.key
-			])), this._store
-		), () => { }, this._store
-	);
+	readonly onDidChangeEntitlement: Event<void>;
 
 	get entitlement(): ChatEntitlement {
 		if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.pro.key) === true) {
@@ -166,12 +175,12 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	private _quotas: IChatQuotas = { chatQuotaExceeded: false, completionsQuotaExceeded: false, quotaResetDate: undefined };
 	get quotas() { return this._quotas; }
 
-	private readonly chatQuotaExceededContextKey = ChatContextKeys.chatQuotaExceeded.bindTo(this.contextKeyService);
-	private readonly completionsQuotaExceededContextKey = ChatContextKeys.completionsQuotaExceeded.bindTo(this.contextKeyService);
+	private readonly chatQuotaExceededContextKey: IContextKey<boolean>;
+	private readonly completionsQuotaExceededContextKey: IContextKey<boolean>;
 
 	private ExtensionQuotaContextKeys = {
-		chatQuotaExceeded: 'github.copilot.chat.quotaExceeded',
-		completionsQuotaExceeded: 'github.copilot.completions.quotaExceeded',
+		chatQuotaExceeded: defaultChat.chatQuotaExceededContext,
+		completionsQuotaExceeded: defaultChat.completionsQuotaExceededContext,
 	};
 
 	private registerListeners(): void {
@@ -304,14 +313,14 @@ interface IQuotas {
 export class ChatSetupRequests extends Disposable {
 
 	static providerId(configurationService: IConfigurationService): string {
-		if (configurationService.getValue<string | undefined>(defaultChat.providerSetting) === defaultChat.enterpriseProviderId) {
+		if (configurationService.getValue<string | undefined>(`${defaultChat.completionsAdvancedSetting}.authProvider`) === defaultChat.enterpriseProviderId) {
 			return defaultChat.enterpriseProviderId;
 		}
 
 		return defaultChat.providerId;
 	}
 
-	private state: IEntitlements = { entitlement: this.context.state.entitlement };
+	private state: IEntitlements;
 
 	private pendingResolveCts = new CancellationTokenSource();
 	private didResolveEntitlements = false;
@@ -325,9 +334,12 @@ export class ChatSetupRequests extends Disposable {
 		@IRequestService private readonly requestService: IRequestService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IAuthenticationExtensionsService private readonly authenticationExtensionsService: IAuthenticationExtensionsService,
 	) {
 		super();
+
+		this.state = { entitlement: this.context.state.entitlement };
 
 		this.registerListeners();
 
@@ -667,6 +679,18 @@ export class ChatSetupRequests extends Disposable {
 		});
 	}
 
+	async signIn() {
+		const providerId = ChatSetupRequests.providerId(this.configurationService);
+		const session = await this.authenticationService.createSession(providerId, defaultChat.providerScopes[0]);
+
+		this.authenticationExtensionsService.updateAccountPreference(defaultChat.extensionId, providerId, session.account);
+		this.authenticationExtensionsService.updateAccountPreference(defaultChat.chatExtensionId, providerId, session.account);
+
+		const entitlements = await this.forceResolveEntitlement(session);
+
+		return { session, entitlements };
+	}
+
 	override dispose(): void {
 		this.pendingResolveCts.dispose(true);
 
@@ -689,14 +713,14 @@ export class ChatSetupContext extends Disposable {
 
 	private static readonly CHAT_SETUP_CONTEXT_STORAGE_KEY = 'chat.setupContext';
 
-	private readonly canSignUpContextKey = ChatContextKeys.Setup.canSignUp.bindTo(this.contextKeyService);
-	private readonly signedOutContextKey = ChatContextKeys.Setup.signedOut.bindTo(this.contextKeyService);
-	private readonly limitedContextKey = ChatContextKeys.Setup.limited.bindTo(this.contextKeyService);
-	private readonly proContextKey = ChatContextKeys.Setup.pro.bindTo(this.contextKeyService);
-	private readonly hiddenContext = ChatContextKeys.Setup.hidden.bindTo(this.contextKeyService);
-	private readonly installedContext = ChatContextKeys.Setup.installed.bindTo(this.contextKeyService);
+	private readonly canSignUpContextKey: IContextKey<boolean>;
+	private readonly signedOutContextKey: IContextKey<boolean>;
+	private readonly limitedContextKey: IContextKey<boolean>;
+	private readonly proContextKey: IContextKey<boolean>;
+	private readonly hiddenContext: IContextKey<boolean>;
+	private readonly installedContext: IContextKey<boolean>;
 
-	private _state: IChatSetupContextState = this.storageService.getObject<IChatSetupContextState>(ChatSetupContext.CHAT_SETUP_CONTEXT_STORAGE_KEY, StorageScope.PROFILE) ?? { entitlement: ChatEntitlement.Unknown };
+	private _state: IChatSetupContextState;
 	private suspendedState: IChatSetupContextState | undefined = undefined;
 	get state(): IChatSetupContextState {
 		return this.suspendedState ?? this._state;
@@ -708,7 +732,7 @@ export class ChatSetupContext extends Disposable {
 	private updateBarrier: Barrier | undefined = undefined;
 
 	constructor(
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
@@ -716,6 +740,15 @@ export class ChatSetupContext extends Disposable {
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) {
 		super();
+
+		this.canSignUpContextKey = ChatContextKeys.Setup.canSignUp.bindTo(contextKeyService);
+		this.signedOutContextKey = ChatContextKeys.Setup.signedOut.bindTo(contextKeyService);
+		this.limitedContextKey = ChatContextKeys.Setup.limited.bindTo(contextKeyService);
+		this.proContextKey = ChatContextKeys.Setup.pro.bindTo(contextKeyService);
+		this.hiddenContext = ChatContextKeys.Setup.hidden.bindTo(contextKeyService);
+		this.installedContext = ChatContextKeys.Setup.installed.bindTo(contextKeyService);
+
+		this._state = this.storageService.getObject<IChatSetupContextState>(ChatSetupContext.CHAT_SETUP_CONTEXT_STORAGE_KEY, StorageScope.PROFILE) ?? { entitlement: ChatEntitlement.Unknown };
 
 		this.checkExtensionInstallation();
 		this.updateContextSync();

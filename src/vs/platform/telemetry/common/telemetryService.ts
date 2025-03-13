@@ -176,11 +176,11 @@ function getTelemetryLevelSettingDescription(): string {
 	const telemetryTableDescription = localize('telemetry.telemetryLevel.tableDescription', "The following table outlines the data sent with each setting:");
 	const telemetryTable = `
 |       | ${crashReportsHeader} | ${errorsHeader} | ${usageHeader} |
-|:------|:---------------------:|:---------------:|:--------------:|
-| all   |            ✓          |        ✓        |        ✓       |
-| error |            ✓          |        ✓        |        -       |
-| crash |            ✓          |        -        |        -       |
-| off   |            -          |        -        |        -       |
+|:------|:-------------:|:---------------:|:----------:|
+| all   |       ✓       |        ✓        |     ✓      |
+| error |       ✓       |        ✓        |     -      |
+| crash |       ✓       |        -        |     -      |
+| off   |       -       |        -        |     -      |
 `;
 
 	const deprecatedSettingNote = localize('telemetry.telemetryLevel.deprecated', "****Note:*** If this setting is 'off', no telemetry will be sent regardless of other telemetry settings. If this setting is set to anything except 'off' and telemetry is disabled with deprecated settings, no telemetry will be sent.*");
@@ -219,9 +219,28 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			'default': TelemetryConfiguration.ON,
 			'restricted': true,
 			'scope': ConfigurationScope.APPLICATION,
-			'tags': ['usesOnlineServices', 'telemetry']
+			'tags': ['usesOnlineServices', 'telemetry'],
+			'policy': {
+				name: 'TelemetryLevel',
+				minimumVersion: '1.99',
+			}
 		}
-	}
+	},
+});
+
+Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+	'id': TELEMETRY_SECTION_ID,
+	properties: {
+		'telemetry.disableFeedback': {
+			type: 'boolean',
+			default: false,
+			description: 'Disable feedback options.',
+			policy: {
+				name: 'DisableFeedback',
+				minimumVersion: '1.99',
+			}
+		},
+	},
 });
 
 // Deprecated telemetry setting

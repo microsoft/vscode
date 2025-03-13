@@ -15,8 +15,8 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { ActiveAuxiliaryContext } from '../../../../common/contextkeys.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { INLINE_CHAT_ID } from '../../../inlineChat/common/inlineChat.js';
-import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatWidgetService } from '../chat.js';
 
 export class PanelChatAccessibilityHelp implements IAccessibleViewImplementation {
@@ -89,7 +89,6 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		content.push(localize('chatEditing.acceptAllFiles', '- Accept All Edits{0}.', '<keybinding:chatEditing.acceptAllFiles>'));
 		content.push(localize('chatEditing.discardAllFiles', '- Discard All Edits{0}.', '<keybinding:chatEditing.discardAllFiles>'));
 		content.push(localize('chatEditing.openFileInDiff', '- Open File in Diff{0}.', '<keybinding:chatEditing.openFileInDiff>'));
-		content.push(localize('chatEditing.addFileToWorkingSet', '- Add File to Working Set{0}.', '<keybinding:chatEditing.addFileToWorkingSet>'));
 		content.push(localize('chatEditing.viewChanges', '- View Changes{0}.', '<keybinding:chatEditing.viewChanges>'));
 	}
 	else {

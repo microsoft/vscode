@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
+import { IJSONSchemaSnippet } from '../../../../base/common/jsonSchema.js';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
@@ -16,19 +17,19 @@ import { terminalContribConfiguration, TerminalContribSettingId } from '../termi
 import { DEFAULT_COMMANDS_TO_SKIP_SHELL, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MAXIMUM_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, SUGGESTIONS_FONT_WEIGHT } from './terminal.js';
 
 const terminalDescriptors = '\n- ' + [
-	'`\${cwd}`: ' + localize("cwd", "the terminal's current working directory"),
+	'`\${cwd}`: ' + localize("cwd", "the terminal's current working directory."),
 	'`\${cwdFolder}`: ' + localize('cwdFolder', "the terminal's current working directory, displayed for multi-root workspaces or in a single root workspace when the value differs from the initial working directory. On Windows, this will only be displayed when shell integration is enabled."),
-	'`\${workspaceFolder}`: ' + localize('workspaceFolder', "the workspace in which the terminal was launched"),
-	'`\${workspaceFolderName}`: ' + localize('workspaceFolderName', "the `name` of the workspace in which the terminal was launched"),
-	'`\${local}`: ' + localize('local', "indicates a local terminal in a remote workspace"),
-	'`\${process}`: ' + localize('process', "the name of the terminal process"),
-	'`\${progress}`: ' + localize('progress', "the progress state as reported by the `OSC 9;4` sequence"),
-	'`\${separator}`: ' + localize('separator', "a conditional separator {0} that only shows when surrounded by variables with values or static text.", '(` - `)'),
-	'`\${sequence}`: ' + localize('sequence', "the name provided to the terminal by the process"),
-	'`\${task}`: ' + localize('task', "indicates this terminal is associated with a task"),
-	'`\${shellType}`: ' + localize('shellType', "the detected shell type"),
-	'`\${shellCommand}`: ' + localize('shellCommand', "the command being executed according to shell integration. This also requires high confidence in the detected command line which may not work in some prompt frameworks."),
-	'`\${shellPromptInput}`: ' + localize('shellPromptInput', "the shell's full prompt input according to shell integration"),
+	'`\${workspaceFolder}`: ' + localize('workspaceFolder', "the workspace in which the terminal was launched."),
+	'`\${workspaceFolderName}`: ' + localize('workspaceFolderName', "the `name` of the workspace in which the terminal was launched."),
+	'`\${local}`: ' + localize('local', "indicates a local terminal in a remote workspace."),
+	'`\${process}`: ' + localize('process', "the name of the terminal process."),
+	'`\${progress}`: ' + localize('progress', "the progress state as reported by the `OSC 9;4` sequence."),
+	'`\${separator}`: ' + localize('separator', "a conditional separator {0} that only shows when it's surrounded by variables with values or static text.", '(` - `)'),
+	'`\${sequence}`: ' + localize('sequence', "the name provided to the terminal by the process."),
+	'`\${task}`: ' + localize('task', "indicates this terminal is associated with a task."),
+	'`\${shellType}`: ' + localize('shellType', "the detected shell type."),
+	'`\${shellCommand}`: ' + localize('shellCommand', "the command being executed according to shell integration. This also requires high confidence in the detected command line, which may not work in some prompt frameworks."),
+	'`\${shellPromptInput}`: ' + localize('shellPromptInput', "the shell's full prompt input according to shell integration."),
 ].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
 
 let terminalTitle = localize('terminalTitle', "Controls the terminal title. Variables are substituted based on the context:");
@@ -174,7 +175,7 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.FontFamily]: {
 			markdownDescription: localize('terminal.integrated.fontFamily', "Controls the font family of the terminal. Defaults to {0}'s value.", '`#editor.fontFamily#`'),
-			type: 'string'
+			type: 'string',
 		},
 		[TerminalSettingId.FontLigaturesEnabled]: {
 			markdownDescription: localize('terminal.integrated.fontLigatures.enabled', "Controls whether font ligatures are enabled in the terminal. Ligatures will only work if the configured {0} supports them.", `\`#${TerminalSettingId.FontFamily}#\``),
@@ -643,9 +644,13 @@ const terminalConfiguration: IConfigurationNode = {
 	}
 };
 
-export function registerTerminalConfiguration() {
+export async function registerTerminalConfiguration(getFontSnippets: () => Promise<IJSONSchemaSnippet[]>) {
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	configurationRegistry.registerConfiguration(terminalConfiguration);
+	const fontsSnippets = await getFontSnippets();
+	if (terminalConfiguration.properties) {
+		terminalConfiguration.properties[TerminalSettingId.FontFamily].defaultSnippets = fontsSnippets;
+	}
 }
 
 Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)

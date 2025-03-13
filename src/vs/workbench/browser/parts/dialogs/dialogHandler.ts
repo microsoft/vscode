@@ -33,18 +33,20 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 		'editor.action.clipboardPasteAction'
 	];
 
-	private readonly markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
+	private readonly markdownRenderer: MarkdownRenderer;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IProductService private readonly productService: IProductService,
 		@IClipboardService private readonly clipboardService: IClipboardService,
 		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super();
+
+		this.markdownRenderer = instantiationService.createInstance(MarkdownRenderer, {});
 	}
 
 	async prompt<T>(prompt: IPrompt<T>): Promise<IAsyncPromptResult<T>> {
@@ -115,7 +117,12 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 			customOptions.markdownDetails?.forEach(markdownDetail => {
 				const result = this.markdownRenderer.render(markdownDetail.markdown, {
 					actionHandler: {
-						callback: link => openLinkFromMarkdown(this.openerService, link, markdownDetail.markdown.isTrusted, true /* skip URL validation to prevent another dialog from showing which is unsupported */),
+						callback: link => {
+							if (markdownDetail.dismissOnLinkClick) {
+								dialog.dispose();
+							}
+							return openLinkFromMarkdown(this.openerService, link, markdownDetail.markdown.isTrusted, true /* skip URL validation to prevent another dialog from showing which is unsupported */);
+						},
 						disposables: dialogDisposables
 					}
 				});

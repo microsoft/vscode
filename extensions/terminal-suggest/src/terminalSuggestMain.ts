@@ -10,6 +10,7 @@ import * as vscode from 'vscode';
 import cdSpec from './completions/cd';
 import codeCompletionSpec from './completions/code';
 import codeInsidersCompletionSpec from './completions/code-insiders';
+import npxCompletionSpec from './completions/npx';
 import setLocationSpec from './completions/set-location';
 import { upstreamSpecs } from './constants';
 import { PathExecutableCache } from './env/pathExecutableCache';
@@ -50,6 +51,7 @@ export const availableSpecs: Fig.Spec[] = [
 	cdSpec,
 	codeInsidersCompletionSpec,
 	codeCompletionSpec,
+	npxCompletionSpec,
 	setLocationSpec,
 ];
 for (const spec of upstreamSpecs) {
@@ -94,17 +96,20 @@ export async function activate(context: vscode.ExtensionContext) {
 		id: 'terminal-suggest',
 		async provideTerminalCompletions(terminal: vscode.Terminal, terminalContext: vscode.TerminalCompletionContext, token: vscode.CancellationToken): Promise<vscode.TerminalCompletionItem[] | vscode.TerminalCompletionList | undefined> {
 			if (token.isCancellationRequested) {
+				console.debug('#terminalCompletions token cancellation requested');
 				return;
 			}
 
 			const shellType: TerminalShellType | undefined = 'shellType' in terminal.state ? terminal.state.shellType as TerminalShellType : undefined;
 			if (!shellType) {
+				console.debug('#terminalCompletions No shell type found for terminal');
 				return;
 			}
 
 			const commandsInPath = await pathExecutableCache.getExecutablesInPath(terminal.shellIntegration?.env?.value);
 			const shellGlobals = await getShellGlobals(shellType, commandsInPath?.labels) ?? [];
 			if (!commandsInPath?.completionResources) {
+				console.debug('#terminalCompletions No commands found in path');
 				return;
 			}
 			// Order is important here, add shell globals first so they are prioritized over path commands
@@ -169,7 +174,7 @@ export async function resolveCwdFromPrefix(prefix: string, currentCwd?: vscode.U
 		// Ignore errors
 	}
 
-	// If the prefix is not a folder, return the current cwd
+	// No valid path found
 	return undefined;
 }
 
@@ -315,12 +320,37 @@ function getShell(shellType: TerminalShellType): string | undefined {
 
 function getEnvAsRecord(shellIntegrationEnv: { [key: string]: string | undefined } | undefined): Record<string, string> {
 	const env: Record<string, string> = {};
-	if (shellIntegrationEnv) {
-		for (const [key, value] of Object.entries(shellIntegrationEnv)) {
-			if (typeof value === 'string') {
-				env[key] = value;
-			}
+	for (const [key, value] of Object.entries(shellIntegrationEnv ?? process.env)) {
+		if (typeof value === 'string') {
+			env[key] = value;
 		}
 	}
+	if (!shellIntegrationEnv) {
+		sanitizeProcessEnvironment(env);
+	}
 	return env;
+}
+
+export function sanitizeProcessEnvironment(env: Record<string, string>, ...preserve: string[]): void {
+	const set = preserve.reduce<Record<string, boolean>>((set, key) => {
+		set[key] = true;
+		return set;
+	}, {});
+	const keysToRemove = [
+		/^ELECTRON_.$/,
+		/^VSCODE_(?!(PORTABLE|SHELL_LOGIN|ENV_REPLACE|ENV_APPEND|ENV_PREPEND)).$/,
+		/^SNAP(|_.*)$/,
+		/^GDK_PIXBUF_.$/,
+	];
+	const envKeys = Object.keys(env);
+	envKeys
+		.filter(key => !set[key])
+		.forEach(envKey => {
+			for (let i = 0; i < keysToRemove.length; i++) {
+				if (envKey.search(keysToRemove[i]) !== -1) {
+					delete env[envKey];
+					break;
+				}
+			}
+		});
 }

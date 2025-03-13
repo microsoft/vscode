@@ -51,6 +51,10 @@ declare module 'vscode' {
 
 	export interface ChatRequest {
 		/**
+		 * The id of the chat request. Used to identity an interaction with any of the chat surfaces.
+		 */
+		readonly id: string;
+		/**
 		 * The attempt number of the request. The first request has attempt number 0.
 		 */
 		readonly attempt: number;
@@ -124,6 +128,7 @@ declare module 'vscode' {
 
 	export interface LanguageModelToolInvocationOptions<T> {
 		chatRequestId?: string;
+		chatInteractionId?: string;
 		terminalCommand?: string;
 	}
 

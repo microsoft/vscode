@@ -26,7 +26,7 @@ import { IFileService } from '../../files/common/files.js';
 import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
-import { IProtocolMainService } from '../../protocol/electron-main/protocol.js';
+import { IIPCObjectUrl, IProtocolMainService } from '../../protocol/electron-main/protocol.js';
 import { resolveMarketplaceHeaders } from '../../externalServices/common/marketplace.js';
 import { IApplicationStorageMainService, IStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
@@ -146,13 +146,23 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			}
 		}
 
-		// Setup windows system context menu so it only is allowed in certain cases
+		// Windows Custom System Context Menu
+		// See https://github.com/electron/electron/issues/24893
+		//
+		// The purpose of this is to allow for the context menu in the Windows Title Bar
+		//
+		// Currently, all mouse events in the title bar are captured by the OS
+		// thus we need to capture them here with a window hook specific to Windows
+		// and then forward them to the correct window.
 		if (isWindows && useCustomTitleStyle) {
-			this._register(Event.fromNodeEventEmitter(win, 'system-context-menu', (event: Electron.Event, point: Electron.Point) => ({ event, point }))((e) => {
+			const WM_INITMENU = 0x0116; // https://docs.microsoft.com/en-us/windows/win32/menurc/wm-initmenu
+
+			// This sets up a listener for the window hook. This is a Windows-only API provided by electron.
+			win.hookWindowMessage(WM_INITMENU, () => {
 				const [x, y] = win.getPosition();
-				const cursorPos = electron.screen.screenToDipPoint(e.point);
-				const cx = Math.floor(cursorPos.x) - x;
-				const cy = Math.floor(cursorPos.y) - y;
+				const cursorPos = electron.screen.getCursorScreenPoint();
+				const cx = cursorPos.x - x;
+				const cy = cursorPos.y - y;
 
 				// In some cases, show the default system context menu
 				// 1) The mouse position is not within the title bar
@@ -170,11 +180,16 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 				};
 
 				if (!shouldTriggerDefaultSystemContextMenu()) {
-					e.event.preventDefault();
+
+					// This is necessary to make sure the native system context menu does not show up.
+					win.setEnabled(false);
+					win.setEnabled(true);
 
 					this._onDidTriggerSystemContextMenu.fire({ x: cx, y: cy });
 				}
-			}));
+
+				return 0;
+			});
 		}
 
 		// Open devtools if instructed from command line args
@@ -521,7 +536,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 	private customZoomLevel: number | undefined = undefined;
 
-	private readonly configObjectUrl = this._register(this.protocolMainService.createIPCObjectUrl<INativeWindowConfiguration>());
+	private readonly configObjectUrl: IIPCObjectUrl<INativeWindowConfiguration>;
 	private pendingLoadConfig: INativeWindowConfiguration | undefined;
 	private wasLoaded = false;
 
@@ -543,7 +558,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IProductService private readonly productService: IProductService,
-		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
+		@IProtocolMainService protocolMainService: IProtocolMainService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IStateService stateService: IStateService,
 		@IInstantiationService instantiationService: IInstantiationService
@@ -552,6 +567,8 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 		//#region create browser window
 		{
+			this.configObjectUrl = this._register(protocolMainService.createIPCObjectUrl<INativeWindowConfiguration>());
+
 			// Load window state
 			const [state, hasMultipleDisplays] = this.restoreWindowState(config.state);
 			this.windowState = state;

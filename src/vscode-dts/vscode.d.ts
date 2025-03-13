@@ -182,14 +182,14 @@ declare module 'vscode' {
 		 * The position will be {@link TextDocument.validatePosition adjusted}.
 		 *
 		 * @param position A position.
-		 * @returns A valid zero-based offset.
+		 * @returns A valid zero-based offset in UTF-16 [code units](https://developer.mozilla.org/en-US/docs/Glossary/Code_unit).
 		 */
 		offsetAt(position: Position): number;
 
 		/**
 		 * Converts a zero-based offset to a position.
 		 *
-		 * @param offset A zero-based offset.
+		 * @param offset A zero-based offset into the document. This offset is in UTF-16 [code units](https://developer.mozilla.org/en-US/docs/Glossary/Code_unit).
 		 * @returns A valid {@link Position}.
 		 */
 		positionAt(offset: number): Position;
@@ -257,6 +257,8 @@ declare module 'vscode' {
 
 		/**
 		 * The zero-based character value.
+		 *
+		 * Character offsets are expressed using UTF-16 [code units](https://developer.mozilla.org/en-US/docs/Glossary/Code_unit).
 		 */
 		readonly character: number;
 
@@ -18634,7 +18636,7 @@ declare module 'vscode' {
 		 * used to represent line coverage.
 		 * @param branchCoverage Branch coverage information
 		 * @param declarationCoverage Declaration coverage information
-		 * @param includesTests Test cases included in this coverage report, see {@link includesTests}
+		 * @param includesTests Test cases included in this coverage report, see {@link FileCoverage.includesTests}
 		 */
 		constructor(
 			uri: Uri,
@@ -19481,7 +19483,7 @@ declare module 'vscode' {
 		readonly toolInvocationToken: ChatParticipantToolToken;
 
 		/**
-		 * This is the model that is currently selected in the UI. Extensions can use this or use {@link chat.selectChatModels} to
+		 * This is the model that is currently selected in the UI. Extensions can use this or use {@link lm.selectChatModels} to
 		 * pick another model. Don't hold onto this past the lifetime of the request.
 		 */
 		readonly model: LanguageModelChat;
@@ -19774,7 +19776,7 @@ declare module 'vscode' {
 	/**
 	 * Represents a language model response.
 	 *
-	 * @see {@link LanguageModelAccess.chatRequest}
+	 * @see {@link ChatRequest}
 	 */
 	export interface LanguageModelChatResponse {
 

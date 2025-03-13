@@ -25,7 +25,7 @@ import { IModelDecorationOptions, TrackedRangeStickiness } from '../../../../../
 import { LineTokens } from '../../../../../../common/tokens/lineTokens.js';
 import { TokenArray } from '../../../../../../common/tokens/tokenArray.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../../../common/viewModel.js';
-import { IInlineEditsView, IInlineEditsViewHost } from '../inlineEditsViewInterface.js';
+import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';
 import { getModifiedBorderColor, modifiedChangedLineBackgroundColor } from '../theme.js';
 import { getPrefixTrim, mapOutFalsy, rectToProps } from '../utils/utils.js';
 import { rangesToBubbleRanges, Replacement } from './inlineEditsWordReplacementView.js';
@@ -153,7 +153,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 	});
 
 	private readonly _viewZoneInfo = derived<{ height: number; lineNumber: number } | undefined>(reader => {
-		const shouldShowViewZone = this._editor.getOption(EditorOption.inlineSuggest).map(o => o.edits.codeShifting).read(reader);
+		const shouldShowViewZone = this._editor.getOption(EditorOption.inlineSuggest).map(o => o.edits.allowCodeShifting === 'always').read(reader);
 		if (!shouldShowViewZone) {
 			return undefined;
 		}
@@ -197,7 +197,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 				l.style.position = 'relative';
 			});
 
-			const modifiedBorderColor = getModifiedBorderColor(this._host.tabAction).read(reader);
+			const modifiedBorderColor = getModifiedBorderColor(this._tabAction).read(reader);
 
 			return [
 				n.div({
@@ -287,7 +287,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 			modifiedLines: string[];
 			replacements: Replacement[];
 		} | undefined>,
-		private readonly _host: IInlineEditsViewHost,
+		private readonly _tabAction: IObservable<InlineEditTabAction>,
 		@ILanguageService private readonly _languageService: ILanguageService
 	) {
 		super();

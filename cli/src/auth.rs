@@ -665,12 +665,12 @@ impl Auth {
 			.into();
 		}
 
-		return StatusError {
+		StatusError {
 			body: String::from_utf8_lossy(&body).to_string(),
 			status_code,
 			url: url.to_string(),
 		}
-		.into();
+		.into()
 	}
 	/// Implements the device code flow, returning the credentials upon success.
 	async fn do_device_code_flow(&self) -> Result<StoredCredential, AnyError> {
