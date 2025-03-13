@@ -160,7 +160,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 				// Don't hide the suggest widget if the focus is moving to the details
 				return;
 			}
-			addon.hideSuggestWidget(true, true);
+			addon.hideSuggestWidget(true);
 		}));
 
 		this.add(addon.onAcceptedCompletion(async text => {
@@ -374,7 +374,7 @@ registerActiveInstanceAction({
 		// Escape is bound to other workbench keybindings that this needs to beat
 		weight: KeybindingWeight.WorkbenchContrib + 1
 	},
-	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.hideSuggestWidget(true, true)
+	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.hideSuggestWidget(true)
 });
 
 registerActiveInstanceAction({
@@ -389,7 +389,7 @@ registerActiveInstanceAction({
 		weight: KeybindingWeight.WorkbenchContrib + 2
 	},
 	run: (activeInstance) => {
-		TerminalSuggestContribution.get(activeInstance)?.addon?.hideSuggestWidget(true, true);
+		TerminalSuggestContribution.get(activeInstance)?.addon?.hideSuggestWidget(true);
 		activeInstance.sendText('\u001b[A', false); // Up arrow
 	}
 });

@@ -132,7 +132,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private readonly _inlineCompletionItem = new TerminalCompletionItem(this._inlineCompletion);
 
 	private _shouldSyncWhenReady: boolean = false;
-	private _mostRecentAcceptedCompletionsForCurrentExecution: { label: string; kindLabel?: string }[] | undefined;
+	private _mostRecentAcceptedCompletionsForCurrentExecution: Array<{ label: string; kindLabel?: string }> | undefined;
 
 	constructor(
 		shellType: TerminalShellType | undefined,
@@ -177,7 +177,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
 			commandDetection?.onCommandFinished((e) => {
 				this._sendTelemetryInfo(false, e.exitCode);
-				this._mostRecentPromptInputState = undefined;
+				this._mostRecentAcceptedCompletionsForCurrentExecution = undefined;
 			});
 			if (commandDetection) {
 				if (this._promptInputModel !== commandDetection.promptInputModel) {
@@ -185,7 +185,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 					this._promptInputModelSubscriptions.value = combinedDisposable(
 						this._promptInputModel.onDidChangeInput(e => this._sync(e)),
 						this._promptInputModel.onDidFinishInput(() => {
-							this.hideSuggestWidget(true, true);
+							this.hideSuggestWidget(true);
 						})
 					);
 					if (this._shouldSyncWhenReady) {
@@ -252,6 +252,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			} else {
 				outcome = CompletionOutcome.Deleted;
 			}
+			console.log('outcome', outcome, exitCode, kind);
 			this._telemetryService.publicLog2<{
 				kind: string | undefined;
 				outcome: CompletionOutcome;
@@ -864,10 +865,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this.hideSuggestWidget(true);
 	}
 
-	hideSuggestWidget(cancelAnyRequest: boolean, wasClosedByUser?: boolean): void {
-		if (wasClosedByUser) {
-			this._mostRecentAcceptedCompletionsForCurrentExecution = undefined;
-		}
+	hideSuggestWidget(cancelAnyRequest: boolean): void {
 		if (cancelAnyRequest) {
 			this._cancellationTokenSource?.cancel();
 			this._cancellationTokenSource = undefined;
