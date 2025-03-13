@@ -222,9 +222,16 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._lastUserData = e.key;
 			this._lastUserDataTimestamp = Date.now();
 		}));
+		this._register(this._terminal.onData(e => {
+			if (e === '\x03') {
+				// Ctrl+C
+				this._sendTelemetryInfo(true);
+				this._mostRecentAcceptedCompletion = undefined;
+			}
+		}));
 	}
 
-	private _sendTelemetryInfo(): void {
+	private _sendTelemetryInfo(fromInterrupt?: boolean): void {
 		const commandLine = this._mostRecentPromptInputState?.value;
 		const label = this._mostRecentAcceptedCompletion?.label;
 		const kind = this._mostRecentAcceptedCompletion?.kindLabel;
@@ -233,14 +240,15 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 
 		let outcome: CompletionOutcome;
-		if (commandLine.endsWith(label)) {
-			outcome = CompletionOutcome.Kept;
+		if (fromInterrupt) {
+			outcome = CompletionOutcome.Interrupted;
+		} else if (commandLine.trim() && commandLine.endsWith(label)) {
+			outcome = CompletionOutcome.Accepted;
 		} else if (inputMostlyMatchesLabel(commandLine, label)) {
-			outcome = CompletionOutcome.Edited;
+			outcome = CompletionOutcome.AcceptedWithEdit;
 		} else {
 			outcome = CompletionOutcome.Deleted;
 		}
-
 		this._telemetryService.publicLog2<{
 			label: string;
 			kind: string | undefined;
@@ -932,7 +940,8 @@ function inputMostlyMatchesLabel(commandLine: string, label: string): boolean {
 }
 
 const enum CompletionOutcome {
-	Kept = 'Kept',
+	Accepted = 'Accepted',
 	Deleted = 'Deleted',
-	Edited = 'Edited'
+	AcceptedWithEdit = 'AcceptedWithEdit',
+	Interrupted = 'Interrupted'
 }
