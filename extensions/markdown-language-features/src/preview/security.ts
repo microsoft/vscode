@@ -24,6 +24,8 @@ export interface ContentSecurityPolicyArbiter {
 	shouldDisableSecurityWarnings(): boolean;
 
 	setShouldDisableSecurityWarning(shouldShow: boolean): Thenable<void>;
+
+	shouldAllowScriptExecutionForResource(resource: vscode.Uri): boolean;
 }
 
 export class ExtensionContentSecurityPolicyArbiter implements ContentSecurityPolicyArbiter {
@@ -65,6 +67,11 @@ export class ExtensionContentSecurityPolicyArbiter implements ContentSecurityPol
 
 	public setShouldDisableSecurityWarning(disabled: boolean): Thenable<void> {
 		return this._workspaceState.update(this._should_disable_security_warning_key, disabled);
+	}
+
+	public shouldAllowScriptExecutionForResource(resource: vscode.Uri): boolean {
+		const workspaceName = vscode.workspace.getWorkspaceFolder(resource)?.name;
+		return workspaceName !== undefined && workspaceName === vscode.workspace.name && vscode.workspace.isTrusted;
 	}
 
 	private _getRoot(resource: vscode.Uri): vscode.Uri {
