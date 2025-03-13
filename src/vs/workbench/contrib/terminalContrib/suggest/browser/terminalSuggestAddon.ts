@@ -132,7 +132,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private readonly _inlineCompletionItem = new TerminalCompletionItem(this._inlineCompletion);
 
 	private _shouldSyncWhenReady: boolean = false;
-	private _mostRecentAcceptedCompletion: { label: string; kindLabel?: string } | undefined;
+	private _mostRecentAcceptedCompletionsForCurrentExecution: { label: string; kindLabel?: string }[] | undefined;
 
 	constructor(
 		shellType: TerminalShellType | undefined,
@@ -228,56 +228,58 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			if (e === '\x03') {
 				// Ctrl+C
 				this._sendTelemetryInfo(true);
-				this._mostRecentAcceptedCompletion = undefined;
+				this._mostRecentAcceptedCompletionsForCurrentExecution = undefined;
 			}
 		}));
 	}
 
 	private _sendTelemetryInfo(fromInterrupt?: boolean, exitCode?: number): void {
 		const commandLine = this._mostRecentPromptInputState?.value;
-		const label = this._mostRecentAcceptedCompletion?.label;
-		const kind = this._mostRecentAcceptedCompletion?.kindLabel;
-		if (label === undefined || commandLine === undefined || kind === undefined) {
-			return;
-		}
+		for (const completion of this._mostRecentAcceptedCompletionsForCurrentExecution || []) {
+			const label = completion?.label;
+			const kind = completion?.kindLabel;
+			if (label === undefined || commandLine === undefined || kind === undefined) {
+				return;
+			}
 
-		let outcome: CompletionOutcome;
-		if (fromInterrupt) {
-			outcome = CompletionOutcome.Interrupted;
-		} else if (commandLine.trim() && commandLine.includes(label)) {
-			outcome = CompletionOutcome.Accepted;
-		} else if (inputContainsFirstHalfOfLabel(commandLine, label)) {
-			outcome = CompletionOutcome.AcceptedWithEdit;
-		} else {
-			outcome = CompletionOutcome.Deleted;
+			let outcome: CompletionOutcome;
+			if (fromInterrupt) {
+				outcome = CompletionOutcome.Interrupted;
+			} else if (commandLine.trim() && commandLine.includes(label)) {
+				outcome = CompletionOutcome.Accepted;
+			} else if (inputContainsFirstHalfOfLabel(commandLine, label)) {
+				outcome = CompletionOutcome.AcceptedWithEdit;
+			} else {
+				outcome = CompletionOutcome.Deleted;
+			}
+			this._telemetryService.publicLog2<{
+				kind: string | undefined;
+				outcome: CompletionOutcome;
+				exitCode: number | undefined;
+			}, {
+				owner: 'meganrogge';
+				comment: 'This data is collected to understand the outcome of a terminal completion acceptance.';
+				kind: {
+					classification: 'SystemMetaData';
+					purpose: 'FeatureInsight';
+					comment: 'The completion item\'s kind';
+				};
+				outcome: {
+					classification: 'SystemMetaData';
+					purpose: 'FeatureInsight';
+					comment: 'The outcome of the accepted completion';
+				};
+				exitCode: {
+					classification: 'SystemMetaData';
+					purpose: 'FeatureInsight';
+					comment: 'The exit code from the command if non-zero';
+				};
+			}>('terminal.suggest.acceptedCompletion', {
+				kind,
+				outcome,
+				exitCode: exitCode && exitCode !== 0 ? exitCode : undefined
+			});
 		}
-		this._telemetryService.publicLog2<{
-			kind: string | undefined;
-			outcome: CompletionOutcome;
-			exitCode: number | undefined;
-		}, {
-			owner: 'meganrogge';
-			comment: 'This data is collected to understand the outcome of a terminal completion acceptance.';
-			kind: {
-				classification: 'SystemMetaData';
-				purpose: 'FeatureInsight';
-				comment: 'The completion item\'s kind';
-			};
-			outcome: {
-				classification: 'SystemMetaData';
-				purpose: 'FeatureInsight';
-				comment: 'The outcome of the accepted completion';
-			};
-			exitCode: {
-				classification: 'SystemMetaData';
-				purpose: 'FeatureInsight';
-				comment: 'The exit code from the command if non-zero';
-			};
-		}>('terminal.suggest.acceptedCompletion', {
-			kind,
-			outcome,
-			exitCode: exitCode && exitCode !== 0 ? exitCode : undefined
-		});
 	}
 
 	private async _handleCompletionProviders(terminal: Terminal | undefined, token: CancellationToken, explicitlyInvoked?: boolean): Promise<void> {
@@ -771,7 +773,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		const initialPromptInputState = this._mostRecentPromptInputState;
 		if (!suggestion || !initialPromptInputState || this._leadingLineContent === undefined || !this._model) {
-			this._mostRecentAcceptedCompletion = undefined;
+			this._mostRecentAcceptedCompletionsForCurrentExecution = undefined;
 			return;
 		}
 		SuggestAddon.lastAcceptedCompletionTimestamp = Date.now();
@@ -857,13 +859,14 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		// Send the completion
 		this._onAcceptedCompletion.fire(resultSequence);
-		this._mostRecentAcceptedCompletion = { label: typeof completion.label === 'string' ? completion.label : completion.label.label, kindLabel: completion.kindLabel };
+		this._mostRecentAcceptedCompletionsForCurrentExecution = this._mostRecentAcceptedCompletionsForCurrentExecution || [];
+		this._mostRecentAcceptedCompletionsForCurrentExecution.push({ label: typeof completion.label === 'string' ? completion.label : completion.label.label, kindLabel: completion.kindLabel });
 		this.hideSuggestWidget(true);
 	}
 
 	hideSuggestWidget(cancelAnyRequest: boolean, wasClosedByUser?: boolean): void {
 		if (wasClosedByUser) {
-			this._mostRecentAcceptedCompletion = undefined;
+			this._mostRecentAcceptedCompletionsForCurrentExecution = undefined;
 		}
 		if (cancelAnyRequest) {
 			this._cancellationTokenSource?.cancel();
