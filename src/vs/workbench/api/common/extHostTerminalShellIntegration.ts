@@ -248,24 +248,11 @@ class InternalTerminalShellIntegration extends Disposable {
 	startShellExecution(commandLine: vscode.TerminalShellExecutionCommandLine, cwd: URI | undefined): undefined {
 		if (this._currentExecution) {
 			// If the current execution is multi-line, check if this command line is part of it.
-			if (this._currentExecutionProperties?.isMultiLine) {
-				const unresolvedCommandLines = this._currentExecutionProperties.unresolvedCommandLines;
-				const subExecutionLines = splitAndSanitizeCommandLine(commandLine.value);
-				if (unresolvedCommandLines && unresolvedCommandLines.length > 0) {
-					// If all sub-exeuction lines are in the command line, this is part of the
-					// multi-line execution.
-					for (let i = 0; i < unresolvedCommandLines.length; i++) {
-						if (unresolvedCommandLines[i] !== subExecutionLines[i]) {
-							break;
-						}
-						unresolvedCommandLines.shift();
-						subExecutionLines.shift();
-					}
-
-					if (subExecutionLines.length === 0) {
-						this._currentExecutionProperties.unresolvedCommandLines = unresolvedCommandLines;
-						return;
-					}
+			if (this._currentExecutionProperties?.isMultiLine && this._currentExecutionProperties.unresolvedCommandLines) {
+				const subExecutionResult = isSubExecution(this._currentExecutionProperties.unresolvedCommandLines, commandLine);
+				if (subExecutionResult) {
+					this._currentExecutionProperties.unresolvedCommandLines = subExecutionResult.unresolvedCommandLines;
+					return;
 				}
 			}
 
@@ -287,34 +274,19 @@ class InternalTerminalShellIntegration extends Disposable {
 						isMultiLine: false,
 						unresolvedCommandLines: undefined,
 					};
-					currentExecution = this._pendingExecutions.splice(i, 1)[0];
+					currentExecution = execution;
+					this._pendingExecutions.splice(i, 1);
 					break;
 				} else {
-					// When executing something that the shell considers multiple commands, such as
-					// a comment followed by a command, this needs to all be tracked under a single
-					// execution.
-					if (execution.value.commandLine.value.includes('\n')) {
-						const unresolvedCommandLines = splitAndSanitizeCommandLine(execution.value.commandLine.value);
-						const subExecutionLines = splitAndSanitizeCommandLine(commandLine.value);
-
-						// If all sub-exeuction lines are in the command line, this is part of the
-						// multi-line execution.
-						for (let i = 0; i < unresolvedCommandLines.length; i++) {
-							if (unresolvedCommandLines[i] !== subExecutionLines[i]) {
-								break;
-							}
-							unresolvedCommandLines.shift();
-							subExecutionLines.shift();
-						}
-
-						if (subExecutionLines.length === 0) {
-							this._currentExecutionProperties = {
-								isMultiLine: true,
-								unresolvedCommandLines,
-							};
-							currentExecution = this._pendingExecutions.splice(i, 1)[0];
-							break;
-						}
+					const subExecutionResult = isSubExecution(splitAndSanitizeCommandLine(execution.value.commandLine.value), commandLine);
+					if (subExecutionResult) {
+						this._currentExecutionProperties = {
+							isMultiLine: true,
+							unresolvedCommandLines: subExecutionResult.unresolvedCommandLines,
+						};
+						currentExecution = execution;
+						this._pendingExecutions.splice(i, 1);
+						break;
 					}
 				}
 			}
@@ -487,4 +459,33 @@ function splitAndSanitizeCommandLine(commandLine: string): string[] {
 		.split('\n')
 		.map(line => line.trim())
 		.filter(line => line.length > 0);
+}
+
+/**
+ * When executing something that the shell considers multiple commands, such as
+ * a comment followed by a command, this needs to all be tracked under a single
+ * execution.
+ */
+function isSubExecution(unresolvedCommandLines: string[], commandLine: vscode.TerminalShellExecutionCommandLine): { unresolvedCommandLines: string[] } | false {
+	if (unresolvedCommandLines.length === 0) {
+		return false;
+	}
+	const newUnresolvedCommandLines = [...unresolvedCommandLines];
+	const subExecutionLines = splitAndSanitizeCommandLine(commandLine.value);
+	if (newUnresolvedCommandLines && newUnresolvedCommandLines.length > 0) {
+		// If all sub-execution lines are in the command line, this is part of the
+		// multi-line execution.
+		for (let i = 0; i < newUnresolvedCommandLines.length; i++) {
+			if (newUnresolvedCommandLines[i] !== subExecutionLines[i]) {
+				break;
+			}
+			newUnresolvedCommandLines.shift();
+			subExecutionLines.shift();
+		}
+
+		if (subExecutionLines.length === 0) {
+			return { unresolvedCommandLines: newUnresolvedCommandLines };
+		}
+	}
+	return false;
 }
