@@ -26,17 +26,17 @@
 }
 
 .chat-status-bar-entry-tooltip .monaco-button {
-	margin-top: 4px;
-	margin-bottom: 4px;
+	margin-top: 5px;
+	margin-bottom: 5px;
 }
 
 /* Setup for New User */
 
-.chat-feature-container {
+.chat-status-bar-entry-tooltip .setup .chat-feature-container {
 	display: flex;
 	align-items: center;
 	gap: 5px;
-	padding: 3px;
+	padding: 4px;
 }
 
 /* Quota Indicator */
@@ -110,43 +110,4 @@
 
 .chat-status-bar-entry-tooltip .settings .setting.disabled .setting-label {
 	color: var(--vscode-disabledForeground);
-}
-
-/* Shortcuts */
-
-.chat-status-bar-entry-tooltip .shortcuts {
-	display: flex;
-	flex-direction: column;
-	gap: 2px;
-}
-
-.chat-status-bar-entry-tooltip .shortcuts .shortcut {
-	display: flex;
-	gap: 15px;
-
-	/** Make room for the hover feedback */
-	margin-left: -3px;
-	margin-right: -3px;
-	padding-left: 3px;
-	padding-right: 3px;
-	margin-top: -1px;
-	margin-bottom: -1px;
-	padding-top: 1px;
-	padding-bottom: 1px;
-}
-
-.chat-status-bar-entry-tooltip .shortcuts .shortcut:hover {
-	outline: 1px dashed var(--vscode-toolbar-hoverOutline);
-	outline-offset: -1px;
-	background-color: var(--vscode-toolbar-hoverBackground);
-	border-radius: 3px;
-}
-
-.chat-status-bar-entry-tooltip .shortcuts .shortcut .shortcut-label {
-	flex: 1;
-	cursor: pointer;
-}
-
-.chat-status-bar-entry-tooltip .shortcuts .shortcut .shortcut-value {
-	color: var(--vscode-descriptionForeground);
 }

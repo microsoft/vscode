@@ -149,6 +149,12 @@ if (Get-Module -Name PSReadLine) {
 
 		$CommandLine
 	}
+
+	# Set ContinuationPrompt property
+	$ContinuationPrompt = (Get-PSReadLineOption).ContinuationPrompt
+	if ($ContinuationPrompt) {
+		[Console]::Write("$([char]0x1b)]633;P;ContinuationPrompt=$(__VSCode-Escape-Value $ContinuationPrompt)`a")
+	}
 }
 
 # Set IsWindows property
@@ -158,14 +164,6 @@ if ($PSVersionTable.PSVersion -lt "6.0") {
 }
 else {
 	[Console]::Write("$([char]0x1b)]633;P;IsWindows=$IsWindows`a")
-}
-
-# Set ContinuationPrompt property
-if ($isStable -eq "0") {
-	$ContinuationPrompt = (Get-PSReadLineOption).ContinuationPrompt
-	if ($ContinuationPrompt) {
-		[Console]::Write("$([char]0x1b)]633;P;ContinuationPrompt=$(__VSCode-Escape-Value $ContinuationPrompt)`a")
-	}
 }
 
 # Set always on key handlers which map to default VS Code keybindings

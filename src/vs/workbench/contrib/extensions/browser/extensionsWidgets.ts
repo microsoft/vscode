@@ -555,7 +555,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 			this.hover.value = this.hoverService.setupManagedHover({
 				delay: this.configurationService.getValue<number>('workbench.hover.delay'),
 				showHover: (options, focus) => {
-					return this.hoverService.showHover({
+					return this.hoverService.showInstantHover({
 						...options,
 						additionalClasses: ['extension-hover'],
 						position: {

@@ -5,6 +5,7 @@
 
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { memoize } from '../../../../base/common/decorators.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { ErrorNoTelemetry } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -25,7 +26,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { ChatAgentLocation, IChatAgent, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from './chatAgents.js';
+import { IChatAgent, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from './chatAgents.js';
 import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from './chatModel.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, IParsedChatRequest, chatAgentLeader, chatSubcommandLeader, getPromptText } from './chatParserTypes.js';
 import { ChatRequestParser } from './chatRequestParser.js';
@@ -33,6 +34,7 @@ import { IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChat
 import { ChatServiceTelemetry } from './chatServiceTelemetry.js';
 import { IChatSlashCommandService } from './chatSlashCommands.js';
 import { IChatVariablesService } from './chatVariables.js';
+import { ChatAgentLocation, ChatConfiguration, ChatMode } from './constants.js';
 import { ChatMessageRole, IChatMessage } from './languageModels.js';
 import { ILanguageModelToolsService } from './languageModelToolsService.js';
 
@@ -45,7 +47,7 @@ interface IChatTransfer {
 	chat: ISerializableChatData;
 	inputValue: string;
 	location: ChatAgentLocation;
-	toolsAgentModeEnabled: boolean;
+	mode: ChatMode;
 }
 const SESSION_TRANSFER_EXPIRATION_IN_MILLISECONDS = 1000 * 60;
 
@@ -134,6 +136,11 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _sessionFollowupCancelTokens = this._register(new DisposableMap<string, CancellationTokenSource>());
 	private readonly _chatServiceTelemetry: ChatServiceTelemetry;
 
+	@memoize
+	public get unifiedViewEnabled(): boolean {
+		return !!this.configurationService.getValue(ChatConfiguration.UnifiedChatView);
+	}
+
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
@@ -171,7 +178,7 @@ export class ChatService extends Disposable implements IChatService {
 				sessionId: transferredChat.sessionId,
 				inputValue: transferredData.inputValue,
 				location: transferredData.location,
-				toolsAgentModeEnabled: transferredData.toolsAgentModeEnabled,
+				mode: transferredData.mode,
 			};
 		}
 
@@ -473,7 +480,8 @@ export class ChatService extends Disposable implements IChatService {
 
 		const isTransferred = this.transferredSessionData?.sessionId === sessionId;
 		if (isTransferred) {
-			this.chatAgentService.toggleToolsAgentMode(this.transferredSessionData.toolsAgentModeEnabled);
+			// TODO
+			// this.chatAgentService.toggleToolsAgentMode(this.transferredSessionData.toolsAgentModeEnabled);
 			this._transferredSessionData = undefined;
 		}
 
@@ -501,7 +509,7 @@ export class ChatService extends Disposable implements IChatService {
 		const location = options?.location ?? model.initialLocation;
 		const attempt = options?.attempt ?? 0;
 		const enableCommandDetection = !options?.noCommandDetection;
-		const defaultAgent = this.chatAgentService.getDefaultAgent(location)!;
+		const defaultAgent = this.chatAgentService.getDefaultAgent(location, options?.mode)!;
 
 		model.removeRequest(request.id, ChatRequestRemovalReason.Resend);
 
@@ -554,7 +562,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		const location = options?.location ?? model.initialLocation;
 		const attempt = options?.attempt ?? 0;
-		const defaultAgent = this.chatAgentService.getDefaultAgent(location)!;
+		const defaultAgent = this.chatAgentService.getDefaultAgent(location, options?.mode)!;
 
 		const parsedRequest = this.parseChatRequest(sessionId, request, location, options);
 		const agent = parsedRequest.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart)?.agent ?? defaultAgent;
@@ -575,7 +583,7 @@ export class ChatService extends Disposable implements IChatService {
 			if (!agent) {
 				throw new Error(`Unknown agent: ${options.agentId}`);
 			}
-			parserContext = { selectedAgent: agent };
+			parserContext = { selectedAgent: agent, mode: options.mode };
 			const commandPart = options.slashCommand ? ` ${chatSubcommandLeader}${options.slashCommand}` : '';
 			request = `${chatAgentLeader}${agent.name}${commandPart} ${request}`;
 		}
@@ -701,7 +709,7 @@ export class ChatService extends Disposable implements IChatService {
 						} satisfies IChatAgentRequest;
 					};
 
-					if (this.configurationService.getValue('chat.detectParticipant.enabled') !== false && this.chatAgentService.hasChatParticipantDetectionProviders() && !agentPart && !commandPart && !agentSlashCommandPart && enableCommandDetection) {
+					if (this.configurationService.getValue('chat.detectParticipant.enabled') !== false && this.chatAgentService.hasChatParticipantDetectionProviders() && !agentPart && !commandPart && !agentSlashCommandPart && enableCommandDetection && options?.mode !== ChatMode.Agent && options?.mode !== ChatMode.Edit) {
 						// We have no agent or command to scope history with, pass the full history to the participant detection provider
 						const defaultAgentHistory = this.getHistoryEntriesFromModel(requests, model.sessionId, location, defaultAgent.id);
 
@@ -891,13 +899,13 @@ export class ChatService extends Disposable implements IChatService {
 
 	private getHistoryEntriesFromModel(requests: IChatRequestModel[], sessionId: string, location: ChatAgentLocation, forAgentId: string): IChatAgentHistoryEntry[] {
 		const history: IChatAgentHistoryEntry[] = [];
+		const agent = this.chatAgentService.getAgent(forAgentId);
 		for (const request of requests) {
 			if (!request.response) {
 				continue;
 			}
 
-			const defaultAgentId = this.chatAgentService.getDefaultAgent(location)?.id;
-			if (forAgentId !== request.response.agent?.id && forAgentId !== defaultAgentId) {
+			if (forAgentId !== request.response.agent?.id && !agent?.isDefault) {
 				// An agent only gets to see requests that were sent to this agent.
 				// The default agent (the undefined case) gets to see all of them.
 				continue;
@@ -1031,11 +1039,15 @@ export class ChatService extends Disposable implements IChatService {
 			toWorkspace: toWorkspace,
 			inputValue: transferredSessionData.inputValue,
 			location: transferredSessionData.location,
-			toolsAgentModeEnabled: transferredSessionData.toolsAgentModeEnabled,
+			mode: transferredSessionData.mode,
 		});
 
 		this.storageService.store(globalChatKey, JSON.stringify(existingRaw), StorageScope.PROFILE, StorageTarget.MACHINE);
 		this.trace('transferChatSession', `Transferred session ${model.sessionId} to workspace ${toWorkspace.toString()}`);
+	}
+
+	isEditingLocation(location: ChatAgentLocation): boolean {
+		return location === ChatAgentLocation.EditingSession || this.unifiedViewEnabled;
 	}
 }
 

@@ -131,8 +131,10 @@ const enum VSCodeOscPt {
 	CommandExecuted = 'C',
 
 	/**
-	 * Sent just after a command has finished. The exit code is optional, when not specified it
-	 * means no command was run (ie. enter on empty prompt or ctrl+c).
+	 * Sent just after a command has finished. This should generally be used on the new line
+	 * following the end of a command's output, just before {@link PromptStart}. The exit code is
+	 * optional, when not specified it means no command was run (ie. enter on empty prompt or
+	 * ctrl+c).
 	 *
 	 * Format: `OSC 633 ; D [; <ExitCode>] ST`
 	 *

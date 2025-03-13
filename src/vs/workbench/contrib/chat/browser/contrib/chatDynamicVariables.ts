@@ -742,23 +742,24 @@ export async function createMarkersQuickPick(accessor: ServicesAccessor, level: 
 	items.unshift({ type: 'item', label: localize('markers.panel.allErrors', 'All Problems'), entry: { filterSeverity: MarkerSeverity.Info } });
 
 	const quickInputService = accessor.get(IQuickInputService);
-	const quickPick = quickInputService.createQuickPick<MarkerPickItem>({ useSeparators: true });
+	const store = new DisposableStore();
+	const quickPick = store.add(quickInputService.createQuickPick<MarkerPickItem>({ useSeparators: true }));
 	quickPick.canAcceptInBackground = !onBackgroundAccept;
 	quickPick.placeholder = localize('pickAProblem', 'Pick a problem to attach...');
 	quickPick.items = items;
 
 	return new Promise<IDiagnosticVariableEntryFilterData | undefined>(resolve => {
-		quickPick.onDidHide(() => resolve(undefined));
-		quickPick.onDidAccept(ev => {
+		store.add(quickPick.onDidHide(() => resolve(undefined)));
+		store.add(quickPick.onDidAccept(ev => {
 			if (ev.inBackground) {
 				onBackgroundAccept?.(quickPick.selectedItems.map(i => i.entry));
 			} else {
 				resolve(quickPick.selectedItems[0]?.entry);
 				quickPick.dispose();
 			}
-		});
+		}));
 		quickPick.show();
-	}).finally(() => quickPick.dispose());
+	}).finally(() => store.dispose());
 }
 
 export class SelectAndInsertProblemAction extends Action2 {

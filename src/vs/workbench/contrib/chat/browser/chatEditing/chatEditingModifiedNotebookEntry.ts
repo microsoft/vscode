@@ -66,8 +66,12 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 	 */
 	override initialContent: string;
 	/**
-	 * Whether we're in the process of applying edits.
+	 * Whether we're still generating diffs from a response.
 	 */
+	private _isProcessingResponse = observableValue<boolean>('isProcessingResponse', false);
+	get isProcessingResponse(): IObservable<boolean> {
+		return this._isProcessingResponse;
+	}
 	private _isEditFromUs: boolean = false;
 	/**
 	 * Whether all edits are from us, e.g. is possible a user has made edits, then this will be false.
@@ -216,6 +220,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		}
 		const cellsDiffInfo: CellDiffInfo[] = [];
 		try {
+			this._isProcessingResponse.set(true, undefined);
 			const notebookDiff = await this.notebookEditorWorkerService.computeDiff(this.originalURI, this.modifiedURI);
 			if (id !== this.computeRequestId) {
 				return;
@@ -226,6 +231,8 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			}
 		} catch (ex) {
 			this.loggingService.error('Notebook Chat', 'Error computing diff:\n' + ex);
+		} finally {
+			this._isProcessingResponse.set(false, undefined);
 		}
 		this.initializeModelsFromDiffImpl(cellsDiffInfo);
 	}
