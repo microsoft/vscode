@@ -1036,6 +1036,7 @@ export interface IListOptionsUpdate extends IListViewOptionsUpdate {
 	readonly typeNavigationEnabled?: boolean;
 	readonly typeNavigationMode?: TypeNavigationMode;
 	readonly multipleSelectionSupport?: boolean;
+	readonly enablePreserveElements?: boolean;
 }
 
 export interface IListOptions<T> extends IListOptionsUpdate {
@@ -1066,6 +1067,7 @@ export interface IListOptions<T> extends IListOptionsUpdate {
 	readonly initialSize?: Dimension;
 	readonly paddingTop?: number;
 	readonly paddingBottom?: number;
+	readonly enablePreserveElements?: boolean;
 }
 
 export interface IListStyles {
@@ -1142,7 +1144,8 @@ const DefaultOptions: IListOptions<any> = {
 		onDragOver() { return false; },
 		drop() { },
 		dispose() { }
-	}
+	},
+	enablePreserveElements: false
 };
 
 // TODO@Joao: move these utils into a SortedArray class
@@ -1388,6 +1391,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	private keyboardController: KeyboardController<T> | undefined;
 	private mouseController: MouseController<T>;
 	private _ariaLabel: string = '';
+	private enablePreserveElements: boolean;
 
 	protected readonly disposables = new DisposableStore();
 
@@ -1536,6 +1540,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		if (this._options.multipleSelectionSupport !== false) {
 			this.view.domNode.setAttribute('aria-multiselectable', 'true');
 		}
+
+		this.enablePreserveElements = _options.enablePreserveElements ?? DefaultOptions.enablePreserveElements ?? false;
 	}
 
 	protected createListView(container: HTMLElement, virtualDelegate: IListVirtualDelegate<T>, renderers: IListRenderer<any, any>[], viewOptions: IListViewOptions<T>): IListView<T> {
@@ -1562,6 +1568,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.mouseController.updateOptions(optionsUpdate);
 		this.keyboardController?.updateOptions(optionsUpdate);
 		this.view.updateOptions(optionsUpdate);
+
+		if (optionsUpdate.enablePreserveElements !== undefined) {
+			this.enablePreserveElements = optionsUpdate.enablePreserveElements;
+		}
 	}
 
 	get options(): IListOptions<T> {
@@ -1733,6 +1743,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		this.focus.set(indexes, browserEvent);
+
+		if (this.enablePreserveElements) {
+			this.view.preserveElements(indexes);
+		}
 	}
 
 	focusNext(n = 1, loop = false, browserEvent?: UIEvent, filter?: (element: T) => boolean): void {

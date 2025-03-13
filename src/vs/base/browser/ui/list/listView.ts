@@ -270,6 +270,7 @@ export interface IListView<T> extends ISpliceable<T>, IDisposable {
 	delegateVerticalScrollbarPointerDown(browserEvent: PointerEvent): void;
 	updateWidth(index: number): void;
 	updateElementHeight(index: number, size: number | undefined, anchorIndex: number | null): void;
+	preserveElements(indexes: number[]): void;
 	rerender(): void;
 	layout(height?: number, width?: number): void;
 }
@@ -295,6 +296,7 @@ export class ListView<T> implements IListView<T> {
 	private itemId: number;
 	protected rangeMap: IRangeMap;
 	private cache: RowCache<T>;
+	private preservedItems: Set<IItem<T>> = new Set();
 	private renderers = new Map<string, IListRenderer<any /* TODO@joao */, any>>();
 	protected lastRenderTop: number;
 	protected lastRenderHeight: number;
@@ -607,6 +609,31 @@ export class ListView<T> implements IListView<T> {
 		}
 	}
 
+	private updatePreservedElements(): void {
+		for (const item of this.preservedItems) {
+			if (item.row) {
+				const index = this.items.indexOf(item);
+				if (index !== -1) {
+					this.updateItemInDOM(item, index);
+				}
+			}
+		}
+	}
+
+	preserveElements(indexes: number[]): void {
+		this.preservedItems.clear();
+		for (const index of indexes) {
+			if (index >= 0 && index < this.items.length) {
+				const item = this.items[index];
+				this.preservedItems.add(item);
+				if (!item.row) {
+					this.insertItemInDOM(index);
+				}
+				this.updateItemInDOM(item, index);
+			}
+		}
+	}
+
 	protected createRangeMap(paddingTop: number): IRangeMap {
 		return new RangeMap(paddingTop);
 	}
@@ -913,7 +940,9 @@ export class ListView<T> implements IListView<T> {
 		this.cache.transact(() => {
 			for (const range of rangesToRemove) {
 				for (let i = range.start; i < range.end; i++) {
-					this.removeItemFromDOM(i);
+					if (!this.preservedItems.has(this.items[i])) {
+						this.removeItemFromDOM(i);
+					}
 				}
 			}
 
@@ -996,6 +1025,10 @@ export class ListView<T> implements IListView<T> {
 		if (this.horizontalScrolling) {
 			this.measureItemWidth(item);
 			this.eventuallyUpdateScrollWidth();
+		}
+
+		if (this.preservedItems.has(item)) {
+			item.row.domNode.classList.add('preserved');
 		}
 	}
 
@@ -1155,6 +1188,8 @@ export class ListView<T> implements IListView<T> {
 			if (this.supportDynamicHeights) {
 				this._rerender(e.scrollTop, e.height, e.inSmoothScrolling);
 			}
+
+			this.updatePreservedElements();
 		} catch (err) {
 			console.error('Got bad scroll event:', e);
 			throw err;
