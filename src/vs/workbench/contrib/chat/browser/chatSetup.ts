@@ -39,7 +39,7 @@ import { AuthenticationSession, IAuthenticationService } from '../../../services
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
-import { IChatAgentService } from '../common/chatAgents.js';
+import { ChatAgentLocation, IChatAgentImplementation, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { CHAT_CATEGORY, CHAT_SETUP_ACTION_ID, CHAT_SETUP_ACTION_LABEL } from './actions/chatActions.js';
 import { ChatViewId, EditsViewId, ensureSideBarChatViewSize, preferCopilotEditsView, showCopilotView } from './chat.js';
@@ -61,6 +61,7 @@ import { equalsIgnoreCase } from '../../../../base/common/strings.js';
 import { IStatusbarService } from '../../../services/statusbar/browser/statusbar.js';
 import { IChatEntitlementService, ChatEntitlement, ChatEntitlementService, ChatSetupContext, ChatSetupRequests } from '../common/chatEntitlementService.js';
 import { isObject } from '../../../../base/common/types.js';
+import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -85,6 +86,36 @@ const defaultChat = {
 
 //#region Contribution
 
+class SetupChatAgentImplementation implements IChatAgentImplementation {
+
+	constructor(private readonly location: ChatAgentLocation) { }
+
+	async invoke() {
+		return {
+			errorDetails: {
+				message: localize('setupCopilot', "You need to setup Copilot first."),
+				isSetupNeeded: true
+			}
+		};
+	}
+
+	provideWelcomeMessage() {
+		if (this.location === ChatAgentLocation.Panel) {
+			return {
+				title: localize('chatTitle', "Ask Copilot"),
+				message: new MarkdownString(localize('chatMessage', "Copilot is powered by AI, so mistakes are possible. Review output carefully before use.")),
+				icon: Codicon.copilotLarge
+			};
+		}
+
+		return {
+			title: localize('editsTitle', "Edit with Copilot"),
+			message: new MarkdownString(localize('editsMessage', "Start your editing session by defining a set of files that you want to work with. Then ask Copilot for the changes you want to make.")),
+			icon: Codicon.copilotLarge
+		};
+	}
+}
+
 export class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.chat.setup';
@@ -94,7 +125,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IChatEntitlementService chatEntitlementService: ChatEntitlementService
+		@IChatEntitlementService chatEntitlementService: ChatEntitlementService,
+		@IChatAgentService chatAgentService: IChatAgentService,
 	) {
 		super();
 
@@ -103,6 +135,34 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		if (!context || !requests) {
 			return; // disabled
 		}
+
+		chatAgentService.registerDynamicAgent({
+			id: 'setup.chat',
+			name: 'Copilot',
+			isDefault: true,
+			when: ChatContextKeys.Setup.installed.negate().serialize(),
+			slashCommands: [],
+			disambiguation: [],
+			locations: [ChatAgentLocation.Panel],
+			metadata: {},
+			extensionId: nullExtensionDescription.identifier,
+			extensionDisplayName: nullExtensionDescription.name,
+			extensionPublisherId: nullExtensionDescription.publisher
+		}, new SetupChatAgentImplementation(ChatAgentLocation.Panel));
+
+		chatAgentService.registerDynamicAgent({
+			id: 'setup.edits',
+			name: 'Copilot',
+			isDefault: true,
+			when: ChatContextKeys.Setup.installed.negate().serialize(),
+			slashCommands: [],
+			disambiguation: [],
+			locations: [ChatAgentLocation.EditingSession],
+			metadata: {},
+			extensionId: nullExtensionDescription.identifier,
+			extensionDisplayName: nullExtensionDescription.name,
+			extensionPublisherId: nullExtensionDescription.publisher
+		}, new SetupChatAgentImplementation(ChatAgentLocation.EditingSession));
 
 		const controller = new Lazy(() => this._register(this.instantiationService.createInstance(ChatSetupController, context, requests)));
 

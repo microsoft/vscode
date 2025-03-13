@@ -40,8 +40,11 @@ export interface IChatResponseErrorDetails {
 	responseIsIncomplete?: boolean;
 	responseIsFiltered?: boolean;
 	responseIsRedacted?: boolean;
-	isQuotaExceeded?: boolean;
 	level?: ChatErrorLevel;
+
+	/* Custom Rendering */
+	isQuotaExceeded?: boolean;
+	isSetupNeeded?: boolean;
 }
 
 export interface IChatResponseProgressFileTreeData {

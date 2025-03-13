@@ -66,6 +66,7 @@ import { ChatMarkdownContentPart, EditorPool, IChatMarkdownContentPartOptions } 
 import { ChatProgressContentPart, ChatWorkingProgressContentPart } from './chatContentParts/chatProgressContentPart.js';
 import { ChatQuotaExceededPart } from './chatContentParts/chatQuotaExceededPart.js';
 import { ChatCollapsibleListContentPart, ChatUsedReferencesListContentPart, CollapsibleListPool } from './chatContentParts/chatReferencesContentPart.js';
+import { ChatSetupNeededPart } from './chatContentParts/chatSetupNeededPart.js';
 import { ChatTaskContentPart } from './chatContentParts/chatTaskContentPart.js';
 import { ChatTextEditContentPart, DiffEditorPool } from './chatContentParts/chatTextEditContentPart.js';
 import { ChatToolInvocationPart } from './chatContentParts/chatToolInvocationPart.js';
@@ -611,6 +612,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (isResponseVM(element) && element.errorDetails?.message) {
 			if (element.errorDetails.isQuotaExceeded) {
 				const renderedError = this.instantiationService.createInstance(ChatQuotaExceededPart, element, this.renderer);
+				templateData.elementDisposables.add(renderedError);
+				templateData.value.appendChild(renderedError.domNode);
+				templateData.elementDisposables.add(renderedError.onDidChangeHeight(() => this.updateItemHeight(templateData)));
+			} else if (element.errorDetails.isSetupNeeded) {
+				const renderedError = this.instantiationService.createInstance(ChatSetupNeededPart, element, this.renderer);
 				templateData.elementDisposables.add(renderedError);
 				templateData.value.appendChild(renderedError.domNode);
 				templateData.elementDisposables.add(renderedError.onDidChangeHeight(() => this.updateItemHeight(templateData)));
