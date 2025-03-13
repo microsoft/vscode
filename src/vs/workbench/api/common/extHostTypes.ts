@@ -7,6 +7,7 @@
 
 import type * as vscode from 'vscode';
 import { asArray, coalesceInPlace, equals } from '../../../base/common/arrays.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
 import { illegalArgument, SerializedError } from '../../../base/common/errors.js';
 import { IRelativePattern } from '../../../base/common/glob.js';
 import { MarkdownString as BaseMarkdownString, MarkdownStringTrustedOptions } from '../../../base/common/htmlContent.js';
@@ -4945,9 +4946,16 @@ export class LanguageModelTextPart implements vscode.LanguageModelTextPart {
 }
 
 export class LanguageModelImagePart implements vscode.LanguageModelImagePart {
-	value: ChatImagePart;
+	value: vscode.ChatImagePart;
 
-	constructor(value: ChatImagePart) {
+	// constructor(value: ChatImagePart) {
+	// 	this.value = {
+	// 		mimeType: value.mimeType,
+	// 		data: value.data.buffer,
+	// 		detail: value.detail,
+	// 	};
+	// }
+	constructor(value: vscode.ChatImagePart) {
 		this.value = value;
 	}
 
@@ -4961,9 +4969,8 @@ export class LanguageModelImagePart implements vscode.LanguageModelImagePart {
 
 export interface ChatImagePart {
 	mimeType: string;
-	data: Uint8Array;
+	data: VSBuffer;
 	detail?: ImageDetailLevel;
-
 }
 
 export class LanguageModelPromptTsxPart {

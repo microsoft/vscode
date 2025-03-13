@@ -2422,7 +2422,13 @@ export namespace LanguageModelChatMessage2 {
 				});
 				return new types.LanguageModelToolResultPart(c.toolCallId, content, c.isError);
 			} else if (c.type === 'image_url') {
-				return new types.LanguageModelImagePart(c.value);
+				const value: vscode.ChatImagePart = {
+					mimeType: c.value.mimeType,
+					data: c.value.data.buffer,
+					detail: c.value.detail ?? types.ImageDetailLevel.High
+				};
+
+				return new types.LanguageModelImagePart(value);
 			} else {
 				return new types.LanguageModelToolCallPart(c.toolCallId, c.name, c.parameters);
 			}
@@ -2466,9 +2472,15 @@ export namespace LanguageModelChatMessage2 {
 					isError: c.isError
 				};
 			} else if (c instanceof types.LanguageModelImagePart) {
+				const value: chatProvider.IChatImageURLPart = {
+					mimeType: c.value.mimeType,
+					data: VSBuffer.wrap(c.value.data),
+					detail: c.value.detail ?? types.ImageDetailLevel.High
+				};
+
 				return {
 					type: 'image_url',
-					value: c.value
+					value: value
 				};
 			} else if (c instanceof types.LanguageModelToolCallPart) {
 				return {

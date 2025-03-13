@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Iterable } from '../../../../base/common/iterator.js';
@@ -43,7 +44,7 @@ export interface IChatImageURLPart {
 	/**
 	 * The raw binary data of the image, encoded as a Uint8Array. Note: do not use base64 encoding. Maximum image size is 5MB.
 	 */
-	data: Uint8Array;
+	data: VSBuffer;
 
 	/**
 	 * Specifies the detail level of the image. Learn more in the

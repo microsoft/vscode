@@ -24,6 +24,7 @@ import { IExtHostAuthentication } from './extHostAuthentication.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
+import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 
 export interface IExtHostLanguageModels extends ExtHostLanguageModels { }
 
@@ -193,7 +194,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		});
 	}
 
-	async $startChatRequest(handle: number, requestId: number, from: ExtensionIdentifier, messages: IChatMessage[], options: vscode.LanguageModelChatRequestOptions, token: CancellationToken): Promise<void> {
+	async $startChatRequest(handle: number, requestId: number, from: ExtensionIdentifier, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: vscode.LanguageModelChatRequestOptions, token: CancellationToken): Promise<void> {
 		const data = this._languageModels.get(handle);
 		if (!data) {
 			throw new Error('Provider not found');
@@ -224,7 +225,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		try {
 			if (data.provider.provideLanguageModelResponse2) {
 				value = data.provider.provideLanguageModelResponse2(
-					messages.map(typeConvert.LanguageModelChatMessage2.to),
+					messages.value.map(typeConvert.LanguageModelChatMessage2.to),
 					options,
 					ExtensionIdentifier.toKey(from),
 					progress,
@@ -233,7 +234,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 			} else {
 				value = data.provider.provideLanguageModelResponse(
-					messages.map(typeConvert.LanguageModelChatMessage2.to),
+					messages.value.map(typeConvert.LanguageModelChatMessage2.to),
 					options,
 					ExtensionIdentifier.toKey(from),
 					progress,
@@ -391,7 +392,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		this._pendingRequest.set(requestId, { languageModelId, res });
 
 		try {
-			await this._proxy.$tryStartChatRequest(from, languageModelId, requestId, internalMessages, options, token);
+			await this._proxy.$tryStartChatRequest(from, languageModelId, requestId, new SerializableObjectWithBuffers(internalMessages), options, token);
 
 		} catch (error) {
 			// error'ing here means that the request could NOT be started/made, e.g. wrong model, no access, etc, but

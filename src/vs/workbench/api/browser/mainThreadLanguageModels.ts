@@ -19,6 +19,7 @@ import { IAuthenticationAccessService } from '../../services/authentication/brow
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService, INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
+import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtHostContext, ExtHostLanguageModelsShape, MainContext, MainThreadLanguageModelsShape } from '../common/extHost.protocol.js';
 import { LanguageModelError } from '../common/extHostTypes.js';
 
@@ -63,7 +64,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 
 				try {
 					this._pendingProgress.set(requestId, { defer, stream });
-					await this._proxy.$startChatRequest(handle, requestId, from, messages, options, token);
+					await this._proxy.$startChatRequest(handle, requestId, from, new SerializableObjectWithBuffers(messages), options, token);
 				} catch (err) {
 					this._pendingProgress.delete(requestId);
 					throw err;
@@ -120,12 +121,12 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		this._languageModelStatsService.update(identifier, extensionId, participant, tokenCount);
 	}
 
-	async $tryStartChatRequest(extension: ExtensionIdentifier, providerId: string, requestId: number, messages: IChatMessage[], options: {}, token: CancellationToken): Promise<any> {
+	async $tryStartChatRequest(extension: ExtensionIdentifier, providerId: string, requestId: number, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: {}, token: CancellationToken): Promise<any> {
 		this._logService.trace('[CHAT] request STARTED', extension.value, requestId);
 
 		let response: ILanguageModelChatResponse;
 		try {
-			response = await this._chatProviderService.sendChatRequest(providerId, extension, messages, options, token);
+			response = await this._chatProviderService.sendChatRequest(providerId, extension, messages.value, options, token);
 		} catch (err) {
 			this._logService.error('[CHAT] request FAILED', extension.value, requestId, err);
 			throw err;
