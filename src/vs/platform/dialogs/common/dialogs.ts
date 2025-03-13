@@ -289,7 +289,7 @@ export interface ICustomDialogMarkdown {
 }
 
 export interface ICustomDialogHTMLElement extends IDisposable {
-	readonly element: HTMLElement;
+	readonly element: unknown /* HTMLElement */;
 }
 
 /**
