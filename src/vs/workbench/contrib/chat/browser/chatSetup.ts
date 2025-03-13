@@ -88,39 +88,70 @@ const defaultChat = {
 
 class SetupChatAgentImplementation implements IChatAgentImplementation {
 
-	static register(chatAgentService: IChatAgentService, location: ChatAgentLocation): IDisposable {
+	static register(instantiationService: IInstantiationService, location: ChatAgentLocation): IDisposable {
+		return instantiationService.invokeFunction(accessor => {
+			const chatAgentService = accessor.get(IChatAgentService);
 
-		// TODO@bpasero: expand this to more cases (installed, not signed in / not signed up)
-		const setupChatAgentContext = ContextKeyExpr.and(
-			ChatContextKeys.Setup.hidden.negate(),
-			ChatContextKeys.Setup.installed.negate(),
-			ContextKeyExpr.has('config.chat.experimental.setupFromChatResponse')
-		);
+			// TODO@bpasero: expand this to more cases (installed, not signed in / not signed up)
+			const setupChatAgentContext = ContextKeyExpr.and(
+				ChatContextKeys.Setup.hidden.negate(),
+				ChatContextKeys.Setup.installed.negate(),
+				ContextKeyExpr.has('config.chat.experimental.setupFromChatResponse')
+			);
 
-		const id = location === ChatAgentLocation.Panel ? 'setup.chat' : 'setup.edits';
+			const id = location === ChatAgentLocation.Panel ? 'setup.chat' : 'setup.edits';
 
-		return combinedDisposable(
-			chatAgentService.registerAgent(id, {
-				id,
-				name: 'Copilot',
-				isDefault: true,
-				when: setupChatAgentContext?.serialize(),
-				slashCommands: [],
-				disambiguation: [],
-				locations: [location],
-				metadata: {},
-				description: location === ChatAgentLocation.Panel ? localize('chatDescription', "Ask Copilot") : localize('editsDescription', "Edit files in your workspace"),
-				extensionId: nullExtensionDescription.identifier,
-				extensionDisplayName: nullExtensionDescription.name,
-				extensionPublisherId: nullExtensionDescription.publisher
-			}),
-			chatAgentService.registerAgentImplementation(id, new SetupChatAgentImplementation(location))
-		);
+			return combinedDisposable(
+				chatAgentService.registerAgent(id, {
+					id,
+					name: 'Copilot',
+					isDefault: true,
+					when: setupChatAgentContext?.serialize(),
+					slashCommands: [],
+					disambiguation: [],
+					locations: [location],
+					metadata: {},
+					description: location === ChatAgentLocation.Panel ? localize('chatDescription', "Ask Copilot") : localize('editsDescription', "Edit files in your workspace"),
+					extensionId: nullExtensionDescription.identifier,
+					extensionDisplayName: nullExtensionDescription.name,
+					extensionPublisherId: nullExtensionDescription.publisher
+				}),
+				chatAgentService.registerAgentImplementation(id, instantiationService.createInstance(SetupChatAgentImplementation, location))
+			);
+		});
 	}
 
-	constructor(private readonly location: ChatAgentLocation) { }
+	constructor(
+		private readonly location: ChatAgentLocation,
+		@IDialogService private readonly dialogService: IDialogService,
+	) { }
 
 	async invoke() {
+
+		await this.dialogService.prompt({
+			type: 'none',
+			message: localize('copilotFree', "Use AI Features with Copilot for Free"),
+			cancelButton: {
+				label: localize('dismiss', "Dismiss"),
+				run: () => { /* noop */ }
+			},
+			buttons: [
+				{
+					label: localize('upgradePro', "Use Copilot for Free"),
+					run: () => { }
+				},
+			],
+			custom: {
+				icon: Codicon.copilotLarge,
+				htmlDetails: [
+					{
+						element: $('div', undefined, 'Hello Setup'),
+						dispose: () => { /* noop */ }
+					}
+				]
+			}
+		});
+
 		return {
 			errorDetails: {
 				message: localize('setupCopilot', "You need to setup Copilot first.")
@@ -155,7 +186,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		@ICommandService private readonly commandService: ICommandService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IChatEntitlementService chatEntitlementService: ChatEntitlementService,
-		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 	) {
 		super();
 
@@ -177,8 +207,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		}
 
 		const registrations = [
-			SetupChatAgentImplementation.register(this.chatAgentService, ChatAgentLocation.Panel),
-			SetupChatAgentImplementation.register(this.chatAgentService, ChatAgentLocation.EditingSession)
+			SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel),
+			SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.EditingSession)
 		];
 
 		this._register(context.onDidChange(() => {
