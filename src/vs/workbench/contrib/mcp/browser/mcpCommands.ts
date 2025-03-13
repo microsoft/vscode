@@ -185,12 +185,14 @@ export class AttachMCPToolsAction extends Action2 {
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(
 				McpContextKeys.toolsCount.greater(0),
-				ChatContextKeys.chatMode.notEqualsTo(ChatMode.Chat)
+				ChatContextKeys.chatMode.notEqualsTo(ChatMode.Chat),
+				ChatContextKeys.Editing.hasToolsAgent
 			),
 			menu: {
 				when: ContextKeyExpr.and(
 					McpContextKeys.toolsCount.greater(0),
-					ChatContextKeys.chatMode.notEqualsTo(ChatMode.Chat)
+					ChatContextKeys.chatMode.notEqualsTo(ChatMode.Chat),
+					ChatContextKeys.Editing.hasToolsAgent
 				),
 				id: MenuId.ChatInputAttachmentToolbar,
 				group: 'navigation'
