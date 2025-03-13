@@ -204,6 +204,12 @@ configurationRegistry.registerConfiguration({
 			default: product.quality !== 'stable',
 			tags: ['experimental', 'onExp']
 		},
+		'chat.experimental.setupFromChatResponse': { // TODO@bpasero remove this eventually
+			type: 'boolean',
+			description: nls.localize('chat.setupFromChat', "Controls whether a Copilot setup triggers from a chat request. Shows the setup welcome view if not enabled."),
+			default: product.quality !== 'stable',
+			tags: ['experimental', 'onExp']
+		},
 		[mcpConfigurationSection]: {
 			type: 'object',
 			default: {

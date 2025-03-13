@@ -93,7 +93,8 @@ class SetupChatAgentImplementation implements IChatAgentImplementation {
 		// TODO@bpasero: expand this to more cases (installed, not signed in / not signed up)
 		const setupChatAgentContext = ContextKeyExpr.and(
 			ChatContextKeys.Setup.hidden.negate(),
-			ChatContextKeys.Setup.installed.negate()
+			ChatContextKeys.Setup.installed.negate(),
+			ContextKeyExpr.has('config.chat.experimental.setupFromChatResponse')
 		);
 
 		return chatAgentService.registerDynamicAgent({
