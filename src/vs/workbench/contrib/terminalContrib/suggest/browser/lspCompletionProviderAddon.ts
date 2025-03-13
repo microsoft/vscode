@@ -14,6 +14,8 @@ import { ITextModelService } from '../../../../../editor/common/services/resolve
 import { URI } from '../../../../../base/common/uri.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { CompletionTriggerKind } from '../../../../../editor/common/languages.js';
+// TODO: have one terminalCompletion provider per a single LspCompletionProviderAddon
+// TODO: In the constructor pass in provider, so each provider can pass its own trigger characters, have its own provideCompletions method
 
 export class LspCompletionProviderAddon extends Disposable implements ITerminalAddon, ITerminalCompletionProvider {
 	readonly id = 'lsp';
@@ -46,6 +48,9 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 
 		// TODO: Get Virtual file to work.
 		//       TODO: look for adding new scheme, look how existing ones were created.
+
+		// one virtual fake document per terminal instance + life time of it
+		// lazily create it when needed, and load
 
 		const uri = URI.file('/Users/anthonykim/Desktop/vscode/src/vs/workbench/contrib/terminalContrib/suggest/browser/usePylance.py');
 		const textModel = await this._textModelService.createModelReference(uri);
