@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PublicClientApplication, AccountInfo, Configuration, SilentFlowRequest, AuthenticationResult, InteractiveRequest, LogLevel, RefreshTokenRequest } from '@azure/msal-node';
+import { PublicClientApplication, AccountInfo, SilentFlowRequest, AuthenticationResult, InteractiveRequest, LogLevel, RefreshTokenRequest } from '@azure/msal-node';
 import { NativeBrokerPlugin } from '@azure/msal-node-extensions';
-import { Disposable, Memento, SecretStorage, LogOutputChannel, window, ProgressLocation, l10n, EventEmitter } from 'vscode';
+import { Disposable, SecretStorage, LogOutputChannel, window, ProgressLocation, l10n, EventEmitter } from 'vscode';
 import { raceCancellationAndTimeoutError } from '../common/async';
 import { SecretStorageCachePlugin } from '../common/cachePlugin';
 import { MsalLoggerOptions } from '../common/loggerOptions';
 import { ICachedPublicClientApplication } from '../common/publicClientCache';
-import { ScopedAccountAccess } from '../common/accountAccess';
+import { IAccountAccess } from '../common/accountAccess';
 
 export class CachedPublicClientApplication implements ICachedPublicClientApplication {
 	// Core properties
@@ -23,11 +23,10 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 	private readonly _secretStorageCachePlugin = new SecretStorageCachePlugin(
 		this._secretStorage,
 		// Include the prefix as a differentiator to other secrets
-		`pca:${JSON.stringify({ clientId: this._clientId, authority: this._authority })}`
+		`pca:${this._clientId}`
 	);
 
 	// Broker properties
-	private readonly _accountAccess = new ScopedAccountAccess(this._secretStorage, this._cloudName, this._clientId, this._authority);
 	private readonly _isBrokerAvailable: boolean;
 
 	//#region Events
@@ -40,24 +39,20 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 
 	//#endregion
 
-	constructor(
+	private constructor(
 		private readonly _clientId: string,
-		private readonly _authority: string,
-		private readonly _cloudName: string,
-		private readonly _globalMemento: Memento,
 		private readonly _secretStorage: SecretStorage,
-		private readonly _logger: LogOutputChannel
+		private readonly _accountAccess: IAccountAccess,
+		private readonly _logger: LogOutputChannel,
 	) {
-		// TODO:@TylerLeonhardt clean up old use of memento. Remove this in an iteration
-		this._globalMemento.update(`lastRemoval:${this._clientId}:${this._authority}`, undefined);
 		const loggerOptions = new MsalLoggerOptions(_logger);
 		const nativeBrokerPlugin = new NativeBrokerPlugin();
-		this._isBrokerAvailable = nativeBrokerPlugin.isBrokerAvailable ?? false;
+		this._isBrokerAvailable = nativeBrokerPlugin.isBrokerAvailable;
 		this._pca = new PublicClientApplication({
-			auth: { clientId: _clientId, authority: _authority },
+			auth: { clientId: _clientId },
 			system: {
 				loggerOptions: {
-					correlationId: `${_clientId}] [${_authority}`,
+					correlationId: _clientId,
 					loggerCallback: (level, message, containsPii) => loggerOptions.loggerCallback(level, message, containsPii),
 					logLevel: LogLevel.Trace
 				}
@@ -68,18 +63,26 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		this._disposable = Disposable.from(
 			this._registerOnSecretStorageChanged(),
 			this._onDidAccountsChangeEmitter,
-			this._onDidRemoveLastAccountEmitter
+			this._onDidRemoveLastAccountEmitter,
+			this._secretStorageCachePlugin
 		);
 	}
 
 	get accounts(): AccountInfo[] { return this._accounts; }
 	get clientId(): string { return this._clientId; }
-	get authority(): string { return this._authority; }
 
-	async initialize(): Promise<void> {
-		if (this._isBrokerAvailable) {
-			await this._accountAccess.initialize();
-		}
+	static async create(
+		clientId: string,
+		secretStorage: SecretStorage,
+		accountAccess: IAccountAccess,
+		logger: LogOutputChannel
+	): Promise<CachedPublicClientApplication> {
+		const app = new CachedPublicClientApplication(clientId, secretStorage, accountAccess, logger);
+		await app.initialize();
+		return app;
+	}
+
+	private async initialize(): Promise<void> {
 		await this._sequencer.queue(() => this._update());
 	}
 
@@ -88,9 +91,9 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 	}
 
 	async acquireTokenSilent(request: SilentFlowRequest): Promise<AuthenticationResult> {
-		this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] starting...`);
+		this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${request.authority}] [${request.scopes.join(' ')}] [${request.account.username}] starting...`);
 		let result = await this._sequencer.queue(() => this._pca.acquireTokenSilent(request));
-		this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] got result`);
+		this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${request.authority}] [${request.scopes.join(' ')}] [${request.account.username}] got result`);
 		// Check expiration of id token and if it's 5min before expiration, force a refresh.
 		// this is what MSAL does for access tokens already so we're just adding it for id tokens since we care about those.
 		// NOTE: Once we stop depending on id tokens for some things we can remove all of this.
@@ -101,13 +104,13 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 				* 1000 // convert to milliseconds
 			);
 			if (fiveMinutesBefore < new Date()) {
-				this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] id token is expired or about to expire. Forcing refresh...`);
+				this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${request.authority}] [${request.scopes.join(' ')}] [${request.account.username}] id token is expired or about to expire. Forcing refresh...`);
 				const newRequest = this._isBrokerAvailable
 					// HACK: Broker doesn't support forceRefresh so we need to pass in claims which will force a refresh
 					? { ...request, claims: '{ "id_token": {}}' }
 					: { ...request, forceRefresh: true };
 				result = await this._sequencer.queue(() => this._pca.acquireTokenSilent(newRequest));
-				this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] got forced result`);
+				this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${request.authority}] [${request.scopes.join(' ')}] [${request.account.username}] got forced result`);
 			}
 			const newIdTokenExpirationInSecs = (result.idTokenClaims as { exp?: number }).exp;
 			if (newIdTokenExpirationInSecs) {
@@ -116,15 +119,15 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 					* 1000 // convert to milliseconds
 				);
 				if (fiveMinutesBefore < new Date()) {
-					this._logger.error(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] id token is still expired.`);
+					this._logger.error(`[acquireTokenSilent] [${this._clientId}] [${request.authority}] [${request.scopes.join(' ')}] [${request.account.username}] id token is still expired.`);
 
 					// HACK: Only for the Broker we try one more time with different claims to force a refresh. Why? We've seen the Broker caching tokens by the claims requested, thus
 					// there has been a situation where both tokens are expired.
 					if (this._isBrokerAvailable) {
-						this._logger.error(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] forcing refresh with different claims...`);
+						this._logger.error(`[acquireTokenSilent] [${this._clientId}] [${request.authority}] [${request.scopes.join(' ')}] [${request.account.username}] forcing refresh with different claims...`);
 						const newRequest = { ...request, claims: '{ "access_token": {}}' };
 						result = await this._sequencer.queue(() => this._pca.acquireTokenSilent(newRequest));
-						this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] got forced result with different claims`);
+						this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${request.authority}] [${request.scopes.join(' ')}] [${request.account.username}] got forced result with different claims`);
 						const newIdTokenExpirationInSecs = (result.idTokenClaims as { exp?: number }).exp;
 						if (newIdTokenExpirationInSecs) {
 							const fiveMinutesBefore = new Date(
@@ -132,7 +135,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 								* 1000 // convert to milliseconds
 							);
 							if (fiveMinutesBefore < new Date()) {
-								this._logger.error(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] id token is still expired.`);
+								this._logger.error(`[acquireTokenSilent] [${this._clientId}] [${request.authority}] [${request.scopes.join(' ')}] [${request.account.username}] id token is still expired.`);
 							}
 						}
 					}
@@ -140,15 +143,17 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 			}
 		}
 
-		if (result.account && !result.fromCache && this._verifyIfUsingBroker(result)) {
-			this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] firing event due to change`);
+		if (!result.account) {
+			this._logger.error(`[acquireTokenSilent] [${this._clientId}] [${request.authority}] [${request.scopes.join(' ')}] [${request.account.username}] no account found in result`);
+		} else if (!result.fromCache && this._verifyIfUsingBroker(result)) {
+			this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${request.authority}] [${request.scopes.join(' ')}] [${request.account.username}] firing event due to change`);
 			this._onDidAccountsChangeEmitter.fire({ added: [], changed: [result.account], deleted: [] });
 		}
 		return result;
 	}
 
 	async acquireTokenInteractive(request: InteractiveRequest): Promise<AuthenticationResult> {
-		this._logger.debug(`[acquireTokenInteractive] [${this._clientId}] [${this._authority}] [${request.scopes?.join(' ')}] loopbackClientOverride: ${request.loopbackClient ? 'true' : 'false'}`);
+		this._logger.debug(`[acquireTokenInteractive] [${this._clientId}] [${request.authority}] [${request.scopes?.join(' ')}] loopbackClientOverride: ${request.loopbackClient ? 'true' : 'false'}`);
 		return await window.withProgress(
 			{
 				location: ProgressLocation.Notification,
@@ -180,9 +185,17 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 	 * @param request a {@link RefreshTokenRequest} object that contains the refresh token and other parameters.
 	 * @returns an {@link AuthenticationResult} object that contains the result of the token acquisition operation.
 	 */
-	async acquireTokenByRefreshToken(request: RefreshTokenRequest) {
-		this._logger.debug(`[acquireTokenByRefreshToken] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}]`);
-		const result = await this._sequencer.queue(() => this._pca.acquireTokenByRefreshToken(request));
+	async acquireTokenByRefreshToken(request: RefreshTokenRequest): Promise<AuthenticationResult | null> {
+		this._logger.debug(`[acquireTokenByRefreshToken] [${this._clientId}] [${request.authority}] [${request.scopes.join(' ')}]`);
+		const result = await this._sequencer.queue(async () => {
+			const result = await this._pca.acquireTokenByRefreshToken(request);
+			// Force an update so that the account cache is updated.
+			// TODO:@TylerLeonhardt The problem is, we use the sequencer for
+			// change events but we _don't_ use it for the accounts cache.
+			// We should probably use it for the accounts cache as well.
+			await this._update();
+			return result;
+		});
 		if (result) {
 			// this._setupRefresh(result);
 			if (this._isBrokerAvailable && result.account) {
@@ -213,7 +226,14 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		if (!result.fromNativeBroker) {
 			return true;
 		}
-		const key = result.account!.homeAccountId;
+		// The nativeAccountId is what the broker uses to differenciate all
+		// types of accounts. Even if the "account" is a duplicate of another because
+		// it's actaully a guest account in another tenant.
+		let key = result.account!.nativeAccountId;
+		if (!key) {
+			this._logger.error(`[verifyIfUsingBroker] [${this._clientId}] [${result.account!.username}] no nativeAccountId found. Using homeAccountId instead.`);
+			key = result.account!.homeAccountId;
+		}
 		const lastSeen = this._lastSeen.get(key);
 		const lastTimeAuthed = result.account!.idTokenClaims!.iat!;
 		if (!lastSeen) {
@@ -229,7 +249,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 
 	private async _update() {
 		const before = this._accounts;
-		this._logger.debug(`[update] [${this._clientId}] [${this._authority}] CachedPublicClientApplication update before: ${before.length}`);
+		this._logger.debug(`[update] [${this._clientId}] CachedPublicClientApplication update before: ${before.length}`);
 		// Clear in-memory cache so we know we're getting account data from the SecretStorage
 		this._pca.clearCache();
 		let after = await this._pca.getAllAccounts();
@@ -237,7 +257,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 			after = after.filter(a => this._accountAccess.isAllowedAccess(a));
 		}
 		this._accounts = after;
-		this._logger.debug(`[update] [${this._clientId}] [${this._authority}] CachedPublicClientApplication update after: ${after.length}`);
+		this._logger.debug(`[update] [${this._clientId}] CachedPublicClientApplication update after: ${after.length}`);
 
 		const beforeSet = new Set(before.map(b => b.homeAccountId));
 		const afterSet = new Set(after.map(a => a.homeAccountId));
@@ -246,13 +266,13 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		const deleted = before.filter(b => !afterSet.has(b.homeAccountId));
 		if (added.length > 0 || deleted.length > 0) {
 			this._onDidAccountsChangeEmitter.fire({ added, changed: [], deleted });
-			this._logger.debug(`[update] [${this._clientId}] [${this._authority}] CachedPublicClientApplication accounts changed. added: ${added.length}, deleted: ${deleted.length}`);
+			this._logger.debug(`[update] [${this._clientId}] CachedPublicClientApplication accounts changed. added: ${added.length}, deleted: ${deleted.length}`);
 			if (!after.length) {
-				this._logger.debug(`[update] [${this._clientId}] [${this._authority}] CachedPublicClientApplication final account deleted. Firing event.`);
+				this._logger.debug(`[update] [${this._clientId}] CachedPublicClientApplication final account deleted. Firing event.`);
 				this._onDidRemoveLastAccountEmitter.fire();
 			}
 		}
-		this._logger.debug(`[update] [${this._clientId}] [${this._authority}] CachedPublicClientApplication update complete`);
+		this._logger.debug(`[update] [${this._clientId}] CachedPublicClientApplication update complete`);
 	}
 }
 

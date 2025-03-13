@@ -42,7 +42,6 @@ steps:
       - script: |
           set -e
           if [ -n "$SYSROOT_ARCH" ]; then
-            export VSCODE_SYSROOT_PREFIX='-glibc-2.17'
             export VSCODE_SYSROOT_DIR=$(Build.SourcesDirectory)/.build/sysroots
             node -e '(async () => { const { getVSCodeSysroot } = require("../build/linux/debian/install-sysroot.js"); await getVSCodeSysroot(process.env["SYSROOT_ARCH"]); })()'
             if [ "$SYSROOT_ARCH" == "arm64" ]; then
@@ -73,7 +72,7 @@ steps:
 
           # verify glibc requirement
           if [ -n "$SYSROOT_ARCH" ]; then
-            glibc_version="2.17"
+            glibc_version="2.28"
             while IFS= read -r line; do
               if [[ $line == *"GLIBC_"* ]]; then
                 version=$(echo "$line" | awk '{print $5}' | tr -d '()')
@@ -83,8 +82,8 @@ steps:
                 fi
               fi
             done < <("$OBJDUMP" -T "$PWD/target/${{ parameters.VSCODE_CLI_TARGET }}/release/code")
-            if [[ "$glibc_version" != "2.17" ]]; then
-              echo "Error: binary has dependency on GLIBC > 2.17, found $glibc_version"
+            if [[ "$glibc_version" != "2.28" ]]; then
+              echo "Error: binary has dependency on GLIBC > 2.28, found $glibc_version"
               exit 1
             fi
           fi
@@ -119,22 +118,6 @@ steps:
           ArtifactServices.Symbol.PAT: $(System.AccessToken)
           ArtifactServices.Symbol.UseAAD: false
         displayName: Publish Symbols
-
-      - task: CopyFiles@2
-        inputs:
-          SourceFolder: $(Build.SourcesDirectory)/cli/target/${{ parameters.VSCODE_CLI_TARGET }}/release
-          Contents: 'code.*'
-          TargetFolder: $(Agent.TempDirectory)/binskim-cli
-        displayName: Copy files for BinSkim
-
-      - task: BinSkim@4
-        inputs:
-          InputType: Basic
-          Function: analyze
-          TargetPattern: guardianGlob
-          AnalyzeTargetGlob: $(Agent.TempDirectory)/binskim-cli/*.*
-          AnalyzeSymPath: $(Agent.TempDirectory)/binskim-cli
-        displayName: Run BinSkim
 
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1

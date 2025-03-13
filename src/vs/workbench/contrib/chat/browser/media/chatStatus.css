@@ -25,75 +25,18 @@
 	color: var(--vscode-descriptionForeground);
 }
 
-/* Settings */
-
-.chat-status-bar-entry-tooltip .settings {
-	display: flex;
-	flex-direction: column;
-	gap: 5px;
+.chat-status-bar-entry-tooltip .monaco-button {
+	margin-top: 5px;
+	margin-bottom: 5px;
 }
 
-.chat-status-bar-entry-tooltip .settings .setting {
+/* Setup for New User */
+
+.chat-status-bar-entry-tooltip .setup .chat-feature-container {
 	display: flex;
 	align-items: center;
-}
-
-.chat-status-bar-entry-tooltip .settings .setting .monaco-checkbox {
-	height: 14px;
-	width: 14px;
-	margin-right: 5px;
-}
-
-.chat-status-bar-entry-tooltip .settings .setting .codicon {
-	font-size: 12px;
-}
-
-.chat-status-bar-entry-tooltip .settings .setting .setting-label {
-	cursor: pointer;
-}
-
-/* Shortcuts */
-
-.chat-status-bar-entry-tooltip .shortcuts {
-	display: flex;
-	flex-direction: column;
-	gap: 2px;
-}
-
-.chat-status-bar-entry-tooltip .shortcuts .shortcut {
-	display: flex;
-	gap: 15px;
-
-	/** Make room for the hover feedback */
-	margin-left: -3px;
-	margin-right: -3px;
-	padding-left: 3px;
-	padding-right: 3px;
-	margin-top: -1px;
-	margin-bottom: -1px;
-	padding-top: 1px;
-	padding-bottom: 1px;
-}
-
-.chat-status-bar-entry-tooltip .shortcuts .shortcut:hover {
-	outline: 1px dashed var(--vscode-toolbar-hoverOutline);
-	outline-offset: -1px;
-	background-color: var(--vscode-toolbar-hoverBackground);
-	border-radius: 3px;
-}
-
-.chat-status-bar-entry-tooltip .shortcuts .shortcut .shortcut-label {
-	flex: 1;
-	cursor: pointer;
-}
-
-.chat-status-bar-entry-tooltip .shortcuts .shortcut .monaco-keybinding {
-	cursor: pointer;
-}
-
-.chat-status-bar-entry-tooltip .shortcuts .shortcut .monaco-keybinding > .monaco-keybinding-key {
-	padding: 2px 4px;
-	font-size: 10px;
+	gap: 5px;
+	padding: 4px;
 }
 
 /* Quota Indicator */
@@ -136,4 +79,35 @@
 
 .chat-status-bar-entry-tooltip .quota-indicator.error .quota-bar .quota-bit {
 	background-color: var(--vscode-gauge-errorBackground);
+}
+
+/* Settings */
+
+.chat-status-bar-entry-tooltip .settings {
+	display: flex;
+	flex-direction: column;
+	gap: 5px;
+}
+
+.chat-status-bar-entry-tooltip .settings .setting {
+	display: flex;
+	align-items: center;
+}
+
+.chat-status-bar-entry-tooltip .settings .setting .monaco-checkbox {
+	height: 14px;
+	width: 14px;
+	margin-right: 5px;
+}
+
+.chat-status-bar-entry-tooltip .settings .setting .codicon {
+	font-size: 12px;
+}
+
+.chat-status-bar-entry-tooltip .settings .setting .setting-label {
+	cursor: pointer;
+}
+
+.chat-status-bar-entry-tooltip .settings .setting.disabled .setting-label {
+	color: var(--vscode-disabledForeground);
 }

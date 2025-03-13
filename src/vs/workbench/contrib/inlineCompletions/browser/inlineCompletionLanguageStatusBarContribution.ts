@@ -69,7 +69,7 @@ export class InlineCompletionLanguageStatusBarContribution extends Disposable {
 				accessibilityInfo: undefined,
 				busy: statusMap[status].loading,
 				command: undefined,
-				detail: localize('inlineSuggestions', "Inline Suggestions"),
+				detail: localize('inlineSuggestionsSmall', "Inline suggestions"),
 				id: 'inlineSuggestions',
 				label: { value: statusMap[status].label, shortValue: statusMap[status].shortLabel },
 				name: localize('inlineSuggestions', "Inline Suggestions"),

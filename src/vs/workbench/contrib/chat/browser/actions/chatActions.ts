@@ -35,7 +35,8 @@ import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { EXTENSIONS_CATEGORY, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
-import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
+import { IChatAgentService } from '../../common/chatAgents.js';
+import { ChatAgentLocation } from '../../common/constants.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
@@ -46,7 +47,6 @@ import { ILanguageModelToolsService } from '../../common/languageModelToolsServi
 import { ChatViewId, EditsViewId, IChatWidget, IChatWidgetService, showChatView, showCopilotView } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
-import { IChatQuotasService } from '../../common/chatQuotasService.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
@@ -55,7 +55,7 @@ import { language } from '../../../../../base/common/platform.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
-import { ChatEntitlement, IChatEntitlementsService } from '../../common/chatEntitlementsService.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../common/chatEntitlementService.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 
@@ -97,14 +97,6 @@ export interface IChatViewOpenRequestEntry {
 	response: string;
 }
 
-MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
-	command: {
-		id: 'update.showCurrentReleaseNotes',
-		title: localize2('chat.releaseNotes.label', "Show Release Notes"),
-	},
-	when: ContextKeyExpr.equals('view', ChatViewId)
-});
-
 export const OPEN_CHAT_QUOTA_EXCEEDED_DIALOG = 'workbench.action.chat.openQuotaExceededDialog';
 
 export function registerChatActions() {
@@ -117,6 +109,7 @@ export function registerChatActions() {
 				icon: Codicon.copilot,
 				f1: true,
 				category: CHAT_CATEGORY,
+				precondition: ChatContextKeys.Setup.hidden.toNegated(),
 				keybinding: {
 					weight: KeybindingWeight.WorkbenchContrib,
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
@@ -515,7 +508,7 @@ export function registerChatActions() {
 		}
 	});
 
-	const nonEnterpriseCopilotUsers = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.notEquals(`config.${defaultChat.providerSetting}`, defaultChat.enterpriseProviderId));
+	const nonEnterpriseCopilotUsers = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.notEquals(`config.${defaultChat.completionsAdvancedSetting}.authProvider`, defaultChat.enterpriseProviderId));
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -547,6 +540,7 @@ export function registerChatActions() {
 				title: localize2('showCopilotUsageExtensions', "Show Extensions using Copilot"),
 				f1: true,
 				category: EXTENSIONS_CATEGORY,
+				precondition: ChatContextKeys.enabled
 			});
 		}
 
@@ -573,7 +567,7 @@ export function registerChatActions() {
 
 		override async run(accessor: ServicesAccessor): Promise<void> {
 			const commandService = accessor.get(ICommandService);
-			commandService.executeCommand('github.copilot.toggleStatusMenu');
+			commandService.executeCommand(defaultChat.completionsMenuCommand);
 		}
 	});
 
@@ -587,20 +581,20 @@ export function registerChatActions() {
 		}
 
 		override async run(accessor: ServicesAccessor) {
-			const chatQuotasService = accessor.get(IChatQuotasService);
+			const chatEntitlementService = accessor.get(IChatEntitlementService);
 			const commandService = accessor.get(ICommandService);
 			const dialogService = accessor.get(IDialogService);
 
 			const dateFormatter = safeIntl.DateTimeFormat(language, { year: 'numeric', month: 'long', day: 'numeric' });
 
 			let message: string;
-			const { chatQuotaExceeded, completionsQuotaExceeded } = chatQuotasService.quotas;
+			const { chatQuotaExceeded, completionsQuotaExceeded } = chatEntitlementService.quotas;
 			if (chatQuotaExceeded && !completionsQuotaExceeded) {
-				message = localize('chatQuotaExceeded', "You've run out of free chat messages. You still have free code completions available in the Copilot Free plan. These limits will reset on {0}.", dateFormatter.format(chatQuotasService.quotas.quotaResetDate));
+				message = localize('chatQuotaExceeded', "You've run out of free chat messages. You still have free code completions available in the Copilot Free plan. These limits will reset on {0}.", dateFormatter.format(chatEntitlementService.quotas.quotaResetDate));
 			} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
-				message = localize('completionsQuotaExceeded', "You've run out of free code completions. You still have free chat messages available in the Copilot Free plan. These limits will reset on {0}.", dateFormatter.format(chatQuotasService.quotas.quotaResetDate));
+				message = localize('completionsQuotaExceeded', "You've run out of free code completions. You still have free chat messages available in the Copilot Free plan. These limits will reset on {0}.", dateFormatter.format(chatEntitlementService.quotas.quotaResetDate));
 			} else {
-				message = localize('chatAndCompletionsQuotaExceeded', "You've reached the limit of the Copilot Free plan. These limits will reset on {0}.", dateFormatter.format(chatQuotasService.quotas.quotaResetDate));
+				message = localize('chatAndCompletionsQuotaExceeded', "You've reached the limit of the Copilot Free plan. These limits will reset on {0}.", dateFormatter.format(chatEntitlementService.quotas.quotaResetDate));
 			}
 
 			const upgradeToPro = localize('upgradeToPro', "Upgrade to Copilot Pro (your first 30 days are free) for:\n- Unlimited code completions\n- Unlimited chat messages\n- Access to additional models");
@@ -615,7 +609,7 @@ export function registerChatActions() {
 				buttons: [
 					{
 						label: localize('upgradePro', "Upgrade to Copilot Pro"),
-						run: () => commandService.executeCommand('workbench.action.chat.upgradePlan')
+						run: () => commandService.executeCommand('workbench.action.chat.upgradePlan', 'chat-dialog')
 					},
 				],
 				custom: {
@@ -646,7 +640,8 @@ const defaultChat = {
 	manageSettingsUrl: product.defaultChatAgent?.manageSettingsUrl ?? '',
 	managePlanUrl: product.defaultChatAgent?.managePlanUrl ?? '',
 	enterpriseProviderId: product.defaultChatAgent?.enterpriseProviderId ?? '',
-	providerSetting: product.defaultChatAgent?.providerSetting ?? '',
+	completionsAdvancedSetting: product.defaultChatAgent?.completionsAdvancedSetting ?? '',
+	completionsMenuCommand: product.defaultChatAgent?.completionsMenuCommand ?? '',
 };
 
 // Add next to the command center if command center is disabled
@@ -693,9 +688,8 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IChatAgentService agentService: IChatAgentService,
-		@IChatQuotasService chatQuotasService: IChatQuotasService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IChatEntitlementsService chatEntitlementsService: IChatEntitlementsService
+		@IChatEntitlementService chatEntitlementService: IChatEntitlementService
 	) {
 		super();
 
@@ -711,8 +705,8 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 			});
 
 			const chatExtensionInstalled = agentService.getAgents().some(agent => agent.isDefault);
-			const { chatQuotaExceeded, completionsQuotaExceeded } = chatQuotasService.quotas;
-			const signedOut = chatEntitlementsService.entitlement === ChatEntitlement.Unknown;
+			const { chatQuotaExceeded, completionsQuotaExceeded } = chatEntitlementService.quotas;
+			const signedOut = chatEntitlementService.entitlement === ChatEntitlement.Unknown;
 
 			let primaryActionId: string;
 			let primaryActionTitle: string;
@@ -728,7 +722,13 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 					primaryActionIcon = Codicon.copilotNotConnected;
 				} else if (chatQuotaExceeded || completionsQuotaExceeded) {
 					primaryActionId = OPEN_CHAT_QUOTA_EXCEEDED_DIALOG;
-					primaryActionTitle = quotaToButtonMessage({ chatQuotaExceeded, completionsQuotaExceeded });
+					if (chatQuotaExceeded && !completionsQuotaExceeded) {
+						primaryActionTitle = localize('chatQuotaExceededButton', "Monthly chat messages limit reached. Click for details.");
+					} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
+						primaryActionTitle = localize('completionsQuotaExceededButton', "Monthly code completions limit reached. Click for details.");
+					} else {
+						primaryActionTitle = localize('chatAndCompletionsQuotaExceededButton', "Copilot Free plan limit reached. Click for details.");
+					}
 					primaryActionIcon = Codicon.copilotWarning;
 				} else {
 					primaryActionId = TOGGLE_CHAT_ACTION_ID;
@@ -743,21 +743,11 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 			}, undefined, undefined, undefined, undefined), dropdownAction, action.actions, '', { ...options, skipTelemetry: true });
 		}, Event.any(
 			agentService.onDidChangeAgents,
-			chatQuotasService.onDidChangeQuotaExceeded,
-			chatEntitlementsService.onDidChangeEntitlement
+			chatEntitlementService.onDidChangeQuotaExceeded,
+			chatEntitlementService.onDidChangeEntitlement
 		));
 
 		// Reduces flicker a bit on reload/restart
 		markAsSingleton(disposable);
-	}
-}
-
-export function quotaToButtonMessage({ chatQuotaExceeded, completionsQuotaExceeded }: { chatQuotaExceeded: boolean; completionsQuotaExceeded: boolean }): string {
-	if (chatQuotaExceeded && !completionsQuotaExceeded) {
-		return localize('chatQuotaExceededButton', "Monthly chat messages limit reached. Click for details.");
-	} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
-		return localize('completionsQuotaExceededButton', "Monthly code completions limit reached. Click for details.");
-	} else {
-		return localize('chatAndCompletionsQuotaExceededButton', "Copilot Free plan limit reached. Click for details.");
 	}
 }

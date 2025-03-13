@@ -176,6 +176,7 @@ export class ViewModelEventsCollector {
 export type OutgoingViewModelEvent = (
 	ContentSizeChangedEvent
 	| FocusChangedEvent
+	| WidgetFocusChangedEvent
 	| ScrollChangedEvent
 	| ViewZonesChangedEvent
 	| HiddenAreasChangedEvent
@@ -192,6 +193,7 @@ export type OutgoingViewModelEvent = (
 export const enum OutgoingViewModelEventKind {
 	ContentSizeChanged,
 	FocusChanged,
+	WidgetFocusChanged,
 	ScrollChanged,
 	ViewZonesChanged,
 	HiddenAreasChanged,
@@ -241,6 +243,30 @@ export class ContentSizeChangedEvent implements IContentSizeChangedEvent {
 export class FocusChangedEvent {
 
 	public readonly kind = OutgoingViewModelEventKind.FocusChanged;
+
+	readonly oldHasFocus: boolean;
+	readonly hasFocus: boolean;
+
+	constructor(oldHasFocus: boolean, hasFocus: boolean) {
+		this.oldHasFocus = oldHasFocus;
+		this.hasFocus = hasFocus;
+	}
+
+	public isNoOp(): boolean {
+		return (this.oldHasFocus === this.hasFocus);
+	}
+
+	public attemptToMerge(other: OutgoingViewModelEvent): OutgoingViewModelEvent | null {
+		if (other.kind !== this.kind) {
+			return null;
+		}
+		return new FocusChangedEvent(this.oldHasFocus, other.hasFocus);
+	}
+}
+
+export class WidgetFocusChangedEvent {
+
+	public readonly kind = OutgoingViewModelEventKind.WidgetFocusChanged;
 
 	readonly oldHasFocus: boolean;
 	readonly hasFocus: boolean;

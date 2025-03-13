@@ -175,7 +175,7 @@
 
 body.issue-reporter-body {
 	margin: 0 !important;
-	overflow-y: scroll !important;
+	overflow-y: auto !important;
 	height: 100% !important;
 }
 
@@ -204,25 +204,25 @@ body.issue-reporter-body {
 	padding-bottom: 2em;
 	display: flex;
 	flex-direction: column;
-	min-height: 100%;
 	overflow: visible;
 }
 
 .issue-reporter-body .description-section {
-	flex-grow: 1;
+	flex-grow: 0;
 	display: flex;
 	flex-direction: column;
 	flex-shrink: 0;
 }
 
 .issue-reporter-body textarea {
-	flex-grow: 1;
-	min-height: 150px;
+	flex-grow: 0;
+	height: 200px;
 }
 
 .issue-reporter-body .block-info-text {
 	display: flex;
-	flex-grow: 1;
+	flex-grow: 0;
+	flex-direction: column;
 }
 
 .issue-reporter-body #github-submit-btn {
@@ -467,4 +467,14 @@ body.issue-reporter-body {
 
 .issue-reporter-body .issues-container > .issue .issue-icon {
 	padding-top: 2px;
+}
+
+.issue-reporter-update-banner {
+	color: var(--vscode-button-foreground);
+	background-color: var(--vscode-button-background);
+	padding: 10px;
+	text-align: center;
+	position: sticky;
+	top: 0;
+	z-index: 1000;
 }

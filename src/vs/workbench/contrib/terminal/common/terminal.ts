@@ -371,6 +371,10 @@ export interface ITerminalStatus {
 	 */
 	tooltip?: string | undefined;
 	/**
+	 * What to show for this status in the terminal's hover when details are toggled.
+	 */
+	detailedTooltip?: string | undefined;
+	/**
 	 * Actions to expose on hover.
 	 */
 	hoverActions?: ITerminalStatusHoverAction[];

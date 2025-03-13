@@ -15,15 +15,16 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { isChatViewTitleActionContext } from '../../common/chatActions.js';
-import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatContextKeyExprs, ChatContextKeys } from '../../common/chatContextKeys.js';
 import { hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingSession, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { IChatService } from '../../common/chatService.js';
+import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
 import { ChatViewId, EditsViewId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { EditingSessionAction } from '../chatEditing/chatEditingActions.js';
 import { ctxIsGlobalEditingSession } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
-import { CHAT_CATEGORY } from './chatActions.js';
+import { CHAT_CATEGORY, IChatViewOpenOptions } from './chatActions.js';
 import { clearChatEditor } from './chatClear.js';
 
 export const ACTION_ID_NEW_CHAT = `workbench.action.chat.newChat`;
@@ -94,7 +95,9 @@ export function registerNewChatActions() {
 				},
 				{
 					id: MenuId.ViewTitle,
-					when: ContextKeyExpr.equals('view', ChatViewId),
+					when: ContextKeyExpr.and(
+						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
+						ChatContextKeys.inUnifiedChat.negate()),
 					group: 'navigation',
 					order: -1
 				}]
@@ -136,7 +139,7 @@ export function registerNewChatActions() {
 				},
 				{
 					id: MenuId.ViewTitle,
-					when: ContextKeyExpr.equals('view', EditsViewId),
+					when: ChatContextKeyExprs.inEditsOrUnified,
 					group: 'navigation',
 					order: -1
 				}],
@@ -146,7 +149,7 @@ export function registerNewChatActions() {
 					mac: {
 						primary: KeyMod.WinCtrl | KeyCode.KeyL
 					},
-					when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession))
+					when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeyExprs.inEditingMode)
 				}
 			});
 		}
@@ -198,7 +201,7 @@ export function registerNewChatActions() {
 			const widgetService = accessor.get(IChatWidgetService);
 			const dialogService = accessor.get(IDialogService);
 			const viewsService = accessor.get(IViewsService);
-			const agentService = accessor.get(IChatAgentService);
+			const chatService = accessor.get(IChatService);
 
 			if (!(await this._handleCurrentEditingSession(editingSession, dialogService))) {
 				return;
@@ -212,8 +215,9 @@ export function registerNewChatActions() {
 				widget = widgetService.getWidgetBySessionId(context.sessionId);
 			} else {
 				// Is running from f1 or keybinding
-				const chatView = await viewsService.openView(EditsViewId) as ChatViewPane;
-				widget = chatView.widget;
+				const view = chatService.unifiedViewEnabled ? ChatViewId : EditsViewId;
+				const chatView = await viewsService.openView<ChatViewPane>(view);
+				widget = chatView?.widget;
 			}
 
 			announceChatCleared(accessibilitySignalService);
@@ -225,6 +229,7 @@ export function registerNewChatActions() {
 			await editingSession.stop(true);
 			widget.clear();
 			widget.attachmentModel.clear();
+			widget.input.relatedFiles?.clear();
 			widget.focusInput();
 
 			if (!context) {
@@ -232,7 +237,7 @@ export function registerNewChatActions() {
 			}
 
 			if (!isChatViewTitleAction && typeof context.agentMode === 'boolean') {
-				agentService.toggleToolsAgentMode(context.agentMode);
+				widget.input.setChatMode(context.agentMode ? ChatMode.Agent : ChatMode.Edit);
 			}
 
 			if (context.inputValue) {
@@ -255,7 +260,7 @@ export function registerNewChatActions() {
 				f1: false,
 				menu: [{
 					id: MenuId.ChatEditingWidgetToolbar,
-					when: ContextKeyExpr.and(hasUndecidedChatEditingResourceContextKey.negate(), hasAppliedChatEditsContextKey, ChatContextKeys.editingParticipantRegistered, ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)),
+					when: ContextKeyExpr.and(hasUndecidedChatEditingResourceContextKey.negate(), hasAppliedChatEditsContextKey, ChatContextKeys.editingParticipantRegistered, ChatContextKeyExprs.inEditsOrUnified),
 					group: 'navigation',
 					order: 0
 				}]
@@ -344,14 +349,19 @@ export function registerNewChatActions() {
 				category: CHAT_CATEGORY,
 				icon: Codicon.goToEditingSession,
 				f1: true,
+				precondition: ChatContextKeys.Setup.hidden.toNegated(),
 				menu: [{
 					id: MenuId.ViewTitle,
-					when: ContextKeyExpr.and(ContextKeyExpr.equals('view', ChatViewId), ChatContextKeys.editingParticipantRegistered,
+					when: ContextKeyExpr.and(
+						ContextKeyExpr.equals('view', ChatViewId),
+						ChatContextKeys.editingParticipantRegistered,
 						ContextKeyExpr.equals(`view.${EditsViewId}.visible`, false),
 						ContextKeyExpr.or(
 							ContextKeyExpr.and(ContextKeyExpr.equals(`workbench.panel.chat.defaultViewContainerLocation`, true), ContextKeyExpr.equals(`workbench.panel.chatEditing.defaultViewContainerLocation`, false)),
 							ContextKeyExpr.and(ContextKeyExpr.equals(`workbench.panel.chat.defaultViewContainerLocation`, false), ContextKeyExpr.equals(`workbench.panel.chatEditing.defaultViewContainerLocation`, true)),
-						)),
+						),
+						ChatContextKeys.inUnifiedChat.negate()
+					),
 					group: 'navigation',
 					order: 1
 				}, {
@@ -375,10 +385,21 @@ export function registerNewChatActions() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor, ...args: any[]) {
+		async run(accessor: ServicesAccessor, opts?: string | IChatViewOpenOptions) {
+			opts = typeof opts === 'string' ? { query: opts } : opts;
 			const viewsService = accessor.get(IViewsService);
-			const chatView = await viewsService.openView(EditsViewId) as ChatViewPane;
-			chatView.widget.focusInput();
+			const chatView = await viewsService.openView<ChatViewPane>(EditsViewId)
+				?? await viewsService.openView<ChatViewPane>(ChatViewId);
+
+			if (opts?.query) {
+				if (opts.isPartialQuery) {
+					chatView?.widget.setInput(opts.query);
+				} else {
+					chatView?.widget.acceptInput(opts.query);
+				}
+			}
+
+			chatView?.widget.focusInput();
 		}
 	});
 }

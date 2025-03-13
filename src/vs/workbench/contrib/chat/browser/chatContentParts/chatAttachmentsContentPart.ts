@@ -73,6 +73,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 		}
 	}
 
+	// TODO@joyceerhl adopt chat attachment widgets
 	private initAttachedContext(container: HTMLElement) {
 		dom.clearNode(container);
 		this.attachedContextDisposables.clear();

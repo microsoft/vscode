@@ -5,7 +5,7 @@
 
 import './media/userDataProfilesEditor.css';
 import { $, addDisposableListener, append, clearNode, Dimension, EventHelper, EventType, IDomPosition, trackFocus } from '../../../../base/browser/dom.js';
-import { Action, IAction, IActionChangeEvent, Separator, SubmenuAction } from '../../../../base/common/actions.js';
+import { Action, IAction, IActionChangeEvent, Separator, SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
@@ -225,7 +225,11 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 						actions.push(new SubmenuAction('from.template', localize('from template', "From Template"), this.getCreateFromTemplateActions()));
 						actions.push(new Separator());
 					}
-					actions.push(new Action('importProfile', localize('importProfile', "Import Profile..."), undefined, true, () => this.importProfile()));
+					actions.push(toAction({
+						id: 'importProfile',
+						label: localize('importProfile', "Import Profile..."),
+						run: () => this.importProfile()
+					}));
 					return actions;
 				}
 			},
@@ -240,12 +244,11 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 
 	private getCreateFromTemplateActions(): IAction[] {
 		return this.templates.map(template =>
-			new Action(
-				`template:${template.url}`,
-				template.name,
-				undefined,
-				true,
-				() => this.createNewProfile(URI.parse(template.url))));
+			toAction({
+				id: `template:${template.url}`,
+				label: template.name,
+				run: () => this.createNewProfile(URI.parse(template.url))
+			}));
 	}
 
 	private registerListeners(): void {
@@ -282,13 +285,21 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 
 	private getTreeContextMenuActions(): IAction[] {
 		const actions: IAction[] = [];
-		actions.push(new Action('newProfile', localize('newProfile', "New Profile"), undefined, true, () => this.createNewProfile()));
+		actions.push(toAction({
+			id: 'newProfile',
+			label: localize('newProfile', "New Profile"),
+			run: () => this.createNewProfile()
+		}));
 		const templateActions = this.getCreateFromTemplateActions();
 		if (templateActions.length) {
 			actions.push(new SubmenuAction('from.template', localize('new from template', "New Profile From Template"), templateActions));
 		}
 		actions.push(new Separator());
-		actions.push(new Action('importProfile', localize('importProfile', "Import Profile..."), undefined, true, () => this.importProfile()));
+		actions.push(toAction({
+			id: 'importProfile',
+			label: localize('importProfile', "Import Profile..."),
+			run: () => this.importProfile()
+		}));
 		return actions;
 	}
 
@@ -1036,7 +1047,7 @@ class ProfileIconRenderer extends ProfilePropertyRenderer {
 				return;
 			}
 			iconSelectBox.clearInput();
-			hoverWidget = this.hoverService.showHover({
+			hoverWidget = this.hoverService.showInstantHover({
 				content: iconSelectBox.domNode,
 				target: iconElement,
 				position: {

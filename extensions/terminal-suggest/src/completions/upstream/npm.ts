@@ -16,80 +16,82 @@ const atsInStr = (s: string) => (s.match(/@/g) || []).length;
 
 export const createNpmSearchHandler =
 	(keywords?: string[]) =>
-		async (
-			context: string[],
-			executeShellCommand: Fig.ExecuteCommandFunction,
-			shellContext: Fig.ShellContext
-		): Promise<Fig.Suggestion[]> => {
-			const searchTerm = context[context.length - 1];
-			if (searchTerm === "") {
-				return [];
+	async (
+		context: string[],
+		executeShellCommand: Fig.ExecuteCommandFunction,
+		shellContext: Fig.ShellContext
+	): Promise<Fig.Suggestion[]> => {
+		const searchTerm = context[context.length - 1];
+		if (searchTerm === "") {
+			return [];
+		}
+		// Add optional keyword parameter
+		const keywordParameter =
+			keywords && keywords.length > 0 ? `+keywords:${keywords.join(",")}` : "";
+
+		const queryPackagesUrl = keywordParameter
+			? `https://api.npms.io/v2/search?size=20&q=${searchTerm}${keywordParameter}`
+			: `https://api.npms.io/v2/search/suggestions?q=${searchTerm}&size=20`;
+
+		// Query the API with the package name
+		const queryPackages = [
+			"-s",
+			"-H",
+			"Accept: application/json",
+			queryPackagesUrl,
+		];
+		// We need to remove the '@' at the end of the searchTerm before querying versions
+		const queryVersions = [
+			"-s",
+			"-H",
+			"Accept: application/vnd.npm.install-v1+json",
+			`https://registry.npmjs.org/${searchTerm.slice(0, -1)}`,
+		];
+		// If the end of our token is '@', then we want to generate version suggestions
+		// Otherwise, we want packages
+		const out = (query: string) =>
+			executeShellCommand({
+				command: "curl",
+				args: query[query.length - 1] === "@" ? queryVersions : queryPackages,
+			});
+		// If our token starts with '@', then a 2nd '@' tells us we want
+		// versions.
+		// Otherwise, '@' anywhere else in the string will indicate the same.
+		const shouldGetVersion = searchTerm.startsWith("@")
+			? atsInStr(searchTerm) > 1
+			: searchTerm.includes("@");
+
+		try {
+			const data = JSON.parse((await out(searchTerm)).stdout);
+			if (shouldGetVersion) {
+				// create dist tags suggestions
+				const versions = Object.entries(data["dist-tags"] || {}).map(
+					([key, value]) => ({
+						name: key,
+						description: value,
+					})
+				) as Fig.Suggestion[];
+				// create versions
+				versions.push(
+					...Object.keys(data.versions)
+						.map((version) => ({ name: version }) as Fig.Suggestion)
+						.reverse()
+				);
+				return versions;
 			}
-			// Add optional keyword parameter
-			const keywordParameter =
-				keywords && keywords.length > 0 ? `+keywords:${keywords.join(",")}` : "";
 
-			const queryPackagesUrl = keywordParameter
-				? `https://api.npms.io/v2/search?size=20&q=${searchTerm}${keywordParameter}`
-				: `https://api.npms.io/v2/search/suggestions?q=${searchTerm}&size=20`;
-
-			// Query the API with the package name
-			const queryPackages = [
-				"-s",
-				"-H",
-				"Accept: application/json",
-				queryPackagesUrl,
-			];
-			// We need to remove the '@' at the end of the searchTerm before querying versions
-			const queryVersions = [
-				"-s",
-				"-H",
-				"Accept: application/vnd.npm.install-v1+json",
-				`https://registry.npmjs.org/${searchTerm.slice(0, -1)}`,
-			];
-			// If the end of our token is '@', then we want to generate version suggestions
-			// Otherwise, we want packages
-			const out = (query: string) =>
-				executeShellCommand({
-					command: "curl",
-					args: query[query.length - 1] === "@" ? queryVersions : queryPackages,
-				});
-			// If our token starts with '@', then a 2nd '@' tells us we want
-			// versions.
-			// Otherwise, '@' anywhere else in the string will indicate the same.
-			const shouldGetVersion = searchTerm.startsWith("@")
-				? atsInStr(searchTerm) > 1
-				: searchTerm.includes("@");
-
-			try {
-				const data = JSON.parse((await out(searchTerm)).stdout);
-				if (shouldGetVersion) {
-					// create dist tags suggestions
-					const versions = Object.entries(data["dist-tags"] || {}).map(
-						([key, value]) => ({
-							name: key,
-							description: value,
-						})
-					) as Fig.Suggestion[];
-					// create versions
-					versions.push(
-						...Object.keys(data.versions)
-							.map((version) => ({ name: version }) as Fig.Suggestion)
-							.reverse()
-					);
-					return versions;
-				}
-
-				const results = keywordParameter ? data.results : data;
-				return results.map((item: any) => ({
+			const results = keywordParameter ? data.results : data;
+			return results.map(
+				(item: { package: { name: string; description: string } }) => ({
 					name: item.package.name,
 					description: item.package.description,
-				})) as Fig.Suggestion[];
-			} catch (error) {
-				console.error({ error });
-				return [];
-			}
-		};
+				})
+			) as Fig.Suggestion[];
+		} catch (error) {
+			console.error({ error });
+			return [];
+		}
+	};
 
 // GENERATORS
 export const npmSearchGenerator: Fig.Generator = {

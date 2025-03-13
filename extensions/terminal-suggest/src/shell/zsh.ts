@@ -19,7 +19,8 @@ export async function getZshGlobals(options: ExecOptionsWithStringEncoding, exis
 }
 
 async function getAliases(options: ExecOptionsWithStringEncoding): Promise<ICompletionResource[]> {
-	return getAliasesHelper('zsh', ['-ic', 'alias'], /^(?<alias>[a-zA-Z0-9\._:-]+)=(?<quote>['"]?)(?<resolved>.+?)\k<quote>$/, options);
+	const args = process.platform === 'darwin' ? ['-icl', 'alias'] : ['-ic', 'alias'];
+	return getAliasesHelper('zsh', args, /^(?<alias>[a-zA-Z0-9\._:-]+)=(?<quote>['"]?)(?<resolved>.+?)\k<quote>$/, options);
 }
 
 async function getBuiltins(

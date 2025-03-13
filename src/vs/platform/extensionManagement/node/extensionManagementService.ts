@@ -214,6 +214,10 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		return local;
 	}
 
+	protected removeExtension(extension: ILocalExtension): Promise<void> {
+		return this.extensionsScanner.deleteExtension(extension, 'remove');
+	}
+
 	protected copyExtension(extension: ILocalExtension, fromProfileLocation: URI, toProfileLocation: URI, metadata: Partial<Metadata>): Promise<ILocalExtension> {
 		return this.extensionsScanner.copyExtension(extension, fromProfileLocation, toProfileLocation, metadata);
 	}
@@ -328,8 +332,15 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 			verifySignature = isBoolean(value) ? value : true;
 		}
 		const { location, verificationStatus } = await this.extensionsDownloader.download(extension, operation, verifySignature, clientTargetPlatform);
+		const shouldRequireSignature = (await this.galleryService.getCapabilities()).allRepositorySigned;
 
-		if (verificationStatus !== ExtensionSignatureVerificationCode.Success && verificationStatus !== ExtensionSignatureVerificationCode.NotSigned && verifySignature && this.environmentService.isBuilt && !(isLinux && this.productService.quality === 'stable')) {
+		if (
+			verificationStatus !== ExtensionSignatureVerificationCode.Success
+			&& !(verificationStatus === ExtensionSignatureVerificationCode.NotSigned && !shouldRequireSignature)
+			&& verifySignature
+			&& this.environmentService.isBuilt
+			&& !(isLinux && this.productService.quality === 'stable')
+		) {
 			try {
 				await this.extensionsDownloader.delete(location);
 			} catch (e) {
@@ -352,6 +363,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 				case ExtensionSignatureVerificationCode.CertificateRevoked:
 				case ExtensionSignatureVerificationCode.SignatureIsNotValid:
 				case ExtensionSignatureVerificationCode.SignatureArchiveHasTooManyEntries:
+				case ExtensionSignatureVerificationCode.NotSigned:
 					throw new ExtensionManagementError(nls.localize('signature verification failed', "Signature verification failed with '{0}' error.", verificationStatus), ExtensionManagementErrorCode.SignatureVerificationFailed);
 			}
 

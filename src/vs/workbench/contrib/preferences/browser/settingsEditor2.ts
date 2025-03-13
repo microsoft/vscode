@@ -413,6 +413,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		// Don't block setInput on render (which can trigger an async search)
 		this.onConfigUpdate(undefined, true).then(() => {
+			// This event runs when the editor closes.
 			this.inputChangeListener.value = input.onWillDispose(() => {
 				this.searchWidget.setValue('');
 			});
@@ -1540,7 +1541,9 @@ export class SettingsEditor2 extends EditorPane {
 
 	private refreshSingleElement(element: SettingsTreeSettingElement): void {
 		if (this.isVisible()) {
-			this.settingsTree.rerender(element);
+			if (!element.setting.deprecationMessage || element.isConfigured) {
+				this.settingsTree.rerender(element);
+			}
 		}
 	}
 
