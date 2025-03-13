@@ -89,7 +89,7 @@ export class ModifiedBaseRange {
 	}
 
 	public get canBeCombined(): boolean {
-		return this.smartCombineInputs(1) !== undefined;
+		return this.smartCombineInputs(1) !== undefined || this.smartCombineInputs(2) !== undefined;
 	}
 
 	public get isOrderRelevant(): boolean {
@@ -332,7 +332,7 @@ export class ModifiedBaseRangeStateInput1 extends AbstractModifiedBaseRangeState
 		if (inputNumber === 1) {
 			return value ? this : new ModifiedBaseRangeStateBase();
 		} else {
-			return value ? new ModifiedBaseRangeStateBoth(1, smartCombination) : new ModifiedBaseRangeStateInput2();
+			return value ? new ModifiedBaseRangeStateBoth(1, smartCombination) : this;
 		}
 	}
 
@@ -351,7 +351,7 @@ export class ModifiedBaseRangeStateInput2 extends AbstractModifiedBaseRangeState
 		if (inputNumber === 2) {
 			return value ? this : new ModifiedBaseRangeStateBase();
 		} else {
-			return value ? new ModifiedBaseRangeStateBoth(2, smartCombination) : new ModifiedBaseRangeStateInput2();
+			return value ? new ModifiedBaseRangeStateBoth(2, smartCombination) : this;
 		}
 	}
 
@@ -373,7 +373,7 @@ export class ModifiedBaseRangeStateBoth extends AbstractModifiedBaseRangeState {
 	override get includesInput2(): boolean { return true; }
 
 	public toString(): string {
-		return '2✓';
+		return (this.firstInput === 1 ? '1✓ 2✓' : '2✓ 1✓') + (this.smartCombination ? ' (smart)' : '');
 	}
 
 	public override swap(): ModifiedBaseRangeState { return new ModifiedBaseRangeStateBoth(getOtherInputNumber(this.firstInput), this.smartCombination); }
@@ -411,7 +411,7 @@ export class ModifiedBaseRangeStateUnrecognized extends AbstractModifiedBaseRang
 	}
 }
 
-export type ModifiedBaseRangeState = ModifiedBaseRangeStateBase | ModifiedBaseRangeStateInput1 | ModifiedBaseRangeStateInput2 | ModifiedBaseRangeStateInput2 | ModifiedBaseRangeStateBoth | ModifiedBaseRangeStateUnrecognized;
+export type ModifiedBaseRangeState = ModifiedBaseRangeStateBase | ModifiedBaseRangeStateInput1 | ModifiedBaseRangeStateInput2 | ModifiedBaseRangeStateBoth | ModifiedBaseRangeStateUnrecognized;
 
 export namespace ModifiedBaseRangeState {
 	export const base = new ModifiedBaseRangeStateBase();
