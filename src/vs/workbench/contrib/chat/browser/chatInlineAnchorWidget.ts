@@ -108,18 +108,6 @@ export class InlineAnchorWidget extends Disposable {
 			iconClasses = ['codicon', ...getIconClasses(modelService, languageService, undefined, undefined, SymbolKinds.toIcon(symbol.kind))];
 			iconAttributes = getIconAttributes(undefined);
 
-			this._register(dom.addDisposableListener(element, 'click', () => {
-				telemetryService.publicLog2<{
-					anchorId: string;
-				}, {
-					anchorId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Unique identifier for the current anchor.' };
-					owner: 'mjbvz';
-					comment: 'Provides insight into the usage of Chat features.';
-				}>('chat.inlineAnchor.openSymbol', {
-					anchorId: anchorId.value
-				});
-			}));
-
 			this._store.add(instantiationService.invokeFunction(accessor => hookUpSymbolAttachmentDragAndContextMenu(accessor, element, contextKeyService, { value: symbol.location, name: symbol.name, kind: symbol.kind }, MenuId.ChatInlineSymbolAnchorContext)));
 		} else {
 			location = this.data;
