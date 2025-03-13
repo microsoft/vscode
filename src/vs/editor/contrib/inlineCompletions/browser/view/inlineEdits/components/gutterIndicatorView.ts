@@ -35,6 +35,10 @@ export class InlineEditsGutterIndicator extends Disposable {
 		return model;
 	}
 
+	private readonly _gutterIndicatorBackgroundColor: IObservable<string>;
+	private readonly _gutterIndicatorForegroundColor: IObservable<string>;
+	private readonly _isHoveredOverInlineEditDebounced: IObservable<boolean>;
+
 	constructor(
 		private readonly _editorObs: ObservableCodeEditor,
 		private readonly _originalRange: IObservable<LineRange | undefined>,
@@ -48,6 +52,21 @@ export class InlineEditsGutterIndicator extends Disposable {
 	) {
 		super();
 
+		this._gutterIndicatorBackgroundColor = this._tabAction.map(v => {
+			switch (v) {
+				case InlineEditTabAction.Inactive: return asCssVariable(inlineEditIndicatorSecondaryBackground);
+				case InlineEditTabAction.Jump: return asCssVariable(inlineEditIndicatorPrimaryBackground);
+				case InlineEditTabAction.Accept: return asCssVariable(inlineEditIndicatorsuccessfulBackground);
+			}
+		});
+		this._gutterIndicatorForegroundColor = this._tabAction.map(v => {
+			switch (v) {
+				case InlineEditTabAction.Inactive: return asCssVariable(inlineEditIndicatorSecondaryForeground);
+				case InlineEditTabAction.Jump: return asCssVariable(inlineEditIndicatorPrimaryForeground);
+				case InlineEditTabAction.Accept: return asCssVariable(inlineEditIndicatorsuccessfulForeground);
+			}
+		});
+
 		this._register(this._editorObs.createOverlayWidget({
 			domNode: this._indicator.element,
 			position: constObservable(null),
@@ -55,20 +74,37 @@ export class InlineEditsGutterIndicator extends Disposable {
 			minContentWidthInPx: constObservable(0),
 		}));
 
+		this._isHoveredOverInlineEditDebounced = debouncedObservable(this._isHoveringOverInlineEdit, 100);
+
 		if (!accessibilityService.isMotionReduced()) {
-			const debouncedIsHovering = debouncedObservable(this._isHoveringOverInlineEdit, 100);
-			this._register(runOnChange(debouncedIsHovering, (isHovering) => {
+			this._register(runOnChange(this._isHoveredOverInlineEditDebounced, (isHovering) => {
 				if (!isHovering) {
 					return;
 				}
-				this._iconRef.element.animate([
+
+				// WIGGLE ANIMATION:
+				/* this._iconRef.element.animate([
 					{ transform: 'rotate(0) scale(1)', offset: 0 },
 					{ transform: 'rotate(14.4deg) scale(1.1)', offset: 0.15 },
 					{ transform: 'rotate(-14.4deg) scale(1.2)', offset: 0.3 },
 					{ transform: 'rotate(14.4deg) scale(1.1)', offset: 0.45 },
 					{ transform: 'rotate(-14.4deg) scale(1.2)', offset: 0.6 },
 					{ transform: 'rotate(0) scale(1)', offset: 1 }
-				], { duration: 800 });
+				], { duration: 800 }); */
+
+				// PULSE ANIMATION:
+				this._iconRef.element.animate([
+					{
+						outline: `2px solid ${this._gutterIndicatorBackgroundColor.get()}`,
+						outlineOffset: '-1px',
+						offset: 0
+					},
+					{
+						outline: `2px solid transparent`,
+						outlineOffset: '10px',
+						offset: 1
+					},
+				], { duration: 500 });
 			}));
 		}
 	}
@@ -117,12 +153,32 @@ export class InlineEditsGutterIndicator extends Disposable {
 			? pillRectMoved
 			: pillRectMoved.moveToBeContainedIn(fullViewPort.intersect(targetRect.union(fullViewPort.withHeight(lineHeight)))!); //viewPortWithStickyScroll.intersect(rect)!;
 
+
+		const docked = rect.containsRect(iconRect) && viewPortWithStickyScroll.containsRect(iconRect);
+		let iconDirecion = (targetRect.containsRect(iconRect) ? 'right' as const
+			: iconRect.top > targetRect.top ? 'top' as const : 'bottom' as const);
+
+		let icon;
+		if (docked && (this._isHoveredOverIconDebounced.read(reader) || this._isHoveredOverInlineEditDebounced.read(reader))) {
+			icon = renderIcon(Codicon.check);
+			iconDirecion = 'right';
+		} else {
+			icon = this._tabAction.read(reader) === InlineEditTabAction.Accept ? renderIcon(Codicon.keyboardTab) : renderIcon(Codicon.arrowRight);
+		}
+
+		let rotation = 0;
+		switch (iconDirecion) {
+			case 'right': rotation = 0; break;
+			case 'bottom': rotation = 90; break;
+			case 'top': rotation = -90; break;
+		}
+
 		return {
 			rect,
+			icon,
+			rotation,
+			docked,
 			iconRect,
-			arrowDirection: (targetRect.containsRect(iconRect) ? 'right' as const
-				: iconRect.top > targetRect.top ? 'top' as const : 'bottom' as const),
-			docked: rect.containsRect(iconRect) && viewPortWithStickyScroll.containsRect(iconRect),
 		};
 	});
 
@@ -130,6 +186,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 	private readonly _hoverVisible = observableValue(this, false);
 	public readonly isHoverVisible: IObservable<boolean> = this._hoverVisible;
 	private readonly _isHoveredOverIcon = observableValue(this, false);
+	private readonly _isHoveredOverIconDebounced: IObservable<boolean> = debouncedObservable(this._isHoveredOverIcon, 100);
 
 	private _showHover(): void {
 		if (this._hoverVisible.get()) {
@@ -213,20 +270,8 @@ export class InlineEditsGutterIndicator extends Disposable {
 				cursor: 'pointer',
 				zIndex: '1000',
 				position: 'absolute',
-				backgroundColor: this._tabAction.map(v => {
-					switch (v) {
-						case InlineEditTabAction.Inactive: return asCssVariable(inlineEditIndicatorSecondaryBackground);
-						case InlineEditTabAction.Jump: return asCssVariable(inlineEditIndicatorPrimaryBackground);
-						case InlineEditTabAction.Accept: return asCssVariable(inlineEditIndicatorsuccessfulBackground);
-					}
-				}),
-				['--vscodeIconForeground' as any]: this._tabAction.map(v => {
-					switch (v) {
-						case InlineEditTabAction.Inactive: return asCssVariable(inlineEditIndicatorSecondaryForeground);
-						case InlineEditTabAction.Jump: return asCssVariable(inlineEditIndicatorPrimaryForeground);
-						case InlineEditTabAction.Accept: return asCssVariable(inlineEditIndicatorsuccessfulForeground);
-					}
-				}),
+				backgroundColor: this._gutterIndicatorBackgroundColor,
+				['--vscodeIconForeground' as any]: this._gutterIndicatorForegroundColor,
 				borderRadius: '4px',
 				display: 'flex',
 				justifyContent: 'center',
@@ -236,20 +281,14 @@ export class InlineEditsGutterIndicator extends Disposable {
 		}, [
 			n.div({
 				style: {
-					rotate: layout.map(l => {
-						switch (l.arrowDirection) {
-							case 'right': return '0deg';
-							case 'bottom': return '90deg';
-							case 'top': return '-90deg';
-						}
-					}),
+					rotate: layout.map(i => `${i.rotation}deg`),
 					transition: 'rotate 0.2s ease-in-out',
 					display: 'flex',
 					alignItems: 'center',
 					justifyContent: 'center',
 				}
 			}, [
-				this._tabAction.map(v => v === InlineEditTabAction.Accept ? renderIcon(Codicon.keyboardTab) : renderIcon(Codicon.arrowRight))
+				layout.map(i => i.icon),
 			])
 		]),
 	])).keepUpdated(this._store);
