@@ -166,7 +166,10 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			if (provider.shellTypes && !provider.shellTypes.includes(shellType)) {
 				return undefined;
 			}
-			const completions = await provider.provideCompletions(promptValue, cursorPosition, allowFallbackCompletions, token);
+			const completions = await Promise.race([
+				provider.provideCompletions(promptValue, cursorPosition, allowFallbackCompletions, token),
+				new Promise<undefined>(resolve => setTimeout(() => resolve(undefined), 5000))
+			]);
 			if (!completions) {
 				return undefined;
 			}
