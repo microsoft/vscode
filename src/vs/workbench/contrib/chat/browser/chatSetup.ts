@@ -166,8 +166,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 	}
 
 	private registerSetupAgents(context: ChatSetupContext): void {
-		if (context.state.installed) {
-			return; // never register our fake setup related agents over the real ones
+		if (context.state.installed || context.state.hidden) {
+			return; // never register our fake setup related agents over the real ones or when explicitly hidden
 		}
 
 		const registrations = [
@@ -176,7 +176,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		];
 
 		this._register(context.onDidChange(() => {
-			if (context.state.installed) {
+			if (context.state.installed || context.state.hidden) {
 				dispose(registrations);
 			}
 		}));
