@@ -37,7 +37,7 @@ import { TerminalCompletionModel } from './terminalCompletionModel.js';
 import { TerminalCompletionItem, TerminalCompletionItemKind, type ITerminalCompletion } from './terminalCompletionItem.js';
 import { IntervalTimer, TimeoutTimer } from '../../../../../base/common/async.js';
 import { localize } from '../../../../../nls.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { TerminalSuggestTelemetry } from './terminalSuggestTelemetry.js';
 
 export interface ISuggestController {
 	isPasting: boolean;
@@ -132,7 +132,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private readonly _inlineCompletionItem = new TerminalCompletionItem(this._inlineCompletion);
 
 	private _shouldSyncWhenReady: boolean = false;
-	private _mostRecentAcceptedCompletionsForCurrentExecution: Array<{ label: string; kindLabel?: string }> | undefined;
+	private _suggestTelemetry: TerminalSuggestTelemetry | undefined;
 
 	constructor(
 		shellType: TerminalShellType | undefined,
@@ -143,7 +143,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -175,22 +174,15 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._capabilities.onDidRemoveCapabilityType
 		), () => {
 			const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
-			commandDetection?.onCommandFinished((e) => {
-				this._sendTelemetryInfo(false, e.exitCode);
-				this._mostRecentAcceptedCompletionsForCurrentExecution = undefined;
-			});
 			if (commandDetection) {
 				if (this._promptInputModel !== commandDetection.promptInputModel) {
 					this._promptInputModel = commandDetection.promptInputModel;
+					this._suggestTelemetry = this._register(this._instantiationService.createInstance(TerminalSuggestTelemetry, commandDetection, this._promptInputModel));
 					this._promptInputModelSubscriptions.value = combinedDisposable(
 						this._promptInputModel.onDidChangeInput(e => this._sync(e)),
 						this._promptInputModel.onDidFinishInput(() => {
 							this.hideSuggestWidget(true);
 						}),
-						this._promptInputModel.onDidInterrupt(() => {
-							this._sendTelemetryInfo(true);
-							this._mostRecentAcceptedCompletionsForCurrentExecution = undefined;
-						})
 					);
 					if (this._shouldSyncWhenReady) {
 						this._sync(this._promptInputModel);
@@ -228,56 +220,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._lastUserData = e.key;
 			this._lastUserDataTimestamp = Date.now();
 		}));
-	}
-
-	private _sendTelemetryInfo(fromInterrupt?: boolean, exitCode?: number): void {
-		const commandLine = this._mostRecentPromptInputState?.value;
-		for (const completion of this._mostRecentAcceptedCompletionsForCurrentExecution || []) {
-			const label = completion?.label;
-			const kind = completion?.kindLabel;
-			if (label === undefined || commandLine === undefined || kind === undefined) {
-				return;
-			}
-
-			let outcome: CompletionOutcome;
-			if (fromInterrupt) {
-				outcome = CompletionOutcome.Interrupted;
-			} else if (commandLine.trim() && commandLine.includes(label)) {
-				outcome = CompletionOutcome.Accepted;
-			} else if (inputContainsFirstHalfOfLabel(commandLine, label)) {
-				outcome = CompletionOutcome.AcceptedWithEdit;
-			} else {
-				outcome = CompletionOutcome.Deleted;
-			}
-			console.log('outcome', outcome, exitCode, kind);
-			this._telemetryService.publicLog2<{
-				kind: string | undefined;
-				outcome: CompletionOutcome;
-				exitCode: number | undefined;
-			}, {
-				owner: 'meganrogge';
-				comment: 'This data is collected to understand the outcome of a terminal completion acceptance.';
-				kind: {
-					classification: 'SystemMetaData';
-					purpose: 'FeatureInsight';
-					comment: 'The completion item\'s kind';
-				};
-				outcome: {
-					classification: 'SystemMetaData';
-					purpose: 'FeatureInsight';
-					comment: 'The outcome of the accepted completion';
-				};
-				exitCode: {
-					classification: 'SystemMetaData';
-					purpose: 'FeatureInsight';
-					comment: 'The exit code from the command if non-zero';
-				};
-			}>('terminal.suggest.acceptedCompletion', {
-				kind,
-				outcome,
-				exitCode: exitCode && exitCode !== 0 ? exitCode : undefined
-			});
-		}
 	}
 
 	private async _handleCompletionProviders(terminal: Terminal | undefined, token: CancellationToken, explicitlyInvoked?: boolean): Promise<void> {
@@ -771,7 +713,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		const initialPromptInputState = this._mostRecentPromptInputState;
 		if (!suggestion || !initialPromptInputState || this._leadingLineContent === undefined || !this._model) {
-			this._mostRecentAcceptedCompletionsForCurrentExecution = undefined;
+			this._suggestTelemetry?.acceptCompletion(undefined, this._mostRecentPromptInputState?.value);
 			return;
 		}
 		SuggestAddon.lastAcceptedCompletionTimestamp = Date.now();
@@ -857,8 +799,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		// Send the completion
 		this._onAcceptedCompletion.fire(resultSequence);
-		this._mostRecentAcceptedCompletionsForCurrentExecution = this._mostRecentAcceptedCompletionsForCurrentExecution || [];
-		this._mostRecentAcceptedCompletionsForCurrentExecution.push({ label: typeof completion.label === 'string' ? completion.label : completion.label.label, kindLabel: completion.kindLabel });
+		this._suggestTelemetry?.acceptCompletion(completion, this._mostRecentPromptInputState?.value);
 		this.hideSuggestWidget(true);
 	}
 
@@ -911,13 +852,3 @@ export function normalizePathSeparator(path: string, sep: string): string {
 	return path.replaceAll('/', '\\');
 }
 
-function inputContainsFirstHalfOfLabel(commandLine: string, label: string): boolean {
-	return commandLine.includes(label.substring(0, Math.ceil(label.length / 2)));
-}
-
-const enum CompletionOutcome {
-	Accepted = 'Accepted',
-	Deleted = 'Deleted',
-	AcceptedWithEdit = 'AcceptedWithEdit',
-	Interrupted = 'Interrupted'
-}
