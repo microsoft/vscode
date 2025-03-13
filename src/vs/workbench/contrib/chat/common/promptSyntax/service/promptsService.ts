@@ -85,9 +85,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const userLocations = [this.userDataService.currentProfile.promptsHome];
 
 		const prompts = await Promise.all([
-			this.fileLocator.listFilesIn(userLocations, [])
+			this.fileLocator.listFilesIn(userLocations)
 				.then(withType('user')),
-			this.fileLocator.listFiles([])
+			this.fileLocator.listFiles()
 				.then(withType('local')),
 		]);
 

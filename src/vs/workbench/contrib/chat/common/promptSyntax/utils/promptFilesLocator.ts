@@ -28,12 +28,9 @@ export class PromptFilesLocator {
 	 * @param exclude List of `URIs` to exclude from the result.
 	 * @returns List of prompt files found in the workspace.
 	 */
-	public async listFiles(
-		exclude: readonly URI[],
-	): Promise<readonly URI[]> {
+	public async listFiles(): Promise<readonly URI[]> {
 		return await this.listFilesIn(
 			this.getConfigBasedSourceFolders(),
-			exclude,
 		);
 	}
 
@@ -46,21 +43,8 @@ export class PromptFilesLocator {
 	 */
 	public async listFilesIn(
 		folders: readonly URI[],
-		exclude: readonly URI[],
 	): Promise<readonly URI[]> {
-		// create a set from the list of URIs for convenience
-		const excludeSet: Set<string> = new Set();
-		for (const excludeUri of exclude) {
-			excludeSet.add(excludeUri.path);
-		}
-
-		// filter out the excluded paths from the folders list
-		const cleanFolders = folders
-			.filter((folder) => {
-				return !excludeSet.has(folder.path);
-			});
-
-		return await this.findInstructionFiles(cleanFolders, excludeSet);
+		return await this.findInstructionFiles(folders);
 	}
 
 	/**
@@ -133,7 +117,6 @@ export class PromptFilesLocator {
 	 */
 	private async findInstructionFiles(
 		folders: readonly URI[],
-		exclude: ReadonlySet<string>,
 	): Promise<readonly URI[]> {
 		const results = await this.fileService.resolveAll(
 			folders.map((resource) => {
@@ -161,10 +144,6 @@ export class PromptFilesLocator {
 				}
 
 				if (!isPromptFile(resource)) {
-					continue;
-				}
-
-				if (exclude.has(resource.path)) {
 					continue;
 				}
 
