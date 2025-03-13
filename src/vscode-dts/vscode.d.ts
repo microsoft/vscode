@@ -7731,6 +7731,17 @@ declare module 'vscode' {
 		 * https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
 		 */
 		readonly isInteractedWith: boolean;
+
+		/**
+		 * The shell type of the terminal that may change throughout terminal's change of state.
+		 *
+		 * Use the {@link window.onDidChangeTerminalState onDidChangeTerminalState} event to
+		 * get notified when the terminal shell changes.
+		 *
+		 * Note that we attempt to provide name of shell from its binary.
+		 * For example, bash, zsh, pwsh will be bash, zsh, pwsh accordingly.
+		 */
+		readonly shell: string | undefined;
 	}
 
 	/**
