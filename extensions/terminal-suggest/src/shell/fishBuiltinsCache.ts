@@ -10,11 +10,11 @@ export const fishBuiltinsCommandDescriptionsCache = {
     "args": "source FILE [ARGUMENTS ...]\nSOMECOMMAND | source"
   },
   ":": {
-    "shortDescription": "No operation command.",
+    "shortDescription": "No operation command",
     "description": "The `:` command is a no-op (no operation) command that returns a successful (zero) exit status. It can be used as a placeholder in scripts where a command is syntactically required but no action is desired."
   },
   "[": {
-    "shortDescription": "Test if a statement is true.",
+    "shortDescription": "Test if a statement is true",
     "description": "Evaluate an expression and return a status of true (0) or false (non-zero). Unlike the `test` command, the `[` command requires a closing `]`.",
     "args": "EXPRESSION ]"
   },
@@ -58,11 +58,11 @@ export const fishBuiltinsCommandDescriptionsCache = {
     "args": "block [(--local | --global)]\nblock --erase"
   },
   "break": {
-    "shortDescription": "Exit the current loop.",
+    "shortDescription": "Exit the current loop",
     "description": "Terminate the execution of the nearest enclosing `while` or `for` loop and proceed with the next command after the loop."
   },
   "breakpoint": {
-    "shortDescription": "Launch debug mode.",
+    "shortDescription": "Launch debug mode",
     "description": "Pause execution and launch an interactive debug prompt. This is useful for inspecting the state of a script at a specific point."
   },
   "builtin": {
@@ -71,7 +71,7 @@ export const fishBuiltinsCommandDescriptionsCache = {
     "args": "builtin [OPTIONS] BUILTINNAME\nbuiltin --query BUILTINNAME ...\nbuiltin --names"
   },
   "case": {
-    "shortDescription": "Match a value against patterns.",
+    "shortDescription": "Match a value against patterns",
     "description": "Within a `switch` block, the `case` command specifies patterns to match against the given value, executing the associated block if a match is found.",
     "args": "PATTERN..."
   },
@@ -101,7 +101,7 @@ export const fishBuiltinsCommandDescriptionsCache = {
     "args": "contains [OPTIONS] KEY [VALUES ...]"
   },
   "continue": {
-    "shortDescription": "Skip to the next iteration of a loop.",
+    "shortDescription": "Skip to the next iteration of a loop",
     "description": "Within a `while` or `for` loop, `continue` skips the remaining commands in the current iteration and proceeds to the next iteration of the loop."
   },
   "count": {
@@ -118,7 +118,7 @@ export const fishBuiltinsCommandDescriptionsCache = {
     "description": ""
   },
   "else": {
-    "shortDescription": "Execute commands if the previous condition was false.",
+    "shortDescription": "Execute commands if the previous condition was false",
     "description": "In an `if` block, the `else` section contains commands that execute if none of the preceding `if` or `else if` conditions were true."
   },
   "emit": {
@@ -127,11 +127,11 @@ export const fishBuiltinsCommandDescriptionsCache = {
     "args": "emit EVENT_NAME [ARGUMENTS ...]"
   },
   "end": {
-    "shortDescription": "Terminate a block of code.",
+    "shortDescription": "Terminate a block of code",
     "description": "Conclude a block of code initiated by constructs like `if`, `switch`, `while`, `for`, or `function`."
   },
   "eval": {
-    "shortDescription": "Execute arguments as a command.",
+    "shortDescription": "Execute arguments as a command",
     "description": "Concatenate all arguments into a single command and execute it. This allows for dynamic construction and execution of commands.",
     "args": "COMMAND..."
   },
@@ -146,7 +146,7 @@ export const fishBuiltinsCommandDescriptionsCache = {
     "args": "exit [CODE]"
   },
   "false": {
-    "shortDescription": "Return an unsuccessful result.",
+    "shortDescription": "Return an unsuccessful result",
     "description": "A command that returns a non-zero exit status, indicating failure. It is often used in scripts to represent a false condition."
   },
   "fg": {
@@ -205,7 +205,7 @@ export const fishBuiltinsCommandDescriptionsCache = {
     "args": "path basename GENERAL_OPTIONS [PATH ...]\npath dirname GENERAL_OPTIONS  [PATH ...]\npath extension GENERAL_OPTIONS [PATH ...]\npath filter GENERAL_OPTIONS [-v | --invert]\n    [-d] [-f] [-l] [-r] [-w] [-x]\n    [(-t | --type) TYPE] [(-p | --perm) PERMISSION] [PATH ...]\npath is GENERAL_OPTIONS [(-v | --invert)] [(-t | --type) TYPE]\n    [-d] [-f] [-l] [-r] [-w] [-x]\n    [(-p | --perm) PERMISSION] [PATH ...]\npath mtime GENERAL_OPTIONS [(-R | --relative)] [PATH ...]\npath normalize GENERAL_OPTIONS [PATH ...]\npath resolve GENERAL_OPTIONS [PATH ...]\npath change-extension GENERAL_OPTIONS EXTENSION [PATH ...]\npath sort GENERAL_OPTIONS [-r | --reverse]\n    [-u | --unique] [--key=basename|dirname|path] [PATH ...]\n\nGENERAL_OPTIONS\n    [-z | --null-in] [-Z | --null-out] [-q | --quiet]"
   },
   "printf": {
-    "shortDescription": "Display formatted text.",
+    "shortDescription": "Display formatted text",
     "description": "The `printf` command formats and prints text according to a specified format string. Unlike `echo`, `printf` does not append a newline unless explicitly included in the format.",
     "args": "FORMAT [ARGUMENT...]"
   },
@@ -225,7 +225,7 @@ export const fishBuiltinsCommandDescriptionsCache = {
     "args": "read [OPTIONS] [VARIABLE ...]"
   },
   "realpath": {
-    "shortDescription": "Resolve and print the absolute path.",
+    "shortDescription": "Resolve and print the absolute path",
     "description": "Convert each provided path to its absolute, canonical form by resolving symbolic links and relative path components.",
     "args": "PATH..."
   },
@@ -265,7 +265,7 @@ export const fishBuiltinsCommandDescriptionsCache = {
     "args": "switch VALUE; [case [GLOB ...]; [COMMANDS ...]; ...] end"
   },
   "test": {
-    "shortDescription": "Evaluate conditional expressions.",
+    "shortDescription": "Evaluate conditional expressions",
     "description": "The `test` command evaluates conditional expressions and sets the exit status to 0 if the expression is true, and 1 if it is false. It supports various operators to evaluate expressions related to strings, numbers, and file attributes.",
     "args": "EXPRESSION"
   },
@@ -275,7 +275,7 @@ export const fishBuiltinsCommandDescriptionsCache = {
     "args": "time COMMAND"
   },
   "true": {
-    "shortDescription": "Return a successful result.",
+    "shortDescription": "Return a successful result",
     "description": "The `true` command always returns a successful (zero) exit status. It is often used in scripts and conditional statements where an unconditional success result is needed."
   },
   "type": {
