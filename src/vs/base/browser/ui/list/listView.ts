@@ -1198,7 +1198,7 @@ export class ListView<T> implements IListView<T> {
 				while (e && !e.classList.contains('monaco-workbench')) {
 					e = e.parentElement;
 				}
-				return e || this.domNode.ownerDocument;
+				return e || this.domNode.ownerDocument.body;
 			};
 
 			const container = getDragImageContainer(this.domNode);

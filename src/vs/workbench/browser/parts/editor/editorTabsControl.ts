@@ -317,7 +317,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 				label = localize('draggedEditorGroup', "{0} (+{1})", label, this.groupView.count - 1);
 			}
 
-			applyDragImage(e, label, 'monaco-editor-group-drag-image', this.getColor(listActiveSelectionBackground), this.getColor(listActiveSelectionForeground));
+			applyDragImage(e, element, label, 'monaco-editor-group-drag-image', this.getColor(listActiveSelectionBackground), this.getColor(listActiveSelectionForeground));
 		}
 
 		return isNewWindowOperation;

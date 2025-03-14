@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, getWindow } from './dom.js';
+import { addDisposableListener } from './dom.js';
 import { Disposable } from '../common/lifecycle.js';
 import { Mimes } from '../common/mime.js';
 
@@ -81,7 +81,7 @@ export const DataTransfers = {
 	INTERNAL_URI_LIST: 'application/vnd.code.uri-list',
 };
 
-export function applyDragImage(event: DragEvent, label: string | null, clazz: string, backgroundColor?: string | null, foregroundColor?: string | null): void {
+export function applyDragImage(event: DragEvent, container: HTMLElement, label: string | null, clazz: string, backgroundColor?: string | null, foregroundColor?: string | null): void {
 	const dragImage = document.createElement('div');
 	dragImage.className = clazz;
 	dragImage.textContent = label;
@@ -95,8 +95,15 @@ export function applyDragImage(event: DragEvent, label: string | null, clazz: st
 	}
 
 	if (event.dataTransfer) {
-		const ownerDocument = getWindow(event).document;
-		ownerDocument.body.appendChild(dragImage);
+		const getDragImageContainer = (e: HTMLElement | null) => {
+			while (e && !e.classList.contains('monaco-workbench')) {
+				e = e.parentElement;
+			}
+			return e || container.ownerDocument.body;
+		};
+
+		const dragContainer = getDragImageContainer(container);
+		dragContainer.appendChild(dragImage);
 		event.dataTransfer.setDragImage(dragImage, -10, -10);
 
 		// Removes the element when the DND operation is done
