@@ -34,6 +34,7 @@ import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import './terminalSymbolIcons.js';
 import { LspCompletionProviderAddon } from './lspCompletionProviderAddon.js';
+import { LspTerminalModelContentProvider } from './lspTerminalModelContentProvider.js';
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
 
@@ -49,6 +50,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 	private readonly _addon: MutableDisposable<SuggestAddon> = new MutableDisposable();
 	private readonly _pwshAddon: MutableDisposable<PwshCompletionProviderAddon> = new MutableDisposable();
 	private readonly _lspAddon: MutableDisposable<LspCompletionProviderAddon> = new MutableDisposable();
+	private readonly _lspModelProvider: MutableDisposable<LspTerminalModelContentProvider> = new MutableDisposable();
 	private readonly _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>;
 
 	get addon(): SuggestAddon | undefined { return this._addon.value; }
@@ -145,6 +147,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 
 	private _loadLspCompletionAddon(xterm: RawXtermTerminal): void {
 		// Load and register the LSP completion provider
+		this._lspModelProvider.value = this._instantiationService.createInstance(LspTerminalModelContentProvider);
 		const lspCompletionProviderAddon = this._lspAddon.value = this._instantiationService.createInstance(LspCompletionProviderAddon);
 		xterm.loadAddon(lspCompletionProviderAddon);
 		this.add(this._terminalCompletionService.registerTerminalCompletionProvider('lsp', lspCompletionProviderAddon.id, lspCompletionProviderAddon));

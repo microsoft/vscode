@@ -32,7 +32,7 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 	//    - List out all the shells that we support using lsp.
 	readonly shellTypes = [
 		GeneralShellType.Python,
-		GeneralShellType.PowerShell
+		GeneralShellType.PowerShell!
 	];
 	readonly isBuiltin = true;
 
@@ -72,7 +72,11 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 		console.log('testRealUri', testRealUri);
 		console.log('testVirtualUri', testVirtualUri); // cannot resolve to a text model
 		const textModel = await this._textModelService.createModelReference(uri);
+		const textVirtualModel = await this._textModelService.createModelReference(createTerminalLanguageVirtualUri('1', 'py'));
 		const providers = this._languageFeaturesService.completionProvider.all(textModel.object.textEditorModel);
+		const virtualProviders = this._languageFeaturesService.completionProvider.all(textVirtualModel.object.textEditorModel);
+		console.log('virtualProviders', virtualProviders);
+		console.log('providers', providers);
 
 		// Problem: When trying to pass in a custom uri made via {createTerminalLanguageVirtualUri}
 		// into `await this._textModelService.createModelReference(uri);`
