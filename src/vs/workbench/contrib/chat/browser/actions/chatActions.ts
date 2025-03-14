@@ -508,7 +508,7 @@ export function registerChatActions() {
 			ChatContextKeys.Setup.limited,
 			ChatContextKeys.Setup.pro
 		),
-		ContextKeyExpr.notEquals(`config.${defaultChat.completionsAdvancedSetting}.authProvider`, defaultChat.enterpriseProviderId)
+		ChatContextKeys.Setup.installed
 	);
 	registerAction2(class extends Action2 {
 		constructor() {
@@ -522,7 +522,7 @@ export function registerChatActions() {
 					id: MenuId.ChatTitleBarMenu,
 					group: 'y_manage',
 					order: 1,
-					when: nonEnterpriseCopilotUsers
+					when: ContextKeyExpr.notEquals(`config.${defaultChat.completionsAdvancedSetting}.authProvider`, defaultChat.enterpriseProviderId)
 				}
 			});
 		}
