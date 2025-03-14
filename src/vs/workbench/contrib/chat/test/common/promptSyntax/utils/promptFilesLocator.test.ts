@@ -22,11 +22,6 @@ import { IConfigurationOverrides, IConfigurationService } from '../../../../../.
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../../platform/workspace/common/workspace.js';
 
 /**
- * TODO: @lego - list
- *  - add `all together` unit tests
- */
-
-/**
  * Mocked instance of {@link IConfigurationService}.
  */
 const mockConfigService = <T>(value: T): IConfigurationService => {
@@ -1480,6 +1475,136 @@ suite('PromptFilesLocator', () => {
 						createURI('/Users/legomushroom/repos/prompts/test.prompt.md').path,
 						createURI('/Users/legomushroom/repos/prompts/refactor-tests.prompt.md').path,
 						createURI('/tmp/prompts/translate.to-rust.prompt.md').path,
+					],
+					'Must find correct prompts.',
+				);
+			});
+
+			test('• mixed', async () => {
+				const locator = await createPromptsLocator(
+					{
+						'/Users/legomushroom/repos/**/*test*': true,
+						'.copilot/prompts': false,
+						'.github/prompts': true,
+						'/absolute/path/prompts/some-prompt-file.prompt.md': true,
+					},
+					[
+						'/Users/legomushroom/repos/vscode',
+						'/Users/legomushroom/repos/node',
+						'/var/shared/prompts/.github',
+					],
+					[
+						{
+							name: '/Users/legomushroom/repos/prompts',
+							children: [
+								{
+									name: 'test.prompt.md',
+									contents: 'Hello, World!',
+								},
+								{
+									name: 'refactor-tests.prompt.md',
+									contents: 'some file content goes here',
+								},
+								{
+									name: 'elf.prompt.md',
+									contents: 'haalo!',
+								},
+							],
+						},
+						{
+							name: '/tmp/prompts',
+							children: [
+								{
+									name: 'translate.to-rust.prompt.md',
+									contents: 'some more random file contents',
+								},
+							],
+						},
+						{
+							name: '/absolute/path/prompts',
+							children: [
+								{
+									name: 'some-prompt-file.prompt.md',
+									contents: 'hey hey hey',
+								},
+							],
+						},
+						{
+							name: '/Users/legomushroom/repos/vscode',
+							children: [
+								{
+									name: '.copilot/prompts',
+									children: [
+										{
+											name: 'prompt1.prompt.md',
+											contents: 'oh hi, robot!',
+										},
+									],
+								},
+								{
+									name: '.github/prompts',
+									children: [
+										{
+											name: 'default.prompt.md',
+											contents: 'oh hi, bot!',
+										},
+									],
+								},
+							],
+						},
+						{
+							name: '/Users/legomushroom/repos/node',
+							children: [
+								{
+									name: '.copilot/prompts',
+									children: [
+										{
+											name: 'prompt5.prompt.md',
+											contents: 'oh hi, robot!',
+										},
+									],
+								},
+								{
+									name: '.github/prompts',
+									children: [
+										{
+											name: 'refactor-static-classes.prompt.md',
+											contents: 'file contents',
+										},
+									],
+								},
+							],
+						},
+						// note! this folder is part of the workspace, so prompt files are `included`
+						{
+							name: '/var/shared/prompts/.github/prompts',
+							children: [
+								{
+									name: 'prompt-name.prompt.md',
+									contents: 'oh hi, robot!',
+								},
+								{
+									name: 'name-of-the-prompt.prompt.md',
+									contents: 'oh hi, raw bot!',
+								},
+							],
+						},
+					]);
+
+				assert.deepStrictEqual(
+					(await locator.listFiles())
+						.map((file) => file.fsPath),
+					[
+						// all of these are due to the `.github/prompts` setting
+						createURI('/Users/legomushroom/repos/vscode/.github/prompts/default.prompt.md').fsPath,
+						createURI('/Users/legomushroom/repos/node/.github/prompts/refactor-static-classes.prompt.md').fsPath,
+						createURI('/var/shared/prompts/.github/prompts/prompt-name.prompt.md').fsPath,
+						createURI('/var/shared/prompts/.github/prompts/name-of-the-prompt.prompt.md').fsPath,
+						// all of these are due to the `/Users/legomushroom/repos/**/*test*` setting
+						createURI('/Users/legomushroom/repos/prompts/test.prompt.md').fsPath,
+						createURI('/Users/legomushroom/repos/prompts/refactor-tests.prompt.md').fsPath,
+						// this one is due to the specific `/absolute/path/prompts/some-prompt-file.prompt.md` setting
+						createURI('/absolute/path/prompts/some-prompt-file.prompt.md').fsPath,
 					],
 					'Must find correct prompts.',
 				);
