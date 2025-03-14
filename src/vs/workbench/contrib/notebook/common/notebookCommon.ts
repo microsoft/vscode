@@ -617,31 +617,49 @@ export namespace CellUri {
 		return parseUri(cell);
 	}
 
-	export function generateCellOutputUri(notebook: URI, outputId?: string) {
+	/**
+ * Generates a URI for a cell output in a notebook.
+ *
+ * @param notebook - The URI of the notebook.
+ * @param [outputId] - The optional ID of the output.
+ * @param [cellUri] - The optional URI of the cell.
+ * @param [outputIndex] - The optional index of the output.
+ * @returns The generated URI for the cell output.
+ */
+	export function generateCellOutputUri(notebook: URI, outputId?: string, cellUri?: URI, outputIndex?: number): URI {
 		return notebook.with({
 			scheme: Schemas.vscodeNotebookCellOutput,
-			fragment: `op${outputId ?? ''},${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
+			fragment: cellUri ? cellUri.fragment : null,
+			query: new URLSearchParams({
+				openAsEditor: cellUri ? 'false' : 'true',
+				outputIndex: outputIndex ? String(outputIndex) : '',
+				outputId: outputId || '',
+
+			}).toString()
 		});
 	}
 
+
+	/**
+	 * Parses a cell output URI to extract the notebook URI and output ID.
+	 * @param uri The URI to parse, which should be in the vscode-notebook-cell-output scheme
+	 * @returns An object containing the notebook URI and optional output ID, or undefined if the URI is invalid
+	 */
 	export function parseCellOutputUri(uri: URI): { notebook: URI; outputId?: string } | undefined {
 		if (uri.scheme !== Schemas.vscodeNotebookCellOutput) {
 			return;
 		}
 
-		const match = /^op([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?\,(.*)$/i.exec(uri.fragment);
-		if (!match) {
-			return undefined;
-		}
+		const params = new URLSearchParams(uri.query);
+		const outputId = params.get('outputId') || undefined;
 
-		const outputId = (match[1] && match[1] !== '') ? match[1] : undefined;
-		const scheme = match[2];
 		return {
-			outputId,
 			notebook: uri.with({
-				scheme: scheme || Schemas.file,
-				fragment: null
-			})
+				scheme: uri.fragment || Schemas.file,
+				fragment: null,
+				query: null
+			}),
+			outputId
 		};
 	}
 
