@@ -32,6 +32,9 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		super();
 		const proxy = _extHostContext.getProxy(ExtHostContext.ExtHostMcp);
 		this._register(this._mcpRegistry.registerDelegate({
+			waitForInitialProviderPromises() {
+				return proxy.$waitForInitialCollectionProviders();
+			},
 			canStart(collection, serverDefinition) {
 				// todo: SSE MPC servers without a remote authority could be served from the renderer
 				if (collection.remoteAuthority !== _extHostContext.remoteAuthority) {

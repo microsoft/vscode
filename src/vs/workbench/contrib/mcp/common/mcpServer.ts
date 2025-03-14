@@ -14,7 +14,7 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { mcpActivationEvent } from './mcpConfiguration.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
-import { IMcpServer, IMcpServerConnection, IMcpTool, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, McpServerDefinition, McpServerToolsState } from './mcpTypes.js';
+import { extensionMcpCollectionPrefix, IMcpServer, IMcpServerConnection, IMcpTool, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, McpServerDefinition, McpServerToolsState } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
 
 
@@ -191,8 +191,11 @@ export class McpServer extends Disposable implements IMcpServer {
 
 	public start(isFromInteraction?: boolean): Promise<McpConnectionState> {
 		return this._connectionSequencer.queue(async () => {
-			if (this._requiresExtensionActivation && !this._extensionService.activationEventIsDone(mcpActivationEvent(this.collection.id))) {
-				await this._extensionService.activateByEvent(mcpActivationEvent(this.collection.id));
+			const activationEvent = mcpActivationEvent(this.collection.id.slice(extensionMcpCollectionPrefix.length));
+			if (this._requiresExtensionActivation && !this._extensionService.activationEventIsDone(activationEvent)) {
+				await this._extensionService.activateByEvent(activationEvent);
+				await Promise.all(this._mcpRegistry.delegates
+					.map(r => r.waitForInitialProviderPromises()));
 				// This can happen if the server was created from a cached MCP server seen
 				// from an extension, but then it wasn't registered when the extension activated.
 				if (this._store.isDisposed) {

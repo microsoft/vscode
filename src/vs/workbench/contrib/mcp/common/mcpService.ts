@@ -11,6 +11,7 @@ import { localize } from '../../../../nls.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier, IRelaxedExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
@@ -37,8 +38,12 @@ export class McpService extends Disposable implements IMcpService {
 
 	private readonly _extensionCollectionIdsToPersist = new Set<string>();
 	protected readonly _extensionServers = observableValue<readonly IExtensionCollectionsRec[]>(this, []);
-	private readonly _servers = observableValue<readonly IMcpServer[]>(this, []);
-	public readonly servers: IObservable<readonly IMcpServer[]> = this._servers;
+	private readonly _publishedServers = observableValue<readonly IMcpServer[]>(this, []);
+	public readonly servers: IObservable<readonly IMcpServer[]> = derived(reader => {
+		const extensionServers = this._extensionServers.read(reader).flatMap(e => e.pendingServers || []);
+		const publishedServers = this._publishedServers.read(reader);
+		return [...extensionServers, ...publishedServers];
+	});
 
 	public readonly hasExtensionsWithUnknownServers = derived(reader => this._extensionServers.read(reader).some(r => r.pendingServers === undefined));
 
@@ -53,16 +58,15 @@ export class McpService extends Disposable implements IMcpService {
 		@IProductService productService: IProductService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IStorageService storageService: IStorageService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 
 		this._register(storageService.onWillSaveState(() => {
 			for (const collectionId of this._extensionCollectionIdsToPersist) {
 				const publishedServers = this._mcpRegistry.collections.get().find(c => c.id === collectionId)?.serverDefinitions.get();
-				if (publishedServers?.length) {
+				if (publishedServers) {
 					this.userCache.storeServers(collectionId, { servers: publishedServers.map(McpServerDefinition.toSerialized) });
-				} else {
-					this.userCache.storeServers(collectionId, undefined);
 				}
 			}
 		}));
@@ -70,45 +74,15 @@ export class McpService extends Disposable implements IMcpService {
 		this.userCache = this._register(_instantiationService.createInstance(McpServerMetadataCache, StorageScope.PROFILE));
 		this.workspaceCache = this._register(_instantiationService.createInstance(McpServerMetadataCache, StorageScope.WORKSPACE));
 
-		const definitionsObservable = derived(reader => {
-			const collections = this._mcpRegistry.collections.read(reader);
-			return collections.flatMap(collectionDefinition => collectionDefinition.serverDefinitions.read(reader).map(serverDefinition => ({
-				serverDefinition,
-				collectionDefinition,
-			})));
-		});
-
-		const updateThrottle = this._store.add(new RunOnceScheduler(() => {
-			const definitions = definitionsObservable.get();
-
-			const nextDefinitions = new Set(definitions);
-			const currentServers = this._servers.get();
-			const nextServers: IMcpServer[] = [];
-			for (const server of currentServers) {
-				const match = definitions.find(d => defsEqual(server, d));
-				if (match) {
-					nextDefinitions.delete(match);
-					nextServers.push(server);
-					const connection = server.connection.get();
-					// if the definition was modified, stop the server; it'll be restarted again on-demand
-					if (connection && !McpServerDefinition.equals(connection.definition, match.serverDefinition)) {
-						server.stop();
-					}
-				} else {
-					server.dispose();
-				}
-			}
-			for (const def of nextDefinitions) {
-				nextServers.push(_instantiationService.createInstance(McpServer, def.collectionDefinition, def.serverDefinition, false, def.collectionDefinition.scope === StorageScope.WORKSPACE ? this.workspaceCache : this.userCache));
-			}
-
-			this._servers.set(nextServers, undefined);
-		}, 500));
+		const updateThrottle = this._store.add(new RunOnceScheduler(() => this._updateCollectedServers(), 500));
 
 		// Throttle changes so that if a collection is changed, or a server is
 		// unregistered/registered, we don't stop servers unnecessarily.
 		this._register(autorun(reader => {
-			definitionsObservable.read(reader);
+			for (const collection of this._mcpRegistry.collections.read(reader)) {
+				collection.serverDefinitions.read(reader);
+			}
+			this._extensionServers.read(reader);
 			updateThrottle.schedule(500);
 		}));
 
@@ -126,7 +100,7 @@ export class McpService extends Disposable implements IMcpService {
 		const tools = this._register(new MutableDisposable());
 		this._register(autorunWithStore((reader, store) => {
 
-			const servers = this._servers.read(reader);
+			const servers = this._publishedServers.read(reader);
 
 			// TODO@jrieken wasteful, needs some diff'ing/change-info
 			const newStore = new DisposableStore();
@@ -209,19 +183,84 @@ export class McpService extends Disposable implements IMcpService {
 		await Promise.all([...toActivate].map(collectionId =>
 			this._extensionService.activateByEvent(mcpActivationEvent(collectionId.slice(extensionMcpCollectionPrefix.length)))));
 
-		await Promise.all(this._servers.get()
+		await this._waitForInitialProvidersToPublish();
+
+		await Promise.all(this._publishedServers.get()
 			.filter(s => toActivate.has(s.collection.id))
 			.map(server => server.start()));
 	}
 
-	resetCaches(): void {
+	public resetCaches(): void {
 		this.userCache.reset();
 		this.workspaceCache.reset();
 	}
 
+	private async _waitForInitialProvidersToPublish() {
+		await Promise.all(this._mcpRegistry.delegates
+			.map(r => r.waitForInitialProviderPromises()));
+	}
+
+	private _updateCollectedServers() {
+		const definitions = this._mcpRegistry.collections.get().flatMap(collectionDefinition =>
+			collectionDefinition.serverDefinitions.get().map(serverDefinition => ({
+				serverDefinition,
+				collectionDefinition,
+			}))
+		);
+
+		const nextDefinitions = new Set(definitions);
+		const currentServers = this._publishedServers.get();
+		const nextServers: IMcpServer[] = [];
+		const pushMatch = (match: (typeof definitions)[0], server: IMcpServer) => {
+			nextDefinitions.delete(match);
+			nextServers.push(server);
+			const connection = server.connection.get();
+			// if the definition was modified, stop the server; it'll be restarted again on-demand
+			if (connection && !McpServerDefinition.equals(connection.definition, match.serverDefinition)) {
+				server.stop();
+				this._logService.debug(`MCP server ${server.definition.id} stopped because the definition changed`);
+			}
+		};
+
+		// Transfer over any servers that are still valid.
+		for (const server of currentServers) {
+			const match = definitions.find(d => defsEqual(server, d));
+			if (match) {
+				pushMatch(match, server);
+			} else {
+				server.dispose();
+			}
+		}
+
+		// Adopt any servers that are pending from extensions.
+		let extensionServers = this._extensionServers.get();
+		for (const definition of nextDefinitions) {
+			for (const rec of extensionServers) {
+				const server = rec.pendingServers?.find(s => defsEqual(s, definition));
+				if (server !== undefined) {
+					pushMatch(definition, server);
+					this._logService.debug(`MCP server ${server.definition.id} adopted from extension ${rec.extensionId.value}`);
+
+					const pendingServers = rec.pendingServers!.filter(s => s !== server);
+					extensionServers = extensionServers.map(rec2 => rec2 === rec ? { ...rec, pendingServers } : rec2);
+					break;
+				}
+			}
+		}
+
+		// Create any new servers that are needed.
+		for (const def of nextDefinitions) {
+			nextServers.push(this._instantiationService.createInstance(McpServer, def.collectionDefinition, def.serverDefinition, false, def.collectionDefinition.scope === StorageScope.WORKSPACE ? this.workspaceCache : this.userCache));
+		}
+
+		transaction(tx => {
+			this._publishedServers.set(nextServers, tx);
+			this._extensionServers.set(extensionServers, tx);
+		});
+	}
+
 	private _onExtensions(extensions: readonly Readonly<IRelaxedExtensionDescription>[]) {
 		const newRecs: IExtensionCollectionsRec[] = [];
-		let newServers: IMcpServer[] = [];
 		for (const extension of extensions) {
 			const collections = extension.contributes?.modelContextServerCollections;
 			if (!collections) {
@@ -231,9 +270,9 @@ export class McpService extends Disposable implements IMcpService {
 			for (const collection of collections) {
 				const id = extensionMcpCollectionPrefix + collection.id;
 				const pendingServers = this.userCache.getServers(id)?.servers.map(server =>
-					this._instantiationService.createInstance(McpServer, { id, label: collection.label, presentation: { order: McpCollectionSortOrder.Extension } }, McpServerDefinition.fromSerialized(server), false, this.userCache));
+					this._instantiationService.createInstance(McpServer, { id, label: collection.label, presentation: { order: McpCollectionSortOrder.Extension } }, McpServerDefinition.fromSerialized(server), true, this.workspaceCache));
+				this._logService.debug(`MCP collection ${collection.id} hydrated for extension ${extension.identifier.value} (${pendingServers?.length})`);
 
-				newServers = newServers.concat(pendingServers || []);
 				newRecs.push({
 					extensionId: extension.identifier,
 					collectionId: id,
@@ -243,53 +282,50 @@ export class McpService extends Disposable implements IMcpService {
 		}
 
 		if (newRecs.length) {
-			transaction(tx => {
-				this._extensionServers.set(this._extensionServers.get().concat(newRecs), tx);
-				this._servers.set(this._servers.get().concat(newServers), tx);
-			});
+			this._extensionServers.set(this._extensionServers.get().concat(newRecs), undefined);
 		}
 	}
 
-	private _onExtensionStatus() {
-		const statuses = this._extensionService.getExtensionsStatus();
+	private async _onExtensionStatus() {
+		// This fires on activation but before providers might have published.
+		// Take the extensions that are active now, wait for all them to publish,
+		// then prune inactive servers.
+		const wereActive = Object.entries(this._extensionService.getExtensionsStatus())
+			.filter(([, status]) => !!status.activationTimes)
+			.map(([id]) => id);
+		await this._waitForInitialProvidersToPublish();
+
+		this._updateCollectedServers(); // ensure any pendingServers we know about were handled
 
 		// we move servers out of _extensionServers as they're registered. Once
 		// an extension finishes being activated, if there are any orphaned servers,
 		// then they are removed.
-		const toRemove = new Set<IMcpServer>();
 		const toKeep: IExtensionCollectionsRec[] = [];
 		const currentRecs = this._extensionServers.get();
 		for (const rec of currentRecs) {
-			const isActive = !!statuses[rec.extensionId.value]?.activationTimes;
-			if (!isActive) {
+			if (!wereActive.includes(rec.extensionId.value)) {
 				toKeep.push(rec); // keep waiting
 				continue;
 			}
 
 			this._extensionCollectionIdsToPersist.add(rec.collectionId);
-			const publishedServers = new Set(this._mcpRegistry.collections.get().find(c => c.id === rec.collectionId)?.serverDefinitions.get().map(s => s.id));
 
 			if (rec.pendingServers) {
 				for (const server of rec.pendingServers) {
-					if (!publishedServers.has(server.definition.id)) {
-						toRemove.add(server);
-					}
+					this._logService.debug(`Cached MCP server ${server.definition.id} removed because the extension no longer publishes it`);
+					server.dispose();
 				}
 			}
+		}
 
-			if (toKeep.length !== currentRecs.length) {
-				transaction(tx => {
-					this._servers.set(this._servers.get().filter((server) => !toRemove.has(server)), tx);
-					this._extensionServers.set(toKeep, tx);
-				});
-				toRemove.forEach(s => s.dispose());
-			}
+		if (toKeep.length !== currentRecs.length) {
+			this._extensionServers.set(toKeep, undefined);
 		}
 	}
 
 	public override dispose(): void {
 		this._extensionServers.get().forEach(server => server.pendingServers?.forEach(s => s.dispose()));
-		this._servers.get().forEach(server => server.dispose());
+		this._publishedServers.get().forEach(server => server.dispose());
 		super.dispose();
 	}
 }

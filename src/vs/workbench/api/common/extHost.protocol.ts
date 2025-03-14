@@ -2974,6 +2974,7 @@ export interface ExtHostMcpShape {
 	$startMcp(id: number, launch: McpServerLaunch): void;
 	$stopMcp(id: number): void;
 	$sendMessage(id: number, message: string): void;
+	$waitForInitialCollectionProviders(): Promise<void>;
 }
 
 export interface MainThreadMcpShape {

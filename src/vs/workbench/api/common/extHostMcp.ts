@@ -21,6 +21,7 @@ export interface IExtHostMpcService extends ExtHostMcpShape {
 
 export class ExtHostMcpService implements IExtHostMpcService {
 	protected _proxy: MainThreadMcpShape;
+	private readonly _initialProviderPromises = new Set<Promise<void>>();
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
@@ -39,6 +40,10 @@ export class ExtHostMcpService implements IExtHostMpcService {
 
 	$sendMessage(id: number, message: string): void {
 		// no-op
+	}
+
+	async $waitForInitialCollectionProviders(): Promise<void> {
+		await Promise.all(this._initialProviderPromises);
 	}
 
 	registerMcpConfigurationProvider(extension: IExtensionDescription, id: string, provider: vscode.McpConfigurationProvider): IDisposable {
@@ -95,7 +100,14 @@ export class ExtHostMcpService implements IExtHostMpcService {
 			store.add(provider.onDidChange(update));
 		}
 
-		setTimeout(update, 0);
+		const promise = new Promise<void>(resolve => {
+			setTimeout(() => update().finally(() => {
+				this._initialProviderPromises.delete(promise);
+				resolve();
+			}), 0);
+		});
+
+		this._initialProviderPromises.add(promise);
 
 		return store;
 	}
