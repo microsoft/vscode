@@ -370,9 +370,6 @@ export class InlineCompletionItem {
 
 		readonly id = `InlineCompletion:${InlineCompletionItem.ID++}`,
 	) {
-		// TODO: these statements are no-ops
-		filterText = filterText.replace(/\r\n|\r/g, '\n');
-		insertText = filterText.replace(/\r\n|\r/g, '\n');
 	}
 
 	public get didShow(): boolean {
@@ -380,23 +377,6 @@ export class InlineCompletionItem {
 	}
 	public markAsShown(): void {
 		this._didCallShow = true;
-	}
-
-	public withRange(updatedRange: Range): InlineCompletionItem {
-		return new InlineCompletionItem(
-			this.filterText,
-			this.command,
-			this.shownCommand,
-			this.action,
-			updatedRange,
-			this.insertText,
-			this.snippetInfo,
-			this.cursorShowRange,
-			this.additionalTextEdits,
-			this.sourceInlineCompletion,
-			this.source,
-			this.id,
-		);
 	}
 
 	public withRangeInsertTextAndFilterText(updatedRange: Range, updatedInsertText: string, updatedFilterText: string): InlineCompletionItem {
