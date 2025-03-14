@@ -111,7 +111,11 @@ class SetupChatAgentImplementation implements IChatAgentImplementation {
 					slashCommands: [],
 					disambiguation: [],
 					locations: [location],
-					metadata: {},
+					metadata: {
+						requester: {
+							name: localize('copilotUser', "Copilot User"),
+						}
+					},
 					description: location === ChatAgentLocation.Panel ? localize('chatDescription', "Ask Copilot") : localize('editsDescription', "Edit files in your workspace"),
 					extensionId: nullExtensionDescription.identifier,
 					extensionDisplayName: nullExtensionDescription.name,
