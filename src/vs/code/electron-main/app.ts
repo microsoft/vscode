@@ -1050,7 +1050,7 @@ export class CodeApplication extends Disposable {
 		// Native Host
 		services.set(INativeHostMainService, new SyncDescriptor(NativeHostMainService, undefined, false /* proxied to other processes */));
 
-		// Dev Tools Accessibility Service
+		// Web Contents Extractor
 		services.set(IWebContentExtractorService, new SyncDescriptor(NativeWebContentExtractorService, undefined, false /* proxied to other processes */));
 
 		// Webview Manager
@@ -1200,9 +1200,9 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel('nativeHost', nativeHostChannel);
 		sharedProcessClient.then(client => client.registerChannel('nativeHost', nativeHostChannel));
 
-		// Dev Tools Accessibility Service
-		const devToolsAccessibilityChannel = ProxyChannel.fromService(accessor.get(IWebContentExtractorService), disposables);
-		mainProcessElectronServer.registerChannel('webContentExtractor', devToolsAccessibilityChannel);
+		// Web Content Extractor
+		const webContentExtractorChannel = ProxyChannel.fromService(accessor.get(IWebContentExtractorService), disposables);
+		mainProcessElectronServer.registerChannel('webContentExtractor', webContentExtractorChannel);
 
 		// Workspaces
 		const workspacesChannel = ProxyChannel.fromService(accessor.get(IWorkspacesService), disposables);
