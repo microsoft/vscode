@@ -244,66 +244,20 @@ class ChatSetupDialog {
 		const markdown = this.instantiationService.createInstance(MarkdownRenderer, {});
 
 		// Header
-		{
-			const header = localize({ key: 'header', comment: ['{Locked="[Copilot]({0})"}'] }, "[Copilot]({0}) is your AI pair programmer.", defaultChat.documentationUrl);
-			element.appendChild($('p', undefined, disposables.add(markdown.render(new MarkdownString(header, { isTrusted: true }))).element));
-
-			element.appendChild(
-				$('div.chat-features-container', undefined,
-					$('div', undefined,
-						$('div.chat-feature-container', undefined,
-							renderIcon(Codicon.code),
-							$('span', undefined, localize('featureChat', "Code faster with Completions"))
-						),
-						$('div.chat-feature-container', undefined,
-							renderIcon(Codicon.editSession),
-							$('span', undefined, localize('featureEdits', "Build features with Copilot Edits"))
-						),
-						$('div.chat-feature-container', undefined,
-							renderIcon(Codicon.commentDiscussion),
-							$('span', undefined, localize('featureExplore', "Explore your codebase with Chat"))
-						)
-					)
-				)
-			);
-		}
-
-		// Limited SKU
-		const free = localize({ key: 'free', comment: ['{Locked="[]({0})"}'] }, "$(sparkle-filled) We now offer [Copilot for free]({0}).", defaultChat.skusDocumentationUrl);
-		const freeContainer = element.appendChild($('p', undefined, disposables.add(markdown.render(new MarkdownString(free, { isTrusted: true, supportThemeIcons: true }))).element));
+		const header = localize({ key: 'header', comment: ['{Locked="[Copilot]({0})"}'] }, "[Copilot]({0}) is your AI pair programmer.", defaultChat.documentationUrl);
+		element.appendChild($('p', undefined, disposables.add(markdown.render(new MarkdownString(header, { isTrusted: true }))).element));
 
 		// Terms
 		const terms = localize({ key: 'terms', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "By continuing, you agree to the [Terms]({0}) and [Privacy Policy]({1}).", defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl);
 		element.appendChild($('p', undefined, disposables.add(markdown.render(new MarkdownString(terms, { isTrusted: true }))).element));
 
 		// SKU Settings
-		const settings = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "Copilot Free and Pro may show [public code]({0}) suggestions and we may use your data for product improvement. You can change these [settings]({1}) at any time.", defaultChat.publicCodeMatchesUrl, defaultChat.manageSettingsUrl);
-		const settingsContainer = element.appendChild($('p', undefined, disposables.add(markdown.render(new MarkdownString(settings, { isTrusted: true }))).element));
-
-		this.update(freeContainer, settingsContainer);
-
-		return { element, dispose: () => disposables.dispose() };
-	}
-
-	private update(freeContainer: HTMLElement, settingsContainer: HTMLElement): void {
-		const showSettings = this.telemetryService.telemetryLevel !== TelemetryLevel.NONE;
-		let showFree: boolean;
-
-		switch (this.context.state.entitlement) {
-			case ChatEntitlement.Unknown:
-			case ChatEntitlement.Unresolved:
-			case ChatEntitlement.Available:
-			case ChatEntitlement.Limited:
-				showFree = true;
-				break;
-			case ChatEntitlement.Pro:
-			case ChatEntitlement.Unavailable:
-				showFree = false;
-				break;
+		if (this.telemetryService.telemetryLevel !== TelemetryLevel.NONE) {
+			const settings = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "Copilot Free and Pro may show [public code]({0}) suggestions and we may use your data for product improvement. You can change these [settings]({1}) at any time.", defaultChat.publicCodeMatchesUrl, defaultChat.manageSettingsUrl);
+			element.appendChild($('p', undefined, disposables.add(markdown.render(new MarkdownString(settings, { isTrusted: true }))).element));
 		}
 
-		setVisibility(showFree, freeContainer);
-		setVisibility(showSettings, settingsContainer);
+		return { element, dispose: () => disposables.dispose() };
 	}
 }
 
@@ -393,15 +347,19 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				const statusbarService = accessor.get(IStatusbarService);
 				const instantiationService = accessor.get(IInstantiationService);
 
+				const setupFromDialog = configurationService.getValue('chat.experimental.setupFromDialog');
+
 				await context.update({ hidden: false });
 
-				showCopilotView(viewsService, layoutService);
-				ensureSideBarChatViewSize(viewDescriptorService, layoutService, viewsService);
+				if (!setupFromDialog) {
+					showCopilotView(viewsService, layoutService);
+					ensureSideBarChatViewSize(viewDescriptorService, layoutService, viewsService);
+				}
 
 				statusbarService.updateEntryVisibility('chat.statusBarEntry', true);
 				configurationService.updateValue('chat.commandCenter.enabled', true);
 
-				if (configurationService.getValue('chat.experimental.setupFromDialog')) {
+				if (setupFromDialog) {
 					const dialog = instantiationService.createInstance(ChatSetupDialog, context);
 					const result = await dialog.show();
 					if (result) {
