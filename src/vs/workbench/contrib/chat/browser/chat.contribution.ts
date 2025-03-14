@@ -353,7 +353,8 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 			if (enabled) {
 				this.registerEnablementSetting();
 				expDisabledKey.set(false);
-			} else if (enabled === false) {
+			} else if (this.productService.quality === 'stable') {
+				// undefined treatment- on stable, fall back to disabled
 				this.deregisterSetting();
 				expDisabledKey.set(true);
 			}
