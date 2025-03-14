@@ -15,8 +15,6 @@ import { URI } from '../../../../../base/common/uri.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { CompletionTriggerKind } from '../../../../../editor/common/languages.js';
 import { Schemas } from '../../../../../base/common/network.js';
-// TODO: have one terminalCompletion provider per a single LspCompletionProviderAddon
-// TODO: In the constructor pass in provider, so each provider can pass its own trigger characters, have its own provideCompletions method
 
 export function createTerminalLanguageVirtualUri(terminalId: string, languageExtension: string): URI {
 	return URI.from({
@@ -25,17 +23,21 @@ export function createTerminalLanguageVirtualUri(terminalId: string, languageExt
 	});
 }
 
+// TODO: Have one terminalCompletion provider per a single LspCompletionProviderAddon
+// TODO: In the constructor pass in provider, so each provider can pass its own trigger characters, have its own provideCompletions method
 export class LspCompletionProviderAddon extends Disposable implements ITerminalAddon, ITerminalCompletionProvider {
 	readonly id = 'lsp';
-	// TODO: Refine this list, what languages do we want to support?
+	// TODO: Higher level (probably put this in terminal.suggest.contribution.ts), where we instatntiate LSPCompletionProviderAddon:
+	//    - List out all the shells that we support using lsp.
 	readonly shellTypes = [
 		GeneralShellType.Python,
 		GeneralShellType.PowerShell
 	];
 	readonly isBuiltin = true;
 
-	// TODO: Define this, it's determined by the language features that we don't get until later
-	// currently?
+	// TODO: Define this, it's determined by the language features that we don't get until later currently?
+	//	- Depending on the providerthat gets passed into constructor & shell info, use different triggerCharacters
+
 	triggerCharacters?: string[] | undefined;
 
 	constructor(
@@ -49,10 +51,19 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 		console.log('activate');
 	}
 
+	// On higher level, where we instantiate LSPCompletionProviderAddon (terminal.suggest.contribution.ts for now), we should:
+	// 1. Identify shell type
+	// 2. Create appropriate virtual document (vscodeTerminal scheme) with appropriate extension (e.g. .py)
+	// 3. Then have each of the relevant providers call its provideCompletions method
+
+	// More design details TODO:
+	//	-One virtual fake document per terminal instance + life time of it
+	// lazily create it when needed, and load
+
 	async provideCompletions(value: string, cursorPosition: number, allowFallbackCompletions: false, token: CancellationToken): Promise<ITerminalCompletion[] | TerminalCompletionList<ITerminalCompletion> | undefined> {
 		console.log('provideCompletions', value, cursorPosition);
 
-		// TODO: Create and use a fake/virtual document in our target language
+		// WIP 03/14/25 -> TODO: Create and use a fake/virtual document in our target language.
 
 		const uri = URI.file('/Users/anthonykim/Desktop/vscode/src/vs/workbench/contrib/terminalContrib/suggest/browser/usePylance.py');
 		const testRealUri = this._textModelService.canHandleResource(uri);
@@ -64,23 +75,20 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 
 		// Problem: When trying to pass in a custom uri made via {createTerminalLanguageVirtualUri}
 		// into `await this._textModelService.createModelReference(uri);`
+
 		// We crash... Why?
 		// Because resource can be resolved to a text model.
+
 		// Potential solution: Might need to create/register a ITextModelContentProvider for vscodeTerminal scheme??
-		//    - This include implementing provideTextContent method. -> returns ITextModel for given URI
+		//	- This include implementing provideTextContent method. -> returns ITextModel for given URI
 
 		// Why do I need all of above in the potential solution section:
 		// ILanguageFeatureService relies on ITextModel to determine which providers are applicable for given file?
+
 		// Does ITextModel contain information about file's language, URI, metadata that language feature service uses to filter the providers?
 
-		// Question: How can I trust `languageFeatureService.completionProvider.all()` to give me the right providers?
+		// Question: Can I trust `languageFeatureService.completionProvider.all()` to give me the right providers?
 		// If the extension is `.py` would it automatically contain all Python related one?
-
-
-
-		// TODO: One virtual fake document per terminal instance + life time of it
-		// lazily create it when needed, and load
-
 
 		const textBeforeCursor = value.substring(0, cursorPosition);
 		const lines = textBeforeCursor.split('\n');
