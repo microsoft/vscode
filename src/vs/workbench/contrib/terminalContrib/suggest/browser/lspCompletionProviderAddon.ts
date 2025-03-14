@@ -14,8 +14,16 @@ import { ITextModelService } from '../../../../../editor/common/services/resolve
 import { URI } from '../../../../../base/common/uri.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { CompletionTriggerKind } from '../../../../../editor/common/languages.js';
+import { Schemas } from '../../../../../base/common/network.js';
 // TODO: have one terminalCompletion provider per a single LspCompletionProviderAddon
 // TODO: In the constructor pass in provider, so each provider can pass its own trigger characters, have its own provideCompletions method
+
+export function createTerminalLanguageVirtualUri(terminalId: string, languageExtension: string): URI {
+	return URI.from({
+		scheme: Schemas.vscodeTerminal,
+		path: `/${terminalId}/terminal.${languageExtension}`,
+	});
+}
 
 export class LspCompletionProviderAddon extends Disposable implements ITerminalAddon, ITerminalCompletionProvider {
 	readonly id = 'lsp';
@@ -44,19 +52,36 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 	async provideCompletions(value: string, cursorPosition: number, allowFallbackCompletions: false, token: CancellationToken): Promise<ITerminalCompletion[] | TerminalCompletionList<ITerminalCompletion> | undefined> {
 		console.log('provideCompletions', value, cursorPosition);
 
-		// TODO: Create and use a fake document in our target language
-
-		// TODO: Get Virtual file to work.
-		//       TODO: look for adding new scheme, look how existing ones were created.
-
-		// one virtual fake document per terminal instance + life time of it
-		// lazily create it when needed, and load
+		// TODO: Create and use a fake/virtual document in our target language
 
 		const uri = URI.file('/Users/anthonykim/Desktop/vscode/src/vs/workbench/contrib/terminalContrib/suggest/browser/usePylance.py');
+		const testRealUri = this._textModelService.canHandleResource(uri);
+		const testVirtualUri = this._textModelService.canHandleResource(createTerminalLanguageVirtualUri('1', 'py'));
+		console.log('testRealUri', testRealUri);
+		console.log('testVirtualUri', testVirtualUri); // cannot resolve to a text model
 		const textModel = await this._textModelService.createModelReference(uri);
 		const providers = this._languageFeaturesService.completionProvider.all(textModel.object.textEditorModel);
 
-		// TODO: Use the actual position based on cursorPosition:
+		// Problem: When trying to pass in a custom uri made via {createTerminalLanguageVirtualUri}
+		// into `await this._textModelService.createModelReference(uri);`
+		// We crash... Why?
+		// Because resource can be resolved to a text model.
+		// Potential solution: Might need to create/register a ITextModelContentProvider for vscodeTerminal scheme??
+		//    - This include implementing provideTextContent method. -> returns ITextModel for given URI
+
+		// Why do I need all of above in the potential solution section:
+		// ILanguageFeatureService relies on ITextModel to determine which providers are applicable for given file?
+		// Does ITextModel contain information about file's language, URI, metadata that language feature service uses to filter the providers?
+
+		// Question: How can I trust `languageFeatureService.completionProvider.all()` to give me the right providers?
+		// If the extension is `.py` would it automatically contain all Python related one?
+
+
+
+		// TODO: One virtual fake document per terminal instance + life time of it
+		// lazily create it when needed, and load
+
+
 		const textBeforeCursor = value.substring(0, cursorPosition);
 		const lines = textBeforeCursor.split('\n');
 		const lineNumber = lines.length;
@@ -85,6 +110,7 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 		// TODO: Scan back to start of nearest word like other providers? Is this needed for `ILanguageFeaturesService`?
 
 		const completions: ITerminalCompletion[] = [];
+		// TODO: After getting provider passed into constructor, we should not iterate through list of ALL providers.
 		for (const provider of providers) {
 			const result = await provider.provideCompletionItems(textModel.object.textEditorModel, position, { triggerKind: CompletionTriggerKind.Invoke }, token);
 			// TODO: Discard duplicates (ie. language should take precedence over word based completions)
