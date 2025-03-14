@@ -618,33 +618,33 @@ export namespace CellUri {
 	}
 
 	/**
- * Generates a URI for a cell output in a notebook.
- *
- * @param notebook - The URI of the notebook.
- * @param [outputId] - The optional ID of the output.
- * @param [cellUri] - The optional URI of the cell.
- * @param [outputIndex] - The optional index of the output.
- * @returns The generated URI for the cell output.
- */
-	export function generateCellOutputUri(notebook: URI, outputId?: string, cellUri?: URI, outputIndex?: number): URI {
+	 * Generates a URI for a cell output in a notebook using the output ID.
+	 * Used when URI should be opened as text in the editor.
+	 */
+	export function generateCellOutputUriWithId(notebook: URI, outputId?: string) {
 		return notebook.with({
 			scheme: Schemas.vscodeNotebookCellOutput,
-			fragment: cellUri ? cellUri.fragment : null,
 			query: new URLSearchParams({
-				openAsEditor: cellUri ? 'false' : 'true',
-				outputIndex: outputIndex ? String(outputIndex) : '',
+				openIn: 'editor',
 				outputId: outputId || '',
-
+			}).toString()
+		});
+	}
+	/**
+	 * Generates a URI for a cell output in a notebook using the output index.
+	 * Used when URI should be opened in notebook editor.
+	 */
+	export function generateCellOutputUriWithIndex(notebook: URI, cellUri: URI, outputIndex: number): URI {
+		return notebook.with({
+			scheme: Schemas.vscodeNotebookCellOutput,
+			fragment: cellUri.fragment,
+			query: new URLSearchParams({
+				openIn: 'notebook',
+				outputIndex: String(outputIndex),
 			}).toString()
 		});
 	}
 
-
-	/**
-	 * Parses a cell output URI to extract the notebook URI and output ID.
-	 * @param uri The URI to parse, which should be in the vscode-notebook-cell-output scheme
-	 * @returns An object containing the notebook URI and optional output ID, or undefined if the URI is invalid
-	 */
 	export function parseCellOutputUri(uri: URI): { notebook: URI; outputId?: string } | undefined {
 		if (uri.scheme !== Schemas.vscodeNotebookCellOutput) {
 			return;
