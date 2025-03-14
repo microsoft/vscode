@@ -23,7 +23,8 @@ export function createTerminalLanguageVirtualUri(terminalId: string, languageExt
 	});
 }
 
-// TODO: Have one terminalCompletion provider per a single LspCompletionProviderAddon
+// IMPORTANT: Each LSPCompletionProviderAddon should be responsible for managing ONE specific language server completion provider.
+// Rather than handling all of them.
 // TODO: In the constructor pass in provider, so each provider can pass its own trigger characters, have its own provideCompletions method
 export class LspCompletionProviderAddon extends Disposable implements ITerminalAddon, ITerminalCompletionProvider {
 	readonly id = 'lsp';
