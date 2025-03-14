@@ -37,6 +37,7 @@ import { TerminalCompletionModel } from './terminalCompletionModel.js';
 import { TerminalCompletionItem, TerminalCompletionItemKind, type ITerminalCompletion } from './terminalCompletionItem.js';
 import { IntervalTimer, TimeoutTimer } from '../../../../../base/common/async.js';
 import { localize } from '../../../../../nls.js';
+import { TerminalSuggestTelemetry } from './terminalSuggestTelemetry.js';
 
 export interface ISuggestController {
 	isPasting: boolean;
@@ -45,7 +46,7 @@ export interface ISuggestController {
 	selectNextSuggestion(): void;
 	selectNextPageSuggestion(): void;
 	acceptSelectedSuggestion(suggestion?: Pick<ISimpleSelectedSuggestion<TerminalCompletionItem>, 'item' | 'model'>): void;
-	hideSuggestWidget(cancelAnyRequests: boolean): void;
+	hideSuggestWidget(cancelAnyRequests: boolean, wasClosedByUser?: boolean): void;
 }
 export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggestController {
 	private _terminal?: Terminal;
@@ -131,6 +132,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private readonly _inlineCompletionItem = new TerminalCompletionItem(this._inlineCompletion);
 
 	private _shouldSyncWhenReady: boolean = false;
+	private _suggestTelemetry: TerminalSuggestTelemetry | undefined;
 
 	constructor(
 		shellType: TerminalShellType | undefined,
@@ -175,10 +177,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			if (commandDetection) {
 				if (this._promptInputModel !== commandDetection.promptInputModel) {
 					this._promptInputModel = commandDetection.promptInputModel;
+					this._suggestTelemetry = this._register(this._instantiationService.createInstance(TerminalSuggestTelemetry, commandDetection, this._promptInputModel));
 					this._promptInputModelSubscriptions.value = combinedDisposable(
 						this._promptInputModel.onDidChangeInput(e => this._sync(e)),
 						this._promptInputModel.onDidFinishInput(() => {
-							this._mostRecentPromptInputState = undefined;
 							this.hideSuggestWidget(true);
 						}),
 					);
@@ -711,6 +713,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		const initialPromptInputState = this._mostRecentPromptInputState;
 		if (!suggestion || !initialPromptInputState || this._leadingLineContent === undefined || !this._model) {
+			this._suggestTelemetry?.acceptCompletion(undefined, this._mostRecentPromptInputState?.value);
 			return;
 		}
 		SuggestAddon.lastAcceptedCompletionTimestamp = Date.now();
@@ -796,6 +799,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		// Send the completion
 		this._onAcceptedCompletion.fire(resultSequence);
+		this._suggestTelemetry?.acceptCompletion(completion, this._mostRecentPromptInputState?.value);
 		this.hideSuggestWidget(true);
 	}
 
@@ -847,3 +851,4 @@ export function normalizePathSeparator(path: string, sep: string): string {
 	}
 	return path.replaceAll('/', '\\');
 }
+
