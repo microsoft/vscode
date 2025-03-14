@@ -372,8 +372,9 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			const shortcut = gulp.src('resources/darwin/bin/code.sh')
 				.pipe(replace('@@APPNAME@@', product.applicationName))
 				.pipe(rename('bin/code'));
-
-			all = es.merge(all, shortcut);
+			const policyDest = gulp.src('.build/policies/darwin/**', { base: '.build/policies/darwin' })
+				.pipe(rename(f => f.dirname = `policies/${f.dirname}`));
+			all = es.merge(all, shortcut, policyDest);
 		}
 
 		let result = all

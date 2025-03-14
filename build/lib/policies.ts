@@ -48,6 +48,9 @@ interface Policy {
 	renderADMX(regKey: string): string[];
 	renderADMLStrings(translations?: LanguageTranslations): string[];
 	renderADMLPresentation(): string;
+	renderProfile(): string[];
+	// https://github.com/ProfileManifests/ProfileManifests/wiki/Manifest-Format
+	renderProfileManifest(translations?: LanguageTranslations): string;
 }
 
 function renderADMLString(prefix: string, moduleName: string, nlsString: NlsString, translations?: LanguageTranslations): string {
@@ -66,6 +69,24 @@ function renderADMLString(prefix: string, moduleName: string, nlsString: NlsStri
 	}
 
 	return `<string id="${prefix}_${nlsString.nlsKey.replace(/\./g, '_')}">${value}</string>`;
+}
+
+function renderProfileString(_prefix: string, moduleName: string, nlsString: NlsString, translations?: LanguageTranslations): string {
+	let value: string | undefined;
+
+	if (translations) {
+		const moduleTranslations = translations[moduleName];
+
+		if (moduleTranslations) {
+			value = moduleTranslations[nlsString.nlsKey];
+		}
+	}
+
+	if (!value) {
+		value = nlsString.value;
+	}
+
+	return value;
 }
 
 abstract class BasePolicy implements Policy {
@@ -108,6 +129,19 @@ abstract class BasePolicy implements Policy {
 	}
 
 	protected abstract renderADMLPresentationContents(): string;
+
+	renderProfile() {
+		return [`<key>${this.name}</key>`, this.renderProfileValue()];
+	}
+
+	renderProfileManifest(translations?: LanguageTranslations): string {
+		return `<dict>
+${this.renderProfileManifestValue(translations)}
+</dict>`;
+	}
+
+	abstract renderProfileValue(): string;
+	abstract renderProfileManifestValue(translations?: LanguageTranslations): string;
 }
 
 class BooleanPolicy extends BasePolicy {
@@ -149,6 +183,23 @@ class BooleanPolicy extends BasePolicy {
 
 	renderADMLPresentationContents() {
 		return `<checkBox refId="${this.name}">${this.name}</checkBox>`;
+	}
+
+	renderProfileValue(): string {
+		return `<false/>`;
+	}
+
+	renderProfileManifestValue(translations?: LanguageTranslations): string {
+		return `<key>pfm_default</key>
+<false/>
+<key>pfm_description</key>
+<string>${renderProfileString(this.name, this.moduleName, this.description, translations)}</string>
+<key>pfm_name</key>
+<string>${this.name}</string>
+<key>pfm_title</key>
+<string>${this.name}</string>
+<key>pfm_type</key>
+<string>boolean</string>`;
 	}
 }
 
@@ -204,6 +255,23 @@ class NumberPolicy extends BasePolicy {
 	renderADMLPresentationContents() {
 		return `<decimalTextBox refId="${this.name}" defaultValue="${this.defaultValue}">${this.name}</decimalTextBox>`;
 	}
+
+	renderProfileValue() {
+		return `<integer>${this.defaultValue}</integer>`;
+	}
+
+	renderProfileManifestValue(translations?: LanguageTranslations) {
+		return `<key>pfm_default</key>
+<integer>${this.defaultValue}</integer>
+<key>pfm_description</key>
+<string>${renderProfileString(this.name, this.moduleName, this.description, translations)}</string>
+<key>pfm_name</key>
+<string>${this.name}</string>
+<key>pfm_title</key>
+<string>${this.name}</string>
+<key>pfm_type</key>
+<string>integer</string>`;
+	}
 }
 
 class StringPolicy extends BasePolicy {
@@ -242,6 +310,23 @@ class StringPolicy extends BasePolicy {
 	renderADMLPresentationContents() {
 		return `<textBox refId="${this.name}"><label>${this.name}:</label></textBox>`;
 	}
+
+	renderProfileValue(): string {
+		return `<string></string>`;
+	}
+
+	renderProfileManifestValue(translations?: LanguageTranslations): string {
+		return `<key>pfm_default</key>
+<string></string>
+<key>pfm_description</key>
+<string>${renderProfileString(this.name, this.moduleName, this.description, translations)}</string>
+<key>pfm_name</key>
+<string>${this.name}</string>
+<key>pfm_title</key>
+<string>${this.name}</string>
+<key>pfm_type</key>
+<string>string</string>`;
+	}
 }
 
 class ObjectPolicy extends BasePolicy {
@@ -279,6 +364,24 @@ class ObjectPolicy extends BasePolicy {
 
 	renderADMLPresentationContents() {
 		return `<multiTextBox refId="${this.name}" />`;
+	}
+
+	renderProfileValue(): string {
+		return `<string></string>`;
+	}
+
+	renderProfileManifestValue(translations?: LanguageTranslations): string {
+		return `<key>pfm_default</key>
+<string></string>
+<key>pfm_description</key>
+<string>${renderProfileString(this.name, this.moduleName, this.description, translations)}</string>
+<key>pfm_name</key>
+<string>${this.name}</string>
+<key>pfm_title</key>
+<string>${this.name}</string>
+<key>pfm_type</key>
+<string>string</string>
+`;
 	}
 }
 
@@ -348,6 +451,27 @@ class StringEnumPolicy extends BasePolicy {
 
 	renderADMLPresentationContents() {
 		return `<dropdownList refId="${this.name}" />`;
+	}
+
+	renderProfileValue() {
+		return `<string>${this.enum_[0]}</string>`;
+	}
+
+	renderProfileManifestValue(translations?: LanguageTranslations): string {
+		return `<key>pfm_default</key>
+<string>${this.enum_[0]}</string>
+<key>pfm_description</key>
+<string>${renderProfileString(this.name, this.moduleName, this.description, translations)}</string>
+<key>pfm_name</key>
+<string>${this.name}</string>
+<key>pfm_title</key>
+<string>${this.name}</string>
+<key>pfm_type</key>
+<string>string</string>
+<key>pfm_range_list</key>
+<array>
+	${this.enum_.map(e => `<string>${e}</string>`).join('\n	')}
+</array>`;
 	}
 }
 
@@ -606,6 +730,197 @@ function renderADML(appName: string, versions: string[], categories: Category[],
 `;
 }
 
+function renderProfileManifest(appName: string, bundleIdentifier: string, _versions: string[], _categories: Category[], policies: Policy[], translations?: LanguageTranslations) {
+
+	const requiredPayloadFields = `
+		<dict>
+			<key>pfm_default</key>
+			<string>Configure ${appName}</string>
+			<key>pfm_name</key>
+			<string>PayloadDescription</string>
+			<key>pfm_title</key>
+			<string>Payload Description</string>
+			<key>pfm_type</key>
+			<string>string</string>
+		</dict>
+		<dict>
+			<key>pfm_default</key>
+			<string>${appName}</string>
+			<key>pfm_name</key>
+			<string>PayloadDisplayName</string>
+			<key>pfm_require</key>
+			<string>always</string>
+			<key>pfm_title</key>
+			<string>Payload Display Name</string>
+			<key>pfm_type</key>
+			<string>string</string>
+		</dict>
+		<dict>
+			<key>pfm_default</key>
+			<string>${bundleIdentifier}</string>
+			<key>pfm_name</key>
+			<string>PayloadIdentifier</string>
+			<key>pfm_require</key>
+			<string>always</string>
+			<key>pfm_title</key>
+			<string>Payload Identifier</string>
+			<key>pfm_type</key>
+			<string>string</string>
+		</dict>
+		<dict>
+			<key>pfm_default</key>
+			<string>${bundleIdentifier}</string>
+			<key>pfm_name</key>
+			<string>PayloadType</string>
+			<key>pfm_require</key>
+			<string>always</string>
+			<key>pfm_title</key>
+			<string>Payload Type</string>
+			<key>pfm_type</key>
+			<string>string</string>
+		</dict>
+		<dict>
+			<key>pfm_default</key>
+			<string></string>
+			<key>pfm_name</key>
+			<string>PayloadUUID</string>
+			<key>pfm_require</key>
+			<string>always</string>
+			<key>pfm_title</key>
+			<string>Payload UUID</string>
+			<key>pfm_type</key>
+			<string>string</string>
+		</dict>
+		<dict>
+			<key>pfm_default</key>
+			<integer>1</integer>
+			<key>pfm_name</key>
+			<string>PayloadVersion</string>
+			<key>pfm_range_list</key>
+			<array>
+				<integer>1</integer>
+			</array>
+			<key>pfm_require</key>
+			<string>always</string>
+			<key>pfm_title</key>
+			<string>Payload Version</string>
+			<key>pfm_type</key>
+			<string>integer</string>
+		</dict>
+		<dict>
+			<key>pfm_default</key>
+			<string>Microsoft</string>
+			<key>pfm_name</key>
+			<string>PayloadOrganization</string>
+			<key>pfm_title</key>
+			<string>Payload Organization</string>
+			<key>pfm_type</key>
+			<string>string</string>
+		</dict>`;
+
+	const profileManifestSubkeys = policies.map(policy => {
+		return policy.renderProfileManifest(translations);
+	}).join('');
+
+	return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>pfm_app_url</key>
+    <string>https://code.visualstudio.com/</string>
+    <key>pfm_description</key>
+    <string>${appName} Managed Settings</string>
+    <key>pfm_documentation_url</key>
+    <string>https://code.visualstudio.com/docs/setup/enterprise</string>
+    <key>pfm_domain</key>
+    <string>${bundleIdentifier}</string>
+    <key>pfm_format_version</key>
+    <integer>1</integer>
+    <key>pfm_interaction</key>
+    <string>combined</string>
+    <key>pfm_last_modified</key>
+    <date>${new Date().toISOString().replace(/\.\d+Z$/, 'Z')}</date>
+    <key>pfm_platforms</key>
+    <array>
+        <string>macOS</string>
+    </array>
+    <key>pfm_subkeys</key>
+    <array>
+	${requiredPayloadFields}
+	${profileManifestSubkeys}
+    </array>
+    <key>pfm_title</key>
+    <string>${appName}</string>
+    <key>pfm_unique</key>
+    <true/>
+    <key>pfm_version</key>
+    <integer>1</integer>
+</dict>
+</plist>`;
+}
+
+function renderMacOSPolicy(policies: Policy[], translations: Translations) {
+	const appName = product.nameLong;
+	const bundleIdentifier = product.darwinBundleIdentifier;
+	const payloadUUID = product.darwinProfilePayloadUUID;
+	const UUID = product.darwinProfileUUID;
+
+	const versions = [...new Set(policies.map(p => p.minimumVersion)).values()].sort();
+	const categories = [...new Set(policies.map(p => p.category))];
+
+	const policyEntries =
+		policies.map(policy => policy.renderProfile())
+			.flat()
+			.map(entry => `\t\t\t\t${entry}`)
+			.join('\n');
+
+
+	return {
+		profile: `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+	<dict>
+		<key>PayloadContent</key>
+		<array>
+			<dict>
+				<key>PayloadDisplayName</key>
+				<string>${appName}</string>
+				<key>PayloadIdentifier</key>
+				<string>${bundleIdentifier}.${UUID}</string>
+				<key>PayloadType</key>
+				<string>${bundleIdentifier}</string>
+				<key>PayloadUUID</key>
+				<string>${UUID}</string>
+				<key>PayloadVersion</key>
+				<integer>1</integer>
+${policyEntries}
+			</dict>
+		</array>
+		<key>PayloadDescription</key>
+		<string>This profile manages ${appName}. For more information see https://code.visualstudio.com/docs/setup/enterprise</string>
+		<key>PayloadDisplayName</key>
+		<string>${appName}</string>
+		<key>PayloadIdentifier</key>
+		<string>${bundleIdentifier}</string>
+		<key>PayloadOrganization</key>
+		<string>Microsoft</string>
+		<key>PayloadType</key>
+		<string>Configuration</string>
+		<key>PayloadUUID</key>
+		<string>${payloadUUID}</string>
+		<key>PayloadVersion</key>
+		<integer>1</integer>
+		<key>TargetDeviceType</key>
+		<integer>5</integer>
+	</dict>
+</plist>`,
+		manifests: [{ languageId: 'en-us', contents: renderProfileManifest(appName, bundleIdentifier, versions, categories, policies) },
+		...translations.map(({ languageId, languageTranslations }) =>
+			({ languageId, contents: renderProfileManifest(appName, bundleIdentifier, versions, categories, policies, languageTranslations) }))
+		]
+	};
+}
+
 function renderGP(policies: Policy[], translations: Translations) {
 	const appName = product.nameLong;
 	const regKey = product.win32RegValueName;
@@ -751,18 +1066,10 @@ async function getTranslations(): Promise<Translations> {
 	));
 }
 
-async function main() {
-	const [policies, translations] = await Promise.all([parsePolicies(), getTranslations()]);
-
-	console.log(`Found ${policies.length} policies:`);
-
-	for (const policy of policies) {
-		console.log(`- ${policy.name} (${policy.type})`);
-	}
-
+async function windowsMain(policies: Policy[], translations: Translations) {
+	const root = '.build/policies/win32';
 	const { admx, adml } = await renderGP(policies, translations);
 
-	const root = '.build/policies/win32';
 	await fs.rm(root, { recursive: true, force: true });
 	await fs.mkdir(root, { recursive: true });
 
@@ -772,6 +1079,39 @@ async function main() {
 		const languagePath = path.join(root, languageId === 'en-us' ? 'en-us' : Languages[languageId as keyof typeof Languages]);
 		await fs.mkdir(languagePath, { recursive: true });
 		await fs.writeFile(path.join(languagePath, `${product.win32RegValueName}.adml`), contents.replace(/\r?\n/g, '\n'));
+	}
+}
+
+async function darwinMain(policies: Policy[], translations: Translations) {
+	const bundleIdentifier = product.darwinBundleIdentifier;
+	if (!bundleIdentifier || !product.darwinProfilePayloadUUID || !product.darwinProfileUUID) {
+		throw new Error(`Missing required product information.`);
+	}
+	const root = '.build/policies/darwin';
+	const { profile, manifests } = await renderMacOSPolicy(policies, translations);
+
+	await fs.rm(root, { recursive: true, force: true });
+	await fs.mkdir(root, { recursive: true });
+	await fs.writeFile(path.join(root, `${bundleIdentifier}.mobileconfig`), profile.replace(/\r?\n/g, '\n'));
+
+	for (const { languageId, contents } of manifests) {
+		const languagePath = path.join(root, languageId === 'en-us' ? 'en-us' : Languages[languageId as keyof typeof Languages]);
+		await fs.mkdir(languagePath, { recursive: true });
+		await fs.writeFile(path.join(languagePath, `${bundleIdentifier}.plist`), contents.replace(/\r?\n/g, '\n'));
+	}
+}
+
+async function main() {
+	const [policies, translations] = await Promise.all([parsePolicies(), getTranslations()]);
+	const platform = process.argv[2];
+
+	if (platform === 'darwin') {
+		await darwinMain(policies, translations);
+	} else if (platform === 'win32') {
+		await windowsMain(policies, translations);
+	} else {
+		console.error(`Usage: node build/lib/policies <darwin|win32>`);
+		process.exit(1);
 	}
 }
 
