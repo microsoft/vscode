@@ -2555,7 +2555,8 @@ export interface ExtHostTaskShape {
 	$onDidStartTaskProcess(value: tasks.ITaskProcessStartedDTO): void;
 	$onDidEndTaskProcess(value: tasks.ITaskProcessEndedDTO): void;
 	$OnDidEndTask(execution: tasks.ITaskExecutionDTO): void;
-	$onDidChangeTaskTerminalStatus(status: tasks.ITaskStatusDTO): void;
+	$onDidStartTaskProblemMatchers(status: tasks.ITaskProblemMatcherStartedDto): void;
+	$onDidEndTaskProblemMatchers(status: tasks.ITaskProblemMatcherEndedDto): void;
 	$resolveVariables(workspaceFolder: UriComponents, toResolve: { process?: { name: string; cwd?: string }; variables: string[] }): Promise<{ process?: string; variables: { [key: string]: string } }>;
 	$jsonTasksSupported(): Promise<boolean>;
 	$findExecutable(command: string, cwd?: string, paths?: string[]): Promise<string | undefined>;

@@ -1358,9 +1358,13 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			onDidEndTaskProcess: (listeners, thisArgs?, disposables?) => {
 				return _asExtensionEvent(extHostTask.onDidEndTaskProcess)(listeners, thisArgs, disposables);
 			},
-			onDidChangeTaskStatus: (listeners) => {
-				checkProposedApiEnabled(extension, 'taskStatus');
-				return _asExtensionEvent(extHostTask.onDidChangeTaskTerminalStatus)(listeners);
+			onDidStartTaskProblemMatchers: (listeners, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'taskProblemMatcherStatus');
+				return _asExtensionEvent(extHostTask.onDidStartTaskProblemMatchers)(listeners, thisArgs, disposables);
+			},
+			onDidEndTaskProblemMatchers: (listeners, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'taskProblemMatcherStatus');
+				return _asExtensionEvent(extHostTask.onDidEndTaskProblemMatchers)(listeners, thisArgs, disposables);
 			}
 		};
 
