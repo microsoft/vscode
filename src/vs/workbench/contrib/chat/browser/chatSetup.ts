@@ -41,7 +41,7 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { ChatAgentLocation, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { CHAT_CATEGORY, CHAT_SETUP_ACTION_ID, CHAT_SETUP_ACTION_LABEL, CHAT_SETUP_VIA_DIALOG_ACTION_ID } from './actions/chatActions.js';
+import { CHAT_CATEGORY, CHAT_SETUP_ACTION_ID, CHAT_SETUP_ACTION_LABEL } from './actions/chatActions.js';
 import { ChatViewId, EditsViewId, ensureSideBarChatViewSize, preferCopilotEditsView, showCopilotView } from './chat.js';
 import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
 import { ChatViewsWelcomeExtensions, IChatViewsWelcomeContributionRegistry } from './viewsWelcome/chatViewsWelcome.js';
@@ -147,7 +147,7 @@ class SetupChatAgentImplementation implements IChatAgentImplementation {
 		else {
 			progress({
 				kind: 'warning',
-				content: new MarkdownString(localize('settingUpCopilotWarning', "You need to [set up Copilot]({0} \"Setup Copilot\") to use Chat.", `command:${CHAT_SETUP_VIA_DIALOG_ACTION_ID}`), { isTrusted: true }),
+				content: new MarkdownString(localize('settingUpCopilotWarning', "You need to [set up Copilot]({0} \"Setup Copilot\") to use Chat.", `command:${CHAT_SETUP_ACTION_ID}`), { isTrusted: true }),
 			} satisfies IChatWarningMessage);
 		}
 
@@ -348,17 +348,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			ChatContextKeys.Setup.canSignUp
 		);
 
-		const chatSetupTriggerFromViewContext = ContextKeyExpr.and(
-			chatSetupTriggerContext,
-			ChatContextKeys.Setup.fromDialog.negate()
-		);
-
-		const chatSetupTriggerFromDialogContext = ContextKeyExpr.and(
-			chatSetupTriggerContext,
-			ChatContextKeys.Setup.fromDialog
-		);
-
-		class ChatSetupTriggerViaViewAction extends Action2 {
+		class ChatSetupTriggerAction extends Action2 {
 
 			constructor() {
 				super({
@@ -366,47 +356,12 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					title: CHAT_SETUP_ACTION_LABEL,
 					category: CHAT_CATEGORY,
 					f1: true,
-					precondition: chatSetupTriggerFromViewContext,
+					precondition: chatSetupTriggerContext,
 					menu: {
 						id: MenuId.ChatTitleBarMenu,
 						group: 'a_last',
 						order: 1,
-						when: chatSetupTriggerFromViewContext
-					}
-				});
-			}
-
-			override async run(accessor: ServicesAccessor): Promise<void> {
-				const viewsService = accessor.get(IViewsService);
-				const viewDescriptorService = accessor.get(IViewDescriptorService);
-				const configurationService = accessor.get(IConfigurationService);
-				const layoutService = accessor.get(IWorkbenchLayoutService);
-				const statusbarService = accessor.get(IStatusbarService);
-
-				await context.update({ hidden: false });
-
-				showCopilotView(viewsService, layoutService);
-				ensureSideBarChatViewSize(viewDescriptorService, layoutService, viewsService);
-
-				statusbarService.updateEntryVisibility('chat.statusBarEntry', true);
-				configurationService.updateValue('chat.commandCenter.enabled', true);
-			}
-		}
-
-		class ChatSetupTriggerViaDialogAction extends Action2 {
-
-			constructor() {
-				super({
-					id: CHAT_SETUP_VIA_DIALOG_ACTION_ID,
-					title: CHAT_SETUP_ACTION_LABEL,
-					category: CHAT_CATEGORY,
-					f1: true,
-					precondition: chatSetupTriggerFromDialogContext,
-					menu: {
-						id: MenuId.ChatTitleBarMenu,
-						group: 'a_last',
-						order: 1,
-						when: chatSetupTriggerFromDialogContext
+						when: chatSetupTriggerContext
 					}
 				});
 			}
@@ -427,10 +382,12 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				statusbarService.updateEntryVisibility('chat.statusBarEntry', true);
 				configurationService.updateValue('chat.commandCenter.enabled', true);
 
-				const dialog = instantiationService.createInstance(ChatSetupDialog, context);
-				const result = await dialog.show();
-				if (result) {
-					controller.value.setup({ notificationProgress: true });
+				if (configurationService.getValue('chat.experimental.setupFromDialog')) {
+					const dialog = instantiationService.createInstance(ChatSetupDialog, context);
+					const result = await dialog.show();
+					if (result) {
+						controller.value.setup({ notificationProgress: true });
+					}
 				}
 			}
 		}
@@ -543,8 +500,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			}
 		}
 
-		registerAction2(ChatSetupTriggerViaViewAction);
-		registerAction2(ChatSetupTriggerViaDialogAction);
+		registerAction2(ChatSetupTriggerAction);
 		registerAction2(ChatSetupHideAction);
 		registerAction2(UpgradePlanAction);
 	}
