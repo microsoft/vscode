@@ -34,7 +34,7 @@ suite('Date', () => {
 			const now = new Date();
 			strictEqual(fromNowByDay(now), 'Today');
 		});
-		test.only('yesterday', () => {
+		test('yesterday', () => {
 			const yesterday = new Date();
 			console.log(`1: ${yesterday}`);
 			yesterday.setDate(yesterday.getDate() - 1);
