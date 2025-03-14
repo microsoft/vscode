@@ -1130,6 +1130,42 @@ function parseGitBlame(data: string): BlameInformation[] {
 	return Array.from(blameInformation.values());
 }
 
+const REFS_FORMAT = '%(refname)%00%(objectname)%00%(*objectname)';
+
+const headRegex = /^refs\/heads\/([^ ]+)$/;
+const remoteHeadRegex = /^refs\/remotes\/([^/]+)\/([^ ]+)$/;
+const tagRegex = /^refs\/tags\/([^ ]+)$/;
+
+function parseRefs(data: string): Ref[] {
+	const refs: Ref[] = [];
+	const refRegex = /^(.*)\0([0-9a-f]{40})\0([0-9a-f]{40})?$/gm;
+
+	let ref: string | undefined;
+	let commitHash: string | undefined;
+	let tagCommitHash: string | undefined;
+	let match: RegExpExecArray | null;
+	let refMatch: RegExpExecArray | null;
+
+	do {
+		match = refRegex.exec(data);
+		if (match === null) {
+			break;
+		}
+
+		[, ref, commitHash, tagCommitHash] = match;
+
+		if (refMatch = headRegex.exec(ref)) {
+			refs.push({ name: refMatch[1], commit: commitHash, type: RefType.Head });
+		} else if (refMatch = remoteHeadRegex.exec(ref)) {
+			refs.push({ name: `${refMatch[1]}/${refMatch[2]}`, remote: refMatch[1], commit: commitHash, type: RefType.RemoteHead });
+		} else if (refMatch = tagRegex.exec(ref)) {
+			refs.push({ name: refMatch[1], commit: tagCommitHash ?? commitHash, type: RefType.Tag });
+		}
+	} while (true);
+
+	return refs;
+}
+
 export interface PullOptions {
 	readonly unshallow?: boolean;
 	readonly tags?: boolean;
@@ -2585,7 +2621,7 @@ export class Repository {
 			args.push('--sort', `-${query.sort}`);
 		}
 
-		args.push('--format', '%(refname) %(objectname) %(*objectname)');
+		args.push('--format', REFS_FORMAT);
 
 		if (query.pattern) {
 			const patterns = Array.isArray(query.pattern) ? query.pattern : [query.pattern];
@@ -2600,24 +2636,7 @@ export class Repository {
 
 		const result = await this.exec(args, { cancellationToken });
 
-		const fn = (line: string): Ref | null => {
-			let match: RegExpExecArray | null;
-
-			if (match = /^refs\/heads\/([^ ]+) ([0-9a-f]{40}) ([0-9a-f]{40})?$/.exec(line)) {
-				return { name: match[1], commit: match[2], type: RefType.Head };
-			} else if (match = /^refs\/remotes\/([^/]+)\/([^ ]+) ([0-9a-f]{40}) ([0-9a-f]{40})?$/.exec(line)) {
-				return { name: `${match[1]}/${match[2]}`, commit: match[3], type: RefType.RemoteHead, remote: match[1] };
-			} else if (match = /^refs\/tags\/([^ ]+) ([0-9a-f]{40}) ([0-9a-f]{40})?$/.exec(line)) {
-				return { name: match[1], commit: match[3] ?? match[2], type: RefType.Tag };
-			}
-
-			return null;
-		};
-
-		return result.stdout.split('\n')
-			.filter(line => !!line)
-			.map(fn)
-			.filter(ref => !!ref) as Ref[];
+		return parseRefs(result.stdout);
 	}
 
 	async getRemoteRefs(remote: string, opts?: { heads?: boolean; tags?: boolean; cancellationToken?: CancellationToken }): Promise<Ref[]> {
