@@ -753,12 +753,10 @@ class ChatSetupController extends Disposable {
 			refreshTokens(this.commandService);
 		}
 
-		if (!this.configurationService.getValue('chat.experimental.setupFromDialog')) {
-			await Promise.race([
-				timeout(5000), 												// helps prevent flicker with sign-in welcome view
-				Event.toPromise(this.chatAgentService.onDidChangeAgents)	// https://github.com/microsoft/vscode-copilot/issues/9274
-			]);
-		}
+		await Promise.race([
+			timeout(5000), 												// helps prevent flicker with sign-in welcome view
+			Event.toPromise(this.chatAgentService.onDidChangeAgents)	// https://github.com/microsoft/vscode-copilot/issues/9274
+		]);
 
 		return true;
 	}
