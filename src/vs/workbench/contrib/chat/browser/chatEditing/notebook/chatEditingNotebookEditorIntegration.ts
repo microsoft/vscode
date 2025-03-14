@@ -296,27 +296,46 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			return undefined;
 		}
 		const change = firstOrLast ? changes[0] : changes[changes.length - 1];
-		this._revealChange(change, firstOrLast);
+		this._revealFirstOrLast(change, firstOrLast);
 	}
 
-	private _revealChange(change: ICellDiffInfo, firstOrLast: boolean = true) {
+	private _revealFirstOrLast(change: ICellDiffInfo, firstOrLast: boolean = true) {
 		switch (change.type) {
 			case 'insert':
 			case 'modified':
 				{
 					const index = firstOrLast || change.type === 'insert' ? 0 : change.diff.get().changes.length - 1;
-					// TODO: check if this breaks for inserted cells
-					const textChange = change.diff.get().changes[index];
 					const cellIntegration = this.getCell(change.modifiedCellIndex);
 					if (cellIntegration) {
 						cellIntegration.reveal(firstOrLast);
 						this._currentChange.set({ change: change, index }, undefined);
+						return true;
 					} else {
-						const cellViewModel = this.getCellViewModel(change);
-						if (cellViewModel) {
-							this.revealChangeInView(cellViewModel, textChange.modified);
-							this._currentChange.set({ change: change, index }, undefined);
-						}
+						return this._revealChange(change, index);
+					}
+				}
+			case 'delete':
+				// reveal the deleted cell decorator
+				this.insertDeleteDecorators.get()?.deletedCellDecorator.reveal(change.originalCellIndex);
+				this._currentChange.set({ change: change, index: 0 }, undefined);
+				return true;
+			default:
+				break;
+		}
+
+		return false;
+	}
+
+	private _revealChange(change: ICellDiffInfo, indexInCell: number) {
+		switch (change.type) {
+			case 'insert':
+			case 'modified':
+				{
+					const textChange = change.diff.get().changes[indexInCell];
+					const cellViewModel = this.getCellViewModel(change);
+					if (cellViewModel) {
+						this.revealChangeInView(cellViewModel, textChange.modified);
+						this._currentChange.set({ change: change, index: indexInCell }, undefined);
 					}
 
 					return true;
@@ -354,7 +373,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			const firstChange = changes[0];
 
 			if (firstChange) {
-				return this._revealChange(firstChange);
+				return this._revealFirstOrLast(firstChange);
 			}
 
 			return false;
@@ -373,9 +392,12 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 						}
 					}
 
-					const nextChange = changes[changes.indexOf(currentChange.change) + 1];
-					if (nextChange) {
-						return this._revealChange(nextChange, true);
+					const isLastChangeInCell = currentChange.index === lastChangeIndex(currentChange.change);
+					const index = isLastChangeInCell ? 0 : currentChange.index + 1;
+					const change = isLastChangeInCell ? changes[changes.indexOf(currentChange.change) + 1] : currentChange.change;
+
+					if (change) {
+						return this._revealChange(change, index);
 					}
 				}
 				break;
@@ -385,7 +407,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 					// go to next change directly
 					const nextChange = changes[changes.indexOf(currentChange.change) + 1];
 					if (nextChange) {
-						return this._revealChange(nextChange, true);
+						return this._revealFirstOrLast(nextChange, true);
 					}
 				}
 				break;
@@ -406,7 +428,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 		if (!currentChange) {
 			const lastChange = changes[changes.length - 1];
 			if (lastChange) {
-				return this._revealChange(lastChange, false);
+				return this._revealFirstOrLast(lastChange, false);
 			}
 
 			return false;
@@ -425,9 +447,12 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 						}
 					}
 
-					const nextChange = changes[changes.indexOf(currentChange.change) - 1];
-					if (nextChange) {
-						return this._revealChange(nextChange, false);
+					const isFirstChangeInCell = currentChange.index === 0;
+					const index = isFirstChangeInCell ? 0 : currentChange.index - 1;
+					const change = isFirstChangeInCell ? changes[changes.indexOf(currentChange.change) - 1] : currentChange.change;
+
+					if (change) {
+						return this._revealChange(change, index);
 					}
 				}
 				break;
@@ -437,7 +462,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 					// go to previous change directly
 					const prevChange = changes[changes.indexOf(currentChange.change) - 1];
 					if (prevChange) {
-						return this._revealChange(prevChange, false);
+						return this._revealFirstOrLast(prevChange, false);
 					}
 				}
 				break;
@@ -448,7 +473,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 		if (wrap) {
 			const lastChange = changes[changes.length - 1];
 			if (lastChange) {
-				return this._revealChange(lastChange, false);
+				return this._revealFirstOrLast(lastChange, false);
 			}
 		}
 
@@ -581,4 +606,11 @@ function areDocumentDiff2Equal(diff1: IDocumentDiff2, diff2: IDocumentDiff2): bo
 		return false;
 	}
 	return true;
+}
+
+function lastChangeIndex(change: ICellDiffInfo): number {
+	if (change.type === 'modified') {
+		return change.diff.get().changes.length - 1;
+	}
+	return 0;
 }
