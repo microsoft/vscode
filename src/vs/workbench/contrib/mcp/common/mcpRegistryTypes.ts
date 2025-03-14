@@ -40,6 +40,9 @@ export interface IMcpRegistry {
 	readonly collections: IObservable<readonly McpCollectionDefinition[]>;
 	readonly delegates: readonly IMcpHostDelegate[];
 
+	/** Gets the prefix that should be applied to a collection's tools in order to avoid ID conflicts */
+	collectionToolPrefix(collection: McpCollectionReference): IObservable<string>;
+
 	/** Whether there are new collections that can be resolved with a discover() call */
 	readonly lazyCollectionState: IObservable<LazyCollectionState>;
 	/** Discover new collections, returning newly-discovered ones. */

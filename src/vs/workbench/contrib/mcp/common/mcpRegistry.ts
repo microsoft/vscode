@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { StringSHA1 } from '../../../../base/common/hash.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
@@ -23,6 +24,8 @@ const createTrustMemento = observableMemento<Readonly<Record<string, boolean>>>(
 	key: 'mcp.trustedCollections'
 });
 
+const collectionPrefixLen = 3;
+
 export class McpRegistry extends Disposable implements IMcpRegistry {
 	declare public readonly _serviceBrand: undefined;
 
@@ -31,6 +34,39 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 	private readonly _collections = observableValue<readonly McpCollectionDefinition[]>('collections', []);
 	private readonly _delegates: IMcpHostDelegate[] = [];
 	public readonly collections: IObservable<readonly McpCollectionDefinition[]> = this._collections;
+
+	private readonly _collectionToPrefixes = this._collections.map(c => {
+		// This creates tool prefixes based on a hash of the collection ID. This is
+		// a short prefix because tool names that are too long can cause errors (#243602).
+		// So we take a hash (in order for tools to be stable, because randomized
+		// names can cause hallicinations if present in history) and then adjust
+		// them if there are any collisions.
+		type CollectionHash = { view: number; hash: string; collection: McpCollectionDefinition };
+
+		const hashes = c.map((collection): CollectionHash => {
+			const sha = new StringSHA1();
+			sha.update(collection.id);
+			return { view: 0, hash: sha.digest(), collection };
+		});
+
+		const view = (h: CollectionHash) => h.hash.slice(h.view, h.view + collectionPrefixLen);
+
+		let collided = false;
+		do {
+			hashes.sort((a, b) => view(a).localeCompare(view(b)) || a.collection.id.localeCompare(b.collection.id));
+			collided = false;
+			for (let i = 1; i < hashes.length; i++) {
+				const prev = hashes[i - 1];
+				const curr = hashes[i];
+				if (view(prev) === view(curr) && curr.view + collectionPrefixLen < curr.hash.length) {
+					curr.view++;
+					collided = true;
+				}
+			}
+		} while (collided);
+
+		return Object.fromEntries(hashes.map(h => [h.collection.id, view(h) + '.']));
+	});
 
 	private readonly _workspaceStorage = new Lazy(() => this._register(this._instantiationService.createInstance(McpRegistryInputStorage, StorageScope.WORKSPACE, StorageTarget.USER)));
 	private readonly _profileStorage = new Lazy(() => this._register(this._instantiationService.createInstance(McpRegistryInputStorage, StorageScope.PROFILE, StorageTarget.USER)));
@@ -90,6 +126,10 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 				this._collections.set(currentCollections.filter(c => c !== collection), undefined);
 			}
 		};
+	}
+
+	public collectionToolPrefix(collection: McpCollectionReference): IObservable<string> {
+		return this._collectionToPrefixes.map(p => p[collection.id] ?? '');
 	}
 
 	public async discoverCollections(): Promise<McpCollectionDefinition[]> {
