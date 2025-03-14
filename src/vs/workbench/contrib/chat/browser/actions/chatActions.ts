@@ -508,7 +508,13 @@ export function registerChatActions() {
 		}
 	});
 
-	const nonEnterpriseCopilotUsers = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.notEquals(`config.${defaultChat.completionsAdvancedSetting}.authProvider`, defaultChat.enterpriseProviderId));
+	const nonEnterpriseCopilotUsers = ContextKeyExpr.and(
+		ContextKeyExpr.or(
+			ChatContextKeys.Setup.limited,
+			ChatContextKeys.Setup.pro
+		),
+		ContextKeyExpr.notEquals(`config.${defaultChat.completionsAdvancedSetting}.authProvider`, defaultChat.enterpriseProviderId)
+	);
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -556,7 +562,7 @@ export function registerChatActions() {
 			super({
 				id: 'workbench.action.chat.configureCodeCompletions',
 				title: localize2('configureCompletions', "Configure Code Completions..."),
-				precondition: ChatContextKeys.enabled,
+				precondition: ChatContextKeys.Setup.installed,
 				menu: {
 					id: MenuId.ChatTitleBarMenu,
 					group: 'f_completions',
