@@ -4,26 +4,35 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
+import { equals } from '../../../../base/common/objects.js';
 import { autorun, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
-import { ILanguageModelToolsService, IToolResult } from '../../chat/common/languageModelToolsService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../../chat/common/languageModelToolsService.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServer, McpServerMetadataCache } from './mcpServer.js';
-import { IMcpServer, IMcpService, McpCollectionDefinition, McpServerDefinition, McpServerToolsState } from './mcpTypes.js';
+import { IMcpServer, IMcpService, IMcpTool, McpCollectionDefinition, McpServerDefinition, McpServerToolsState } from './mcpTypes.js';
 
+interface ISyncedToolData {
+	toolData: IToolData;
+	toolDispose: IDisposable;
+	implDispose: IDisposable;
+}
+
+type IMcpServerRec = IReference<IMcpServer>;
 
 export class McpService extends Disposable implements IMcpService {
 
 	declare _serviceBrand: undefined;
 
-	private readonly _servers = observableValue<readonly IMcpServer[]>(this, []);
-	public readonly servers: IObservable<readonly IMcpServer[]> = this._servers;
+	private readonly _servers = observableValue<readonly IMcpServerRec[]>(this, []);
+	public readonly servers: IObservable<readonly IMcpServer[]> = this._servers.map(servers => servers.map(s => s.object));
 
 	public get lazyCollectionState() { return this._mcpRegistry.lazyCollectionState; }
 
@@ -33,7 +42,7 @@ export class McpService extends Disposable implements IMcpService {
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
-		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
+		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
 		@IProductService productService: IProductService,
 		@ILogService private readonly _logService: ILogService,
 	) {
@@ -52,81 +61,6 @@ export class McpService extends Disposable implements IMcpService {
 			}
 			updateThrottle.schedule(500);
 		}));
-
-
-		const tools = this._register(new MutableDisposable());
-		this._register(autorun(r => {
-
-			const servers = this._servers.read(r);
-
-			// TODO@jrieken wasteful, needs some diff'ing/change-info
-			const newStore = new DisposableStore();
-
-			tools.clear();
-
-			for (const server of servers) {
-
-				for (const tool of server.tools.read(r)) {
-
-					newStore.add(toolsService.registerToolData({
-						id: tool.id,
-						displayName: tool.definition.name,
-						toolReferenceName: tool.definition.name,
-						modelDescription: tool.definition.description ?? '',
-						userDescription: tool.definition.description ?? '',
-						inputSchema: tool.definition.inputSchema,
-						canBeReferencedInPrompt: true,
-						tags: ['mcp', 'vscode_editing'] // TODO@jrieken remove this tag
-					}));
-					newStore.add(toolsService.registerToolImplementation(tool.id, {
-
-						async prepareToolInvocation(parameters, token) {
-
-							const mcpToolWarning = localize(
-								'mcp.tool.warning',
-								"MCP servers or malicious conversation content may attempt to misuse '{0}' through the installed tools. Please carefully review any requested actions.",
-								productService.nameShort
-							);
-
-							return {
-								confirmationMessages: {
-									title: localize('msg.title', "Run `{0}` from $(server) `{1}` (MCP server)", tool.definition.name, server.definition.label),
-									message: new MarkdownString(localize('msg.msg', "{0}\n\nInput:\n\n```json\n{1}\n```\n\n$(warning) {2}", tool.definition.description, JSON.stringify(parameters, undefined, 2), mcpToolWarning), { supportThemeIcons: true })
-								},
-								invocationMessage: new MarkdownString(localize('msg.run', "Running `{0}`", tool.definition.name, server.definition.label)),
-								pastTenseMessage: new MarkdownString(localize('msg.ran', "Ran `{0}` ", tool.definition.name, server.definition.label))
-							};
-						},
-
-						async invoke(invocation, countTokens, token) {
-
-							const result: IToolResult = {
-								content: []
-							};
-
-							const callResult = await tool.call(invocation.parameters as Record<string, any>, token);
-							for (const item of callResult.content) {
-								if (item.type === 'text') {
-									result.content.push({
-										kind: 'text',
-										value: item.text
-									});
-								} else {
-									// TODO@jrieken handle different item types
-								}
-							}
-
-							// result.toolResultMessage = new MarkdownString(localize('reuslt.pattern', "```json\n{0}\n```", JSON.stringify(callResult, undefined, 2)));
-
-							return result;
-						},
-					}));
-				}
-			}
-
-			tools.value = newStore;
-
-		}));
 	}
 
 	public resetCaches(): void {
@@ -142,7 +76,7 @@ export class McpService extends Disposable implements IMcpService {
 
 		// Discover any newly-collected servers with unknown tools
 		const todo: Promise<unknown>[] = [];
-		for (const server of this._servers.get()) {
+		for (const { object: server } of this._servers.get()) {
 			if (collectionIds.has(server.collection.id)) {
 				const state = server.toolsState.get();
 				if (state === McpServerToolsState.Unknown) {
@@ -152,6 +86,58 @@ export class McpService extends Disposable implements IMcpService {
 		}
 
 		await Promise.all(todo);
+	}
+
+	private _syncTools(server: McpServer, store: DisposableStore) {
+		const tools = new Map</* tool ID */string, ISyncedToolData>();
+
+		store.add(autorun(reader => {
+			const toDelete = new Set(tools.keys());
+			for (const tool of server.tools.read(reader)) {
+				const existing = tools.get(tool.id);
+				const toolData: IToolData = {
+					id: tool.id,
+					displayName: tool.definition.name,
+					toolReferenceName: tool.definition.name,
+					modelDescription: tool.definition.description ?? '',
+					userDescription: tool.definition.description ?? '',
+					inputSchema: tool.definition.inputSchema,
+					canBeReferencedInPrompt: true,
+					tags: ['mcp', 'vscode_editing'], // TODO@jrieken remove this tag
+				};
+
+				if (existing) {
+					if (!equals(existing.toolData, toolData)) {
+						existing.toolData = toolData;
+						existing.toolDispose.dispose();
+						existing.toolDispose = this._toolsService.registerToolData(toolData);
+					}
+					toDelete.delete(tool.id);
+				} else {
+					tools.set(tool.id, {
+						toolData,
+						toolDispose: this._toolsService.registerToolData(toolData),
+						implDispose: this._toolsService.registerToolImplementation(tool.id, this._instantiationService.createInstance(McpToolImplementation, tool, server)),
+					});
+				}
+			}
+
+			for (const id of toDelete) {
+				const tool = tools.get(id);
+				if (tool) {
+					tool.toolDispose.dispose();
+					tool.implDispose.dispose();
+					tools.delete(id);
+				}
+			}
+		}));
+
+		store.add(toDisposable(() => {
+			for (const tool of tools.values()) {
+				tool.toolDispose.dispose();
+				tool.implDispose.dispose();
+			}
+		}));
 	}
 
 	private _updateCollectedServers() {
@@ -164,21 +150,21 @@ export class McpService extends Disposable implements IMcpService {
 
 		const nextDefinitions = new Set(definitions);
 		const currentServers = this._servers.get();
-		const nextServers: IMcpServer[] = [];
-		const pushMatch = (match: (typeof definitions)[0], server: IMcpServer) => {
+		const nextServers: IMcpServerRec[] = [];
+		const pushMatch = (match: (typeof definitions)[0], rec: IMcpServerRec) => {
 			nextDefinitions.delete(match);
-			nextServers.push(server);
-			const connection = server.connection.get();
+			nextServers.push(rec);
+			const connection = rec.object.connection.get();
 			// if the definition was modified, stop the server; it'll be restarted again on-demand
 			if (connection && !McpServerDefinition.equals(connection.definition, match.serverDefinition)) {
-				server.stop();
-				this._logService.debug(`MCP server ${server.definition.id} stopped because the definition changed`);
+				rec.object.stop();
+				this._logService.debug(`MCP server ${rec.object.definition.id} stopped because the definition changed`);
 			}
 		};
 
 		// Transfer over any servers that are still valid.
 		for (const server of currentServers) {
-			const match = definitions.find(d => defsEqual(server, d));
+			const match = definitions.find(d => defsEqual(server.object, d));
 			if (match) {
 				pushMatch(match, server);
 			} else {
@@ -188,7 +174,12 @@ export class McpService extends Disposable implements IMcpService {
 
 		// Create any new servers that are needed.
 		for (const def of nextDefinitions) {
-			nextServers.push(this._instantiationService.createInstance(McpServer, def.collectionDefinition, def.serverDefinition, false, def.collectionDefinition.scope === StorageScope.WORKSPACE ? this.workspaceCache : this.userCache));
+			const store = new DisposableStore();
+			const object = this._instantiationService.createInstance(McpServer, def.collectionDefinition, def.serverDefinition, false, def.collectionDefinition.scope === StorageScope.WORKSPACE ? this.workspaceCache : this.userCache);
+			store.add(object);
+			this._syncTools(object, store);
+
+			nextServers.push({ object, dispose: () => store.dispose() });
 		}
 
 		transaction(tx => {
@@ -197,11 +188,62 @@ export class McpService extends Disposable implements IMcpService {
 	}
 
 	public override dispose(): void {
-		this._servers.get().forEach(server => server.dispose());
+		this._servers.get().forEach(s => s.dispose());
 		super.dispose();
 	}
 }
 
 function defsEqual(server: IMcpServer, def: { serverDefinition: McpServerDefinition; collectionDefinition: McpCollectionDefinition }) {
 	return server.collection.id === def.collectionDefinition.id && server.definition.id === def.serverDefinition.id;
+}
+
+class McpToolImplementation implements IToolImpl {
+	constructor(
+		private readonly _tool: IMcpTool,
+		private readonly _server: IMcpServer,
+		@IProductService private readonly _productService: IProductService,
+	) { }
+
+	async prepareToolInvocation(parameters: any, token: CancellationToken) {
+		const tool = this._tool;
+		const server = this._server;
+
+		const mcpToolWarning = localize(
+			'mcp.tool.warning',
+			"MCP servers or malicious conversation content may attempt to misuse '{0}' through the installed tools. Please carefully review any requested actions.",
+			this._productService.nameShort
+		);
+
+		return {
+			confirmationMessages: {
+				title: localize('msg.title', "Run `{0}` from $(server) `{1}` (MCP server)", tool.definition.name, server.definition.label),
+				message: new MarkdownString(localize('msg.msg', "{0}\n\nInput:\n\n```json\n{1}\n```\n\n$(warning) {2}", tool.definition.description, JSON.stringify(parameters, undefined, 2), mcpToolWarning), { supportThemeIcons: true })
+			},
+			invocationMessage: new MarkdownString(localize('msg.run', "Running `{0}`", tool.definition.name, server.definition.label)),
+			pastTenseMessage: new MarkdownString(localize('msg.ran', "Ran `{0}` ", tool.definition.name, server.definition.label))
+		};
+	}
+
+	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, token: CancellationToken) {
+
+		const result: IToolResult = {
+			content: []
+		};
+
+		const callResult = await this._tool.call(invocation.parameters as Record<string, any>, token);
+		for (const item of callResult.content) {
+			if (item.type === 'text') {
+				result.content.push({
+					kind: 'text',
+					value: item.text
+				});
+			} else {
+				// TODO@jrieken handle different item types
+			}
+		}
+
+		// result.toolResultMessage = new MarkdownString(localize('reuslt.pattern', "```json\n{0}\n```", JSON.stringify(callResult, undefined, 2)));
+
+		return result;
+	}
 }
