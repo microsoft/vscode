@@ -473,8 +473,8 @@ function isSubExecution(unresolvedCommandLines: string[], commandLine: vscode.Te
 	if (newUnresolvedCommandLines && newUnresolvedCommandLines.length > 0) {
 		// If all sub-execution lines are in the command line, this is part of the
 		// multi-line execution.
-		for (let i = 0; i < newUnresolvedCommandLines.length; i++) {
-			if (newUnresolvedCommandLines[i] !== subExecutionLines[i]) {
+		while (newUnresolvedCommandLines.length > 0) {
+			if (newUnresolvedCommandLines[0] !== subExecutionLines[0]) {
 				break;
 			}
 			newUnresolvedCommandLines.shift();

@@ -25,6 +25,9 @@ function asCmdLine(value: string | TerminalShellExecutionCommandLine): TerminalS
 	}
 	return value;
 }
+function vsc(data: string) {
+	return `\x1b]633;${data}\x07`;
+}
 
 const testCommandLine = 'echo hello world';
 const testCommandLine2 = 'echo goodbye world';
@@ -203,6 +206,62 @@ suite('InternalTerminalShellIntegration', () => {
 				{ commandLine, type: 'data', data: '2' },
 				{ commandLine, type: 'data', data: '3' },
 				{ commandLine, type: 'data', data: '4' },
+				{ commandLine, type: 'end' },
+			]);
+		});
+
+		test('multi-line command with long second command', async () => {
+			const commandLine = 'echo foo\ncat << EOT\nline1\nline2\nline3\nEOT';
+			const subCommandLine1 = 'echo foo';
+			const subCommandLine2 = 'cat << EOT\nline1\nline2\nline3\nEOT';
+
+			const apiRequestedExecution = si.requestNewShellExecution(cmdLine(commandLine), undefined);
+			const startedExecution = await startExecutionAwaitObject(subCommandLine1);
+			strictEqual(startedExecution, apiRequestedExecution.value);
+
+			si.emitData(`${vsc('C')}foo`);
+			si.endShellExecution(cmdLine(subCommandLine1), 0);
+			si.startShellExecution(cmdLine(subCommandLine2), undefined);
+			si.emitData(`${vsc('C')}line1`);
+			si.emitData('line2');
+			si.emitData('line3');
+			const endedExecution = await endExecutionAwaitObject(subCommandLine2);
+			strictEqual(startedExecution, endedExecution);
+
+			assertTrackedEvents([
+				{ commandLine, type: 'start' },
+				{ commandLine, type: 'data', data: `${vsc('C')}foo` },
+				{ commandLine, type: 'data', data: `${vsc('C')}line1` },
+				{ commandLine, type: 'data', data: 'line2' },
+				{ commandLine, type: 'data', data: 'line3' },
+				{ commandLine, type: 'end' },
+			]);
+		});
+
+		test('multi-line command comment followed by long second command', async () => {
+			const commandLine = '# comment: foo\ncat << EOT\nline1\nline2\nline3\nEOT';
+			const subCommandLine1 = '# comment: foo';
+			const subCommandLine2 = 'cat << EOT\nline1\nline2\nline3\nEOT';
+
+			const apiRequestedExecution = si.requestNewShellExecution(cmdLine(commandLine), undefined);
+			const startedExecution = await startExecutionAwaitObject(subCommandLine1);
+			strictEqual(startedExecution, apiRequestedExecution.value);
+
+			si.emitData(`${vsc('C')}`);
+			si.endShellExecution(cmdLine(subCommandLine1), 0);
+			si.startShellExecution(cmdLine(subCommandLine2), undefined);
+			si.emitData(`${vsc('C')}line1`);
+			si.emitData('line2');
+			si.emitData('line3');
+			const endedExecution = await endExecutionAwaitObject(subCommandLine2);
+			strictEqual(startedExecution, endedExecution);
+
+			assertTrackedEvents([
+				{ commandLine, type: 'start' },
+				{ commandLine, type: 'data', data: `${vsc('C')}` },
+				{ commandLine, type: 'data', data: `${vsc('C')}line1` },
+				{ commandLine, type: 'data', data: 'line2' },
+				{ commandLine, type: 'data', data: 'line3' },
 				{ commandLine, type: 'end' },
 			]);
 		});
