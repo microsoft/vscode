@@ -265,5 +265,43 @@ suite('InternalTerminalShellIntegration', () => {
 				{ commandLine, type: 'end' },
 			]);
 		});
+
+		test('4 multi-line commands with output', async () => {
+			const commandLine = 'echo "\nfoo"\ngit commit -m "hello\n\nworld"\ncat << EOT\nline1\nline2\nline3\nEOT\n{\necho "foo"\n}';
+			const subCommandLine1 = 'echo "\nfoo"';
+			const subCommandLine2 = 'git commit -m "hello\n\nworld"';
+			const subCommandLine3 = 'cat << EOT\nline1\nline2\nline3\nEOT';
+			const subCommandLine4 = '{\necho "foo"\n}';
+
+			const apiRequestedExecution = si.requestNewShellExecution(cmdLine(commandLine), undefined);
+			const startedExecution = await startExecutionAwaitObject(subCommandLine1);
+			strictEqual(startedExecution, apiRequestedExecution.value);
+
+			si.emitData(`${vsc('C')}foo`);
+			si.endShellExecution(cmdLine(subCommandLine1), 0);
+			si.startShellExecution(cmdLine(subCommandLine2), undefined);
+			si.emitData(`${vsc('C')} 2 files changed, 61 insertions(+), 2 deletions(-)`);
+			si.endShellExecution(cmdLine(subCommandLine2), 0);
+			si.startShellExecution(cmdLine(subCommandLine3), undefined);
+			si.emitData(`${vsc('C')}line1`);
+			si.emitData('line2');
+			si.emitData('line3');
+			si.endShellExecution(cmdLine(subCommandLine3), 0);
+			si.emitData(`${vsc('C')}foo`);
+			si.startShellExecution(cmdLine(subCommandLine4), undefined);
+			const endedExecution = await endExecutionAwaitObject(subCommandLine4);
+			strictEqual(startedExecution, endedExecution);
+
+			assertTrackedEvents([
+				{ commandLine, type: 'start' },
+				{ commandLine, type: 'data', data: `${vsc('C')}foo` },
+				{ commandLine, type: 'data', data: `${vsc('C')} 2 files changed, 61 insertions(+), 2 deletions(-)` },
+				{ commandLine, type: 'data', data: `${vsc('C')}line1` },
+				{ commandLine, type: 'data', data: 'line2' },
+				{ commandLine, type: 'data', data: 'line3' },
+				{ commandLine, type: 'data', data: `${vsc('C')}foo` },
+				{ commandLine, type: 'end' },
+			]);
+		});
 	});
 });
