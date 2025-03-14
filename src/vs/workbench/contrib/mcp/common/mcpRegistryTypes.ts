@@ -7,7 +7,7 @@ import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { McpCollectionDefinition, McpServerDefinition, McpServerLaunch, McpConnectionState, IMcpServerConnection } from './mcpTypes.js';
+import { McpCollectionDefinition, McpServerDefinition, McpServerLaunch, McpConnectionState, IMcpServerConnection, McpCollectionReference, McpDefinitionReference, LazyCollectionState } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
 
 export const IMcpRegistry = createDecorator<IMcpRegistry>('mcpRegistry');
@@ -22,13 +22,14 @@ export interface IMcpMessageTransport extends IDisposable {
 }
 
 export interface IMcpHostDelegate {
+	waitForInitialProviderPromises(): Promise<void>;
 	canStart(collectionDefinition: McpCollectionDefinition, serverDefinition: McpServerDefinition): boolean;
 	start(collectionDefinition: McpCollectionDefinition, serverDefinition: McpServerDefinition, resolvedLaunch: McpServerLaunch): IMcpMessageTransport;
 }
 
 export interface IMcpResolveConnectionOptions {
-	collection: McpCollectionDefinition;
-	definition: McpServerDefinition;
+	collectionRef: McpCollectionReference;
+	definitionRef: McpDefinitionReference;
 	/** If set, the user will be asked to trust the collection even if they untrusted it previously */
 	forceTrust?: boolean;
 }
@@ -39,6 +40,11 @@ export interface IMcpRegistry {
 	readonly collections: IObservable<readonly McpCollectionDefinition[]>;
 	readonly delegates: readonly IMcpHostDelegate[];
 
+	/** Whether there are new collections that can be resolved with a discover() call */
+	readonly lazyCollectionState: IObservable<LazyCollectionState>;
+	/** Discover new collections, returning newly-discovered ones. */
+	discoverCollections(): Promise<McpCollectionDefinition[]>;
+
 	registerDelegate(delegate: IMcpHostDelegate): IDisposable;
 	registerCollection(collection: McpCollectionDefinition): IDisposable;
 
@@ -46,10 +52,10 @@ export interface IMcpRegistry {
 	resetTrust(): void;
 
 	/** Gets whether the collection is trusted. */
-	getTrust(collection: McpCollectionDefinition): IObservable<boolean | undefined>;
+	getTrust(collection: McpCollectionReference): IObservable<boolean | undefined>;
 
 	/** Resets any saved inputs for the connection. */
-	clearSavedInputs(collection: McpCollectionDefinition, definition: McpServerDefinition): void;
+	clearSavedInputs(collection: McpCollectionReference, definition: McpServerDefinition): void;
 	/** Creates a connection for the collection and definition. */
 	resolveConnection(options: IMcpResolveConnectionOptions): Promise<IMcpServerConnection | undefined>;
 }

@@ -10,20 +10,27 @@ import { LRUCache } from '../../../../base/common/map.js';
 import { autorun, autorunWithStore, derived, disposableObservableValue, IObservable, ITransaction, observableFromEvent, ObservablePromise, observableValue, transaction } from '../../../../base/common/observable.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { mcpActivationEvent } from './mcpConfiguration.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
-import { McpCollectionDefinition, IMcpServer, IMcpServerConnection, McpServerDefinition, IMcpTool, McpConnectionFailedError, McpConnectionState, McpServerToolsState } from './mcpTypes.js';
+import { extensionMcpCollectionPrefix, IMcpServer, IMcpServerConnection, IMcpTool, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, McpServerDefinition, McpServerToolsState } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
 
 
-interface IMetadataCacheEntry {
+interface IToolCacheEntry {
 	/** Cached tools so we can show what's available before it's started */
 	readonly tools: readonly MCP.Tool[];
 }
 
+interface IServerCacheEntry {
+	readonly servers: readonly McpServerDefinition.Serialized[];
+}
+
 export class McpServerMetadataCache extends Disposable {
 	private didChange = false;
-	private readonly cache = new LRUCache<string, IMetadataCacheEntry>(128);
+	private readonly cache = new LRUCache<string, IToolCacheEntry>(128);
+	private readonly extensionServers = new Map</* collection ID */string, IServerCacheEntry>();
 
 	constructor(
 		scope: StorageScope,
@@ -31,30 +38,61 @@ export class McpServerMetadataCache extends Disposable {
 	) {
 		super();
 
-		type StoredType = [string, IMetadataCacheEntry][];
+		type StoredType = {
+			extensionServers: [string, IServerCacheEntry][];
+			serverTools: [string, IToolCacheEntry][];
+		};
 
 		const storageKey = 'mcpToolCache';
 		this._register(storageService.onWillSaveState(() => {
 			if (this.didChange) {
-				storageService.store(storageKey, this.cache.toJSON() satisfies StoredType, scope, StorageTarget.MACHINE);
+				storageService.store(storageKey, {
+					extensionServers: [...this.extensionServers],
+					serverTools: this.cache.toJSON(),
+				} satisfies StoredType, scope, StorageTarget.MACHINE);
 				this.didChange = false;
 			}
 		}));
 
 		try {
 			const cached: StoredType | undefined = storageService.getObject(storageKey, scope);
-			cached?.forEach(([k, v]) => this.cache.set(k, v));
+			this.extensionServers = new Map(cached?.extensionServers ?? []);
+			cached?.serverTools?.forEach(([k, v]) => this.cache.set(k, v));
 		} catch {
 			// ignored
 		}
 	}
 
+	/** Resets the cache for tools and extension servers */
+	reset() {
+		this.cache.clear();
+		this.extensionServers.clear();
+		this.didChange = true;
+	}
+
+	/** Gets cached tools for a server (used before a server is running) */
 	getTools(definitionId: string): readonly MCP.Tool[] | undefined {
 		return this.cache.get(definitionId)?.tools;
 	}
 
+	/** Sets cached tools for a server */
 	storeTools(definitionId: string, tools: readonly MCP.Tool[]): void {
 		this.cache.set(definitionId, { ...this.cache.get(definitionId), tools });
+		this.didChange = true;
+	}
+
+	/** Gets cached servers for a collection (used for extensions, before the extension activates) */
+	getServers(collectionId: string) {
+		return this.extensionServers.get(collectionId);
+	}
+
+	/** Sets cached servers for a collection */
+	storeServers(collectionId: string, entry: IServerCacheEntry | undefined): void {
+		if (entry) {
+			this.extensionServers.set(collectionId, entry);
+		} else {
+			this.extensionServers.delete(collectionId);
+		}
 		this.didChange = true;
 	}
 }
@@ -63,6 +101,7 @@ export class McpServer extends Disposable implements IMcpServer {
 	private readonly _connectionSequencer = new Sequencer();
 	private readonly _connection = this._register(disposableObservableValue<IMcpServerConnection | undefined>(this, undefined));
 
+	public readonly connection = this._connection;
 	public readonly connectionState: IObservable<McpConnectionState> = derived(reader => this._connection.read(reader)?.state.read(reader) ?? { state: McpConnectionState.Kind.Stopped });
 
 	private get toolsFromCache() {
@@ -98,11 +137,13 @@ export class McpServer extends Disposable implements IMcpServer {
 	}
 
 	constructor(
-		public readonly collection: McpCollectionDefinition,
-		public readonly definition: McpServerDefinition,
+		public readonly collection: McpCollectionReference,
+		public readonly definition: McpDefinitionReference,
+		private readonly _requiresExtensionActivation: boolean | undefined,
 		private readonly _toolCache: McpServerMetadataCache,
 		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
 		@IWorkspaceContextService workspacesService: IWorkspaceContextService,
+		@IExtensionService private readonly _extensionService: IExtensionService,
 	) {
 		super();
 
@@ -150,11 +191,23 @@ export class McpServer extends Disposable implements IMcpServer {
 
 	public start(isFromInteraction?: boolean): Promise<McpConnectionState> {
 		return this._connectionSequencer.queue(async () => {
+			const activationEvent = mcpActivationEvent(this.collection.id.slice(extensionMcpCollectionPrefix.length));
+			if (this._requiresExtensionActivation && !this._extensionService.activationEventIsDone(activationEvent)) {
+				await this._extensionService.activateByEvent(activationEvent);
+				await Promise.all(this._mcpRegistry.delegates
+					.map(r => r.waitForInitialProviderPromises()));
+				// This can happen if the server was created from a cached MCP server seen
+				// from an extension, but then it wasn't registered when the extension activated.
+				if (this._store.isDisposed) {
+					return { state: McpConnectionState.Kind.Stopped };
+				}
+			}
+
 			let connection = this._connection.get();
 			if (!connection) {
 				connection = await this._mcpRegistry.resolveConnection({
-					collection: this.collection,
-					definition: this.definition,
+					collectionRef: this.collection,
+					definitionRef: this.definition,
 					forceTrust: isFromInteraction,
 				});
 				if (!connection) {

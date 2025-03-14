@@ -6,16 +6,17 @@
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { ILanguageModelToolsService, IToolResult } from '../../chat/common/languageModelToolsService.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServer, McpServerMetadataCache } from './mcpServer.js';
-import { IMcpServer, IMcpService, McpCollectionDefinition, McpServerDefinition } from './mcpTypes.js';
+import { IMcpServer, IMcpService, McpCollectionDefinition, McpServerDefinition, McpServerToolsState } from './mcpTypes.js';
+
 
 export class McpService extends Disposable implements IMcpService {
 
@@ -24,61 +25,36 @@ export class McpService extends Disposable implements IMcpService {
 	private readonly _servers = observableValue<readonly IMcpServer[]>(this, []);
 	public readonly servers: IObservable<readonly IMcpServer[]> = this._servers;
 
-	private readonly userCache: McpServerMetadataCache;
-	private readonly workspaceCache: McpServerMetadataCache;
+	public get lazyCollectionState() { return this._mcpRegistry.lazyCollectionState; }
+
+	protected readonly userCache: McpServerMetadataCache;
+	protected readonly workspaceCache: McpServerMetadataCache;
 
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
 		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IProductService productService: IProductService
+		@IProductService productService: IProductService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 
-		this.userCache = instantiationService.createInstance(McpServerMetadataCache, StorageScope.PROFILE);
-		this.workspaceCache = instantiationService.createInstance(McpServerMetadataCache, StorageScope.WORKSPACE);
+		this.userCache = this._register(_instantiationService.createInstance(McpServerMetadataCache, StorageScope.PROFILE));
+		this.workspaceCache = this._register(_instantiationService.createInstance(McpServerMetadataCache, StorageScope.WORKSPACE));
 
-		const definitionsObservable = derived(reader => {
-			const collections = this._mcpRegistry.collections.read(reader);
-			return collections.flatMap(collectionDefinition => collectionDefinition.serverDefinitions.read(reader).map(serverDefinition => ({
-				serverDefinition,
-				collectionDefinition,
-			})));
-		});
-
-		const updateThrottle = this._store.add(new RunOnceScheduler(() => {
-			const definitions = definitionsObservable.get();
-
-			const nextDefinitions = new Set(definitions);
-			const currentServers = this._servers.get();
-			const nextServers: IMcpServer[] = [];
-			for (const server of currentServers) {
-				const match = definitions.find(d => defsEqual(server, d));
-				if (match) {
-					nextDefinitions.delete(match);
-					nextServers.push(server);
-				} else {
-					server.dispose();
-				}
-			}
-			for (const def of nextDefinitions) {
-				nextServers.push(instantiationService.createInstance(McpServer, def.collectionDefinition, def.serverDefinition, def.collectionDefinition.scope === StorageScope.WORKSPACE ? this.workspaceCache : this.userCache));
-			}
-
-			this._servers.set(nextServers, undefined);
-		}, 500));
+		const updateThrottle = this._store.add(new RunOnceScheduler(() => this._updateCollectedServers(), 500));
 
 		// Throttle changes so that if a collection is changed, or a server is
 		// unregistered/registered, we don't stop servers unnecessarily.
 		this._register(autorun(reader => {
-			definitionsObservable.read(reader);
+			for (const collection of this._mcpRegistry.collections.read(reader)) {
+				collection.serverDefinitions.read(reader);
+			}
 			updateThrottle.schedule(500);
 		}));
 
 
 		const tools = this._register(new MutableDisposable());
-
 		this._register(autorun(r => {
 
 			const servers = this._servers.read(r);
@@ -153,6 +129,73 @@ export class McpService extends Disposable implements IMcpService {
 		}));
 	}
 
+	public resetCaches(): void {
+		this.userCache.reset();
+		this.workspaceCache.reset();
+	}
+
+	public async activateCollections(): Promise<void> {
+		const collections = await this._mcpRegistry.discoverCollections();
+		const collectionIds = new Set(collections.map(c => c.id));
+
+		this._updateCollectedServers();
+
+		// Discover any newly-collected servers with unknown tools
+		const todo: Promise<unknown>[] = [];
+		for (const server of this._servers.get()) {
+			if (collectionIds.has(server.collection.id)) {
+				const state = server.toolsState.get();
+				if (state === McpServerToolsState.Unknown) {
+					todo.push(server.start());
+				}
+			}
+		}
+
+		await Promise.all(todo);
+	}
+
+	private _updateCollectedServers() {
+		const definitions = this._mcpRegistry.collections.get().flatMap(collectionDefinition =>
+			collectionDefinition.serverDefinitions.get().map(serverDefinition => ({
+				serverDefinition,
+				collectionDefinition,
+			}))
+		);
+
+		const nextDefinitions = new Set(definitions);
+		const currentServers = this._servers.get();
+		const nextServers: IMcpServer[] = [];
+		const pushMatch = (match: (typeof definitions)[0], server: IMcpServer) => {
+			nextDefinitions.delete(match);
+			nextServers.push(server);
+			const connection = server.connection.get();
+			// if the definition was modified, stop the server; it'll be restarted again on-demand
+			if (connection && !McpServerDefinition.equals(connection.definition, match.serverDefinition)) {
+				server.stop();
+				this._logService.debug(`MCP server ${server.definition.id} stopped because the definition changed`);
+			}
+		};
+
+		// Transfer over any servers that are still valid.
+		for (const server of currentServers) {
+			const match = definitions.find(d => defsEqual(server, d));
+			if (match) {
+				pushMatch(match, server);
+			} else {
+				server.dispose();
+			}
+		}
+
+		// Create any new servers that are needed.
+		for (const def of nextDefinitions) {
+			nextServers.push(this._instantiationService.createInstance(McpServer, def.collectionDefinition, def.serverDefinition, false, def.collectionDefinition.scope === StorageScope.WORKSPACE ? this.workspaceCache : this.userCache));
+		}
+
+		transaction(tx => {
+			this._servers.set(nextServers, tx);
+		});
+	}
+
 	public override dispose(): void {
 		this._servers.get().forEach(server => server.dispose());
 		super.dispose();
@@ -160,6 +203,5 @@ export class McpService extends Disposable implements IMcpService {
 }
 
 function defsEqual(server: IMcpServer, def: { serverDefinition: McpServerDefinition; collectionDefinition: McpCollectionDefinition }) {
-	return McpCollectionDefinition.equals(server.collection, def.collectionDefinition) &&
-		McpServerDefinition.equals(server.definition, def.serverDefinition);
+	return server.collection.id === def.collectionDefinition.id && server.definition.id === def.serverDefinition.id;
 }

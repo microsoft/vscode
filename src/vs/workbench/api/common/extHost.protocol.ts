@@ -61,7 +61,7 @@ import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IChatMessage, IChatResponseFragment, ILanguageModelChatMetadata, ILanguageModelChatSelector, ILanguageModelsChangeEvent } from '../../contrib/chat/common/languageModels.js';
 import { IPreparedToolInvocation, IToolData, IToolInvocation, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
 import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode, IDebugTestRunReference, IDebugVisualization, IDebugVisualizationContext, IDebugVisualizationTreeItem, MainThreadDebugVisualization } from '../../contrib/debug/common/debug.js';
-import { McpServerLaunch, McpConnectionState, McpCollectionDefinition, McpServerDefinition } from '../../contrib/mcp/common/mcpTypes.js';
+import { McpServerLaunch, McpConnectionState, McpServerDefinition, McpCollectionDefinition } from '../../contrib/mcp/common/mcpTypes.js';
 import * as notebookCommon from '../../contrib/notebook/common/notebookCommon.js';
 import { CellExecutionUpdateType } from '../../contrib/notebook/common/notebookExecutionService.js';
 import { ICellExecutionComplete, ICellExecutionStateUpdate } from '../../contrib/notebook/common/notebookExecutionStateService.js';
@@ -2973,6 +2973,7 @@ export interface ExtHostMcpShape {
 	$startMcp(id: number, launch: McpServerLaunch): void;
 	$stopMcp(id: number): void;
 	$sendMessage(id: number, message: string): void;
+	$waitForInitialCollectionProviders(): Promise<void>;
 }
 
 export interface MainThreadMcpShape {

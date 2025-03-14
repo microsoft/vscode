@@ -16,7 +16,7 @@ import { IConfigurationResolverService } from '../../../services/configurationRe
 import { McpRegistryInputStorage } from './mcpRegistryInputStorage.js';
 import { IMcpHostDelegate, IMcpRegistry, IMcpResolveConnectionOptions } from './mcpRegistryTypes.js';
 import { McpServerConnection } from './mcpServerConnection.js';
-import { IMcpServerConnection, McpCollectionDefinition, McpServerDefinition } from './mcpTypes.js';
+import { IMcpServerConnection, LazyCollectionState, McpCollectionDefinition, McpCollectionReference, McpServerDefinition } from './mcpTypes.js';
 
 const createTrustMemento = observableMemento<Readonly<Record<string, boolean>>>({
 	defaultValue: {},
@@ -30,13 +30,22 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 
 	private readonly _collections = observableValue<readonly McpCollectionDefinition[]>('collections', []);
 	private readonly _delegates: IMcpHostDelegate[] = [];
-
 	public readonly collections: IObservable<readonly McpCollectionDefinition[]> = this._collections;
 
 	private readonly _workspaceStorage = new Lazy(() => this._register(this._instantiationService.createInstance(McpRegistryInputStorage, StorageScope.WORKSPACE, StorageTarget.USER)));
 	private readonly _profileStorage = new Lazy(() => this._register(this._instantiationService.createInstance(McpRegistryInputStorage, StorageScope.PROFILE, StorageTarget.USER)));
 
 	private readonly _trustMemento = new Lazy(() => this._register(createTrustMemento(StorageScope.APPLICATION, StorageTarget.MACHINE, this._storageService)));
+	private readonly _lazyCollectionsToUpdate = new Set</* collection ID*/string>();
+	private readonly _ongoingLazyActivations = observableValue(this, 0);
+
+	public readonly lazyCollectionState = derived(reader => {
+		if (this._ongoingLazyActivations.read(reader) > 0) {
+			return LazyCollectionState.LoadingUnknown;
+		}
+		const collections = this._collections.read(reader);
+		return collections.some(c => c.lazy && c.lazy.isCached === false) ? LazyCollectionState.HasUnknown : LazyCollectionState.AllKnown;
+	});
 
 	public get delegates(): readonly IMcpHostDelegate[] {
 		return this._delegates;
@@ -65,7 +74,15 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 
 	public registerCollection(collection: McpCollectionDefinition): IDisposable {
 		const currentCollections = this._collections.get();
-		this._collections.set([...currentCollections, collection], undefined);
+		const toReplace = currentCollections.find(c => c.lazy && c.id === collection.id);
+
+		// Incoming collections replace the "lazy" versions. See `ExtensionMcpDiscovery` for an example.
+		if (toReplace) {
+			this._lazyCollectionsToUpdate.add(collection.id);
+			this._collections.set(currentCollections.map(c => c === toReplace ? collection : c), undefined);
+		} else {
+			this._collections.set([...currentCollections, collection], undefined);
+		}
 
 		return {
 			dispose: () => {
@@ -73,6 +90,31 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 				this._collections.set(currentCollections.filter(c => c !== collection), undefined);
 			}
 		};
+	}
+
+	public async discoverCollections(): Promise<McpCollectionDefinition[]> {
+		const toDiscover = this._collections.get().filter(c => c.lazy && !c.lazy.isCached);
+
+		this._ongoingLazyActivations.set(this._ongoingLazyActivations.get() + 1, undefined);
+		await Promise.all(toDiscover.map(c => c.lazy?.load())).finally(() => {
+			this._ongoingLazyActivations.set(this._ongoingLazyActivations.get() - 1, undefined);
+		});
+
+		const found: McpCollectionDefinition[] = [];
+		const current = this._collections.get();
+		for (const collection of toDiscover) {
+			const rec = current.find(c => c.id === collection.id);
+			if (!rec) {
+				// ignored
+			} else if (rec.lazy) {
+				rec.lazy.removed?.(); // did not get replaced by the non-lazy version
+			} else {
+				found.push(rec);
+			}
+		}
+
+
+		return found;
 	}
 
 	public clearSavedInputs() {
@@ -84,9 +126,10 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		this._trustMemento.value.set({}, undefined);
 	}
 
-	public getTrust(collection: McpCollectionDefinition): IObservable<boolean | undefined> {
+	public getTrust(collectionRef: McpCollectionReference): IObservable<boolean | undefined> {
 		return derived(reader => {
-			if (collection.isTrustedByDefault) {
+			const collection = this._collections.read(reader).find(c => c.id === collectionRef.id);
+			if (!collection || collection.isTrustedByDefault) {
 				return true;
 			}
 
@@ -130,7 +173,13 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		return result.result;
 	}
 
-	public async resolveConnection({ collection, definition, forceTrust }: IMcpResolveConnectionOptions): Promise<IMcpServerConnection | undefined> {
+	public async resolveConnection({ collectionRef, definitionRef, forceTrust }: IMcpResolveConnectionOptions): Promise<IMcpServerConnection | undefined> {
+		const collection = this._collections.get().find(c => c.id === collectionRef.id);
+		const definition = collection?.serverDefinitions.get().find(s => s.id === definitionRef.id);
+		if (!collection || !definition) {
+			throw new Error(`Collection or definition not found for ${collectionRef.id} and ${definitionRef.id}`);
+		}
+
 		const delegate = this._delegates.find(d => d.canStart(collection, definition));
 		if (!delegate) {
 			throw new Error('No delegate found that can handle the connection');
@@ -184,4 +233,3 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		);
 	}
 }
-
