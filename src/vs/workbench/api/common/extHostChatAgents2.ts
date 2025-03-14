@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import { coalesce } from '../../../base/common/arrays.js';
+import { coalesce, isNonEmptyArray } from '../../../base/common/arrays.js';
 import { raceCancellation } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
@@ -34,6 +34,7 @@ import { ExtHostDocuments } from './extHostDocuments.js';
 import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
+import { ExtHostLanguageModelTools } from './extHostLanguageModelTools.js';
 
 class ChatAgentResponseStream {
 
@@ -328,6 +329,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		private readonly _documents: ExtHostDocuments,
 		private readonly _languageModels: ExtHostLanguageModels,
 		private readonly _diagnostics: ExtHostDiagnostics,
+		private readonly _tools: ExtHostLanguageModelTools
 	) {
 		super();
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatAgents2);
@@ -406,7 +408,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 		const model = await this.getModelForRequest(request, detector.extension);
 		const includeInteractionId = isProposedApiEnabled(detector.extension, 'chatParticipantPrivate');
-		const extRequest = typeConvert.ChatAgentRequest.to(includeInteractionId ? request : { ...request, requestId: '' }, location, model, this.getDiagnosticsWhenEnabled(detector.extension));
+		const extRequest = typeConvert.ChatAgentRequest.to(includeInteractionId ? request : { ...request, requestId: '' }, location, model, this.getDiagnosticsWhenEnabled(detector.extension), this.getToolsForRequest(detector.extension, request));
 
 		return detector.provider.provideParticipantDetection(
 			extRequest,
@@ -491,7 +493,13 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 			const model = await this.getModelForRequest(request, agent.extension);
 			const includeInteractionId = isProposedApiEnabled(agent.extension, 'chatParticipantPrivate');
-			const extRequest = typeConvert.ChatAgentRequest.to(includeInteractionId ? request : { ...request, requestId: '' }, location, model, this.getDiagnosticsWhenEnabled(agent.extension));
+			const extRequest = typeConvert.ChatAgentRequest.to(
+				includeInteractionId ? request : { ...request, requestId: '' },
+				location,
+				model,
+				this.getDiagnosticsWhenEnabled(agent.extension),
+				this.getToolsForRequest(agent.extension, request)
+			);
 			inFlightRequest = { requestId: requestDto.requestId, extRequest };
 			this._inFlightRequests.add(inFlightRequest);
 
@@ -548,6 +556,14 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			return [];
 		}
 		return this._diagnostics.getDiagnostics();
+	}
+
+	private getToolsForRequest(extension: IExtensionDescription, request: Dto<IChatAgentRequest>) {
+		if (!isNonEmptyArray(request.useSelectedTools)) {
+			return undefined;
+		}
+		const selector = new Set(request.useSelectedTools);
+		return this._tools.getTools(extension).filter(candidate => selector.has(candidate.name));
 	}
 
 	private async prepareHistoryTurns(extension: Readonly<IRelaxedExtensionDescription>, agentId: string, context: { history: IChatAgentHistoryEntryDto[] }): Promise<(vscode.ChatRequestTurn | vscode.ChatResponseTurn)[]> {
