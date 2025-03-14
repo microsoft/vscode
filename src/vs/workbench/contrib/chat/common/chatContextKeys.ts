@@ -64,7 +64,7 @@ export namespace ChatContextKeys {
 		pro: new RawContextKey<boolean>('chatPlanPro', false, true) 				// True when user is a chat pro user.
 	};
 
-	export const SetupViewKeys = new Set([ChatContextKeys.Setup.hidden.key, ChatContextKeys.Setup.installed.key, ChatContextKeys.Setup.signedOut.key, ChatContextKeys.Setup.canSignUp.key]);
+	export const SetupViewKeys = new Set([ChatContextKeys.Setup.hidden.key, ChatContextKeys.Setup.installed.key, ChatContextKeys.Setup.signedOut.key, ChatContextKeys.Setup.canSignUp.key, ...Setup.fromDialog.keys()]);
 	export const SetupViewCondition = ContextKeyExpr.or(
 		ContextKeyExpr.and(
 			ChatContextKeys.Setup.hidden.negate(),
