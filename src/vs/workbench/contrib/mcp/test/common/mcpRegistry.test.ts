@@ -518,8 +518,8 @@ suite('Workbench - MCP - Registry', () => {
 			const prefix2 = registry.collectionToolPrefix(collection2).get();
 
 			assert.notStrictEqual(prefix1, prefix2);
-			assert.match(prefix1, /^[a-f0-9]{3}\.$/);
-			assert.match(prefix2, /^[a-f0-9]{3}\.$/);
+			assert.ok(/^[a-f0-9]{3}\.$/.test(prefix1));
+			assert.ok(/^[a-f0-9]{3}\.$/.test(prefix2));
 		});
 
 		test('handles hash collisions by incrementing view', () => {
@@ -549,8 +549,8 @@ suite('Workbench - MCP - Registry', () => {
 			const prefix2 = registry.collectionToolPrefix(collection2).get();
 
 			assert.notStrictEqual(prefix1, prefix2);
-			assert.match(prefix1, /^[a-f0-9]{3}\.$/);
-			assert.match(prefix2, /^[a-f0-9]{3}\.$/);
+			assert.ok(/^[a-f0-9]{3}\.$/.test(prefix1));
+			assert.ok(/^[a-f0-9]{3}\.$/.test(prefix2));
 		});
 
 		test('prefix changes when collections change', () => {
