@@ -16,6 +16,11 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { isPromptFile, PROMPT_FILE_EXTENSION } from '../../../../../../platform/prompts/common/constants.js';
 
 /**
+ * TODO: @lego - list
+ *  - update `getConfigBasedSourceFolders()` logic / make the `> Create Prompt` command work with exising prompt file locations
+ */
+
+/**
  * Utility class to locate prompt files.
  */
 export class PromptFilesLocator {
@@ -174,7 +179,14 @@ export const isValidGlob = (pattern: string): boolean => {
 	let curlyBrackets = false;
 	let curlyBracketsCount = 0;
 
+	let previousCharacter: string | undefined;
 	for (const char of pattern) {
+		// skip all escaped characters
+		if (previousCharacter === '\\') {
+			previousCharacter = char;
+			continue;
+		}
+
 		if (char === '*') {
 			return true;
 		}
@@ -183,49 +195,44 @@ export const isValidGlob = (pattern: string): boolean => {
 			return true;
 		}
 
-		// TODO: @lego - check that these are not escaped?
 		if (char === '[') {
 			squareBrackets = true;
-
 			squareBracketsCount++;
+
+			previousCharacter = char;
+			continue;
 		}
 
 		if (char === ']') {
 			squareBrackets = true;
-
-			// if there are no matching opening square brackets, this is an `invalid glob`
-			if (squareBracketsCount % 2 === 0) {
-				return false;
-			}
-
 			squareBracketsCount--;
+			previousCharacter = char;
+			continue;
 		}
 
 		if (char === '{') {
 			curlyBrackets = true;
-
 			curlyBracketsCount++;
+			continue;
 		}
 
 		if (char === '}') {
 			curlyBrackets = true;
-
-			// if there are no matching opening curly brackets, this is an `invalid glob`
-			if (curlyBracketsCount % 2 === 0) {
-				return false;
-			}
-
 			curlyBracketsCount--;
+			previousCharacter = char;
+			continue;
 		}
+
+		previousCharacter = char;
 	}
 
 	// if square brackets exist and are in pairs, this is a `valid glob`
-	if (squareBrackets && squareBracketsCount === 0) {
+	if (squareBrackets && (squareBracketsCount === 0)) {
 		return true;
 	}
 
 	// if curly brackets exist and are in pairs, this is a `valid glob`
-	if (curlyBrackets && curlyBracketsCount === 0) {
+	if (curlyBrackets && (curlyBracketsCount === 0)) {
 		return true;
 	}
 

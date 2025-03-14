@@ -13,7 +13,7 @@ import { IFileService } from '../../../../../../../platform/files/common/files.j
 import { PromptsConfig } from '../../../../../../../platform/prompts/common/config.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
-import { PromptFilesLocator } from '../../../../common/promptSyntax/utils/promptFilesLocator.js';
+import { isValidGlob, PromptFilesLocator } from '../../../../common/promptSyntax/utils/promptFilesLocator.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { mockObject, mockService } from '../../../../../../../platform/prompts/test/common/utils/mock.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
@@ -2291,6 +2291,81 @@ suite('PromptFilesLocator', () => {
 					}
 				});
 			});
+		});
+	});
+
+	suite('• isValidGlob', () => {
+		test('• valid patterns', () => {
+			const globs = [
+				'**',
+				'\*',
+				'\**',
+				'**/*',
+				'**/*.prompt.md',
+				'/Users/legomushroom/**/*.prompt.md',
+				'/Users/legomushroom/*.prompt.md',
+				'/Users/legomushroom/*',
+				'/Users/legomushroom/repos/{repo1,test}',
+				'/Users/legomushroom/repos/{repo1,test}/**',
+				'/Users/legomushroom/repos/{repo1,test}/*',
+				'/Users/legomushroom/**/{repo1,test}/**',
+				'/Users/legomushroom/**/{repo1,test}',
+				'/Users/legomushroom/**/{repo1,test}/*',
+				'/Users/legomushroom/**/repo[1,2,3]',
+				'/Users/legomushroom/**/repo[1,2,3]/**',
+				'/Users/legomushroom/**/repo[1,2,3]/*',
+				'/Users/legomushroom/**/repo[1,2,3]/**/*.prompt.md',
+				'repo[1,2,3]/**/*.prompt.md',
+				'repo[[1,2,3]/**/*.prompt.md',
+				'{repo1,test}/*.prompt.md',
+				'{repo1,test}/*',
+				'/{repo1,test}/*',
+				'/{repo1,test}}/*',
+			];
+
+			for (const glob of globs) {
+				assert(
+					(isValidGlob(glob) === true),
+					`'${glob}' must be a 'valid' glob pattern.`,
+				);
+			}
+		});
+
+		test('• invalid patterns', () => {
+			const globs = [
+				'.',
+				'\\*',
+				'\\?',
+				'\\*\\?\\*',
+				'repo[1,2,3',
+				'repo1,2,3]',
+				'repo\\[1,2,3]',
+				'repo[1,2,3\\]',
+				'repo\\[1,2,3\\]',
+				'{repo1,repo2',
+				'repo1,repo2}',
+				'\\{repo1,repo2}',
+				'{repo1,repo2\\}',
+				'\\{repo1,repo2\\}',
+				'/Users/legomushroom/repos',
+				'/Users/legomushroom/repo[1,2,3',
+				'/Users/legomushroom/repo1,2,3]',
+				'/Users/legomushroom/repo\\[1,2,3]',
+				'/Users/legomushroom/repo[1,2,3\\]',
+				'/Users/legomushroom/repo\\[1,2,3\\]',
+				'/Users/legomushroom/{repo1,repo2',
+				'/Users/legomushroom/repo1,repo2}',
+				'/Users/legomushroom/\\{repo1,repo2}',
+				'/Users/legomushroom/{repo1,repo2\\}',
+				'/Users/legomushroom/\\{repo1,repo2\\}',
+			];
+
+			for (const glob of globs) {
+				assert(
+					(isValidGlob(glob) === false),
+					`'${glob}' must be an 'invalid' glob pattern.`,
+				);
+			}
 		});
 	});
 });
