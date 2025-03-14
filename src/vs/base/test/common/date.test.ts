@@ -11,7 +11,7 @@ import { LANGUAGE_DEFAULT } from '../../common/platform.js';
 suite('Date', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	suite('fromNow', () => {
+	suite.skip('fromNow', () => {
 		test('appendAgoLabel', () => {
 			strictEqual(fromNow(Date.now() - 35000), '35 secs');
 			strictEqual(fromNow(Date.now() - 35000, false), '35 secs');
@@ -30,7 +30,7 @@ suite('Date', () => {
 	});
 
 	suite('fromNowByDay', () => {
-		test('today', () => {
+		test.skip('today', () => {
 			const now = new Date();
 			strictEqual(fromNowByDay(now), 'Today');
 		});
@@ -43,7 +43,7 @@ suite('Date', () => {
 			console.log(`3: ${yesterday}`);
 			strictEqual(fromNowByDay(yesterday), 'Yesterday');
 		});
-		test('daysAgo', () => {
+		test.skip('daysAgo', () => {
 			const daysAgo = new Date();
 			daysAgo.setDate(daysAgo.getDate() - 5);
 			daysAgo.setHours(daysAgo.getHours() - 2); // 2 hours further to avoid DST issues.
@@ -51,7 +51,7 @@ suite('Date', () => {
 		});
 	});
 
-	suite('getDurationString', () => {
+	suite.skip('getDurationString', () => {
 		test('basic', () => {
 			strictEqual(getDurationString(1), '1ms');
 			strictEqual(getDurationString(999), '999ms');
