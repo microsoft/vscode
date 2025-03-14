@@ -26,7 +26,6 @@ import { IMcpHostDelegate, IMcpMessageTransport } from '../../common/mcpRegistry
 import { McpServerConnection } from '../../common/mcpServerConnection.js';
 import { McpCollectionDefinition, McpServerDefinition, McpServerTransportType } from '../../common/mcpTypes.js';
 import { TestMcpMessageTransport } from './mcpRegistryTypes.js';
-import { Memento } from '../../../../common/memento.js';
 
 class TestConfigurationResolverService implements Partial<IConfigurationResolverService> {
 	declare readonly _serviceBrand: undefined;
@@ -195,10 +194,6 @@ suite('Workbench - MCP - Registry', () => {
 				cwd: URI.parse('file:///test')
 			}
 		};
-	});
-
-	teardown(() => {
-		Memento.clear(StorageScope.APPLICATION);
 	});
 
 	test('registerCollection adds collection to registry', () => {

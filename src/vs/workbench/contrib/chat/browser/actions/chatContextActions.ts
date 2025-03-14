@@ -515,7 +515,8 @@ export class AttachContextAction extends Action2 {
 			{
 				when: ChatContextKeyExprs.inNonUnifiedPanel,
 				id: MenuId.ChatInputAttachmentToolbar,
-				group: 'navigation'
+				group: 'navigation',
+				order: 2
 			}
 		]
 	}) {
@@ -1027,7 +1028,8 @@ registerAction2(class AttachFilesAction extends AttachContextAction {
 			menu: {
 				when: ChatContextKeyExprs.inEditsOrUnified,
 				id: MenuId.ChatInputAttachmentToolbar,
-				group: 'navigation'
+				group: 'navigation',
+				order: 3
 			},
 			icon: Codicon.attach,
 			precondition: ChatContextKeyExprs.inEditsOrUnified,

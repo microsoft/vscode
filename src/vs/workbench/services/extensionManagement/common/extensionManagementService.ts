@@ -1409,6 +1409,7 @@ class WorkspaceExtensionsManagementService extends Disposable {
 			updated: !!extension.metadata?.updated,
 			pinned: !!extension.metadata?.pinned,
 			isWorkspaceScoped: true,
+			private: false,
 			source: 'resource',
 			size: extension.metadata?.size ?? 0,
 		};

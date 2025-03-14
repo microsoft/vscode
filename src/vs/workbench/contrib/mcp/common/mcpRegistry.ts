@@ -6,20 +6,27 @@
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../base/common/observable.js';
+import { derived, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { observableMemento } from '../../../../platform/observable/common/observableMemento.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { Memento } from '../../../common/memento.js';
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
 import { McpRegistryInputStorage } from './mcpRegistryInputStorage.js';
 import { IMcpHostDelegate, IMcpRegistry, IMcpResolveConnectionOptions } from './mcpRegistryTypes.js';
 import { McpServerConnection } from './mcpServerConnection.js';
 import { IMcpServerConnection, McpCollectionDefinition, McpServerDefinition } from './mcpTypes.js';
 
+const createTrustMemento = observableMemento<Readonly<Record<string, boolean>>>({
+	defaultValue: {},
+	key: 'mcp.trustedCollections'
+});
+
 export class McpRegistry extends Disposable implements IMcpRegistry {
 	declare public readonly _serviceBrand: undefined;
+
+	private readonly _trustPrompts = new Map</* collection ID */string, Promise<boolean | undefined>>();
 
 	private readonly _collections = observableValue<readonly McpCollectionDefinition[]>('collections', []);
 	private readonly _delegates: IMcpHostDelegate[] = [];
@@ -29,11 +36,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 	private readonly _workspaceStorage = new Lazy(() => this._register(this._instantiationService.createInstance(McpRegistryInputStorage, StorageScope.WORKSPACE, StorageTarget.USER)));
 	private readonly _profileStorage = new Lazy(() => this._register(this._instantiationService.createInstance(McpRegistryInputStorage, StorageScope.PROFILE, StorageTarget.USER)));
 
-	private readonly _trustMemento = new Lazy(() => {
-		const memento = new Memento('mcpTrustedServers', this._storageService);
-		this._register(this._storageService.onWillSaveState(() => memento.saveMemento()));
-		return memento.getMemento(StorageScope.APPLICATION, StorageTarget.MACHINE);
-	});
+	private readonly _trustMemento = new Lazy(() => this._register(createTrustMemento(StorageScope.APPLICATION, StorageTarget.MACHINE, this._storageService)));
 
 	public get delegates(): readonly IMcpHostDelegate[] {
 		return this._delegates;
@@ -77,11 +80,37 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		this._workspaceStorage.value.clearAll();
 	}
 
-	private async promptForTrust(collection: McpCollectionDefinition, definition: McpServerDefinition): Promise<boolean | undefined> {
+	public resetTrust(): void {
+		this._trustMemento.value.set({}, undefined);
+	}
+
+	public getTrust(collection: McpCollectionDefinition): IObservable<boolean | undefined> {
+		return derived(reader => {
+			if (collection.isTrustedByDefault) {
+				return true;
+			}
+
+			const memento = this._trustMemento.value.read(reader);
+			return memento.hasOwnProperty(collection.id) ? memento[collection.id] : undefined;
+		});
+	}
+
+	private _promptForTrust(collection: McpCollectionDefinition, definition: McpServerDefinition): Promise<boolean | undefined> {
+		// Collect all trust prompts for a single config so that concurrently trying to start N
+		// servers in a config don't result in N different dialogs
+		let resultPromise = this._trustPrompts.get(collection.id);
+		resultPromise ??= this._promptForTrustOpenDialog(collection, definition).finally(() => {
+			this._trustPrompts.delete(collection.id);
+		});
+		this._trustPrompts.set(collection.id, resultPromise);
+
+		return resultPromise;
+	}
+
+	private async _promptForTrustOpenDialog(collection: McpCollectionDefinition, definition: McpServerDefinition): Promise<boolean | undefined> {
 		const labelWithOrigin = collection.presentation?.origin
 			? `[\`${collection.label}\`](${collection.presentation.origin})`
 			: collection.label;
-
 		const result = await this._dialogService.prompt(
 			{
 				message: 'Do you trust this server?',
@@ -108,15 +137,19 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		}
 
 		if (!collection.isTrustedByDefault) {
-			const memento = this._trustMemento.value;
-			const trusted = memento.hasOwnProperty(definition.id) ? memento[definition.id] : undefined;
+			const memento = this._trustMemento.value.get();
+			const trusted = memento.hasOwnProperty(collection.id) ? memento[collection.id] : undefined;
 
 			if (trusted) {
 				// continue
 			} else if (trusted === undefined || forceTrust) {
-				const trustValue = await this.promptForTrust(collection, definition);
-				memento[definition.id] = trustValue;
-				if (!trustValue) { return; }
+				const trustValue = await this._promptForTrust(collection, definition);
+				if (trustValue !== undefined) {
+					this._trustMemento.value.set({ ...memento, [collection.id]: trustValue }, undefined);
+				}
+				if (!trustValue) {
+					return;
+				}
 			} else /** trusted === false && !forceTrust */ {
 				return undefined;
 			}
