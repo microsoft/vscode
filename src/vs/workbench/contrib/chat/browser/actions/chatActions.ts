@@ -504,6 +504,7 @@ export function registerChatActions() {
 		}
 	});
 
+	const nonEnterpriseCopilotUsers = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.notEquals(`config.${defaultChat.completionsAdvancedSetting}.authProvider`, defaultChat.enterpriseProviderId));
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -511,15 +512,18 @@ export function registerChatActions() {
 				title: localize2('manageCopilot', "Manage Copilot"),
 				category: CHAT_CATEGORY,
 				f1: true,
-				precondition: ContextKeyExpr.or(
-					ChatContextKeys.Setup.limited,
-					ChatContextKeys.Setup.pro
+				precondition: ContextKeyExpr.and(
+					ContextKeyExpr.or(
+						ChatContextKeys.Setup.limited,
+						ChatContextKeys.Setup.pro
+					),
+					nonEnterpriseCopilotUsers
 				),
 				menu: {
 					id: MenuId.ChatTitleBarMenu,
 					group: 'y_manage',
 					order: 1,
-					when: ContextKeyExpr.notEquals(`config.${defaultChat.completionsAdvancedSetting}.authProvider`, defaultChat.enterpriseProviderId)
+					when: nonEnterpriseCopilotUsers
 				}
 			});
 		}
