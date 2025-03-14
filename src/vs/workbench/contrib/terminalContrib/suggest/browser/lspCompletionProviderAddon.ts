@@ -78,10 +78,11 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 		// into `await this._textModelService.createModelReference(uri);`
 
 		// We crash... Why?
-		// Because resource can be resolved to a text model.
+		// Because resource can't be resolved to a text model.
 
 		// Potential solution: Might need to create/register a ITextModelContentProvider for vscodeTerminal scheme??
 		//	- This include implementing provideTextContent method. -> returns ITextModel for given URI
+		// Now that I have implemented LspTerminalModelContentProvider, where should I register?
 
 		// Why do I need all of above in the potential solution section:
 		// ILanguageFeatureService relies on ITextModel to determine which providers are applicable for given file?
