@@ -30,7 +30,8 @@ export class StructuredLogger<T extends IRecordableLogEntry> extends Disposable 
 		return this as typeof StructuredLogger<T>;
 	}
 
-	private readonly _contextKeyValue = observableContextKey<string>(this._contextKey, this._contextKeyService).recomputeInitiallyAndOnChange(this._store);
+	public readonly isEnabled;
+	private readonly _contextKeyValue;
 
 	constructor(
 		private readonly _contextKey: string,
@@ -38,9 +39,9 @@ export class StructuredLogger<T extends IRecordableLogEntry> extends Disposable 
 		@ICommandService private readonly _commandService: ICommandService
 	) {
 		super();
+		this._contextKeyValue = observableContextKey<string>(this._contextKey, this._contextKeyService).recomputeInitiallyAndOnChange(this._store);
+		this.isEnabled = this._contextKeyValue.map(v => v !== undefined);
 	}
-
-	public readonly isEnabled = this._contextKeyValue.map(v => v !== undefined);
 
 	public log(data: T): boolean {
 		const commandId = this._contextKeyValue.get();
