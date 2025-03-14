@@ -8,7 +8,7 @@ import { match } from '../../../../../../base/common/glob.js';
 import { assert } from '../../../../../../base/common/assert.js';
 import { isAbsolute } from '../../../../../../base/common/path.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
-import { dirname, extUri } from '../../../../../../base/common/resources.js';
+import { basename, dirname, extUri } from '../../../../../../base/common/resources.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { PromptsConfig } from '../../../../../../platform/prompts/common/config.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -181,7 +181,10 @@ export class PromptFilesLocator {
 			// );
 
 			// normalize the glob pattern to always end with "any prompt file" pattern
-			const location = (absoluteLocation.path.endsWith(PROMPT_FILE_EXTENSION))
+			// unless the last part of the path is already a glob pattern itself; this is
+			// to handle the case when a user specifies a file glob pattern at the end, e.g.,
+			// "my-folder/*.md" or "my-folder/*" already include the prompt files
+			const location = (isValidGlob(basename(absoluteLocation)) || absoluteLocation.path.endsWith(PROMPT_FILE_EXTENSION))
 				? absoluteLocation
 				: extUri.joinPath(absoluteLocation, `*${PROMPT_FILE_EXTENSION}`);
 
@@ -320,31 +323,36 @@ const findAllPromptFiles = async (
 	fileService: IFileService,
 ): Promise<readonly URI[]> => {
 	const result: URI[] = [];
-	const info = await fileService.resolve(location);
 
-	if (info.isFile && isPromptFile(info.resource)) {
-		result.push(info.resource);
+	try {
+		const info = await fileService.resolve(location);
 
-		return result;
-	}
+		if (info.isFile && isPromptFile(info.resource)) {
+			result.push(info.resource);
 
-	if (info.isDirectory && info.children) {
-		for (const child of info.children) {
-			if (child.isFile && isPromptFile(child.resource)) {
-				result.push(child.resource);
-
-				continue;
-			}
-
-			if (child.isDirectory) {
-				const promptFiles = await findAllPromptFiles(child.resource, fileService);
-				result.push(...promptFiles);
-
-				continue;
-			}
+			return result;
 		}
 
-		return result;
+		if (info.isDirectory && info.children) {
+			for (const child of info.children) {
+				if (child.isFile && isPromptFile(child.resource)) {
+					result.push(child.resource);
+
+					continue;
+				}
+
+				if (child.isDirectory) {
+					const promptFiles = await findAllPromptFiles(child.resource, fileService);
+					result.push(...promptFiles);
+
+					continue;
+				}
+			}
+
+			return result;
+		}
+	} catch (error) {
+		// noop
 	}
 
 	return result;
