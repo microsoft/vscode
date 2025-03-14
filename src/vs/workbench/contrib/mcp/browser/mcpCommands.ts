@@ -24,7 +24,7 @@ import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { ChatMode } from '../../chat/common/constants.js';
 import { McpContextKeys } from '../common/mcpContextKeys.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
-import { IMcpServer, IMcpService, McpConnectionState, McpServerToolsState } from '../common/mcpTypes.js';
+import { LazyCollectionState, IMcpServer, IMcpService, McpConnectionState, McpServerToolsState } from '../common/mcpTypes.js';
 
 // acroynms do not get localized
 const category: ILocalizedString = {
@@ -224,9 +224,15 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 				serversPerState[thisState].push(server);
 			}
 
-			const extensionNeedRefresh = mcpService.hasCollectionsWithUnknownServers.read(reader);
-			const maxState = extensionNeedRefresh ? DisplayedState.NewTools : (serversPerState.length - 1) as DisplayedState;
-			return { state: maxState, servers: serversPerState[maxState] || [], extensions: extensionNeedRefresh };
+			const unknownServerStates = mcpService.lazyCollectionState.read(reader);
+			if (unknownServerStates === LazyCollectionState.LoadingUnknown) {
+				serversPerState[DisplayedState.Refreshing] ??= [];
+			} else if (unknownServerStates === LazyCollectionState.HasUnknown) {
+				serversPerState[DisplayedState.NewTools] ??= [];
+			}
+
+			const maxState = (serversPerState.length - 1) as DisplayedState;
+			return { state: maxState, servers: serversPerState[maxState] || [] };
 		});
 
 		this._store.add(actionViewItemService.register(MenuId.ChatInputAttachmentToolbar, McpServerOptionsCommand.id, (action, options) => {

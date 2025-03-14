@@ -24,8 +24,9 @@ import { TestLoggerService, TestStorageService } from '../../../../test/common/w
 import { McpRegistry } from '../../common/mcpRegistry.js';
 import { IMcpHostDelegate, IMcpMessageTransport } from '../../common/mcpRegistryTypes.js';
 import { McpServerConnection } from '../../common/mcpServerConnection.js';
-import { McpCollectionDefinition, McpServerDefinition, McpServerTransportType } from '../../common/mcpTypes.js';
+import { LazyCollectionState, McpCollectionDefinition, McpServerDefinition, McpServerTransportType } from '../../common/mcpTypes.js';
 import { TestMcpMessageTransport } from './mcpRegistryTypes.js';
+import { timeout } from '../../../../../base/common/async.js';
 
 class TestConfigurationResolverService implements Partial<IConfigurationResolverService> {
 	declare readonly _serviceBrand: undefined;
@@ -389,6 +390,104 @@ suite('Workbench - MCP - Registry', () => {
 			assert.ok(connection3);
 			assert.strictEqual(testDialogService.promptSpy.called, false);
 			connection3?.dispose();
+		});
+	});
+
+	suite('Lazy Collections', () => {
+		let lazyCollection: McpCollectionDefinition;
+		let normalCollection: McpCollectionDefinition;
+		let removedCalled: boolean;
+
+		setup(() => {
+			removedCalled = false;
+			lazyCollection = {
+				...testCollection,
+				id: 'lazy-collection',
+				lazy: {
+					isCached: false,
+					load: () => Promise.resolve(),
+					removed: () => { removedCalled = true; }
+				}
+			};
+			normalCollection = {
+				...testCollection,
+				id: 'lazy-collection',
+				serverDefinitions: observableValue('serverDefs', [baseDefinition])
+			};
+		});
+
+		test('registers lazy collection', () => {
+			const disposable = registry.registerCollection(lazyCollection);
+			store.add(disposable);
+
+			assert.strictEqual(registry.collections.get().length, 1);
+			assert.strictEqual(registry.collections.get()[0], lazyCollection);
+			assert.strictEqual(registry.lazyCollectionState.get(), LazyCollectionState.HasUnknown);
+		});
+
+		test('lazy collection is replaced by normal collection', () => {
+			store.add(registry.registerCollection(lazyCollection));
+			store.add(registry.registerCollection(normalCollection));
+
+			const collections = registry.collections.get();
+			assert.strictEqual(collections.length, 1);
+			assert.strictEqual(collections[0], normalCollection);
+			assert.strictEqual(collections[0].lazy, undefined);
+			assert.strictEqual(registry.lazyCollectionState.get(), LazyCollectionState.AllKnown);
+		});
+
+		test('lazyCollectionState updates correctly during loading', async () => {
+			lazyCollection = {
+				...lazyCollection,
+				lazy: {
+					...lazyCollection.lazy!,
+					load: async () => {
+						await timeout(0);
+						store.add(registry.registerCollection(normalCollection));
+						return Promise.resolve();
+					}
+				}
+			};
+
+			store.add(registry.registerCollection(lazyCollection));
+			assert.strictEqual(registry.lazyCollectionState.get(), LazyCollectionState.HasUnknown);
+
+			const loadingPromise = registry.discoverCollections();
+			assert.strictEqual(registry.lazyCollectionState.get(), LazyCollectionState.LoadingUnknown);
+
+			await loadingPromise;
+
+			// The collection wasn't replaced, so it should be removed
+			assert.strictEqual(registry.collections.get().length, 1);
+			assert.strictEqual(registry.lazyCollectionState.get(), LazyCollectionState.AllKnown);
+			assert.strictEqual(removedCalled, false);
+		});
+
+		test('removed callback is called when lazy collection is not replaced', async () => {
+			store.add(registry.registerCollection(lazyCollection));
+			await registry.discoverCollections();
+
+			assert.strictEqual(removedCalled, true);
+		});
+
+		test('cached lazy collections are tracked correctly', () => {
+			lazyCollection.lazy!.isCached = true;
+			store.add(registry.registerCollection(lazyCollection));
+
+			assert.strictEqual(registry.lazyCollectionState.get(), LazyCollectionState.AllKnown);
+
+			// Adding an uncached lazy collection changes the state
+			const uncachedLazy = {
+				...lazyCollection,
+				id: 'uncached-lazy',
+				lazy: {
+					...lazyCollection.lazy!,
+					isCached: false
+				}
+			};
+			store.add(registry.registerCollection(uncachedLazy));
+
+			assert.strictEqual(registry.lazyCollectionState.get(), LazyCollectionState.HasUnknown);
 		});
 	});
 });

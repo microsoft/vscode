@@ -16,7 +16,7 @@ import { IConfigurationResolverService } from '../../../services/configurationRe
 import { McpRegistryInputStorage } from './mcpRegistryInputStorage.js';
 import { IMcpHostDelegate, IMcpRegistry, IMcpResolveConnectionOptions } from './mcpRegistryTypes.js';
 import { McpServerConnection } from './mcpServerConnection.js';
-import { IMcpServerConnection, McpCollectionDefinition, McpCollectionReference, McpServerDefinition } from './mcpTypes.js';
+import { IMcpServerConnection, LazyCollectionState, McpCollectionDefinition, McpCollectionReference, McpServerDefinition } from './mcpTypes.js';
 
 const createTrustMemento = observableMemento<Readonly<Record<string, boolean>>>({
 	defaultValue: {},
@@ -37,10 +37,14 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 
 	private readonly _trustMemento = new Lazy(() => this._register(createTrustMemento(StorageScope.APPLICATION, StorageTarget.MACHINE, this._storageService)));
 	private readonly _lazyCollectionsToUpdate = new Set</* collection ID*/string>();
+	private readonly _ongoingLazyActivations = observableValue(this, 0);
 
-	public readonly canDiscoverCollections = derived(reader => {
+	public readonly lazyCollectionState = derived(reader => {
+		if (this._ongoingLazyActivations.read(reader) > 0) {
+			return LazyCollectionState.LoadingUnknown;
+		}
 		const collections = this._collections.read(reader);
-		return collections.some(c => c.lazy && c.lazy.isCached === false);
+		return collections.some(c => c.lazy && c.lazy.isCached === false) ? LazyCollectionState.HasUnknown : LazyCollectionState.AllKnown;
 	});
 
 	public get delegates(): readonly IMcpHostDelegate[] {
@@ -71,6 +75,8 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 	public registerCollection(collection: McpCollectionDefinition): IDisposable {
 		const currentCollections = this._collections.get();
 		const toReplace = currentCollections.find(c => c.lazy && c.id === collection.id);
+
+		// Incoming collections replace the "lazy" versions. See `ExtensionMcpDiscovery` for an example.
 		if (toReplace) {
 			this._lazyCollectionsToUpdate.add(collection.id);
 			this._collections.set(currentCollections.map(c => c === toReplace ? collection : c), undefined);
@@ -88,7 +94,11 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 
 	public async discoverCollections(): Promise<McpCollectionDefinition[]> {
 		const toDiscover = this._collections.get().filter(c => c.lazy && !c.lazy.isCached);
-		await Promise.all(toDiscover.map(c => c.lazy?.load()));
+
+		this._ongoingLazyActivations.set(this._ongoingLazyActivations.get() + 1, undefined);
+		await Promise.all(toDiscover.map(c => c.lazy?.load())).finally(() => {
+			this._ongoingLazyActivations.set(this._ongoingLazyActivations.get() - 1, undefined);
+		});
 
 		const found: McpCollectionDefinition[] = [];
 		const current = this._collections.get();

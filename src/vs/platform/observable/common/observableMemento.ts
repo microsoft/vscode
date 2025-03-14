@@ -5,7 +5,6 @@
 
 import { strictEquals } from '../../../base/common/equals.js';
 import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
-import { ISettableObservable } from '../../../base/common/observable.js';
 import { ObservableValue } from '../../../base/common/observableInternal/base.js';
 import { DebugNameData } from '../../../base/common/observableInternal/debugName.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
@@ -37,9 +36,6 @@ export function observableMemento<T>(opts: IObservableMementoOpts<T>) {
 export class ObservableMemento<T> extends ObservableValue<T> implements IDisposable {
 	private readonly _store = new DisposableStore();
 	private _didChange = false;
-
-	/** Settable function called before persisting to storage. */
-	public onWillSave?: (value: T) => void;
 
 	constructor(
 		opts: IObservableMementoOpts<T>,
@@ -76,8 +72,6 @@ export class ObservableMemento<T> extends ObservableValue<T> implements IDisposa
 		}));
 
 		this._store.add(storageService.onWillSaveState(() => {
-			this.onWillSave?.(this.get());
-
 			if (this._didChange) {
 				this._didChange = false;
 				const value = this.get();

@@ -160,9 +160,15 @@ export interface IMcpService {
 	resetCaches(): void;
 
 	/** Set if there are extensions that register MCP servers that have never been activated. */
-	readonly hasCollectionsWithUnknownServers: IObservable<boolean>;
+	readonly lazyCollectionState: IObservable<LazyCollectionState>;
 	/** Activatese extensions and runs their MCP servers. */
 	activateCollections(): Promise<void>;
+}
+
+export const enum LazyCollectionState {
+	HasUnknown,
+	LoadingUnknown,
+	AllKnown,
 }
 
 export const IMcpService = createDecorator<IMcpService>('IMcpService');

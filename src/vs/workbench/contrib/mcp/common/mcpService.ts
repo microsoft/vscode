@@ -25,7 +25,7 @@ export class McpService extends Disposable implements IMcpService {
 	private readonly _servers = observableValue<readonly IMcpServer[]>(this, []);
 	public readonly servers: IObservable<readonly IMcpServer[]> = this._servers;
 
-	public get hasCollectionsWithUnknownServers() { return this._mcpRegistry.canDiscoverCollections; }
+	public get lazyCollectionState() { return this._mcpRegistry.lazyCollectionState; }
 
 	protected readonly userCache: McpServerMetadataCache;
 	protected readonly workspaceCache: McpServerMetadataCache;

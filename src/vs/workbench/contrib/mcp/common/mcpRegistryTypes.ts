@@ -7,7 +7,7 @@ import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { McpCollectionDefinition, McpServerDefinition, McpServerLaunch, McpConnectionState, IMcpServerConnection, McpCollectionReference, McpDefinitionReference } from './mcpTypes.js';
+import { McpCollectionDefinition, McpServerDefinition, McpServerLaunch, McpConnectionState, IMcpServerConnection, McpCollectionReference, McpDefinitionReference, LazyCollectionState } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
 
 export const IMcpRegistry = createDecorator<IMcpRegistry>('mcpRegistry');
@@ -41,7 +41,7 @@ export interface IMcpRegistry {
 	readonly delegates: readonly IMcpHostDelegate[];
 
 	/** Whether there are new collections that can be resolved with a discover() call */
-	readonly canDiscoverCollections: IObservable<boolean>;
+	readonly lazyCollectionState: IObservable<LazyCollectionState>;
 	/** Discover new collections, returning newly-discovered ones. */
 	discoverCollections(): Promise<McpCollectionDefinition[]>;
 
