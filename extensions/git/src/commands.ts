@@ -338,6 +338,8 @@ async function categorizeResourceByResolution(resources: Resource[]): Promise<{ 
 async function createCheckoutItems(repository: Repository, detached = false): Promise<QuickPickItem[]> {
 	const config = workspace.getConfiguration('git');
 	const checkoutTypeConfig = config.get<string | string[]>('checkoutType');
+	const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
+
 	let checkoutTypes: string[];
 
 	if (checkoutTypeConfig === 'all' || !checkoutTypeConfig || checkoutTypeConfig.length === 0) {
@@ -353,7 +355,7 @@ async function createCheckoutItems(repository: Repository, detached = false): Pr
 		checkoutTypes = checkoutTypes.filter(t => t !== 'tags');
 	}
 
-	const refs = await repository.getRefs({ includeCommitDetails: true });
+	const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
 	const refProcessors = checkoutTypes.map(type => getCheckoutRefProcessor(repository, type))
 		.filter(p => !!p) as RefProcessor[];
 
@@ -2929,9 +2931,12 @@ export class CommandCenter {
 	private async _branch(repository: Repository, defaultName?: string, from = false, target?: string): Promise<void> {
 		target = target ?? 'HEAD';
 
+		const config = workspace.getConfiguration('git');
+		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
+
 		if (from) {
 			const getRefPicks = async () => {
-				const refs = await repository.getRefs();
+				const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
 				const refProcessors = new RefItemsProcessor([
 					new RefProcessor(RefType.Head),
 					new RefProcessor(RefType.RemoteHead),
@@ -3034,6 +3039,9 @@ export class CommandCenter {
 	private async _deleteBranch(repository: Repository, remote: string | undefined, name: string | undefined, options: { remote: boolean; force?: boolean }): Promise<void> {
 		let run: (force?: boolean) => Promise<void>;
 
+		const config = workspace.getConfiguration('git');
+		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
+
 		if (!options.remote && typeof name === 'string') {
 			// Local branch
 			run = force => repository.deleteBranch(name!, force);
@@ -3043,7 +3051,7 @@ export class CommandCenter {
 		} else {
 			const getBranchPicks = async () => {
 				const pattern = options.remote ? 'refs/remotes' : 'refs/heads';
-				const refs = await repository.getRefs({ pattern });
+				const refs = await repository.getRefs({ pattern, includeCommitDetails: showRefDetails });
 
 				const refsToExclude: string[] = [];
 				if (options.remote) {
@@ -3121,8 +3129,11 @@ export class CommandCenter {
 
 	@command('git.merge', { repository: true })
 	async merge(repository: Repository): Promise<void> {
+		const config = workspace.getConfiguration('git');
+		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
+
 		const getQuickPickItems = async (): Promise<QuickPickItem[]> => {
-			const refs = await repository.getRefs();
+			const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
 			const itemsProcessor = new RefItemsProcessor([
 				new RefProcessor(RefType.Head, MergeItem),
 				new RefProcessor(RefType.RemoteHead, MergeItem),
@@ -3147,8 +3158,11 @@ export class CommandCenter {
 
 	@command('git.rebase', { repository: true })
 	async rebase(repository: Repository): Promise<void> {
+		const config = workspace.getConfiguration('git');
+		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
+
 		const getQuickPickItems = async (): Promise<QuickPickItem[]> => {
-			const refs = await repository.getRefs();
+			const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
 			const itemsProcessor = new RebaseItemsProcessors(repository);
 
 			return itemsProcessor.processRefs(refs);
@@ -3186,8 +3200,11 @@ export class CommandCenter {
 
 	@command('git.deleteTag', { repository: true })
 	async deleteTag(repository: Repository): Promise<void> {
+		const config = workspace.getConfiguration('git');
+		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
+
 		const tagPicks = async (): Promise<TagDeleteItem[] | QuickPickItem[]> => {
-			const remoteTags = await repository.getRefs({ pattern: 'refs/tags' });
+			const remoteTags = await repository.getRefs({ pattern: 'refs/tags', includeCommitDetails: showRefDetails });
 			return remoteTags.length === 0 ? [{ label: l10n.t('$(info) This repository has no tags.') }] : remoteTags.map(ref => new TagDeleteItem(ref));
 		};
 
