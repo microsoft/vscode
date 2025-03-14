@@ -127,6 +127,7 @@ class SetupChatAgentImplementation implements IChatAgentImplementation {
 		private readonly context: ChatSetupContext,
 		private readonly controller: Lazy<ChatSetupController>,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ILogService private readonly logService: ILogService,
 	) { }
 
 	async invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void): Promise<IChatAgentResult> {
@@ -140,7 +141,13 @@ class SetupChatAgentImplementation implements IChatAgentImplementation {
 				content: new MarkdownString(localize('settingUpCopilot', "Getting Copilot Ready...")),
 			} satisfies IChatProgressMessage);
 
-			const success = await this.controller.value.setup();
+			let success = false;
+			try {
+				success = await this.controller.value.setup();
+			} catch (error) {
+				this.logService.error(localize('setupError', "Error during setup: {0}", toErrorMessage(error)));
+			}
+
 			if (success) {
 				progress({
 					kind: 'progressMessage',
