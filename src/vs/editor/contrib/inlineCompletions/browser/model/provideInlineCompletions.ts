@@ -372,6 +372,10 @@ export class InlineCompletionItem {
 	) {
 	}
 
+	get isInlineEdit(): boolean {
+		return this.sourceInlineCompletion.isInlineEdit!!;
+	}
+
 	public get didShow(): boolean {
 		return this._didCallShow;
 	}

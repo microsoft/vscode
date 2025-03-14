@@ -144,7 +144,7 @@ export class InlineCompletionsSource extends Disposable {
 						const result = updatedCompletions?.completions.map(c => ({
 							range: c.range.toString(),
 							text: c.insertText,
-							isInlineEdit: !!c.sourceInlineCompletion.isInlineEdit,
+							isInlineEdit: !!c.isInlineEdit,
 							source: c.source.provider.groupId,
 						}));
 						this._log({ sourceId: 'InlineCompletions.fetch', kind: 'end', requestId, durationMs: (Date.now() - startTime.getTime()), error, result, time: Date.now() });
@@ -322,7 +322,7 @@ export class InlineCompletionWithUpdatedRange extends Disposable {
 
 	public get source() { return this.inlineCompletion.source; }
 	public get sourceInlineCompletion() { return this.inlineCompletion.sourceInlineCompletion; }
-	public get isInlineEdit() { return this.inlineCompletion.sourceInlineCompletion.isInlineEdit; }
+	public get isInlineEdit() { return this.inlineCompletion.isInlineEdit; }
 
 	constructor(
 		public readonly inlineCompletion: InlineCompletionItem,
