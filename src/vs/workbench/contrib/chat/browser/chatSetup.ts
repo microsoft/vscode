@@ -105,7 +105,7 @@ class SetupChatAgentImplementation implements IChatAgentImplementation {
 			return combinedDisposable(
 				chatAgentService.registerAgent(id, {
 					id,
-					name: 'Copilot',
+					name: `${defaultChat.providerName} Copilot`,
 					isDefault: true,
 					when: setupChatAgentContext?.serialize(),
 					slashCommands: [],
