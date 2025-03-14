@@ -23,7 +23,6 @@ import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../..
 
 /**
  * TODO: @lego - list
- *  - add `empty workspace` unit tests
  *  - add `all together` unit tests
  */
 
@@ -225,6 +224,246 @@ suite('PromptFilesLocator', () => {
 					],
 					'Must find correct prompts.',
 				);
+			});
+
+			suite('• absolute', () => {
+				suite('• wild card', () => {
+					const settings = [
+						'/Users/legomushroom/repos/vscode/**',
+						'/Users/legomushroom/repos/vscode/**/*.prompt.md',
+						'/Users/legomushroom/repos/vscode/**/*.md',
+						'/Users/legomushroom/repos/vscode/**/*',
+						'/Users/legomushroom/repos/vscode/deps/**',
+						'/Users/legomushroom/repos/vscode/deps/**/*.prompt.md',
+						'/Users/legomushroom/repos/vscode/deps/**/*',
+						'/Users/legomushroom/repos/vscode/deps/**/*.md',
+						'/Users/legomushroom/repos/vscode/**/text/**',
+						'/Users/legomushroom/repos/vscode/**/text/**/*',
+						'/Users/legomushroom/repos/vscode/**/text/**/*.md',
+						'/Users/legomushroom/repos/vscode/**/text/**/*.prompt.md',
+						'/Users/legomushroom/repos/vscode/deps/text/**',
+						'/Users/legomushroom/repos/vscode/deps/text/**/*',
+						'/Users/legomushroom/repos/vscode/deps/text/**/*.md',
+						'/Users/legomushroom/repos/vscode/deps/text/**/*.prompt.md',
+					];
+
+					for (const setting of settings) {
+						test(`• '${setting}'`, async () => {
+							const locator = await createPromptsLocator(
+								{ [setting]: true },
+								EMPTY_WORKSPACE,
+								[
+									{
+										name: '/Users/legomushroom/repos/vscode',
+										children: [
+											{
+												name: 'deps/text',
+												children: [
+													{
+														name: 'my.prompt.md',
+														contents: 'oh hi, bot!',
+													},
+													{
+														name: 'nested',
+														children: [
+															{
+																name: 'specific.prompt.md',
+																contents: 'oh hi, bot!',
+															},
+															{
+																name: 'unspecific1.prompt.md',
+																contents: 'oh hi, robot!',
+															},
+															{
+																name: 'unspecific2.prompt.md',
+																contents: 'oh hi, rabot!',
+															},
+															{
+																name: 'readme.md',
+																contents: 'non prompt file',
+															},
+														],
+													}
+												],
+											},
+										],
+									},
+								],
+							);
+
+							assert.deepStrictEqual(
+								(await locator.listFiles())
+									.map((file) => file.fsPath),
+								[
+									createURI('/Users/legomushroom/repos/vscode/deps/text/my.prompt.md').fsPath,
+									createURI('/Users/legomushroom/repos/vscode/deps/text/nested/specific.prompt.md').fsPath,
+									createURI('/Users/legomushroom/repos/vscode/deps/text/nested/unspecific1.prompt.md').fsPath,
+									createURI('/Users/legomushroom/repos/vscode/deps/text/nested/unspecific2.prompt.md').fsPath,
+								],
+								'Must find correct prompts.',
+							);
+						});
+					}
+				});
+
+				suite(`• specific`, () => {
+					const testSettings = [
+						[
+							'/Users/legomushroom/repos/vscode/**/*specific*',
+						],
+						[
+							'/Users/legomushroom/repos/vscode/**/*specific*.prompt.md',
+						],
+						[
+							'/Users/legomushroom/repos/vscode/**/*specific*.md',
+						],
+						[
+							'/Users/legomushroom/repos/vscode/**/specific*',
+							'/Users/legomushroom/repos/vscode/**/unspecific1.prompt.md',
+							'/Users/legomushroom/repos/vscode/**/unspecific2.prompt.md',
+						],
+						[
+							'/Users/legomushroom/repos/vscode/**/specific.prompt.md',
+							'/Users/legomushroom/repos/vscode/**/unspecific*.prompt.md',
+						],
+						[
+							'/Users/legomushroom/repos/vscode/**/nested/specific.prompt.md',
+							'/Users/legomushroom/repos/vscode/**/nested/unspecific*.prompt.md',
+						],
+						[
+							'/Users/legomushroom/repos/vscode/**/nested/*specific*',
+						],
+						[
+							'/Users/legomushroom/repos/vscode/**/*spec*.prompt.md',
+						],
+						[
+							'/Users/legomushroom/repos/vscode/**/*spec*',
+						],
+						[
+							'/Users/legomushroom/repos/vscode/**/*spec*.md',
+						],
+						[
+							'/Users/legomushroom/repos/vscode/**/deps/**/*spec*.md',
+						],
+						[
+							'/Users/legomushroom/repos/vscode/**/text/**/*spec*.md',
+						],
+						[
+							'/Users/legomushroom/repos/vscode/deps/text/nested/*spec*',
+						],
+						[
+							'/Users/legomushroom/repos/vscode/deps/text/nested/*specific*',
+						],
+						[
+							'/Users/legomushroom/repos/vscode/deps/**/*specific*',
+						],
+						[
+							'/Users/legomushroom/repos/vscode/deps/**/specific*',
+							'/Users/legomushroom/repos/vscode/deps/**/unspecific*.prompt.md',
+						],
+						[
+							'/Users/legomushroom/repos/vscode/deps/**/specific*.md',
+							'/Users/legomushroom/repos/vscode/deps/**/unspecific*.md',
+						],
+						[
+							'/Users/legomushroom/repos/vscode/deps/**/specific.prompt.md',
+							'/Users/legomushroom/repos/vscode/deps/**/unspecific1.prompt.md',
+							'/Users/legomushroom/repos/vscode/deps/**/unspecific2.prompt.md',
+						],
+						[
+							'/Users/legomushroom/repos/vscode/deps/**/specific.prompt.md',
+							'/Users/legomushroom/repos/vscode/deps/**/unspecific1*.md',
+							'/Users/legomushroom/repos/vscode/deps/**/unspecific2*.md',
+						],
+						[
+							'/Users/legomushroom/repos/vscode/deps/text/**/*specific*',
+						],
+						[
+							'/Users/legomushroom/repos/vscode/deps/text/**/specific*',
+							'/Users/legomushroom/repos/vscode/deps/text/**/unspecific*.prompt.md',
+						],
+						[
+							'/Users/legomushroom/repos/vscode/deps/text/**/specific*.md',
+							'/Users/legomushroom/repos/vscode/deps/text/**/unspecific*.md',
+						],
+						[
+							'/Users/legomushroom/repos/vscode/deps/text/**/specific.prompt.md',
+							'/Users/legomushroom/repos/vscode/deps/text/**/unspecific1.prompt.md',
+							'/Users/legomushroom/repos/vscode/deps/text/**/unspecific2.prompt.md',
+						],
+						[
+							'/Users/legomushroom/repos/vscode/deps/text/**/specific.prompt.md',
+							'/Users/legomushroom/repos/vscode/deps/text/**/unspecific1*.md',
+							'/Users/legomushroom/repos/vscode/deps/text/**/unspecific2*.md',
+						],
+					];
+
+					for (const settings of testSettings) {
+						test(`• '${JSON.stringify(settings)}'`, async () => {
+							const vscodeSettings: Record<string, boolean> = {};
+							for (const setting of settings) {
+								vscodeSettings[setting] = true;
+							}
+
+							const locator = await createPromptsLocator(
+								vscodeSettings,
+								EMPTY_WORKSPACE,
+								[
+									{
+										name: '/Users/legomushroom/repos/vscode',
+										children: [
+											{
+												name: 'deps/text',
+												children: [
+													{
+														name: 'my.prompt.md',
+														contents: 'oh hi, bot!',
+													},
+													{
+														name: 'nested',
+														children: [
+															{
+																name: 'default.prompt.md',
+																contents: 'oh hi, bot!',
+															},
+															{
+																name: 'specific.prompt.md',
+																contents: 'oh hi, bot!',
+															},
+															{
+																name: 'unspecific1.prompt.md',
+																contents: 'oh hi, robot!',
+															},
+															{
+																name: 'unspecific2.prompt.md',
+																contents: 'oh hi, rawbot!',
+															},
+															{
+																name: 'readme.md',
+																contents: 'non prompt file',
+															},
+														],
+													}
+												],
+											},
+										],
+									},
+								],
+							);
+
+							assert.deepStrictEqual(
+								(await locator.listFiles())
+									.map((file) => file.fsPath),
+								[
+									createURI('/Users/legomushroom/repos/vscode/deps/text/nested/specific.prompt.md').fsPath,
+									createURI('/Users/legomushroom/repos/vscode/deps/text/nested/unspecific1.prompt.md').fsPath,
+									createURI('/Users/legomushroom/repos/vscode/deps/text/nested/unspecific2.prompt.md').fsPath,
+								],
+								'Must find correct prompts.',
+							);
+						});
+					}
+				});
 			});
 		});
 	});
