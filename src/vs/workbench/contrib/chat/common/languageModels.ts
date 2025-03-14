@@ -45,12 +45,6 @@ export interface IChatImageURLPart {
 	 * The raw binary data of the image, encoded as a Uint8Array. Note: do not use base64 encoding. Maximum image size is 5MB.
 	 */
 	data: VSBuffer;
-
-	/**
-	 * Specifies the detail level of the image. Learn more in the
-	 * [Vision guide](https://platform.openai.com/docs/guides/vision/low-or-high-fidelity-image-understanding).
-	 */
-	detail?: ImageDetailLevel;
 }
 
 /**

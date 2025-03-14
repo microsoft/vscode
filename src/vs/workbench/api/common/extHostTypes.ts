@@ -4948,13 +4948,6 @@ export class LanguageModelTextPart implements vscode.LanguageModelTextPart {
 export class LanguageModelImagePart implements vscode.LanguageModelImagePart {
 	value: vscode.ChatImagePart;
 
-	// constructor(value: ChatImagePart) {
-	// 	this.value = {
-	// 		mimeType: value.mimeType,
-	// 		data: value.data.buffer,
-	// 		detail: value.detail,
-	// 	};
-	// }
 	constructor(value: vscode.ChatImagePart) {
 		this.value = value;
 	}
@@ -4970,7 +4963,6 @@ export class LanguageModelImagePart implements vscode.LanguageModelImagePart {
 export interface ChatImagePart {
 	mimeType: string;
 	data: VSBuffer;
-	detail?: ImageDetailLevel;
 }
 
 export class LanguageModelPromptTsxPart {
@@ -5088,13 +5080,6 @@ export enum RelatedInformationType {
 	SettingInformation = 4
 }
 
-/**
- * Specifies the detail level of the image.
- */
-export enum ImageDetailLevel {
-	Low = 'low',
-	High = 'high'
-}
 
 //#endregion
 

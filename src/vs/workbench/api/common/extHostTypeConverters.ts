@@ -2425,7 +2425,6 @@ export namespace LanguageModelChatMessage2 {
 				const value: vscode.ChatImagePart = {
 					mimeType: c.value.mimeType,
 					data: c.value.data.buffer,
-					detail: c.value.detail ?? types.ImageDetailLevel.High
 				};
 
 				return new types.LanguageModelImagePart(value);
@@ -2475,7 +2474,6 @@ export namespace LanguageModelChatMessage2 {
 				const value: chatProvider.IChatImageURLPart = {
 					mimeType: c.value.mimeType,
 					data: VSBuffer.wrap(c.value.data),
-					detail: c.value.detail ?? types.ImageDetailLevel.High
 				};
 
 				return {
