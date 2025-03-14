@@ -20,7 +20,7 @@ import { IMcpService } from '../common/mcpTypes.js';
 import { McpDiscovery } from './mcpDiscovery.js';
 import * as extensionsRegistry from '../../../services/extensions/common/extensionsRegistry.js';
 
-import { AttachMCPToolsAction, AttachMCPToolsActionRendering, ListMcpServerCommand, ResetMcpTrustCommand, McpServerOptionsCommand, ResetMcpCachedTools } from './mcpCommands.js';
+import { MCPServerActionRendering, ListMcpServerCommand, ResetMcpTrustCommand, McpServerOptionsCommand, ResetMcpCachedTools } from './mcpCommands.js';
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { McpContextKeysController } from '../common/mcpContextKeys.js';
 
@@ -35,10 +35,9 @@ registerWorkbenchContribution2('mcpContextKeys', McpContextKeysController, Workb
 
 registerAction2(ListMcpServerCommand);
 registerAction2(McpServerOptionsCommand);
-registerAction2(AttachMCPToolsAction);
 registerAction2(ResetMcpTrustCommand);
 registerAction2(ResetMcpCachedTools);
-registerWorkbenchContribution2('mcpActionRendering', AttachMCPToolsActionRendering, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2('mcpActionRendering', MCPServerActionRendering, WorkbenchPhase.BlockRestore);
 
 const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
 jsonRegistry.registerSchema(mcpSchemaId, mcpServerSchema);

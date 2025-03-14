@@ -5,10 +5,10 @@
 
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, autorunWithStore, derived, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun, derived, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
-import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier, IRelaxedExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -98,9 +98,9 @@ export class McpService extends Disposable implements IMcpService {
 		});
 
 		const tools = this._register(new MutableDisposable());
-		this._register(autorunWithStore((reader, store) => {
+		this._register(autorun(r => {
 
-			const servers = this._publishedServers.read(reader);
+			const servers = this._publishedServers.read(r);
 
 			// TODO@jrieken wasteful, needs some diff'ing/change-info
 			const newStore = new DisposableStore();
@@ -109,22 +109,17 @@ export class McpService extends Disposable implements IMcpService {
 
 			for (const server of servers) {
 
-				for (const tool of server.tools.read(reader)) {
-
-					const ctxKey = new RawContextKey<boolean>(`mcp.tool.${tool.id}.enabled`, true);
-					const ctxInst = contextKeyService.createKey<boolean>(ctxKey.key, true);
-					store.add(toDisposable(() => ctxInst.reset()));
-					store.add(autorun(reader => {
-						ctxInst.set(tool.enabled.read(reader));
-					}));
+				for (const tool of server.tools.read(r)) {
 
 					newStore.add(toolsService.registerToolData({
 						id: tool.id,
 						displayName: tool.definition.name,
+						toolReferenceName: tool.definition.name,
 						modelDescription: tool.definition.description ?? '',
+						userDescription: tool.definition.description ?? '',
 						inputSchema: tool.definition.inputSchema,
-						when: ctxKey.isEqualTo(true),
-						tags: ['mcp', 'vscode_editing']
+						canBeReferencedInPrompt: true,
+						tags: ['mcp', 'vscode_editing'] // TODO@jrieken remove this tag
 					}));
 					newStore.add(toolsService.registerToolImplementation(tool.id, {
 
