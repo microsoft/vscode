@@ -503,13 +503,6 @@ export function registerChatActions() {
 		}
 	});
 
-	const nonEnterpriseCopilotUsers = ContextKeyExpr.and(
-		ContextKeyExpr.or(
-			ChatContextKeys.Setup.limited,
-			ChatContextKeys.Setup.pro
-		),
-		ChatContextKeys.Setup.installed
-	);
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -517,7 +510,10 @@ export function registerChatActions() {
 				title: localize2('manageCopilot', "Manage Copilot"),
 				category: CHAT_CATEGORY,
 				f1: true,
-				precondition: nonEnterpriseCopilotUsers,
+				precondition: ContextKeyExpr.or(
+					ChatContextKeys.Setup.limited,
+					ChatContextKeys.Setup.pro
+				),
 				menu: {
 					id: MenuId.ChatTitleBarMenu,
 					group: 'y_manage',
