@@ -233,7 +233,7 @@ __vsc_update_cwd() {
 
 # Filtered env output without exported functions
 __vsc_env() {
-	command env -0 | tr '\0\n' '\n\r' | grep -Ev '^BASH_FUNC'
+	command env -0 | tr '\0\n' '\n\r' | sort | grep -Ev '^BASH_FUNC'
 }
 
 __updateEnvCacheAA() {
