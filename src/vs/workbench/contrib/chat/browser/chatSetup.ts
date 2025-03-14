@@ -140,7 +140,19 @@ class SetupChatAgentImplementation implements IChatAgentImplementation {
 				content: new MarkdownString(localize('settingUpCopilot', "Getting Copilot Ready...")),
 			} satisfies IChatProgressMessage);
 
-			await this.controller.value.setup();
+			const success = await this.controller.value.setup();
+			if (success) {
+				progress({
+					kind: 'progressMessage',
+					content: new MarkdownString(localize('copilotReady', "Copilot is ready to use.")),
+				} satisfies IChatProgressMessage);
+			}
+			else {
+				progress({
+					kind: 'warning',
+					content: new MarkdownString(localize('copilotSetupError', "Copilot setup failed. [Try again]({0} \"Retry\").", `command:${CHAT_SETUP_ACTION_ID}`), { isTrusted: true }),
+				} satisfies IChatWarningMessage);
+			}
 		}
 
 		// User has cancelled the setup
@@ -593,7 +605,7 @@ class ChatSetupController extends Disposable {
 		this._onDidChange.fire();
 	}
 
-	async setup(options?: { forceSignIn?: boolean; notificationProgress?: boolean }): Promise<void> {
+	async setup(options?: { forceSignIn?: boolean; notificationProgress?: boolean }): Promise<boolean> {
 		const watch = new StopWatch(false);
 		const title = localize('setupChatProgress', "Getting Copilot ready...");
 		const badge = this.activityService.showViewContainerActivity(preferCopilotEditsView(this.viewsService) ? CHAT_EDITING_SIDEBAR_PANEL_ID : CHAT_SIDEBAR_PANEL_ID, {
@@ -601,7 +613,7 @@ class ChatSetupController extends Disposable {
 		});
 
 		try {
-			await this.progressService.withProgress({
+			return await this.progressService.withProgress({
 				location: options?.notificationProgress ? ProgressLocation.Notification : ProgressLocation.Window,
 				command: CHAT_SETUP_ACTION_ID,
 				title,
@@ -611,10 +623,11 @@ class ChatSetupController extends Disposable {
 		}
 	}
 
-	private async doSetup(forceSignIn: boolean, watch: StopWatch): Promise<void> {
+	private async doSetup(forceSignIn: boolean, watch: StopWatch): Promise<boolean> {
 		this.context.suspend();  // reduces flicker
 
 		let focusChatInput = false;
+		let success = false;
 		try {
 			const providerId = ChatSetupRequests.providerId(this.configurationService);
 			let session: AuthenticationSession | undefined;
@@ -626,7 +639,7 @@ class ChatSetupController extends Disposable {
 				const result = await this.signIn(providerId);
 				if (!result.session) {
 					this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNotSignedIn', installDuration: watch.elapsed(), signUpErrorCode: undefined });
-					return;
+					return false;
 				}
 
 				session = result.session;
@@ -638,14 +651,14 @@ class ChatSetupController extends Disposable {
 			});
 			if (!trusted) {
 				this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNotTrusted', installDuration: watch.elapsed(), signUpErrorCode: undefined });
-				return;
+				return false;
 			}
 
 			const activeElement = getActiveElement();
 
 			// Install
 			this.setStep(ChatSetupStep.Installing);
-			await this.install(session, entitlement ?? this.context.state.entitlement, providerId, watch);
+			success = await this.install(session, entitlement ?? this.context.state.entitlement, providerId, watch);
 
 			const currentActiveElement = getActiveElement();
 			focusChatInput = activeElement === currentActiveElement || currentActiveElement === mainWindow.document.body;
@@ -657,6 +670,8 @@ class ChatSetupController extends Disposable {
 		if (focusChatInput) {
 			(await showCopilotView(this.viewsService, this.layoutService))?.focusInput();
 		}
+
+		return success;
 	}
 
 	private async signIn(providerId: string): Promise<{ session: AuthenticationSession | undefined; entitlement: ChatEntitlement | undefined }> {
@@ -686,7 +701,7 @@ class ChatSetupController extends Disposable {
 		return { session, entitlement: entitlements?.entitlement };
 	}
 
-	private async install(session: AuthenticationSession | undefined, entitlement: ChatEntitlement, providerId: string, watch: StopWatch,): Promise<void> {
+	private async install(session: AuthenticationSession | undefined, entitlement: ChatEntitlement, providerId: string, watch: StopWatch,): Promise<boolean> {
 		const wasInstalled = this.context.state.installed;
 		let signUpResult: boolean | { errorCode: number } | undefined = undefined;
 
@@ -707,7 +722,7 @@ class ChatSetupController extends Disposable {
 
 					if (!session) {
 						this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNoSession', installDuration: watch.elapsed(), signUpErrorCode: undefined });
-						return; // unexpected
+						return false; // unexpected
 					}
 				}
 
@@ -722,7 +737,7 @@ class ChatSetupController extends Disposable {
 		} catch (error) {
 			this.logService.error(`[chat setup] install: error ${error}`);
 			this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: isCancellationError(error) ? 'cancelled' : 'failedInstall', installDuration: watch.elapsed(), signUpErrorCode: undefined });
-			return;
+			return false;
 		}
 
 		this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'installed', installDuration: watch.elapsed(), signUpErrorCode: undefined });
@@ -731,10 +746,14 @@ class ChatSetupController extends Disposable {
 			refreshTokens(this.commandService);
 		}
 
-		await Promise.race([
-			timeout(5000), 												// helps prevent flicker with sign-in welcome view
-			Event.toPromise(this.chatAgentService.onDidChangeAgents)	// https://github.com/microsoft/vscode-copilot/issues/9274
-		]);
+		if (!this.configurationService.getValue('chat.experimental.setupFromDialog')) {
+			await Promise.race([
+				timeout(5000), 												// helps prevent flicker with sign-in welcome view
+				Event.toPromise(this.chatAgentService.onDidChangeAgents)	// https://github.com/microsoft/vscode-copilot/issues/9274
+			]);
+		}
+
+		return true;
 	}
 
 	private async doInstall(): Promise<void> {
@@ -891,7 +910,7 @@ class ChatSetupWelcomeContent extends Disposable {
 		button.enabled = this.controller.step === ChatSetupStep.Initial;
 	}
 
-	private async setupWithProvider(useEnterpriseProvider: boolean): Promise<void> {
+	private async setupWithProvider(useEnterpriseProvider: boolean): Promise<boolean> {
 		const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 		registry.registerConfiguration({
 			'id': 'copilot.setup',
@@ -914,7 +933,7 @@ class ChatSetupWelcomeContent extends Disposable {
 		if (useEnterpriseProvider) {
 			const success = await this.handleEnterpriseInstance();
 			if (!success) {
-				return; // not properly configured, abort
+				return false; // not properly configured, abort
 			}
 		}
 
