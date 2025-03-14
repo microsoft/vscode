@@ -392,11 +392,13 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				const layoutService = accessor.get(IWorkbenchLayoutService);
 				const statusbarService = accessor.get(IStatusbarService);
 				const instantiationService = accessor.get(IInstantiationService);
-
-				const setupFromDialog = configurationService.getValue('chat.experimental.setupFromDialog');
+				const logService = accessor.get(ILogService);
+				const dialogService = accessor.get(IDialogService);
+				const commandService = accessor.get(ICommandService);
 
 				await context.update({ hidden: false });
 
+				const setupFromDialog = configurationService.getValue('chat.experimental.setupFromDialog');
 				if (!setupFromDialog) {
 					showCopilotView(viewsService, layoutService);
 					ensureSideBarChatViewSize(viewDescriptorService, layoutService, viewsService);
@@ -409,7 +411,28 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					const dialog = instantiationService.createInstance(ChatSetupDialog, context);
 					const result = await dialog.show();
 					if (result) {
-						controller.value.setup({ notificationProgress: true });
+						let success = false;
+						try {
+							success = await controller.value.setup({ notificationProgress: true });
+
+							if (success) {
+								showCopilotView(viewsService, layoutService);
+							}
+						} catch (error) {
+							logService.error(localize('setupError', "Error during setup: {0}", toErrorMessage(error)));
+						}
+
+						if (!success) {
+							const { confirmed } = await dialogService.confirm({
+								type: Severity.Error,
+								message: localize('setupErrorDialog', "Copilot setup failed. Would you like to try again?"),
+								primaryButton: localize('retry', "Retry"),
+							});
+
+							if (confirmed) {
+								commandService.executeCommand(CHAT_SETUP_ACTION_ID);
+							}
+						}
 					}
 				}
 			}
