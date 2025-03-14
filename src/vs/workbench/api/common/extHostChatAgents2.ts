@@ -559,10 +559,10 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	}
 
 	private getToolsForRequest(extension: IExtensionDescription, request: Dto<IChatAgentRequest>) {
-		if (!isNonEmptyArray(request.useSelectedTools)) {
+		if (!isNonEmptyArray(request.userSelectedTools)) {
 			return undefined;
 		}
-		const selector = new Set(request.useSelectedTools);
+		const selector = new Set(request.userSelectedTools);
 		return this._tools.getTools(extension).filter(candidate => selector.has(candidate.name));
 	}
 

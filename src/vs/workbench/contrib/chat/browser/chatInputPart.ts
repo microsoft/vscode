@@ -90,6 +90,7 @@ import { CollapsibleListPool, IChatCollapsibleListItem } from './chatContentPart
 import { ChatDragAndDrop } from './chatDragAndDrop.js';
 import { ChatEditingRemoveAllFilesAction, ChatEditingShowChangesAction } from './chatEditing/chatEditingActions.js';
 import { ChatFollowups } from './chatFollowups.js';
+import { ChatSelectedTools } from './chatSelectedTools.js';
 import { IChatViewState } from './chatWidget.js';
 import { ChatFileReference } from './contrib/chatDynamicVariables/chatFileReference.js';
 import { ChatImplicitContext } from './contrib/chatImplicitContext.js';
@@ -150,6 +151,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	public get attachmentModel(): ChatAttachmentModel {
 		return this._attachmentModel;
 	}
+
+	readonly selectedToolsModel: ChatSelectedTools;
 
 	public getAttachedAndImplicitContext(sessionId: string): IChatRequestVariableEntry[] {
 		const contextArr = [...this.attachmentModel.attachments];
@@ -384,6 +387,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		super();
 
 		this._attachmentModel = this._register(this.instantiationService.createInstance(ChatAttachmentModel));
+		this.selectedToolsModel = this._register(this.instantiationService.createInstance(ChatSelectedTools));
 		this.dnd = this._register(this.instantiationService.createInstance(ChatDragAndDrop, this._attachmentModel, styles));
 
 		this.getInputState = (): IChatInputState => {
