@@ -213,6 +213,16 @@ export class CancellationError extends Error {
 	}
 }
 
+const invalidAuthorityMessage = 'net::ERR_CERT_AUTHORITY_INVALID';
+
+/**
+ * Chromium doesn't care about default OS's certificates, instead, it uses
+ * a NSS certificate stores: https://chromium.googlesource.com/chromium/src/+/lkgr/docs/linux/cert_management.md
+ */
+export function isInvalidAuthorityError(error: any): boolean {
+	return error instanceof Error && error.message === invalidAuthorityMessage;
+}
+
 /**
  * @deprecated use {@link CancellationError `new CancellationError()`} instead
  */
