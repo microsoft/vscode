@@ -32,12 +32,12 @@ import {
 	IRunOptionsDTO, ITaskGroupDTO,
 	ITaskProblemMatcherStarted,
 	ITaskProblemMatcherEnded,
+	TaskEventKind
 } from '../common/shared/tasks.js';
 import { IConfigurationResolverService } from '../../services/configurationResolver/common/configurationResolver.js';
 import { ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
 import { ErrorNoTelemetry } from '../../../base/common/errors.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
-import { TaskEventKind } from '../common/extHostTypes.js';
 
 namespace TaskExecutionDTO {
 	export function from(value: ITaskExecution): ITaskExecutionDTO {
