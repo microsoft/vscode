@@ -8,7 +8,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
 import { IObservable, ITransaction } from '../../../../base/common/observable.js';
-import { URI } from '../../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -16,6 +16,8 @@ import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { MCP } from './modelContextProtocol.js';
+
+export const extensionMcpCollectionPrefix = 'ext.';
 
 /**
  * An McpCollection contains McpServers. There may be multiple collections for
@@ -46,7 +48,8 @@ export interface McpCollectionDefinition {
 export const enum McpCollectionSortOrder {
 	Workspace = 0,
 	User = 100,
-	Filesystem = 200,
+	Extension = 200,
+	Filesystem = 300,
 
 	RemotePenalty = 50,
 }
@@ -75,14 +78,30 @@ export interface McpServerDefinition {
 	/** Descriptor defining how the configuration should be launched. */
 	readonly launch: McpServerLaunch;
 	/** If set, allows configuration variables to be resolved in the {@link launch} with the given context */
-	readonly variableReplacement?: {
-		section?: string; // e.g. 'mcp'
-		folder?: IWorkspaceFolderData;
-		target?: ConfigurationTarget;
-	};
+	readonly variableReplacement?: McpServerDefinitionVariableReplacement;
 }
 
 export namespace McpServerDefinition {
+	export interface Serialized {
+		readonly id: string;
+		readonly label: string;
+		readonly launch: McpServerLaunch.Serialized;
+		readonly variableReplacement?: McpServerDefinitionVariableReplacement.Serialized;
+	}
+
+	export function toSerialized(def: McpServerDefinition): McpServerDefinition.Serialized {
+		return def;
+	}
+
+	export function fromSerialized(def: McpServerDefinition.Serialized): McpServerDefinition {
+		return {
+			id: def.id,
+			label: def.label,
+			launch: McpServerLaunch.fromSerialized(def.launch),
+			variableReplacement: def.variableReplacement ? McpServerDefinitionVariableReplacement.fromSerialized(def.variableReplacement) : undefined,
+		};
+	}
+
 	export function equals(a: McpServerDefinition, b: McpServerDefinition): boolean {
 		return a.id === b.id
 			&& a.label === b.label
@@ -91,16 +110,63 @@ export namespace McpServerDefinition {
 	}
 }
 
+
+export interface McpServerDefinitionVariableReplacement {
+	section?: string; // e.g. 'mcp'
+	folder?: IWorkspaceFolderData;
+	target?: ConfigurationTarget;
+}
+
+export namespace McpServerDefinitionVariableReplacement {
+	export interface Serialized {
+		section?: string;
+		folder?: { name: string; index: number; uri: UriComponents };
+		target?: ConfigurationTarget;
+	}
+
+	export function toSerialized(def: McpServerDefinitionVariableReplacement): McpServerDefinitionVariableReplacement.Serialized {
+		return def;
+	}
+
+	export function fromSerialized(def: McpServerDefinitionVariableReplacement.Serialized): McpServerDefinitionVariableReplacement {
+		return {
+			section: def.section,
+			folder: def.folder ? { ...def.folder, uri: URI.revive(def.folder.uri) } : undefined,
+			target: def.target,
+		};
+	}
+}
+
 export interface IMcpService {
 	_serviceBrand: undefined;
 	readonly servers: IObservable<readonly IMcpServer[]>;
+
+	/** Resets the cached tools. */
+	resetCaches(): void;
+
+	/** Set if there are extensions that register MCP servers that have never been activated. */
+	readonly hasExtensionsWithUnknownServers: IObservable<boolean>;
+	/** Activatese extensions and runs their MCP servers. */
+	activateExtensionServers(): Promise<void>;
 }
 
 export const IMcpService = createDecorator<IMcpService>('IMcpService');
 
+export interface McpCollectionReference {
+	id: string;
+	label: string;
+	presentation?: McpCollectionDefinition['presentation'];
+}
+
+export interface McpDefinitionReference {
+	id: string;
+	label: string;
+}
+
 export interface IMcpServer extends IDisposable {
-	readonly collection: McpCollectionDefinition;
-	readonly definition: McpServerDefinition;
+	readonly collection: McpCollectionReference;
+	readonly definition: McpDefinitionReference;
+	readonly connection: IObservable<IMcpServerConnection | undefined>;
 	readonly connectionState: IObservable<McpConnectionState>;
 	/**
 	 * Reflects the MCP server trust state. True if trusted, false if untrusted,
@@ -184,6 +250,31 @@ export interface McpServerTransportSSE {
 export type McpServerLaunch =
 	| McpServerTransportStdio
 	| McpServerTransportSSE;
+
+export namespace McpServerLaunch {
+	export type Serialized =
+		| { type: McpServerTransportType.SSE; url: string }
+		| { type: McpServerTransportType.Stdio; cwd: UriComponents | undefined; command: string; args: readonly string[]; env: Record<string, string | number | null> };
+
+	export function toSerialized(launch: McpServerLaunch): McpServerLaunch.Serialized {
+		return launch;
+	}
+
+	export function fromSerialized(launch: McpServerLaunch.Serialized): McpServerLaunch {
+		switch (launch.type) {
+			case McpServerTransportType.SSE:
+				return { type: launch.type, url: launch.url };
+			case McpServerTransportType.Stdio:
+				return {
+					type: launch.type,
+					cwd: launch.cwd ? URI.revive(launch.cwd) : undefined,
+					command: launch.command,
+					args: launch.args,
+					env: launch.env,
+				};
+		}
+	}
+}
 
 /**
  * An instance that manages a connection to an MCP server. It can be started,

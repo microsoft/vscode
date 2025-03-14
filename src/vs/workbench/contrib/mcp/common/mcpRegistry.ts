@@ -16,7 +16,7 @@ import { IConfigurationResolverService } from '../../../services/configurationRe
 import { McpRegistryInputStorage } from './mcpRegistryInputStorage.js';
 import { IMcpHostDelegate, IMcpRegistry, IMcpResolveConnectionOptions } from './mcpRegistryTypes.js';
 import { McpServerConnection } from './mcpServerConnection.js';
-import { IMcpServerConnection, McpCollectionDefinition, McpServerDefinition } from './mcpTypes.js';
+import { IMcpServerConnection, McpCollectionDefinition, McpCollectionReference, McpServerDefinition } from './mcpTypes.js';
 
 const createTrustMemento = observableMemento<Readonly<Record<string, boolean>>>({
 	defaultValue: {},
@@ -84,9 +84,10 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		this._trustMemento.value.set({}, undefined);
 	}
 
-	public getTrust(collection: McpCollectionDefinition): IObservable<boolean | undefined> {
+	public getTrust(collectionRef: McpCollectionReference): IObservable<boolean | undefined> {
 		return derived(reader => {
-			if (collection.isTrustedByDefault) {
+			const collection = this._collections.read(reader).find(c => c.id === collectionRef.id);
+			if (!collection || collection.isTrustedByDefault) {
 				return true;
 			}
 
@@ -130,7 +131,13 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		return result.result;
 	}
 
-	public async resolveConnection({ collection, definition, forceTrust }: IMcpResolveConnectionOptions): Promise<IMcpServerConnection | undefined> {
+	public async resolveConnection({ collectionRef, definitionRef, forceTrust }: IMcpResolveConnectionOptions): Promise<IMcpServerConnection | undefined> {
+		const collection = this._collections.get().find(c => c.id === collectionRef.id);
+		const definition = collection?.serverDefinitions.get().find(s => s.id === definitionRef.id);
+		if (!collection || !definition) {
+			throw new Error(`Collection or definition not found for ${collectionRef.id} and ${definitionRef.id}`);
+		}
+
 		const delegate = this._delegates.find(d => d.canStart(collection, definition));
 		if (!delegate) {
 			throw new Error('No delegate found that can handle the connection');

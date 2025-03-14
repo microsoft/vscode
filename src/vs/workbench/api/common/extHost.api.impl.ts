@@ -1516,9 +1516,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerIgnoredFileProvider(provider: vscode.LanguageModelIgnoredFileProvider) {
 				return extHostLanguageModels.registerIgnoredFileProvider(extension, provider);
 			},
-			registerMcpConfigurationProvider(provider, metadata) {
+			registerMcpConfigurationProvider(id, provider) {
 				checkProposedApiEnabled(extension, 'mcpConfigurationProvider');
-				return extHostMcp.registerMcpConfigurationProvider(extension, provider, metadata);
+				return extHostMcp.registerMcpConfigurationProvider(extension, id, provider);
 			}
 		};
 

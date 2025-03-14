@@ -7,7 +7,7 @@ import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { McpCollectionDefinition, McpServerDefinition, McpServerLaunch, McpConnectionState, IMcpServerConnection } from './mcpTypes.js';
+import { McpCollectionDefinition, McpServerDefinition, McpServerLaunch, McpConnectionState, IMcpServerConnection, McpCollectionReference, McpDefinitionReference } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
 
 export const IMcpRegistry = createDecorator<IMcpRegistry>('mcpRegistry');
@@ -27,8 +27,8 @@ export interface IMcpHostDelegate {
 }
 
 export interface IMcpResolveConnectionOptions {
-	collection: McpCollectionDefinition;
-	definition: McpServerDefinition;
+	collectionRef: McpCollectionReference;
+	definitionRef: McpDefinitionReference;
 	/** If set, the user will be asked to trust the collection even if they untrusted it previously */
 	forceTrust?: boolean;
 }
@@ -46,10 +46,10 @@ export interface IMcpRegistry {
 	resetTrust(): void;
 
 	/** Gets whether the collection is trusted. */
-	getTrust(collection: McpCollectionDefinition): IObservable<boolean | undefined>;
+	getTrust(collection: McpCollectionReference): IObservable<boolean | undefined>;
 
 	/** Resets any saved inputs for the connection. */
-	clearSavedInputs(collection: McpCollectionDefinition, definition: McpServerDefinition): void;
+	clearSavedInputs(collection: McpCollectionReference, definition: McpServerDefinition): void;
 	/** Creates a connection for the collection and definition. */
 	resolveConnection(options: IMcpResolveConnectionOptions): Promise<IMcpServerConnection | undefined>;
 }

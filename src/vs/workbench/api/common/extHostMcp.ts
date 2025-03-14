@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
-import { McpCollectionDefinition, McpServerDefinition, McpServerLaunch, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
+import { extensionMcpCollectionPrefix, McpCollectionDefinition, McpServerDefinition, McpServerLaunch, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
 import { ExtHostMcpShape, MainContext, MainThreadMcpShape } from './extHost.protocol.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import { StorageScope } from '../../../platform/storage/common/storage.js';
@@ -16,7 +16,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 export const IExtHostMpcService = createDecorator<IExtHostMpcService>('IExtHostMpcService');
 
 export interface IExtHostMpcService extends ExtHostMcpShape {
-	registerMcpConfigurationProvider(extension: IExtensionDescription, provider: vscode.McpConfigurationProvider, metadata?: { label: string }): IDisposable;
+	registerMcpConfigurationProvider(extension: IExtensionDescription, id: string, provider: vscode.McpConfigurationProvider): IDisposable;
 }
 
 export class ExtHostMcpService implements IExtHostMpcService {
@@ -41,11 +41,16 @@ export class ExtHostMcpService implements IExtHostMpcService {
 		// no-op
 	}
 
-	registerMcpConfigurationProvider(extension: IExtensionDescription, provider: vscode.McpConfigurationProvider, metadata?: { label: string }): IDisposable {
+	registerMcpConfigurationProvider(extension: IExtensionDescription, id: string, provider: vscode.McpConfigurationProvider): IDisposable {
 		const store = new DisposableStore();
 
+		const metadata = extension.contributes?.modelContextServerCollections?.find(m => m.id === id);
+		if (!metadata) {
+			throw new Error(`MCP configuration providers must be registered in the contributes.modelContextServerCollections array within your package.json, but "${id}" was not`);
+		}
+
 		const mcp: McpCollectionDefinition.FromExtHost = {
-			id: ExtensionIdentifier.toKey(extension.identifier),
+			id: extensionMcpCollectionPrefix + id,
 			isTrustedByDefault: true,
 			label: metadata?.label ?? extension.displayName ?? extension.name,
 			scope: StorageScope.WORKSPACE

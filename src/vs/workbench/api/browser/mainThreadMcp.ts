@@ -6,13 +6,11 @@
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue } from '../../../base/common/observable.js';
-import { URI } from '../../../base/common/uri.js';
 import { IMcpMessageTransport, IMcpRegistry } from '../../contrib/mcp/common/mcpRegistryTypes.js';
 import { McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
 import { ExtensionHostKind } from '../../services/extensions/common/extensionHostKind.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
-import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtHostContext, MainContext, MainThreadMcpShape } from '../common/extHost.protocol.js';
 
 @extHostNamedCustomer(MainContext.MainThreadMcp)
@@ -59,21 +57,8 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		}));
 	}
 
-	$upsertMcpCollection(collection: McpCollectionDefinition.FromExtHost, serversDto: Dto<McpServerDefinition>[]): void {
-		const servers = serversDto.map((s): McpServerDefinition => ({
-			...s,
-			launch: s.launch.type === McpServerTransportType.Stdio
-				? { ...s.launch, cwd: URI.revive(s.launch.cwd) }
-				: s.launch,
-			variableReplacement: s.variableReplacement && {
-				...s.variableReplacement,
-				folder: s.variableReplacement.folder && {
-					...s.variableReplacement.folder,
-					uri: URI.revive(s.variableReplacement.folder.uri),
-				},
-			},
-		}));
-
+	$upsertMcpCollection(collection: McpCollectionDefinition.FromExtHost, serversDto: McpServerDefinition.Serialized[]): void {
+		const servers = serversDto.map(McpServerDefinition.fromSerialized);
 		const existing = this._collectionDefinitions.get(collection.id);
 		if (existing) {
 			existing.servers.set(servers, undefined);

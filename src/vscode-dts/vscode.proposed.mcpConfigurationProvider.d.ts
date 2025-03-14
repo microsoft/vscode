@@ -37,6 +37,6 @@ declare module 'vscode' {
 	}
 
 	namespace lm {
-		export function registerMcpConfigurationProvider(provider: McpConfigurationProvider, metadata?: { label: string }): Disposable;
+		export function registerMcpConfigurationProvider(id: string, provider: McpConfigurationProvider): Disposable;
 	}
 }

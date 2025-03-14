@@ -369,7 +369,7 @@ export class AttachMCPToolsActionRendering extends Disposable implements IWorkbe
 			return { count, enabled };
 		});
 
-		const displayedState = derived(reader => {
+		const displayedState = derived((reader): { state: DisplayedState; servers: IMcpServer[]; extensions?: boolean } => {
 			const servers = mcpService.servers.read(reader);
 			const serversPerState: IMcpServer[][] = [];
 			for (const server of servers) {
@@ -394,8 +394,9 @@ export class AttachMCPToolsActionRendering extends Disposable implements IWorkbe
 				serversPerState[thisState].push(server);
 			}
 
-			const maxState = (serversPerState.length - 1) as DisplayedState;
-			return { state: maxState, servers: serversPerState[maxState] };
+			const extensionNeedRefresh = mcpService.hasExtensionsWithUnknownServers.read(reader);
+			const maxState = extensionNeedRefresh ? DisplayedState.NewTools : (serversPerState.length - 1) as DisplayedState;
+			return { state: maxState, servers: serversPerState[maxState] || [], extensions: extensionNeedRefresh };
 		});
 
 		this._store.add(actionViewItemService.register(MenuId.ChatInputAttachmentToolbar, AttachMCPToolsAction.id, (action, options) => {
@@ -452,6 +453,7 @@ export class AttachMCPToolsActionRendering extends Disposable implements IWorkbe
 						const { state, servers } = displayedState.get();
 						if (state === DisplayedState.NewTools) {
 							servers.forEach(server => server.start());
+							mcpService.activateExtensionServers();
 						} else if (state === DisplayedState.Refreshing) {
 							servers.at(-1)?.showOutput();
 						} else if (state === DisplayedState.Error) {
@@ -469,9 +471,9 @@ export class AttachMCPToolsActionRendering extends Disposable implements IWorkbe
 
 				private getLabelForState({ state, servers } = displayedState.get()) {
 					if (state === DisplayedState.NewTools) {
-						return localize('mcp.newTools', "New tools available ({0})", servers.length);
+						return localize('mcp.newTools', "New tools available ({0})", servers.length || 1);
 					} else if (state === DisplayedState.Error) {
-						return localize('mcp.toolError', "Error loading {0} tool(s)", servers.length);
+						return localize('mcp.toolError', "Error loading {0} tool(s)", servers.length || 1);
 					} else if (state === DisplayedState.Refreshing) {
 						return localize('mcp.toolRefresh', "Discovering tools...");
 					} else {
@@ -509,7 +511,7 @@ export class ResetMcpTrustCommand extends Action2 {
 	constructor() {
 		super({
 			id: ResetMcpTrustCommand.ID,
-			title: localize2('mcp.resetTrust', "Reset MCP Trust"),
+			title: localize2('mcp.resetTrust', "Reset Trust"),
 			category,
 			f1: true,
 			precondition: McpContextKeys.toolsCount.greater(0),
@@ -519,6 +521,26 @@ export class ResetMcpTrustCommand extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		const mcpService = accessor.get(IMcpRegistry);
 		mcpService.resetTrust();
+	}
+}
+
+
+export class ResetMcpCachedTools extends Action2 {
+	static readonly ID = 'workbench.mcp.resetCachedTools';
+
+	constructor() {
+		super({
+			id: ResetMcpCachedTools.ID,
+			title: localize2('mcp.resetCachedTools', "Reset Cached Tools"),
+			category,
+			f1: true,
+			precondition: McpContextKeys.toolsCount.greater(0),
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const mcpService = accessor.get(IMcpService);
+		mcpService.resetCaches();
 	}
 }
 
