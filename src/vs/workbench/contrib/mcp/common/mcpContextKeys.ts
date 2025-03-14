@@ -39,7 +39,7 @@ export class McpContextKeysController extends Disposable implements IWorkbenchCo
 			const serverTools = servers.map(s => s.tools.read(r));
 			ctxServerCount.set(servers.length);
 			ctxToolsCount.set(serverTools.reduce((count, tools) => count + tools.length, 0));
-			ctxHasUnknownTools.set(mcpService.hasExtensionsWithUnknownServers.read(r) || servers.some(s => {
+			ctxHasUnknownTools.set(mcpService.hasCollectionsWithUnknownServers.read(r) || servers.some(s => {
 				if (s.trusted.read(r) === false) {
 					return false;
 				}

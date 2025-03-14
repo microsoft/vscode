@@ -26,7 +26,7 @@ interface IObservableMementoOpts<T> {
  * with storage service events, and must be tracked appropriately.
  */
 export function observableMemento<T>(opts: IObservableMementoOpts<T>) {
-	return (scope: StorageScope, target: StorageTarget, storageService: IStorageService): ISettableObservable<T> & IDisposable => {
+	return (scope: StorageScope, target: StorageTarget, storageService: IStorageService): ObservableMemento<T> => {
 		return new ObservableMemento<T>(opts, scope, target, storageService);
 	};
 }
@@ -34,9 +34,12 @@ export function observableMemento<T>(opts: IObservableMementoOpts<T>) {
 /**
  * A value that is stored, and is also observable. Note: T should be readonly.
  */
-class ObservableMemento<T> extends ObservableValue<T> implements IDisposable {
+export class ObservableMemento<T> extends ObservableValue<T> implements IDisposable {
 	private readonly _store = new DisposableStore();
 	private _didChange = false;
+
+	/** Settable function called before persisting to storage. */
+	public onWillSave?: (value: T) => void;
 
 	constructor(
 		opts: IObservableMementoOpts<T>,
@@ -73,6 +76,8 @@ class ObservableMemento<T> extends ObservableValue<T> implements IDisposable {
 		}));
 
 		this._store.add(storageService.onWillSaveState(() => {
+			this.onWillSave?.(this.get());
+
 			if (this._didChange) {
 				this._didChange = false;
 				const value = this.get();

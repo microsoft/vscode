@@ -40,6 +40,11 @@ export interface IMcpRegistry {
 	readonly collections: IObservable<readonly McpCollectionDefinition[]>;
 	readonly delegates: readonly IMcpHostDelegate[];
 
+	/** Whether there are new collections that can be resolved with a discover() call */
+	readonly canDiscoverCollections: IObservable<boolean>;
+	/** Discover new collections, returning newly-discovered ones. */
+	discoverCollections(): Promise<McpCollectionDefinition[]>;
+
 	registerDelegate(delegate: IMcpHostDelegate): IDisposable;
 	registerCollection(collection: McpCollectionDefinition): IDisposable;
 

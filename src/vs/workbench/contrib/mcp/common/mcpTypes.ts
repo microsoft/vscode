@@ -42,6 +42,16 @@ export interface McpCollectionDefinition {
 	/** Scope where associated collection info should be stored. */
 	readonly scope: StorageScope;
 
+	/** For lazy-loaded collections only: */
+	readonly lazy?: {
+		/** True if `serverDefinitions` were loaded from the cache */
+		isCached: boolean;
+		/** Triggers a load of the real server definition, which should be pushed to the IMcpRegistry. If not this definition will be removed. */
+		load(): Promise<void>;
+		/** Called after `load()` if the extension is not found. */
+		removed?(): void;
+	};
+
 	readonly presentation?: {
 		/** Sort order of the collection. */
 		readonly order?: number;
@@ -150,9 +160,9 @@ export interface IMcpService {
 	resetCaches(): void;
 
 	/** Set if there are extensions that register MCP servers that have never been activated. */
-	readonly hasExtensionsWithUnknownServers: IObservable<boolean>;
+	readonly hasCollectionsWithUnknownServers: IObservable<boolean>;
 	/** Activatese extensions and runs their MCP servers. */
-	activateExtensionServers(): Promise<void>;
+	activateCollections(): Promise<void>;
 }
 
 export const IMcpService = createDecorator<IMcpService>('IMcpService');

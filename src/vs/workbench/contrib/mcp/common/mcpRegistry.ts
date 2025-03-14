@@ -30,13 +30,18 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 
 	private readonly _collections = observableValue<readonly McpCollectionDefinition[]>('collections', []);
 	private readonly _delegates: IMcpHostDelegate[] = [];
-
 	public readonly collections: IObservable<readonly McpCollectionDefinition[]> = this._collections;
 
 	private readonly _workspaceStorage = new Lazy(() => this._register(this._instantiationService.createInstance(McpRegistryInputStorage, StorageScope.WORKSPACE, StorageTarget.USER)));
 	private readonly _profileStorage = new Lazy(() => this._register(this._instantiationService.createInstance(McpRegistryInputStorage, StorageScope.PROFILE, StorageTarget.USER)));
 
 	private readonly _trustMemento = new Lazy(() => this._register(createTrustMemento(StorageScope.APPLICATION, StorageTarget.MACHINE, this._storageService)));
+	private readonly _lazyCollectionsToUpdate = new Set</* collection ID*/string>();
+
+	public readonly canDiscoverCollections = derived(reader => {
+		const collections = this._collections.read(reader);
+		return collections.some(c => c.lazy && c.lazy.isCached === false);
+	});
 
 	public get delegates(): readonly IMcpHostDelegate[] {
 		return this._delegates;
@@ -65,7 +70,13 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 
 	public registerCollection(collection: McpCollectionDefinition): IDisposable {
 		const currentCollections = this._collections.get();
-		this._collections.set([...currentCollections, collection], undefined);
+		const toReplace = currentCollections.find(c => c.lazy && c.id === collection.id);
+		if (toReplace) {
+			this._lazyCollectionsToUpdate.add(collection.id);
+			this._collections.set(currentCollections.map(c => c === toReplace ? collection : c), undefined);
+		} else {
+			this._collections.set([...currentCollections, collection], undefined);
+		}
 
 		return {
 			dispose: () => {
@@ -73,6 +84,27 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 				this._collections.set(currentCollections.filter(c => c !== collection), undefined);
 			}
 		};
+	}
+
+	public async discoverCollections(): Promise<McpCollectionDefinition[]> {
+		const toDiscover = this._collections.get().filter(c => c.lazy && !c.lazy.isCached);
+		await Promise.all(toDiscover.map(c => c.lazy?.load()));
+
+		const found: McpCollectionDefinition[] = [];
+		const current = this._collections.get();
+		for (const collection of toDiscover) {
+			const rec = current.find(c => c.id === collection.id);
+			if (!rec) {
+				// ignored
+			} else if (rec.lazy) {
+				rec.lazy.removed?.(); // did not get replaced by the non-lazy version
+			} else {
+				found.push(rec);
+			}
+		}
+
+
+		return found;
 	}
 
 	public clearSavedInputs() {

@@ -224,7 +224,7 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 				serversPerState[thisState].push(server);
 			}
 
-			const extensionNeedRefresh = mcpService.hasExtensionsWithUnknownServers.read(reader);
+			const extensionNeedRefresh = mcpService.hasCollectionsWithUnknownServers.read(reader);
 			const maxState = extensionNeedRefresh ? DisplayedState.NewTools : (serversPerState.length - 1) as DisplayedState;
 			return { state: maxState, servers: serversPerState[maxState] || [], extensions: extensionNeedRefresh };
 		});
@@ -278,7 +278,7 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 					const { state, servers } = displayedState.get();
 					if (state === DisplayedState.NewTools) {
 						servers.forEach(server => server.start());
-						mcpService.activateExtensionServers();
+						mcpService.activateCollections();
 					} else if (state === DisplayedState.Refreshing) {
 						servers.at(-1)?.showOutput();
 					} else if (state === DisplayedState.Error) {
