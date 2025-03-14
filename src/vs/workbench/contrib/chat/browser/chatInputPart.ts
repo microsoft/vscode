@@ -1466,9 +1466,15 @@ class ModelPickerActionViewItem extends DropdownMenuActionViewItemWithKeybinding
 
 				const models: ILanguageModelChatMetadataAndIdentifier[] = this.delegate.getModels();
 				const actions = models.map(entry => setLanguageModelAction(entry));
-				if (chatEntitlementService.entitlement === ChatEntitlement.Limited) {
+				const supportsBYOK = !!contextKeyService.getContextKeyValue<boolean>('github.copilot.byokEnabled');
+				if (supportsBYOK || chatEntitlementService.entitlement === ChatEntitlement.Limited) {
 					actions.push(new Separator());
-					actions.push(toAction({ id: 'moreModels', label: localize('chat.moreModels', "Add More Models..."), run: () => commandService.executeCommand('workbench.action.chat.upgradePlan', 'chat-models') }));
+				}
+				if (chatEntitlementService.entitlement === ChatEntitlement.Limited) {
+					actions.push(toAction({ id: 'moreModels', label: localize('chat.moreModels', "Upgrade Plan to Access More Models..."), run: () => commandService.executeCommand('workbench.action.chat.upgradePlan', 'chat-models') }));
+				}
+				if (supportsBYOK) {
+					actions.push(toAction({ id: 'byokModels', label: localize('chat.byokModels', "Manage Models..."), run: () => commandService.executeCommand('github.copilot.chat.manageModels') }));
 				}
 
 				return actions;
