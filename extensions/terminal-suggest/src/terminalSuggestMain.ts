@@ -222,7 +222,7 @@ export async function getCompletionItemsFromSpecs(
 	let hasCurrentArg = false;
 	let fileExtensions: string[] | undefined;
 
-	let precedingText = terminalContext.commandLine.replaceAll(/\n/g, '');
+	let precedingText = terminalContext.commandLine.slice(0, terminalContext.cursorPosition + 1).replaceAll(/\n/g, '');
 	if (isWindows) {
 		const spaceIndex = precedingText.indexOf(' ');
 		const commandEndIndex = spaceIndex === -1 ? precedingText.length : spaceIndex;
