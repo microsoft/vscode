@@ -21,7 +21,7 @@ import { IActionViewItemService } from '../../../../../platform/actions/browser/
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { Action2, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -55,7 +55,7 @@ import { language } from '../../../../../base/common/platform.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../common/chatEntitlementService.js';
+import { ChatEntitlement, ChatSentiment, IChatEntitlementService } from '../../common/chatEntitlementService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
@@ -692,7 +692,6 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 		@IChatAgentService agentService: IChatAgentService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
@@ -708,7 +707,7 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 				run() { }
 			});
 
-			const chatExtensionInstalled = contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.installed.key) === true;
+			const chatExtensionInstalled = chatEntitlementService.sentiment === ChatSentiment.Installed;
 			const { chatQuotaExceeded, completionsQuotaExceeded } = chatEntitlementService.quotas;
 			const signedOut = chatEntitlementService.entitlement === ChatEntitlement.Unknown;
 			const setupFromDialog = configurationService.getValue('chat.experimental.setupFromDialog');
@@ -745,7 +744,7 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 				icon: primaryActionIcon,
 			}, undefined, undefined, undefined, undefined), dropdownAction, action.actions, '', { ...options, skipTelemetry: true });
 		}, Event.any(
-			agentService.onDidChangeAgents,
+			chatEntitlementService.onDidChangeSentiment,
 			chatEntitlementService.onDidChangeQuotaExceeded,
 			chatEntitlementService.onDidChangeEntitlement,
 			Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('chat.experimental.setupFromDialog'))

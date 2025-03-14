@@ -11,9 +11,8 @@ import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, ShowTooltipCommand, StatusbarAlignment, StatusbarEntryKind } from '../../../services/statusbar/browser/statusbar.js';
-import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { $, addDisposableListener, append, clearNode, EventHelper, EventType } from '../../../../base/browser/dom.js';
-import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../common/chatEntitlementService.js';
+import { ChatEntitlement, ChatEntitlementService, ChatSentiment, IChatEntitlementService } from '../common/chatEntitlementService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
@@ -116,7 +115,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	}
 
 	private async create(): Promise<void> {
-		const hidden = this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.hidden.key) === true;
+		const hidden = this.chatEntitlementService.sentiment === ChatSentiment.Disabled;
 		const disabled = this.configurationService.getValue<boolean>(ChatStatusBarEntry.SETTING) === false;
 
 		if (!hidden && !disabled) {
@@ -139,18 +138,8 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			}
 		}));
 
-		const contextKeysSet = new Set([ChatContextKeys.Setup.installed.key]);
-		this._register(this.contextKeyService.onDidChangeContext(e => {
-			if (!this.entry) {
-				return;
-			}
-
-			if (e.affectsSome(contextKeysSet)) {
-				this.entry.update(this.getEntryProps());
-			}
-		}));
-
 		this._register(this.chatEntitlementService.onDidChangeQuotaExceeded(() => this.entry?.update(this.getEntryProps())));
+		this._register(this.chatEntitlementService.onDidChangeSentiment(() => this.entry?.update(this.getEntryProps())));
 		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => this.entry?.update(this.getEntryProps())));
 	}
 
@@ -211,8 +200,8 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 }
 
 function isNewUser(contextKeyService: IContextKeyService, chatEntitlementService: IChatEntitlementService): boolean {
-	return contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.installed.key) === false ||	// copilot not installed
-		chatEntitlementService.entitlement === ChatEntitlement.Available;									// not yet signed up to copilot
+	return chatEntitlementService.sentiment !== ChatSentiment.Installed ||	// copilot not installed
+		chatEntitlementService.entitlement === ChatEntitlement.Available;	// not yet signed up to copilot
 }
 
 function canUseCopilot(contextKeyService: IContextKeyService, chatEntitlementService: IChatEntitlementService): boolean {

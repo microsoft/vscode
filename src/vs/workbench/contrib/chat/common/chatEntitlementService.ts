@@ -49,6 +49,15 @@ export enum ChatEntitlement {
 	Pro
 }
 
+export enum ChatSentiment {
+	/** Out of the box value */
+	Standard = 1,
+	/** Explicitly disabled/hidden by user */
+	Disabled = 2,
+	/** Extensions installed */
+	Installed = 3
+}
+
 export interface IChatQuotas {
 	readonly chatQuotaExceeded: boolean;
 	readonly completionsQuotaExceeded: boolean;
@@ -75,6 +84,10 @@ export interface IChatEntitlementService {
 	readonly quotas: IChatQuotas;
 
 	update(token: CancellationToken): Promise<void>;
+
+	readonly onDidChangeSentiment: Event<void>;
+
+	readonly sentiment: ChatSentiment;
 }
 
 //#region Service Implementation
@@ -123,6 +136,15 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 					ChatContextKeys.Entitlement.limited.key,
 					ChatContextKeys.Entitlement.canSignUp.key,
 					ChatContextKeys.Entitlement.signedOut.key
+				])), this._store
+			), () => { }, this._store
+		);
+
+		this.onDidChangeSentiment = Event.map(
+			Event.filter(
+				this.contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([
+					ChatContextKeys.Setup.hidden.key,
+					ChatContextKeys.Setup.installed.key
 				])), this._store
 			), () => { }, this._store
 		);
@@ -247,6 +269,23 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	private updateContextKeys(): void {
 		this.chatQuotaExceededContextKey.set(this._quotas.chatQuotaExceeded);
 		this.completionsQuotaExceededContextKey.set(this._quotas.completionsQuotaExceeded);
+	}
+
+	//#endregion
+
+	//#region --- Sentiment
+
+	private readonly _onDidChangeSentiment = this._register(new Emitter<void>());
+	readonly onDidChangeSentiment = this._onDidChangeSentiment.event;
+
+	get sentiment(): ChatSentiment {
+		if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.installed.key) === true) {
+			return ChatSentiment.Installed;
+		} else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.hidden.key) === true) {
+			return ChatSentiment.Disabled;
+		}
+
+		return ChatSentiment.Standard;
 	}
 
 	//#endregion
