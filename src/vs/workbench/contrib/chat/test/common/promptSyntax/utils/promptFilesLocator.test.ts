@@ -871,369 +871,1051 @@ suite('PromptFilesLocator', () => {
 		});
 	});
 
-	// suite('• multi-root workspace', () => {
-	// 	suite('• non-empty filesystem', () => {
-	// 		suite('• object config value', () => {
-	// 			test('• without top-level `.github` folder', async () => {
-	// 				const locator = await createPromptsLocator(
-	// 					{
-	// 						'/Users/legomushroom/repos/prompts': true,
-	// 						'/tmp/prompts/': true,
-	// 						'/absolute/path/prompts': false,
-	// 						'.copilot/prompts': false,
-	// 					},
-	// 					[
-	// 						'/Users/legomushroom/repos/vscode',
-	// 						'/Users/legomushroom/repos/node',
-	// 					],
-	// 					[
-	// 						{
-	// 							name: '/Users/legomushroom/repos/prompts',
-	// 							children: [
-	// 								{
-	// 									name: 'test.prompt.md',
-	// 									contents: 'Hello, World!',
-	// 								},
-	// 								{
-	// 									name: 'refactor-tests.prompt.md',
-	// 									contents: 'some file content goes here',
-	// 								},
-	// 							],
-	// 						},
-	// 						{
-	// 							name: '/tmp/prompts',
-	// 							children: [
-	// 								{
-	// 									name: 'translate.to-rust.prompt.md',
-	// 									contents: 'some more random file contents',
-	// 								},
-	// 							],
-	// 						},
-	// 						{
-	// 							name: '/absolute/path/prompts',
-	// 							children: [
-	// 								{
-	// 									name: 'some-prompt-file.prompt.md',
-	// 									contents: 'hey hey hey',
-	// 								},
-	// 							],
-	// 						},
-	// 						{
-	// 							name: '/Users/legomushroom/repos/vscode',
-	// 							children: [
-	// 								{
-	// 									name: '.copilot/prompts',
-	// 									children: [
-	// 										{
-	// 											name: 'prompt1.prompt.md',
-	// 											contents: 'oh hi, robot!',
-	// 										},
-	// 									],
-	// 								},
-	// 								{
-	// 									name: '.github/prompts',
-	// 									children: [
-	// 										{
-	// 											name: 'default.prompt.md',
-	// 											contents: 'oh hi, bot!',
-	// 										},
-	// 									],
-	// 								},
-	// 							],
-	// 						},
-	// 						{
-	// 							name: '/Users/legomushroom/repos/node',
-	// 							children: [
-	// 								{
-	// 									name: '.copilot/prompts',
-	// 									children: [
-	// 										{
-	// 											name: 'prompt5.prompt.md',
-	// 											contents: 'oh hi, robot!',
-	// 										},
-	// 									],
-	// 								},
-	// 								{
-	// 									name: '.github/prompts',
-	// 									children: [
-	// 										{
-	// 											name: 'refactor-static-classes.prompt.md',
-	// 											contents: 'file contents',
-	// 										},
-	// 									],
-	// 								},
-	// 							],
-	// 						},
-	// 						// note! this folder is not part of the workspace, so prompt files are `ignored`
-	// 						{
-	// 							name: '/Users/legomushroom/repos/.github/prompts',
-	// 							children: [
-	// 								{
-	// 									name: 'prompt-name.prompt.md',
-	// 									contents: 'oh hi, robot!',
-	// 								},
-	// 								{
-	// 									name: 'name-of-the-prompt.prompt.md',
-	// 									contents: 'oh hi, raw bot!',
-	// 								},
-	// 							],
-	// 						},
-	// 					]);
+	suite('• multi-root workspace', () => {
+		suite('• core logic', () => {
+			test('• without top-level `.github` folder', async () => {
+				const locator = await createPromptsLocator(
+					{
+						'/Users/legomushroom/repos/prompts': true,
+						'/tmp/prompts/': true,
+						'/absolute/path/prompts': false,
+						'.copilot/prompts': false,
+					},
+					[
+						'/Users/legomushroom/repos/vscode',
+						'/Users/legomushroom/repos/node',
+					],
+					[
+						{
+							name: '/Users/legomushroom/repos/prompts',
+							children: [
+								{
+									name: 'test.prompt.md',
+									contents: 'Hello, World!',
+								},
+								{
+									name: 'refactor-tests.prompt.md',
+									contents: 'some file content goes here',
+								},
+							],
+						},
+						{
+							name: '/tmp/prompts',
+							children: [
+								{
+									name: 'translate.to-rust.prompt.md',
+									contents: 'some more random file contents',
+								},
+							],
+						},
+						{
+							name: '/absolute/path/prompts',
+							children: [
+								{
+									name: 'some-prompt-file.prompt.md',
+									contents: 'hey hey hey',
+								},
+							],
+						},
+						{
+							name: '/Users/legomushroom/repos/vscode',
+							children: [
+								{
+									name: '.copilot/prompts',
+									children: [
+										{
+											name: 'prompt1.prompt.md',
+											contents: 'oh hi, robot!',
+										},
+									],
+								},
+								{
+									name: '.github/prompts',
+									children: [
+										{
+											name: 'default.prompt.md',
+											contents: 'oh hi, bot!',
+										},
+									],
+								},
+							],
+						},
+						{
+							name: '/Users/legomushroom/repos/node',
+							children: [
+								{
+									name: '.copilot/prompts',
+									children: [
+										{
+											name: 'prompt5.prompt.md',
+											contents: 'oh hi, robot!',
+										},
+									],
+								},
+								{
+									name: '.github/prompts',
+									children: [
+										{
+											name: 'refactor-static-classes.prompt.md',
+											contents: 'file contents',
+										},
+									],
+								},
+							],
+						},
+						// note! this folder is not part of the workspace, so prompt files are `ignored`
+						{
+							name: '/Users/legomushroom/repos/.github/prompts',
+							children: [
+								{
+									name: 'prompt-name.prompt.md',
+									contents: 'oh hi, robot!',
+								},
+								{
+									name: 'name-of-the-prompt.prompt.md',
+									contents: 'oh hi, raw bot!',
+								},
+							],
+						},
+					]);
 
-	// 				assert.deepStrictEqual(
-	// 					await locator.listFiles(),
-	// 					[
-	// 						createURI('/Users/legomushroom/repos/vscode/.github/prompts/default.prompt.md'),
-	// 						createURI('/Users/legomushroom/repos/node/.github/prompts/refactor-static-classes.prompt.md'),
-	// 						createURI('/Users/legomushroom/repos/prompts/test.prompt.md'),
-	// 						createURI('/Users/legomushroom/repos/prompts/refactor-tests.prompt.md'),
-	// 						createURI('/tmp/prompts/translate.to-rust.prompt.md'),
-	// 					],
-	// 					'Must find correct prompts.',
-	// 				);
-	// 			});
+				assert.deepStrictEqual(
+					await locator.listFiles(),
+					[
+						createURI('/Users/legomushroom/repos/vscode/.github/prompts/default.prompt.md'),
+						createURI('/Users/legomushroom/repos/node/.github/prompts/refactor-static-classes.prompt.md'),
+						createURI('/Users/legomushroom/repos/prompts/test.prompt.md'),
+						createURI('/Users/legomushroom/repos/prompts/refactor-tests.prompt.md'),
+						createURI('/tmp/prompts/translate.to-rust.prompt.md'),
+					],
+					'Must find correct prompts.',
+				);
+			});
 
-	// 			test('• with top-level `.github` folder', async () => {
-	// 				const locator = await createPromptsLocator(
-	// 					{
-	// 						'/Users/legomushroom/repos/prompts': true,
-	// 						'/tmp/prompts/': true,
-	// 						'/absolute/path/prompts': false,
-	// 						'.copilot/prompts': false,
-	// 					},
-	// 					[
-	// 						'/Users/legomushroom/repos/vscode',
-	// 						'/Users/legomushroom/repos/node',
-	// 						'/var/shared/prompts/.github',
-	// 					],
-	// 					[
-	// 						{
-	// 							name: '/Users/legomushroom/repos/prompts',
-	// 							children: [
-	// 								{
-	// 									name: 'test.prompt.md',
-	// 									contents: 'Hello, World!',
-	// 								},
-	// 								{
-	// 									name: 'refactor-tests.prompt.md',
-	// 									contents: 'some file content goes here',
-	// 								},
-	// 							],
-	// 						},
-	// 						{
-	// 							name: '/tmp/prompts',
-	// 							children: [
-	// 								{
-	// 									name: 'translate.to-rust.prompt.md',
-	// 									contents: 'some more random file contents',
-	// 								},
-	// 							],
-	// 						},
-	// 						{
-	// 							name: '/absolute/path/prompts',
-	// 							children: [
-	// 								{
-	// 									name: 'some-prompt-file.prompt.md',
-	// 									contents: 'hey hey hey',
-	// 								},
-	// 							],
-	// 						},
-	// 						{
-	// 							name: '/Users/legomushroom/repos/vscode',
-	// 							children: [
-	// 								{
-	// 									name: '.copilot/prompts',
-	// 									children: [
-	// 										{
-	// 											name: 'prompt1.prompt.md',
-	// 											contents: 'oh hi, robot!',
-	// 										},
-	// 									],
-	// 								},
-	// 								{
-	// 									name: '.github/prompts',
-	// 									children: [
-	// 										{
-	// 											name: 'default.prompt.md',
-	// 											contents: 'oh hi, bot!',
-	// 										},
-	// 									],
-	// 								},
-	// 							],
-	// 						},
-	// 						{
-	// 							name: '/Users/legomushroom/repos/node',
-	// 							children: [
-	// 								{
-	// 									name: '.copilot/prompts',
-	// 									children: [
-	// 										{
-	// 											name: 'prompt5.prompt.md',
-	// 											contents: 'oh hi, robot!',
-	// 										},
-	// 									],
-	// 								},
-	// 								{
-	// 									name: '.github/prompts',
-	// 									children: [
-	// 										{
-	// 											name: 'refactor-static-classes.prompt.md',
-	// 											contents: 'file contents',
-	// 										},
-	// 									],
-	// 								},
-	// 							],
-	// 						},
-	// 						// note! this folder is part of the workspace, so prompt files are `included`
-	// 						{
-	// 							name: '/var/shared/prompts/.github/prompts',
-	// 							children: [
-	// 								{
-	// 									name: 'prompt-name.prompt.md',
-	// 									contents: 'oh hi, robot!',
-	// 								},
-	// 								{
-	// 									name: 'name-of-the-prompt.prompt.md',
-	// 									contents: 'oh hi, raw bot!',
-	// 								},
-	// 							],
-	// 						},
-	// 					]);
+			test('• with top-level `.github` folder', async () => {
+				const locator = await createPromptsLocator(
+					{
+						'/Users/legomushroom/repos/prompts': true,
+						'/tmp/prompts/': true,
+						'/absolute/path/prompts': false,
+						'.copilot/prompts': false,
+					},
+					[
+						'/Users/legomushroom/repos/vscode',
+						'/Users/legomushroom/repos/node',
+						'/var/shared/prompts/.github',
+					],
+					[
+						{
+							name: '/Users/legomushroom/repos/prompts',
+							children: [
+								{
+									name: 'test.prompt.md',
+									contents: 'Hello, World!',
+								},
+								{
+									name: 'refactor-tests.prompt.md',
+									contents: 'some file content goes here',
+								},
+							],
+						},
+						{
+							name: '/tmp/prompts',
+							children: [
+								{
+									name: 'translate.to-rust.prompt.md',
+									contents: 'some more random file contents',
+								},
+							],
+						},
+						{
+							name: '/absolute/path/prompts',
+							children: [
+								{
+									name: 'some-prompt-file.prompt.md',
+									contents: 'hey hey hey',
+								},
+							],
+						},
+						{
+							name: '/Users/legomushroom/repos/vscode',
+							children: [
+								{
+									name: '.copilot/prompts',
+									children: [
+										{
+											name: 'prompt1.prompt.md',
+											contents: 'oh hi, robot!',
+										},
+									],
+								},
+								{
+									name: '.github/prompts',
+									children: [
+										{
+											name: 'default.prompt.md',
+											contents: 'oh hi, bot!',
+										},
+									],
+								},
+							],
+						},
+						{
+							name: '/Users/legomushroom/repos/node',
+							children: [
+								{
+									name: '.copilot/prompts',
+									children: [
+										{
+											name: 'prompt5.prompt.md',
+											contents: 'oh hi, robot!',
+										},
+									],
+								},
+								{
+									name: '.github/prompts',
+									children: [
+										{
+											name: 'refactor-static-classes.prompt.md',
+											contents: 'file contents',
+										},
+									],
+								},
+							],
+						},
+						// note! this folder is part of the workspace, so prompt files are `included`
+						{
+							name: '/var/shared/prompts/.github/prompts',
+							children: [
+								{
+									name: 'prompt-name.prompt.md',
+									contents: 'oh hi, robot!',
+								},
+								{
+									name: 'name-of-the-prompt.prompt.md',
+									contents: 'oh hi, raw bot!',
+								},
+							],
+						},
+					]);
 
-	// 				assert.deepStrictEqual(
-	// 					await locator.listFiles(),
-	// 					[
-	// 						createURI('/Users/legomushroom/repos/vscode/.github/prompts/default.prompt.md'),
-	// 						createURI('/Users/legomushroom/repos/node/.github/prompts/refactor-static-classes.prompt.md'),
-	// 						createURI('/var/shared/prompts/.github/prompts/prompt-name.prompt.md'),
-	// 						createURI('/var/shared/prompts/.github/prompts/name-of-the-prompt.prompt.md'),
-	// 						createURI('/Users/legomushroom/repos/prompts/test.prompt.md'),
-	// 						createURI('/Users/legomushroom/repos/prompts/refactor-tests.prompt.md'),
-	// 						createURI('/tmp/prompts/translate.to-rust.prompt.md'),
-	// 					],
-	// 					'Must find correct prompts.',
-	// 				);
-	// 			});
+				assert.deepStrictEqual(
+					await locator.listFiles(),
+					[
+						createURI('/Users/legomushroom/repos/vscode/.github/prompts/default.prompt.md'),
+						createURI('/Users/legomushroom/repos/node/.github/prompts/refactor-static-classes.prompt.md'),
+						createURI('/var/shared/prompts/.github/prompts/prompt-name.prompt.md'),
+						createURI('/var/shared/prompts/.github/prompts/name-of-the-prompt.prompt.md'),
+						createURI('/Users/legomushroom/repos/prompts/test.prompt.md'),
+						createURI('/Users/legomushroom/repos/prompts/refactor-tests.prompt.md'),
+						createURI('/tmp/prompts/translate.to-rust.prompt.md'),
+					],
+					'Must find correct prompts.',
+				);
+			});
 
-	// 			test('• with disabled `.github/prompts` location', async () => {
-	// 				const locator = await createPromptsLocator(
-	// 					{
-	// 						'/Users/legomushroom/repos/prompts': true,
-	// 						'/tmp/prompts/': true,
-	// 						'/absolute/path/prompts': false,
-	// 						'.copilot/prompts': false,
-	// 						'.github/prompts': false,
-	// 					},
-	// 					[
-	// 						'/Users/legomushroom/repos/vscode',
-	// 						'/Users/legomushroom/repos/node',
-	// 						'/var/shared/prompts/.github',
-	// 					],
-	// 					[
-	// 						{
-	// 							name: '/Users/legomushroom/repos/prompts',
-	// 							children: [
-	// 								{
-	// 									name: 'test.prompt.md',
-	// 									contents: 'Hello, World!',
-	// 								},
-	// 								{
-	// 									name: 'refactor-tests.prompt.md',
-	// 									contents: 'some file content goes here',
-	// 								},
-	// 							],
-	// 						},
-	// 						{
-	// 							name: '/tmp/prompts',
-	// 							children: [
-	// 								{
-	// 									name: 'translate.to-rust.prompt.md',
-	// 									contents: 'some more random file contents',
-	// 								},
-	// 							],
-	// 						},
-	// 						{
-	// 							name: '/absolute/path/prompts',
-	// 							children: [
-	// 								{
-	// 									name: 'some-prompt-file.prompt.md',
-	// 									contents: 'hey hey hey',
-	// 								},
-	// 							],
-	// 						},
-	// 						{
-	// 							name: '/Users/legomushroom/repos/vscode',
-	// 							children: [
-	// 								{
-	// 									name: '.copilot/prompts',
-	// 									children: [
-	// 										{
-	// 											name: 'prompt1.prompt.md',
-	// 											contents: 'oh hi, robot!',
-	// 										},
-	// 									],
-	// 								},
-	// 								{
-	// 									name: '.github/prompts',
-	// 									children: [
-	// 										{
-	// 											name: 'default.prompt.md',
-	// 											contents: 'oh hi, bot!',
-	// 										},
-	// 									],
-	// 								},
-	// 							],
-	// 						},
-	// 						{
-	// 							name: '/Users/legomushroom/repos/node',
-	// 							children: [
-	// 								{
-	// 									name: '.copilot/prompts',
-	// 									children: [
-	// 										{
-	// 											name: 'prompt5.prompt.md',
-	// 											contents: 'oh hi, robot!',
-	// 										},
-	// 									],
-	// 								},
-	// 								{
-	// 									name: '.github/prompts',
-	// 									children: [
-	// 										{
-	// 											name: 'refactor-static-classes.prompt.md',
-	// 											contents: 'file contents',
-	// 										},
-	// 									],
-	// 								},
-	// 							],
-	// 						},
-	// 						// note! this folder is part of the workspace, so prompt files are `included`
-	// 						{
-	// 							name: '/var/shared/prompts/.github/prompts',
-	// 							children: [
-	// 								{
-	// 									name: 'prompt-name.prompt.md',
-	// 									contents: 'oh hi, robot!',
-	// 								},
-	// 								{
-	// 									name: 'name-of-the-prompt.prompt.md',
-	// 									contents: 'oh hi, raw bot!',
-	// 								},
-	// 							],
-	// 						},
-	// 					]);
+			test('• with disabled `.github/prompts` location', async () => {
+				const locator = await createPromptsLocator(
+					{
+						'/Users/legomushroom/repos/prompts': true,
+						'/tmp/prompts/': true,
+						'/absolute/path/prompts': false,
+						'.copilot/prompts': false,
+						'.github/prompts': false,
+					},
+					[
+						'/Users/legomushroom/repos/vscode',
+						'/Users/legomushroom/repos/node',
+						'/var/shared/prompts/.github',
+					],
+					[
+						{
+							name: '/Users/legomushroom/repos/prompts',
+							children: [
+								{
+									name: 'test.prompt.md',
+									contents: 'Hello, World!',
+								},
+								{
+									name: 'refactor-tests.prompt.md',
+									contents: 'some file content goes here',
+								},
+							],
+						},
+						{
+							name: '/tmp/prompts',
+							children: [
+								{
+									name: 'translate.to-rust.prompt.md',
+									contents: 'some more random file contents',
+								},
+							],
+						},
+						{
+							name: '/absolute/path/prompts',
+							children: [
+								{
+									name: 'some-prompt-file.prompt.md',
+									contents: 'hey hey hey',
+								},
+							],
+						},
+						{
+							name: '/Users/legomushroom/repos/vscode',
+							children: [
+								{
+									name: '.copilot/prompts',
+									children: [
+										{
+											name: 'prompt1.prompt.md',
+											contents: 'oh hi, robot!',
+										},
+									],
+								},
+								{
+									name: '.github/prompts',
+									children: [
+										{
+											name: 'default.prompt.md',
+											contents: 'oh hi, bot!',
+										},
+									],
+								},
+							],
+						},
+						{
+							name: '/Users/legomushroom/repos/node',
+							children: [
+								{
+									name: '.copilot/prompts',
+									children: [
+										{
+											name: 'prompt5.prompt.md',
+											contents: 'oh hi, robot!',
+										},
+									],
+								},
+								{
+									name: '.github/prompts',
+									children: [
+										{
+											name: 'refactor-static-classes.prompt.md',
+											contents: 'file contents',
+										},
+									],
+								},
+							],
+						},
+						// note! this folder is part of the workspace, so prompt files are `included`
+						{
+							name: '/var/shared/prompts/.github/prompts',
+							children: [
+								{
+									name: 'prompt-name.prompt.md',
+									contents: 'oh hi, robot!',
+								},
+								{
+									name: 'name-of-the-prompt.prompt.md',
+									contents: 'oh hi, raw bot!',
+								},
+							],
+						},
+					]);
 
-	// 				assert.deepStrictEqual(
-	// 					await locator.listFiles(),
-	// 					[
-	// 						createURI('/Users/legomushroom/repos/prompts/test.prompt.md'),
-	// 						createURI('/Users/legomushroom/repos/prompts/refactor-tests.prompt.md'),
-	// 						createURI('/tmp/prompts/translate.to-rust.prompt.md'),
-	// 					],
-	// 					'Must find correct prompts.',
-	// 				);
-	// 			});
-	// 		});
-	// 	});
-	// });
+				assert.deepStrictEqual(
+					await locator.listFiles(),
+					[
+						createURI('/Users/legomushroom/repos/prompts/test.prompt.md'),
+						createURI('/Users/legomushroom/repos/prompts/refactor-tests.prompt.md'),
+						createURI('/tmp/prompts/translate.to-rust.prompt.md'),
+					],
+					'Must find correct prompts.',
+				);
+			});
+		});
+
+		suite('• findAllMatchingPromptFiles', () => {
+			suite('• glob pattern', () => {
+				suite('• relative', () => {
+					suite('• wild card', () => {
+						const testSettings = [
+							'**',
+							'**/*.prompt.md',
+							'**/*.md',
+							'**/*',
+							'gen*/**',
+							'gen*/**/*.prompt.md',
+							'gen*/**/*',
+							'gen*/**/*.md',
+							'**/gen*/**',
+							'**/gen*/**/*',
+							'**/gen*/**/*.md',
+							'**/gen*/**/*.prompt.md',
+							'{generic,general,gen}/**',
+							'{generic,general,gen}/**/*.prompt.md',
+							'{generic,general,gen}/**/*',
+							'{generic,general,gen}/**/*.md',
+							'**/{generic,general,gen}/**',
+							'**/{generic,general,gen}/**/*',
+							'**/{generic,general,gen}/**/*.md',
+							'**/{generic,general,gen}/**/*.prompt.md',
+						];
+
+						for (const setting of testSettings) {
+							test(`• '${setting}'`, async () => {
+								const locator = await createPromptsLocator(
+									{ [setting]: true },
+									[
+										'/Users/legomushroom/repos/vscode',
+										'/Users/legomushroom/repos/prompts',
+									],
+									[
+										{
+											name: '/Users/legomushroom/repos/vscode',
+											children: [
+												{
+													name: 'gen/text',
+													children: [
+														{
+															name: 'my.prompt.md',
+															contents: 'oh hi, bot!',
+														},
+														{
+															name: 'nested',
+															children: [
+																{
+																	name: 'specific.prompt.md',
+																	contents: 'oh hi, bot!',
+																},
+																{
+																	name: 'unspecific1.prompt.md',
+																	contents: 'oh hi, robot!',
+																},
+																{
+																	name: 'unspecific2.prompt.md',
+																	contents: 'oh hi, rabot!',
+																},
+																{
+																	name: 'readme.md',
+																	contents: 'non prompt file',
+																},
+															],
+														}
+													],
+												},
+											],
+										},
+										{
+											name: '/Users/legomushroom/repos/prompts',
+											children: [
+												{
+													name: 'general',
+													children: [
+														{
+															name: 'common.prompt.md',
+															contents: 'oh hi, bot!',
+														},
+														{
+															name: 'uncommon-10.prompt.md',
+															contents: 'oh hi, robot!',
+														},
+														{
+															name: 'license.md',
+															contents: 'non prompt file',
+														},
+													],
+												}
+											],
+										},
+									],
+								);
+
+								assert.deepStrictEqual(
+									(await locator.findAllMatchingPromptFiles())
+										.map((file) => file.fsPath),
+									[
+										createURI('/Users/legomushroom/repos/vscode/gen/text/my.prompt.md').fsPath,
+										createURI('/Users/legomushroom/repos/vscode/gen/text/nested/specific.prompt.md').fsPath,
+										createURI('/Users/legomushroom/repos/vscode/gen/text/nested/unspecific1.prompt.md').fsPath,
+										createURI('/Users/legomushroom/repos/vscode/gen/text/nested/unspecific2.prompt.md').fsPath,
+										// -
+										createURI('/Users/legomushroom/repos/prompts/general/common.prompt.md').fsPath,
+										createURI('/Users/legomushroom/repos/prompts/general/uncommon-10.prompt.md').fsPath,
+									],
+									'Must find correct prompts.',
+								);
+							});
+						}
+					});
+
+					suite(`• specific`, () => {
+						const testSettings = [
+							[
+								'**/my.prompt.md',
+								'**/*specific*',
+								'**/*common*',
+							],
+							[
+								'**/my.prompt.md',
+								'**/*specific*.prompt.md',
+								'**/*common*.prompt.md',
+							],
+							[
+								'**/my*.md',
+								'**/*specific*.md',
+								'**/*common*.md',
+							],
+							[
+								'**/my*.md',
+								'**/specific*',
+								'**/unspecific*',
+								'**/common*',
+								'**/uncommon*',
+							],
+							[
+								'**/my.prompt.md',
+								'**/specific.prompt.md',
+								'**/unspecific1.prompt.md',
+								'**/unspecific2.prompt.md',
+								'**/common.prompt.md',
+								'**/uncommon-10.prompt.md',
+							],
+							[
+								'gen*/**/my.prompt.md',
+								'gen*/**/*specific*',
+								'gen*/**/*common*',
+							],
+							[
+								'gen*/**/my.prompt.md',
+								'gen*/**/*specific*.prompt.md',
+								'gen*/**/*common*.prompt.md',
+							],
+							[
+								'gen*/**/my*.md',
+								'gen*/**/*specific*.md',
+								'gen*/**/*common*.md',
+							],
+							[
+								'gen*/**/my*.md',
+								'gen*/**/specific*',
+								'gen*/**/unspecific*',
+								'gen*/**/common*',
+								'gen*/**/uncommon*',
+							],
+							[
+								'gen*/**/my.prompt.md',
+								'gen*/**/specific.prompt.md',
+								'gen*/**/unspecific1.prompt.md',
+								'gen*/**/unspecific2.prompt.md',
+								'gen*/**/common.prompt.md',
+								'gen*/**/uncommon-10.prompt.md',
+							],
+							[
+								'gen/text/my.prompt.md',
+								'gen/text/nested/specific.prompt.md',
+								'gen/text/nested/unspecific1.prompt.md',
+								'gen/text/nested/unspecific2.prompt.md',
+								'general/common.prompt.md',
+								'general/uncommon-10.prompt.md',
+							],
+							[
+								'gen/text/my.prompt.md',
+								'gen/text/nested/*specific*',
+								'general/*common*',
+							],
+							[
+								'gen/text/my.prompt.md',
+								'gen/text/**/specific.prompt.md',
+								'gen/text/**/unspecific1.prompt.md',
+								'gen/text/**/unspecific2.prompt.md',
+								'general/*',
+							],
+							[
+								'{gen,general}/**/my.prompt.md',
+								'{gen,general}/**/*specific*',
+								'{gen,general}/**/*common*',
+							],
+							[
+								'{gen,general}/**/my.prompt.md',
+								'{gen,general}/**/*specific*.prompt.md',
+								'{gen,general}/**/*common*.prompt.md',
+							],
+							[
+								'{gen,general}/**/my*.md',
+								'{gen,general}/**/*specific*.md',
+								'{gen,general}/**/*common*.md',
+							],
+							[
+								'{gen,general}/**/my*.md',
+								'{gen,general}/**/specific*',
+								'{gen,general}/**/unspecific*',
+								'{gen,general}/**/common*',
+								'{gen,general}/**/uncommon*',
+							],
+							[
+								'{gen,general}/**/my.prompt.md',
+								'{gen,general}/**/specific.prompt.md',
+								'{gen,general}/**/unspecific1.prompt.md',
+								'{gen,general}/**/unspecific2.prompt.md',
+								'{gen,general}/**/common.prompt.md',
+								'{gen,general}/**/uncommon-10.prompt.md',
+							],
+						];
+
+						for (const settings of testSettings) {
+							test(`• '${JSON.stringify(settings)}'`, async () => {
+								const vscodeSettings: Record<string, boolean> = {};
+								for (const setting of settings) {
+									vscodeSettings[setting] = true;
+								}
+
+								const locator = await createPromptsLocator(
+									vscodeSettings,
+									[
+										'/Users/legomushroom/repos/vscode',
+										'/Users/legomushroom/repos/prompts',
+									],
+									[
+										{
+											name: '/Users/legomushroom/repos/vscode',
+											children: [
+												{
+													name: 'gen/text',
+													children: [
+														{
+															name: 'my.prompt.md',
+															contents: 'oh hi, bot!',
+														},
+														{
+															name: 'nested',
+															children: [
+																{
+																	name: 'specific.prompt.md',
+																	contents: 'oh hi, bot!',
+																},
+																{
+																	name: 'unspecific1.prompt.md',
+																	contents: 'oh hi, robot!',
+																},
+																{
+																	name: 'unspecific2.prompt.md',
+																	contents: 'oh hi, rabot!',
+																},
+																{
+																	name: 'readme.md',
+																	contents: 'non prompt file',
+																},
+															],
+														}
+													],
+												},
+											],
+										},
+										{
+											name: '/Users/legomushroom/repos/prompts',
+											children: [
+												{
+													name: 'general',
+													children: [
+														{
+															name: 'common.prompt.md',
+															contents: 'oh hi, bot!',
+														},
+														{
+															name: 'uncommon-10.prompt.md',
+															contents: 'oh hi, robot!',
+														},
+														{
+															name: 'license.md',
+															contents: 'non prompt file',
+														},
+													],
+												}
+											],
+										},
+									],
+								);
+
+								assert.deepStrictEqual(
+									(await locator.findAllMatchingPromptFiles())
+										.map((file) => file.fsPath),
+									[
+										createURI('/Users/legomushroom/repos/vscode/gen/text/my.prompt.md').fsPath,
+										createURI('/Users/legomushroom/repos/vscode/gen/text/nested/specific.prompt.md').fsPath,
+										createURI('/Users/legomushroom/repos/vscode/gen/text/nested/unspecific1.prompt.md').fsPath,
+										createURI('/Users/legomushroom/repos/vscode/gen/text/nested/unspecific2.prompt.md').fsPath,
+										// -
+										createURI('/Users/legomushroom/repos/prompts/general/common.prompt.md').fsPath,
+										createURI('/Users/legomushroom/repos/prompts/general/uncommon-10.prompt.md').fsPath,
+									],
+									'Must find correct prompts.',
+								);
+							});
+						}
+					});
+				});
+
+				suite('• absolute', () => {
+					suite('• wild card', () => {
+						const testSettings = [
+							'/Users/legomushroom/repos/**',
+							'/Users/legomushroom/repos/**/*.prompt.md',
+							'/Users/legomushroom/repos/**/*.md',
+							'/Users/legomushroom/repos/**/*',
+							'/Users/legomushroom/repos/**/gen*/**',
+							'/Users/legomushroom/repos/**/gen*/**/*.prompt.md',
+							'/Users/legomushroom/repos/**/gen*/**/*',
+							'/Users/legomushroom/repos/**/gen*/**/*.md',
+							'/Users/legomushroom/repos/**/gen*/**',
+							'/Users/legomushroom/repos/**/gen*/**/*',
+							'/Users/legomushroom/repos/**/gen*/**/*.md',
+							'/Users/legomushroom/repos/**/gen*/**/*.prompt.md',
+							'/Users/legomushroom/repos/{vscode,prompts}/**',
+							'/Users/legomushroom/repos/{vscode,prompts}/**/*.prompt.md',
+							'/Users/legomushroom/repos/{vscode,prompts}/**/*.md',
+							'/Users/legomushroom/repos/{vscode,prompts}/**/*',
+							'/Users/legomushroom/repos/{vscode,prompts}/**/gen*/**',
+							'/Users/legomushroom/repos/{vscode,prompts}/**/gen*/**/*.prompt.md',
+							'/Users/legomushroom/repos/{vscode,prompts}/**/gen*/**/*',
+							'/Users/legomushroom/repos/{vscode,prompts}/**/gen*/**/*.md',
+							'/Users/legomushroom/repos/{vscode,prompts}/**/gen*/**',
+							'/Users/legomushroom/repos/{vscode,prompts}/**/gen*/**/*',
+							'/Users/legomushroom/repos/{vscode,prompts}/**/gen*/**/*.md',
+							'/Users/legomushroom/repos/{vscode,prompts}/**/gen*/**/*.prompt.md',
+							'/Users/legomushroom/repos/{vscode,prompts}/**/{general,gen}/**',
+							'/Users/legomushroom/repos/{vscode,prompts}/**/{general,gen}/**/*.prompt.md',
+							'/Users/legomushroom/repos/{vscode,prompts}/**/{general,gen}/**/*',
+							'/Users/legomushroom/repos/{vscode,prompts}/**/{general,gen}/**/*.md',
+							'/Users/legomushroom/repos/{vscode,prompts}/**/{general,gen}/**',
+							'/Users/legomushroom/repos/{vscode,prompts}/**/{general,gen}/**/*',
+							'/Users/legomushroom/repos/{vscode,prompts}/**/{general,gen}/**/*.md',
+							'/Users/legomushroom/repos/{vscode,prompts}/**/{general,gen}/**/*.prompt.md',
+						];
+
+						for (const setting of testSettings) {
+							test(`• '${setting}'`, async () => {
+								const locator = await createPromptsLocator(
+									{ [setting]: true },
+									[
+										'/Users/legomushroom/repos/vscode',
+										'/Users/legomushroom/repos/prompts',
+									],
+									[
+										{
+											name: '/Users/legomushroom/repos/vscode',
+											children: [
+												{
+													name: 'gen/text',
+													children: [
+														{
+															name: 'my.prompt.md',
+															contents: 'oh hi, bot!',
+														},
+														{
+															name: 'nested',
+															children: [
+																{
+																	name: 'specific.prompt.md',
+																	contents: 'oh hi, bot!',
+																},
+																{
+																	name: 'unspecific1.prompt.md',
+																	contents: 'oh hi, robot!',
+																},
+																{
+																	name: 'unspecific2.prompt.md',
+																	contents: 'oh hi, rabot!',
+																},
+																{
+																	name: 'readme.md',
+																	contents: 'non prompt file',
+																},
+															],
+														}
+													],
+												},
+											],
+										},
+										{
+											name: '/Users/legomushroom/repos/prompts',
+											children: [
+												{
+													name: 'general',
+													children: [
+														{
+															name: 'common.prompt.md',
+															contents: 'oh hi, bot!',
+														},
+														{
+															name: 'uncommon-10.prompt.md',
+															contents: 'oh hi, robot!',
+														},
+														{
+															name: 'license.md',
+															contents: 'non prompt file',
+														},
+													],
+												}
+											],
+										},
+									],
+								);
+
+								assert.deepStrictEqual(
+									(await locator.findAllMatchingPromptFiles())
+										.map((file) => file.fsPath),
+									[
+										createURI('/Users/legomushroom/repos/vscode/gen/text/my.prompt.md').fsPath,
+										createURI('/Users/legomushroom/repos/vscode/gen/text/nested/specific.prompt.md').fsPath,
+										createURI('/Users/legomushroom/repos/vscode/gen/text/nested/unspecific1.prompt.md').fsPath,
+										createURI('/Users/legomushroom/repos/vscode/gen/text/nested/unspecific2.prompt.md').fsPath,
+										// -
+										createURI('/Users/legomushroom/repos/prompts/general/common.prompt.md').fsPath,
+										createURI('/Users/legomushroom/repos/prompts/general/uncommon-10.prompt.md').fsPath,
+									],
+									'Must find correct prompts.',
+								);
+							});
+						}
+					});
+
+					suite(`• specific`, () => {
+						const testSettings = [
+							[
+								'/Users/legomushroom/repos/**/my.prompt.md',
+								'/Users/legomushroom/repos/**/*specific*',
+								'/Users/legomushroom/repos/**/*common*',
+							],
+							[
+								'/Users/legomushroom/repos/**/my.prompt.md',
+								'/Users/legomushroom/repos/**/*specific*.prompt.md',
+								'/Users/legomushroom/repos/**/*common*.prompt.md',
+							],
+							[
+								'/Users/legomushroom/repos/**/my*.md',
+								'/Users/legomushroom/repos/**/*specific*.md',
+								'/Users/legomushroom/repos/**/*common*.md',
+							],
+							[
+								'/Users/legomushroom/repos/**/my*.md',
+								'/Users/legomushroom/repos/**/specific*',
+								'/Users/legomushroom/repos/**/unspecific*',
+								'/Users/legomushroom/repos/**/common*',
+								'/Users/legomushroom/repos/**/uncommon*',
+							],
+							[
+								'/Users/legomushroom/repos/**/my.prompt.md',
+								'/Users/legomushroom/repos/**/specific.prompt.md',
+								'/Users/legomushroom/repos/**/unspecific1.prompt.md',
+								'/Users/legomushroom/repos/**/unspecific2.prompt.md',
+								'/Users/legomushroom/repos/**/common.prompt.md',
+								'/Users/legomushroom/repos/**/uncommon-10.prompt.md',
+							],
+							[
+								'/Users/legomushroom/repos/**/gen*/**/my.prompt.md',
+								'/Users/legomushroom/repos/**/gen*/**/*specific*',
+								'/Users/legomushroom/repos/**/gen*/**/*common*',
+							],
+							[
+								'/Users/legomushroom/repos/**/gen*/**/my.prompt.md',
+								'/Users/legomushroom/repos/**/gen*/**/*specific*.prompt.md',
+								'/Users/legomushroom/repos/**/gen*/**/*common*.prompt.md',
+							],
+							[
+								'/Users/legomushroom/repos/**/gen*/**/my*.md',
+								'/Users/legomushroom/repos/**/gen*/**/*specific*.md',
+								'/Users/legomushroom/repos/**/gen*/**/*common*.md',
+							],
+							[
+								'/Users/legomushroom/repos/**/gen*/**/my*.md',
+								'/Users/legomushroom/repos/**/gen*/**/specific*',
+								'/Users/legomushroom/repos/**/gen*/**/unspecific*',
+								'/Users/legomushroom/repos/**/gen*/**/common*',
+								'/Users/legomushroom/repos/**/gen*/**/uncommon*',
+							],
+							[
+								'/Users/legomushroom/repos/**/gen*/**/my.prompt.md',
+								'/Users/legomushroom/repos/**/gen*/**/specific.prompt.md',
+								'/Users/legomushroom/repos/**/gen*/**/unspecific1.prompt.md',
+								'/Users/legomushroom/repos/**/gen*/**/unspecific2.prompt.md',
+								'/Users/legomushroom/repos/**/gen*/**/common.prompt.md',
+								'/Users/legomushroom/repos/**/gen*/**/uncommon-10.prompt.md',
+							],
+							[
+								'/Users/legomushroom/repos/vscode/gen/text/my.prompt.md',
+								'/Users/legomushroom/repos/vscode/gen/text/nested/specific.prompt.md',
+								'/Users/legomushroom/repos/vscode/gen/text/nested/unspecific1.prompt.md',
+								'/Users/legomushroom/repos/vscode/gen/text/nested/unspecific2.prompt.md',
+								'/Users/legomushroom/repos/prompts/general/common.prompt.md',
+								'/Users/legomushroom/repos/prompts/general/uncommon-10.prompt.md',
+							],
+							[
+								'/Users/legomushroom/repos/vscode/gen/text/my.prompt.md',
+								'/Users/legomushroom/repos/vscode/gen/text/nested/*specific*',
+								'/Users/legomushroom/repos/prompts/general/*common*',
+							],
+							[
+								'/Users/legomushroom/repos/vscode/gen/text/my.prompt.md',
+								'/Users/legomushroom/repos/vscode/gen/text/**/specific.prompt.md',
+								'/Users/legomushroom/repos/vscode/gen/text/**/unspecific1.prompt.md',
+								'/Users/legomushroom/repos/vscode/gen/text/**/unspecific2.prompt.md',
+								'/Users/legomushroom/repos/prompts/general/*',
+							],
+							[
+								'/Users/legomushroom/repos/**/{gen,general}/**/my.prompt.md',
+								'/Users/legomushroom/repos/**/{gen,general}/**/*specific*',
+								'/Users/legomushroom/repos/**/{gen,general}/**/*common*',
+							],
+							[
+								'/Users/legomushroom/repos/**/{gen,general}/**/my.prompt.md',
+								'/Users/legomushroom/repos/**/{gen,general}/**/*specific*.prompt.md',
+								'/Users/legomushroom/repos/**/{gen,general}/**/*common*.prompt.md',
+							],
+							[
+								'/Users/legomushroom/repos/**/{gen,general}/**/my*.md',
+								'/Users/legomushroom/repos/**/{gen,general}/**/*specific*.md',
+								'/Users/legomushroom/repos/**/{gen,general}/**/*common*.md',
+							],
+							[
+								'/Users/legomushroom/repos/**/{gen,general}/**/my*.md',
+								'/Users/legomushroom/repos/**/{gen,general}/**/specific*',
+								'/Users/legomushroom/repos/**/{gen,general}/**/unspecific*',
+								'/Users/legomushroom/repos/**/{gen,general}/**/common*',
+								'/Users/legomushroom/repos/**/{gen,general}/**/uncommon*',
+							],
+							[
+								'/Users/legomushroom/repos/**/{gen,general}/**/my.prompt.md',
+								'/Users/legomushroom/repos/**/{gen,general}/**/specific.prompt.md',
+								'/Users/legomushroom/repos/**/{gen,general}/**/unspecific1.prompt.md',
+								'/Users/legomushroom/repos/**/{gen,general}/**/unspecific2.prompt.md',
+								'/Users/legomushroom/repos/**/{gen,general}/**/common.prompt.md',
+								'/Users/legomushroom/repos/**/{gen,general}/**/uncommon-10.prompt.md',
+							],
+							[
+								'/Users/legomushroom/repos/{prompts,vscode,copilot}/{gen,general}/**/my.prompt.md',
+								'/Users/legomushroom/repos/{prompts,vscode,copilot}/{gen,general}/**/*specific*',
+								'/Users/legomushroom/repos/{prompts,vscode,copilot}/{gen,general}/**/*common*',
+							],
+							[
+								'/Users/legomushroom/repos/{prompts,vscode,copilot}/{gen,general}/**/my.prompt.md',
+								'/Users/legomushroom/repos/{prompts,vscode,copilot}/{gen,general}/**/*specific*.prompt.md',
+								'/Users/legomushroom/repos/{prompts,vscode,copilot}/{gen,general}/**/*common*.prompt.md',
+							],
+							[
+								'/Users/legomushroom/repos/{prompts,vscode,copilot}/{gen,general}/**/my*.md',
+								'/Users/legomushroom/repos/{prompts,vscode,copilot}/{gen,general}/**/*specific*.md',
+								'/Users/legomushroom/repos/{prompts,vscode,copilot}/{gen,general}/**/*common*.md',
+							],
+							[
+								'/Users/legomushroom/repos/{prompts,vscode,copilot}/{gen,general}/**/my*.md',
+								'/Users/legomushroom/repos/{prompts,vscode,copilot}/{gen,general}/**/specific*',
+								'/Users/legomushroom/repos/{prompts,vscode,copilot}/{gen,general}/**/unspecific*',
+								'/Users/legomushroom/repos/{prompts,vscode,copilot}/{gen,general}/**/common*',
+								'/Users/legomushroom/repos/{prompts,vscode,copilot}/{gen,general}/**/uncommon*',
+							],
+							[
+								'/Users/legomushroom/repos/{prompts,vscode,copilot}/{gen,general}/**/my.prompt.md',
+								'/Users/legomushroom/repos/{prompts,vscode,copilot}/{gen,general}/**/specific.prompt.md',
+								'/Users/legomushroom/repos/{prompts,vscode,copilot}/{gen,general}/**/unspecific1.prompt.md',
+								'/Users/legomushroom/repos/{prompts,vscode,copilot}/{gen,general}/**/unspecific2.prompt.md',
+								'/Users/legomushroom/repos/{prompts,vscode,copilot}/{gen,general}/**/common.prompt.md',
+								'/Users/legomushroom/repos/{prompts,vscode,copilot}/{gen,general}/**/uncommon-10.prompt.md',
+							],
+						];
+
+						for (const settings of testSettings) {
+							test(`• '${JSON.stringify(settings)}'`, async () => {
+								const vscodeSettings: Record<string, boolean> = {};
+								for (const setting of settings) {
+									vscodeSettings[setting] = true;
+								}
+
+								const locator = await createPromptsLocator(
+									vscodeSettings,
+									[
+										'/Users/legomushroom/repos/vscode',
+										'/Users/legomushroom/repos/prompts',
+									],
+									[
+										{
+											name: '/Users/legomushroom/repos/vscode',
+											children: [
+												{
+													name: 'gen/text',
+													children: [
+														{
+															name: 'my.prompt.md',
+															contents: 'oh hi, bot!',
+														},
+														{
+															name: 'nested',
+															children: [
+																{
+																	name: 'specific.prompt.md',
+																	contents: 'oh hi, bot!',
+																},
+																{
+																	name: 'unspecific1.prompt.md',
+																	contents: 'oh hi, robot!',
+																},
+																{
+																	name: 'unspecific2.prompt.md',
+																	contents: 'oh hi, rabot!',
+																},
+																{
+																	name: 'readme.md',
+																	contents: 'non prompt file',
+																},
+															],
+														}
+													],
+												},
+											],
+										},
+										{
+											name: '/Users/legomushroom/repos/prompts',
+											children: [
+												{
+													name: 'general',
+													children: [
+														{
+															name: 'common.prompt.md',
+															contents: 'oh hi, bot!',
+														},
+														{
+															name: 'uncommon-10.prompt.md',
+															contents: 'oh hi, robot!',
+														},
+														{
+															name: 'license.md',
+															contents: 'non prompt file',
+														},
+													],
+												}
+											],
+										},
+									],
+								);
+
+								assert.deepStrictEqual(
+									(await locator.findAllMatchingPromptFiles())
+										.map((file) => file.fsPath),
+									[
+										createURI('/Users/legomushroom/repos/vscode/gen/text/my.prompt.md').fsPath,
+										createURI('/Users/legomushroom/repos/vscode/gen/text/nested/specific.prompt.md').fsPath,
+										createURI('/Users/legomushroom/repos/vscode/gen/text/nested/unspecific1.prompt.md').fsPath,
+										createURI('/Users/legomushroom/repos/vscode/gen/text/nested/unspecific2.prompt.md').fsPath,
+										// -
+										createURI('/Users/legomushroom/repos/prompts/general/common.prompt.md').fsPath,
+										createURI('/Users/legomushroom/repos/prompts/general/uncommon-10.prompt.md').fsPath,
+									],
+									'Must find correct prompts.',
+								);
+							});
+						}
+					});
+				});
+			});
+		});
+	});
 });
