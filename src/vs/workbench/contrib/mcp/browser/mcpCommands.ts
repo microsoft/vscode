@@ -41,6 +41,15 @@ export class ListMcpServerCommand extends Action2 {
 			icon: Codicon.server,
 			category,
 			f1: true,
+			menu: {
+				when: ContextKeyExpr.and(
+					McpContextKeys.hasUnknownTools,
+					ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent)
+				),
+				id: MenuId.ChatInputAttachmentToolbar,
+				group: 'navigation',
+				order: 0
+			},
 		});
 	}
 
@@ -99,17 +108,7 @@ export class McpServerOptionsCommand extends Action2 {
 			id: McpServerOptionsCommand.id,
 			title: localize2('mcp.options', 'Server Options'),
 			category,
-			icon: Codicon.server,
-			f1: true,
-			menu: {
-				when: ContextKeyExpr.and(
-					McpContextKeys.hasUnknownTools,
-					ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent)
-				),
-				id: MenuId.ChatInputAttachmentToolbar,
-				group: 'navigation',
-				order: 0
-			},
+			f1: false,
 		});
 	}
 
@@ -235,7 +234,7 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 			return { state: maxState, servers: serversPerState[maxState] || [] };
 		});
 
-		this._store.add(actionViewItemService.register(MenuId.ChatInputAttachmentToolbar, McpServerOptionsCommand.id, (action, options) => {
+		this._store.add(actionViewItemService.register(MenuId.ChatInputAttachmentToolbar, ListMcpServerCommand.id, (action, options) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
