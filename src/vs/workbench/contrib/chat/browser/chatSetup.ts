@@ -39,9 +39,9 @@ import { AuthenticationSession, IAuthenticationService } from '../../../services
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
-import { ChatAgentLocation, IChatAgentImplementation, IChatAgentService } from '../common/chatAgents.js';
+import { ChatAgentLocation, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { CHAT_CATEGORY, CHAT_SETUP_ACTION_ID, CHAT_SETUP_ACTION_LABEL } from './actions/chatActions.js';
+import { CHAT_CATEGORY, CHAT_SETUP_ACTION_ID, CHAT_SETUP_ACTION_LABEL, CHAT_SETUP_VIA_DIALOG_ACTION_ID } from './actions/chatActions.js';
 import { ChatViewId, EditsViewId, ensureSideBarChatViewSize, preferCopilotEditsView, showCopilotView } from './chat.js';
 import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
 import { ChatViewsWelcomeExtensions, IChatViewsWelcomeContributionRegistry } from './viewsWelcome/chatViewsWelcome.js';
@@ -62,6 +62,7 @@ import { IStatusbarService } from '../../../services/statusbar/browser/statusbar
 import { IChatEntitlementService, ChatEntitlement, ChatEntitlementService, ChatSetupContext, ChatSetupRequests } from '../common/chatEntitlementService.js';
 import { isObject } from '../../../../base/common/types.js';
 import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
+import { IChatProgress, IChatProgressMessage, IChatWarningMessage } from '../common/chatService.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -128,19 +129,27 @@ class SetupChatAgentImplementation implements IChatAgentImplementation {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) { }
 
-	async invoke() {
+	async invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void): Promise<IChatAgentResult> {
 		const dialog = this.instantiationService.createInstance(ChatSetupDialog, this.context);
 		const result = await dialog.show();
 
-		if (!result) {
-			return {
-				errorDetails: {
-					message: localize('setupCopilot', "You need to setup Copilot first.")
-				}
-			};
+		// Proceed with setting up Copilot
+		if (result) {
+			progress({
+				kind: 'progressMessage',
+				content: new MarkdownString(localize('settingUpCopilot', "Getting Copilot Ready...")),
+			} satisfies IChatProgressMessage);
+
+			await this.controller.value.setup();
 		}
 
-		await this.controller.value.setup();
+		// User has cancelled the setup
+		else {
+			progress({
+				kind: 'warning',
+				content: new MarkdownString(localize('settingUpCopilotWarning', "You need to [set up Copilot]({0}) to use Chat.", `command:${CHAT_SETUP_VIA_DIALOG_ACTION_ID}`), { isTrusted: true }),
+			} satisfies IChatWarningMessage);
+		}
 
 		return {};
 	}
@@ -168,7 +177,7 @@ class ChatSetupDialog {
 		private readonly context: ChatSetupContext,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) { }
 
 	async show(): Promise<boolean> {
@@ -303,7 +312,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 		this.registerSetupAgents(context, controller);
 		this.registerChatWelcome(context, controller);
-		this.registerActions(context, requests);
+		this.registerActions(context, requests, controller);
 		this.registerUrlLinkHandler();
 	}
 
@@ -333,13 +342,25 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		});
 	}
 
-	private registerActions(context: ChatSetupContext, requests: ChatSetupRequests): void {
+	private registerActions(context: ChatSetupContext, requests: ChatSetupRequests, controller: Lazy<ChatSetupController>): void {
 		const chatSetupTriggerContext = ContextKeyExpr.or(
 			ChatContextKeys.Setup.installed.negate(),
 			ChatContextKeys.Setup.canSignUp
 		);
 
-		class ChatSetupTriggerAction extends Action2 {
+		const chatSetupFromChatResponse = ContextKeyExpr.has('config.chat.experimental.setupFromChatResponse');
+
+		const chatSetupTriggerFromViewContext = ContextKeyExpr.and(
+			chatSetupTriggerContext,
+			chatSetupFromChatResponse.negate()
+		);
+
+		const chatSetupTriggerFromDialogContext = ContextKeyExpr.and(
+			chatSetupTriggerContext,
+			chatSetupFromChatResponse
+		);
+
+		class ChatSetupTriggerViaViewAction extends Action2 {
 
 			constructor() {
 				super({
@@ -347,12 +368,12 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					title: CHAT_SETUP_ACTION_LABEL,
 					category: CHAT_CATEGORY,
 					f1: true,
-					precondition: chatSetupTriggerContext,
+					precondition: chatSetupTriggerFromViewContext,
 					menu: {
 						id: MenuId.ChatTitleBarMenu,
 						group: 'a_last',
 						order: 1,
-						when: chatSetupTriggerContext
+						when: chatSetupTriggerFromViewContext
 					}
 				});
 			}
@@ -371,6 +392,48 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 				statusbarService.updateEntryVisibility('chat.statusBarEntry', true);
 				configurationService.updateValue('chat.commandCenter.enabled', true);
+			}
+		}
+
+		class ChatSetupTriggerViaDialogAction extends Action2 {
+
+			constructor() {
+				super({
+					id: CHAT_SETUP_VIA_DIALOG_ACTION_ID,
+					title: CHAT_SETUP_ACTION_LABEL,
+					category: CHAT_CATEGORY,
+					f1: true,
+					precondition: chatSetupTriggerFromDialogContext,
+					menu: {
+						id: MenuId.ChatTitleBarMenu,
+						group: 'a_last',
+						order: 1,
+						when: chatSetupTriggerFromDialogContext
+					}
+				});
+			}
+
+			override async run(accessor: ServicesAccessor): Promise<void> {
+				const viewsService = accessor.get(IViewsService);
+				const viewDescriptorService = accessor.get(IViewDescriptorService);
+				const configurationService = accessor.get(IConfigurationService);
+				const layoutService = accessor.get(IWorkbenchLayoutService);
+				const statusbarService = accessor.get(IStatusbarService);
+				const instantiationService = accessor.get(IInstantiationService);
+
+				await context.update({ hidden: false });
+
+				showCopilotView(viewsService, layoutService);
+				ensureSideBarChatViewSize(viewDescriptorService, layoutService, viewsService);
+
+				statusbarService.updateEntryVisibility('chat.statusBarEntry', true);
+				configurationService.updateValue('chat.commandCenter.enabled', true);
+
+				const dialog = instantiationService.createInstance(ChatSetupDialog, context);
+				const result = await dialog.show();
+				if (result) {
+					controller.value.setup({ notificationProgress: true });
+				}
 			}
 		}
 
@@ -482,7 +545,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			}
 		}
 
-		registerAction2(ChatSetupTriggerAction);
+		registerAction2(ChatSetupTriggerViaViewAction);
+		registerAction2(ChatSetupTriggerViaDialogAction);
 		registerAction2(ChatSetupHideAction);
 		registerAction2(UpgradePlanAction);
 	}
@@ -575,7 +639,7 @@ class ChatSetupController extends Disposable {
 		this._onDidChange.fire();
 	}
 
-	async setup(options?: { forceSignIn: boolean }): Promise<void> {
+	async setup(options?: { forceSignIn?: boolean; notificationProgress?: boolean }): Promise<void> {
 		const watch = new StopWatch(false);
 		const title = localize('setupChatProgress', "Getting Copilot ready...");
 		const badge = this.activityService.showViewContainerActivity(preferCopilotEditsView(this.viewsService) ? CHAT_EDITING_SIDEBAR_PANEL_ID : CHAT_SIDEBAR_PANEL_ID, {
@@ -584,7 +648,7 @@ class ChatSetupController extends Disposable {
 
 		try {
 			await this.progressService.withProgress({
-				location: ProgressLocation.Window,
+				location: options?.notificationProgress ? ProgressLocation.Notification : ProgressLocation.Window,
 				command: CHAT_SETUP_ACTION_ID,
 				title,
 			}, () => this.doSetup(options?.forceSignIn ?? false, watch));

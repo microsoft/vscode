@@ -65,6 +65,8 @@ export const CHAT_OPEN_ACTION_LABEL = localize2('openChat', "Open Chat");
 export const CHAT_SETUP_ACTION_ID = 'workbench.action.chat.triggerSetup';
 export const CHAT_SETUP_ACTION_LABEL = localize2('triggerChatSetup', "Use AI Features with Copilot for Free...");
 
+export const CHAT_SETUP_VIA_DIALOG_ACTION_ID = 'workbench.action.chat.triggerSetupViaDialog';
+
 export const TOGGLE_CHAT_ACTION_ID = 'workbench.action.chat.toggle';
 export const TOGGLE_CHAT_ACTION_LABEL = localize('toggleChat', "Toggle Chat");
 
