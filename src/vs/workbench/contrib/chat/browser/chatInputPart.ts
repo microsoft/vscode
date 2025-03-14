@@ -199,19 +199,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		contextArr
 			.push(...this.instructionAttachmentsPart.chatAttachments);
 
-
-		// // TODO@jrieken use only selected servers
-		// for (const server of this.mcpService.servers.get()) {
-		// 	for (const { id, definition } of server.tools.get()) {
-		// 		contextArr.push({
-		// 			isTool: true,
-		// 			id,
-		// 			name: definition.name,
-		// 			value: undefined
-		// 		});
-		// 	}
-		// }
-
 		return contextArr;
 	}
 
