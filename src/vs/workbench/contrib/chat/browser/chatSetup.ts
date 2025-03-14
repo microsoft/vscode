@@ -128,6 +128,7 @@ class SetupChatAgentImplementation implements IChatAgentImplementation {
 		private readonly controller: Lazy<ChatSetupController>,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) { }
 
 	async invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void): Promise<IChatAgentResult> {
@@ -136,16 +137,30 @@ class SetupChatAgentImplementation implements IChatAgentImplementation {
 
 		// Proceed with setting up Copilot
 		if (result) {
-			progress({
-				kind: 'progressMessage',
-				content: new MarkdownString(localize('settingUpCopilot', "Getting Copilot Ready...")),
-			} satisfies IChatProgressMessage);
+			const listener = this.controller.value.onDidChange(e => {
+				switch (this.controller.value.step) {
+					case ChatSetupStep.SigningIn:
+						progress({
+							kind: 'progressMessage',
+							content: new MarkdownString(localize('setupChatSignIn2', "Signing in to {0}...", ChatSetupRequests.providerId(this.configurationService) === defaultChat.enterpriseProviderId ? defaultChat.enterpriseProviderName : defaultChat.providerName)),
+						} satisfies IChatProgressMessage);
+						break;
+					case ChatSetupStep.Installing:
+						progress({
+							kind: 'progressMessage',
+							content: new MarkdownString(localize('installingCopilot', "Getting Copilot Ready...")),
+						} satisfies IChatProgressMessage);
+						break;
+				}
+			});
 
 			let success = false;
 			try {
 				success = await this.controller.value.setup();
 			} catch (error) {
 				this.logService.error(localize('setupError', "Error during setup: {0}", toErrorMessage(error)));
+			} finally {
+				listener.dispose();
 			}
 
 			if (success) {
