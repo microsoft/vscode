@@ -56,6 +56,7 @@ export namespace ChatContextKeys {
 		signedOut: new RawContextKey<boolean>('chatSetupSignedOut', false, true), 	// True when user is signed out.
 		hidden: new RawContextKey<boolean>('chatSetupHidden', false, true), 		// True when chat setup is explicitly hidden.
 		installed: new RawContextKey<boolean>('chatSetupInstalled', false, true),  	// True when the chat extension is installed.
+		fromDialog: ContextKeyExpr.has('config.chat.experimental.setupFromDialog'),
 
 		// Plans
 		canSignUp: new RawContextKey<boolean>('chatPlanCanSignUp', false, true), 	// True when user can sign up to be a chat limited user.
@@ -68,7 +69,7 @@ export namespace ChatContextKeys {
 		ContextKeyExpr.and(
 			ChatContextKeys.Setup.hidden.negate(),
 			ChatContextKeys.Setup.installed.negate(),
-			ContextKeyExpr.has('config.chat.experimental.setupFromChatResponse').negate()
+			Setup.fromDialog.negate()
 		),
 		ContextKeyExpr.and(
 			ChatContextKeys.Setup.canSignUp,

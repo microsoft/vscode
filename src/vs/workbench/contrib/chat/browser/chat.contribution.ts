@@ -204,9 +204,9 @@ configurationRegistry.registerConfiguration({
 			default: product.quality !== 'stable',
 			tags: ['experimental', 'onExp']
 		},
-		'chat.experimental.setupFromChatResponse': { // TODO@bpasero remove this eventually
+		'chat.experimental.setupFromDialog': { // TODO@bpasero remove this eventually
 			type: 'boolean',
-			description: nls.localize('chat.setupFromChat', "Controls whether a Copilot setup triggers from a chat request. Shows the setup welcome view if not enabled."),
+			description: nls.localize('chat.setupFromChat', "Controls whether Copilot setup starts from a dialog or from the welcome view."),
 			default: product.quality !== 'stable',
 			tags: ['experimental', 'onExp']
 		},

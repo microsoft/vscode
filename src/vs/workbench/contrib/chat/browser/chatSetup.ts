@@ -97,7 +97,7 @@ class SetupChatAgentImplementation implements IChatAgentImplementation {
 			const setupChatAgentContext = ContextKeyExpr.and(
 				ChatContextKeys.Setup.hidden.negate(),
 				ChatContextKeys.Setup.installed.negate(),
-				ContextKeyExpr.has('config.chat.experimental.setupFromChatResponse')
+				ChatContextKeys.Setup.fromDialog
 			);
 
 			const id = location === ChatAgentLocation.Panel ? 'setup.chat' : 'setup.edits';
@@ -317,7 +317,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 	}
 
 	private registerSetupAgents(context: ChatSetupContext, controller: Lazy<ChatSetupController>): void {
-		if (context.state.installed || context.state.hidden || !this.configurationService.getValue('chat.experimental.setupFromChatResponse')) {
+		if (context.state.installed || context.state.hidden || !this.configurationService.getValue('chat.experimental.setupFromDialog')) {
 			return; // never register our fake setup related agents over the real ones or when explicitly hidden or when setting is off
 		}
 
@@ -348,16 +348,14 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			ChatContextKeys.Setup.canSignUp
 		);
 
-		const chatSetupFromChatResponse = ContextKeyExpr.has('config.chat.experimental.setupFromChatResponse');
-
 		const chatSetupTriggerFromViewContext = ContextKeyExpr.and(
 			chatSetupTriggerContext,
-			chatSetupFromChatResponse.negate()
+			ChatContextKeys.Setup.fromDialog.negate()
 		);
 
 		const chatSetupTriggerFromDialogContext = ContextKeyExpr.and(
 			chatSetupTriggerContext,
-			chatSetupFromChatResponse
+			ChatContextKeys.Setup.fromDialog
 		);
 
 		class ChatSetupTriggerViaViewAction extends Action2 {
