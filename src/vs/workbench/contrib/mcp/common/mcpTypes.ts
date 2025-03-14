@@ -7,7 +7,7 @@ import { assertNever } from '../../../../base/common/assert.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
-import { IObservable, ITransaction } from '../../../../base/common/observable.js';
+import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
@@ -140,10 +140,6 @@ export interface IMcpTool {
 	readonly id: string;
 
 	readonly definition: MCP.Tool;
-
-	readonly enabled: IObservable<boolean>;
-
-	updateEnablement(value: boolean, tx?: ITransaction): void;
 
 	/**
 	 * Calls a tool
