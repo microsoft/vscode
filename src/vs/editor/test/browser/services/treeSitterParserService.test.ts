@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { TextModelTreeSitter, TreeSitterLanguages } from '../../../common/services/treeSitter/treeSitterParserService.js';
 import type * as Parser from '@vscode/tree-sitter-wasm';
 import { createTextModel } from '../../common/testTextModel.js';
 import { timeout } from '../../../../base/common/async.js';
@@ -13,6 +12,8 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { LogService } from '../../../../platform/log/common/logService.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ITreeSitterImporter } from '../../../common/services/treeSitterParserService.js';
+import { TextModelTreeSitter } from '../../../common/services/treeSitter/textModelTreeSitter.js';
+import { TreeSitterLanguages } from '../../../common/services/treeSitter/treeSitterLanguages.js';
 
 class MockParser implements Parser.Parser {
 	language: Parser.Language | null = null;
@@ -167,9 +168,9 @@ suite('TreeSitterParserService', function () {
 			}
 		}
 
-		const treeSitterParser: TreeSitterLanguages = store.add(new MockTreeSitterLanguages(treeSitterImporter, {} as any, { isBuilt: false } as any, new Map()));
+		const treeSitterLanguages: TreeSitterLanguages = store.add(new MockTreeSitterLanguages(treeSitterImporter, {} as any, { isBuilt: false } as any, new Map()));
 		const textModel = store.add(createTextModel('console.log("Hello, world!");', 'javascript'));
-		const textModelTreeSitter = store.add(new TextModelTreeSitter(textModel, treeSitterParser, treeSitterImporter, logService, telemetryService));
+		const textModelTreeSitter = store.add(new TextModelTreeSitter(textModel, treeSitterLanguages, false, treeSitterImporter, logService, telemetryService, { exists: async () => false } as any));
 		textModel.setLanguage('typescript');
 		await timeout(300);
 		assert.strictEqual((textModelTreeSitter.parseResult?.language as MockLanguage).languageId, 'typescript');

@@ -255,10 +255,11 @@ class y {
 		assert.ok(change);
 
 		assert.strictEqual(change.versionId, 4);
-		assert.strictEqual(change.ranges[0].newRangeStartOffset, 7);
-		assert.strictEqual(change.ranges[0].newRangeEndOffset, 32);
-		assert.strictEqual(change.ranges[0].newRange.startLineNumber, 2);
-		assert.strictEqual(change.ranges[0].newRange.endLineNumber, 7);
+		const ranges = change.ranges['typescript'];
+		assert.strictEqual(ranges[0].newRangeStartOffset, 7);
+		assert.strictEqual(ranges[0].newRangeEndOffset, 32);
+		assert.strictEqual(ranges[0].newRange.startLineNumber, 2);
+		assert.strictEqual(ranges[0].newRange.endLineNumber, 7);
 
 		updateListener?.dispose();
 		modelService.destroyModel(model.uri);

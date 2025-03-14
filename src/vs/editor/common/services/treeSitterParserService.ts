@@ -11,7 +11,7 @@ import { Range } from '../core/range.js';
 import { importAMDNodeModule } from '../../../amdX.js';
 
 export const EDITOR_EXPERIMENTAL_PREFER_TREESITTER = 'editor.experimental.preferTreeSitter';
-export const TREESITTER_ALLOWED_SUPPORT = ['typescript', 'ini'];
+export const TREESITTER_ALLOWED_SUPPORT = ['typescript', 'ini', 'regex'];
 
 export const ITreeSitterParserService = createDecorator<ITreeSitterParserService>('treeSitterParserService');
 
@@ -29,13 +29,19 @@ export interface RangeChange {
 
 export interface TreeParseUpdateEvent {
 	ranges: RangeChange[] | undefined;
+	language: string;
 	versionId: number;
+	tree: Parser.Tree;
 }
 
-export interface TreeUpdateEvent {
-	textModel: ITextModel;
-	ranges: RangeChange[];
+export interface ModelTreeUpdateEvent {
+	ranges: Record<string, RangeChange[]>;
 	versionId: number;
+	tree: Parser.Tree;
+}
+
+export interface TreeUpdateEvent extends ModelTreeUpdateEvent {
+	textModel: ITextModel;
 }
 
 export interface ITreeSitterParserService {
