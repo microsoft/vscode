@@ -14,7 +14,7 @@ import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../base/common/lazy.js';
-import { combinedDisposable, Disposable, dispose, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableStore, dispose, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -23,7 +23,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { ICustomDialogHTMLElement, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import product from '../../../../platform/product/common/product.js';
@@ -88,7 +88,7 @@ const defaultChat = {
 
 class SetupChatAgentImplementation implements IChatAgentImplementation {
 
-	static register(instantiationService: IInstantiationService, location: ChatAgentLocation): IDisposable {
+	static register(instantiationService: IInstantiationService, location: ChatAgentLocation, context: ChatSetupContext, controller: Lazy<ChatSetupController>): IDisposable {
 		return instantiationService.invokeFunction(accessor => {
 			const chatAgentService = accessor.get(IChatAgentService);
 
@@ -116,47 +116,33 @@ class SetupChatAgentImplementation implements IChatAgentImplementation {
 					extensionDisplayName: nullExtensionDescription.name,
 					extensionPublisherId: nullExtensionDescription.publisher
 				}),
-				chatAgentService.registerAgentImplementation(id, instantiationService.createInstance(SetupChatAgentImplementation, location))
+				chatAgentService.registerAgentImplementation(id, instantiationService.createInstance(SetupChatAgentImplementation, location, context, controller))
 			);
 		});
 	}
 
 	constructor(
 		private readonly location: ChatAgentLocation,
-		@IDialogService private readonly dialogService: IDialogService,
+		private readonly context: ChatSetupContext,
+		private readonly controller: Lazy<ChatSetupController>,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) { }
 
 	async invoke() {
+		const dialog = this.instantiationService.createInstance(ChatSetupDialog, this.context);
+		const result = await dialog.show();
 
-		await this.dialogService.prompt({
-			type: 'none',
-			message: localize('copilotFree', "Use AI Features with Copilot for Free"),
-			cancelButton: {
-				label: localize('dismiss', "Dismiss"),
-				run: () => { /* noop */ }
-			},
-			buttons: [
-				{
-					label: localize('upgradePro', "Use Copilot for Free"),
-					run: () => { }
-				},
-			],
-			custom: {
-				icon: Codicon.copilotLarge,
-				htmlDetails: [
-					{
-						element: $('div', undefined, 'Hello Setup'),
-						dispose: () => { /* noop */ }
-					}
-				]
-			}
-		});
+		if (!result) {
+			return {
+				errorDetails: {
+					message: localize('setupCopilot', "You need to setup Copilot first.")
+				}
+			};
+		}
 
-		return {
-			errorDetails: {
-				message: localize('setupCopilot', "You need to setup Copilot first.")
-			}
-		};
+		await this.controller.value.setup();
+
+		return {};
 	}
 
 	provideWelcomeMessage() {
@@ -176,6 +162,123 @@ class SetupChatAgentImplementation implements IChatAgentImplementation {
 	}
 }
 
+class ChatSetupDialog {
+
+	constructor(
+		private readonly context: ChatSetupContext,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+	) { }
+
+	async show(): Promise<boolean> {
+		const res = await this.dialogService.prompt<boolean>({
+			type: 'none',
+			message: localize('copilotFree', "Use AI Features with Copilot for Free"),
+			cancelButton: {
+				label: localize('cancel', "Cancel"),
+				run: () => false
+			},
+			buttons: [
+				{
+					label: this.getPrimaryButton(),
+					run: () => true
+				},
+			],
+			custom: {
+				icon: Codicon.copilotLarge,
+				htmlDetails: [this.create()]
+			}
+		});
+
+		return res.result;
+	}
+
+	private getPrimaryButton(): string {
+		switch (this.context.state.entitlement) {
+			case ChatEntitlement.Unknown:
+				return this.context.state.registered ? localize('signUp', "Sign in to Use Copilot") : localize('signUpFree', "Sign in to Use Copilot for Free");
+			case ChatEntitlement.Unresolved:
+				return this.context.state.registered ? localize('startUp', "Use Copilot") : localize('startUpLimited', "Use Copilot for Free");
+			case ChatEntitlement.Available:
+			case ChatEntitlement.Limited:
+				return localize('startUpLimited', "Use Copilot for Free");
+			case ChatEntitlement.Pro:
+			case ChatEntitlement.Unavailable:
+				return localize('startUp', "Use Copilot");
+		}
+	}
+
+	private create(): ICustomDialogHTMLElement {
+		const disposables = new DisposableStore();
+		const element = $('.chat-setup-view');
+
+		const markdown = this.instantiationService.createInstance(MarkdownRenderer, {});
+
+		// Header
+		{
+			const header = localize({ key: 'header', comment: ['{Locked="[Copilot]({0})"}'] }, "[Copilot]({0}) is your AI pair programmer.", defaultChat.documentationUrl);
+			element.appendChild($('p', undefined, disposables.add(markdown.render(new MarkdownString(header, { isTrusted: true }))).element));
+
+			element.appendChild(
+				$('div.chat-features-container', undefined,
+					$('div', undefined,
+						$('div.chat-feature-container', undefined,
+							renderIcon(Codicon.code),
+							$('span', undefined, localize('featureChat', "Code faster with Completions"))
+						),
+						$('div.chat-feature-container', undefined,
+							renderIcon(Codicon.editSession),
+							$('span', undefined, localize('featureEdits', "Build features with Copilot Edits"))
+						),
+						$('div.chat-feature-container', undefined,
+							renderIcon(Codicon.commentDiscussion),
+							$('span', undefined, localize('featureExplore', "Explore your codebase with Chat"))
+						)
+					)
+				)
+			);
+		}
+
+		// Limited SKU
+		const free = localize({ key: 'free', comment: ['{Locked="[]({0})"}'] }, "$(sparkle-filled) We now offer [Copilot for free]({0}).", defaultChat.skusDocumentationUrl);
+		const freeContainer = element.appendChild($('p', undefined, disposables.add(markdown.render(new MarkdownString(free, { isTrusted: true, supportThemeIcons: true }))).element));
+
+		// Terms
+		const terms = localize({ key: 'terms', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "By continuing, you agree to the [Terms]({0}) and [Privacy Policy]({1}).", defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl);
+		element.appendChild($('p', undefined, disposables.add(markdown.render(new MarkdownString(terms, { isTrusted: true }))).element));
+
+		// SKU Settings
+		const settings = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "Copilot Free and Pro may show [public code]({0}) suggestions and we may use your data for product improvement. You can change these [settings]({1}) at any time.", defaultChat.publicCodeMatchesUrl, defaultChat.manageSettingsUrl);
+		const settingsContainer = element.appendChild($('p', undefined, disposables.add(markdown.render(new MarkdownString(settings, { isTrusted: true }))).element));
+
+		this.update(freeContainer, settingsContainer);
+
+		return { element, dispose: () => disposables.dispose() };
+	}
+
+	private update(freeContainer: HTMLElement, settingsContainer: HTMLElement): void {
+		const showSettings = this.telemetryService.telemetryLevel !== TelemetryLevel.NONE;
+		let showFree: boolean;
+
+		switch (this.context.state.entitlement) {
+			case ChatEntitlement.Unknown:
+			case ChatEntitlement.Unresolved:
+			case ChatEntitlement.Available:
+			case ChatEntitlement.Limited:
+				showFree = true;
+				break;
+			case ChatEntitlement.Pro:
+			case ChatEntitlement.Unavailable:
+				showFree = false;
+				break;
+		}
+
+		setVisibility(showFree, freeContainer);
+		setVisibility(showSettings, settingsContainer);
+	}
+}
+
 export class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.chat.setup';
@@ -186,6 +289,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		@ICommandService private readonly commandService: ICommandService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IChatEntitlementService chatEntitlementService: ChatEntitlementService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -195,20 +299,22 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			return; // disabled
 		}
 
-		this.registerSetupAgents(context);
-		this.registerChatWelcome(context, requests);
+		const controller = new Lazy(() => this._register(this.instantiationService.createInstance(ChatSetupController, context, requests)));
+
+		this.registerSetupAgents(context, controller);
+		this.registerChatWelcome(context, controller);
 		this.registerActions(context, requests);
 		this.registerUrlLinkHandler();
 	}
 
-	private registerSetupAgents(context: ChatSetupContext): void {
-		if (context.state.installed || context.state.hidden) {
-			return; // never register our fake setup related agents over the real ones or when explicitly hidden
+	private registerSetupAgents(context: ChatSetupContext, controller: Lazy<ChatSetupController>): void {
+		if (context.state.installed || context.state.hidden || !this.configurationService.getValue('chat.experimental.setupFromChatResponse')) {
+			return; // never register our fake setup related agents over the real ones or when explicitly hidden or when setting is off
 		}
 
 		const registrations = [
-			SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel),
-			SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.EditingSession)
+			SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel, context, controller),
+			SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.EditingSession, context, controller)
 		];
 
 		this._register(context.onDidChange(() => {
@@ -218,9 +324,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		}));
 	}
 
-	private registerChatWelcome(context: ChatSetupContext, requests: ChatSetupRequests): void {
-		const controller = new Lazy(() => this._register(this.instantiationService.createInstance(ChatSetupController, context, requests)));
-
+	private registerChatWelcome(context: ChatSetupContext, controller: Lazy<ChatSetupController>): void {
 		Registry.as<IChatViewsWelcomeContributionRegistry>(ChatViewsWelcomeExtensions.ChatViewsWelcomeRegistry).register({
 			title: localize('welcomeChat', "Welcome to Copilot"),
 			when: ChatContextKeys.SetupViewCondition,

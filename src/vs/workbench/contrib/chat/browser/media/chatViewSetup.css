@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.dialog-message-body .chat-setup-view,
 .chat-welcome-view .chat-setup-view {
 	text-align: center;
 
