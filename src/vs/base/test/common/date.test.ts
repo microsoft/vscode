@@ -34,10 +34,13 @@ suite('Date', () => {
 			const now = new Date();
 			strictEqual(fromNowByDay(now), 'Today');
 		});
-		test.skip('yesterday', () => {
+		test.only('yesterday', () => {
 			const yesterday = new Date();
+			console.log(`1: ${yesterday}`);
 			yesterday.setDate(yesterday.getDate() - 1);
+			console.log(`2: ${yesterday}`);
 			yesterday.setHours(yesterday.getHours() - 2); // 2 hours further to avoid DST issues.
+			console.log(`3: ${yesterday}`);
 			strictEqual(fromNowByDay(yesterday), 'Yesterday');
 		});
 		test('daysAgo', () => {
