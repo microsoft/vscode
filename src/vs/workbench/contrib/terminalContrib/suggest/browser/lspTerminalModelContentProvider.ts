@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-// save: /Users/anthonykim/Desktop/vscode/src/vs/workbench/contrib/terminalContrib/suggest/browser/terminalModelContentProvider.ts
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
@@ -31,6 +30,7 @@ export class LspTerminalModelContentProvider extends Disposable implements IText
 		}
 
 		// This would probably not work since `.py` != `.python`. Could just pass around shellTypes or use API.
+		// TODO: Reference other TextModelContentProvider implementations.
 		const extension = resource.path.split('.').pop();
 
 		let languageId = extension ? this._languageService.getLanguageIdByLanguageName(extension) : undefined;
