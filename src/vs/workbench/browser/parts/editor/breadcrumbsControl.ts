@@ -198,7 +198,7 @@ function createBreadcrumbDndObserver(accessor: ServicesAccessor, container: HTML
 				while (e && !e.classList.contains('monaco-workbench')) {
 					e = e.parentElement;
 				}
-				return e || container.ownerDocument;
+				return e || container.ownerDocument.body;
 			};
 
 			const dragContainer = getDragImageContainer(container);
