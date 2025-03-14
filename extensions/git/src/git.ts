@@ -356,7 +356,7 @@ function sanitizePath(path: string): string {
 }
 
 function sanitizeRelativePath(from: string, to: string): string {
-	return relativePath(from, to).replace(/\\/g, '/');
+	return path.isAbsolute(to) ? relativePath(from, to).replace(/\\/g, '/') : to;
 }
 
 const COMMIT_FORMAT = '%H%n%aN%n%aE%n%at%n%ct%n%P%n%D%n%B';
