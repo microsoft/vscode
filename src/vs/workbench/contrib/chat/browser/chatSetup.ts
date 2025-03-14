@@ -261,15 +261,33 @@ class ChatSetupDialog {
 		// Header
 		const header = localize({ key: 'header', comment: ['{Locked="[Copilot]({0})"}'] }, "[Copilot]({0}) is your AI pair programmer.", defaultChat.documentationUrl);
 		element.appendChild($('p', undefined, disposables.add(markdown.render(new MarkdownString(header, { isTrusted: true }))).element));
+		element.appendChild(
+			$('div.chat-features-container', undefined,
+				$('div', undefined,
+					$('div.chat-feature-container', undefined,
+						renderIcon(Codicon.code),
+						$('span', undefined, localize('featureChat', "Code faster with Completions"))
+					),
+					$('div.chat-feature-container', undefined,
+						renderIcon(Codicon.editSession),
+						$('span', undefined, localize('featureEdits', "Build features with Copilot Edits"))
+					),
+					$('div.chat-feature-container', undefined,
+						renderIcon(Codicon.commentDiscussion),
+						$('span', undefined, localize('featureExplore', "Explore your codebase with Chat"))
+					)
+				)
+			)
+		);
 
 		// Terms
 		const terms = localize({ key: 'terms', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "By continuing, you agree to the [Terms]({0}) and [Privacy Policy]({1}).", defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl);
-		element.appendChild($('p', undefined, disposables.add(markdown.render(new MarkdownString(terms, { isTrusted: true }))).element));
+		element.appendChild($('p.legal', undefined, disposables.add(markdown.render(new MarkdownString(terms, { isTrusted: true }))).element));
 
 		// SKU Settings
 		if (this.telemetryService.telemetryLevel !== TelemetryLevel.NONE) {
 			const settings = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "Copilot Free and Pro may show [public code]({0}) suggestions and we may use your data for product improvement. You can change these [settings]({1}) at any time.", defaultChat.publicCodeMatchesUrl, defaultChat.manageSettingsUrl);
-			element.appendChild($('p', undefined, disposables.add(markdown.render(new MarkdownString(settings, { isTrusted: true }))).element));
+			element.appendChild($('p.legal', undefined, disposables.add(markdown.render(new MarkdownString(settings, { isTrusted: true }))).element));
 		}
 
 		return { element, dispose: () => disposables.dispose() };

@@ -5,14 +5,6 @@
 
 .chat-welcome-view .chat-setup-view {
 	text-align: center;
-}
-
-.dialog-message-body .chat-setup-view,
-.chat-welcome-view .chat-setup-view {
-
-	p {
-		width: 100%;
-	}
 
 	.chat-features-container {
 		display: flex;
@@ -21,6 +13,22 @@
 		border-radius: 2px;
 		border: 1px solid var(--vscode-chat-requestBorder);
 		background-color: var(--vscode-chat-requestBackground);
+	}
+}
+
+.dialog-message-body .chat-setup-view {
+
+	p.legal {
+		font-size: 12px;
+		color: var(--vscode-descriptionForeground);
+	}
+}
+
+.dialog-message-body .chat-setup-view,
+.chat-welcome-view .chat-setup-view {
+
+	p {
+		width: 100%;
 	}
 
 	.chat-feature-container {
