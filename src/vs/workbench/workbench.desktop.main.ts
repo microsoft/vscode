@@ -62,6 +62,7 @@ import '../platform/extensionResourceLoader/common/extensionResourceLoaderServic
 import './services/localization/electron-sandbox/localeService.js';
 import './services/extensions/electron-sandbox/extensionsScannerService.js';
 import './services/extensionManagement/electron-sandbox/extensionManagementServerService.js';
+import './services/extensionManagement/electron-sandbox/extensionGalleryManifestService.js';
 import './services/extensionManagement/electron-sandbox/extensionTipsService.js';
 import './services/userDataSync/electron-sandbox/userDataSyncService.js';
 import './services/userDataSync/electron-sandbox/userDataAutoSyncService.js';

@@ -137,6 +137,7 @@ export class AttachToolsAction extends Action2 {
 			picked: true,
 		};
 
+		const nowSelectedTools = new Set(widget.input.selectedToolsModel.tools.get());
 		const toolBuckets = new Map<string, BucketPick>();
 
 		for (const tool of toolsService.getTools()) {
@@ -156,7 +157,7 @@ export class AttachToolsAction extends Action2 {
 					// description: mcpServer.definition.,
 					status: localize('desc', "MCP - {0} ({1})", mcpServer.collection.label, McpConnectionState.toString(mcpServer.connectionState.get())),
 					ordinal: BucketOrdinal.Mcp,
-					picked: true,
+					picked: false,
 					children: []
 				};
 				toolBuckets.set(mcpServer.definition.id, bucket);
@@ -165,7 +166,7 @@ export class AttachToolsAction extends Action2 {
 					type: 'item',
 					label: ext.displayName ?? ext.name,
 					ordinal: BucketOrdinal.Extension,
-					picked: true,
+					picked: false,
 					children: []
 				};
 				toolBuckets.set(ExtensionIdentifier.toKey(ext.identifier), bucket);
@@ -173,15 +174,21 @@ export class AttachToolsAction extends Action2 {
 				bucket = defaultBucket;
 			}
 
+			const picked = nowSelectedTools.has(tool);
+
 			bucket.children.push({
 				tool,
 				parent: bucket,
 				type: 'item',
 				label: `$(tools) ${tool.displayName}`,
 				description: tool.userDescription,
-				picked: true,
+				picked,
 				iconClasses: ['tool-pick']
 			});
+
+			if (picked) {
+				bucket.picked = true;
+			}
 		}
 
 		function isBucketPick(obj: any): obj is BucketPick {
@@ -220,6 +227,9 @@ export class AttachToolsAction extends Action2 {
 				lastSelectedItems = new Set(items);
 				picker.items = picks;
 				picker.selectedItems = items;
+
+				widget.input.selectedToolsModel.update(items.filter(isToolPick).map(tool => tool.tool));
+
 			} finally {
 				ignoreEvent = false;
 			}
@@ -266,14 +276,8 @@ export class AttachToolsAction extends Action2 {
 			_update();
 		}));
 
-
 		await Promise.race([Event.toPromise(Event.any(picker.onDidAccept, picker.onDidHide))]);
-
-		const selectedTools = picker.selectedItems.filter(isToolPick);
-
 		store.dispose();
-
-		widget.input.selectedToolsModel.update(selectedTools.map(tool => tool.tool));
 	}
 }
 
