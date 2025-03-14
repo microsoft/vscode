@@ -5,7 +5,7 @@
 
 import type * as Parser from '@vscode/tree-sitter-wasm';
 import { AppResourcePath, FileAccess } from '../../../../base/common/network.js';
-import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeSitterParserService, ITreeSitterParseResult, ITextModelTreeSitter, TreeUpdateEvent, ITreeSitterImporter, TREESITTER_ALLOWED_SUPPORT, ModelTreeUpdateEvent } from '../treeSitterParserService.js';
+import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeSitterParserService, ITextModelTreeSitter, TreeUpdateEvent, ITreeSitterImporter, TREESITTER_ALLOWED_SUPPORT, ModelTreeUpdateEvent } from '../treeSitterParserService.js';
 import { IModelService } from '../model.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ITextModel } from '../../model.js';
@@ -55,9 +55,9 @@ export class TreeSitterTextModelService extends Disposable implements ITreeSitte
 		return this._treeSitterLanguages.getOrInitLanguage(languageId);
 	}
 
-	getParseResult(textModel: ITextModel): ITreeSitterParseResult | undefined {
+	getParseResult(textModel: ITextModel): ITextModelTreeSitter | undefined {
 		const textModelTreeSitter = this._textModelTreeSitters.get(textModel);
-		return textModelTreeSitter?.textModelTreeSitter.parseResult;
+		return textModelTreeSitter?.textModelTreeSitter;
 	}
 
 	/**
@@ -182,7 +182,7 @@ export class TreeSitterTextModelService extends Disposable implements ITreeSitte
 	}
 
 	private _handleOnDidChangeParseResult(change: ModelTreeUpdateEvent, model: ITextModel) {
-		this._onDidUpdateTree.fire({ textModel: model, ranges: change.ranges, versionId: change.versionId, tree: change.tree });
+		this._onDidUpdateTree.fire({ textModel: model, ranges: change.ranges, versionId: change.versionId, tree: change.tree, languageId: change.languageId });
 	}
 
 	private _addGrammar(languageId: string, grammarName: string) {
