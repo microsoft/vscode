@@ -5,21 +5,21 @@
 
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { ExtensionIdentifier, IRelaxedExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { ILanguageModelToolsService, IToolResult } from '../../chat/common/languageModelToolsService.js';
-import { mcpActivationEvent } from './mcpConfiguration.js';
+import { mcpActivationEvent, mcpContributionPoint } from './mcpConfiguration.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServer, McpServerMetadataCache } from './mcpServer.js';
-import { extensionMcpCollectionPrefix, IMcpServer, IMcpService, McpCollectionDefinition, McpCollectionSortOrder, McpServerDefinition } from './mcpTypes.js';
+import { extensionMcpCollectionPrefix, extensionPrefixedIdentifier, IMcpServer, IMcpService, McpCollectionDefinition, McpServerDefinition } from './mcpTypes.js';
+import * as extensionsRegistry from '../../../services/extensions/common/extensionsRegistry.js';
 
 interface IExtensionCollectionsRec {
 	extensionId: ExtensionIdentifier;
@@ -31,6 +31,9 @@ interface IExtensionCollectionsRec {
 	 */
 	pendingServers: IMcpServer[] | undefined;
 }
+
+
+const _mcpExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint(mcpContributionPoint);
 
 export class McpService extends Disposable implements IMcpService {
 
@@ -54,7 +57,6 @@ export class McpService extends Disposable implements IMcpService {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
 		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IProductService productService: IProductService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IStorageService storageService: IStorageService,
@@ -86,15 +88,33 @@ export class McpService extends Disposable implements IMcpService {
 			updateThrottle.schedule(500);
 		}));
 
-		// Handle servers contributed by extensions.
-		this._register(_extensionService.onDidChangeExtensions(e => {
-			this._onExtensions(e.added);
-		}));
-		this._register(_extensionService.onDidChangeExtensionsStatus(() => {
-			this._onExtensionStatus();
-		}));
-		this._extensionService.whenInstalledExtensionsRegistered().then(() => {
-			this._onExtensions(_extensionService.extensions);
+		const extensionCollections = this._register(new DisposableMap<string>());
+
+		_mcpExtensionPoint.setHandler((_extensions, delta) => {
+			const { added, removed } = delta;
+
+			for (const collections of removed) {
+				for (const coll of collections.value) {
+					extensionCollections.deleteAndDispose(extensionPrefixedIdentifier(collections.description.identifier, coll.id));
+				}
+			}
+
+			for (const collections of added) {
+				for (const coll of collections.value) {
+
+					const id = extensionPrefixedIdentifier(collections.description.identifier, coll.id);
+					const dispo = _mcpRegistry.registerCollection({
+						id,
+						label: coll.label,
+						remoteAuthority: null,
+						isTrustedByDefault: true,
+						scope: StorageScope.WORKSPACE,
+						serverDefinitions: observableValue<McpServerDefinition[]>(this, [])
+					});
+
+					extensionCollections.set(id, dispo);
+				}
+			}
 		});
 
 		const tools = this._register(new MutableDisposable());
@@ -252,70 +272,6 @@ export class McpService extends Disposable implements IMcpService {
 			this._publishedServers.set(nextServers, tx);
 			this._extensionServers.set(extensionServers, tx);
 		});
-	}
-
-	private _onExtensions(extensions: readonly Readonly<IRelaxedExtensionDescription>[]) {
-		const newRecs: IExtensionCollectionsRec[] = [];
-		for (const extension of extensions) {
-			const collections = extension.contributes?.modelContextServerCollections;
-			if (!collections) {
-				continue;
-			}
-
-			for (const collection of collections) {
-				const id = extensionMcpCollectionPrefix + collection.id;
-				const pendingServers = this.workspaceCache.getServers(id)?.servers.map(server =>
-					this._instantiationService.createInstance(McpServer, { id, label: collection.label, presentation: { order: McpCollectionSortOrder.Extension } }, McpServerDefinition.fromSerialized(server), true, this.workspaceCache));
-				this._logService.debug(`MCP collection ${collection.id} hydrated for extension ${extension.identifier.value} (${pendingServers?.length})`);
-
-				newRecs.push({
-					extensionId: extension.identifier,
-					collectionId: id,
-					pendingServers
-				});
-			}
-		}
-
-		if (newRecs.length) {
-			this._extensionServers.set(this._extensionServers.get().concat(newRecs), undefined);
-		}
-	}
-
-	private async _onExtensionStatus() {
-		// This fires on activation but before providers might have published.
-		// Take the extensions that are active now, wait for all them to publish,
-		// then prune inactive servers.
-		const wereActive = Object.entries(this._extensionService.getExtensionsStatus())
-			.filter(([, status]) => !!status.activationTimes)
-			.map(([id]) => id);
-		await this._waitForInitialProvidersToPublish();
-
-		this._updateCollectedServers(); // ensure any pendingServers we know about were handled
-
-		// we move servers out of _extensionServers as they're registered. Once
-		// an extension finishes being activated, if there are any orphaned servers,
-		// then they are removed.
-		const toKeep: IExtensionCollectionsRec[] = [];
-		const currentRecs = this._extensionServers.get();
-		for (const rec of currentRecs) {
-			if (!wereActive.includes(rec.extensionId.value)) {
-				toKeep.push(rec); // keep waiting
-				continue;
-			}
-
-			this._extensionCollectionIdsToPersist.add(rec.collectionId);
-
-			if (rec.pendingServers) {
-				for (const server of rec.pendingServers) {
-					this._logService.debug(`Cached MCP server ${server.definition.id} removed because the extension no longer publishes it`);
-					server.dispose();
-				}
-			}
-		}
-
-		if (toKeep.length !== currentRecs.length) {
-			this._extensionServers.set(toKeep, undefined);
-		}
 	}
 
 	public override dispose(): void {

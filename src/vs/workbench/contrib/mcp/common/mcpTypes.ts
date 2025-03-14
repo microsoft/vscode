@@ -11,6 +11,7 @@ import { IObservable } from '../../../../base/common/observable.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
@@ -18,6 +19,10 @@ import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { MCP } from './modelContextProtocol.js';
 
 export const extensionMcpCollectionPrefix = 'ext.';
+
+export function extensionPrefixedIdentifier(identifier: ExtensionIdentifier, id: string): string {
+	return ExtensionIdentifier.toKey(identifier) + '/' + id;
+}
 
 /**
  * An McpCollection contains McpServers. There may be multiple collections for

@@ -8,8 +8,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
-import { StorageScope } from '../../../platform/storage/common/storage.js';
-import { extensionMcpCollectionPrefix, McpCollectionDefinition, McpServerDefinition, McpServerLaunch, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
+import { McpServerDefinition, McpServerLaunch, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
 import { ExtHostMcpShape, MainContext, MainThreadMcpShape } from './extHost.protocol.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 
@@ -54,12 +53,7 @@ export class ExtHostMcpService implements IExtHostMpcService {
 			throw new Error(`MCP configuration providers must be registered in the contributes.modelContextServerCollections array within your package.json, but "${id}" was not`);
 		}
 
-		const mcp: McpCollectionDefinition.FromExtHost = {
-			id: extensionMcpCollectionPrefix + id,
-			isTrustedByDefault: true,
-			label: metadata?.label ?? extension.displayName ?? extension.name,
-			scope: StorageScope.WORKSPACE
-		};
+
 		const update = async () => {
 
 			const list = await provider.provideMcpServerDefinitions(CancellationToken.None);
@@ -89,11 +83,11 @@ export class ExtHostMcpService implements IExtHostMpcService {
 				});
 			}
 
-			this._proxy.$upsertMcpCollection(mcp, servers);
+			this._proxy.$setMcpServers(extension.identifier, id, servers);
 		};
 
 		store.add(toDisposable(() => {
-			this._proxy.$deleteMcpCollection(mcp.id);
+			this._proxy.$setMcpServers(extension.identifier, id, []);
 		}));
 
 		if (provider.onDidChange) {

@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from '../../../base/common/event.js';
-import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue } from '../../../base/common/observable.js';
+import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { IMcpMessageTransport, IMcpRegistry } from '../../contrib/mcp/common/mcpRegistryTypes.js';
-import { McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
+import { extensionPrefixedIdentifier, McpConnectionState, McpServerDefinition, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
 import { ExtensionHostKind } from '../../services/extensions/common/extensionHostKind.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
@@ -19,28 +20,23 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 	private _serverIdCounter = 0;
 
 	private readonly _servers: Map<number, ExtHostMcpServerLaunch> = new Map();
-	private readonly _collectionDefinitions = this._register(new DisposableMap<string, {
-		fromExtHost: McpCollectionDefinition.FromExtHost;
-		servers: ISettableObservable<readonly McpServerDefinition[]>;
-		dispose(): void;
-	}>());
 
 	constructor(
-		private readonly _extHostContext: IExtHostContext,
+		extHostContext: IExtHostContext,
 		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
 	) {
 		super();
-		const proxy = _extHostContext.getProxy(ExtHostContext.ExtHostMcp);
+		const proxy = extHostContext.getProxy(ExtHostContext.ExtHostMcp);
 		this._register(this._mcpRegistry.registerDelegate({
 			waitForInitialProviderPromises() {
 				return proxy.$waitForInitialCollectionProviders();
 			},
 			canStart(collection, serverDefinition) {
 				// todo: SSE MPC servers without a remote authority could be served from the renderer
-				if (collection.remoteAuthority !== _extHostContext.remoteAuthority) {
+				if (collection.remoteAuthority !== extHostContext.remoteAuthority) {
 					return false;
 				}
-				if (serverDefinition.launch.type === McpServerTransportType.Stdio && _extHostContext.extensionHostKind === ExtensionHostKind.LocalWebWorker) {
+				if (serverDefinition.launch.type === McpServerTransportType.Stdio && extHostContext.extensionHostKind === ExtensionHostKind.LocalWebWorker) {
 					return false;
 				}
 				return true;
@@ -60,29 +56,16 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		}));
 	}
 
-	$upsertMcpCollection(collection: McpCollectionDefinition.FromExtHost, serversDto: McpServerDefinition.Serialized[]): void {
-		const servers = serversDto.map(McpServerDefinition.fromSerialized);
-		const existing = this._collectionDefinitions.get(collection.id);
-		if (existing) {
-			existing.servers.set(servers, undefined);
-		} else {
-			const serverDefinitions = observableValue<readonly McpServerDefinition[]>('mcpServers', servers);
-			const handle = this._mcpRegistry.registerCollection({
-				...collection,
-				remoteAuthority: this._extHostContext.remoteAuthority,
-				serverDefinitions,
-			});
+	$setMcpServers(extension: ExtensionIdentifier, id: string, serversDto: McpServerDefinition.Serialized[]): void {
 
-			this._collectionDefinitions.set(collection.id, {
-				fromExtHost: collection,
-				servers: serverDefinitions,
-				dispose: () => handle.dispose(),
-			});
+		const fid = extensionPrefixedIdentifier(extension, id);
+		const existing = this._mcpRegistry.collections.get().find(c => c.id === fid);
+		if (!existing) {
+			throw new Error(`[MCP] UNKNOWN collection ${fid}`);
 		}
-	}
 
-	$deleteMcpCollection(collectionId: string): void {
-		this._collectionDefinitions.deleteAndDispose(collectionId);
+		const servers = serversDto.map(McpServerDefinition.fromSerialized);
+		(existing.serverDefinitions as ISettableObservable<typeof servers>).set(servers, undefined);
 	}
 
 	$onDidChangeState(id: number, update: McpConnectionState): void {

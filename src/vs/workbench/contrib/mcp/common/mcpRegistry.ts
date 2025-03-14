@@ -191,4 +191,3 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		);
 	}
 }
-
