@@ -337,17 +337,10 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			}
 		};
 
-		updateRegistration();
-
-		this._register(context.onDidChange(() => {
-			updateRegistration();
-		}));
-
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('chat.experimental.setupFromDialog')) {
-				updateRegistration();
-			}
-		}));
+		this._register(Event.runAndSubscribe(Event.any(
+			context.onDidChange,
+			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('chat.experimental.setupFromDialog'))
+		), () => updateRegistration()));
 	}
 
 	private registerChatWelcome(context: ChatSetupContext, controller: Lazy<ChatSetupController>): void {
