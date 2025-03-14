@@ -166,7 +166,7 @@ class SetupChatAgentImplementation implements IChatAgentImplementation {
 		else {
 			progress({
 				kind: 'warning',
-				content: new MarkdownString(localize('settingUpCopilotWarning', "You need to [set up Copilot]({0} \"Setup Copilot\") to use Chat.", `command:${CHAT_SETUP_ACTION_ID}`), { isTrusted: true }),
+				content: new MarkdownString(localize('settingUpCopilotWarning', "You need to [set up Copilot]({0} \"Set up Copilot\") to use Chat.", `command:${CHAT_SETUP_ACTION_ID}`), { isTrusted: true }),
 			} satisfies IChatWarningMessage);
 		}
 
