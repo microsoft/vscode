@@ -79,7 +79,9 @@ export class McpServer extends Disposable implements IMcpServer {
 
 	public readonly toolsState = derived(reader => {
 		const fromServer = this.toolsFromServerPromise.read(reader);
-		if (!fromServer) {
+		const connectionState = this.connectionState.read(reader);
+		const isIdle = McpConnectionState.canBeStarted(connectionState.state) && !fromServer;
+		if (isIdle) {
 			return this.toolsFromCache ? McpServerToolsState.Cached : McpServerToolsState.Unknown;
 		}
 
@@ -90,6 +92,10 @@ export class McpServer extends Disposable implements IMcpServer {
 
 		return fromServerResult.error ? (this.toolsFromCache ? McpServerToolsState.Cached : McpServerToolsState.Unknown) : McpServerToolsState.Live;
 	});
+
+	public get trusted() {
+		return this._mcpRegistry.getTrust(this.collection);
+	}
 
 	constructor(
 		public readonly collection: McpCollectionDefinition,
@@ -241,19 +247,11 @@ export class McpTool implements IMcpTool {
 
 	readonly id: string;
 
-	private _enabled = observableValue<boolean>(this, true);
-
-	readonly enabled: IObservable<boolean> = this._enabled;
-
 	constructor(
 		private readonly _server: McpServer,
 		public readonly definition: MCP.Tool,
 	) {
 		this.id = `${_server.definition.id}_${definition.name}`.replaceAll('.', '_');
-	}
-
-	updateEnablement(value: boolean, tx?: ITransaction): void {
-		this._enabled.set(value, tx);
 	}
 
 	call(params: Record<string, unknown>, token?: CancellationToken): Promise<MCP.CallToolResult> {

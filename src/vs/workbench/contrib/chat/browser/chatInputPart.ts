@@ -90,6 +90,7 @@ import { CollapsibleListPool, IChatCollapsibleListItem } from './chatContentPart
 import { ChatDragAndDrop } from './chatDragAndDrop.js';
 import { ChatEditingRemoveAllFilesAction, ChatEditingShowChangesAction } from './chatEditing/chatEditingActions.js';
 import { ChatFollowups } from './chatFollowups.js';
+import { ChatSelectedTools } from './chatSelectedTools.js';
 import { IChatViewState } from './chatWidget.js';
 import { ChatFileReference } from './contrib/chatDynamicVariables/chatFileReference.js';
 import { ChatImplicitContext } from './contrib/chatImplicitContext.js';
@@ -151,6 +152,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._attachmentModel;
 	}
 
+	readonly selectedToolsModel: ChatSelectedTools;
+
 	public getAttachedAndImplicitContext(sessionId: string): IChatRequestVariableEntry[] {
 		const contextArr = [...this.attachmentModel.attachments];
 		if (this.implicitContext?.enabled && this.implicitContext.value) {
@@ -195,19 +198,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		contextArr
 			.push(...this.instructionAttachmentsPart.chatAttachments);
-
-
-		// // TODO@jrieken use only selected servers
-		// for (const server of this.mcpService.servers.get()) {
-		// 	for (const { id, definition } of server.tools.get()) {
-		// 		contextArr.push({
-		// 			isTool: true,
-		// 			id,
-		// 			name: definition.name,
-		// 			value: undefined
-		// 		});
-		// 	}
-		// }
 
 		return contextArr;
 	}
@@ -384,6 +374,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		super();
 
 		this._attachmentModel = this._register(this.instantiationService.createInstance(ChatAttachmentModel));
+		this.selectedToolsModel = this._register(this.instantiationService.createInstance(ChatSelectedTools));
 		this.dnd = this._register(this.instantiationService.createInstance(ChatDragAndDrop, this._attachmentModel, styles));
 
 		this.getInputState = (): IChatInputState => {
@@ -574,6 +565,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		} else if (this.location === ChatAgentLocation.EditingSession) {
 			this.setChatMode(ChatMode.Edit);
 		}
+
+		this.selectedToolsModel.reset();
 	}
 
 	logInputHistory(): void {

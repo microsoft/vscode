@@ -26,7 +26,7 @@ import { PersistentConnection } from '../../../../platform/remote/common/remoteA
 import { IDownloadService } from '../../../../platform/download/common/download.js';
 import { DownloadServiceChannel } from '../../../../platform/download/common/downloadIpc.js';
 import { RemoteLoggerChannelClient } from '../../../../platform/log/common/logIpc.js';
-import { REMOTE_DEFAULT_EXTENSIONS } from '../../../../platform/remote/common/remote.js';
+import { REMOTE_DEFAULT_IF_LOCAL_EXTENSIONS } from '../../../../platform/remote/common/remote.js';
 
 
 const EXTENSION_IDENTIFIER_PATTERN = '([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$';
@@ -360,9 +360,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				default: 'localhost',
 				description: localize('remote.localPortHost', "Specifies the local host name that will be used for port forwarding.")
 			},
-			[REMOTE_DEFAULT_EXTENSIONS]: {
+			[REMOTE_DEFAULT_IF_LOCAL_EXTENSIONS]: {
 				type: 'array',
-				markdownDescription: localize('remote.defaultExtensions.markdownDescription', 'List of extensions to install automatically on all remotes.'),
+				markdownDescription: localize('remote.defaultExtensionsIfInstalledLocally.markdownDescription', 'List of extensions to install automatically on all remotes if already installed locally.'),
 				default: [
 					'GitHub.copilot',
 					'GitHub.copilot-chat'
@@ -370,7 +370,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				items: {
 					type: 'string',
 					pattern: EXTENSION_IDENTIFIER_PATTERN,
-					patternErrorMessage: localize('remote.defaultExtensions.invalidFormat', 'Extension identifier must be in format "publisher.name".')
+					patternErrorMessage: localize('remote.defaultExtensionsIfInstalledLocally.invalidFormat', 'Extension identifier must be in format "publisher.name".')
 				},
 			}
 		}

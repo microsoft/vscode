@@ -54,6 +54,7 @@ import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { isLinux } from '../../../base/common/platform.js';
+import { IExtensionGalleryManifestService } from '../common/extensionGalleryManifest.js';
 
 export const INativeServerExtensionManagementService = refineServiceDecorator<IExtensionManagementService, INativeServerExtensionManagementService>(IExtensionManagementService);
 export interface INativeServerExtensionManagementService extends IExtensionManagementService {
@@ -86,6 +87,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IExtensionGalleryManifestService protected readonly extensionGalleryManifestService: IExtensionGalleryManifestService,
 		@IProductService productService: IProductService,
 		@IAllowedExtensionsService allowedExtensionsService: IAllowedExtensionsService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
@@ -332,7 +334,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 			verifySignature = isBoolean(value) ? value : true;
 		}
 		const { location, verificationStatus } = await this.extensionsDownloader.download(extension, operation, verifySignature, clientTargetPlatform);
-		const shouldRequireSignature = (await this.galleryService.getCapabilities()).allRepositorySigned;
+		const shouldRequireSignature = (await this.extensionGalleryManifestService.getExtensionGalleryManifest())?.capabilities.signing?.allRepositorySigned;
 
 		if (
 			verificationStatus !== ExtensionSignatureVerificationCode.Success
@@ -869,6 +871,7 @@ export class ExtensionsScanner extends Disposable {
 			installedTimestamp: extension.metadata?.installedTimestamp,
 			updated: !!extension.metadata?.updated,
 			pinned: !!extension.metadata?.pinned,
+			private: !!extension.metadata?.private,
 			isWorkspaceScoped: false,
 			source: extension.metadata?.source ?? (extension.identifier.uuid ? 'gallery' : 'vsix'),
 			size: extension.metadata?.size ?? 0,
@@ -1041,6 +1044,7 @@ class InstallExtensionInProfileTask extends AbstractExtensionTask<ILocalExtensio
 			metadata.publisherDisplayName = this.source.publisherDisplayName;
 			metadata.targetPlatform = this.source.properties.targetPlatform;
 			metadata.updated = !!existingExtension;
+			metadata.private = this.source.private;
 			metadata.isPreReleaseVersion = this.source.properties.isPreReleaseVersion;
 			metadata.hasPreReleaseVersion = existingExtension?.hasPreReleaseVersion || this.source.properties.isPreReleaseVersion;
 			metadata.preRelease = isBoolean(this.options.preRelease)

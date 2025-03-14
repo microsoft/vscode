@@ -15,7 +15,7 @@ import { URI } from '../../../base/common/uri.js';
 import { IHeaders, IRequestContext, IRequestOptions, isOfflineError } from '../../../base/parts/request/common/request.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
-import { getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionInfo, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IExtensionsControlManifest, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortOrder, StatisticType, toTargetPlatform, WEB_EXTENSION_TAG, IExtensionQueryOptions, IDeprecationInfo, ISearchPrefferedResults, ExtensionGalleryError, ExtensionGalleryErrorCode, IProductVersion, UseUnpkgResourceApiConfigKey, IAllowedExtensionsService, EXTENSION_IDENTIFIER_REGEX, SortBy, FilterType, IExtensionGalleryCapabilities } from './extensionManagement.js';
+import { getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionInfo, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IExtensionsControlManifest, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortOrder, StatisticType, toTargetPlatform, WEB_EXTENSION_TAG, IExtensionQueryOptions, IDeprecationInfo, ISearchPrefferedResults, ExtensionGalleryError, ExtensionGalleryErrorCode, IProductVersion, UseUnpkgResourceApiConfigKey, IAllowedExtensionsService, EXTENSION_IDENTIFIER_REGEX, SortBy, FilterType } from './extensionManagement.js';
 import { adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, getGalleryExtensionTelemetryData } from './extensionManagementUtil.js';
 import { IExtensionManifest, TargetPlatform } from '../../extensions/common/extensions.js';
 import { areApiProposalsCompatible, isEngineValid } from '../../extensions/common/extensionValidator.js';
@@ -29,70 +29,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { format2 } from '../../../base/common/strings.js';
 import { IAssignmentService } from '../../assignment/common/assignment.js';
-
-type ExtensionGalleryConfig = {
-	readonly serviceUrl: string;
-	readonly itemUrl: string;
-	readonly publisherUrl: string;
-	readonly resourceUrlTemplate: string;
-	readonly extensionUrlTemplate: string;
-	readonly controlUrl: string;
-	readonly nlsBaseUrl: string;
-};
-
-const enum ExtensionGalleryResourceType {
-	ExtensionQueryService = 'ExtensionQueryService',
-	ExtensionLatestVersionUri = 'ExtensionLatestVersionUriTemplate',
-	ExtensionStatisticsUri = 'ExtensionStatisticsUriTemplate',
-	WebExtensionStatisticsUri = 'WebExtensionStatisticsUriTemplate',
-	PublisherViewUri = 'PublisherViewUriTemplate',
-	ExtensionDetailsViewUri = 'ExtensionDetailsViewUriTemplate',
-	ExtensionRatingViewUri = 'ExtensionRatingViewUriTemplate',
-	WebLanguagePackService = 'WebLanguagePackService',
-	ExtensionUriTemplate = 'ExtensionUriTemplate',
-}
-
-const enum Flag {
-	None = 'None',
-	IncludeVersions = 'IncludeVersions',
-	IncludeFiles = 'IncludeFiles',
-	IncludeCategoryAndTags = 'IncludeCategoryAndTags',
-	IncludeSharedAccounts = 'IncludeSharedAccounts',
-	IncludeVersionProperties = 'IncludeVersionProperties',
-	ExcludeNonValidated = 'ExcludeNonValidated',
-	IncludeInstallationTargets = 'IncludeInstallationTargets',
-	IncludeAssetUri = 'IncludeAssetUri',
-	IncludeStatistics = 'IncludeStatistics',
-	IncludeLatestVersionOnly = 'IncludeLatestVersionOnly',
-	Unpublished = 'Unpublished',
-	IncludeNameConflictInfo = 'IncludeNameConflictInfo',
-	IncludeLatestPrereleaseAndStableVersionOnly = 'IncludeLatestPrereleaseAndStableVersionOnly',
-}
-
-type ExtensionGalleryManifestResource = {
-	readonly id: string;
-	readonly type: string;
-};
-
-type ExtensionQueryCapabilityValue = {
-	readonly name: string;
-	readonly value: number;
-};
-
-interface IExtensionGalleryManifest {
-	readonly version: string;
-	readonly resources: readonly ExtensionGalleryManifestResource[];
-	readonly capabilities: {
-		readonly extensionQuery: {
-			readonly filtering?: readonly ExtensionQueryCapabilityValue[];
-			readonly sorting?: readonly ExtensionQueryCapabilityValue[];
-			readonly flags?: readonly ExtensionQueryCapabilityValue[];
-		};
-		readonly signing?: {
-			readonly allRepositorySigned: boolean;
-		};
-	};
-}
+import { ExtensionGalleryResourceType, Flag, IExtensionGalleryManifest, IExtensionGalleryManifestService } from './extensionGalleryManifest.js';
 
 const CURRENT_TARGET_PLATFORM = isWeb ? TargetPlatform.WEB : getTargetPlatform(platform, arch);
 const ACTIVITY_HEADER_NAME = 'X-Market-Search-Activity-Id';
@@ -187,6 +124,7 @@ const PropertyType = {
 	SponsorLink: 'Microsoft.VisualStudio.Code.SponsorLink',
 	SupportLink: 'Microsoft.VisualStudio.Services.Links.Support',
 	ExecutesCode: 'Microsoft.VisualStudio.Code.ExecutesCode',
+	Private: 'PrivateMarketplace',
 };
 
 interface ICriterium {
@@ -402,6 +340,11 @@ function isPreReleaseVersion(version: IRawGalleryExtensionVersion): boolean {
 	return values.length > 0 && values[0].value === 'true';
 }
 
+function isPrivateExtension(version: IRawGalleryExtensionVersion): boolean {
+	const values = version.properties ? version.properties.filter(p => p.key === PropertyType.Private) : [];
+	return values.length > 0 && values[0].value === 'true';
+}
+
 function executesCode(version: IRawGalleryExtensionVersion): boolean | undefined {
 	const values = version.properties ? version.properties.filter(p => p.key === PropertyType.ExecutesCode) : [];
 	return values.length > 0 ? values[0].value === 'true' : undefined;
@@ -557,6 +500,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 		},
 		hasPreReleaseVersion: isPreReleaseVersion(latestVersion),
 		hasReleaseVersion: true,
+		private: isPrivateExtension(latestVersion),
 		preview: getIsPreview(galleryExtension.flags),
 		isSigned: !!assets.signature,
 		queryContext,
@@ -609,10 +553,10 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		@IProductService private readonly productService: IProductService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAllowedExtensionsService private readonly allowedExtensionsService: IAllowedExtensionsService,
+		@IExtensionGalleryManifestService private readonly extensionGalleryManifestService: IExtensionGalleryManifestService,
 	) {
-		const config = productService.extensionsGallery;
-		this.extensionsControlUrl = config?.controlUrl;
-		this.unpkgResourceApi = config?.extensionUrlTemplate;
+		this.extensionsControlUrl = productService.extensionsGallery?.controlUrl;
+		this.unpkgResourceApi = productService.extensionsGallery?.extensionUrlTemplate;
 		this.extensionsEnabledWithApiProposalVersion = productService.extensionsEnabledWithApiProposalVersion?.map(id => id.toLowerCase()) ?? [];
 		this.commonHeadersPromise = resolveMarketplaceHeaders(
 			productService.version,
@@ -625,42 +569,20 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 	}
 
 	isEnabled(): boolean {
-		return !!this.productService.extensionsGallery?.serviceUrl;
-	}
-
-	async getCapabilities(): Promise<IExtensionGalleryCapabilities> {
-		const extensionGalleryManifest = await this.getExtensionGalleryManifest();
-
-		const filters: FilterType[] = [];
-		for (const capability of extensionGalleryManifest.capabilities.extensionQuery.filtering ?? []) {
-			filters.push(capability.name as FilterType);
-		}
-
-		const sortBy: SortBy[] = [];
-		for (const capability of extensionGalleryManifest.capabilities.extensionQuery.sorting ?? []) {
-			sortBy.push(capability.name as SortBy);
-		}
-
-		return {
-			query: {
-				sortBy,
-				filters
-			},
-			allRepositorySigned: !extensionGalleryManifest.capabilities.signing?.allRepositorySigned,
-		};
+		return this.extensionGalleryManifestService.isEnabled();
 	}
 
 	getExtensions(extensionInfos: ReadonlyArray<IExtensionInfo>, token: CancellationToken): Promise<IGalleryExtension[]>;
 	getExtensions(extensionInfos: ReadonlyArray<IExtensionInfo>, options: IExtensionQueryOptions, token: CancellationToken): Promise<IGalleryExtension[]>;
 	async getExtensions(extensionInfos: ReadonlyArray<IExtensionInfo>, arg1: any, arg2?: any): Promise<IGalleryExtension[]> {
-		if (!this.isEnabled()) {
+		const extensionGalleryManifest = await this.extensionGalleryManifestService.getExtensionGalleryManifest();
+		if (!extensionGalleryManifest) {
 			throw new Error('No extension gallery service configured.');
 		}
 
 		const options = CancellationToken.isCancellationToken(arg1) ? {} : arg1 as IExtensionQueryOptions;
 		const token = CancellationToken.isCancellationToken(arg1) ? arg1 : arg2 as CancellationToken;
 
-		const extensionGalleryManifest = await this.getExtensionGalleryManifest();
 		const resourceApi = (options.preferResourceApi && (this.configurationService.getValue(UseUnpkgResourceApiConfigKey) ?? false)) ? await this.getResourceApi(extensionGalleryManifest) : undefined;
 		const result = resourceApi
 			? await this.getExtensionsUsingResourceApi(extensionInfos, options, resourceApi, extensionGalleryManifest, token)
@@ -1018,7 +940,11 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 	}
 
 	async query(options: IQueryOptions, token: CancellationToken): Promise<IPager<IGalleryExtension>> {
-		const extensionGalleryManifest = await this.getExtensionGalleryManifest();
+		const extensionGalleryManifest = await this.extensionGalleryManifestService.getExtensionGalleryManifest();
+
+		if (!extensionGalleryManifest) {
+			throw new Error('No extension gallery service configured.');
+		}
 
 		let text = options.text || '';
 		const pageSize = options.pageSize ?? 50;
@@ -1523,11 +1449,11 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 	}
 
 	async reportStatistic(publisher: string, name: string, version: string, type: StatisticType): Promise<void> {
-		if (!this.isEnabled()) {
+		const manifest = await this.extensionGalleryManifestService.getExtensionGalleryManifest();
+		if (!manifest) {
 			return undefined;
 		}
 
-		const manifest = await this.getExtensionGalleryManifest();
 		let url: string;
 
 		if (isWeb) {
@@ -1664,6 +1590,11 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 	}
 
 	async getAllCompatibleVersions(extensionIdentifier: IExtensionIdentifier, includePreRelease: boolean, targetPlatform: TargetPlatform): Promise<IGalleryExtensionVersion[]> {
+		const extensionGalleryManifest = await this.extensionGalleryManifestService.getExtensionGalleryManifest();
+		if (!extensionGalleryManifest) {
+			throw new Error('No extension gallery service configured.');
+		}
+
 		let query = new Query()
 			.withFlags(Flag.IncludeVersions, Flag.IncludeCategoryAndTags, Flag.IncludeFiles, Flag.IncludeVersionProperties)
 			.withPage(1, 1);
@@ -1674,7 +1605,6 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			query = query.withFilter(FilterType.ExtensionName, extensionIdentifier.id);
 		}
 
-		const extensionGalleryManifest = await this.getExtensionGalleryManifest();
 		const { galleryExtensions } = await this.queryRawGalleryExtensions(query, extensionGalleryManifest, CancellationToken.None);
 		if (!galleryExtensions.length) {
 			return [];
@@ -1856,248 +1786,6 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		return { malicious, deprecated, search, extensionsEnabledWithPreRelease };
 	}
 
-	private extensionGalleryManifestPromise: Promise<IExtensionGalleryManifest> | undefined;
-	private async getExtensionGalleryManifest(): Promise<IExtensionGalleryManifest> {
-		if (!this.extensionGalleryManifestPromise) {
-			const configuredServiceUrl = this.configurationService.inspect<string>('extensions.gallery.serviceUrl').userLocalValue;
-			if (configuredServiceUrl) {
-				this.extensionGalleryManifestPromise = this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl);
-			} else {
-				this.extensionGalleryManifestPromise = this.getExtensionGalleryManifestFromProduct();
-			}
-		}
-		return this.extensionGalleryManifestPromise;
-	}
-
-	private async getExtensionGalleryManifestFromServiceUrl(url: string): Promise<IExtensionGalleryManifest> {
-		const commonHeaders = await this.commonHeadersPromise;
-		const headers = {
-			...commonHeaders,
-			'Content-Type': 'application/json',
-			'Accept-Encoding': 'gzip',
-		};
-
-		try {
-			const context = await this.requestService.request({
-				type: 'GET',
-				url,
-				headers,
-			}, CancellationToken.None);
-
-			const extensionGalleryManifest = await asJson<IExtensionGalleryManifest>(context);
-
-			if (!extensionGalleryManifest) {
-				throw new Error('Unable to retrieve extension gallery manifest.');
-			}
-
-			return extensionGalleryManifest;
-		} catch (error) {
-			this.logService.error(error);
-			throw error;
-		}
-	}
-
-	private async getExtensionGalleryManifestFromProduct(): Promise<IExtensionGalleryManifest> {
-		const extensionsGallery = this.productService.extensionsGallery as ExtensionGalleryConfig | undefined;
-		if (!extensionsGallery?.serviceUrl) {
-			throw new Error('No extension gallery service configured.');
-		}
-
-		const resources = [
-			{
-				id: `${extensionsGallery.serviceUrl}/extensionquery`,
-				type: ExtensionGalleryResourceType.ExtensionQueryService
-			},
-			{
-				id: `${extensionsGallery.serviceUrl}/vscode/{publisher}/{name}/latest`,
-				type: ExtensionGalleryResourceType.ExtensionLatestVersionUri
-			},
-			{
-				id: `${extensionsGallery.serviceUrl}/publishers/{publisher}/extensions/{name}/{version}/stats?statType={statTypeName}`,
-				type: ExtensionGalleryResourceType.ExtensionStatisticsUri
-			},
-			{
-				id: `${extensionsGallery.serviceUrl}/itemName/{publisher}.{name}/version/{version}/statType/{statTypeValue}/vscodewebextension`,
-				type: ExtensionGalleryResourceType.WebExtensionStatisticsUri
-			},
-		];
-
-		if (extensionsGallery.publisherUrl) {
-			resources.push({
-				id: `${extensionsGallery.publisherUrl}/{publisher}`,
-				type: ExtensionGalleryResourceType.PublisherViewUri
-			});
-		}
-
-		if (extensionsGallery.itemUrl) {
-			resources.push({
-				id: `${extensionsGallery.itemUrl}/?itemName={publisher}.{name}`,
-				type: ExtensionGalleryResourceType.ExtensionDetailsViewUri
-			});
-			resources.push({
-				id: `${extensionsGallery.itemUrl}/?itemName={publisher}.{name}&ssr=false#review-details`,
-				type: ExtensionGalleryResourceType.ExtensionRatingViewUri
-			});
-		}
-
-		if (extensionsGallery.resourceUrlTemplate) {
-			resources.push({
-				id: extensionsGallery.resourceUrlTemplate,
-				type: ExtensionGalleryResourceType.ExtensionUriTemplate
-			});
-		}
-
-		if (extensionsGallery.nlsBaseUrl) {
-			resources.push({
-				id: extensionsGallery.nlsBaseUrl,
-				type: ExtensionGalleryResourceType.WebLanguagePackService
-			});
-		}
-
-		const filtering = [
-			{
-				name: FilterType.Tag,
-				value: 1,
-			},
-			{
-				name: FilterType.ExtensionId,
-				value: 4,
-			},
-			{
-				name: FilterType.Category,
-				value: 5,
-			},
-			{
-				name: FilterType.ExtensionName,
-				value: 7,
-			},
-			{
-				name: FilterType.Target,
-				value: 8,
-			},
-			{
-				name: FilterType.Featured,
-				value: 9,
-			},
-			{
-				name: FilterType.SearchText,
-				value: 10,
-			},
-			{
-				name: FilterType.ExcludeWithFlags,
-				value: 12,
-			},
-		];
-
-		const sorting = [
-			{
-				name: SortBy.NoneOrRelevance,
-				value: 0,
-			},
-			{
-				name: SortBy.LastUpdatedDate,
-				value: 1,
-			},
-			{
-				name: SortBy.Title,
-				value: 2,
-			},
-			{
-				name: SortBy.PublisherName,
-				value: 3,
-			},
-			{
-				name: SortBy.InstallCount,
-				value: 4,
-			},
-			{
-				name: SortBy.AverageRating,
-				value: 6,
-			},
-			{
-				name: SortBy.PublishedDate,
-				value: 10,
-			},
-			{
-				name: SortBy.WeightedRating,
-				value: 12,
-			},
-		];
-
-		const flags = [
-			{
-				name: Flag.None,
-				value: 0x0,
-			},
-			{
-				name: Flag.IncludeVersions,
-				value: 0x1,
-			},
-			{
-				name: Flag.IncludeFiles,
-				value: 0x2,
-			},
-			{
-				name: Flag.IncludeCategoryAndTags,
-				value: 0x4,
-			},
-			{
-				name: Flag.IncludeSharedAccounts,
-				value: 0x8,
-			},
-			{
-				name: Flag.IncludeVersionProperties,
-				value: 0x10,
-			},
-			{
-				name: Flag.ExcludeNonValidated,
-				value: 0x20,
-			},
-			{
-				name: Flag.IncludeInstallationTargets,
-				value: 0x40,
-			},
-			{
-				name: Flag.IncludeAssetUri,
-				value: 0x80,
-			},
-			{
-				name: Flag.IncludeStatistics,
-				value: 0x100,
-			},
-			{
-				name: Flag.IncludeLatestVersionOnly,
-				value: 0x200,
-			},
-			{
-				name: Flag.Unpublished,
-				value: 0x1000,
-			},
-			{
-				name: Flag.IncludeNameConflictInfo,
-				value: 0x8000,
-			},
-			{
-				name: Flag.IncludeLatestPrereleaseAndStableVersionOnly,
-				value: 0x10000,
-			},
-		];
-
-		return {
-			version: '',
-			resources,
-			capabilities: {
-				extensionQuery: {
-					filtering,
-					sorting,
-					flags,
-				},
-				signing: {
-					allRepositorySigned: true,
-				}
-			}
-		};
-	}
 }
 
 export class ExtensionGalleryService extends AbstractExtensionGalleryService {
@@ -2112,8 +1800,9 @@ export class ExtensionGalleryService extends AbstractExtensionGalleryService {
 		@IProductService productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IAllowedExtensionsService allowedExtensionsService: IAllowedExtensionsService,
+		@IExtensionGalleryManifestService extensionGalleryManifestService: IExtensionGalleryManifestService,
 	) {
-		super(storageService, undefined, requestService, logService, environmentService, telemetryService, fileService, productService, configurationService, allowedExtensionsService);
+		super(storageService, undefined, requestService, logService, environmentService, telemetryService, fileService, productService, configurationService, allowedExtensionsService, extensionGalleryManifestService);
 	}
 }
 
@@ -2128,7 +1817,8 @@ export class ExtensionGalleryServiceWithNoStorageService extends AbstractExtensi
 		@IProductService productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IAllowedExtensionsService allowedExtensionsService: IAllowedExtensionsService,
+		@IExtensionGalleryManifestService extensionGalleryManifestService: IExtensionGalleryManifestService,
 	) {
-		super(undefined, undefined, requestService, logService, environmentService, telemetryService, fileService, productService, configurationService, allowedExtensionsService);
+		super(undefined, undefined, requestService, logService, environmentService, telemetryService, fileService, productService, configurationService, allowedExtensionsService, extensionGalleryManifestService);
 	}
 }
