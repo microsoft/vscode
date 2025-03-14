@@ -28,21 +28,20 @@ export class TypeScriptVersionManager extends Disposable {
 	) {
 		super();
 
+
 		this._currentVersion = this.versionProvider.defaultVersion;
 
-		if (this.useWorkspaceTsdkSetting) {
-			if (vscode.workspace.isTrusted) {
-				const localVersion = this.versionProvider.localVersion;
-				if (localVersion) {
-					this._currentVersion = localVersion;
-				}
-			} else {
-				this._disposables.push(vscode.workspace.onDidGrantWorkspaceTrust(() => {
-					if (this.versionProvider.localVersion) {
-						this.updateActiveVersion(this.versionProvider.localVersion);
-					}
-				}));
+		if (vscode.workspace.isTrusted || this.useWorkspaceTsdkSetting) {
+			const localVersion = this.versionProvider.localVersion;
+			if (localVersion) {
+				this._currentVersion = localVersion;
 			}
+		} else {
+			this._disposables.push(vscode.workspace.onDidGrantWorkspaceTrust(() => {
+				if (this.versionProvider.localVersion) {
+					this.updateActiveVersion(this.versionProvider.localVersion);
+				}
+			}));
 		}
 
 		if (this.isInPromptWorkspaceTsdkState(configuration)) {
@@ -172,6 +171,7 @@ export class TypeScriptVersionManager extends Disposable {
 
 	private isInPromptWorkspaceTsdkState(configuration: TypeScriptServiceConfiguration) {
 		return (
+			!vscode.workspace.isTrusted &&
 			configuration.localTsdk !== null
 			&& configuration.enablePromptUseWorkspaceTsdk === true
 			&& this.suppressPromptWorkspaceTsdkSetting === false
