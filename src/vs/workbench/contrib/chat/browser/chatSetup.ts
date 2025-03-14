@@ -14,7 +14,7 @@ import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../base/common/lazy.js';
-import { combinedDisposable, Disposable, DisposableStore, dispose, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -290,18 +290,29 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 	}
 
 	private registerSetupAgents(context: ChatSetupContext, controller: Lazy<ChatSetupController>): void {
-		if (context.state.installed || context.state.hidden || !this.configurationService.getValue('chat.experimental.setupFromDialog')) {
-			return; // never register our fake setup related agents over the real ones or when explicitly hidden or when setting is off
-		}
+		const registration = this._register(new MutableDisposable());
 
-		const registrations = [
-			SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel, context, controller),
-			SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.EditingSession, context, controller)
-		];
+		const updateRegistration = () => {
+			const disabled = context.state.installed || context.state.hidden || !this.configurationService.getValue('chat.experimental.setupFromDialog');
+			if (!disabled && !registration.value) {
+				registration.value = combinedDisposable(
+					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel, context, controller),
+					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.EditingSession, context, controller)
+				);
+			} else if (disabled && registration.value) {
+				registration.clear();
+			}
+		};
+
+		updateRegistration();
 
 		this._register(context.onDidChange(() => {
-			if (context.state.installed || context.state.hidden) {
-				dispose(registrations);
+			updateRegistration();
+		}));
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('chat.experimental.setupFromDialog')) {
+				updateRegistration();
 			}
 		}));
 	}
