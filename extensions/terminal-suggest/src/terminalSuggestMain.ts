@@ -191,12 +191,11 @@ function getPrefix(commandLine: string, cursorPosition: number): string {
 
 	// Extract the part of the line up to the cursor position
 	const beforeCursor = commandLine.slice(0, cursorPosition);
-
-	// Find the last sequence of non-whitespace characters before the cursor
-	const match = beforeCursor.match(/(\S+)\s*$/);
-
-	// Return the match if found, otherwise undefined
-	return match ? match[0] : '';
+	// Remove all newlines since terminal wrapping is just visual
+	const sanitized = beforeCursor.replace(/\n/g, '');
+	// Extract the last contiguous non-whitespace sequence
+	const match = sanitized.match(/(\S+)$/);
+	return match ? match[1] : '';
 }
 
 export function asArray<T>(x: T | T[]): T[];
@@ -223,7 +222,7 @@ export async function getCompletionItemsFromSpecs(
 	let hasCurrentArg = false;
 	let fileExtensions: string[] | undefined;
 
-	let precedingText = terminalContext.commandLine.slice(0, terminalContext.cursorPosition + 1);
+	let precedingText = terminalContext.commandLine.replaceAll(/\n/g, '');
 	if (isWindows) {
 		const spaceIndex = precedingText.indexOf(' ');
 		const commandEndIndex = spaceIndex === -1 ? precedingText.length : spaceIndex;

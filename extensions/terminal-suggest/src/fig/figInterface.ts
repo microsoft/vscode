@@ -46,6 +46,7 @@ export async function getFigSuggestions(
 		hasCurrentArg: false,
 		items: [],
 	};
+	console.log('prceding text is', precedingText);
 	for (const spec of specs) {
 		const specLabels = getFigSuggestionLabel(spec);
 

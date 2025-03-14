@@ -23,7 +23,12 @@ export const figGenericTestSuites: ISuiteSpec[] = [
 			{ input: 'foo|', expectedCompletions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 
 			// Basic arguments (fallback)
-			{ input: 'foo |', expectedCompletions: [], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } }
+			{ input: 'foo |', expectedCompletions: [], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+
+			// New lines to simulate wrapping
+			{ input: 'foo \n|', expectedCompletions: [], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+			{ input: 'f\noo|', expectedCompletions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+
 		]
 	},
 	{
