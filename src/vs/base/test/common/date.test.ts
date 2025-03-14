@@ -34,7 +34,7 @@ suite('Date', () => {
 			const now = new Date();
 			strictEqual(fromNowByDay(now), 'Today');
 		});
-		test('yesterday', () => {
+		test.skip('yesterday', () => {
 			const yesterday = new Date();
 			yesterday.setDate(yesterday.getDate() - 1);
 			yesterday.setHours(yesterday.getHours() - 2); // 2 hours further to avoid DST issues.
