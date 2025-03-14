@@ -27,6 +27,7 @@ import { McpServerConnection } from '../../common/mcpServerConnection.js';
 import { LazyCollectionState, McpCollectionDefinition, McpServerDefinition, McpServerTransportType } from '../../common/mcpTypes.js';
 import { TestMcpMessageTransport } from './mcpRegistryTypes.js';
 import { timeout } from '../../../../../base/common/async.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 
 class TestConfigurationResolverService implements Partial<IConfigurationResolverService> {
 	declare readonly _serviceBrand: undefined;
@@ -171,7 +172,8 @@ suite('Workbench - MCP - Registry', () => {
 			[ISecretStorageService, new TestSecretStorageService()],
 			[ILoggerService, store.add(new TestLoggerService())],
 			[IOutputService, upcast({ showChannel: () => { } })],
-			[IDialogService, testDialogService]
+			[IDialogService, testDialogService],
+			[IProductService, {}],
 		);
 
 		const instaService = store.add(new TestInstantiationService(services));

@@ -7,16 +7,18 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { basename } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { observableMemento } from '../../../../platform/observable/common/observableMemento.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
 import { McpRegistryInputStorage } from './mcpRegistryInputStorage.js';
 import { IMcpHostDelegate, IMcpRegistry, IMcpResolveConnectionOptions } from './mcpRegistryTypes.js';
 import { McpServerConnection } from './mcpServerConnection.js';
-import { IMcpServerConnection, LazyCollectionState, McpCollectionDefinition, McpCollectionReference, McpServerDefinition } from './mcpTypes.js';
+import { IMcpServerConnection, LazyCollectionState, McpCollectionDefinition, McpCollectionReference } from './mcpTypes.js';
 
 const createTrustMemento = observableMemento<Readonly<Record<string, boolean>>>({
 	defaultValue: {},
@@ -56,6 +58,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IProductService private readonly _productService: IProductService,
 	) {
 		super();
 	}
@@ -138,11 +141,11 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		});
 	}
 
-	private _promptForTrust(collection: McpCollectionDefinition, definition: McpServerDefinition): Promise<boolean | undefined> {
+	private _promptForTrust(collection: McpCollectionDefinition): Promise<boolean | undefined> {
 		// Collect all trust prompts for a single config so that concurrently trying to start N
 		// servers in a config don't result in N different dialogs
 		let resultPromise = this._trustPrompts.get(collection.id);
-		resultPromise ??= this._promptForTrustOpenDialog(collection, definition).finally(() => {
+		resultPromise ??= this._promptForTrustOpenDialog(collection).finally(() => {
 			this._trustPrompts.delete(collection.id);
 		});
 		this._trustPrompts.set(collection.id, resultPromise);
@@ -150,16 +153,16 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		return resultPromise;
 	}
 
-	private async _promptForTrustOpenDialog(collection: McpCollectionDefinition, definition: McpServerDefinition): Promise<boolean | undefined> {
+	private async _promptForTrustOpenDialog(collection: McpCollectionDefinition): Promise<boolean | undefined> {
 		const labelWithOrigin = collection.presentation?.origin
-			? `[\`${collection.label}\`](${collection.presentation.origin})`
+			? `[\`${basename(collection.presentation.origin)}\`](${collection.presentation.origin})`
 			: collection.label;
 		const result = await this._dialogService.prompt(
 			{
-				message: 'Do you trust this server?',
+				message: localize('trustTitleWithOrigin', 'Trust MCP servers from {0}?', collection.label),
 				custom: {
 					markdownDetails: [{
-						markdown: new MarkdownString(localize('mcp.trust.details', 'The Model Context Protocol server `{0}` was found from {1}.\n\nDo you want to allow running MCP servers from {1}?', definition.label, labelWithOrigin)),
+						markdown: new MarkdownString(localize('mcp.trust.details', '{0} discovered Model Context Protocol servers from {1} (`{2}`). {0} can use their capabilities in Chat.\n\nDo you want to allow running MCP servers from {3}?', this._productService.nameShort, collection.label, collection.serverDefinitions.get().map(s => s.label).join('`, `'), labelWithOrigin)),
 						dismissOnLinkClick: true,
 					}]
 				},
@@ -192,7 +195,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 			if (trusted) {
 				// continue
 			} else if (trusted === undefined || forceTrust) {
-				const trustValue = await this._promptForTrust(collection, definition);
+				const trustValue = await this._promptForTrust(collection);
 				if (trustValue !== undefined) {
 					this._trustMemento.value.set({ ...memento, [collection.id]: trustValue }, undefined);
 				}
