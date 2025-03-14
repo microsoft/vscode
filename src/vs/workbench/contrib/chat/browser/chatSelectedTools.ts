@@ -84,7 +84,11 @@ export class ChatSelectedTools extends Disposable {
 		}, Event.fromObservable(toolsCount)));
 	}
 
-	update(tools: IToolData[] | undefined): void {
+	update(tools: IToolData[]): void {
 		this._selectedTools.set(tools, undefined);
+	}
+
+	reset(): void {
+		this._selectedTools.set(undefined, undefined);
 	}
 }
