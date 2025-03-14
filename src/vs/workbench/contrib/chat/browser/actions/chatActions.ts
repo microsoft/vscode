@@ -60,13 +60,8 @@ import { ChatEntitlement, IChatEntitlementService } from '../../common/chatEntit
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
-export const CHAT_OPEN_ACTION_LABEL = localize2('openChat', "Open Chat");
-
 export const CHAT_SETUP_ACTION_ID = 'workbench.action.chat.triggerSetup';
-export const CHAT_SETUP_ACTION_LABEL = localize2('triggerChatSetup', "Use AI Features with Copilot for Free...");
-
-export const TOGGLE_CHAT_ACTION_ID = 'workbench.action.chat.toggle';
-export const TOGGLE_CHAT_ACTION_LABEL = localize('toggleChat', "Toggle Chat");
+const TOGGLE_CHAT_ACTION_ID = 'workbench.action.chat.toggle';
 
 export interface IChatViewOpenOptions {
 	/**
@@ -105,7 +100,7 @@ export function registerChatActions() {
 		constructor() {
 			super({
 				id: CHAT_OPEN_ACTION_ID,
-				title: CHAT_OPEN_ACTION_LABEL,
+				title: localize2('openChat', "Open Chat"),
 				icon: Codicon.copilot,
 				f1: true,
 				category: CHAT_CATEGORY,
@@ -734,7 +729,7 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 				primaryActionIcon = Codicon.copilotWarning;
 			} else {
 				primaryActionId = TOGGLE_CHAT_ACTION_ID;
-				primaryActionTitle = TOGGLE_CHAT_ACTION_LABEL;
+				primaryActionTitle = localize('toggleChat', "Toggle Chat");
 				primaryActionIcon = Codicon.copilot;
 			}
 			return instantiationService.createInstance(DropdownWithPrimaryActionViewItem, instantiationService.createInstance(MenuItemAction, {

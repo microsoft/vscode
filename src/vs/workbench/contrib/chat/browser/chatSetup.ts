@@ -41,7 +41,7 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { ChatAgentLocation, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { CHAT_CATEGORY, CHAT_SETUP_ACTION_ID, CHAT_SETUP_ACTION_LABEL } from './actions/chatActions.js';
+import { CHAT_CATEGORY, CHAT_SETUP_ACTION_ID } from './actions/chatActions.js';
 import { ChatViewId, EditsViewId, ensureSideBarChatViewSize, preferCopilotEditsView, showCopilotView } from './chat.js';
 import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
 import { ChatViewsWelcomeExtensions, IChatViewsWelcomeContributionRegistry } from './viewsWelcome/chatViewsWelcome.js';
@@ -320,6 +320,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			ChatContextKeys.Setup.installed.negate(),
 			ChatContextKeys.Setup.canSignUp
 		);
+
+		const CHAT_SETUP_ACTION_LABEL = localize2('triggerChatSetup', "Use AI Features with Copilot for Free...");
 
 		class ChatSetupTriggerAction extends Action2 {
 
