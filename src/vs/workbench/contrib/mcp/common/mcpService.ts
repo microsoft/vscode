@@ -269,7 +269,7 @@ export class McpService extends Disposable implements IMcpService {
 
 			for (const collection of collections) {
 				const id = extensionMcpCollectionPrefix + collection.id;
-				const pendingServers = this.userCache.getServers(id)?.servers.map(server =>
+				const pendingServers = this.workspaceCache.getServers(id)?.servers.map(server =>
 					this._instantiationService.createInstance(McpServer, { id, label: collection.label, presentation: { order: McpCollectionSortOrder.Extension } }, McpServerDefinition.fromSerialized(server), true, this.workspaceCache));
 				this._logService.debug(`MCP collection ${collection.id} hydrated for extension ${extension.identifier.value} (${pendingServers?.length})`);
 

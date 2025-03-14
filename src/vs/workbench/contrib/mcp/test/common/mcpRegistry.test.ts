@@ -117,6 +117,10 @@ class TestMcpHostDelegate implements IMcpHostDelegate {
 	start(): IMcpMessageTransport {
 		return new TestMcpMessageTransport();
 	}
+
+	waitForInitialProviderPromises(): Promise<void> {
+		return Promise.resolve();
+	}
 }
 
 class TestDialogService implements Partial<IDialogService> {

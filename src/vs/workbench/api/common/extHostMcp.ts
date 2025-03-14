@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { CancellationToken } from '../../../base/common/cancellation.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
+import { StorageScope } from '../../../platform/storage/common/storage.js';
 import { extensionMcpCollectionPrefix, McpCollectionDefinition, McpServerDefinition, McpServerLaunch, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
 import { ExtHostMcpShape, MainContext, MainThreadMcpShape } from './extHost.protocol.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
-import { StorageScope } from '../../../platform/storage/common/storage.js';
-import { CancellationToken } from '../../../base/common/cancellation.js';
 
 export const IExtHostMpcService = createDecorator<IExtHostMpcService>('IExtHostMpcService');
 
@@ -65,7 +65,7 @@ export class ExtHostMcpService implements IExtHostMpcService {
 			const list = await provider.provideMcpServerDefinitions(CancellationToken.None);
 
 			function isSSEConfig(candidate: vscode.McpServerDefinition): candidate is vscode.McpSSEServerDefinition {
-				return typeof (candidate as vscode.McpSSEServerDefinition).url === 'string';
+				return !!(candidate as vscode.McpSSEServerDefinition).uri;
 			}
 
 			const servers: McpServerDefinition[] = [];
@@ -77,7 +77,7 @@ export class ExtHostMcpService implements IExtHostMpcService {
 					launch: isSSEConfig(item)
 						? {
 							type: McpServerTransportType.SSE,
-							url: item.url
+							uri: item.uri
 						}
 						: {
 							type: McpServerTransportType.Stdio,

@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 declare module 'vscode' {
 
-	// TODO@API make this a class
-	export interface McpStdioServerDefinition {
+	// https://github.com/microsoft/vscode/issues/243522
+
+	export class McpStdioServerDefinition {
 
 		label: string;
 
@@ -14,16 +15,16 @@ declare module 'vscode' {
 		args: readonly string[];
 		env: Record<string, string | number | null>;
 
-		// constructor(label: string, command: string, args: string[], env: { [key: string]: string });
+		constructor(label: string, command: string, args: string[], env: { [key: string]: string });
 	}
 
-	export interface McpSSEServerDefinition {
+	export class McpSSEServerDefinition {
 
 		label: string;
 
-		url: string;
+		uri: Uri;
 
-		// constructor(label: string, url:string);
+		constructor(label: string, uri: Uri);
 	}
 
 	export type McpServerDefinition = McpStdioServerDefinition | McpSSEServerDefinition;

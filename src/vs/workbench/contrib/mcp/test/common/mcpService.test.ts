@@ -13,7 +13,7 @@ import { ExtensionIdentifier, IExtensionDescription } from '../../../../../platf
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { ILoggerService } from '../../../../../platform/log/common/log.js';
+import { ILoggerService, ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
@@ -22,7 +22,8 @@ import { TestContextService, TestLoggerService, TestStorageService } from '../..
 import { ILanguageModelToolsService } from '../../../chat/common/languageModelToolsService.js';
 import { IMcpRegistry } from '../../common/mcpRegistryTypes.js';
 import { McpService } from '../../common/mcpService.js';
-import { McpCollectionSortOrder } from '../../common/mcpTypes.js';
+import { extensionMcpCollectionPrefix, McpCollectionSortOrder } from '../../common/mcpTypes.js';
+import { timeout } from '../../../../../base/common/async.js';
 
 class TestExtensionService extends NullExtensionService {
 	private readonly store = new DisposableStore();
@@ -58,6 +59,9 @@ class TestMcpService extends McpService {
 	public get internalUserCache() {
 		return this.userCache;
 	}
+	public get internalWorkspaceCache() {
+		return this.workspaceCache;
+	}
 
 	public get internalExtensionServers() {
 		return this._extensionServers;
@@ -90,6 +94,7 @@ suite('Workbench - MCP - Service', () => {
 
 		// Mock MCP registry
 		mockMcpRegistry = {
+			delegates: [],
 			collections: observableValue('collections', [])
 		};
 
@@ -111,7 +116,8 @@ suite('Workbench - MCP - Service', () => {
 			[IStorageService, testStorageService],
 			[ILoggerService, store.add(new TestLoggerService())],
 			[IProductService, { nameShort: 'VSCode Test' } as IProductService],
-			[IWorkspaceContextService, new TestContextService()]
+			[IWorkspaceContextService, new TestContextService()],
+			[ILogService, new NullLogService()],
 		);
 
 		// Create instantiation service
@@ -133,7 +139,7 @@ suite('Workbench - MCP - Service', () => {
 		]);
 
 		// Set cached servers for this collection
-		mcpService.internalUserCache.storeServers('collection1', {
+		mcpService.internalWorkspaceCache.storeServers(extensionMcpCollectionPrefix + 'collection1', {
 			servers: [{
 				id: 'server1',
 				label: 'Server 1',
@@ -150,7 +156,7 @@ suite('Workbench - MCP - Service', () => {
 
 		// Should be loaded from cache but not activated yet
 		assert.strictEqual(mcpService.internalExtensionServers.get().length, 1);
-		assert.strictEqual(mcpService.internalExtensionServers.get()[0].collectionId, 'collection1');
+		assert.strictEqual(mcpService.internalExtensionServers.get()[0].collectionId, extensionMcpCollectionPrefix + 'collection1');
 		assert.strictEqual(mcpService.internalExtensionServers.get()[0].pendingServers?.length, 1);
 	});
 
@@ -161,7 +167,7 @@ suite('Workbench - MCP - Service', () => {
 		]);
 
 		// Set cached servers for this collection
-		mcpService.internalUserCache.storeServers('collection1', {
+		mcpService.internalWorkspaceCache.storeServers(extensionMcpCollectionPrefix + 'collection1', {
 			servers: [{
 				id: 'server1',
 				label: 'Server 1',
@@ -180,6 +186,7 @@ suite('Workbench - MCP - Service', () => {
 		// Now simulate extension activation (but it doesn't register the server)
 		mockExtensionService.extensionStatuses.set('ext1', { activationTimes: {} });
 		mockExtensionService.onDidChangeExtensionStatusEmitter.fire(undefined);
+		await timeout(1); // wait for _waitForInitialProvidersToPublish to resolve
 
 		// The server should be removed since it wasn't registered by the extension
 		assert.strictEqual(mcpService.servers.get().length, 0);
@@ -193,7 +200,7 @@ suite('Workbench - MCP - Service', () => {
 		]);
 
 		// Set cached servers for this collection
-		mcpService.internalUserCache.storeServers('collection1', {
+		mcpService.internalWorkspaceCache.storeServers(extensionMcpCollectionPrefix + 'collection1', {
 			servers: [{
 				id: 'server1',
 				label: 'Server 1',
@@ -225,6 +232,7 @@ suite('Workbench - MCP - Service', () => {
 		// Now simulate extension activation
 		mockExtensionService.extensionStatuses.set('ext1', { activationTimes: {} });
 		mockExtensionService.onDidChangeExtensionStatusEmitter.fire(undefined);
+		await timeout(1); // wait for _waitForInitialProvidersToPublish to resolve
 
 		// The server should still be there since it was registered
 		assert.strictEqual(mcpService.servers.get().length, 1);
@@ -251,7 +259,7 @@ suite('Workbench - MCP - Service', () => {
 		assert.strictEqual(mockExtensionService.firedActivationEvents.has('onMcpCollection:collection2'), true);
 	});
 
-	test('hasExtensionsWithUnknownServers should be true when extensions have unactivated servers', () => {
+	test('hasExtensionsWithUnknownServers should be true when extensions have unactivated servers', async () => {
 		// Initially should be false
 		assert.strictEqual(mcpService.hasExtensionsWithUnknownServers.get(), false);
 
@@ -269,6 +277,7 @@ suite('Workbench - MCP - Service', () => {
 		// Activate the extension
 		mockExtensionService.extensionStatuses.set('ext1', { activationTimes: {} });
 		mockExtensionService.onDidChangeExtensionStatusEmitter.fire(undefined);
+		await timeout(1); // wait for _waitForInitialProvidersToPublish to resolve
 
 		// Should be false again
 		assert.strictEqual(mcpService.hasExtensionsWithUnknownServers.get(), false);

@@ -244,7 +244,7 @@ export interface McpServerTransportStdio {
  */
 export interface McpServerTransportSSE {
 	readonly type: McpServerTransportType.SSE;
-	readonly url: string;
+	readonly uri: URI;
 }
 
 export type McpServerLaunch =
@@ -253,7 +253,7 @@ export type McpServerLaunch =
 
 export namespace McpServerLaunch {
 	export type Serialized =
-		| { type: McpServerTransportType.SSE; url: string }
+		| { type: McpServerTransportType.SSE; uri: UriComponents }
 		| { type: McpServerTransportType.Stdio; cwd: UriComponents | undefined; command: string; args: readonly string[]; env: Record<string, string | number | null> };
 
 	export function toSerialized(launch: McpServerLaunch): McpServerLaunch.Serialized {
@@ -263,7 +263,7 @@ export namespace McpServerLaunch {
 	export function fromSerialized(launch: McpServerLaunch.Serialized): McpServerLaunch {
 		switch (launch.type) {
 			case McpServerTransportType.SSE:
-				return { type: launch.type, url: launch.url };
+				return { type: launch.type, uri: URI.revive(launch.uri) };
 			case McpServerTransportType.Stdio:
 				return {
 					type: launch.type,

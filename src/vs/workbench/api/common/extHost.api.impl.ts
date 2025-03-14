@@ -1819,6 +1819,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TextSearchMatch2: TextSearchMatch2,
 			TextSearchCompleteMessageTypeNew: TextSearchCompleteMessageType,
 			ChatErrorLevel: extHostTypes.ChatErrorLevel,
+			McpSSEServerDefinition: extHostTypes.McpSSEServerDefinition,
+			McpStdioServerDefinition: extHostTypes.McpStdioServerDefinition,
 		};
 	};
 }
