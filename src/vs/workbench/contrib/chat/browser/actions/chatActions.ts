@@ -56,6 +56,7 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../common/chatEntitlementService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 
@@ -688,6 +689,7 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -705,11 +707,16 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 			const chatExtensionInstalled = contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.installed.key) === true;
 			const { chatQuotaExceeded, completionsQuotaExceeded } = chatEntitlementService.quotas;
 			const signedOut = chatEntitlementService.entitlement === ChatEntitlement.Unknown;
+			const setupFromDialog = configurationService.getValue('chat.experimental.setupFromDialog');
 
 			let primaryActionId: string;
 			let primaryActionTitle: string;
 			let primaryActionIcon: ThemeIcon;
-			if (chatExtensionInstalled && signedOut) {
+			if (!chatExtensionInstalled && !setupFromDialog) {
+				primaryActionId = CHAT_SETUP_ACTION_ID;
+				primaryActionTitle = localize('triggerChatSetup', "Use AI Features with Copilot for Free...");
+				primaryActionIcon = Codicon.copilot;
+			} else if (chatExtensionInstalled && signedOut) {
 				primaryActionId = TOGGLE_CHAT_ACTION_ID;
 				primaryActionTitle = localize('signInToChatSetup', "Sign in to Use Copilot...");
 				primaryActionIcon = Codicon.copilotNotConnected;
@@ -736,7 +743,8 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 		}, Event.any(
 			agentService.onDidChangeAgents,
 			chatEntitlementService.onDidChangeQuotaExceeded,
-			chatEntitlementService.onDidChangeEntitlement
+			chatEntitlementService.onDidChangeEntitlement,
+			Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('chat.experimental.setupFromDialog'))
 		));
 
 		// Reduces flicker a bit on reload/restart
