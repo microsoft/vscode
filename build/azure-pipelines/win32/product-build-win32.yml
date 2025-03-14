@@ -262,6 +262,7 @@ steps:
           $ErrorActionPreference = "Stop"
           $ArchivePath = ".build\win32-$(VSCODE_ARCH)\vscode-server-win32-$(VSCODE_ARCH).zip"
           New-Item -ItemType Directory -Path .build\win32-$(VSCODE_ARCH) -Force
+          ls ..\vscode-server-win32-$(VSCODE_ARCH)
           exec { 7z.exe a -tzip $ArchivePath ..\vscode-server-win32-$(VSCODE_ARCH) -r }
           echo "##vso[task.setvariable variable=SERVER_PATH]$ArchivePath"
         condition: and(succeededOrFailed(), eq(variables['BUILT_SERVER'], 'true'))
@@ -272,6 +273,7 @@ steps:
           $ErrorActionPreference = "Stop"
           $ArchivePath = ".build\win32-$(VSCODE_ARCH)\vscode-server-win32-$(VSCODE_ARCH)-web.zip"
           New-Item -ItemType Directory -Path .build\win32-$(VSCODE_ARCH) -Force
+          ls ..\vscode-server-win32-$(VSCODE_ARCH)-web
           exec { 7z.exe a -tzip $ArchivePath ..\vscode-server-win32-$(VSCODE_ARCH)-web -r }
           echo "##vso[task.setvariable variable=WEB_PATH]$ArchivePath"
         condition: and(succeededOrFailed(), eq(variables['BUILT_WEB'], 'true'))
