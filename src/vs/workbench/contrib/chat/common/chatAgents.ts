@@ -125,6 +125,7 @@ export interface IChatAgentMetadata {
 	followupPlaceholder?: string;
 	isSticky?: boolean;
 	requester?: IChatRequesterInformation;
+	welcomeMessageContent?: IChatWelcomeMessageContent;
 }
 
 
