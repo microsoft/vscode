@@ -39,7 +39,7 @@ suite('Date', () => {
 			console.log(`1: ${yesterday}`);
 			yesterday.setDate(yesterday.getDate() - 1);
 			console.log(`2: ${yesterday}`);
-			yesterday.setHours(yesterday.getHours() - 2); // 2 hours further to avoid DST issues.
+			yesterday.setHours(12); // 2 hours further to avoid DST issues.
 			console.log(`3: ${yesterday}`);
 			strictEqual(fromNowByDay(yesterday), 'Yesterday');
 		});
