@@ -3,66 +3,66 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/chatViewSetup.css';
 import { $, getActiveElement, setVisibility } from '../../../../base/browser/dom.js';
 import { ButtonWithDropdown } from '../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { toAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../base/common/actions.js';
 import { timeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import Severity from '../../../../base/common/severity.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { equalsIgnoreCase } from '../../../../base/common/strings.js';
+import { isObject } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ICustomDialogHTMLElement, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import product from '../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ITelemetryService, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { IActivityService, ProgressBadge } from '../../../services/activity/common/activity.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import { ExtensionUrlHandlerOverrideRegistry } from '../../../services/extensions/browser/extensionUrlHandler.js';
+import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
+import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
+import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
+import { IStatusbarService } from '../../../services/statusbar/browser/statusbar.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
-import { ChatAgentLocation, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../common/chatAgents.js';
+import { ChatAgentLocation, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService, IChatWelcomeMessageContent } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
+import { ChatEntitlement, ChatEntitlementService, ChatSetupContext, ChatSetupRequests, IChatEntitlementService } from '../common/chatEntitlementService.js';
+import { IChatProgress, IChatProgressMessage, IChatWarningMessage } from '../common/chatService.js';
 import { CHAT_CATEGORY, CHAT_SETUP_ACTION_ID } from './actions/chatActions.js';
 import { ChatViewId, EditsViewId, ensureSideBarChatViewSize, preferCopilotEditsView, showCopilotView } from './chat.js';
 import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
+import './media/chatViewSetup.css';
 import { ChatViewsWelcomeExtensions, IChatViewsWelcomeContributionRegistry } from './viewsWelcome/chatViewsWelcome.js';
-import { mainWindow } from '../../../../base/browser/window.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { URI } from '../../../../base/common/uri.js';
-import { IHostService } from '../../../services/host/browser/host.js';
-import Severity from '../../../../base/common/severity.js';
-import { ExtensionUrlHandlerOverrideRegistry } from '../../../services/extensions/browser/extensionUrlHandler.js';
-import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { toErrorMessage } from '../../../../base/common/errorMessage.js';
-import { StopWatch } from '../../../../base/common/stopwatch.js';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
-import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
-import { equalsIgnoreCase } from '../../../../base/common/strings.js';
-import { IStatusbarService } from '../../../services/statusbar/browser/statusbar.js';
-import { IChatEntitlementService, ChatEntitlement, ChatEntitlementService, ChatSetupContext, ChatSetupRequests } from '../common/chatEntitlementService.js';
-import { isObject } from '../../../../base/common/types.js';
-import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
-import { IChatProgress, IChatProgressMessage, IChatWarningMessage } from '../common/chatService.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -102,6 +102,18 @@ class SetupChatAgentImplementation implements IChatAgentImplementation {
 
 			const id = location === ChatAgentLocation.Panel ? 'setup.chat' : 'setup.edits';
 
+			const welcomeMessageContent: IChatWelcomeMessageContent = location === ChatAgentLocation.Panel ?
+				{
+					title: localize('chatTitle', "Ask Copilot"),
+					message: new MarkdownString(localize('chatMessage', "Copilot is powered by AI, so mistakes are possible. Review output carefully before use.")),
+					icon: Codicon.copilotLarge
+				} :
+				{
+					title: localize('editsTitle', "Edit with Copilot"),
+					message: new MarkdownString(localize('editsMessage', "Start your editing session by defining a set of files that you want to work with. Then ask Copilot for the changes you want to make.")),
+					icon: Codicon.copilotLarge
+				};
+
 			return combinedDisposable(
 				chatAgentService.registerAgent(id, {
 					id,
@@ -111,19 +123,20 @@ class SetupChatAgentImplementation implements IChatAgentImplementation {
 					slashCommands: [],
 					disambiguation: [],
 					locations: [location],
-					metadata: {},
+					metadata: {
+						welcomeMessageContent
+					},
 					description: location === ChatAgentLocation.Panel ? localize('chatDescription', "Ask Copilot") : localize('editsDescription', "Edit files in your workspace"),
 					extensionId: nullExtensionDescription.identifier,
 					extensionDisplayName: nullExtensionDescription.name,
 					extensionPublisherId: nullExtensionDescription.publisher
 				}),
-				chatAgentService.registerAgentImplementation(id, instantiationService.createInstance(SetupChatAgentImplementation, location, context, controller))
+				chatAgentService.registerAgentImplementation(id, instantiationService.createInstance(SetupChatAgentImplementation, context, controller))
 			);
 		});
 	}
 
 	constructor(
-		private readonly location: ChatAgentLocation,
 		private readonly context: ChatSetupContext,
 		private readonly controller: Lazy<ChatSetupController>,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -189,22 +202,6 @@ class SetupChatAgentImplementation implements IChatAgentImplementation {
 		}
 
 		return {};
-	}
-
-	provideWelcomeMessage() {
-		if (this.location === ChatAgentLocation.Panel) {
-			return {
-				title: localize('chatTitle', "Ask Copilot"),
-				message: new MarkdownString(localize('chatMessage', "Copilot is powered by AI, so mistakes are possible. Review output carefully before use.")),
-				icon: Codicon.copilotLarge
-			};
-		}
-
-		return {
-			title: localize('editsTitle', "Edit with Copilot"),
-			message: new MarkdownString(localize('editsMessage', "Start your editing session by defining a set of files that you want to work with. Then ask Copilot for the changes you want to make.")),
-			icon: Codicon.copilotLarge
-		};
 	}
 }
 

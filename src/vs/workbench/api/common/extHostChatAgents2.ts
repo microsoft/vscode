@@ -13,7 +13,6 @@ import { Iterable } from '../../../base/common/iterator.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
-import { ThemeIcon } from '../../../base/common/themables.js';
 import { assertType } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -21,7 +20,7 @@ import { Location } from '../../../editor/common/languages.js';
 import { ExtensionIdentifier, IExtensionDescription, IRelaxedExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { isChatViewTitleActionContext } from '../../contrib/chat/common/chatActions.js';
-import { IChatAgentRequest, IChatAgentResult, IChatAgentResultTimings, IChatWelcomeMessageContent } from '../../contrib/chat/common/chatAgents.js';
+import { IChatAgentRequest, IChatAgentResult, IChatAgentResultTimings } from '../../contrib/chat/common/chatAgents.js';
 import { IChatRelatedFile, IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 import { ChatAgentVoteDirection, IChatContentReference, IChatFollowup, IChatResponseErrorDetails, IChatUserActionEvent, IChatVoteAction } from '../../contrib/chat/common/chatService.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
@@ -32,9 +31,9 @@ import { CommandsConverter, ExtHostCommands } from './extHostCommands.js';
 import { ExtHostDiagnostics } from './extHostDiagnostics.js';
 import { ExtHostDocuments } from './extHostDocuments.js';
 import { ExtHostLanguageModels } from './extHostLanguageModels.js';
+import { ExtHostLanguageModelTools } from './extHostLanguageModelTools.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
-import { ExtHostLanguageModelTools } from './extHostLanguageModelTools.js';
 
 class ChatAgentResponseStream {
 
@@ -682,15 +681,6 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return items.map((i) => typeConvert.ChatAgentCompletionItem.from(i, this._commands.converter, disposables));
 	}
 
-	async $provideWelcomeMessage(handle: number, token: CancellationToken): Promise<IChatWelcomeMessageContent | undefined> {
-		const agent = this._agents.get(handle);
-		if (!agent) {
-			return;
-		}
-
-		return await agent.provideWelcomeMessage(token);
-	}
-
 	async $provideChatTitle(handle: number, context: IChatAgentHistoryEntryDto[], token: CancellationToken): Promise<string | undefined> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
@@ -786,24 +776,6 @@ class ExtHostChatAgent {
 			.filter(f => !(f && 'commandId' in f))
 			// Filter out followups from older providers before 'message' changed to 'prompt'
 			.filter(f => !(f && 'message' in f));
-	}
-
-	async provideWelcomeMessage(token: CancellationToken): Promise<IChatWelcomeMessageContent | undefined> {
-		if (!this._welcomeMessageProvider?.provideWelcomeMessage) {
-			return undefined;
-		}
-
-		const content = await this._welcomeMessageProvider.provideWelcomeMessage(token);
-		const icon = content?.icon; // typescript
-		if (!content || !ThemeIcon.isThemeIcon(icon)) {
-			return undefined;
-		}
-
-		return {
-			...content,
-			icon,
-			message: typeConvert.MarkdownString.from(content.message),
-		};
 	}
 
 	async provideTitle(context: vscode.ChatContext, token: CancellationToken): Promise<string | undefined> {
