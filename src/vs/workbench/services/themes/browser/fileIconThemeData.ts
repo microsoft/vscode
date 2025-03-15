@@ -296,18 +296,34 @@ export class FileIconThemeLoader {
 				if (folderNames) {
 					for (const key in folderNames) {
 						const selectors = new css.Builder();
-						const name = handleParentFolder(key.toLowerCase(), selectors);
-						selectors.push(css.inline`.${classSelectorPart(name)}-name-folder-icon`);
+						const name = handleParentFolder(key.toLowerCase(), selectors, 'folder');
+
+						if (!name.includes('*')) {
+							selectors.push(css.inline`.${classSelectorPart(name)}-name-folder-icon`);
+							selectors.push(css.inline`.name-folder-icon`); // extra segment to increase folder-name score
+						}
+
+						pushGlobSelectors(name, selectors, 'folder');
+
 						addSelector(css.inline`${qualifier} ${selectors.join('')}.folder-icon::before`, folderNames[key]);
 						result.hasFolderIcons = true;
 					}
 				}
+
 				const folderNamesExpanded = associations.folderNamesExpanded;
 				if (folderNamesExpanded) {
 					for (const key in folderNamesExpanded) {
 						const selectors = new css.Builder();
-						const name = handleParentFolder(key.toLowerCase(), selectors);
-						selectors.push(css.inline`.${classSelectorPart(name)}-name-folder-icon`);
+						const name = handleParentFolder(key.toLowerCase(), selectors, 'folder');
+
+						if (!name.includes('*')) {
+							selectors.push(css.inline`.${classSelectorPart(name)}-name-folder-icon`);
+							selectors.push(css.inline`.folder-icon`); // extra segment to increase folder-name score
+							selectors.push(css.inline`.name-folder-icon`); // extra segment to increase folder-name score
+						}
+
+						pushGlobSelectors(name, selectors, 'folder');
+
 						addSelector(css.inline`${qualifier} ${expanded} ${selectors.join('')}.folder-icon::before`, folderNamesExpanded[key]);
 						result.hasFolderIcons = true;
 					}
@@ -346,7 +362,8 @@ export class FileIconThemeLoader {
 				if (fileExtensions) {
 					for (const key in fileExtensions) {
 						const selectors = new css.Builder();
-						const name = handleParentFolder(key.toLowerCase(), selectors);
+						const name = handleParentFolder(key.toLowerCase(), selectors, 'file');
+
 						const segments = name.split('.');
 						if (segments.length) {
 							for (let i = 0; i < segments.length; i++) {
@@ -354,6 +371,7 @@ export class FileIconThemeLoader {
 							}
 							selectors.push(css.inline`.ext-file-icon`); // extra segment to increase file-ext score
 						}
+
 						addSelector(css.inline`${qualifier} ${selectors.join('')}.file-icon::before`, fileExtensions[key]);
 						result.hasFileIcons = true;
 						hasSpecificFileIcons = true;
@@ -363,9 +381,15 @@ export class FileIconThemeLoader {
 				if (fileNames) {
 					for (const key in fileNames) {
 						const selectors = new css.Builder();
-						const fileName = handleParentFolder(key.toLowerCase(), selectors);
-						selectors.push(css.inline`.${classSelectorPart(fileName)}-name-file-icon`);
-						selectors.push(css.inline`.name-file-icon`); // extra segment to increase file-name score
+						const fileName = handleParentFolder(key.toLowerCase(), selectors, 'file');
+
+						if (!fileName.includes('*')) {
+							selectors.push(css.inline`.${classSelectorPart(fileName)}-name-file-icon`);
+							selectors.push(css.inline`.name-file-icon`); // extra segment to increase file-name score
+						}
+
+						pushGlobSelectors(fileName, selectors, 'file');
+
 						const segments = fileName.split('.');
 						if (segments.length) {
 							for (let i = 1; i < segments.length; i++) {
@@ -373,6 +397,7 @@ export class FileIconThemeLoader {
 							}
 							selectors.push(css.inline`.ext-file-icon`); // extra segment to increase file-ext score
 						}
+
 						addSelector(css.inline`${qualifier} ${selectors.join('')}.file-icon::before`, fileNames[key]);
 						result.hasFileIcons = true;
 						hasSpecificFileIcons = true;
@@ -482,11 +507,38 @@ export class FileIconThemeLoader {
 	}
 }
 
-function handleParentFolder(key: string, selectors: css.Builder): string {
+function pushGlobSelectors(name: string, selectors: css.Builder, kind: string): void {
+	const extname = paths.extname(name);
+	const basename = paths.basename(name, extname);
+	selectors.push(css.inline`${classSelectorPart(getGlobSelector(basename, kind, 'basename'))}`);
+	selectors.push(css.inline`${classSelectorPart(getGlobSelector(extname.substring(1), kind, 'extname'))}`);
+}
+
+function getGlobSelector(key: string, kind: string, portion: string): string {
+	if (key === '*') {
+		return `[data-${kind}-icon-${portion}]`;
+	}
+	if (key.startsWith('*') && key.endsWith('*')) {
+		return `[data-${kind}-icon-${portion}*="${key.slice(1, -1)}"]`;
+	}
+	if (key.startsWith('*')) {
+		return `[data-${kind}-icon-${portion}$="${key.slice(1)}"]`;
+	}
+	if (key.endsWith('*')) {
+		return `[data-${kind}-icon-${portion}^="${key.slice(0, -1)}"]`;
+	}
+	if (key.indexOf('*') !== -1 && key.indexOf('*') === key.lastIndexOf('*')) {
+		const [prefix, suffix] = key.split('*');
+		return `[data-${kind}-icon-${portion}^="${prefix}"][data-${kind}-icon-${portion}$="${suffix}"]`;
+	}
+	return `[data-${kind}-icon-${portion}="${key}"]`;
+}
+
+function handleParentFolder(key: string, selectors: css.Builder, kind: string): string {
 	const lastIndexOfSlash = key.lastIndexOf('/');
 	if (lastIndexOfSlash >= 0) {
 		const parentFolder = key.substring(0, lastIndexOfSlash);
-		selectors.push(css.inline`.${classSelectorPart(parentFolder)}-name-dir-icon`);
+		selectors.push(css.inline`.${classSelectorPart(parentFolder)}-dirname-${classSelectorPart(kind)}-icon`);
 		return key.substring(lastIndexOfSlash + 1);
 	}
 	return key;

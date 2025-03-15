@@ -14,7 +14,7 @@ import { FileKind } from '../../../platform/files/common/files.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../platform/label/common/label.js';
 import { IQuickInputService, IPickOptions, IQuickPickItem } from '../../../platform/quickinput/common/quickInput.js';
-import { getIconClasses } from '../../../editor/common/services/getIconClasses.js';
+import { getIconAttributes, getIconClasses } from '../../../editor/common/services/getIconClasses.js';
 import { IModelService } from '../../../editor/common/services/model.js';
 import { ILanguageService } from '../../../editor/common/languages/language.js';
 import { IFileDialogService, IPickAndOpenOptions } from '../../../platform/dialogs/common/dialogs.js';
@@ -124,7 +124,8 @@ CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, async functio
 			label,
 			description: description !== label ? description : undefined, // https://github.com/microsoft/vscode/issues/183418
 			folder,
-			iconClasses: getIconClasses(modelService, languageService, folder.uri, FileKind.ROOT_FOLDER)
+			iconClasses: getIconClasses(modelService, languageService, folder.uri, FileKind.ROOT_FOLDER),
+			iconAttributes: getIconAttributes(folder.uri)
 		};
 	});
 

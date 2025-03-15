@@ -50,7 +50,7 @@ import { IModelService } from '../../../../editor/common/services/model.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { dirname } from '../../../../base/common/resources.js';
-import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
+import { getIconAttributes, getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
 import { FileKind } from '../../../../platform/files/common/files.js';
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { killTerminalIcon, newTerminalIcon } from './terminalIcons.js';
@@ -1661,7 +1661,8 @@ async function pickTerminalCwd(accessor: ServicesAccessor, cancel?: Cancellation
 			label,
 			description: description !== label ? description : undefined,
 			pair: pair,
-			iconClasses: getIconClasses(modelService, languageService, pair.cwd, FileKind.ROOT_FOLDER)
+			iconClasses: getIconClasses(modelService, languageService, pair.cwd, FileKind.ROOT_FOLDER),
+			iconAttributes: getIconAttributes(pair.cwd)
 		};
 	});
 	const options: IPickOptions<Item> = {
