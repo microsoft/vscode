@@ -152,6 +152,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private container!: HTMLElement;
 	private welcomeMessageContainer!: HTMLElement;
 	private persistedWelcomeMessage: IChatWelcomeMessageContent | undefined;
+	private readonly welcomePart: MutableDisposable<ChatViewWelcomePart> = this._register(new MutableDisposable());
 
 	private bodyDimension: dom.Dimension | undefined;
 	private visibleChangeCount = 0;
@@ -480,7 +481,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.container = dom.append(parent, $('.interactive-session'));
 		this.welcomeMessageContainer = dom.append(this.container, $('.chat-welcome-view-container', { style: 'display: none' }));
-		this.renderWelcomeViewContentIfNeeded();
 		if (renderInputOnTop) {
 			this.createInput(this.container, { renderFollowups, renderStyle });
 			this.listContainer = dom.append(this.container, $(`.interactive-list`));
@@ -489,6 +489,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.createInput(this.container, { renderFollowups, renderStyle });
 		}
 
+		this.renderWelcomeViewContentIfNeeded();
 		this.createList(this.listContainer, { ...this.viewOptions.rendererOptions, renderStyle });
 
 		const scrollDownButton = this._register(new Button(this.listContainer, {
@@ -625,7 +626,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (this.lastItem && isResponseVM(this.lastItem) && this.lastItem.isComplete) {
 				this.renderFollowups(this.lastItem.replyFollowups, this.lastItem);
 			} else if (!treeItems.length && this.viewModel) {
-				this.renderFollowups(this.viewModel.model.sampleQuestions);
+				this.renderSampleQuestions();
 			} else {
 				this.renderFollowups(undefined);
 			}
@@ -638,21 +639,22 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		const numItems = this.viewModel?.getItems().length ?? 0;
-		const welcomeContent = this.viewModel?.model.welcomeMessage ?? this.persistedWelcomeMessage;
-		if (welcomeContent && !numItems && (this.welcomeMessageContainer.children.length === 0 || this.location === ChatAgentLocation.EditingSession)) {
+		const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentMode);
+		const welcomeContent = defaultAgent?.metadata.welcomeMessageContent ?? this.persistedWelcomeMessage;
+		if (welcomeContent && !numItems && (this.welcomeMessageContainer.children.length === 0 || this.chatService.unifiedViewEnabled)) {
 			dom.clearNode(this.welcomeMessageContainer);
 			const tips = this.viewOptions.supportsAdditionalParticipants
 				? new MarkdownString(localize('chatWidget.tips', "{0} or type {1} to attach context\n\n{2} to chat with extensions\n\nType {3} to use commands", '$(attach)', '#', '$(mention)', '/'), { supportThemeIcons: true })
 				: new MarkdownString(localize('chatWidget.tips.withoutParticipants', "{0} or type {1} to attach context", '$(attach)', '#'), { supportThemeIcons: true });
-			const welcomePart = this._register(this.instantiationService.createInstance(
+			this.welcomePart.value = this.instantiationService.createInstance(
 				ChatViewWelcomePart,
 				{ ...welcomeContent, tips, },
 				{
 					location: this.location,
 					isWidgetAgentWelcomeViewContent: this.input?.currentMode === ChatMode.Agent
 				}
-			));
-			dom.append(this.welcomeMessageContainer, welcomePart.element);
+			);
+			dom.append(this.welcomeMessageContainer, this.welcomePart.value.element);
 		}
 
 		if (this.viewModel) {
@@ -669,6 +671,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (this.bodyDimension) {
 			this.layout(this.bodyDimension.height, this.bodyDimension.width);
+		}
+	}
+
+	private renderSampleQuestions() {
+		if (this.viewModel) {
+			// TODO@roblourens hack- only Chat mode supports sample questions
+			this.renderFollowups(this.input.currentMode === ChatMode.Chat ? this.viewModel.model.sampleQuestions : undefined);
 		}
 	}
 
@@ -931,6 +940,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.renderWelcomeViewContentIfNeeded();
 		}));
 		this._register(this.input.onDidChangeCurrentChatMode(() => {
+			this.renderSampleQuestions();
 			this.renderWelcomeViewContentIfNeeded();
 			this.refreshParsedInput();
 		}));
@@ -1162,7 +1172,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				attachedContext,
 				noCommandDetection: options?.noCommandDetection,
 				hasInstructionAttachments: this.inputPart.hasInstructionAttachments,
-				userSelectedTools: this.inputPart.selectedToolsModel.tools.get().map(tool => tool.id)
+				userSelectedTools: ChatInputPart.selectedToolsModel.tools.get().map(tool => tool.id)
 			});
 
 			if (result) {
@@ -1361,8 +1371,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	saveState(): void {
 		this.inputPart.saveState();
 
-		if (this.viewModel?.model.welcomeMessage) {
-			this.storageService.store(`${PersistWelcomeMessageContentKey}.${this.location}`, this.viewModel?.model.welcomeMessage, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const welcomeContent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentMode)?.metadata.welcomeMessageContent;
+		if (welcomeContent) {
+			this.storageService.store(`${PersistWelcomeMessageContentKey}.${this.location}`, welcomeContent, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		}
 	}
 

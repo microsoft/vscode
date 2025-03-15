@@ -148,6 +148,11 @@ class ToggleChatModeAction extends Action2 {
 			return;
 		}
 
+		const arg = args.at(0) as IToggleChatModeArgs | undefined;
+		if (arg?.mode === context.chatWidget.input.currentMode) {
+			return;
+		}
+
 		// TODO will not require discarding the session when we are able to switch modes mid-session
 		const entries = context.editingSession?.entries.get();
 		if (context.editingSession && entries && entries.length > 0 && entries.some(entry => entry.state.get() === WorkingSetEntryState.Modified)) {
@@ -170,7 +175,6 @@ class ToggleChatModeAction extends Action2 {
 			}
 		}
 
-		const arg = args[0] as IToggleChatModeArgs | undefined;
 		if (arg?.mode) {
 			context.chatWidget.input.setChatMode(arg.mode);
 		} else {

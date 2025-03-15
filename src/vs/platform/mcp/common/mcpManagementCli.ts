@@ -5,9 +5,9 @@
 
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ILogger } from '../../log/common/log.js';
-import { IMcpConfiguration, IMcpConfigurationServer } from './mcpPlatformTypes.js';
+import { IMcpConfiguration, IMcpConfigurationSSE, IMcpConfigurationStdio } from './mcpPlatformTypes.js';
 
-type ValidatedConfig = { name: string; config: IMcpConfigurationServer };
+type ValidatedConfig = { name: string; config: IMcpConfigurationStdio | IMcpConfigurationSSE };
 
 export class McpManagementCli {
 	constructor(
@@ -35,7 +35,7 @@ export class McpManagementCli {
 	}
 
 	private validateConfiguration(config: string): ValidatedConfig {
-		let parsed: IMcpConfigurationServer & { name: string };
+		let parsed: (IMcpConfigurationStdio | IMcpConfigurationSSE) & { name: string };
 		try {
 			parsed = JSON.parse(config);
 		} catch (e) {
@@ -46,12 +46,12 @@ export class McpManagementCli {
 			throw new InvalidMcpOperationError(`Missing name property in ${config}`);
 		}
 
-		if (!parsed.command) {
-			throw new InvalidMcpOperationError(`Missing command property in ${config}`);
+		if (!('command' in parsed) && !('url' in parsed)) {
+			throw new InvalidMcpOperationError(`Missing command or URL property in ${config}`);
 		}
 
 		const { name, ...rest } = parsed;
-		return { name, config: rest };
+		return { name, config: rest as IMcpConfigurationStdio | IMcpConfigurationSSE };
 	}
 }
 
