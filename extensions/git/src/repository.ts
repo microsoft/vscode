@@ -307,6 +307,10 @@ export class Resource implements SourceControlResourceState {
 		return res;
 	}
 
+	get contextValue(): string | undefined {
+		return this._resourceUri.path.split('/').pop() !== '.gitignore' ? 'ignorable' : undefined;
+	}
+
 	constructor(
 		private _commandResolver: ResourceCommandResolver,
 		private _resourceGroupType: ResourceGroupType,
