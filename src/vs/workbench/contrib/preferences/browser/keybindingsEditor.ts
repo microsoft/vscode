@@ -536,7 +536,12 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 			}
 			const activeKeybindingEntry = this.activeKeybindingEntry;
 			if (activeKeybindingEntry) {
-				this.defineKeybinding(activeKeybindingEntry, false);
+				const target = e.browserEvent?.target;
+				if (DOM.isHTMLElement(target) && target.closest('.when')) {
+					this.defineWhenExpression(activeKeybindingEntry);
+				} else {
+					this.defineKeybinding(activeKeybindingEntry, false);
+				}
 			}
 		}));
 
