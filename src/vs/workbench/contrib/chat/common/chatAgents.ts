@@ -143,6 +143,7 @@ export interface IChatAgentRequest {
 	acceptedConfirmationData?: any[];
 	rejectedConfirmationData?: any[];
 	userSelectedModelId?: string;
+	userSelectedTools?: string[];
 }
 
 export interface IChatQuestion {

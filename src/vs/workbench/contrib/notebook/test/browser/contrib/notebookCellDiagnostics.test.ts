@@ -71,7 +71,7 @@ suite('notebookCellDiagnostics', () => {
 			extensionPublisherId: '',
 			name: 'testEditorAgent',
 			isDefault: true,
-			locations: [ChatAgentLocation.Editor],
+			locations: [ChatAgentLocation.Notebook],
 			metadata: {},
 			slashCommands: [],
 			disambiguation: [],

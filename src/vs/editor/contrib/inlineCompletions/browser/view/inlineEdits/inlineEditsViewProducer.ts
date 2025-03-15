@@ -48,7 +48,7 @@ export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This c
 		const diffEdits = new TextEdit(edits);
 		const text = new TextModelText(textModel);
 
-		return new InlineEditWithChanges(text, diffEdits, model.primaryPosition.get(), inlineEdit.renderExplicitly, inlineEdit.commands, inlineEdit.inlineCompletion);
+		return new InlineEditWithChanges(text, diffEdits, model.primaryPosition.get(), inlineEdit.jumpedTo, inlineEdit.commands, inlineEdit.inlineCompletion);
 	});
 
 	private readonly _inlineEditModel = derived<InlineEditModel | undefined>(this, reader => {

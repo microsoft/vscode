@@ -25,6 +25,7 @@ import type { ICompletionResource } from './types';
 import { createCompletionItem } from './helpers/completionItem';
 import { getFigSuggestions } from './fig/figInterface';
 import { executeCommand, executeCommandTimeout, IFigExecuteExternals } from './fig/execute';
+import { createTimeoutPromise } from './helpers/promise';
 
 export const enum TerminalShellType {
 	Bash = 'bash',
@@ -107,8 +108,25 @@ export async function activate(context: vscode.ExtensionContext) {
 			const commands = [...shellGlobals, ...commandsInPath.completionResources];
 			const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
 			const pathSeparator = isWindows ? '\\' : '/';
-			const tokenType = getTokenType(terminalContext, terminalShellType);
-			const result = await getCompletionItemsFromSpecs(availableSpecs, terminalContext, commands, prefix, tokenType, terminal.shellIntegration?.cwd, getEnvAsRecord(terminal.shellIntegration?.env?.value), terminal.name, token);
+			const tokenType = getTokenType(terminalContext, shellType);
+			const result = await Promise.race([
+				getCompletionItemsFromSpecs(
+					availableSpecs,
+					terminalContext,
+					commands,
+					prefix,
+					tokenType,
+					terminal.shellIntegration?.cwd,
+					getEnvAsRecord(terminal.shellIntegration?.env?.value),
+					terminal.name,
+					token
+				),
+				createTimeoutPromise(300, undefined)
+			]);
+			if (!result) {
+				return;
+			}
+
 			if (terminal.shellIntegration?.env) {
 				const homeDirCompletion = result.items.find(i => i.label === '~');
 				if (homeDirCompletion && terminal.shellIntegration.env?.value?.HOME) {

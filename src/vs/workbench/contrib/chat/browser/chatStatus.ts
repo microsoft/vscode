@@ -281,7 +281,7 @@ class ChatStatusDashboard extends Disposable {
 			);
 
 			const button = disposables.add(new Button(setup, { ...defaultButtonStyles }));
-			button.label = newUser ? localize('setupCopilotForFreeButton', "Setup Copilot for Free") : localize('signInToUseCopilotButton', "Sign In to Use Copilot");
+			button.label = newUser ? localize('setupCopilotForFreeButton', "Set up Copilot for Free") : localize('signInToUseCopilotButton', "Sign In to Use Copilot");
 			disposables.add(button.onDidClick(() => this.runCommandAndClose(newUser ? { id: 'workbench.action.chat.triggerSetup' } : () => this.chatEntitlementService.requests?.value.signIn())));
 		}
 
