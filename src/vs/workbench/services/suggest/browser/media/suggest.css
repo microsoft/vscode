@@ -97,6 +97,12 @@
 	display: none;
 }
 
+/* Styles for Message element for when widget is loading or is empty */
+
+.monaco-workbench .workbench-suggest-widget > .message {
+	padding-left: 22px;
+}
+
 /** Styles for each row in the list element **/
 
 .workbench-suggest-widget .monaco-list .monaco-list-row {
