@@ -540,6 +540,8 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	private pendingLoadConfig: INativeWindowConfiguration | undefined;
 	private wasLoaded = false;
 
+	private JScallStackCollector: NodeJS.Timeout | undefined;
+
 	constructor(
 		config: IWindowCreationOptions,
 		@ILogService logService: ILogService,
@@ -655,6 +657,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 		// Window error conditions to handle
 		this._register(Event.fromNodeEventEmitter(this._win, 'unresponsive')(() => this.onWindowError(WindowError.UNRESPONSIVE)));
+		this._register(Event.fromNodeEventEmitter(this._win, 'responsive')(() => this.onWindowError(WindowError.RESPONSIVE)));
 		this._register(Event.fromNodeEventEmitter(this._win.webContents, 'render-process-gone', (event, details) => details)(details => this.onWindowError(WindowError.PROCESS_GONE, { ...details })));
 		this._register(Event.fromNodeEventEmitter(this._win.webContents, 'did-fail-load', (event, exitCode, reason) => ({ exitCode, reason }))(({ exitCode, reason }) => this.onWindowError(WindowError.LOAD, { reason, exitCode })));
 
@@ -730,6 +733,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	}
 
 	private async onWindowError(error: WindowError.UNRESPONSIVE): Promise<void>;
+	private async onWindowError(error: WindowError.RESPONSIVE): Promise<void>;
 	private async onWindowError(error: WindowError.PROCESS_GONE, details: { reason: string; exitCode: number }): Promise<void>;
 	private async onWindowError(error: WindowError.LOAD, details: { reason: string; exitCode: number }): Promise<void>;
 	private async onWindowError(type: WindowError, details?: { reason?: string; exitCode?: number }): Promise<void> {
@@ -740,6 +744,9 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				break;
 			case WindowError.UNRESPONSIVE:
 				this.logService.error('CodeWindow: detected unresponsive');
+				break;
+			case WindowError.RESPONSIVE:
+				this.logService.error('CodeWindow: recovered from unresponsive');
 				break;
 			case WindowError.LOAD:
 				this.logService.error(`CodeWindow: failed to load (reason: ${details?.reason || '<unknown>'}, code: ${details?.exitCode || '<unknown>'})`);
@@ -799,6 +806,9 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 						return;
 					}
 
+					// Interrupt V8 and collect JavaScript stack
+					this.startCollectingJScallStacks();
+
 					// Show Dialog
 					const { response, checkboxChecked } = await this.dialogMainService.showMessageBox({
 						type: 'warning',
@@ -815,6 +825,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 					// Handle choice
 					if (response !== 2 /* keep waiting */) {
 						const reopen = response === 0;
+						this.stopCollectingJScallStacks();
 						await this.destroyWindow(reopen, checkboxChecked);
 					}
 				}
@@ -846,6 +857,9 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 					const reopen = response === 0;
 					await this.destroyWindow(reopen, checkboxChecked);
 				}
+				break;
+			case WindowError.RESPONSIVE:
+				this.stopCollectingJScallStacks();
 				break;
 		}
 	}
@@ -957,6 +971,23 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				this._win.webContents.session.setProxy({ proxyRules, proxyBypassRules, pacScript: '' });
 				electron.app.setProxy({ proxyRules, proxyBypassRules, pacScript: '' });
 			}
+		}
+	}
+
+	private async startCollectingJScallStacks(): Promise<void> {
+		if (this.JScallStackCollector) {
+			return;
+		}
+		this.JScallStackCollector = setInterval(async () => {
+			const stack = await this._win.webContents.mainFrame.collectJavaScriptCallStack();
+			this.logService.error('CodeWindow unresponsive : ', stack);
+		}, 1000);
+	}
+
+	private async stopCollectingJScallStacks(): Promise<void> {
+		if (this.JScallStackCollector) {
+			clearInterval(this.JScallStackCollector);
+			this.JScallStackCollector = undefined;
 		}
 	}
 
