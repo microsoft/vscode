@@ -272,7 +272,7 @@ export function registerChatTitleActions() {
 			}
 			const request = chatModel?.getRequests().find(candidate => candidate.id === item.requestId);
 			const languageModelId = chatWidgetService.getWidgetBySessionId(item.sessionId)?.input.currentLanguageModel;
-			chatService.resendRequest(request!, { userSelectedModelId: languageModelId });
+			chatService.resendRequest(request!, { userSelectedModelId: languageModelId, attempt: (request?.attempt ?? -1) + 1 });
 		}
 	});
 
