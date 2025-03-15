@@ -268,7 +268,7 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 		} else if (URI.isUri(resourceOrEditor)) {
 			const { selection, uri } = extractSelection(resourceOrEditor);
 			editor = { resource: uri, options: selection ? { selection } : undefined };
-		} else if (!resourceOrEditor.isDirectory) {
+		} else {
 			editor = {
 				resource: resourceOrEditor.resource,
 				options: {
