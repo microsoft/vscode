@@ -1403,6 +1403,10 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 		return this._lastFocusedWidget;
 	}
 
+	getAllWidgets(): ReadonlyArray<IChatWidget> {
+		return this._widgets;
+	}
+
 	getWidgetsByLocations(location: ChatAgentLocation): ReadonlyArray<IChatWidget> {
 		return this._widgets.filter(w => w.location === location);
 	}

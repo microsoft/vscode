@@ -12,7 +12,7 @@ import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
-import { IFileService, toFileOperationResult } from '../../../../platform/files/common/files.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -21,7 +21,7 @@ import { ChatModel, ISerializableChatData, ISerializableChatDataIn, ISerializabl
 
 const maxPersistedSessions = 25;
 
-const ChatIndexStorageKey = 'ChatSessionStore.index';
+const ChatIndexStorageKey = 'ChatSessionStore.index.2';
 
 export class ChatSessionStore {
 	private readonly storageRoot: URI;
@@ -58,7 +58,7 @@ export class ChatSessionStore {
 
 	private async writeSession(session: ChatModel | ISerializableChatData): Promise<void> {
 		try {
-			const index = this.getIndex();
+			const index = this.internalGetIndex();
 			const storageLocation = this.getStorageLocation(session.sessionId);
 			const content = JSON.stringify(session, undefined, 2);
 			await this.fileService.writeFile(storageLocation, VSBuffer.fromString(content));
@@ -71,7 +71,7 @@ export class ChatSessionStore {
 	}
 
 	private async flushIndex(): Promise<void> {
-		const index = this.getIndex();
+		const index = this.internalGetIndex();
 		try {
 			this.storageService.store(ChatIndexStorageKey, index, this.getIndexStorageScope(), StorageTarget.MACHINE);
 		} catch (e) {
@@ -87,7 +87,7 @@ export class ChatSessionStore {
 	}
 
 	private async trimEntries(): Promise<void> {
-		const index = this.getIndex();
+		const index = this.internalGetIndex();
 		const entries = Object.entries(index.entries)
 			.sort((a, b) => b[1].lastMessageDate - a[1].lastMessageDate)
 			.map(([id]) => id);
@@ -103,12 +103,14 @@ export class ChatSessionStore {
 	}
 
 	private async internalDeleteSession(sessionId: string): Promise<void> {
-		const index = this.getIndex();
+		const index = this.internalGetIndex();
 		const storageLocation = this.getStorageLocation(sessionId);
 		try {
 			await this.fileService.del(storageLocation);
 		} catch (e) {
-			this.reportError('sessionDelete', 'Error deleting chat session', e);
+			if (toFileOperationResult(e) !== FileOperationResult.FILE_NOT_FOUND) {
+				this.reportError('sessionDelete', 'Error deleting chat session', e);
+			}
 		} finally {
 			delete index.entries[sessionId];
 		}
@@ -117,6 +119,26 @@ export class ChatSessionStore {
 	async deleteSession(sessionId: string): Promise<void> {
 		await this.storeQueue.queue(async () => {
 			await this.internalDeleteSession(sessionId);
+			await this.flushIndex();
+		});
+	}
+
+	async clearAllSessions(): Promise<void> {
+		await this.storeQueue.queue(async () => {
+			const index = this.internalGetIndex();
+			const entries = Object.keys(index.entries);
+			this.logService.info(`ChatSessionStore: Clearing ${entries.length} chat sessions`);
+			await Promise.all(entries.map(entry => this.internalDeleteSession(entry)));
+			await this.flushIndex();
+		});
+	}
+
+	public async setSessionTitle(sessionId: string, title: string): Promise<void> {
+		await this.storeQueue.queue(async () => {
+			const index = this.internalGetIndex();
+			if (index.entries[sessionId]) {
+				index.entries[sessionId].title = title;
+			}
 		});
 	}
 
@@ -143,7 +165,7 @@ export class ChatSessionStore {
 	}
 
 	private indexCache: IChatSessionIndexData | undefined;
-	private getIndex(): IChatSessionIndexData {
+	private internalGetIndex(): IChatSessionIndexData {
 		if (this.indexCache) {
 			return this.indexCache;
 		}
@@ -173,14 +195,28 @@ export class ChatSessionStore {
 		}
 	}
 
-	async getSessionIndex(initialData?: ISerializableChatsData): Promise<IChatSessionIndex> {
-		const data = this.storageService.get(ChatIndexStorageKey, this.getIndexStorageScope(), undefined);
-		const needsMigrationFromStorageService = !data && initialData;
-		if (needsMigrationFromStorageService) {
-			await this.migrate(initialData);
-		}
+	async getIndex(): Promise<IChatSessionIndex> {
+		return this.storeQueue.queue(async () => {
+			return this.internalGetIndex().entries;
+		});
+	}
 
-		return this.getIndex().entries;
+	logIndex(): void {
+		const data = this.storageService.get(ChatIndexStorageKey, this.getIndexStorageScope(), undefined);
+		this.logService.info('ChatSessionStore index: ', data);
+	}
+
+	async migrateDataIfNeeded(getInitialData: () => ISerializableChatsData | undefined): Promise<void> {
+		await this.storeQueue.queue(async () => {
+			const data = this.storageService.get(ChatIndexStorageKey, this.getIndexStorageScope(), undefined);
+			const needsMigrationFromStorageService = !data;
+			if (needsMigrationFromStorageService) {
+				const initialData = getInitialData();
+				if (initialData) {
+					await this.migrate(initialData);
+				}
+			}
+		});
 	}
 
 	private async migrate(initialData: ISerializableChatsData): Promise<void> {
@@ -232,6 +268,10 @@ export class ChatSessionStore {
 
 	private getStorageLocation(chatSessionId: string): URI {
 		return joinPath(this.storageRoot, `${chatSessionId}.json`);
+	}
+
+	public getChatStorageFolder(): URI {
+		return this.storageRoot;
 	}
 }
 

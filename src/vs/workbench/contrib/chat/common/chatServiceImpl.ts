@@ -32,7 +32,7 @@ import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashC
 import { ChatRequestParser } from './chatRequestParser.js';
 import { IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatTransferredSessionData, IChatUserActionEvent } from './chatService.js';
 import { ChatServiceTelemetry } from './chatServiceTelemetry.js';
-import { ChatSessionStore, IChatSessionIndex } from './chatSessionStore.js';
+import { ChatSessionStore } from './chatSessionStore.js';
 import { IChatSlashCommandService } from './chatSlashCommands.js';
 import { IChatVariablesService } from './chatVariables.js';
 import { ChatAgentLocation, ChatConfiguration, ChatMode } from './constants.js';
@@ -138,11 +138,13 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _chatServiceTelemetry: ChatServiceTelemetry;
 	private readonly _chatSessionStore: ChatSessionStore;
 
-	private readonly _chatSessionIndex: Promise<IChatSessionIndex>;
-
 	@memoize
 	public get unifiedViewEnabled(): boolean {
 		return !!this.configurationService.getValue(ChatConfiguration.UnifiedChatView);
+	}
+
+	private get useFileStorage(): boolean {
+		return this.configurationService.getValue(ChatConfiguration.UseFileStorage);
 	}
 
 	constructor(
@@ -188,7 +190,9 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		this._chatSessionStore = this.instantiationService.createInstance(ChatSessionStore);
-		this._chatSessionIndex = this._chatSessionStore.getSessionIndex(this._persistedSessions);
+		if (this.useFileStorage) {
+			this._chatSessionStore.migrateDataIfNeeded(() => this._persistedSessions);
+		}
 
 		this._register(storageService.onWillSaveState(() => this.saveState()));
 	}
@@ -202,51 +206,52 @@ export class ChatService extends Disposable implements IChatService {
 			.filter(session => session.initialLocation === ChatAgentLocation.Panel || session.initialLocation === ChatAgentLocation.EditingSession)
 			.filter(session => session.getRequests().length > 0);
 
-		if (this.configurationService.getValue('chat.useFileStorage')) {
+		if (this.useFileStorage) {
 			this._chatSessionStore.storeSessions(liveChats);
-		}
-
-		const isEmptyWindow = !this.workspaceContextService.getWorkspace().folders.length;
-		if (isEmptyWindow) {
-			this.syncEmptyWindowChats(liveChats);
 		} else {
-			let allSessions: (ChatModel | ISerializableChatData)[] = liveChats;
-			allSessions = allSessions.concat(
-				Object.values(this._persistedSessions)
-					.filter(session => !this._sessionModels.has(session.sessionId))
-					.filter(session => session.requests.length));
-			allSessions.sort((a, b) => (b.creationDate ?? 0) - (a.creationDate ?? 0));
+			const isEmptyWindow = !this.workspaceContextService.getWorkspace().folders.length;
+			if (isEmptyWindow) {
+				this.syncEmptyWindowChats(liveChats);
+			} else {
+				let allSessions: (ChatModel | ISerializableChatData)[] = liveChats;
+				allSessions = allSessions.concat(
+					Object.values(this._persistedSessions)
+						.filter(session => !this._sessionModels.has(session.sessionId))
+						.filter(session => session.requests.length));
+				allSessions.sort((a, b) => (b.creationDate ?? 0) - (a.creationDate ?? 0));
 
-			// Only keep one persisted edit session, the latest one. This would be the current one if it's live.
-			// No way to know whether it's currently live or if it has been cleared and there is no current session.
-			// But ensure that we don't store multiple edit sessions.
-			let hasPersistedEditSession = false;
-			allSessions = allSessions.filter(s => {
-				if (s.initialLocation === ChatAgentLocation.EditingSession) {
-					if (hasPersistedEditSession) {
-						return false;
-					} else {
-						hasPersistedEditSession = true;
-						return true;
+				// Only keep one persisted edit session, the latest one. This would be the current one if it's live.
+				// No way to know whether it's currently live or if it has been cleared and there is no current session.
+				// But ensure that we don't store multiple edit sessions.
+				let hasPersistedEditSession = false;
+				allSessions = allSessions.filter(s => {
+					if (s.initialLocation === ChatAgentLocation.EditingSession) {
+						if (hasPersistedEditSession) {
+							return false;
+						} else {
+							hasPersistedEditSession = true;
+							return true;
+						}
 					}
+
+					return true;
+				});
+
+				allSessions = allSessions.slice(0, maxPersistedSessions);
+
+				if (allSessions.length) {
+					this.trace('onWillSaveState', `Persisting ${allSessions.length} sessions`);
 				}
 
-				return true;
-			});
+				const serialized = JSON.stringify(allSessions);
 
-			allSessions = allSessions.slice(0, maxPersistedSessions);
+				if (allSessions.length) {
+					this.trace('onWillSaveState', `Persisting ${serialized.length} chars`);
+				}
 
-			if (allSessions.length) {
-				this.trace('onWillSaveState', `Persisting ${allSessions.length} sessions`);
+				this.storageService.store(serializedChatKey, serialized, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 			}
 
-			const serialized = JSON.stringify(allSessions);
-
-			if (allSessions.length) {
-				this.trace('onWillSaveState', `Persisting ${serialized.length} chars`);
-			}
-
-			this.storageService.store(serializedChatKey, serialized, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
 
 		this._deletedChatIds.clear();
@@ -307,10 +312,15 @@ export class ChatService extends Disposable implements IChatService {
 		this._onDidPerformUserAction.fire(action);
 	}
 
-	setChatSessionTitle(sessionId: string, title: string): void {
+	async setChatSessionTitle(sessionId: string, title: string): Promise<void> {
 		const model = this._sessionModels.get(sessionId);
 		if (model) {
 			model.setCustomTitle(title);
+			return;
+		}
+
+		if (this.useFileStorage) {
+			await this._chatSessionStore.setSessionTitle(sessionId, title);
 			return;
 		}
 
@@ -383,11 +393,33 @@ export class ChatService extends Disposable implements IChatService {
 
 	/**
 	 * Returns an array of chat details for all persisted chat sessions that have at least one request.
-	 * The array is sorted by creation date in descending order.
 	 * Chat sessions that have already been loaded into the chat view are excluded from the result.
 	 * Imported chat sessions are also excluded from the result.
 	 */
-	getHistory(): IChatDetail[] {
+	async getHistory(): Promise<IChatDetail[]> {
+		if (this.useFileStorage) {
+			const liveSessionItems = Array.from(this._sessionModels.values())
+				.filter(session => !session.isImported && session.initialLocation !== ChatAgentLocation.EditingSession)
+				.map(session => {
+					const title = session.title || localize('newChat', "New Chat");
+					return {
+						sessionId: session.sessionId,
+						title,
+						lastMessageDate: session.lastMessageDate,
+						isActive: true,
+					} satisfies IChatDetail;
+				});
+
+			const index = await this._chatSessionStore.getIndex();
+			const entries = Object.values(index)
+				.filter(entry => !this._sessionModels.has(entry.sessionId))
+				.map((entry): IChatDetail => ({
+					...entry,
+					isActive: this._sessionModels.has(entry.sessionId),
+				}));
+			return [...liveSessionItems, ...entries];
+		}
+
 		const persistedSessions = Object.values(this._persistedSessions)
 			.filter(session => session.requests.length > 0)
 			.filter(session => !this._sessionModels.has(session.sessionId));
@@ -417,7 +449,12 @@ export class ChatService extends Disposable implements IChatService {
 		return [...liveSessionItems, ...persistedSessionItems];
 	}
 
-	removeHistoryEntry(sessionId: string): void {
+	async removeHistoryEntry(sessionId: string): Promise<void> {
+		if (this.useFileStorage) {
+			await this._chatSessionStore.deleteSession(sessionId);
+			return;
+		}
+
 		if (this._persistedSessions[sessionId]) {
 			this._deletedChatIds.add(sessionId);
 			delete this._persistedSessions[sessionId];
@@ -425,7 +462,12 @@ export class ChatService extends Disposable implements IChatService {
 		}
 	}
 
-	clearAllHistoryEntries(): void {
+	async clearAllHistoryEntries(): Promise<void> {
+		if (this.useFileStorage) {
+			await this._chatSessionStore.clearAllSessions();
+			return;
+		}
+
 		Object.values(this._persistedSessions).forEach(session => this._deletedChatIds.add(session.sessionId));
 		this._persistedSessions = {};
 		this.saveState();
@@ -1060,6 +1102,14 @@ export class ChatService extends Disposable implements IChatService {
 
 	isEditingLocation(location: ChatAgentLocation): boolean {
 		return location === ChatAgentLocation.EditingSession || this.unifiedViewEnabled;
+	}
+
+	getChatStorageFolder(): URI {
+		return this._chatSessionStore.getChatStorageFolder();
+	}
+
+	logChatIndex(): void {
+		this._chatSessionStore.logIndex();
 	}
 }
 
