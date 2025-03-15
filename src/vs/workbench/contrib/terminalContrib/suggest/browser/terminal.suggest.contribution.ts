@@ -33,6 +33,8 @@ import { EditorContextKeys } from '../../../../../editor/common/editorContextKey
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import './terminalSymbolIcons.js';
+import { LspCompletionProviderAddon } from './lspCompletionProviderAddon.js';
+import { LspTerminalModelContentProvider } from './lspTerminalModelContentProvider.js';
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
 
@@ -47,10 +49,13 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 
 	private readonly _addon: MutableDisposable<SuggestAddon> = new MutableDisposable();
 	private readonly _pwshAddon: MutableDisposable<PwshCompletionProviderAddon> = new MutableDisposable();
+	private readonly _lspAddon: MutableDisposable<LspCompletionProviderAddon> = new MutableDisposable();
+	private readonly _lspModelProvider: MutableDisposable<LspTerminalModelContentProvider> = new MutableDisposable();
 	private readonly _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>;
 
 	get addon(): SuggestAddon | undefined { return this._addon.value; }
 	get pwshAddon(): PwshCompletionProviderAddon | undefined { return this._pwshAddon.value; }
+	get lspAddon(): LspCompletionProviderAddon | undefined { return this._lspAddon.value; }
 
 	constructor(
 		private readonly _ctx: ITerminalContributionContext,
@@ -63,6 +68,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		this.add(toDisposable(() => {
 			this._addon?.dispose();
 			this._pwshAddon?.dispose();
+			this._lspAddon?.dispose();
 		}));
 		this._terminalSuggestWidgetVisibleContextKey = TerminalContextKeys.suggestWidgetVisible.bindTo(this._contextKeyService);
 		this.add(this._configurationService.onDidChangeConfiguration(e => {
@@ -71,6 +77,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 				if (!completionsEnabled) {
 					this._addon.clear();
 					this._pwshAddon.clear();
+					this._lspAddon.clear();
 				}
 				const xtermRaw = this._ctx.instance.xterm?.raw;
 				if (!!xtermRaw && completionsEnabled) {
@@ -138,6 +145,14 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		}
 	}
 
+	private _loadLspCompletionAddon(xterm: RawXtermTerminal): void {
+		// Load and register the LSP completion provider
+		this._lspModelProvider.value = this._instantiationService.createInstance(LspTerminalModelContentProvider);
+		const lspCompletionProviderAddon = this._lspAddon.value = this._instantiationService.createInstance(LspCompletionProviderAddon);
+		xterm.loadAddon(lspCompletionProviderAddon);
+		this.add(this._terminalCompletionService.registerTerminalCompletionProvider('lsp', lspCompletionProviderAddon.id, lspCompletionProviderAddon));
+	}
+
 	private _loadAddons(xterm: RawXtermTerminal): void {
 		// Don't re-create the addon
 		if (this._addon.value) {
@@ -147,6 +162,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		const addon = this._addon.value = this._instantiationService.createInstance(SuggestAddon, this._ctx.instance.shellType, this._ctx.instance.capabilities, this._terminalSuggestWidgetVisibleContextKey);
 		xterm.loadAddon(addon);
 		this._loadPwshCompletionAddon(xterm);
+		this._loadLspCompletionAddon(xterm);
 		if (this._ctx.instance.target === TerminalLocation.Editor) {
 			addon.setContainerWithOverflow(xterm.element!);
 		} else {

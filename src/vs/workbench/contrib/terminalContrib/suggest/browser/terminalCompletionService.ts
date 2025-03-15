@@ -183,7 +183,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			if (provider.isBuiltin) {
 				//TODO: why is this needed?
 				for (const item of completionItems) {
-					item.provider = provider.id;
+					item.provider ??= provider.id;
 				}
 			}
 			if (Array.isArray(completions)) {
