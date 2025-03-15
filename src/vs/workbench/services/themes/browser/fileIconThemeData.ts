@@ -510,28 +510,28 @@ export class FileIconThemeLoader {
 function pushGlobSelectors(name: string, selectors: css.Builder, kind: string): void {
 	const extname = paths.extname(name);
 	const basename = paths.basename(name, extname);
-	selectors.push(css.inline`${classSelectorPart(getGlobSelector(basename, kind, 'basename'))}`);
-	selectors.push(css.inline`${classSelectorPart(getGlobSelector(extname.substring(1), kind, 'extname'))}`);
+	selectors.push(getGlobSelector(basename, kind, 'basename'));
+	selectors.push(getGlobSelector(extname.substring(1), kind, 'extname'));
 }
 
-function getGlobSelector(key: string, kind: string, portion: string): string {
+function getGlobSelector(key: string, kind: string, portion: string): css.CssFragment {
 	if (key === '*') {
-		return `[data-${kind}-icon-${portion}]`;
+		return css.attributeValue(`data-${kind}-icon-${portion}`);
 	}
 	if (key.startsWith('*') && key.endsWith('*')) {
-		return `[data-${kind}-icon-${portion}*="${key.slice(1, -1)}"]`;
+		return css.attributeValue(`data-${kind}-icon-${portion}`, '*=', key.slice(1, -1));
 	}
 	if (key.startsWith('*')) {
-		return `[data-${kind}-icon-${portion}$="${key.slice(1)}"]`;
+		return css.attributeValue(`data-${kind}-icon-${portion}`, '$=', key.slice(1));
 	}
 	if (key.endsWith('*')) {
-		return `[data-${kind}-icon-${portion}^="${key.slice(0, -1)}"]`;
+		return css.attributeValue(`data-${kind}-icon-${portion}`, '^=', key.slice(0, -1));
 	}
 	if (key.indexOf('*') !== -1 && key.indexOf('*') === key.lastIndexOf('*')) {
 		const [prefix, suffix] = key.split('*');
-		return `[data-${kind}-icon-${portion}^="${prefix}"][data-${kind}-icon-${portion}$="${suffix}"]`;
+		return css.inline`${css.attributeValue(`data-${kind}-icon-${portion}`, '^=', prefix)}${css.attributeValue(`data-${kind}-icon-${portion}`, '$=', suffix)}`;
 	}
-	return `[data-${kind}-icon-${portion}="${key}"]`;
+	return css.attributeValue(`data-${kind}-icon-${portion}`, '=', key);
 }
 
 function handleParentFolder(key: string, selectors: css.Builder, kind: string): string {

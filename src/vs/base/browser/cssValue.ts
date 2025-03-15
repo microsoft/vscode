@@ -55,6 +55,15 @@ export function stringValue(value: string): CssFragment {
 	return asFragment(`'${value.replaceAll(/'/g, '\\000027')}'`);
 }
 
+export function attributeValue(key: string): CssFragment;
+export function attributeValue(key: string, operator: string, value: string): CssFragment;
+export function attributeValue(key: string, operator?: string, value?: string): CssFragment {
+	if (!value) {
+		return asFragment(`[${key}]`);
+	}
+	return asFragment(`[${key}${operator}${stringValue(value)}]`);
+}
+
 /**
  * returns url('...')
  */
