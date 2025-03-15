@@ -739,6 +739,7 @@ class ExtHostChatAgent {
 	private _supportIssueReporting: boolean | undefined;
 	private _agentVariableProvider?: { provider: vscode.ChatParticipantCompletionItemProvider; triggerCharacters: string[] };
 	private _welcomeMessageProvider?: vscode.ChatWelcomeMessageProvider | undefined;
+	private _welcomeMessageContent?: vscode.ChatWelcomeMessageContent | undefined;
 	private _titleProvider?: vscode.ChatTitleProvider | undefined;
 	private _requester: vscode.ChatRequesterInformation | undefined;
 	private _pauseStateEmitter = new Emitter<vscode.ChatParticipantPauseStateEvent>();
@@ -853,6 +854,10 @@ class ExtHostChatAgent {
 					helpTextPostfix: (!this._helpTextPostfix || typeof this._helpTextPostfix === 'string') ? this._helpTextPostfix : typeConvert.MarkdownString.from(this._helpTextPostfix),
 					supportIssueReporting: this._supportIssueReporting,
 					requester: this._requester,
+					welcomeMessageContent: this._welcomeMessageContent && {
+						...this._welcomeMessageContent,
+						message: typeConvert.MarkdownString.from(this._welcomeMessageContent.message),
+					}
 				});
 				updateScheduled = false;
 			});
@@ -957,6 +962,15 @@ class ExtHostChatAgent {
 			get welcomeMessageProvider() {
 				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
 				return that._welcomeMessageProvider;
+			},
+			set welcomeMessageContent(v) {
+				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
+				that._welcomeMessageContent = v;
+				updateMetadataSoon();
+			},
+			get welcomeMessageContent() {
+				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
+				return that._welcomeMessageContent;
 			},
 			set titleProvider(v) {
 				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');

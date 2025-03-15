@@ -57,6 +57,7 @@ declare module 'vscode' {
 		helpTextPostfix?: string | MarkdownString;
 
 		welcomeMessageProvider?: ChatWelcomeMessageProvider;
+		welcomeMessageContent?: ChatWelcomeMessageContent;
 		titleProvider?: ChatTitleProvider;
 		requester?: ChatRequesterInformation;
 	}
