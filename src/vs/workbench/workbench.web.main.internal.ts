@@ -92,6 +92,9 @@ import { ITimerService, TimerService } from './services/timer/browser/timerServi
 import { IDiagnosticsService, NullDiagnosticsService } from '../platform/diagnostics/common/diagnostics.js';
 import { ILanguagePackService } from '../platform/languagePacks/common/languagePacks.js';
 import { WebLanguagePacksService } from '../platform/languagePacks/browser/languagePacks.js';
+import { IExtensionGalleryManifestService } from '../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { ExtensionGalleryManifestService } from '../platform/extensionManagement/common/extensionGalleryManifestService.js';
+import { IWebContentExtractorService, NullWebContentExtractorService } from '../platform/webContentExtractor/common/webContentExtractor.js';
 
 registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService, InstantiationType.Delayed);
 registerSingleton(IAccessibilityService, AccessibilityService, InstantiationType.Delayed);
@@ -109,6 +112,8 @@ registerSingleton(ITimerService, TimerService, InstantiationType.Delayed);
 registerSingleton(ICustomEndpointTelemetryService, NullEndpointTelemetryService, InstantiationType.Delayed);
 registerSingleton(IDiagnosticsService, NullDiagnosticsService, InstantiationType.Delayed);
 registerSingleton(ILanguagePackService, WebLanguagePacksService, InstantiationType.Delayed);
+registerSingleton(IExtensionGalleryManifestService, ExtensionGalleryManifestService, InstantiationType.Delayed);
+registerSingleton(IWebContentExtractorService, NullWebContentExtractorService, InstantiationType.Delayed);
 
 //#endregion
 

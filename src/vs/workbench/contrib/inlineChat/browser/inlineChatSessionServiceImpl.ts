@@ -409,10 +409,10 @@ export class InlineChatEnabler {
 
 		const updateAgent = () => {
 			const agent = chatAgentService.getDefaultAgent(ChatAgentLocation.Editor);
-			if (agent?.locations.length === 1) {
+			if (agent?.id === 'github.copilot.editor') {
 				this._ctxHasProvider.set(true);
 				this._ctxHasProvider2.reset();
-			} else if (agent?.locations.includes(ChatAgentLocation.EditingSession)) {
+			} else if (agent?.id === 'github.copilot.editingSessionEditor') {
 				this._ctxHasProvider.reset();
 				this._ctxHasProvider2.set(true);
 			} else {

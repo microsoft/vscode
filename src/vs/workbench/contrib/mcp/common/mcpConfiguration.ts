@@ -5,10 +5,16 @@
 
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { localize } from '../../../../nls.js';
+import { IMcpCollectionContribution } from '../../../../platform/extensions/common/extensions.js';
 import { mcpSchemaId } from '../../../services/configuration/common/configuration.js';
 import { inputsSchema } from '../../../services/configurationResolver/common/configurationResolverSchema.js';
+import { IExtensionPointDescriptor } from '../../../services/extensions/common/extensionsRegistry.js';
 
 export type { IMcpConfigurationServer, IMcpConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
+
+const mcpActivationEventPrefix = 'onMcpCollection:';
+
+export const mcpActivationEvent = (collectionId: string) => mcpActivationEventPrefix + collectionId;
 
 const mcpSchemaExampleServer = {
 	command: 'node',
@@ -67,5 +73,36 @@ export const mcpServerSchema: IJSONSchema = {
 			}
 		},
 		inputs: inputsSchema.definitions!.inputs
+	}
+};
+
+export const mcpContributionPoint: IExtensionPointDescriptor<IMcpCollectionContribution[]> = {
+	extensionPoint: 'modelContextServerCollections',
+	activationEventsGenerator(contribs, result) {
+		for (const contrib of contribs) {
+			if (contrib.id) {
+				result.push(mcpActivationEvent(contrib.id));
+			}
+		}
+	},
+	jsonSchema: {
+		description: localize('vscode.extension.contributes.mcp', 'Contributes Model Context Protocol servers. Users of this should also use `vscode.lm.registerMcpConfigurationProvider`.'),
+		type: 'array',
+		defaultSnippets: [{ body: [{ id: '', label: '' }] }],
+		items: {
+			additionalProperties: false,
+			type: 'object',
+			defaultSnippets: [{ body: { id: '', label: '' } }],
+			properties: {
+				id: {
+					description: localize('vscode.extension.contributes.mcp.id', "Unique ID for the collection."),
+					type: 'string'
+				},
+				label: {
+					description: localize('vscode.extension.contributes.mcp.label', "Display name for the collection."),
+					type: 'string'
+				}
+			}
+		}
 	}
 };
