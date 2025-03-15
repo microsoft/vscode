@@ -96,7 +96,10 @@ export class InlineEditsView extends Disposable {
 		this._wordReplacementViews.recomputeInitiallyAndOnChange(this._store);
 
 		this._indicatorCyclicDependencyCircuitBreaker.set(true, undefined);
+		this._constructorDone.set(true, undefined); // TODO: remove and use correct initialization order
 	}
+
+	private readonly _constructorDone = observableValue(this, false);
 
 	private readonly _uiState = derived<{
 		state: ReturnType<typeof InlineEditsView.prototype.determineRenderState>;
@@ -107,7 +110,7 @@ export class InlineEditsView extends Disposable {
 		originalDisplayRange: LineRange;
 	} | undefined>(this, reader => {
 		const model = this._model.read(reader);
-		if (!model) {
+		if (!model || !this._constructorDone.read(reader)) {
 			return undefined;
 		}
 

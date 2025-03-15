@@ -136,6 +136,7 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 
 		const modified = diff.modifiedText;
 		const showInline = diff.mode === 'mixedLines' || diff.mode === 'insertionInline';
+		const hasOneInnerChange = diff.diff.length === 1 && diff.diff[0].innerChanges?.length === 1;
 
 		const showEmptyDecorations = true;
 
@@ -180,7 +181,7 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 		});
 
 		for (const m of diff.diff) {
-			const showFullLineDecorations = diff.mode !== 'sideBySide';
+			const showFullLineDecorations = diff.mode !== 'sideBySide' && diff.mode !== 'deletion' && diff.mode !== 'insertionInline';
 			if (showFullLineDecorations) {
 				if (!m.original.isEmpty) {
 					originalDecorations.push({
@@ -218,7 +219,7 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 									'inlineCompletions-char-delete',
 									i.originalRange.isSingleLine() && diff.mode === 'insertionInline' && 'single-line-inline',
 									i.originalRange.isEmpty() && 'empty',
-									((i.originalRange.isEmpty() || diff.mode === 'deletion' && replacedText === '\n') && showEmptyDecorations && !useInlineDiff) && 'diff-range-empty'
+									((i.originalRange.isEmpty() && hasOneInnerChange || diff.mode === 'deletion' && replacedText === '\n') && showEmptyDecorations && !useInlineDiff) && 'diff-range-empty'
 								),
 								inlineClassName: useInlineDiff ? classNames('strike-through', 'inlineCompletions') : null,
 								zIndex: 1
@@ -228,7 +229,7 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 					if (m.modified.contains(i.modifiedRange.startLineNumber)) {
 						modifiedDecorations.push({
 							range: i.modifiedRange,
-							options: (i.modifiedRange.isEmpty() && showEmptyDecorations && !useInlineDiff)
+							options: (i.modifiedRange.isEmpty() && showEmptyDecorations && !useInlineDiff && hasOneInnerChange)
 								? diffAddDecorationEmpty
 								: diffAddDecoration
 						});
