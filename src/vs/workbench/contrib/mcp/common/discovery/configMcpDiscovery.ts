@@ -7,6 +7,7 @@ import { equals as arrayEquals } from '../../../../../base/common/arrays.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -102,7 +103,11 @@ export class ConfigMcpDiscovery extends Disposable implements IMcpDiscovery {
 			const nextDefinitions = Object.entries(value?.servers || {}).map(([name, value]): McpServerDefinition => ({
 				id: `${collectionId}.${name}`,
 				label: name,
-				launch: {
+				launch: 'type' in value && value.type === 'sse' ? {
+					type: McpServerTransportType.SSE,
+					uri: URI.parse(value.url),
+					headers: Object.entries(value.headers || {}),
+				} : {
 					type: McpServerTransportType.Stdio,
 					args: value.args || [],
 					command: value.command,

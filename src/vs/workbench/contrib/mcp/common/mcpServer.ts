@@ -209,6 +209,12 @@ export class McpServer extends Disposable implements IMcpServer {
 			}
 
 			let connection = this._connection.get();
+			if (connection && McpConnectionState.canBeStarted(connection.state.get().state)) {
+				connection.dispose();
+				connection = undefined;
+				this._connection.set(connection, undefined);
+			}
+
 			if (!connection) {
 				connection = await this._mcpRegistry.resolveConnection({
 					collectionRef: this.collection,

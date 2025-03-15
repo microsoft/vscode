@@ -10,7 +10,7 @@ import { mcpSchemaId } from '../../../services/configuration/common/configuratio
 import { inputsSchema } from '../../../services/configurationResolver/common/configurationResolverSchema.js';
 import { IExtensionPointDescriptor } from '../../../services/extensions/common/extensionsRegistry.js';
 
-export type { IMcpConfigurationServer, IMcpConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
+export type { IMcpConfigurationStdio, IMcpConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 
 const mcpActivationEventPrefix = 'onMcpCollection:';
 
@@ -44,32 +44,64 @@ export const mcpServerSchema: IJSONSchema = {
 		servers: {
 			examples: [mcpSchemaExampleServers],
 			additionalProperties: {
-				type: 'object',
-				additionalProperties: false,
-				examples: [mcpSchemaExampleServer],
-				properties: {
-					command: {
-						type: 'string',
-						description: localize('app.mcp.json.command', "The command to run the server.")
-					},
-					args: {
-						type: 'array',
-						description: localize('app.mcp.args.command', "Arguments passed to the server."),
-						items: {
-							type: 'string'
+				oneOf: [{
+					type: 'object',
+					additionalProperties: false,
+					examples: [mcpSchemaExampleServer],
+					properties: {
+						type: {
+							type: 'string',
+							enum: ['stdio'],
+							description: localize('app.mcp.json.type', "The type of the server.")
 						},
-					},
-					env: {
-						description: localize('app.mcp.env.command', "Environment variables passed to the server."),
-						additionalProperties: {
-							anyOf: [
-								{ type: 'null' },
-								{ type: 'string' },
-								{ type: 'number' },
-							]
-						}
-					},
-				}
+						command: {
+							type: 'string',
+							description: localize('app.mcp.json.command', "The command to run the server.")
+						},
+						args: {
+							type: 'array',
+							description: localize('app.mcp.args.command', "Arguments passed to the server."),
+							items: {
+								type: 'string'
+							},
+						},
+						env: {
+							description: localize('app.mcp.env.command', "Environment variables passed to the server."),
+							additionalProperties: {
+								anyOf: [
+									{ type: 'null' },
+									{ type: 'string' },
+									{ type: 'number' },
+								]
+							}
+						},
+					}
+				}, {
+					type: 'object',
+					additionalProperties: false,
+					required: ['url', 'type'],
+					examples: [{
+						type: 'sse',
+						url: 'http://localhost:3001',
+						headers: {},
+					}],
+					properties: {
+						type: {
+							type: 'string',
+							enum: ['sse'],
+							description: localize('app.mcp.json.type', "The type of the server.")
+						},
+						url: {
+							type: 'string',
+							format: 'uri',
+							description: localize('app.mcp.json.url', "The URL of the server-sent-event (SSE) server.")
+						},
+						env: {
+							description: localize('app.mcp.json.headers', "Additional headers sent to the server."),
+							additionalProperties: { type: 'string' },
+						},
+					}
+				}]
 			}
 		},
 		inputs: inputsSchema.definitions!.inputs

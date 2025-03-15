@@ -43,7 +43,7 @@ export class ListMcpServerCommand extends Action2 {
 			f1: true,
 			menu: {
 				when: ContextKeyExpr.and(
-					McpContextKeys.hasUnknownTools,
+					ContextKeyExpr.or(McpContextKeys.hasUnknownTools, McpContextKeys.hasServersWithErrors),
 					ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent)
 				),
 				id: MenuId.ChatInputAttachmentToolbar,
@@ -214,7 +214,7 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 					case McpServerToolsState.RefreshingFromUnknown:
 						thisState = DisplayedState.Refreshing;
 						break;
-					case McpServerToolsState.Cached:
+					default:
 						thisState = server.connectionState.read(reader).state === McpConnectionState.Kind.Error ? DisplayedState.Error : DisplayedState.None;
 						break;
 				}
