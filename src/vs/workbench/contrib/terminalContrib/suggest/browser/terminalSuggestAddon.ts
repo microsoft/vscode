@@ -36,6 +36,8 @@ import { GOLDEN_LINE_HEIGHT_RATIO, MINIMUM_LINE_HEIGHT } from '../../../../../ed
 import { TerminalCompletionModel } from './terminalCompletionModel.js';
 import { TerminalCompletionItem, TerminalCompletionItemKind, type ITerminalCompletion } from './terminalCompletionItem.js';
 import { IntervalTimer, TimeoutTimer } from '../../../../../base/common/async.js';
+import { localize } from '../../../../../nls.js';
+import { TerminalSuggestTelemetry } from './terminalSuggestTelemetry.js';
 
 export interface ISuggestController {
 	isPasting: boolean;
@@ -44,7 +46,7 @@ export interface ISuggestController {
 	selectNextSuggestion(): void;
 	selectNextPageSuggestion(): void;
 	acceptSelectedSuggestion(suggestion?: Pick<ISimpleSelectedSuggestion<TerminalCompletionItem>, 'item' | 'model'>): void;
-	hideSuggestWidget(cancelAnyRequests: boolean): void;
+	hideSuggestWidget(cancelAnyRequests: boolean, wasClosedByUser?: boolean): void;
 }
 export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggestController {
 	private _terminal?: Terminal;
@@ -101,6 +103,19 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		[TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop, Codicon.star],
 	]);
 
+	private _kindToTypeMap = new Map<number, string>([
+		[TerminalCompletionItemKind.File, localize('file', 'File')],
+		[TerminalCompletionItemKind.Folder, localize('folder', 'Folder')],
+		[TerminalCompletionItemKind.Method, localize('method', 'Method')],
+		[TerminalCompletionItemKind.Alias, localize('alias', 'Alias')],
+		[TerminalCompletionItemKind.Argument, localize('argument', 'Argument')],
+		[TerminalCompletionItemKind.Option, localize('option', 'Option')],
+		[TerminalCompletionItemKind.OptionValue, localize('optionValue', 'Option Value')],
+		[TerminalCompletionItemKind.Flag, localize('flag', 'Flag')],
+		[TerminalCompletionItemKind.InlineSuggestion, localize('inlineSuggestion', 'Inline Suggestion')],
+		[TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop, localize('inlineSuggestionAlwaysOnTop', 'Inline Suggestion')],
+	]);
+
 	private readonly _inlineCompletion: ITerminalCompletion = {
 		label: '',
 		// Right arrow is used to accept the completion. This is a common keybinding in pwsh, zsh
@@ -111,11 +126,13 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		provider: 'core',
 		detail: 'Inline suggestion',
 		kind: TerminalCompletionItemKind.InlineSuggestion,
+		kindLabel: 'Inline suggestion',
 		icon: this._kindToIconMap.get(TerminalCompletionItemKind.InlineSuggestion),
 	};
 	private readonly _inlineCompletionItem = new TerminalCompletionItem(this._inlineCompletion);
 
 	private _shouldSyncWhenReady: boolean = false;
+	private _suggestTelemetry: TerminalSuggestTelemetry | undefined;
 
 	constructor(
 		shellType: TerminalShellType | undefined,
@@ -160,10 +177,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			if (commandDetection) {
 				if (this._promptInputModel !== commandDetection.promptInputModel) {
 					this._promptInputModel = commandDetection.promptInputModel;
+					this._suggestTelemetry = this._register(this._instantiationService.createInstance(TerminalSuggestTelemetry, commandDetection, this._promptInputModel));
 					this._promptInputModelSubscriptions.value = combinedDisposable(
 						this._promptInputModel.onDidChangeInput(e => this._sync(e)),
 						this._promptInputModel.onDidFinishInput(() => {
-							this._mostRecentPromptInputState = undefined;
 							this.hideSuggestWidget(true);
 						}),
 					);
@@ -291,6 +308,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		for (const completion of completions) {
 			if (!completion.icon && completion.kind !== undefined) {
 				completion.icon = this._kindToIconMap.get(completion.kind);
+				completion.kindLabel = this._kindToTypeMap.get(completion.kind);
 			}
 		}
 
@@ -354,7 +372,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (!this._wasLastInputVerticalArrowKey()) {
 			// Only request on trigger character when it's a regular input, or on an arrow if the widget
 			// is already visible
-			if (!this._wasLastInputArrowKey() || this._terminalSuggestWidgetVisibleContextKey.get()) {
+			if (!this._wasLastInputIncludedEscape() || this._terminalSuggestWidgetVisibleContextKey.get()) {
 				this.requestCompletions();
 				return true;
 			}
@@ -368,6 +386,14 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	private _wasLastInputVerticalArrowKey(): boolean {
 		return !!this._lastUserData?.match(/^\x1b[\[O]?[A-B]$/);
+	}
+
+	/**
+	 * Whether the last input included the escape character. Typically this will mean it was more
+	 * than just a simple character, such as arrow keys, home, end, etc.
+	 */
+	private _wasLastInputIncludedEscape(): boolean {
+		return !!this._lastUserData?.includes('\x1b');
 	}
 
 	private _wasLastInputArrowKey(): boolean {
@@ -428,15 +454,19 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 			// If the cursor moved to the left
 			if (this._mostRecentPromptInputState && promptInputState.cursorIndex < this._mostRecentPromptInputState.cursorIndex && promptInputState.cursorIndex > 0) {
-				// Backspace or left past a trigger character
-				if (config.suggestOnTriggerCharacters && !sent && this._mostRecentPromptInputState.cursorIndex > 0) {
-					const char = this._mostRecentPromptInputState.value[this._mostRecentPromptInputState.cursorIndex - 1];
-					if (
-						// Only trigger on `\` and `/` if it's a directory. Not doing so causes problems
-						// with git branches in particular
-						this._isFilteringDirectories && char.match(/[\\\/]$/)
-					) {
-						sent = this._requestTriggerCharQuickSuggestCompletions();
+				// We only want to refresh via trigger characters in this case if the widget is
+				// already visible
+				if (this._terminalSuggestWidgetVisibleContextKey.get()) {
+					// Backspace or left past a trigger character
+					if (config.suggestOnTriggerCharacters && !sent && this._mostRecentPromptInputState.cursorIndex > 0) {
+						const char = this._mostRecentPromptInputState.value[this._mostRecentPromptInputState.cursorIndex - 1];
+						if (
+							// Only trigger on `\` and `/` if it's a directory. Not doing so causes problems
+							// with git branches in particular
+							this._isFilteringDirectories && char.match(/[\\\/]$/)
+						) {
+							sent = this._requestTriggerCharQuickSuggestCompletions();
+						}
 					}
 				}
 			}
@@ -502,7 +532,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 		const xtermBox = this._screen!.getBoundingClientRect();
-		this._suggestWidget.showSuggestions(0, false, false, {
+		this._suggestWidget.showSuggestions(0, false, true, {
 			left: xtermBox.left + this._terminal.buffer.active.cursorX * dimensions.width,
 			top: xtermBox.top + this._terminal.buffer.active.cursorY * dimensions.height,
 			height: dimensions.height
@@ -613,8 +643,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 		const xtermBox = this._screen!.getBoundingClientRect();
-
-		suggestWidget.showSuggestions(0, false, false, {
+		suggestWidget.showSuggestions(0, false, !explicitlyInvoked, {
 			left: xtermBox.left + this._terminal.buffer.active.cursorX * dimensions.width,
 			top: xtermBox.top + this._terminal.buffer.active.cursorY * dimensions.height,
 			height: dimensions.height
@@ -696,6 +725,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		const initialPromptInputState = this._mostRecentPromptInputState;
 		if (!suggestion || !initialPromptInputState || this._leadingLineContent === undefined || !this._model) {
+			this._suggestTelemetry?.acceptCompletion(undefined, this._mostRecentPromptInputState?.value);
 			return;
 		}
 		SuggestAddon.lastAcceptedCompletionTimestamp = Date.now();
@@ -781,6 +811,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		// Send the completion
 		this._onAcceptedCompletion.fire(resultSequence);
+		this._suggestTelemetry?.acceptCompletion(completion, this._mostRecentPromptInputState?.value);
 		this.hideSuggestWidget(true);
 	}
 
@@ -832,3 +863,4 @@ export function normalizePathSeparator(path: string, sep: string): string {
 	}
 	return path.replaceAll('/', '\\');
 }
+

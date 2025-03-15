@@ -10,7 +10,7 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { autorunWithStore, derived, derivedOpts, derivedWithStore, IObservable, IReader, ISettableObservable, mapObservableArrayCached, observableValue } from '../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
-import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
+import { ObservableCodeEditor, observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { EditorOption } from '../../../../../common/config/editorOptions.js';
 import { LineRange } from '../../../../../common/core/lineRange.js';
 import { Position } from '../../../../../common/core/position.js';
@@ -34,14 +34,14 @@ import { applyEditToModifiedRangeMappings, createReindentEdit } from './utils/ut
 import './view.css';
 
 export class InlineEditsView extends Disposable {
-	private readonly _editorObs = observableCodeEditor(this._editor);
+	private readonly _editorObs: ObservableCodeEditor = observableCodeEditor(this._editor);
 
-	private readonly _useMixedLinesDiff = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.useMixedLinesDiff);
-	private readonly _useInterleavedLinesDiff = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.useInterleavedLinesDiff);
-	private readonly _useCodeShifting = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.codeShifting);
-	private readonly _renderSideBySide = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.renderSideBySide);
-	private readonly _showCollapsed = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.showCollapsed);
-	private readonly _useMultiLineGhostText = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.useMultiLineGhostText);
+	private readonly _useMixedLinesDiff;
+	private readonly _useInterleavedLinesDiff;
+	private readonly _useCodeShifting;
+	private readonly _renderSideBySide;
+	private readonly _showCollapsed;
+	private readonly _useMultiLineGhostText;
 
 	private readonly _tabAction = derived<InlineEditTabAction>(reader => this._model.read(reader)?.tabAction.read(reader) ?? InlineEditTabAction.Inactive);
 
@@ -61,6 +61,13 @@ export class InlineEditsView extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
+
+		this._useMixedLinesDiff = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.useMixedLinesDiff);
+		this._useInterleavedLinesDiff = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.useInterleavedLinesDiff);
+		this._useCodeShifting = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.allowCodeShifting);
+		this._renderSideBySide = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.renderSideBySide);
+		this._showCollapsed = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.showCollapsed);
+		this._useMultiLineGhostText = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.useMultiLineGhostText);
 
 		this._register(autorunWithStore((reader, store) => {
 			const model = this._model.read(reader);
@@ -321,7 +328,7 @@ export class InlineEditsView extends Disposable {
 		if (
 			isSingleInnerEdit && (
 				this._useMixedLinesDiff.read(reader) === 'forStableInsertions'
-				&& this._useCodeShifting.read(reader)
+				&& this._useCodeShifting.read(reader) !== 'never'
 				&& isSingleLineInsertionAfterPosition(diff, inlineEdit.cursorPosition)
 			)
 		) {
@@ -333,7 +340,7 @@ export class InlineEditsView extends Disposable {
 			return 'deletion';
 		}
 
-		if (isSingleMultiLineInsertion(diff) && this._useMultiLineGhostText.read(reader) && this._useCodeShifting.read(reader)) {
+		if (isSingleMultiLineInsertion(diff) && this._useMultiLineGhostText.read(reader) && this._useCodeShifting.read(reader) === 'always') {
 			return 'insertionMultiLine';
 		}
 

@@ -8,7 +8,7 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { derived, IObservable, ISettableObservable } from '../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
-import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
+import { ObservableCodeEditor, observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { LineRange } from '../../../../../common/core/lineRange.js';
 import { Range } from '../../../../../common/core/range.js';
 import { SingleTextEdit, TextEdit } from '../../../../../common/core/textEdit.js';
@@ -23,7 +23,7 @@ import { InlineEditTabAction } from './inlineEditsViewInterface.js';
 export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This class is no longer a diff producer. Rename it or get rid of it
 	public static readonly hot = createHotClass(InlineEditsViewAndDiffProducer);
 
-	private readonly _editorObs = observableCodeEditor(this._editor);
+	private readonly _editorObs: ObservableCodeEditor;
 
 	private readonly _inlineEdit = derived<InlineEditWithChanges | undefined>(this, (reader) => {
 		const model = this._model.read(reader);
@@ -48,7 +48,7 @@ export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This c
 		const diffEdits = new TextEdit(edits);
 		const text = new TextModelText(textModel);
 
-		return new InlineEditWithChanges(text, diffEdits, model.primaryPosition.get(), inlineEdit.renderExplicitly, inlineEdit.commands, inlineEdit.inlineCompletion);
+		return new InlineEditWithChanges(text, diffEdits, model.primaryPosition.get(), inlineEdit.jumpedTo, inlineEdit.commands, inlineEdit.inlineCompletion);
 	});
 
 	private readonly _inlineEditModel = derived<InlineEditModel | undefined>(this, reader => {
@@ -91,10 +91,12 @@ export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This c
 		private readonly _edit: IObservable<InlineEdit | undefined>,
 		private readonly _model: IObservable<InlineCompletionsModel | undefined>,
 		private readonly _focusIsInMenu: ISettableObservable<boolean>,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
-		this._register(this._instantiationService.createInstance(InlineEditsView, this._editor, this._inlineEditModel, this._ghostTextIndicator, this._focusIsInMenu));
+		this._editorObs = observableCodeEditor(this._editor);
+
+		this._register(instantiationService.createInstance(InlineEditsView, this._editor, this._inlineEditModel, this._ghostTextIndicator, this._focusIsInMenu));
 	}
 }

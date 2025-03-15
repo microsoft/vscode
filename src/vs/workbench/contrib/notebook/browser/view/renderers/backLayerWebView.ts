@@ -794,7 +794,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 								'workbench.action.openSettings',
 								'_notebook.selectKernel',
 								// TODO@rebornix explore open output channel with name command
-								'jupyter.viewOutput'
+								'jupyter.viewOutput',
+								'jupyter.createPythonEnvAndSelectController',
 							],
 						});
 						return;

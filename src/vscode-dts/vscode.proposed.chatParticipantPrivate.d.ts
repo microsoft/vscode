@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 5
+// version: 6
 
 declare module 'vscode' {
 
@@ -50,6 +50,10 @@ declare module 'vscode' {
 	}
 
 	export interface ChatRequest {
+		/**
+		 * The id of the chat request. Used to identity an interaction with any of the chat surfaces.
+		 */
+		readonly id: string;
 		/**
 		 * The attempt number of the request. The first request has attempt number 0.
 		 */

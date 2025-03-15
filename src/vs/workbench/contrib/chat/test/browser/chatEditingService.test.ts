@@ -17,7 +17,7 @@ import { IChatEditingService } from '../../common/chatEditingService.js';
 import { assertThrowsAsync, ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
 import { MockChatVariablesService } from '../common/mockChatVariables.js';
-import { ChatAgentLocation, ChatAgentService, IChatAgentImplementation, IChatAgentService } from '../../common/chatAgents.js';
+import { ChatAgentService, IChatAgentImplementation, IChatAgentService } from '../../common/chatAgents.js';
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
@@ -31,6 +31,7 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { waitForState } from '../../../../../base/common/observable.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { Range } from '../../../../../editor/common/core/range.js';
+import { ChatAgentLocation } from '../../common/constants.js';
 
 function getAgentData(id: string) {
 	return {

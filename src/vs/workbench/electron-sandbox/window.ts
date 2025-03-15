@@ -131,6 +131,8 @@ export class NativeWindow extends BaseWindow {
 	) {
 		super(mainWindow, undefined, hostService, nativeEnvironmentService);
 
+		this.configuredWindowZoomLevel = this.resolveConfiguredWindowZoomLevel();
+
 		this.registerListeners();
 		this.create();
 	}
@@ -1058,7 +1060,7 @@ export class NativeWindow extends BaseWindow {
 
 	private readonly mapWindowIdToZoomStatusEntry = new Map<number, ZoomStatusEntry>();
 
-	private configuredWindowZoomLevel = this.resolveConfiguredWindowZoomLevel();
+	private configuredWindowZoomLevel: number;
 
 	private resolveConfiguredWindowZoomLevel(): number {
 		const windowZoomLevel = this.configurationService.getValue('window.zoomLevel');

@@ -13,7 +13,7 @@ import { IOpenEvent, IWorkbenchTableOptions, WorkbenchTable } from '../../../../
 import { HighlightedLabel } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
 import { compareMarkersByUri, Marker, MarkerTableItem, ResourceMarkers } from './markersModel.js';
 import { MarkerSeverity } from '../../../../platform/markers/common/markers.js';
-import { SeverityIcon } from '../../../../platform/severityIcon/browser/severityIcon.js';
+import { SeverityIcon } from '../../../../base/browser/ui/severityIcon/severityIcon.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { FilterOptions } from './markersFilterOptions.js';

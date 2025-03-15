@@ -100,17 +100,12 @@ async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNew
 
 	const widget = (_sessionId ? widgetService.getWidgetBySessionId(_sessionId) : undefined)
 		?? widgetService.lastFocusedWidget;
-	if (!widget || widget.location !== ChatAgentLocation.Panel) {
+	if (!widget || !widget.viewModel || widget.location !== ChatAgentLocation.Panel) {
 		await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true } }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
 		return;
 	}
 
-	const viewModel = widget.viewModel;
-	if (!viewModel) {
-		return;
-	}
-
-	const sessionId = viewModel.sessionId;
+	const sessionId = widget.viewModel.sessionId;
 	const viewState = widget.getViewState();
 	widget.clear();
 
