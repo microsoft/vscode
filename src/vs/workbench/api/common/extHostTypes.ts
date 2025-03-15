@@ -5053,6 +5053,7 @@ export class McpStdioServerDefinition implements vscode.McpStdioServerDefinition
 }
 
 export class McpSSEServerDefinition implements vscode.McpSSEServerDefinition {
+	headers: [string, string][] = [];
 	constructor(
 		public label: string,
 		public uri: URI
