@@ -177,6 +177,17 @@ async function copyImage(image: HTMLImageElement, retries = 5) {
 		})]);
 	} catch (e) {
 		console.error(e);
+		const selection = window.getSelection();
+		if (!selection) {
+			await navigator.clipboard.writeText(image.getAttribute('data-src') ?? image.src);
+			return;
+		}
+		selection.removeAllRanges();
+		const range = document.createRange();
+		range.selectNode(image);
+		selection.addRange(range);
+		document.execCommand('copy');
+		selection.removeAllRanges();
 	}
 }
 
