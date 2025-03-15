@@ -626,7 +626,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (this.lastItem && isResponseVM(this.lastItem) && this.lastItem.isComplete) {
 				this.renderFollowups(this.lastItem.replyFollowups, this.lastItem);
 			} else if (!treeItems.length && this.viewModel) {
-				this.renderFollowups(this.viewModel.model.sampleQuestions);
+				this.renderSampleQuestions();
 			} else {
 				this.renderFollowups(undefined);
 			}
@@ -671,6 +671,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (this.bodyDimension) {
 			this.layout(this.bodyDimension.height, this.bodyDimension.width);
+		}
+	}
+
+	private renderSampleQuestions() {
+		if (this.viewModel) {
+			// TODO@roblourens hack- only Chat mode supports sample questions
+			this.renderFollowups(this.input.currentMode === ChatMode.Chat ? this.viewModel.model.sampleQuestions : undefined);
 		}
 	}
 
@@ -933,6 +940,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.renderWelcomeViewContentIfNeeded();
 		}));
 		this._register(this.input.onDidChangeCurrentChatMode(() => {
+			this.renderSampleQuestions();
 			this.renderWelcomeViewContentIfNeeded();
 		}));
 	}
