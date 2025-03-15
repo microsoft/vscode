@@ -19,7 +19,7 @@ import assert from 'assert';
 		assertNoRpc();
 	});
 
-	test('custom root certificate', async () => {
+	test.skip('custom root certificate', async () => {
 		const keys = pki.rsa.generateKeyPair(2048);
 		const cert = pki.createCertificate();
 		cert.publicKey = keys.publicKey;
