@@ -331,6 +331,23 @@ export class Expression extends ExpressionContainer implements IExpression {
 		return `${this.name}\n${this.value}`;
 	}
 
+	toJSON() {
+		return {
+			sessionId: this.getSession()?.getId(),
+			variable: this.toDebugProtocolObject(),
+		};
+	}
+
+	toDebugProtocolObject(): DebugProtocol.Variable {
+		return {
+			name: this.name,
+			variablesReference: this.reference || 0,
+			memoryReference: this.memoryReference,
+			value: this.value,
+			evaluateName: this.name
+		};
+	}
+
 	async setExpression(value: string, stackFrame: IStackFrame): Promise<void> {
 		if (!this.session) {
 			return;
@@ -404,6 +421,22 @@ export class Variable extends ExpressionContainer implements IExpression {
 
 	override toString(): string {
 		return this.name ? `${this.name}: ${this.value}` : this.value;
+	}
+
+	toJSON() {
+		return {
+			sessionId: this.getSession()?.getId(),
+			container: this.parent instanceof Expression
+				? { expression: this.parent.name }
+				: (this.parent as (Variable | Scope)).toDebugProtocolObject(),
+			variable: {
+				name: this.name,
+				variablesReference: this.reference || 0,
+				memoryReference: this.memoryReference,
+				value: this.value,
+				evaluateName: this.name
+			}
+		};
 	}
 
 	protected override adoptLazyResponse(response: DebugProtocol.Variable): void {
