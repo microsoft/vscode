@@ -11,20 +11,20 @@ import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../..
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { isChatViewTitleActionContext } from '../../common/chatActions.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../common/chatContextKeys.js';
 import { hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingSession, WorkingSetEntryState } from '../../common/chatEditingService.js';
-import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
 import { ChatViewId, EditsViewId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { EditingSessionAction } from '../chatEditing/chatEditingActions.js';
 import { ctxIsGlobalEditingSession } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
-import { CHAT_CATEGORY, IChatViewOpenOptions } from './chatActions.js';
+import { CHAT_CATEGORY, getEditsViewId, IChatViewOpenOptions } from './chatActions.js';
 import { clearChatEditor } from './chatClear.js';
 
 export const ACTION_ID_NEW_CHAT = `workbench.action.chat.newChat`;
@@ -201,7 +201,7 @@ export function registerNewChatActions() {
 			const widgetService = accessor.get(IChatWidgetService);
 			const dialogService = accessor.get(IDialogService);
 			const viewsService = accessor.get(IViewsService);
-			const chatService = accessor.get(IChatService);
+			const instaSevice = accessor.get(IInstantiationService);
 
 			if (!(await this._handleCurrentEditingSession(editingSession, dialogService))) {
 				return;
@@ -215,7 +215,7 @@ export function registerNewChatActions() {
 				widget = widgetService.getWidgetBySessionId(context.sessionId);
 			} else {
 				// Is running from f1 or keybinding
-				const view = chatService.unifiedViewEnabled ? ChatViewId : EditsViewId;
+				const view = instaSevice.invokeFunction(getEditsViewId);
 				const chatView = await viewsService.openView<ChatViewPane>(view);
 				widget = chatView?.widget;
 			}
@@ -284,7 +284,12 @@ export function registerNewChatActions() {
 				// Is running from f1 or keybinding
 				const viewsService = accessor.get(IViewsService);
 
-				const chatView = await viewsService.openView(EditsViewId) as ChatViewPane;
+				const viewId = getEditsViewId(accessor);
+				const chatView = await viewsService.openView<ChatViewPane>(viewId);
+				if (!chatView) {
+					return;
+				}
+
 				const widget = chatView.widget;
 
 				announceChatCleared(accessibilitySignalService);
@@ -306,7 +311,7 @@ export function registerNewChatActions() {
 				f1: true,
 				menu: [{
 					id: MenuId.ViewTitle,
-					when: ContextKeyExpr.equals('view', EditsViewId),
+					when: ChatContextKeyExprs.inEditingMode,
 					group: 'navigation',
 					order: -3
 				}]
@@ -329,7 +334,7 @@ export function registerNewChatActions() {
 				f1: true,
 				menu: [{
 					id: MenuId.ViewTitle,
-					when: ContextKeyExpr.equals('view', EditsViewId),
+					when: ChatContextKeyExprs.inEditingMode,
 					group: 'navigation',
 					order: -2
 				}]

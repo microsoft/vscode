@@ -36,7 +36,7 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { EXTENSIONS_CATEGORY, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
-import { ChatAgentLocation } from '../../common/constants.js';
+import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
@@ -356,7 +356,7 @@ export function registerChatActions() {
 				category: CHAT_CATEGORY,
 				menu: {
 					id: MenuId.ChatInput,
-					when: ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
+					when: ChatContextKeys.chatMode.isEqualTo(ChatMode.Chat),
 					group: 'navigation',
 					order: 1
 				}
@@ -754,4 +754,9 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 		// Reduces flicker a bit on reload/restart
 		markAsSingleton(disposable);
 	}
+}
+
+export function getEditsViewId(accessor: ServicesAccessor): string {
+	const chatService = accessor.get(IChatService);
+	return chatService.unifiedViewEnabled ? ChatViewId : EditsViewId;
 }

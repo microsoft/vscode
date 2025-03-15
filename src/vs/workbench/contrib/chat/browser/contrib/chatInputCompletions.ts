@@ -216,7 +216,7 @@ class AgentCompletions extends Disposable {
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				const viewModel = widget?.viewModel;
-				if (!widget || !viewModel) {
+				if (!widget || !viewModel || widget.input.currentMode !== ChatMode.Chat) {
 					return;
 				}
 
@@ -306,7 +306,7 @@ class AgentCompletions extends Disposable {
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				const viewModel = widget?.viewModel;
-				if (!widget || !viewModel) {
+				if (!widget || !viewModel || widget.input.currentMode !== ChatMode.Chat) {
 					return;
 				}
 
@@ -367,7 +367,7 @@ class AgentCompletions extends Disposable {
 				}
 
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
-				if (widget?.location !== ChatAgentLocation.Panel) {
+				if (widget?.location !== ChatAgentLocation.Panel || widget.input.currentMode !== ChatMode.Chat) {
 					return;
 				}
 

@@ -126,12 +126,14 @@ class ToggleChatModeAction extends Action2 {
 					id: MenuId.ChatExecute,
 					order: 1,
 					// Either in edits with agent mode available, or in unified chat view
-					when: ContextKeyExpr.or(
-						ContextKeyExpr.and(
-							ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
-							ChatContextKeys.Editing.hasToolsAgent,
-						),
-						ChatContextKeys.inUnifiedChat),
+					when: ContextKeyExpr.and(
+						ChatContextKeys.enabled,
+						ContextKeyExpr.or(
+							ContextKeyExpr.and(
+								ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
+								ChatContextKeys.Editing.hasToolsAgent,
+							),
+							ChatContextKeys.inUnifiedChat)),
 					group: 'navigation',
 				},
 			]
