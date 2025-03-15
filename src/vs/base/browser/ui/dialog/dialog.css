@@ -157,3 +157,8 @@
 	margin: 4px 5px; /* allows button focus outline to be visible */
 	outline-offset: 2px !important;
 }
+
+/** Tooltip: Ensure tooltip is displayed above the dialog */
+.monaco-dialog-box .tooltip {
+	z-index: 2700;
+}

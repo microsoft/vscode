@@ -416,6 +416,10 @@ export class Dialog extends Disposable {
 				}));
 
 				actionBar.push(action, { icon: true, label: false });
+
+				// Add tooltip to close button
+				const closeButton = actionBar.viewItems[0].element;
+				closeButton.title = nls.localize('dialogClose', "Close Dialog");
 			}
 
 			this.applyStyles();
