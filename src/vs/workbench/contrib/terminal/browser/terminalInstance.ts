@@ -474,7 +474,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						commandDetection.promptInputModel.onDidStartInput,
 						commandDetection.promptInputModel.onDidChangeInput,
 						commandDetection.promptInputModel.onDidFinishInput
-					)(() => this._labelComputer?.refreshLabel(this)));
+					)(() => {
+						this._labelComputer?.refreshLabel(this);
+						refreshShellIntegrationInfoStatus(this);
+					}));
 				}
 			}
 		}));

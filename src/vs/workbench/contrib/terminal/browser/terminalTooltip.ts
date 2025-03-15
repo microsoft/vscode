@@ -90,16 +90,24 @@ export function refreshShellIntegrationInfoStatus(instance: ITerminalInstance) {
 					? localize('shellIntegration.injectionFailed', "Injection failed to activate")
 					: localize('shellIntegration.no', 'No')
 	);
+
+	const detailedAdditions: string[] = [];
 	const seenSequences = Array.from(instance.xterm.shellIntegration.seenSequences);
-	const seenSequencesString = (
-		seenSequences.length > 0
-			? ` (${seenSequences.map(e => `\`${e}\``).join(', ')})`
-			: ''
-	);
+	if (seenSequences.length > 0) {
+		detailedAdditions.push(`Seen sequences: ${seenSequences.map(e => `\`${e}\``).join(', ')}`);
+	}
+	const combinedString = instance.capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel.getCombinedString();
+	if (combinedString !== undefined) {
+		detailedAdditions.push(`Prompt input: \`${combinedString}\``);
+	}
+	const detailedAdditionsString = detailedAdditions.length > 0
+		? '\n\n' + detailedAdditions.map(e => `- ${e}`).join('\n')
+		: '';
+
 	instance.statusList.add({
 		id: TerminalStatus.ShellIntegrationInfo,
 		severity: Severity.Info,
 		tooltip: `${localize('shellIntegration', "Shell integration")}: ${cmdDetectionType}`,
-		detailedTooltip: `${localize('shellIntegration', "Shell integration")}: ${cmdDetectionType}${seenSequencesString}`
+		detailedTooltip: `${localize('shellIntegration', "Shell integration")}: ${cmdDetectionType}${detailedAdditionsString}`
 	});
 }
