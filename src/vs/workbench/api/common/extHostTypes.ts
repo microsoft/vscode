@@ -2250,10 +2250,10 @@ export enum TaskEventKind {
 	/** Indicates the task's problem matcher has started */
 	ProblemMatcherStarted = 'problemMatcherStarted',
 
-	/** Indicates the task's problem matcher has ended */
+	/** Indicates the task's problem matcher has ended without errors */
 	ProblemMatcherEnded = 'problemMatcherEnded',
 
-	/** Indicates the task's problem matcher has found errors */
+	/** Indicates the task's problem matcher has ended with errors */
 	ProblemMatcherFoundErrors = 'problemMatcherFoundErrors'
 }
 

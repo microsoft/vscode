@@ -1188,6 +1188,11 @@ export interface ITaskStartedEvent extends ITaskCommon {
 	resolvedVariables: Map<string, string>;
 }
 
+export interface ITaskProblemMatcherEndedEvent extends ITaskCommon {
+	kind: TaskEventKind.ProblemMatcherEnded;
+	hasErrors: boolean;
+}
+
 export interface ITaskGeneralEvent extends ITaskCommon {
 	kind: TaskEventKind.AcquiredInput | TaskEventKind.DependsOnStarted | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.End | TaskEventKind.ProblemMatcherEnded | TaskEventKind.ProblemMatcherStarted | TaskEventKind.ProblemMatcherFoundErrors;
 	terminalId: number | undefined;
@@ -1199,7 +1204,8 @@ export type ITaskEvent =
 	| ITaskProcessEndedEvent
 	| ITaskTerminatedEvent
 	| ITaskStartedEvent
-	| ITaskGeneralEvent;
+	| ITaskGeneralEvent
+	| ITaskProblemMatcherEndedEvent;
 
 export const enum TaskRunSource {
 	System,

@@ -51,48 +51,6 @@ export interface IShellQuotingOptionsDTO {
 	weak?: string;
 }
 
-export enum TaskEventKind {
-	/** Indicates that a task's properties or configuration have changed */
-	Changed = 'changed',
-
-	/** Indicates that a task has begun executing */
-	ProcessStarted = 'processStarted',
-
-	/** Indicates that a task process has completed */
-	ProcessEnded = 'processEnded',
-
-	/** Indicates that a task was terminated, either by user action or by the system */
-	Terminated = 'terminated',
-
-	/** Indicates that a task has started running */
-	Start = 'start',
-
-	/** Indicates that a task has acquired all needed input/variables to execute */
-	AcquiredInput = 'acquiredInput',
-
-	/** Indicates that a dependent task has started */
-	DependsOnStarted = 'dependsOnStarted',
-
-	/** Indicates that a task is actively running/processing */
-	Active = 'active',
-
-	/** Indicates that a task is paused/waiting but not complete */
-	Inactive = 'inactive',
-
-	/** Indicates that a task has completed fully */
-	End = 'end',
-
-	/** Indicates that a task's problem matcher has started */
-	ProblemMatcherStarted = 'problemMatcherStarted',
-
-	/** Indicates that a task's problem matcher has ended */
-	ProblemMatcherEnded = 'problemMatcherEnded',
-
-	/** Indicates that a task's problem matcher has found errors */
-	ProblemMatcherFoundErrors = 'problemMatcherFoundErrors'
-}
-
-
 export interface IShellExecutionOptionsDTO extends IExecutionOptionsDTO {
 	executable?: string;
 	shellArgs?: string[];
@@ -181,12 +139,20 @@ export interface ITaskSystemInfoDTO {
 	platform: string;
 }
 
-export interface ITaskStatus {
+export interface ITaskProblemMatcherStarted {
 	execution: ITaskExecution;
-	taskEventKind: TaskEventKind;
 }
 
-export interface ITaskStatusDTO {
+export interface ITaskProblemMatcherStartedDto {
 	execution: ITaskExecutionDTO;
-	taskEventKind: TaskEventKind;
+}
+
+export interface ITaskProblemMatcherEnded {
+	execution: ITaskExecution;
+	hasErrors: boolean;
+}
+
+export interface ITaskProblemMatcherEndedDto {
+	execution: ITaskExecutionDTO;
+	hasErrors: boolean;
 }
