@@ -48,6 +48,11 @@ suite('Editor Contrib - Line Comment Command', () => {
 		(accessor, sel) => new LineCommentCommand(accessor.get(ILanguageConfigurationService), sel, 4, Type.ForceAdd, true, true)
 	);
 
+	const testLineCommentCommandColumnFixed = createTestCommandHelper(
+		{ lineComment: '!@#', lineCommentTokenColumn: 0, blockComment: ['<!@#', '#@!>'] },
+		(accessor, sel) => new LineCommentCommand(accessor.get(ILanguageConfigurationService), sel, 4, Type.Toggle, true, true)
+	);
+
 	test('comment single line', function () {
 		testLineCommentCommand(
 			[
@@ -81,6 +86,21 @@ suite('Editor Contrib - Line Comment Command', () => {
 		);
 	});
 
+	test('comment with token column fixed', function () {
+		testLineCommentCommandColumnFixed(
+			[
+				'some text',
+				'\tsome more text'
+			],
+			new Selection(2, 1, 2, 1),
+			[
+				'some text',
+				'!@# \tsome more text'
+			],
+			new Selection(2, 5, 2, 5)
+		);
+	});
+
 	function createSimpleModel(lines: string[]): ISimpleModel {
 		return {
 			getLineContent: (lineNumber: number) => {
@@ -110,7 +130,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 			'    ',
 			'    c',
 			'\t\td'
-		]), createBasicLinePreflightData(['//', 'rem', '!@#', '!@#']), 1, true, false, disposable.add(new TestLanguageConfigurationService()));
+		]), createBasicLinePreflightData(['//', 'rem', '!@#', '!@#']), 1, true, false, disposable.add(new TestLanguageConfigurationService()), 'plaintext');
 		if (!r.supported) {
 			throw new Error(`unexpected`);
 		}
@@ -141,7 +161,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 			'    rem ',
 			'    !@# c',
 			'\t\t!@#d'
-		]), createBasicLinePreflightData(['//', 'rem', '!@#', '!@#']), 1, true, false, disposable.add(new TestLanguageConfigurationService()));
+		]), createBasicLinePreflightData(['//', 'rem', '!@#', '!@#']), 1, true, false, disposable.add(new TestLanguageConfigurationService()), 'plaintext');
 		if (!r.supported) {
 			throw new Error(`unexpected`);
 		}
@@ -165,81 +185,6 @@ suite('Editor Contrib - Line Comment Command', () => {
 		assert.strictEqual(r.lines[1].commentStrOffset, 4);
 		assert.strictEqual(r.lines[2].commentStrOffset, 4);
 		assert.strictEqual(r.lines[3].commentStrOffset, 2);
-
-		// Fills in `commentStrLength`
-		assert.strictEqual(r.lines[0].commentStrLength, 2);
-		assert.strictEqual(r.lines[1].commentStrLength, 4);
-		assert.strictEqual(r.lines[2].commentStrLength, 4);
-		assert.strictEqual(r.lines[3].commentStrLength, 3);
-
-		disposable.dispose();
-	});
-
-	// Makefile Test. Comment tokens should always be placed on the first column.
-	test('_analyzeLines for Makefiles', () => {
-		const disposable = new DisposableStore();
-		let r: IPreflightData;
-
-		r = LineCommentCommand._analyzeLines(Type.Toggle, true, createSimpleModel([
-			'\t\t',
-			'    ',
-			'    c',
-			'\t\td'
-		]), createBasicLinePreflightData(['//', 'rem', '!@#', '!@#']), 1, true, false, disposable.add(new TestLanguageConfigurationService()), 'makefile');
-		if (!r.supported) {
-			throw new Error(`unexpected`);
-		}
-
-		assert.strictEqual(r.shouldRemoveComments, false);
-
-		// Does not change `commentStr`
-		assert.strictEqual(r.lines[0].commentStr, '//');
-		assert.strictEqual(r.lines[1].commentStr, 'rem');
-		assert.strictEqual(r.lines[2].commentStr, '!@#');
-		assert.strictEqual(r.lines[3].commentStr, '!@#');
-
-		// Fills in `isWhitespace`
-		assert.strictEqual(r.lines[0].ignore, true);
-		assert.strictEqual(r.lines[1].ignore, true);
-		assert.strictEqual(r.lines[2].ignore, false);
-		assert.strictEqual(r.lines[3].ignore, false);
-
-		// Fills in `commentStrOffset` (all zeros because it's a makefile)
-		assert.strictEqual(r.lines[0].commentStrOffset, 0);
-		assert.strictEqual(r.lines[1].commentStrOffset, 0);
-		assert.strictEqual(r.lines[2].commentStrOffset, 0);
-		assert.strictEqual(r.lines[3].commentStrOffset, 0);
-
-
-		r = LineCommentCommand._analyzeLines(Type.Toggle, true, createSimpleModel([
-			'\t\t',
-			'    rem ',
-			'    !@# c',
-			'\t\t!@#d'
-		]), createBasicLinePreflightData(['//', 'rem', '!@#', '!@#']), 1, true, false, disposable.add(new TestLanguageConfigurationService()), 'makefile');
-		if (!r.supported) {
-			throw new Error(`unexpected`);
-		}
-
-		assert.strictEqual(r.shouldRemoveComments, true);
-
-		// Does not change `commentStr`
-		assert.strictEqual(r.lines[0].commentStr, '//');
-		assert.strictEqual(r.lines[1].commentStr, 'rem');
-		assert.strictEqual(r.lines[2].commentStr, '!@#');
-		assert.strictEqual(r.lines[3].commentStr, '!@#');
-
-		// Fills in `isWhitespace`
-		assert.strictEqual(r.lines[0].ignore, true);
-		assert.strictEqual(r.lines[1].ignore, false);
-		assert.strictEqual(r.lines[2].ignore, false);
-		assert.strictEqual(r.lines[3].ignore, false);
-
-		// Fills in `commentStrOffset`
-		assert.strictEqual(r.lines[0].commentStrOffset, 0);
-		assert.strictEqual(r.lines[1].commentStrOffset, 0);
-		assert.strictEqual(r.lines[2].commentStrOffset, 0);
-		assert.strictEqual(r.lines[3].commentStrOffset, 0);
 
 		// Fills in `commentStrLength`
 		assert.strictEqual(r.lines[0].commentStrLength, 2);
