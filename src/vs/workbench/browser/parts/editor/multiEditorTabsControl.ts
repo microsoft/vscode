@@ -1083,7 +1083,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					e.dataTransfer.effectAllowed = 'copyMove';
 					if (selectedEditors.length > 1) {
 						const label = `${editor.getName()} + ${selectedEditors.length - 1}`;
-						applyDragImage(e, label, 'monaco-editor-group-drag-image', this.getColor(listActiveSelectionBackground), this.getColor(listActiveSelectionForeground));
+						applyDragImage(e, tab, label, 'monaco-editor-group-drag-image', this.getColor(listActiveSelectionBackground), this.getColor(listActiveSelectionForeground));
 					} else {
 						e.dataTransfer.setDragImage(tab, 0, 0); // top left corner of dragged tab set to cursor position to make room for drop-border feedback
 					}
