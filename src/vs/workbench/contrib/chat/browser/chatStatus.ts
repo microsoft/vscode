@@ -28,8 +28,6 @@ import { isObject } from '../../../../base/common/types.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
-import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { Codicon } from '../../../../base/common/codicons.js';
 
 //#region --- colors
 
@@ -239,44 +237,22 @@ class ChatStatusDashboard extends Disposable {
 		const disposables = this.entryDisposables.value = new DisposableStore();
 		disposables.add(token.onCancellationRequested(() => disposables.dispose()));
 
-		let addSeparator = false;
+		let needsSeparator = false;
+		const addSeparator = (label: string) => {
+			if (needsSeparator) {
+				this.element.appendChild($('hr'));
+				needsSeparator = false;
+			}
 
-		const newUser = isNewUser(this.chatEntitlementService);
-		const signedOut = this.chatEntitlementService.entitlement === ChatEntitlement.Unknown;
-
-		// New to Copilot / Signed out
-		if (newUser || signedOut) {
-			this.element.appendChild($('div.header', undefined, localize('setupCopilot', "Use AI Features with Copilot")));
-			addSeparator = true;
-
-			const setup = this.element.appendChild(
-				$('div.setup', undefined,
-					$('div.chat-feature-container', undefined,
-						renderIcon(Codicon.code),
-						$('span', undefined, localize('featureChat', "Code faster with Completions"))
-					),
-					$('div.chat-feature-container', undefined,
-						renderIcon(Codicon.editSession),
-						$('span', undefined, localize('featureEdits', "Build features with Copilot Edits"))
-					),
-					$('div.chat-feature-container', undefined,
-						renderIcon(Codicon.commentDiscussion),
-						$('span', undefined, localize('featureExplore', "Explore your codebase with Chat"))
-					)
-				)
-			);
-
-			const button = disposables.add(new Button(setup, { ...defaultButtonStyles }));
-			button.label = newUser ? localize('setupCopilotForFreeButton', "Set up Copilot for Free") : localize('signInToUseCopilotButton', "Sign In to Use Copilot");
-			disposables.add(button.onDidClick(() => this.runCommandAndClose(newUser ? { id: 'workbench.action.chat.triggerSetup' } : () => this.chatEntitlementService.requests?.value.signIn())));
-		}
+			this.element.appendChild($('div.header', undefined, label));
+			needsSeparator = true;
+		};
 
 		// Quota Indicator
-		else if (this.chatEntitlementService.entitlement === ChatEntitlement.Limited) {
+		if (this.chatEntitlementService.entitlement === ChatEntitlement.Limited) {
 			const { chatTotal, chatRemaining, completionsTotal, completionsRemaining, quotaResetDate, chatQuotaExceeded, completionsQuotaExceeded } = this.chatEntitlementService.quotas;
 
-			this.element.appendChild($('div.header', undefined, localize('usageTitle', "Copilot Free Usage")));
-			addSeparator = true;
+			addSeparator(localize('usageTitle', "Copilot Free Usage"));
 
 			const chatQuotaIndicator = this.createQuotaIndicator(this.element, chatTotal, chatRemaining, localize('chatsLabel', "Chat messages"));
 			const completionsQuotaIndicator = this.createQuotaIndicator(this.element, completionsTotal, completionsRemaining, localize('completionsLabel', "Code completions"));
@@ -303,16 +279,21 @@ class ChatStatusDashboard extends Disposable {
 		}
 
 		// Settings
-		if (canUseCopilot(this.chatEntitlementService)) {
-			if (addSeparator) {
-				this.element.appendChild($('hr'));
-				addSeparator = false;
-			}
-
-			this.element.appendChild($('div.header', undefined, localize('settingsTitle', "Settings")));
-			addSeparator = true;
+		{
+			addSeparator(localize('settingsTitle', "Settings"));
 
 			this.createSettings(this.element, disposables);
+		}
+
+		// New to Copilot / Signed out
+		const newUser = isNewUser(this.chatEntitlementService);
+		const signedOut = this.chatEntitlementService.entitlement === ChatEntitlement.Unknown;
+		if (newUser || signedOut) {
+			addSeparator(newUser ? localize('setupTitle', "Set up required to use Copilot") : localize('signInTitle', "Sign in required to use Copilot"));
+
+			const button = disposables.add(new Button(this.element, { ...defaultButtonStyles }));
+			button.label = newUser ? localize('setupCopilotForFreeButton', "Set up Copilot") : localize('signInToUseCopilotButton', "Sign in");
+			disposables.add(button.onDidClick(() => this.runCommandAndClose(newUser ? { id: 'workbench.action.chat.triggerSetup' } : () => this.chatEntitlementService.requests?.value.signIn())));
 		}
 
 		return this.element;
@@ -419,6 +400,11 @@ class ChatStatusDashboard extends Disposable {
 			}
 		}));
 
+		if (!canUseCopilot(this.chatEntitlementService)) {
+			container.classList.add('disabled');
+			checkbox.disable();
+		}
+
 		return checkbox;
 	}
 
@@ -479,7 +465,7 @@ class ChatStatusDashboard extends Disposable {
 
 		disposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(completionsSettingId)) {
-				if (completionsSettingAccessor.readSetting()) {
+				if (completionsSettingAccessor.readSetting() && canUseCopilot(this.chatEntitlementService)) {
 					checkbox.enable();
 					container.classList.remove('disabled');
 				} else {
