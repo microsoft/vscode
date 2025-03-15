@@ -108,7 +108,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			const commands = [...shellGlobals, ...commandsInPath.completionResources];
 			const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
 			const pathSeparator = isWindows ? '\\' : '/';
-			const tokenType = getTokenType(terminalContext, shellType);
+			const tokenType = getTokenType(terminalContext, terminalShellType);
 			const result = await Promise.race([
 				getCompletionItemsFromSpecs(
 					availableSpecs,
