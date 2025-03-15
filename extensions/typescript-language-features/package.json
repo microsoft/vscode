@@ -10,11 +10,8 @@
   "enabledApiProposals": [
     "workspaceTrust",
     "multiDocumentHighlightProvider",
-    "mappedEditsProvider",
     "codeActionAI",
-    "codeActionRanges",
-    "documentPaste",
-    "editorHoverVerbosityLevel"
+    "codeActionRanges"
   ],
   "capabilities": {
     "virtualWorkspaces": {
@@ -40,7 +37,7 @@
     "Programming Languages"
   ],
   "dependencies": {
-    "@vscode/extension-telemetry": "^0.9.0",
+    "@vscode/extension-telemetry": "^0.9.8",
     "@vscode/sync-api-client": "^0.7.2",
     "@vscode/sync-api-common": "^0.7.2",
     "@vscode/sync-api-service": "^0.7.3",
@@ -384,12 +381,6 @@
           "markdownDescription": "%configuration.inlayHints.functionLikeReturnTypes.enabled%",
           "scope": "resource"
         },
-        "javascript.inlayHints.enumMemberValues.enabled": {
-          "type": "boolean",
-          "default": false,
-          "markdownDescription": "%configuration.inlayHints.enumMemberValues.enabled%",
-          "scope": "resource"
-        },
         "javascript.suggest.includeCompletionsForImportStatements": {
           "type": "boolean",
           "default": true,
@@ -533,6 +524,12 @@
           ]
         },
         "typescript.format.indentSwitchCase": {
+          "type": "boolean",
+          "default": true,
+          "description": "%format.indentSwitchCase%",
+          "scope": "resource"
+        },
+        "javascript.format.indentSwitchCase": {
           "type": "boolean",
           "default": true,
           "description": "%format.indentSwitchCase%",
@@ -1517,15 +1514,6 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "%configuration.updateImportsOnPaste%"
-        },
-        "typescript.experimental.expandableHover": {
-          "type": "boolean",
-          "default": false,
-          "description": "%configuration.expandableHover%",
-          "scope": "window",
-          "tags": [
-            "experimental"
-          ]
         }
       }
     },

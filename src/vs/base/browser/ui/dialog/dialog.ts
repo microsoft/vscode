@@ -14,7 +14,7 @@ import { Codicon } from '../../../common/codicons.js';
 import { ThemeIcon } from '../../../common/themables.js';
 import { KeyCode, KeyMod } from '../../../common/keyCodes.js';
 import { mnemonicButtonLabel } from '../../../common/labels.js';
-import { Disposable } from '../../../common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../common/lifecycle.js';
 import { isLinux, isMacintosh, isWindows } from '../../../common/platform.js';
 import './dialog.css';
 import * as nls from '../../../../nls.js';
@@ -37,7 +37,6 @@ export interface IDialogOptions {
 	readonly icon?: ThemeIcon;
 	readonly buttonDetails?: string[];
 	readonly disableCloseAction?: boolean;
-	readonly closeOnLinkClick?: boolean;
 	readonly disableDefaultAction?: boolean;
 	readonly buttonStyles: IButtonStyles;
 	readonly checkboxStyles: ICheckboxStyles;
@@ -211,20 +210,7 @@ export class Dialog extends Disposable {
 				});
 				return;
 			};
-
-			if (this.options.closeOnLinkClick) {
-				for (const el of this.messageContainer.getElementsByTagName('a')) {
-					this._register(addDisposableListener(el, EventType.CLICK, () => {
-						setTimeout(close); // HACK to ensure the link action is triggered before the dialog is closed
-					}));
-					this._register(addDisposableListener(el, EventType.KEY_DOWN, (e: KeyboardEvent) => {
-						const evt = new StandardKeyboardEvent(e);
-						if (evt.equals(KeyCode.Enter)) {
-							setTimeout(close); // HACK to ensure the link action is triggered before the dialog is closed
-						}
-					}));
-				}
-			}
+			this._register(toDisposable(close));
 
 			const buttonBar = this.buttonBar = this._register(new ButtonBar(this.buttonsContainer));
 			const buttonMap = this.rearrangeButtons(this.buttons, this.options.cancelId);
@@ -267,6 +253,22 @@ export class Dialog extends Disposable {
 
 						resolve({
 							button: buttonMap.find(button => button.index !== this.options.cancelId)?.index ?? 0,
+							checkboxChecked: this.checkbox ? this.checkbox.checked : undefined,
+							values: this.inputs.length > 0 ? this.inputs.map(input => input.value) : undefined
+						});
+					}
+
+					return; // leave default handling
+				}
+
+				// Cmd+D (trigger the "no"/"do not save"-button) (macOS only)
+				if (isMacintosh && evt.equals(KeyMod.CtrlCmd | KeyCode.KeyD)) {
+					EventHelper.stop(e);
+
+					const noButton = buttonMap.find(button => button.index === 1 && button.index !== this.options.cancelId);
+					if (noButton) {
+						resolve({
+							button: noButton.index,
 							checkboxChecked: this.checkbox ? this.checkbox.checked : undefined,
 							values: this.inputs.length > 0 ? this.inputs.map(input => input.value) : undefined
 						});
@@ -323,10 +325,6 @@ export class Dialog extends Disposable {
 
 					// Focus next element (with wrapping)
 					if (evt.equals(KeyCode.Tab) || evt.equals(KeyCode.RightArrow)) {
-						if (focusedIndex === -1) {
-							focusedIndex = 0; // default to focus first element if none have focus
-						}
-
 						const newFocusedIndex = (focusedIndex + 1) % focusableElements.length;
 						focusableElements[newFocusedIndex].focus();
 					}

@@ -7,7 +7,7 @@
 	position: absolute;
 	z-index: 1000;
 	right: 3px;
-	bottom: 26px;
+	bottom: 25px; /* 22px status bar height + 3px */
 	display: none;
 	overflow: hidden;
 }

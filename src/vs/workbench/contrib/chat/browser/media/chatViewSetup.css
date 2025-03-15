@@ -4,17 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 
 .chat-welcome-view .chat-setup-view {
+
 	text-align: center;
 
-	p {
-		width: 100%;
-	}
-
 	.chat-features-container {
+		display: flex;
+		justify-content: center;
 		text-align: initial;
 		border-radius: 2px;
 		border: 1px solid var(--vscode-chat-requestBorder);
 		background-color: var(--vscode-chat-requestBackground);
+	}
+}
+
+.dialog-message-body .chat-setup-view {
+
+	p.legal {
+		font-size: 12px;
+		color: var(--vscode-descriptionForeground);
+	}
+}
+
+.dialog-message-body .chat-setup-view,
+.chat-welcome-view .chat-setup-view {
+
+	p {
+		width: 100%;
 	}
 
 	.chat-feature-container {
@@ -45,13 +60,5 @@
 
 	.monaco-button-dropdown .monaco-text-button {
 		width: 100%;
-	}
-
-	/** Single Button */
-	p > .monaco-button {
-		text-align: center;
-		display: inline-block;
-		width: 100%;
-		padding: 4px 7px;
 	}
 }

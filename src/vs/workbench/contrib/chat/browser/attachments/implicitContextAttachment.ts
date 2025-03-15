@@ -79,7 +79,6 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), hintElement, title));
 
 		const buttonMsg = this.attachment.enabled ? localize('disable', "Disable current file context") : localize('enable', "Enable current file context");
-		this.domNode.ariaLabel = buttonMsg;
 		const toggleButton = this.renderDisposables.add(new Button(this.domNode, { supportIcons: true, title: buttonMsg }));
 		toggleButton.icon = this.attachment.enabled ? Codicon.eye : Codicon.eyeClosed;
 		this.renderDisposables.add(toggleButton.onDidClick((e) => {

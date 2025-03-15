@@ -929,7 +929,7 @@ export class QuickInputTree extends Disposable {
 	}
 
 	private _registerHoverListeners() {
-		const delayer = this._register(new ThrottledDelayer(this.hoverDelegate.delay));
+		const delayer = this._register(new ThrottledDelayer(typeof this.hoverDelegate.delay === 'function' ? this.hoverDelegate.delay() : this.hoverDelegate.delay));
 		this._register(this._tree.onMouseOver(async e => {
 			// If we hover over an anchor element, we don't want to show the hover because
 			// the anchor may have a tooltip that we want to show instead.
@@ -1206,7 +1206,7 @@ export class QuickInputTree extends Disposable {
 					return true;
 				});
 				const currentFocus = this._tree.getFocus();
-				if (prevFocus.length && prevFocus[0] === currentFocus[0] && prevFocus[0] === this._itemElements[this._itemElements.length - 1]) {
+				if (prevFocus.length && prevFocus[0] === currentFocus[0]) {
 					this._onLeave.fire();
 				}
 				break;
@@ -1227,7 +1227,7 @@ export class QuickInputTree extends Disposable {
 					return true;
 				});
 				const currentFocus = this._tree.getFocus();
-				if (prevFocus.length && prevFocus[0] === currentFocus[0] && prevFocus[0] === this._itemElements[0]) {
+				if (prevFocus.length && prevFocus[0] === currentFocus[0]) {
 					this._onLeave.fire();
 				}
 				break;

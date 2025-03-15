@@ -102,7 +102,7 @@
         "properties": {
           "microsoft-authentication.implementation": {
             "type": "string",
-            "default": "classic",
+            "default": "msal",
             "enum": [
               "msal",
               "classic"
@@ -111,10 +111,9 @@
               "%microsoft-authentication.implementation.enumDescriptions.msal%",
               "%microsoft-authentication.implementation.enumDescriptions.classic%"
             ],
-            "description": "%microsoft-authentication.implementation.description%",
+            "markdownDescription": "%microsoft-authentication.implementation.description%",
             "tags": [
-              "onExP",
-              "preview"
+              "onExP"
             ]
           }
         }
@@ -142,7 +141,7 @@
     "@azure/ms-rest-azure-env": "^2.0.0",
     "@azure/msal-node": "^2.16.2",
     "@azure/msal-node-extensions": "^1.5.0",
-    "@vscode/extension-telemetry": "^0.9.0",
+    "@vscode/extension-telemetry": "^0.9.8",
     "keytar": "file:./packageMocks/keytar",
     "vscode-tas-client": "^0.1.84"
   },

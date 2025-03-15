@@ -63,6 +63,9 @@ const serverResourceIncludes = [
 	'out-build/vs/base/node/cpuUsage.sh',
 	'out-build/vs/base/node/ps.sh',
 
+	// External Terminal
+	'out-build/vs/workbench/contrib/externalTerminal/**/*.scpt',
+
 	// Terminal shell integration
 	'out-build/vs/workbench/contrib/terminal/common/scripts/shellIntegration.ps1',
 	'out-build/vs/workbench/contrib/terminal/common/scripts/CodeTabExpansion.psm1',
@@ -399,13 +402,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 			);
 		}
 
-		if (platform === 'linux' && process.env['VSCODE_NODE_GLIBC'] === '-glibc-2.17') {
-			result = es.merge(result,
-				gulp.src(`resources/server/bin/helpers/check-requirements-linux-legacy.sh`, { base: '.' })
-					.pipe(rename(`bin/helpers/check-requirements.sh`))
-					.pipe(util.setExecutableBit())
-			);
-		} else if (platform === 'linux' || platform === 'alpine') {
+		if (platform === 'linux' || platform === 'alpine') {
 			result = es.merge(result,
 				gulp.src(`resources/server/bin/helpers/check-requirements-linux.sh`, { base: '.' })
 					.pipe(rename(`bin/helpers/check-requirements.sh`))

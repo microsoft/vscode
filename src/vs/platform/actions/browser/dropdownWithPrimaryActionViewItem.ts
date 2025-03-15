@@ -144,7 +144,7 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 	update(dropdownAction: IAction, dropdownMenuActions: IAction[], dropdownIcon?: string): void {
 		this._dropdown.dispose();
 		this._dropdown = new DropdownMenuActionViewItem(dropdownAction, dropdownMenuActions, this._contextMenuProvider, {
-			menuAsChild: true,
+			menuAsChild: this._options?.menuAsChild ?? true,
 			classNames: ['codicon', dropdownIcon || 'codicon-chevron-down'],
 			actionRunner: this._options?.actionRunner,
 			hoverDelegate: this._options?.hoverDelegate,

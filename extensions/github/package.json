@@ -27,33 +27,46 @@
     }
   },
   "enabledApiProposals": [
-    "contribShareMenu",
-    "contribEditSessions",
     "canonicalUriProvider",
-    "shareProvider"
+    "contribEditSessions",
+    "contribShareMenu",
+    "contribSourceControlHistoryItemMenu",
+    "scmHistoryProvider",
+    "shareProvider",
+    "timeline"
   ],
   "contributes": {
     "commands": [
       {
         "command": "github.publish",
-        "title": "Publish to GitHub"
+        "title": "%command.publish%"
       },
       {
         "command": "github.copyVscodeDevLink",
-        "title": "Copy vscode.dev Link"
+        "title": "%command.copyVscodeDevLink%"
       },
       {
         "command": "github.copyVscodeDevLinkFile",
-        "title": "Copy vscode.dev Link"
+        "title": "%command.copyVscodeDevLink%"
       },
       {
         "command": "github.copyVscodeDevLinkWithoutRange",
-        "title": "Copy vscode.dev Link"
+        "title": "%command.copyVscodeDevLink%"
       },
       {
         "command": "github.openOnVscodeDev",
-        "title": "Open in vscode.dev",
+        "title": "%command.openOnVscodeDev%",
         "icon": "$(globe)"
+      },
+      {
+        "command": "github.graph.openOnGitHub",
+        "title": "%command.openOnGitHub%",
+        "icon": "$(github)"
+      },
+      {
+        "command": "github.timeline.openOnGitHub",
+        "title": "%command.openOnGitHub%",
+        "icon": "$(github)"
       }
     ],
     "continueEditSession": [
@@ -69,7 +82,11 @@
       "commandPalette": [
         {
           "command": "github.publish",
-          "when": "git-base.gitEnabled && remoteName != 'codespaces'"
+          "when": "git-base.gitEnabled && workspaceFolderCount != 0 && remoteName != 'codespaces'"
+        },
+        {
+          "command": "github.graph.openOnGitHub",
+          "when": "false"
         },
         {
           "command": "github.copyVscodeDevLink",
@@ -85,6 +102,10 @@
         },
         {
           "command": "github.openOnVscodeDev",
+          "when": "false"
+        },
+        {
+          "command": "github.timeline.openOnGitHub",
           "when": "false"
         }
       ],
@@ -127,6 +148,27 @@
           "when": "github.hasGitHubRepo && resourceScheme != untitled && remoteName != 'codespaces'",
           "group": "0_vscode@0"
         }
+      ],
+      "scm/historyItem/context": [
+        {
+          "command": "github.graph.openOnGitHub",
+          "when": "github.hasGitHubRepo",
+          "group": "0_view@2"
+        }
+      ],
+      "scm/historyItem/hover": [
+        {
+          "command": "github.graph.openOnGitHub",
+          "when": "github.hasGitHubRepo",
+          "group": "1_open@1"
+        }
+      ],
+      "timeline/item/context": [
+        {
+          "command": "github.timeline.openOnGitHub",
+          "group": "1_actions@3",
+          "when": "github.hasGitHubRepo && timelineItem =~ /git:file:commit\\b/"
+        }
       ]
     },
     "configuration": [
@@ -153,6 +195,12 @@
             ],
             "default": "https",
             "description": "%config.gitProtocol%"
+          },
+          "github.showAvatar": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%config.showAvatar%"
           }
         }
       }
@@ -179,11 +227,11 @@
     "watch": "gulp watch-extension:github"
   },
   "dependencies": {
-    "@octokit/graphql": "5.0.5",
+    "@octokit/graphql": "8.2.0",
     "@octokit/graphql-schema": "14.4.0",
-    "@octokit/rest": "19.0.4",
+    "@octokit/rest": "21.1.0",
     "tunnel": "^0.0.6",
-    "@vscode/extension-telemetry": "^0.9.0"
+    "@vscode/extension-telemetry": "^0.9.8"
   },
   "devDependencies": {
     "@types/node": "20.x"

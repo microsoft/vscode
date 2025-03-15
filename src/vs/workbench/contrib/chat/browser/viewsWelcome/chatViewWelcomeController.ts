@@ -17,7 +17,8 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { ChatAgentLocation } from '../../common/chatAgents.js';
+import { IChatAgentService } from '../../common/chatAgents.js';
+import { ChatAgentLocation } from '../../common/constants.js';
 import { chatViewsWelcomeRegistry, IChatViewsWelcomeDescriptor } from './chatViewsWelcome.js';
 
 const $ = dom.$;
@@ -116,17 +117,19 @@ export interface IChatViewWelcomeContent {
 export interface IChatViewWelcomeRenderOptions {
 	firstLinkToButton?: boolean;
 	location: ChatAgentLocation;
+	isWidgetAgentWelcomeViewContent?: boolean;
 }
 
 export class ChatViewWelcomePart extends Disposable {
 	public readonly element: HTMLElement;
 
 	constructor(
-		content: IChatViewWelcomeContent,
+		public readonly content: IChatViewWelcomeContent,
 		options: IChatViewWelcomeRenderOptions | undefined,
 		@IOpenerService private openerService: IOpenerService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ILogService private logService: ILogService,
+		@IChatAgentService chatAgentService: IChatAgentService,
 	) {
 		super();
 		this.element = dom.$('.chat-welcome-view');
@@ -145,9 +148,10 @@ export class ChatViewWelcomePart extends Disposable {
 			title.textContent = content.title;
 
 			// Preview indicator
-			if (options?.location === ChatAgentLocation.EditingSession && typeof content.message !== 'function') {
-				const featureIndicator = dom.append(this.element, $('.chat-welcome-view-indicator'));
-				featureIndicator.textContent = localize('preview', 'PREVIEW');
+			if (typeof content.message !== 'function' && options?.isWidgetAgentWelcomeViewContent) {
+				const container = dom.append(this.element, $('.chat-welcome-view-indicator-container'));
+				dom.append(container, $('.chat-welcome-view-subtitle', undefined, localize('agentModeSubtitle', "Agent Mode")));
+				dom.append(container, $('.chat-welcome-view-indicator', undefined, localize('experimental', "EXPERIMENTAL")));
 			}
 
 			// Message

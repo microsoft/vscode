@@ -13,6 +13,7 @@ import { getErrorMessage } from '../../../base/common/errors.js';
 import { ILogService } from '../../log/common/log.js';
 import { arch } from '../../../base/common/process.js';
 import { TelemetryTrustedValue } from '../../telemetry/common/telemetryUtils.js';
+import { isString } from '../../../base/common/types.js';
 
 export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifier): boolean {
 	if (a.uuid && b.uuid) {
@@ -195,4 +196,13 @@ export async function computeTargetPlatform(fileService: IFileService, logServic
 	const targetPlatform = getTargetPlatform(alpineLinux ? 'alpine' : platform, arch);
 	logService.debug('ComputeTargetPlatform:', targetPlatform);
 	return targetPlatform;
+}
+
+export function isMalicious(identifier: IExtensionIdentifier, malicious: ReadonlyArray<IExtensionIdentifier | string>): boolean {
+	return malicious.some(publisherOrIdentifier => {
+		if (isString(publisherOrIdentifier)) {
+			return compareIgnoreCase(identifier.id.split('.')[0], publisherOrIdentifier) === 0;
+		}
+		return areSameExtensions(identifier, publisherOrIdentifier);
+	});
 }

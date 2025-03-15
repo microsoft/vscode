@@ -32,6 +32,8 @@ import { mainWindow } from '../../../base/browser/window.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { TitlebarStyle } from '../../../platform/window/common/window.js';
 import { IPreferencesService } from '../../services/preferences/common/preferences.js';
+import { QuickInputAlignmentContextKey } from '../../../platform/quickinput/browser/quickInput.js';
+import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
 
 // Register Icons
 const menubarIcon = registerIcon('menuBar', Codicon.layoutMenubar, localize('menuBarIcon', "Represents the menu bar"));
@@ -49,28 +51,12 @@ const panelAlignmentRightIcon = registerIcon('panel-align-right', Codicon.layout
 const panelAlignmentCenterIcon = registerIcon('panel-align-center', Codicon.layoutPanelCenter, localize('panelBottomCenter', "Represents the bottom panel alignment set to the center"));
 const panelAlignmentJustifyIcon = registerIcon('panel-align-justify', Codicon.layoutPanelJustify, localize('panelBottomJustify', "Represents the bottom panel alignment set to justified"));
 
+const quickInputAlignmentTopIcon = registerIcon('quickInputAlignmentTop', Codicon.arrowUp, localize('quickInputAlignmentTop', "Represents quick input alignment set to the top"));
+const quickInputAlignmentCenterIcon = registerIcon('quickInputAlignmentCenter', Codicon.circle, localize('quickInputAlignmentCenter', "Represents quick input alignment set to the center"));
+
 const fullscreenIcon = registerIcon('fullscreen', Codicon.screenFull, localize('fullScreenIcon', "Represents full screen"));
 const centerLayoutIcon = registerIcon('centerLayoutIcon', Codicon.layoutCentered, localize('centerLayoutIcon', "Represents centered layout mode"));
 const zenModeIcon = registerIcon('zenMode', Codicon.target, localize('zenModeIcon', "Represents zen mode"));
-
-
-// --- Close Side Bar
-
-registerAction2(class extends Action2 {
-
-	constructor() {
-		super({
-			id: 'workbench.action.closeSidebar',
-			title: localize2('closeSidebar', 'Close Primary Side Bar'),
-			category: Categories.View,
-			f1: true
-		});
-	}
-
-	run(accessor: ServicesAccessor): void {
-		accessor.get(IWorkbenchLayoutService).setPartHidden(true, Parts.SIDEBAR_PART);
-	}
-});
 
 export const ToggleActivityBarVisibilityActionId = 'workbench.action.toggleActivityBarVisibility';
 
@@ -99,8 +85,10 @@ registerAction2(class extends Action2 {
 
 	run(accessor: ServicesAccessor): void {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
+		const editorGroupService = accessor.get(IEditorGroupsService);
 
 		layoutService.centerMainEditorLayout(!layoutService.isMainEditorLayoutCentered());
+		editorGroupService.activeGroup.focus();
 	}
 });
 
@@ -201,17 +189,6 @@ MenuRegistry.appendMenuItems([{
 		order: 1
 	}
 }, {
-	id: MenuId.ViewTitleContext,
-	item: {
-		group: '3_workbench_layout_move',
-		command: {
-			id: ToggleSidebarPositionAction.ID,
-			title: localize('move sidebar right', "Move Primary Side Bar Right")
-		},
-		when: ContextKeyExpr.and(ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
-		order: 1
-	}
-}, {
 	id: MenuId.ViewContainerTitleContext,
 	item: {
 		group: '3_workbench_layout_move',
@@ -223,36 +200,25 @@ MenuRegistry.appendMenuItems([{
 		order: 1
 	}
 }, {
-	id: MenuId.ViewTitleContext,
-	item: {
-		group: '3_workbench_layout_move',
-		command: {
-			id: ToggleSidebarPositionAction.ID,
-			title: localize('move sidebar left', "Move Primary Side Bar Left")
-		},
-		when: ContextKeyExpr.and(ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
-		order: 1
-	}
-}, {
-	id: MenuId.ViewTitleContext,
+	id: MenuId.ViewContainerTitleContext,
 	item: {
 		group: '3_workbench_layout_move',
 		command: {
 			id: ToggleSidebarPositionAction.ID,
 			title: localize('move second sidebar left', "Move Secondary Side Bar Left")
 		},
-		when: ContextKeyExpr.and(ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar))),
+		when: ContextKeyExpr.and(ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar))),
 		order: 1
 	}
 }, {
-	id: MenuId.ViewTitleContext,
+	id: MenuId.ViewContainerTitleContext,
 	item: {
 		group: '3_workbench_layout_move',
 		command: {
 			id: ToggleSidebarPositionAction.ID,
 			title: localize('move second sidebar right', "Move Secondary Side Bar Right")
 		},
-		when: ContextKeyExpr.and(ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar))),
+		when: ContextKeyExpr.and(ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar))),
 		order: 1
 	}
 }]);
@@ -310,9 +276,10 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 
 // Toggle Sidebar Visibility
 
-class ToggleSidebarVisibilityAction extends Action2 {
+export class ToggleSidebarVisibilityAction extends Action2 {
 
 	static readonly ID = 'workbench.action.toggleSidebarVisibility';
+	static readonly LABEL = localize('compositePart.hideSideBarLabel', "Hide Primary Side Bar");
 
 	constructor() {
 		super({
@@ -322,6 +289,9 @@ class ToggleSidebarVisibilityAction extends Action2 {
 				condition: SideBarVisibleContext,
 				title: localize('primary sidebar', "Primary Side Bar"),
 				mnemonicTitle: localize({ key: 'primary sidebar mnemonic', comment: ['&& denotes a mnemonic'] }, "&&Primary Side Bar"),
+			},
+			metadata: {
+				description: localize('openAndCloseSidebar', 'Open/Show and Close/Hide Sidebar'),
 			},
 			category: Categories.View,
 			f1: true,
@@ -363,17 +333,6 @@ MenuRegistry.appendMenuItems([
 				title: localize('compositePart.hideSideBarLabel', "Hide Primary Side Bar"),
 			},
 			when: ContextKeyExpr.and(SideBarVisibleContext, ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
-			order: 2
-		}
-	}, {
-		id: MenuId.ViewTitleContext,
-		item: {
-			group: '3_workbench_layout_move',
-			command: {
-				id: ToggleSidebarVisibilityAction.ID,
-				title: localize('compositePart.hideSideBarLabel', "Hide Primary Side Bar"),
-			},
-			when: ContextKeyExpr.and(SideBarVisibleContext, ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
 			order: 2
 		}
 	}, {
@@ -1332,6 +1291,42 @@ registerAction2(DecreaseViewSizeAction);
 registerAction2(DecreaseViewWidthAction);
 registerAction2(DecreaseViewHeightAction);
 
+//#region Quick Input Alignment Actions
+
+registerAction2(class AlignQuickInputTopAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.alignQuickInputTop',
+			title: localize2('alignQuickInputTop', 'Align Quick Input Top'),
+			f1: false
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const quickInputService = accessor.get(IQuickInputService);
+		quickInputService.setAlignment('top');
+	}
+});
+
+registerAction2(class AlignQuickInputCenterAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.alignQuickInputCenter',
+			title: localize2('alignQuickInputCenter', 'Align Quick Input Center'),
+			f1: false
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const quickInputService = accessor.get(IQuickInputService);
+		quickInputService.setAlignment('center');
+	}
+});
+
+//#endregion
+
 type ContextualLayoutVisualIcon = { iconA: ThemeIcon; iconB: ThemeIcon; whenA: ContextKeyExpression };
 type LayoutVisualIcon = ThemeIcon | ContextualLayoutVisualIcon;
 
@@ -1403,6 +1398,11 @@ const AlignPanelActions: CustomizeLayoutItem[] = [
 	CreateOptionLayoutItem('workbench.action.alignPanelJustify', PanelAlignmentContext.isEqualTo('justify'), localize('justifyPanel', "Justify"), panelAlignmentJustifyIcon),
 ];
 
+const QuickInputActions: CustomizeLayoutItem[] = [
+	CreateOptionLayoutItem('workbench.action.alignQuickInputTop', QuickInputAlignmentContextKey.isEqualTo('top'), localize('top', "Top"), quickInputAlignmentTopIcon),
+	CreateOptionLayoutItem('workbench.action.alignQuickInputCenter', QuickInputAlignmentContextKey.isEqualTo('center'), localize('center', "Center"), quickInputAlignmentCenterIcon),
+];
+
 const MiscLayoutOptions: CustomizeLayoutItem[] = [
 	CreateOptionLayoutItem('workbench.action.toggleFullScreen', IsMainWindowFullscreenContext, localize('fullscreen', "Full Screen"), fullscreenIcon),
 	CreateOptionLayoutItem('workbench.action.toggleZenMode', InEditorZenModeContext, localize('zenMode', "Zen Mode"), zenModeIcon),
@@ -1410,7 +1410,7 @@ const MiscLayoutOptions: CustomizeLayoutItem[] = [
 ];
 
 const LayoutContextKeySet = new Set<string>();
-for (const { active } of [...ToggleVisibilityActions, ...MoveSideBarActions, ...AlignPanelActions, ...MiscLayoutOptions]) {
+for (const { active } of [...ToggleVisibilityActions, ...MoveSideBarActions, ...AlignPanelActions, ...QuickInputActions, ...MiscLayoutOptions]) {
 	for (const key of active.keys()) {
 		LayoutContextKeySet.add(key);
 	}
@@ -1492,6 +1492,11 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 				label: localize('panelAlignment', "Panel Alignment")
 			},
 			...AlignPanelActions.map(toQuickPickItem),
+			{
+				type: 'separator',
+				label: localize('quickOpen', "Quick Input Position")
+			},
+			...QuickInputActions.map(toQuickPickItem),
 			{
 				type: 'separator',
 				label: localize('layoutModes', "Modes"),
@@ -1586,6 +1591,7 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 				}
 
 				commandService.executeCommand('workbench.action.alignPanelCenter');
+				commandService.executeCommand('workbench.action.alignQuickInputTop');
 			}
 		}));
 

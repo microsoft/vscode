@@ -32,7 +32,7 @@ import { SEMANTIC_HIGHLIGHTING_SETTING_ID, IEditorSemanticHighlightingOptions } 
 import { Schemas } from '../../../../../base/common/network.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { ITreeSitterParserService } from '../../../../../editor/common/services/treeSitterParserService.js';
-import type { Parser } from '@vscode/tree-sitter-wasm';
+import type * as Parser from '@vscode/tree-sitter-wasm';
 
 const $ = dom.$;
 
@@ -405,7 +405,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			const tbody = dom.append(table, $('tbody'));
 
 			dom.append(tbody, $('tr', undefined,
-				$('td.tiw-metadata-key', undefined, 'tree-sitter token' as string),
+				$('td.tiw-metadata-key', undefined, `tree-sitter token ${treeSitterTokenInfo.id}` as string),
 				$('td.tiw-metadata-value', undefined, `${treeSitterTokenInfo.text}`)
 			));
 			const scopes = new Array<HTMLElement | string>();
@@ -419,7 +419,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			}
 
 			dom.append(tbody, $('tr', undefined,
-				$('td.tiw-metadata-key', undefined, 'tree-sitter scopes' as string),
+				$('td.tiw-metadata-key', undefined, 'tree-sitter tree' as string),
 				$('td.tiw-metadata-value.tiw-metadata-scopes', undefined, ...scopes),
 			));
 
@@ -428,7 +428,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			if (captures && captures.length > 0) {
 				dom.append(tbody, $('tr', undefined,
 					$('td.tiw-metadata-key', undefined, 'foreground'),
-					$('td.tiw-metadata-value', undefined, captures[captures.length - 1].name),
+					$('td.tiw-metadata-value', undefined, captures.map(cap => cap.name).join(' ')),
 				));
 			}
 		}
@@ -646,11 +646,11 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		return null;
 	}
 
-	private _walkTreeforPosition(cursor: Parser.TreeCursor, pos: Position): Parser.SyntaxNode | null {
+	private _walkTreeforPosition(cursor: Parser.TreeCursor, pos: Position): Parser.Node | null {
 		const offset = this._model.getOffsetAt(pos);
 		cursor.gotoFirstChild();
 		let goChild: boolean = false;
-		let lastGoodNode: Parser.SyntaxNode | null = null;
+		let lastGoodNode: Parser.Node | null = null;
 		do {
 			if (cursor.currentNode.startIndex <= offset && offset < cursor.currentNode.endIndex) {
 				goChild = true;
@@ -662,7 +662,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		return lastGoodNode;
 	}
 
-	private _getTreeSitterTokenAtPosition(tree: Parser.Tree, pos: Position): Parser.SyntaxNode | null {
+	private _getTreeSitterTokenAtPosition(tree: Parser.Tree, pos: Position): Parser.Node | null {
 		const cursor = tree.walk();
 
 		return this._walkTreeforPosition(cursor, pos);

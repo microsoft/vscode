@@ -4,14 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
-import { IExtensionGalleryService, IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT, IExtensionGalleryService, IExtensionManagementService, InstallExtensionInfo } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { ExtensionType } from '../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { REMOTE_DEFAULT_IF_LOCAL_EXTENSIONS } from '../../../../platform/remote/common/remote.js';
 import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
+import { IRemoteExtensionsScannerService } from '../../../../platform/remote/common/remoteExtensionsScanner.js';
 import { IStorageService, IS_NEW_KEY, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
@@ -24,6 +29,125 @@ import { IAuthenticationService } from '../../../services/authentication/common/
 import { IExtensionManagementServerService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionManifestPropertiesService } from '../../../services/extensions/common/extensionManifestPropertiesService.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
+
+export class InstallRemoteExtensionsContribution implements IWorkbenchContribution {
+	constructor(
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
+		@IRemoteExtensionsScannerService private readonly remoteExtensionsScannerService: IRemoteExtensionsScannerService,
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
+		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
+		@ILogService private readonly logService: ILogService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IProductService private readonly productService: IProductService,
+	) {
+		this.installDefaultRemoteExtensions();
+		this.installFailedRemoteExtensions();
+	}
+
+	private async installDefaultRemoteExtensions(): Promise<void> {
+		if (!this.remoteAgentService.getConnection()) {
+			return;
+		}
+
+		if (!this.extensionManagementServerService.remoteExtensionManagementServer) {
+			this.logService.error('No remote extension management server available');
+			return;
+		}
+
+		if (!this.extensionManagementServerService.localExtensionManagementServer) {
+			this.logService.error('No local extension management server available');
+			return;
+		}
+
+		const settingValue = this.configurationService.getValue<string[]>(REMOTE_DEFAULT_IF_LOCAL_EXTENSIONS);
+		if (!settingValue?.length) {
+			return;
+		}
+
+		this.logService.info(`Installing '${settingValue.length}' default remote extensions`);
+
+		const preferPrerelease = this.productService.quality !== 'stable';
+		const galleryExtensions = await this.extensionGalleryService.getExtensions(settingValue.map((id) => ({ id })), CancellationToken.None);
+		const alreadyInstalledInRemote = await this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.getInstalled(ExtensionType.User);
+		const alreadyInstalledLocally = await this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.getInstalled(ExtensionType.User);
+
+		const prereleaseExtensionInfo: InstallExtensionInfo[] = [];
+		const extensionInfo: InstallExtensionInfo[] = [];
+		for (const id of settingValue) {
+			const alreadyInstalled = alreadyInstalledInRemote.some(e => areSameExtensions(e.identifier, { id }));
+			if (alreadyInstalled) {
+				this.logService.trace(`Default remote extension '${id}' is already installed`);
+				continue;
+			}
+
+			const installedLocally = alreadyInstalledLocally.some(e => areSameExtensions(e.identifier, { id }));
+			if (!installedLocally) {
+				this.logService.trace(`Default remote extension '${id}' is not already installed locally`);
+				continue;
+			}
+
+			const extension = galleryExtensions.find(e => areSameExtensions(e.identifier, { id }));
+			if (!extension) {
+				this.logService.warn(`Default remote extension '${id}' is not found`);
+				continue;
+			}
+
+			const installPreReleaseVersion = preferPrerelease && extension.hasPreReleaseVersion;
+			(installPreReleaseVersion ? prereleaseExtensionInfo : extensionInfo).push({
+				extension, options: { installPreReleaseVersion },
+			});
+		}
+
+		// Install pre-release extensions first to avoid a situation where:
+		// An extension without a pre-release (A) is installed first and depends on an extension that has a pre-release version (B)
+		// If this happens, the extension A may result in the installation of the stable version of B
+		// A real life example of this is GitHub.copilot and GitHub.copilot-chat
+		if (prereleaseExtensionInfo.length) {
+			await Promise.allSettled(prereleaseExtensionInfo.map(e => this.extensionManagementServerService.remoteExtensionManagementServer!.extensionManagementService.installFromGallery(e.extension, e.options)));
+		}
+		if (extensionInfo.length) {
+			await Promise.allSettled(extensionInfo.map(e => this.extensionManagementServerService.remoteExtensionManagementServer!.extensionManagementService.installFromGallery(e.extension, e.options)));
+		}
+	}
+
+	private async installFailedRemoteExtensions(): Promise<void> {
+		if (!this.remoteAgentService.getConnection()) {
+			return;
+		}
+
+		const { failed } = await this.remoteExtensionsScannerService.whenExtensionsReady();
+		if (failed.length === 0) {
+			this.logService.trace('No extensions relayed from server');
+			return;
+		}
+
+		if (!this.extensionManagementServerService.remoteExtensionManagementServer) {
+			this.logService.error('No remote extension management server available');
+			return;
+		}
+
+		this.logService.info(`Installing '${failed.length}' extensions relayed from server`);
+		const galleryExtensions = await this.extensionGalleryService.getExtensions(failed.map(({ id }) => ({ id })), CancellationToken.None);
+		const installExtensionInfo: InstallExtensionInfo[] = [];
+		for (const { id, installOptions } of failed) {
+			const extension = galleryExtensions.find(e => areSameExtensions(e.identifier, { id }));
+			if (extension) {
+				installExtensionInfo.push({
+					extension, options: {
+						...installOptions,
+						downloadExtensionsLocally: true,
+					}
+				});
+			} else {
+				this.logService.warn(`Relayed failed extension '${id}' from server is not found in the gallery`);
+			}
+		}
+
+		if (installExtensionInfo.length) {
+			await Promise.allSettled(installExtensionInfo.map(e => this.extensionManagementServerService.remoteExtensionManagementServer!.extensionManagementService.installFromGallery(e.extension, e.options)));
+		}
+	}
+}
 
 export class RemoteExtensionsInitializerContribution implements IWorkbenchContribution {
 	constructor(
@@ -135,7 +259,7 @@ class RemoteExtensionsInitializer extends AbstractExtensionsInitializer {
 				const manifest = await this.extensionGalleryService.getManifest(e, CancellationToken.None);
 				if (manifest && this.extensionManifestPropertiesService.canExecuteOnWorkspace(manifest)) {
 					const syncedExtension = remoteExtensions.find(e => areSameExtensions(e.identifier, e.identifier));
-					await this.extensionManagementService.installFromGallery(e, { installPreReleaseVersion: syncedExtension?.preRelease, donotIncludePackAndDependencies: true });
+					await this.extensionManagementService.installFromGallery(e, { installPreReleaseVersion: syncedExtension?.preRelease, donotIncludePackAndDependencies: true, context: { [EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT]: true } });
 				}
 			}));
 		}

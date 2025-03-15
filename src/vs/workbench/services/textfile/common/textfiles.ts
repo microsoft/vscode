@@ -99,15 +99,21 @@ export interface ITextFileService extends IDisposable {
 	create(operations: { resource: URI; value?: string | ITextSnapshot; options?: { overwrite?: boolean } }[], undoInfo?: IFileOperationUndoRedoInfo): Promise<readonly IFileStatWithMetadata[]>;
 
 	/**
+	 * Get the encoding for the provided `resource`. Will try to determine the encoding
+	 * from any existing model for that `resource` and fallback to the configured defaults.
+	 */
+	getEncoding(resource: URI): string;
+
+	/**
 	 * Returns the readable that uses the appropriate encoding. This method should
 	 * be used whenever a `string` or `ITextSnapshot` is being persisted to the
 	 * file system.
 	 */
-	getEncodedReadable(resource: URI, value: ITextSnapshot, options?: IWriteTextFileOptions): Promise<VSBufferReadable>;
-	getEncodedReadable(resource: URI, value: string, options?: IWriteTextFileOptions): Promise<VSBuffer>;
-	getEncodedReadable(resource: URI, value?: ITextSnapshot, options?: IWriteTextFileOptions): Promise<VSBufferReadable | undefined>;
-	getEncodedReadable(resource: URI, value?: string, options?: IWriteTextFileOptions): Promise<VSBuffer | undefined>;
-	getEncodedReadable(resource: URI, value?: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<VSBuffer | VSBufferReadable | undefined>;
+	getEncodedReadable(resource: URI | undefined, value: ITextSnapshot, options?: IWriteTextFileOptions): Promise<VSBufferReadable>;
+	getEncodedReadable(resource: URI | undefined, value: string, options?: IWriteTextFileOptions): Promise<VSBuffer | VSBufferReadable>;
+	getEncodedReadable(resource: URI | undefined, value?: ITextSnapshot, options?: IWriteTextFileOptions): Promise<VSBufferReadable | undefined>;
+	getEncodedReadable(resource: URI | undefined, value?: string, options?: IWriteTextFileOptions): Promise<VSBuffer | VSBufferReadable | undefined>;
+	getEncodedReadable(resource: URI | undefined, value?: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<VSBuffer | VSBufferReadable | undefined>;
 
 	/**
 	 * Returns a stream of strings that uses the appropriate encoding. This method should
@@ -115,7 +121,7 @@ export interface ITextFileService extends IDisposable {
 	 *
 	 * Will throw an error if `acceptTextOnly: true` for resources that seem to be binary.
 	 */
-	getDecodedStream(resource: URI, value: VSBufferReadableStream, options?: IReadTextFileEncodingOptions): Promise<ReadableStream<string>>;
+	getDecodedStream(resource: URI | undefined, value: VSBufferReadableStream, options?: IReadTextFileEncodingOptions): Promise<ReadableStream<string>>;
 }
 
 export interface IReadTextFileEncodingOptions {
@@ -335,6 +341,12 @@ export interface ITextFileSaveParticipantContext {
 }
 
 export interface ITextFileSaveParticipant {
+
+	/**
+	 * The ordinal number which determines the order of participation.
+	 * Lower values mean to participant sooner
+	 */
+	readonly ordinal?: number;
 
 	/**
 	 * Participate in a save of a model. Allows to change the model
