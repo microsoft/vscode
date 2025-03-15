@@ -179,6 +179,7 @@
 
 .search-view .message a {
 	color: var(--vscode-textLink-foreground);
+	user-select: none !important;
 }
 
 .search-view .message a:hover,
