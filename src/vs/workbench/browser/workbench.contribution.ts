@@ -570,6 +570,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': false,
 				'description': localize('viewVisibility', "Controls the visibility of view header actions. View header actions may either be always visible, or only visible when that view is focused or hovered over.")
 			},
+			'workbench.view.collapseDownwards': {
+				'type': 'boolean',
+				'default': false,
+				'description': localize('collapseDownwards', "When collapsing a view, move its title down when possible to increase the size of the view above it. Change only takes effect after a full restart."),
+				'scope': ConfigurationScope.APPLICATION
+			},
 			'workbench.view.showQuietly': {
 				'type': 'object',
 				'description': localize('workbench.view.showQuietly', "If an extension requests a hidden view to be shown, display a clickable status bar indicator instead."),

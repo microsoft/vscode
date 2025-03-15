@@ -481,6 +481,7 @@ export class DefaultPaneDndController implements IPaneDndController {
 export interface IPaneViewOptions {
 	dnd?: IPaneDndController;
 	orientation?: Orientation;
+	collapseSplitDownwards?: boolean;
 }
 
 interface IPaneItem {
@@ -514,7 +515,7 @@ export class PaneView extends Disposable {
 		this.dnd = options.dnd;
 		this.orientation = options.orientation ?? Orientation.VERTICAL;
 		this.element = append(container, $('.monaco-pane-view'));
-		this.splitview = this._register(new SplitView(this.element, { orientation: this.orientation }));
+		this.splitview = this._register(new SplitView(this.element, { orientation: this.orientation, inverseCollapseBehavior: options.collapseSplitDownwards }));
 		this.onDidSashReset = this.splitview.onDidSashReset;
 		this.onDidSashChange = this.splitview.onDidSashChange;
 		this.onDidScroll = this.splitview.onDidScroll;
