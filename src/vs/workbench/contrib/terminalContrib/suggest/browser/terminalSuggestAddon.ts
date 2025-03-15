@@ -372,7 +372,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (!this._wasLastInputVerticalArrowKey()) {
 			// Only request on trigger character when it's a regular input, or on an arrow if the widget
 			// is already visible
-			if (!this._wasLastInputArrowKey() || this._terminalSuggestWidgetVisibleContextKey.get()) {
+			if (!this._wasLastInputIncludedEscape() || this._terminalSuggestWidgetVisibleContextKey.get()) {
 				this.requestCompletions();
 				return true;
 			}
@@ -386,6 +386,14 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	private _wasLastInputVerticalArrowKey(): boolean {
 		return !!this._lastUserData?.match(/^\x1b[\[O]?[A-B]$/);
+	}
+
+	/**
+	 * Whether the last input included the escape character. Typically this will mean it was more
+	 * than just a simple character, such as arrow keys, home, end, etc.
+	 */
+	private _wasLastInputIncludedEscape(): boolean {
+		return !!this._lastUserData?.includes('\x1b');
 	}
 
 	private _wasLastInputArrowKey(): boolean {
