@@ -28,15 +28,18 @@
 		setupNLS<T>(configuration);
 
 		// Compute base URL and set as global
-		const baseUrl = new URL(`${fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out/`);
+		let baseUrl = new URL(`${fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out/`);
 		globalThis._VSCODE_FILE_ROOT = baseUrl.toString();
-
-		// Dev only: CSS import map tricks
-		setupCSSImportMaps<T>(configuration, baseUrl);
+		if (globalThis._VSCODE_SRC_ROOT) {
+			baseUrl = URL.parse(globalThis._VSCODE_SRC_ROOT)!;
+		} else {
+			// Dev only: CSS import map tricks
+			setupCSSImportMaps<T>(configuration, baseUrl);
+		}
 
 		// ESM Import
 		try {
-			const result = await import(new URL(`${esModule}.js`, baseUrl).href);
+			const result = await import(new URL(globalThis._VSCODE_SRC_ROOT ? `${esModule}.ts` : `${esModule}.js`, baseUrl).href);
 
 			if (developerDeveloperKeybindingsDisposable && removeDeveloperKeybindingsAfterLoad) {
 				developerDeveloperKeybindingsDisposable();

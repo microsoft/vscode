@@ -12,6 +12,8 @@ declare global {
 	 */
 	var _VSCODE_FILE_ROOT: string;
 
+	var _VSCODE_SRC_ROOT: string | undefined;
+
 	/**
 	 * CSS loader that's available during development time.
 	 * DO NOT call directly, instead just import css modules, like `import 'some.css'`

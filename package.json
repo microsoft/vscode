@@ -6,7 +6,7 @@
     "name": "Microsoft Corporation"
   },
   "license": "MIT",
-  "main": "./out/main.js",
+  "main": "./src/main.js",
   "type": "module",
   "private": true,
   "scripts": {

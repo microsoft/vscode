@@ -174,8 +174,15 @@ export class WorkerDescriptor implements IWorkerDescriptor {
 		public readonly moduleId: string,
 		readonly label: string | undefined,
 	) {
-		this.esmModuleLocation = FileAccess.asBrowserUri(`${moduleId}Main.js` as AppResourcePath);
+		const isVite = true;
+		this.esmModuleLocation = !isVite
+			? FileAccess.asBrowserUri(`${moduleId}Main.js` as AppResourcePath)
+			: getUriOfSrcModule(`${moduleId}Main.ts`);
 	}
+}
+
+function getUriOfSrcModule(esModule: string) {
+	return URI.parse(globalThis._VSCODE_SRC_ROOT + esModule);
 }
 
 class DefaultWorkerFactory implements IWorkerFactory {
