@@ -112,10 +112,14 @@ export class LineCommentCommand implements ICommand {
 	 * Analyze lines and decide which lines are relevant and what the toggle should do.
 	 * Also, build up several offsets and lengths useful in the generation of editor operations.
 	 */
-	public static _analyzeLines(type: Type, insertSpace: boolean, model: ISimpleModel, lines: ILinePreflightData[], startLineNumber: number, ignoreEmptyLines: boolean, ignoreFirstLine: boolean, languageConfigurationService: ILanguageConfigurationService, languageId: string = ''): IPreflightData {
+	public static _analyzeLines(type: Type, insertSpace: boolean, model: ISimpleModel, lines: ILinePreflightData[], startLineNumber: number, ignoreEmptyLines: boolean, ignoreFirstLine: boolean, languageConfigurationService: ILanguageConfigurationService, languageId: string): IPreflightData {
 		let onlyWhitespaceLines = true;
-		// add this flag for makefiles, which should have the comment at the beginning of the line
-		const isMakefile = languageId === 'makefile';
+
+		let lineCommentTokenColumn = undefined;
+		const config = languageConfigurationService.getLanguageConfiguration(languageId).comments;
+		if (config) {
+			lineCommentTokenColumn = config.lineCommentTokenColumn;
+		}
 
 		let shouldRemoveComments: boolean;
 		if (type === Type.Toggle) {
@@ -142,13 +146,13 @@ export class LineCommentCommand implements ICommand {
 			if (lineContentStartOffset === -1) {
 				// Empty or whitespace only line
 				lineData.ignore = ignoreEmptyLines;
-				lineData.commentStrOffset = isMakefile ? 0 : lineContent.length;
+				lineData.commentStrOffset = (lineCommentTokenColumn !== undefined) ? lineCommentTokenColumn : lineContent.length;
 				continue;
 			}
 
 			onlyWhitespaceLines = false;
 			lineData.ignore = false;
-			lineData.commentStrOffset = isMakefile ? 0 : lineContentStartOffset;
+			lineData.commentStrOffset = (lineCommentTokenColumn !== undefined) ? lineCommentTokenColumn : lineContentStartOffset;
 
 			if (shouldRemoveComments && !BlockCommentCommand._haystackHasNeedleAtOffset(lineContent, lineData.commentStr, lineContentStartOffset)) {
 				if (type === Type.Toggle) {

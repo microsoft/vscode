@@ -6718,6 +6718,10 @@ declare namespace monaco.languages {
 		 */
 		lineComment?: string | null;
 		/**
+		 * Where on the line the token should be placed.
+		 */
+		lineCommentTokenColumn?: number | null;
+		/**
 		 * The block comment character pair, like `/* block comment *&#47;`
 		 */
 		blockComment?: CharacterPair | null;

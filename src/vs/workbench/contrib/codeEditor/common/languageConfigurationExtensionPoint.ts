@@ -168,6 +168,14 @@ export class LanguageConfigurationFileHandler extends Disposable {
 				result.lineComment = source.lineComment;
 			}
 		}
+		if (typeof source.lineCommentTokenColumn !== 'undefined') {
+			if (typeof source.lineCommentTokenColumn !== 'number') {
+				console.warn(`[${languageId}]: language configuration: expected \`comments.lineCommentTokenColumn\` to be a number.`);
+			} else {
+				result = result || {};
+				result.lineCommentTokenColumn = source.lineCommentTokenColumn;
+			}
+		}
 		if (typeof source.blockComment !== 'undefined') {
 			if (!isCharacterPair(source.blockComment)) {
 				console.warn(`[${languageId}]: language configuration: expected \`comments.blockComment\` to be an array of two strings.`);
