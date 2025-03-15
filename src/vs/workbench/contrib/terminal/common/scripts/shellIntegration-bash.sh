@@ -237,36 +237,29 @@ __vsc_env() {
 }
 
 __updateEnvCacheAA() {
-	local key="$1"
-	local value="$2"
-	if [ "$use_associative_array" = 1 ]; then
-		if [[ "${vsc_aa_env[$key]}" != "$value" ]]; then
-			vsc_aa_env["$key"]="$value"
-			builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
-		fi
+	local key="$1" value="$2"
+	if [[ "${vsc_aa_env[$key]-}" != "$value" ]]; then
+		vsc_aa_env["$key"]="$value"
+		builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
 	fi
 }
 
 __trackMissingEnvVarsAA() {
-	if [ "$use_associative_array" = 1 ]; then
-		declare -A currentEnvMap
-		while IFS='=' read -r key value; do
-			currentEnvMap["$key"]="$value"
-		done
+	declare -A currentEnvMap
+	while IFS='=' read -r key value; do
+		currentEnvMap["$key"]="$value"
+	done
 
-		for key in "${!vsc_aa_env[@]}"; do
-			if [ -z "${currentEnvMap[$key]}" ]; then
-				builtin printf '\e]633;EnvSingleDelete;%s;%s;%s\a' "$key" "$(__vsc_escape_value "${vsc_aa_env[$key]}")" "$__vsc_nonce"
-				builtin unset "vsc_aa_env[$key]"
-			fi
-		done
-	fi
+	for key in "${!vsc_aa_env[@]}"; do
+		if [ -z "${currentEnvMap[$key]-}" ]; then
+			builtin printf '\e]633;EnvSingleDelete;%s;%s;%s\a' "$key" "$(__vsc_escape_value "${vsc_aa_env[$key]}")" "$__vsc_nonce"
+			builtin unset "vsc_aa_env[$key]"
+		fi
+	done
 }
 
 __updateEnvCache() {
-	local key="$1"
-	local value="$2"
-
+	local key="$1" value="$2"
 	for i in "${!vsc_env_keys[@]}"; do
 		if [[ "${vsc_env_keys[$i]}" == "$key" ]]; then
 			if [[ "${vsc_env_values[$i]}" != "$value" ]]; then
@@ -284,7 +277,6 @@ __updateEnvCache() {
 
 __trackMissingEnvVars() {
 	local current_env_keys=()
-
 	while IFS='=' read -r key value; do
 		current_env_keys+=("$key")
 	done
@@ -311,7 +303,7 @@ __trackMissingEnvVars() {
 }
 
 __vsc_update_env() {
-	local VSC_ENV="$(__vsc_env)"
+	local VSC_ENV="$(__vsc_env)" key value
 	if [[ "$__vscode_shell_env_reporting" == "1" ]]; then
 		builtin printf '\e]633;EnvSingleStart;%s;%s\a' 0 $__vsc_nonce
 
@@ -329,9 +321,8 @@ __vsc_update_env() {
 				done <<< "$VSC_ENV"
 				__trackMissingEnvVarsAA <<< "$VSC_ENV"
 			fi
-
 		else
-			if [[ -z ${vsc_env_keys[@]} ]] && [[ -z ${vsc_env_values[@]} ]]; then
+			if [[ ${#vsc_env_keys[@]} -eq 0 ]] && [[ ${#vsc_env_values[@]} -eq 0 ]]; then
 			# Non associative arrays are both empty, do not diff, just add
 				while IFS='=' read -r key value; do
 					vsc_env_keys+=("$key")
