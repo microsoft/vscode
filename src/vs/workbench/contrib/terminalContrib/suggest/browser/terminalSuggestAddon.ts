@@ -446,15 +446,19 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 			// If the cursor moved to the left
 			if (this._mostRecentPromptInputState && promptInputState.cursorIndex < this._mostRecentPromptInputState.cursorIndex && promptInputState.cursorIndex > 0) {
-				// Backspace or left past a trigger character
-				if (config.suggestOnTriggerCharacters && !sent && this._mostRecentPromptInputState.cursorIndex > 0) {
-					const char = this._mostRecentPromptInputState.value[this._mostRecentPromptInputState.cursorIndex - 1];
-					if (
-						// Only trigger on `\` and `/` if it's a directory. Not doing so causes problems
-						// with git branches in particular
-						this._isFilteringDirectories && char.match(/[\\\/]$/)
-					) {
-						sent = this._requestTriggerCharQuickSuggestCompletions();
+				// We only want to refresh via trigger characters in this case if the widget is
+				// already visible
+				if (this._terminalSuggestWidgetVisibleContextKey.get()) {
+					// Backspace or left past a trigger character
+					if (config.suggestOnTriggerCharacters && !sent && this._mostRecentPromptInputState.cursorIndex > 0) {
+						const char = this._mostRecentPromptInputState.value[this._mostRecentPromptInputState.cursorIndex - 1];
+						if (
+							// Only trigger on `\` and `/` if it's a directory. Not doing so causes problems
+							// with git branches in particular
+							this._isFilteringDirectories && char.match(/[\\\/]$/)
+						) {
+							sent = this._requestTriggerCharQuickSuggestCompletions();
+						}
 					}
 				}
 			}
