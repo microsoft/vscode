@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 2
+// version: 3
 
 declare module 'vscode' {
 
@@ -14,7 +14,6 @@ declare module 'vscode' {
 	}
 
 	export interface ChatWelcomeMessageProvider {
-		provideWelcomeMessage?(token: CancellationToken): ProviderResult<ChatWelcomeMessageContent>;
 		provideSampleQuestions?(location: ChatLocation, token: CancellationToken): ProviderResult<ChatFollowup[]>;
 	}
 
@@ -57,6 +56,7 @@ declare module 'vscode' {
 		helpTextPostfix?: string | MarkdownString;
 
 		welcomeMessageProvider?: ChatWelcomeMessageProvider;
+		welcomeMessageContent?: ChatWelcomeMessageContent;
 		titleProvider?: ChatTitleProvider;
 		requester?: ChatRequesterInformation;
 	}

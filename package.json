@@ -69,13 +69,14 @@
     "update-build-ts-version": "npm install typescript@next && tsc -p ./build/tsconfig.build.json"
   },
   "dependencies": {
+    "@c4312/eventsource-umd": "^3.0.5",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
     "@parcel/watcher": "2.5.1",
     "@types/semver": "^7.5.8",
     "@vscode/deviceid": "^0.1.1",
     "@vscode/iconv-lite-umd": "0.7.0",
-    "@vscode/policy-watcher": "^1.2.1",
+    "@vscode/policy-watcher": "^1.3.0",
     "@vscode/proxy-agent": "^0.32.0",
     "@vscode/ripgrep": "^1.15.11",
     "@vscode/spdlog": "^0.15.0",

@@ -207,7 +207,8 @@ configurationRegistry.registerConfiguration({
 		'chat.experimental.setupFromDialog': { // TODO@bpasero remove this eventually
 			type: 'boolean',
 			description: nls.localize('chat.setupFromChat', "Controls whether Copilot setup starts from a dialog or from the welcome view."),
-			default: product.quality !== 'stable',
+			// default: product.quality !== 'stable',
+			default: false,
 			tags: ['experimental', 'onExp']
 		},
 		[mcpConfigurationSection]: {
@@ -353,7 +354,8 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 			if (enabled) {
 				this.registerEnablementSetting();
 				expDisabledKey.set(false);
-			} else if (enabled === false) {
+			} else if (this.productService.quality === 'stable') {
+				// undefined treatment- on stable, fall back to disabled
 				this.deregisterSetting();
 				expDisabledKey.set(true);
 			}

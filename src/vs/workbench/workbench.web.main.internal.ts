@@ -94,6 +94,7 @@ import { ILanguagePackService } from '../platform/languagePacks/common/languageP
 import { WebLanguagePacksService } from '../platform/languagePacks/browser/languagePacks.js';
 import { IExtensionGalleryManifestService } from '../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { ExtensionGalleryManifestService } from '../platform/extensionManagement/common/extensionGalleryManifestService.js';
+import { IWebContentExtractorService, NullWebContentExtractorService } from '../platform/webContentExtractor/common/webContentExtractor.js';
 
 registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService, InstantiationType.Delayed);
 registerSingleton(IAccessibilityService, AccessibilityService, InstantiationType.Delayed);
@@ -112,6 +113,7 @@ registerSingleton(ICustomEndpointTelemetryService, NullEndpointTelemetryService,
 registerSingleton(IDiagnosticsService, NullDiagnosticsService, InstantiationType.Delayed);
 registerSingleton(ILanguagePackService, WebLanguagePacksService, InstantiationType.Delayed);
 registerSingleton(IExtensionGalleryManifestService, ExtensionGalleryManifestService, InstantiationType.Delayed);
+registerSingleton(IWebContentExtractorService, NullWebContentExtractorService, InstantiationType.Delayed);
 
 //#endregion
 

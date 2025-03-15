@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { IHeaders } from '../../../../base/parts/request/common/request.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
@@ -19,10 +18,10 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { asJson, IRequestService } from '../../../../platform/request/common/request.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 
 export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryManifestService implements IExtensionGalleryManifestService {
 
-	private readonly channel: IChannel;
 	private readonly commonHeadersPromise: Promise<IHeaders>;
 
 	constructor(
@@ -31,6 +30,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		@IFileService fileService: IFileService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IRequestService private readonly requestService: IRequestService,
@@ -46,10 +46,14 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			storageService,
 			telemetryService);
 
-		this.channel = sharedProcessService.getChannel('extensionGalleryManifest');
+		const channels = [sharedProcessService.getChannel('extensionGalleryManifest')];
+		const remoteConnection = remoteAgentService.getConnection();
+		if (remoteConnection) {
+			channels.push(remoteConnection.getChannel('extensionGalleryManifest'));
+		}
 		this.getExtensionGalleryManifest().then(manifest => {
-			this.channel.call('setExtensionGalleryManifest', [manifest]);
-			this._register(this.onDidChangeExtensionGalleryManifest(manifest => this.channel.call('setExtensionGalleryManifest', [manifest])));
+			channels.forEach(channel => channel.call('setExtensionGalleryManifest', [manifest]));
+			this._register(this.onDidChangeExtensionGalleryManifest(manifest => channels.forEach(channel => channel.call('setExtensionGalleryManifest', [manifest]))));
 		});
 	}
 
