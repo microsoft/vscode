@@ -10,7 +10,7 @@ import { mcpSchemaId } from '../../../services/configuration/common/configuratio
 import { inputsSchema } from '../../../services/configurationResolver/common/configurationResolverSchema.js';
 import { IExtensionPointDescriptor } from '../../../services/extensions/common/extensionsRegistry.js';
 
-export type { IMcpConfigurationStdio, IMcpConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
+export type { McpConfigurationServer, IMcpConfigurationStdio, IMcpConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 
 const mcpActivationEventPrefix = 'onMcpCollection:';
 

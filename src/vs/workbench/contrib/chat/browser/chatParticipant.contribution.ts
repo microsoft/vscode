@@ -37,7 +37,7 @@ import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID, ChatViewPane } fr
 
 const chatViewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 	id: CHAT_SIDEBAR_PANEL_ID,
-	title: localize2('chat.viewContainer.label', "Chat"),
+	title: { value: 'Copilot', original: 'Copilot' },
 	icon: Codicon.commentDiscussion,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [CHAT_SIDEBAR_PANEL_ID, { mergeViewWithContainerWhenSingleView: true }]),
 	storageId: CHAT_SIDEBAR_PANEL_ID,
@@ -50,7 +50,7 @@ const chatViewDescriptor: IViewDescriptor[] = [{
 	containerIcon: chatViewContainer.icon,
 	containerTitle: chatViewContainer.title.value,
 	singleViewPaneContainerTitle: chatViewContainer.title.value,
-	name: localize2('chat.viewContainer.label', "Chat"),
+	name: { value: 'Copilot', original: 'Copilot' },
 	canToggleVisibility: false,
 	canMoveView: true,
 	openCommandActionDescriptor: {

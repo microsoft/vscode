@@ -482,7 +482,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private modelSupportedForDefaultAgent(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 		// Probably this logic could live in configuration on the agent, or somewhere else, if it gets more complex
-		if (this.currentMode === ChatMode.Agent) {
+		if (this.currentMode === ChatMode.Agent || (this.currentMode === ChatMode.Edit && this.chatService.unifiedViewEnabled)) {
 			if (this.configurationService.getValue('chat.agent.allModels')) {
 				return true;
 			}
@@ -1498,7 +1498,7 @@ class ModelPickerActionViewItem extends DropdownMenuActionViewItemWithKeybinding
 
 	override render(container: HTMLElement): void {
 		super.render(container);
-		container.classList.add('chat-modelPicker-item');
+		container.classList.add('chat-modelPicker-item', 'chat-dropdown-item');
 	}
 }
 
@@ -1573,7 +1573,7 @@ class ToggleChatModeActionViewItem extends DropdownMenuActionViewItemWithKeybind
 
 	override render(container: HTMLElement): void {
 		super.render(container);
-		container.classList.add('chat-modelPicker-item');
+		container.classList.add('chat-dropdown-item');
 	}
 }
 

@@ -18,6 +18,7 @@ import { ChatRequestParser } from '../../common/chatRequestParser.js';
 import { IChatService } from '../../common/chatService.js';
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
+import { ChatMode } from '../../common/constants.js';
 import { ILanguageModelToolsService, IToolData } from '../../common/languageModelToolsService.js';
 import { MockChatService } from './mockChatService.js';
 import { MockChatVariablesService } from './mockChatVariables.js';
@@ -139,6 +140,16 @@ suite('ChatRequestParser', () => {
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const result = parser.parseChatRequest('1', '@agent /subCommand Please do thanks');
+		await assertSnapshot(result);
+	});
+
+	test('agent but edit mode', async () => {
+		const agentsService = mockObject<IChatAgentService>()({});
+		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([])]);
+		instantiationService.stub(IChatAgentService, agentsService as any);
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const result = parser.parseChatRequest('1', '@agent hello', undefined, { mode: ChatMode.Edit });
 		await assertSnapshot(result);
 	});
 
