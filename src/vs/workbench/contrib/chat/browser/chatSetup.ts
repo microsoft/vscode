@@ -217,7 +217,7 @@ class ChatSetupDialog {
 	async show(): Promise<boolean> {
 		const res = await this.dialogService.prompt<boolean>({
 			type: 'none',
-			message: localize('copilotFree', "Use AI Features with Copilot for Free"),
+			message: localize('copilotFree', "Welcome to Copilot"),
 			cancelButton: {
 				label: localize('cancel', "Cancel"),
 				run: () => false
@@ -279,6 +279,12 @@ class ChatSetupDialog {
 				)
 			)
 		);
+
+		// Limited SKU
+		if (this.context.state.entitlement !== ChatEntitlement.Pro && this.context.state.entitlement !== ChatEntitlement.Unavailable) {
+			const free = localize({ key: 'free', comment: ['{Locked="[]({0})"}'] }, "$(sparkle-filled) We now offer [Copilot for free]({0}).", defaultChat.skusDocumentationUrl);
+			element.appendChild($('p', undefined, disposables.add(markdown.render(new MarkdownString(free, { isTrusted: true, supportThemeIcons: true }))).element));
+		}
 
 		// Terms
 		const terms = localize({ key: 'terms', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "By continuing, you agree to the [Terms]({0}) and [Privacy Policy]({1}).", defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl);
