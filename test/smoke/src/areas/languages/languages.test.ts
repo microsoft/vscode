@@ -13,7 +13,7 @@ export function setup(logger: Logger) {
 		// Shared before/after handling
 		installAllHandlers(logger);
 
-		it.skip('verifies quick outline (js)', async function () {
+		it('verifies quick outline (js)', async function () {
 			const app = this.app as Application;
 			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'bin', 'www'));
 
