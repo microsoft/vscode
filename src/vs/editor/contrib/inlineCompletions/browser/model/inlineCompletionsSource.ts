@@ -319,6 +319,7 @@ export class InlineCompletionWithUpdatedRange extends Disposable {
 
 	private readonly _updatedEditObj: UpdatedEdit; // helper as derivedHandleChanges can not access previous value
 	public get updatedEdit(): IObservable<OffsetEdit | undefined> { return this._updatedEditObj.offsetEdit; }
+	public get updatedEditModelVersion() { return this._updatedEditObj.modelVersion; }
 
 	public get source() { return this.inlineCompletion.source; }
 	public get sourceInlineCompletion() { return this.inlineCompletion.sourceInlineCompletion; }
@@ -497,7 +498,9 @@ export class InlineCompletionWithUpdatedRange extends Disposable {
 class UpdatedEdit extends Disposable {
 
 	private _innerEdits: SingleUpdatedEdit[];
-	private _invalidationTime: number | undefined = Date.now() + 3000;
+
+	private _inlineEditModelVersion: number;
+	public get modelVersion() { return this._inlineEditModelVersion; }
 
 	private _lastChangePartOfInlineEdit = false;
 	public get lastChangePartOfInlineEdit() { return this._lastChangePartOfInlineEdit; }
@@ -517,10 +520,6 @@ class UpdatedEdit extends Disposable {
 
 		for (const change of changeSummary) {
 			this._innerEdits = this._applyTextModelChanges(change, this._innerEdits);
-		}
-
-		if (this._hasInvalidationTimePassed()) {
-			return undefined;
 		}
 
 		if (this._innerEdits.length === 0) {
@@ -543,6 +542,8 @@ class UpdatedEdit extends Disposable {
 		isInlineEdit: boolean,
 	) {
 		super();
+
+		this._inlineEditModelVersion = this._modelVersion.get() ?? -1;
 
 		this._innerEdits = offsetEdit.edits.map(edit => {
 			if (isInlineEdit) {
@@ -568,7 +569,7 @@ class UpdatedEdit extends Disposable {
 
 		this._lastChangePartOfInlineEdit = edits.some(edit => edit.lastChangeUpdatedEdit);
 		if (this._lastChangePartOfInlineEdit) {
-			this._cancelInvalidationTimer();
+			this._inlineEditModelVersion = this._modelVersion.get() ?? -1;
 		}
 
 		edits = edits.filter(innerEdit => !innerEdit.edit!.isEmpty);
@@ -577,14 +578,6 @@ class UpdatedEdit extends Disposable {
 		}
 
 		return edits;
-	}
-
-	private _cancelInvalidationTimer() {
-		this._invalidationTime = undefined;
-	}
-
-	private _hasInvalidationTimePassed(): boolean {
-		return !!this._invalidationTime && this._invalidationTime < Date.now();
 	}
 }
 
