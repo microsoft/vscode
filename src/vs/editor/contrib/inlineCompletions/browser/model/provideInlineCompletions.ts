@@ -180,10 +180,10 @@ async function addRefAndCreateResult(
 		completions.addRef();
 		lists.push(completions);
 		for (const item of completions.inlineCompletions.items) {
-			if (!context.includeInlineEdits && item.isInlineEdit) {
+			if (!context.includeInlineEdits && (item.isInlineEdit || item.showInlineEditMenu)) {
 				continue;
 			}
-			if (!context.includeInlineCompletions && !item.isInlineEdit) {
+			if (!context.includeInlineCompletions && !(item.isInlineEdit || item.showInlineEditMenu)) {
 				continue;
 			}
 			const inlineCompletionItem = InlineCompletionItem.from(
@@ -197,7 +197,7 @@ async function addRefAndCreateResult(
 			itemsByHash.set(inlineCompletionItem.hash(), inlineCompletionItem);
 
 			// Stop after first visible inline completion
-			if (!item.isInlineEdit && context.triggerKind === InlineCompletionTriggerKind.Automatic) {
+			if (!(item.isInlineEdit || item.showInlineEditMenu) && context.triggerKind === InlineCompletionTriggerKind.Automatic) {
 				const minifiedEdit = inlineCompletionItem.toSingleTextEdit().removeCommonPrefix(new TextModelText(model));
 				if (!minifiedEdit.isEmpty) {
 					shouldStop = true;
@@ -370,9 +370,10 @@ export class InlineCompletionItem {
 
 		readonly id = `InlineCompletion:${InlineCompletionItem.ID++}`,
 	) {
-		// TODO: these statements are no-ops
-		filterText = filterText.replace(/\r\n|\r/g, '\n');
-		insertText = filterText.replace(/\r\n|\r/g, '\n');
+	}
+
+	get isInlineEdit(): boolean {
+		return this.sourceInlineCompletion.isInlineEdit!!;
 	}
 
 	public get didShow(): boolean {
@@ -380,23 +381,6 @@ export class InlineCompletionItem {
 	}
 	public markAsShown(): void {
 		this._didCallShow = true;
-	}
-
-	public withRange(updatedRange: Range): InlineCompletionItem {
-		return new InlineCompletionItem(
-			this.filterText,
-			this.command,
-			this.shownCommand,
-			this.action,
-			updatedRange,
-			this.insertText,
-			this.snippetInfo,
-			this.cursorShowRange,
-			this.additionalTextEdits,
-			this.sourceInlineCompletion,
-			this.source,
-			this.id,
-		);
 	}
 
 	public withRangeInsertTextAndFilterText(updatedRange: Range, updatedInsertText: string, updatedFilterText: string): InlineCompletionItem {

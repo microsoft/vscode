@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 4
+// version: 6
 
 declare module 'vscode' {
 
@@ -51,6 +51,10 @@ declare module 'vscode' {
 
 	export interface ChatRequest {
 		/**
+		 * The id of the chat request. Used to identity an interaction with any of the chat surfaces.
+		 */
+		readonly id: string;
+		/**
 		 * The attempt number of the request. The first request has attempt number 0.
 		 */
 		readonly attempt: number;
@@ -83,6 +87,12 @@ declare module 'vscode' {
 		supportIssueReporting?: boolean;
 	}
 
+	export enum ChatErrorLevel {
+		Info = 0,
+		Warning = 1,
+		Error = 2,
+	}
+
 	export interface ChatErrorDetails {
 		/**
 		 * If set to true, the message content is completely hidden. Only ChatErrorDetails#message will be shown.
@@ -90,6 +100,8 @@ declare module 'vscode' {
 		responseIsRedacted?: boolean;
 
 		isQuotaExceeded?: boolean;
+
+		level?: ChatErrorLevel;
 	}
 
 	export namespace chat {
@@ -116,6 +128,7 @@ declare module 'vscode' {
 
 	export interface LanguageModelToolInvocationOptions<T> {
 		chatRequestId?: string;
+		chatInteractionId?: string;
 		terminalCommand?: string;
 	}
 

@@ -10,7 +10,7 @@ import { constObservable, derived, derivedWithStore, IObservable, observableValu
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
-import { observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
+import { ObservableCodeEditor, observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
 import { Rect } from '../../../../../../browser/rect.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../../../browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
@@ -23,12 +23,12 @@ import { TokenArray } from '../../../../../../common/tokens/tokenArray.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../../../common/viewModel.js';
 import { GhostText, GhostTextPart } from '../../../model/ghostText.js';
 import { GhostTextView } from '../../ghostText/ghostTextView.js';
-import { IInlineEditsView, IInlineEditsViewHost } from '../inlineEditsViewInterface.js';
+import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';
 import { getModifiedBorderColor, modifiedChangedLineBackgroundColor } from '../theme.js';
 import { createRectangle, getPrefixTrim, mapOutFalsy } from '../utils/utils.js';
 
 export class InlineEditsInsertionView extends Disposable implements IInlineEditsView {
-	private readonly _editorObs = observableCodeEditor(this._editor);
+	private readonly _editorObs: ObservableCodeEditor;
 
 	private readonly _onDidClick = this._register(new Emitter<IMouseEvent>());
 	readonly onDidClick = this._onDidClick.event;
@@ -86,18 +86,8 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 		return new GhostText(state.lineNumber, [new GhostTextPart(state.column, state.text, false, inlineDecorations)]);
 	});
 
-	protected readonly _ghostTextView = this._register(this._instantiationService.createInstance(GhostTextView,
-		this._editor,
-		{
-			ghostText: this._ghostText,
-			minReservedLineCount: constObservable(0),
-			targetTextModel: this._editorObs.model.map(model => model ?? undefined),
-			warning: constObservable(undefined),
-		},
-		observableValue(this, { syntaxHighlightingEnabled: true, extraClasses: ['inline-edit'] }),
-		true,
-		true
-	));
+	protected readonly _ghostTextView: GhostTextView;
+	readonly isHovered: IObservable<boolean>;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -106,11 +96,28 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 			startColumn: number;
 			text: string;
 		} | undefined>,
-		private readonly _host: IInlineEditsViewHost,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		private readonly _tabAction: IObservable<InlineEditTabAction>,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 	) {
 		super();
+
+		this._editorObs = observableCodeEditor(this._editor);
+
+		this._ghostTextView = this._register(instantiationService.createInstance(GhostTextView,
+			this._editor,
+			{
+				ghostText: this._ghostText,
+				minReservedLineCount: constObservable(0),
+				targetTextModel: this._editorObs.model.map(model => model ?? undefined),
+				warning: constObservable(undefined),
+			},
+			observableValue(this, { syntaxHighlightingEnabled: true, extraClasses: ['inline-edit'] }),
+			true,
+			true
+		));
+
+		this.isHovered = this._ghostTextView.isHovered;
 
 		this._register(this._ghostTextView.onDidClick((e) => {
 			this._onDidClick.fire(e);
@@ -210,7 +217,7 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 
 		const right = editorLayout.contentLeft + this._editorMaxContentWidthInRange.read(reader) - horizontalScrollOffset;
 		const prefixLeftOffset = this._maxPrefixTrim.read(reader).prefixLeftOffset ?? 0 /* fix due to observable bug? */;
-		const left = editorLayout.contentLeft + prefixLeftOffset;
+		const left = editorLayout.contentLeft + prefixLeftOffset - horizontalScrollOffset;
 		if (right <= left) {
 			return null;
 		}
@@ -222,14 +229,14 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 		const top = this._editor.getTopForLineNumber(state.lineNumber) - scrollTop + topTrim;
 		const bottom = top + height;
 
-		const PADDING = 3;
-		const overlay = new Rect(left, top, right, bottom).withMargin(PADDING);
+		const overlay = new Rect(left, top, right, bottom);
 
 		return {
 			overlay,
-			horizontalScrollOffset,
+			contentLeft: editorLayout.contentLeft,
 			minContentWidthRequired: prefixLeftOffset + overlay.width + verticalScrollbarWidth,
 			borderRadius: 4,
+			padding: 3
 		};
 	}).recomputeInitiallyAndOnChange(this._store);
 
@@ -241,19 +248,21 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 		if (!overlayLayoutObs) { return undefined; }
 
 		const layoutInfo = overlayLayoutObs.read(reader);
+		const overlay = layoutInfo.overlay;
+		const croppedOverlay = new Rect(Math.max(overlay.left, layoutInfo.contentLeft), overlay.top, overlay.right, overlay.bottom);
 
 		const rectangleOverlay = createRectangle(
 			{
-				topLeft: layoutInfo.overlay.getLeftTop(),
-				width: layoutInfo.overlay.width + 1,
-				height: layoutInfo.overlay.height + 1,
+				topLeft: croppedOverlay.getLeftTop(),
+				width: croppedOverlay.width + 1,
+				height: croppedOverlay.height + 1,
 			},
-			0,
+			layoutInfo.padding,
 			layoutInfo.borderRadius,
-			{ hideLeft: layoutInfo.horizontalScrollOffset !== 0 }
+			{ hideLeft: croppedOverlay.left !== overlay.left }
 		);
 
-		const modifiedBorderColor = getModifiedBorderColor(this._host.tabAction).read(reader);
+		const modifiedBorderColor = getModifiedBorderColor(this._tabAction).read(reader);
 
 		return [
 			n.svgElem('path', {
@@ -281,6 +290,4 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 	}, [
 		[this._foregroundSvg],
 	]).keepUpdated(this._store);
-
-	readonly isHovered = this._ghostTextView.isHovered;
 }

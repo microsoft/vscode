@@ -413,6 +413,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		// Don't block setInput on render (which can trigger an async search)
 		this.onConfigUpdate(undefined, true).then(() => {
+			// This event runs when the editor closes.
 			this.inputChangeListener.value = input.onWillDispose(() => {
 				this.searchWidget.setValue('');
 			});
@@ -1160,11 +1161,6 @@ export class SettingsEditor2 extends EditorPane {
 				this.renderTree(key, isManualReset);
 				this.pendingSettingUpdate = null;
 
-				// Only log 1% of modification events to reduce the volume of data
-				if (Math.random() >= 0.01) {
-					return;
-				}
-
 				const reportModifiedProps = {
 					key,
 					query,
@@ -1545,7 +1541,9 @@ export class SettingsEditor2 extends EditorPane {
 
 	private refreshSingleElement(element: SettingsTreeSettingElement): void {
 		if (this.isVisible()) {
-			this.settingsTree.rerender(element);
+			if (!element.setting.deprecationMessage || element.isConfigured) {
+				this.settingsTree.rerender(element);
+			}
 		}
 	}
 

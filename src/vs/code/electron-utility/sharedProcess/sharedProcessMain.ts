@@ -120,6 +120,8 @@ import { getCodeDisplayProtocol, getDisplayProtocol } from '../../../base/node/o
 import { RequestService } from '../../../platform/request/electron-utility/requestService.js';
 import { DefaultExtensionsInitializer } from './contrib/defaultExtensionsInitializer.js';
 import { AllowedExtensionsService } from '../../../platform/extensionManagement/common/allowedExtensionsService.js';
+import { IExtensionGalleryManifestService } from '../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { ExtensionGalleryManifestIPCService } from '../../../platform/extensionManagement/common/extensionGalleryManifestServiceIpc.js';
 
 class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
@@ -331,6 +333,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		services.set(INativeServerExtensionManagementService, new SyncDescriptor(ExtensionManagementService, undefined, true));
 
 		// Extension Gallery
+		services.set(IExtensionGalleryManifestService, new ExtensionGalleryManifestIPCService(this.server, productService));
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService, undefined, true));
 
 		// Extension Tips
@@ -375,8 +378,6 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 	}
 
 	private initChannels(accessor: ServicesAccessor): void {
-
-		// const disposables = this._register(new DisposableStore());
 
 		// Extensions Management
 		const channel = new ExtensionManagementChannel(accessor.get(IExtensionManagementService), () => null);

@@ -11,13 +11,16 @@ import { askForPromptSourceFolder } from './dialogs/askForPromptSourceFolder.js'
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
+import { PromptsConfig } from '../../../../../../../platform/prompts/common/config.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { IPromptPath, IPromptsService } from '../../../../common/promptSyntax/service/types.js';
-import { appendToCommandPalette } from '../../../../../files/browser/fileActions.contribution.js';
 import { IQuickInputService } from '../../../../../../../platform/quickinput/common/quickInput.js';
 import { ServicesAccessor } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { MenuId, MenuRegistry } from '../../../../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../../../../platform/contextkey/common/contextkey.js';
+import { ChatContextKeys } from '../../../../common/chatContextKeys.js';
 
 /**
  * Base command ID prefix.
@@ -30,9 +33,9 @@ const BASE_COMMAND_ID = 'workbench.command.prompts.create';
 const LOCAL_COMMAND_ID = `${BASE_COMMAND_ID}.local`;
 
 /**
- * Command ID for creating a 'global' prompt.
+ * Command ID for creating a 'user' prompt.
  */
-const GLOBAL_COMMAND_ID = `${BASE_COMMAND_ID}.global`;
+const USER_COMMAND_ID = `${BASE_COMMAND_ID}.user`;
 
 /**
  * Title of the 'create local prompt' command.
@@ -40,9 +43,9 @@ const GLOBAL_COMMAND_ID = `${BASE_COMMAND_ID}.global`;
 const LOCAL_COMMAND_TITLE = localize('commands.prompts.create.title.local', "Create Prompt");
 
 /**
- * Title of the 'create global prompt' command.
+ * Title of the 'create user prompt' command.
  */
-const GLOBAL_COMMAND_TITLE = localize('commands.prompts.create.title.global', "Create Global Prompt");
+const USER_COMMAND_TITLE = localize('commands.prompts.create.title.user', "Create User Prompt");
 
 /**
  * The command implementation.
@@ -95,7 +98,7 @@ const command = async (
 /**
  * Factory for creating the command handler with specific prompt `type`.
  */
-const commandFactory = (type: 'local' | 'global') => {
+const commandFactory = (type: 'local' | 'user') => {
 	return async (accessor: ServicesAccessor): Promise<void> => {
 		return command(accessor, type);
 	};
@@ -108,35 +111,39 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: LOCAL_COMMAND_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
 	handler: commandFactory('local'),
+	when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
 });
 
 /**
- * Register the "Create Global Prompt" command.
+ * Register the "Create User Prompt" command.
  */
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: GLOBAL_COMMAND_ID,
+	id: USER_COMMAND_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
-	handler: commandFactory('global'),
+	handler: commandFactory('user'),
+	when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
 });
 
 /**
  * Register the "Create Prompt" command in the command palette.
  */
-appendToCommandPalette(
-	{
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
 		id: LOCAL_COMMAND_ID,
 		title: LOCAL_COMMAND_TITLE,
-		category: CHAT_CATEGORY,
+		category: CHAT_CATEGORY
 	},
-);
+	when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled)
+});
 
 /**
- * Register the "Create Global Prompt" command in the command palette.
+ * Register the "Create User Prompt" command in the command palette.
  */
-appendToCommandPalette(
-	{
-		id: GLOBAL_COMMAND_ID,
-		title: GLOBAL_COMMAND_TITLE,
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: USER_COMMAND_ID,
+		title: USER_COMMAND_TITLE,
 		category: CHAT_CATEGORY,
 	},
-);
+	when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled)
+});

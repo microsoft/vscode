@@ -33,26 +33,23 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 			}
 		}));
 
-		// onDidchangeTerminalShellIntegration initial state
+		// onDidChangeTerminalShellIntegration initial state
 		for (const terminal of this._terminalService.instances) {
-			if (terminal.capabilities.has(TerminalCapability.CommandDetection)) {
+			const cmdDetection = terminal.capabilities.get(TerminalCapability.CommandDetection);
+			if (cmdDetection?.hasRichCommandDetection) {
 				this._proxy.$shellIntegrationChange(terminal.instanceId);
-				const cwdDetection = terminal.capabilities.get(TerminalCapability.CwdDetection);
-				if (cwdDetection) {
-					this._proxy.$cwdChange(terminal.instanceId, this._convertCwdToUri(cwdDetection.getCwd()));
-				}
+			}
+			const cwdDetection = terminal.capabilities.get(TerminalCapability.CwdDetection);
+			if (cwdDetection) {
+				this._proxy.$cwdChange(terminal.instanceId, this._convertCwdToUri(cwdDetection.getCwd()));
 			}
 		}
 
-		// onDidChangeTerminalShellIntegration via command detection
-		const onDidAddCommandDetection = this._store.add(this._terminalService.createOnInstanceEvent(instance => {
-			return Event.map(
-				Event.filter(instance.capabilities.onDidAddCapabilityType, e => {
-					return e === TerminalCapability.CommandDetection || e === TerminalCapability.CwdDetection;
-				}), () => instance
-			);
-		})).event;
-		this._store.add(onDidAddCommandDetection(e => this._proxy.$shellIntegrationChange(e.instanceId)));
+		// onDidChangeTerminalShellIntegration via rich command detection
+		const onDidSetRichCommandDetection = this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, e => e.onSetRichCommandDetection));
+		this._store.add(onDidSetRichCommandDetection.event(e => {
+			this._proxy.$shellIntegrationChange(e.instance.instanceId);
+		}));
 
 		// onDidChangeTerminalShellIntegration via cwd
 		const cwdChangeEvent = this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CwdDetection, e => e.onDidChangeCwd));

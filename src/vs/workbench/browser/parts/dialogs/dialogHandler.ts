@@ -11,7 +11,7 @@ import Severity from '../../../../base/common/severity.js';
 import { Dialog, IDialogResult } from '../../../../base/browser/ui/dialog/dialog.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { EventHelper } from '../../../../base/browser/dom.js';
+import { EventHelper, isHTMLElement } from '../../../../base/browser/dom.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
@@ -33,18 +33,20 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 		'editor.action.clipboardPasteAction'
 	];
 
-	private readonly markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
+	private readonly markdownRenderer: MarkdownRenderer;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IProductService private readonly productService: IProductService,
 		@IClipboardService private readonly clipboardService: IClipboardService,
 		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super();
+
+		this.markdownRenderer = instantiationService.createInstance(MarkdownRenderer, {});
 	}
 
 	async prompt<T>(prompt: IPrompt<T>): Promise<IAsyncPromptResult<T>> {
@@ -115,13 +117,24 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 			customOptions.markdownDetails?.forEach(markdownDetail => {
 				const result = this.markdownRenderer.render(markdownDetail.markdown, {
 					actionHandler: {
-						callback: link => openLinkFromMarkdown(this.openerService, link, markdownDetail.markdown.isTrusted, true /* skip URL validation to prevent another dialog from showing which is unsupported */),
+						callback: link => {
+							if (markdownDetail.dismissOnLinkClick) {
+								dialog.dispose();
+							}
+							return openLinkFromMarkdown(this.openerService, link, markdownDetail.markdown.isTrusted, true /* skip URL validation to prevent another dialog from showing which is unsupported */);
+						},
 						disposables: dialogDisposables
 					}
 				});
 				parent.appendChild(result.element);
 				result.element.classList.add(...(markdownDetail.classes || []));
 				dialogDisposables.add(result);
+			});
+			customOptions.htmlDetails?.forEach(htmlDetail => {
+				if (isHTMLElement(htmlDetail.element)) {
+					parent.appendChild(htmlDetail.element);
+					dialogDisposables.add(htmlDetail);
+				}
 			});
 		} : undefined;
 

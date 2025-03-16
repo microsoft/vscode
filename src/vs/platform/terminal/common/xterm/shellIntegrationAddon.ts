@@ -131,8 +131,10 @@ const enum VSCodeOscPt {
 	CommandExecuted = 'C',
 
 	/**
-	 * Sent just after a command has finished. The exit code is optional, when not specified it
-	 * means no command was run (ie. enter on empty prompt or ctrl+c).
+	 * Sent just after a command has finished. This should generally be used on the new line
+	 * following the end of a command's output, just before {@link PromptStart}. The exit code is
+	 * optional, when not specified it means no command was run (ie. enter on empty prompt or
+	 * ctrl+c).
 	 *
 	 * Format: `OSC 633 ; D [; <ExitCode>] ST`
 	 *
@@ -204,11 +206,15 @@ const enum VSCodeOscPt {
 	 * Known properties:
 	 *
 	 * - `Cwd` - Reports the current working directory to the terminal.
-	 * - `IsWindows` - Indicates whether the terminal is using a Windows backend like winpty or
-	 *   conpty. This may be used to enable additional heuristics as the positioning of the shell
+	 * - `IsWindows` - Reports whether the shell is using a Windows backend like winpty or conpty.
+	 *   This may be used to enable additional heuristics as the positioning of the shell
 	 *   integration sequences are not guaranteed to be correct. Valid values: `True`, `False`.
 	 * - `ContinuationPrompt` - Reports the continuation prompt that is printed at the start of
 	 *   multi-line inputs.
+	 * - `HasRichCommandDetection` - Reports whether the shell has rich command line detection,
+	 *   meaning that sequences A, B, C, D and E are exactly where they're meant to be. In
+	 *   particular, {@link CommandLine} must happen immediately before {@link CommandExecuted} so
+	 *   VS Code knows the command line when the execution begins.
 	 *
 	 * WARNING: Any other properties may be changed and are not guaranteed to work in the future.
 	 */
@@ -321,12 +327,17 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	private _hasUpdatedTelemetry: boolean = false;
 	private _activationTimeout: any;
 	private _commonProtocolDisposables: IDisposable[] = [];
-	private _status: ShellIntegrationStatus = ShellIntegrationStatus.Off;
 
+	private _seenSequences: Set<string> = new Set();
+	get seenSequences(): ReadonlySet<string> { return this._seenSequences; }
+
+	private _status: ShellIntegrationStatus = ShellIntegrationStatus.Off;
 	get status(): ShellIntegrationStatus { return this._status; }
 
 	private readonly _onDidChangeStatus = new Emitter<ShellIntegrationStatus>();
 	readonly onDidChangeStatus = this._onDidChangeStatus.event;
+	private readonly _onDidChangeSeenSequences = new Emitter<ReadonlySet<string>>();
+	readonly onDidChangeSeenSequences = this._onDidChangeSeenSequences.event;
 
 	constructor(
 		private _nonce: string,
@@ -363,6 +374,13 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		this._createOrGetBufferMarkDetection(terminal).getMark(vscodeMarkerId);
 	}
 
+	private _markSequenceSeen(sequence: string) {
+		if (!this._seenSequences.has(sequence)) {
+			this._seenSequences.add(sequence);
+			this._onDidChangeSeenSequences.fire(this._seenSequences);
+		}
+	}
+
 	private _handleFinalTermSequence(data: string): boolean {
 		const didHandle = this._doHandleFinalTermSequence(data);
 		if (this._status === ShellIntegrationStatus.Off) {
@@ -383,6 +401,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		// when instant prompt is enabled though. If this does end up being a problem we could pass
 		// a type flag through the capability calls
 		const [command, ...args] = data.split(';');
+		this._markSequenceSeen(command);
 		switch (command) {
 			case FinalTermOscPt.PromptStart:
 				this._createOrGetCommandDetection(this._terminal).handlePromptStart();
@@ -444,10 +463,11 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 
 		// Pass the sequence along to the capability
 		const argsIndex = data.indexOf(';');
-		const sequenceCommand = argsIndex === -1 ? data : data.substring(0, argsIndex);
+		const command = argsIndex === -1 ? data : data.substring(0, argsIndex);
+		this._markSequenceSeen(command);
 		// Cast to strict checked index access
 		const args: (string | undefined)[] = argsIndex === -1 ? [] : data.substring(argsIndex + 1).split(';');
-		switch (sequenceCommand) {
+		switch (command) {
 			case VSCodeOscPt.PromptStart:
 				this._createOrGetCommandDetection(this._terminal).handlePromptStart();
 				return true;
@@ -553,6 +573,10 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 						this._createOrGetCommandDetection(this._terminal).setIsWindowsPty(value === 'True' ? true : false);
 						return true;
 					}
+					case 'HasRichCommandDetection': {
+						this._createOrGetCommandDetection(this._terminal).setHasRichCommandDetection(value === 'True' ? true : false);
+						return true;
+					}
 					case 'Prompt': {
 						// Remove escape sequences from the user's prompt
 						const sanitizedValue = value.replace(/\x1b\[[0-9;]*m/g, '');
@@ -607,6 +631,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		}
 
 		const [command] = data.split(';');
+		this._markSequenceSeen(`${ShellIntegrationOscPs.ITerm};${command}`);
 		switch (command) {
 			case ITermOscPt.SetMark: {
 				this._createOrGetBufferMarkDetection(this._terminal).addMark();
@@ -641,6 +666,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		}
 
 		const [command, ...args] = data.split(';');
+		this._markSequenceSeen(`${ShellIntegrationOscPs.SetWindowsFriendlyCwd};${command}`);
 		switch (command) {
 			case '9':
 				// Encountered `OSC 9 ; 9 ; <cwd> ST`
@@ -663,6 +689,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		}
 
 		const [command] = data.split(';');
+		this._markSequenceSeen(`${ShellIntegrationOscPs.SetCwd};${command}`);
 
 		if (command.match(/^file:\/\/.*\//)) {
 			const uri = URI.parse(command);
@@ -680,6 +707,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		if (!this._terminal || !this.capabilities.has(TerminalCapability.CommandDetection)) {
 			return {
 				isWindowsPty: false,
+				hasRichCommandDetection: false,
 				commands: [],
 				promptInputModel: undefined,
 			};

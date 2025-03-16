@@ -14,7 +14,7 @@ import { Codicon } from '../../../common/codicons.js';
 import { ThemeIcon } from '../../../common/themables.js';
 import { KeyCode, KeyMod } from '../../../common/keyCodes.js';
 import { mnemonicButtonLabel } from '../../../common/labels.js';
-import { Disposable } from '../../../common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../common/lifecycle.js';
 import { isLinux, isMacintosh, isWindows } from '../../../common/platform.js';
 import './dialog.css';
 import * as nls from '../../../../nls.js';
@@ -210,6 +210,7 @@ export class Dialog extends Disposable {
 				});
 				return;
 			};
+			this._register(toDisposable(close));
 
 			const buttonBar = this.buttonBar = this._register(new ButtonBar(this.buttonsContainer));
 			const buttonMap = this.rearrangeButtons(this.buttons, this.options.cancelId);

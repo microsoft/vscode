@@ -1036,7 +1036,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			}
 
 			const editorAttachedPromise = new Promise<void>((resolve, reject) => {
-				element.onDidChangeEditorAttachState(() => {
+				Event.once(element.onDidChangeEditorAttachState)(() => {
 					element.editorAttached ? resolve() : reject();
 				});
 			});
@@ -1168,7 +1168,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const wrapperBottom = this.getViewScrollBottom();
 
 		if (offset < scrollTop || offset > wrapperBottom) {
-			this.view.setScrollTop(offset - this.view.renderHeight / 2);
+			const newTop = Math.max(0, offset - this.view.renderHeight / 2);
+			this.view.setScrollTop(newTop);
 		}
 	}
 

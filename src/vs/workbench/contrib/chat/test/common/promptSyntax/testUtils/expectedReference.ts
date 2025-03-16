@@ -7,8 +7,8 @@ import assert from 'assert';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
-import { ParseError } from '../../../../common/promptFileReferenceErrors.js';
-import { IPromptFileReference } from '../../../../common/promptSyntax/parsers/types.js';
+import { ResolveError } from '../../../../common/promptFileReferenceErrors.js';
+import { IPromptReference } from '../../../../common/promptSyntax/parsers/types.js';
 import { TErrorCondition } from '../../../../common/promptSyntax/parsers/basePromptParser.js';
 
 /**
@@ -63,7 +63,7 @@ export class ExpectedReference {
 	/**
 	 * Validate that the provided reference is equal to this object.
 	 */
-	public validateEqual(other: IPromptFileReference) {
+	public validateEqual(other: IPromptReference) {
 		const { uri, text, path, childrenOrError = [] } = this.options;
 		const errorPrefix = `[${uri}] `;
 
@@ -130,7 +130,7 @@ export class ExpectedReference {
 		 * Next validate children or error condition.
 		 */
 
-		if (childrenOrError instanceof ParseError) {
+		if (childrenOrError instanceof ResolveError) {
 			const error = childrenOrError;
 			const { errorCondition } = other;
 			assertDefined(
@@ -139,8 +139,8 @@ export class ExpectedReference {
 			);
 
 			assert(
-				errorCondition instanceof ParseError,
-				`${errorPrefix} Expected 'errorCondition' to be a 'ParseError'.`,
+				errorCondition instanceof ResolveError,
+				`${errorPrefix} Expected 'errorCondition' to be a 'ResolveError'.`,
 			);
 
 			assert(

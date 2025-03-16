@@ -124,12 +124,12 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 				continue;
 			}
 			if (config.policy) {
-				if (config.type !== 'string' && config.type !== 'number' && config.type !== 'array' && config.type !== 'object') {
+				if (config.type !== 'string' && config.type !== 'number' && config.type !== 'array' && config.type !== 'object' && config.type !== 'boolean') {
 					this.logService.warn(`Policy ${config.policy.name} has unsupported type ${config.type}`);
 					continue;
 				}
 				keys.push(key);
-				policyDefinitions[config.policy.name] = { type: config.type === 'number' ? 'number' : 'string' };
+				policyDefinitions[config.policy.name] = { type: config.type === 'number' ? 'number' : config.type === 'boolean' ? 'boolean' : 'string' };
 			}
 		}
 

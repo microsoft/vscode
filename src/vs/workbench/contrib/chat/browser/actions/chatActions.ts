@@ -8,21 +8,25 @@ import { coalesce } from '../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { fromNowByDay, safeIntl } from '../../../../../base/common/date.js';
 import { Event } from '../../../../../base/common/event.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, markAsSingleton } from '../../../../../base/common/lifecycle.js';
+import { language } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorAction2 } from '../../../../../editor/browser/editorExtensions.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { SuggestController } from '../../../../../editor/contrib/suggest/browser/suggestController.js';
-import { ILocalizedString, localize, localize2 } from '../../../../../nls.js';
+import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { Action2, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
@@ -30,42 +34,35 @@ import product from '../../../../../platform/product/common/product.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { EXTENSIONS_CATEGORY, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
-import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
+import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatEntitlement, ChatSentiment, IChatEntitlementService } from '../../common/chatEntitlementService.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
+import { ChatMode } from '../../common/constants.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { ChatViewId, EditsViewId, IChatWidget, IChatWidgetService, showChatView, showCopilotView } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
-import { IChatQuotasService } from '../../common/chatQuotasService.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
-import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { language } from '../../../../../base/common/platform.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
-import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
-export const CHAT_OPEN_ACTION_LABEL = localize2('openChat', "Open Chat");
-
 export const CHAT_SETUP_ACTION_ID = 'workbench.action.chat.triggerSetup';
-export const CHAT_SETUP_ACTION_LABEL = localize2('triggerChatSetup', "Use AI Features with Copilot for Free...");
-
-export const TOGGLE_CHAT_ACTION_ID = 'workbench.action.chat.toggle';
-export const TOGGLE_CHAT_ACTION_LABEL = localize('toggleChat', "Toggle Chat");
+const TOGGLE_CHAT_ACTION_ID = 'workbench.action.chat.toggle';
 
 export interface IChatViewOpenOptions {
 	/**
@@ -96,14 +93,6 @@ export interface IChatViewOpenRequestEntry {
 	response: string;
 }
 
-MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
-	command: {
-		id: 'update.showCurrentReleaseNotes',
-		title: localize2('chat.releaseNotes.label', "Show Release Notes"),
-	},
-	when: ContextKeyExpr.equals('view', ChatViewId)
-});
-
 export const OPEN_CHAT_QUOTA_EXCEEDED_DIALOG = 'workbench.action.chat.openQuotaExceededDialog';
 
 export function registerChatActions() {
@@ -112,10 +101,11 @@ export function registerChatActions() {
 		constructor() {
 			super({
 				id: CHAT_OPEN_ACTION_ID,
-				title: CHAT_OPEN_ACTION_LABEL,
+				title: localize2('openChat', "Open Chat"),
 				icon: Codicon.copilot,
 				f1: true,
 				category: CHAT_CATEGORY,
+				precondition: ChatContextKeys.Setup.hidden.toNegated(),
 				keybinding: {
 					weight: KeybindingWeight.WorkbenchContrib,
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
@@ -366,7 +356,7 @@ export function registerChatActions() {
 				category: CHAT_CATEGORY,
 				menu: {
 					id: MenuId.ChatInput,
-					when: ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
+					when: ChatContextKeys.chatMode.isEqualTo(ChatMode.Chat),
 					group: 'navigation',
 					order: 1
 				}
@@ -514,34 +504,35 @@ export function registerChatActions() {
 		}
 	});
 
-	function registerOpenLinkAction(id: string, title: ILocalizedString, url: string, order: number, contextKey: ContextKeyExpression = ChatContextKeys.enabled): void {
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id,
-					title,
-					category: CHAT_CATEGORY,
-					f1: true,
-					precondition: contextKey,
-					menu: {
-						id: MenuId.ChatTitleBarMenu,
-						group: 'y_manage',
-						order,
-						when: contextKey
-					}
-				});
-			}
+	const nonEnterpriseCopilotUsers = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.notEquals(`config.${defaultChat.completionsAdvancedSetting}.authProvider`, defaultChat.enterpriseProviderId));
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.manageSettings',
+				title: localize2('manageCopilot', "Manage Copilot"),
+				category: CHAT_CATEGORY,
+				f1: true,
+				precondition: ContextKeyExpr.and(
+					ContextKeyExpr.or(
+						ChatContextKeys.Entitlement.limited,
+						ChatContextKeys.Entitlement.pro
+					),
+					nonEnterpriseCopilotUsers
+				),
+				menu: {
+					id: MenuId.ChatTitleBarMenu,
+					group: 'y_manage',
+					order: 1,
+					when: nonEnterpriseCopilotUsers
+				}
+			});
+		}
 
-			override async run(accessor: ServicesAccessor): Promise<void> {
-				const openerService = accessor.get(IOpenerService);
-				openerService.open(URI.parse(url));
-			}
-		});
-	}
-
-	const nonEnterpriseCopilotUsers = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.notEquals(`config.${defaultChat.providerSetting}`, defaultChat.enterpriseProviderId));
-	registerOpenLinkAction('workbench.action.chat.managePlan', localize2('managePlan', "Manage Copilot Plan"), defaultChat.managePlanUrl, 1, nonEnterpriseCopilotUsers);
-	registerOpenLinkAction('workbench.action.chat.manageSettings', localize2('manageSettings', "Manage Copilot Settings"), defaultChat.manageSettingsUrl, 2, nonEnterpriseCopilotUsers);
+		override async run(accessor: ServicesAccessor): Promise<void> {
+			const openerService = accessor.get(IOpenerService);
+			openerService.open(URI.parse(defaultChat.manageSettingsUrl));
+		}
+	});
 
 	registerAction2(class ShowExtensionsUsingCopilot extends Action2 {
 
@@ -551,6 +542,7 @@ export function registerChatActions() {
 				title: localize2('showCopilotUsageExtensions', "Show Extensions using Copilot"),
 				f1: true,
 				category: EXTENSIONS_CATEGORY,
+				precondition: ChatContextKeys.enabled
 			});
 		}
 
@@ -566,7 +558,7 @@ export function registerChatActions() {
 			super({
 				id: 'workbench.action.chat.configureCodeCompletions',
 				title: localize2('configureCompletions', "Configure Code Completions..."),
-				precondition: ChatContextKeys.enabled,
+				precondition: ChatContextKeys.Setup.installed,
 				menu: {
 					id: MenuId.ChatTitleBarMenu,
 					group: 'f_completions',
@@ -577,7 +569,7 @@ export function registerChatActions() {
 
 		override async run(accessor: ServicesAccessor): Promise<void> {
 			const commandService = accessor.get(ICommandService);
-			commandService.executeCommand('github.copilot.toggleStatusMenu');
+			commandService.executeCommand(defaultChat.completionsMenuCommand);
 		}
 	});
 
@@ -591,20 +583,20 @@ export function registerChatActions() {
 		}
 
 		override async run(accessor: ServicesAccessor) {
-			const chatQuotasService = accessor.get(IChatQuotasService);
+			const chatEntitlementService = accessor.get(IChatEntitlementService);
 			const commandService = accessor.get(ICommandService);
 			const dialogService = accessor.get(IDialogService);
 
 			const dateFormatter = safeIntl.DateTimeFormat(language, { year: 'numeric', month: 'long', day: 'numeric' });
 
 			let message: string;
-			const { chatQuotaExceeded, completionsQuotaExceeded } = chatQuotasService.quotas;
+			const { chatQuotaExceeded, completionsQuotaExceeded } = chatEntitlementService.quotas;
 			if (chatQuotaExceeded && !completionsQuotaExceeded) {
-				message = localize('chatQuotaExceeded', "You've run out of free chat messages. You still have free code completions available in the Copilot Free plan. These limits will reset on {0}.", dateFormatter.format(chatQuotasService.quotas.quotaResetDate));
+				message = localize('chatQuotaExceeded', "You've run out of free chat messages. You still have free code completions available in the Copilot Free plan. These limits will reset on {0}.", dateFormatter.format(chatEntitlementService.quotas.quotaResetDate));
 			} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
-				message = localize('completionsQuotaExceeded', "You've run out of free code completions. You still have free chat messages available in the Copilot Free plan. These limits will reset on {0}.", dateFormatter.format(chatQuotasService.quotas.quotaResetDate));
+				message = localize('completionsQuotaExceeded', "You've run out of free code completions. You still have free chat messages available in the Copilot Free plan. These limits will reset on {0}.", dateFormatter.format(chatEntitlementService.quotas.quotaResetDate));
 			} else {
-				message = localize('chatAndCompletionsQuotaExceeded', "You've reached the limit of the Copilot Free plan. These limits will reset on {0}.", dateFormatter.format(chatQuotasService.quotas.quotaResetDate));
+				message = localize('chatAndCompletionsQuotaExceeded', "You've reached the limit of the Copilot Free plan. These limits will reset on {0}.", dateFormatter.format(chatEntitlementService.quotas.quotaResetDate));
 			}
 
 			const upgradeToPro = localize('upgradeToPro', "Upgrade to Copilot Pro (your first 30 days are free) for:\n- Unlimited code completions\n- Unlimited chat messages\n- Access to additional models");
@@ -619,7 +611,7 @@ export function registerChatActions() {
 				buttons: [
 					{
 						label: localize('upgradePro', "Upgrade to Copilot Pro"),
-						run: () => commandService.executeCommand('workbench.action.chat.upgradePlan')
+						run: () => commandService.executeCommand('workbench.action.chat.upgradePlan', 'chat-dialog')
 					},
 				],
 				custom: {
@@ -650,7 +642,8 @@ const defaultChat = {
 	manageSettingsUrl: product.defaultChatAgent?.manageSettingsUrl ?? '',
 	managePlanUrl: product.defaultChatAgent?.managePlanUrl ?? '',
 	enterpriseProviderId: product.defaultChatAgent?.enterpriseProviderId ?? '',
-	providerSetting: product.defaultChatAgent?.providerSetting ?? '',
+	completionsAdvancedSetting: product.defaultChatAgent?.completionsAdvancedSetting ?? '',
+	completionsMenuCommand: product.defaultChatAgent?.completionsMenuCommand ?? '',
 };
 
 // Add next to the command center if command center is disabled
@@ -697,13 +690,11 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IChatAgentService agentService: IChatAgentService,
-		@IChatQuotasService chatQuotasService: IChatQuotasService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
-
-		const contextKeySet = new Set([ChatContextKeys.Setup.signedOut.key]);
 
 		const disposable = actionViewItemService.register(MenuId.CommandCenter, MenuId.ChatTitleBarMenu, (action, options) => {
 			if (!(action instanceof SubmenuItemAction)) {
@@ -716,31 +707,36 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 				run() { }
 			});
 
-			const chatExtensionInstalled = agentService.getAgents().some(agent => agent.isDefault);
-			const { chatQuotaExceeded, completionsQuotaExceeded } = chatQuotasService.quotas;
-			const signedOut = contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.signedOut.key) ?? false;
+			const chatExtensionInstalled = chatEntitlementService.sentiment === ChatSentiment.Installed;
+			const { chatQuotaExceeded, completionsQuotaExceeded } = chatEntitlementService.quotas;
+			const signedOut = chatEntitlementService.entitlement === ChatEntitlement.Unknown;
+			const setupFromDialog = configurationService.getValue('chat.experimental.setupFromDialog');
 
 			let primaryActionId: string;
 			let primaryActionTitle: string;
 			let primaryActionIcon: ThemeIcon;
-			if (!chatExtensionInstalled) {
+			if (!chatExtensionInstalled && !setupFromDialog) {
 				primaryActionId = CHAT_SETUP_ACTION_ID;
-				primaryActionTitle = CHAT_SETUP_ACTION_LABEL.value;
+				primaryActionTitle = localize('triggerChatSetup', "Use AI Features with Copilot for Free...");
 				primaryActionIcon = Codicon.copilot;
-			} else {
-				if (signedOut) {
-					primaryActionId = TOGGLE_CHAT_ACTION_ID;
-					primaryActionTitle = localize('signInToChatSetup', "Sign in to Use Copilot...");
-					primaryActionIcon = Codicon.copilotNotConnected;
-				} else if (chatQuotaExceeded || completionsQuotaExceeded) {
-					primaryActionId = OPEN_CHAT_QUOTA_EXCEEDED_DIALOG;
-					primaryActionTitle = quotaToButtonMessage({ chatQuotaExceeded, completionsQuotaExceeded });
-					primaryActionIcon = Codicon.copilotWarning;
+			} else if (chatExtensionInstalled && signedOut) {
+				primaryActionId = TOGGLE_CHAT_ACTION_ID;
+				primaryActionTitle = localize('signInToChatSetup', "Sign in to Use Copilot...");
+				primaryActionIcon = Codicon.copilotNotConnected;
+			} else if (chatExtensionInstalled && (chatQuotaExceeded || completionsQuotaExceeded)) {
+				primaryActionId = OPEN_CHAT_QUOTA_EXCEEDED_DIALOG;
+				if (chatQuotaExceeded && !completionsQuotaExceeded) {
+					primaryActionTitle = localize('chatQuotaExceededButton', "Monthly chat messages limit reached. Click for details.");
+				} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
+					primaryActionTitle = localize('completionsQuotaExceededButton', "Monthly code completions limit reached. Click for details.");
 				} else {
-					primaryActionId = TOGGLE_CHAT_ACTION_ID;
-					primaryActionTitle = TOGGLE_CHAT_ACTION_LABEL;
-					primaryActionIcon = Codicon.copilot;
+					primaryActionTitle = localize('chatAndCompletionsQuotaExceededButton', "Copilot Free plan limit reached. Click for details.");
 				}
+				primaryActionIcon = Codicon.copilotWarning;
+			} else {
+				primaryActionId = TOGGLE_CHAT_ACTION_ID;
+				primaryActionTitle = localize('toggleChat', "Toggle Chat");
+				primaryActionIcon = Codicon.copilot;
 			}
 			return instantiationService.createInstance(DropdownWithPrimaryActionViewItem, instantiationService.createInstance(MenuItemAction, {
 				id: primaryActionId,
@@ -748,9 +744,10 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 				icon: primaryActionIcon,
 			}, undefined, undefined, undefined, undefined), dropdownAction, action.actions, '', { ...options, skipTelemetry: true });
 		}, Event.any(
-			agentService.onDidChangeAgents,
-			chatQuotasService.onDidChangeQuotaExceeded,
-			Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(contextKeySet))
+			chatEntitlementService.onDidChangeSentiment,
+			chatEntitlementService.onDidChangeQuotaExceeded,
+			chatEntitlementService.onDidChangeEntitlement,
+			Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('chat.experimental.setupFromDialog'))
 		));
 
 		// Reduces flicker a bit on reload/restart
@@ -758,12 +755,7 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 	}
 }
 
-export function quotaToButtonMessage({ chatQuotaExceeded, completionsQuotaExceeded }: { chatQuotaExceeded: boolean; completionsQuotaExceeded: boolean }): string {
-	if (chatQuotaExceeded && !completionsQuotaExceeded) {
-		return localize('chatQuotaExceededButton', "Monthly chat messages limit reached. Click for details.");
-	} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
-		return localize('completionsQuotaExceededButton', "Monthly code completions limit reached. Click for details.");
-	} else {
-		return localize('chatAndCompletionsQuotaExceededButton', "Copilot Free plan limit reached. Click for details.");
-	}
+export function getEditsViewId(accessor: ServicesAccessor): string {
+	const chatService = accessor.get(IChatService);
+	return chatService.unifiedViewEnabled ? ChatViewId : EditsViewId;
 }

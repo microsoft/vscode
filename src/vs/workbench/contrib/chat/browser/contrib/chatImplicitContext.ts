@@ -6,6 +6,7 @@
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -16,10 +17,11 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { EditorsOrder } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { ChatAgentLocation } from '../../common/chatAgents.js';
+import { getNotebookEditorFromEditorPane, INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
 import { IBaseChatRequestVariableEntry, IChatRequestImplicitVariableEntry } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
+import { ChatAgentLocation } from '../../common/constants.js';
 import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 
@@ -44,7 +46,7 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 		const activeEditorDisposables = this._register(new DisposableStore());
 
 		this._register(Event.runAndSubscribe(
-			editorService.onDidVisibleEditorsChange,
+			editorService.onDidActiveEditorChange,
 			(() => {
 				activeEditorDisposables.clear();
 				const codeEditor = this.findActiveCodeEditor();
@@ -54,6 +56,17 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 							codeEditor.onDidChangeModel,
 							codeEditor.onDidChangeCursorSelection,
 							codeEditor.onDidScrollChange),
+						() => undefined,
+						500)(() => this.updateImplicitContext()));
+				}
+
+				const notebookEditor = this.findActiveNotebookEditor();
+				if (notebookEditor) {
+					activeEditorDisposables.add(Event.debounce(
+						Event.any(
+							notebookEditor.onDidChangeModel,
+							notebookEditor.onDidChangeActiveCell
+						),
 						() => undefined,
 						500)(() => this.updateImplicitContext()));
 				}
@@ -79,12 +92,19 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 				widget.input.implicitContext.setValue(undefined, false);
 			}
 		}));
+		this._register(this.chatWidgetService.onDidAddWidget(async (widget) => {
+			await this.updateImplicitContext(widget);
+		}));
 	}
 
 	private findActiveCodeEditor(): ICodeEditor | undefined {
 		const codeEditor = this.codeEditorService.getActiveCodeEditor();
 		if (codeEditor) {
 			const model = codeEditor.getModel();
+			if (model?.uri.scheme === Schemas.vscodeNotebookCell) {
+				return undefined;
+			}
+
 			if (model) {
 				return codeEditor;
 			}
@@ -105,6 +125,10 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 			}
 		}
 		return undefined;
+	}
+
+	private findActiveNotebookEditor(): INotebookEditor | undefined {
+		return getNotebookEditorFromEditorPane(this.editorService.activeEditorPane);
 	}
 
 	private async updateImplicitContext(updateWidget?: IChatWidget): Promise<void> {
@@ -131,6 +155,16 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 				} else {
 					newValue = model.uri;
 				}
+			}
+		}
+
+		const notebookEditor = this.findActiveNotebookEditor();
+		if (notebookEditor) {
+			const activeCell = notebookEditor.getActiveCell();
+			if (activeCell) {
+				newValue = activeCell.uri;
+			} else {
+				newValue = notebookEditor.textModel?.uri;
 			}
 		}
 

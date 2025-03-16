@@ -24,7 +24,7 @@ export class TreeSitterTokens extends AbstractTokens {
 
 	private _lastLanguageId: string | undefined;
 	private readonly _tokensChangedListener: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
-	private readonly _firstTokenizationCompleteListener: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
+	private readonly _onDidChangeBackgroundTokenization: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 
 	constructor(languageIdCodec: ILanguageIdCodec,
 		textModel: TextModel,
@@ -45,11 +45,10 @@ export class TreeSitterTokens extends AbstractTokens {
 					this._onDidChangeTokens.fire(e.changes);
 				}
 			});
-			this._firstTokenizationCompleteListener.value = this._tokenizationSupport?.onDidCompleteFirstTokenization(e => {
+			this._onDidChangeBackgroundTokenization.value = this._tokenizationSupport?.onDidChangeBackgroundTokenization(e => {
 				if (e.textModel === this._textModel) {
 					this._backgroundTokenizationState = BackgroundTokenizationState.Completed;
 					this._onDidChangeBackgroundTokenizationState.fire();
-					this._firstTokenizationCompleteListener.clear();
 				}
 			});
 		}
@@ -57,7 +56,7 @@ export class TreeSitterTokens extends AbstractTokens {
 
 	public getLineTokens(lineNumber: number): LineTokens {
 		const content = this._textModel.getLineContent(lineNumber);
-		if (this._tokenizationSupport) {
+		if (this._tokenizationSupport && content.length > 0) {
 			const rawTokens = this._tokenStore.getTokens(this._textModel, lineNumber);
 			if (rawTokens) {
 				return new LineTokens(rawTokens, content, this._languageIdCodec);
@@ -89,6 +88,8 @@ export class TreeSitterTokens extends AbstractTokens {
 		if (e.isFlush) {
 			// Don't fire the event, as the view might not have got the text change event yet
 			this.resetTokenization(false);
+		} else {
+			this._tokenStore.handleContentChanged(this._textModel, e);
 		}
 	}
 

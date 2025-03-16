@@ -46,6 +46,10 @@ export class NotebookDeletedCellDecorator extends Disposable implements INoteboo
 		if (!info) {
 			return;
 		}
+		if (info.previousIndex === -1) {
+			// deleted cell is before the first real cell
+			return 0;
+		}
 		const cells = this._notebookEditor.getCellsInRange({ start: info.previousIndex, end: info.previousIndex + 1 });
 		if (!cells.length) {
 			return this._notebookEditor.getLayoutInfo().height + info.offset;
@@ -65,7 +69,7 @@ export class NotebookDeletedCellDecorator extends Disposable implements INoteboo
 			const info = this.deletedCellInfos.get(deletedIndex);
 
 			if (info) {
-				const prevIndex = info.previousIndex;
+				const prevIndex = info.previousIndex === -1 ? 0 : info.previousIndex;
 				this._notebookEditor.setFocus({ start: prevIndex, end: prevIndex });
 				this._notebookEditor.setSelections([{ start: prevIndex, end: prevIndex }]);
 			}

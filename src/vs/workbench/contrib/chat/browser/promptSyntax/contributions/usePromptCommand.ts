@@ -8,24 +8,30 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { CHAT_CATEGORY } from '../../actions/chatActions.js';
 import { IChatWidget, IChatWidgetService } from '../../chat.js';
 import { KeyMod, KeyCode } from '../../../../../../base/common/keyCodes.js';
+import { PromptsConfig } from '../../../../../../platform/prompts/common/config.js';
+import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { isPromptFile } from '../../../../../../platform/prompts/common/constants.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { appendToCommandPalette } from '../../../../files/browser/fileActions.contribution.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IActiveCodeEditor, isCodeEditor, isDiffEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IChatAttachPromptActionOptions, ATTACH_PROMPT_ACTION_ID } from '../../actions/chatAttachPromptAction/chatAttachPromptAction.js';
+import { MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 
 /**
  * Command ID of the "Use Prompt" command.
  */
-const COMMAND_ID = 'workbench.command.prompts.use';
+export const COMMAND_ID = 'workbench.command.prompts.use';
 
 /**
  * Keybinding of the "Use Prompt" command.
+ * The `cmd + /` is the current keybinding for 'attachment', so we use
+ * the `alt` key modifier to convey the "prompt attachment" action.
  */
-const COMMAND_KEY_BINDING = KeyMod.Alt | KeyMod.Shift | KeyCode.KeyE;
+const COMMAND_KEY_BINDING = KeyMod.CtrlCmd | KeyCode.Slash | KeyMod.Alt;
 
 /**
  * Implementation of the "Use Prompt" command. The command works in the following way.
@@ -49,35 +55,16 @@ const command = async (
 	accessor: ServicesAccessor,
 ): Promise<void> => {
 	const commandService = accessor.get(ICommandService);
+	const viewsService = accessor.get(IViewsService);
 
 	const options: IChatAttachPromptActionOptions = {
 		resource: getActivePromptUri(accessor),
 		widget: getFocusedChatWidget(accessor),
+		viewsService,
 	};
 
 	await commandService.executeCommand(ATTACH_PROMPT_ACTION_ID, options);
 };
-
-/**
- * Register the "Use Prompt" command with its keybinding.
- */
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: COMMAND_ID,
-	weight: KeybindingWeight.WorkbenchContrib,
-	primary: COMMAND_KEY_BINDING,
-	handler: command,
-});
-
-/**
- * Register the "Use Prompt" command in the `command palette`.
- */
-appendToCommandPalette(
-	{
-		id: COMMAND_ID,
-		title: localize('commands.prompts.use.title', "Use Prompt"),
-		category: CHAT_CATEGORY,
-	},
-);
 
 /**
  * Get chat widget reference to attach prompt to.
@@ -139,3 +126,26 @@ const getActivePromptUri = (
 
 	return undefined;
 };
+
+/**
+ * Register the "Use Prompt" command with its keybinding.
+ */
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: COMMAND_ID,
+	weight: KeybindingWeight.WorkbenchContrib,
+	primary: COMMAND_KEY_BINDING,
+	handler: command,
+	when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
+});
+
+/**
+ * Register the "Use Prompt" command in the `command palette`.
+ */
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: COMMAND_ID,
+		title: localize('commands.prompts.use.title', "Use Prompt"),
+		category: CHAT_CATEGORY
+	},
+	when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled)
+});

@@ -21,7 +21,6 @@
     "contribSourceControlInputBoxMenu",
     "contribSourceControlTitleMenu",
     "contribViewsWelcome",
-    "diffCommand",
     "editSessionIdentityProvider",
     "quickDiffProvider",
     "quickInputButtonLocation",
@@ -35,7 +34,6 @@
     "statusBarItemTooltip",
     "tabInputMultiDiff",
     "tabInputTextMerge",
-    "textDocumentEncoding",
     "textEditorDiffInformation",
     "timeline"
   ],
@@ -3323,10 +3321,15 @@
           "markdownDescription": "%config.diagnosticsCommitHook.Sources%",
           "scope": "resource"
         },
-        "git.untrackedChangesSoftDelete": {
+        "git.discardUntrackedChangesToTrash": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "%config.untrackedChangesSoftDelete%"
+          "markdownDescription": "%config.discardUntrackedChangesToTrash%"
+        },
+        "git.showReferenceDetails": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%config.showReferenceDetails%"
         }
       }
     },
@@ -3435,10 +3438,10 @@
         "id": "git.blame.editorDecorationForeground",
         "description": "%colors.blameEditorDecoration%",
         "defaults": {
-          "dark": "editorCodeLens.foreground",
-          "light": "editorCodeLens.foreground",
-          "highContrast": "editorCodeLens.foreground",
-          "highContrastLight": "editorCodeLens.foreground"
+          "dark": "editorInlayHint.foreground",
+          "light": "editorInlayHint.foreground",
+          "highContrast": "editorInlayHint.foreground",
+          "highContrastLight": "editorInlayHint.foreground"
         }
       }
     ],
@@ -3567,6 +3570,7 @@
     "@vscode/iconv-lite-umd": "0.7.0",
     "byline": "^5.0.0",
     "file-type": "16.5.4",
+    "jschardet": "3.1.4",
     "picomatch": "2.3.1",
     "vscode-uri": "^2.0.0",
     "which": "4.0.0"
