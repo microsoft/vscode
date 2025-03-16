@@ -942,6 +942,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._register(this.input.onDidChangeCurrentChatMode(() => {
 			this.renderSampleQuestions();
 			this.renderWelcomeViewContentIfNeeded();
+			this.refreshParsedInput();
 		}));
 	}
 
