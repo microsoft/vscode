@@ -359,10 +359,12 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 	}
 
 	private registerActions(context: ChatEntitlementContext, requests: ChatEntitlementRequests, controller: Lazy<ChatSetupController>): void {
-		const chatSetupTriggerContext = ContextKeyExpr.or(
-			ChatContextKeys.Setup.installed.negate(),
-			ChatContextKeys.Entitlement.canSignUp
-		);
+		const chatSetupTriggerContext = ContextKeyExpr.and(
+			ChatContextKeys.Setup.fromDialog.negate(), // reduce noise when using the skeleton-view approach
+			ContextKeyExpr.or(
+				ChatContextKeys.Setup.installed.negate(),
+				ChatContextKeys.Entitlement.canSignUp
+			));
 
 		const CHAT_SETUP_ACTION_LABEL = localize2('triggerChatSetup', "Use AI Features with Copilot for Free...");
 
