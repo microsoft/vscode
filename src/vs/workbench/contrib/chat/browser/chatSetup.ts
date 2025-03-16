@@ -58,12 +58,13 @@ import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.
 import { IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService, IChatWelcomeMessageContent } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, ChatEntitlementService, IChatEntitlementService } from '../common/chatEntitlementService.js';
-import { IChatProgress, IChatProgressMessage, IChatWarningMessage } from '../common/chatService.js';
+import { IChatProgress, IChatProgressMessage, IChatService, IChatWarningMessage } from '../common/chatService.js';
 import { CHAT_CATEGORY, CHAT_SETUP_ACTION_ID } from './actions/chatActions.js';
 import { ChatViewId, EditsViewId, ensureSideBarChatViewSize, preferCopilotEditsView, showCopilotView } from './chat.js';
 import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
 import { ChatViewsWelcomeExtensions, IChatViewsWelcomeContributionRegistry } from './viewsWelcome/chatViewsWelcome.js';
 import { ChatAgentLocation } from '../common/constants.js';
+import { ILanguageModelsService } from '../common/languageModels.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -88,9 +89,9 @@ const defaultChat = {
 
 //#region Contribution
 
-class SetupChatAgentImplementation implements IChatAgentImplementation {
+class SetupChatAgentImplementation extends Disposable implements IChatAgentImplementation {
 
-	static register(instantiationService: IInstantiationService, location: ChatAgentLocation, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): IDisposable {
+	static register(instantiationService: IInstantiationService, location: ChatAgentLocation, isToolsAgent: boolean, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): IDisposable {
 		return instantiationService.invokeFunction(accessor => {
 			const chatAgentService = accessor.get(IChatAgentService);
 
@@ -101,39 +102,46 @@ class SetupChatAgentImplementation implements IChatAgentImplementation {
 				ChatContextKeys.Setup.fromDialog
 			);
 
-			const id = location === ChatAgentLocation.Panel ? 'setup.chat' : 'setup.edits';
+			const id = location === ChatAgentLocation.Panel ? 'setup.chat' : isToolsAgent ? 'setup.agent' : 'setup.edits';
 
 			const welcomeMessageContent: IChatWelcomeMessageContent = location === ChatAgentLocation.Panel ?
 				{
 					title: localize('chatTitle', "Ask Copilot"),
 					message: new MarkdownString(localize('chatMessage', "Copilot is powered by AI, so mistakes are possible. Review output carefully before use.")),
 					icon: Codicon.copilotLarge
-				} :
-				{
-					title: localize('editsTitle', "Edit with Copilot"),
-					message: new MarkdownString(localize('editsMessage', "Start your editing session by defining a set of files that you want to work with. Then ask Copilot for the changes you want to make.")),
-					icon: Codicon.copilotLarge
-				};
+				} : isToolsAgent ?
+					{
+						title: localize('editsTitle', "Edit with Copilot"),
+						message: new MarkdownString(localize('agentMessage', "Ask Copilot to edit your files in agent mode. Copilot will automatically use multiple requests to pick files to edit, run terminal commands, and iterate on errors.")),
+						icon: Codicon.copilotLarge
+					} :
+					{
+						title: localize('editsTitle', "Edit with Copilot"),
+						message: new MarkdownString(localize('editsMessage', "Start your editing session by defining a set of files that you want to work with. Then ask Copilot for the changes you want to make.")),
+						icon: Codicon.copilotLarge
+					};
 
-			return combinedDisposable(
-				chatAgentService.registerAgent(id, {
-					id,
-					name: `${defaultChat.providerName} Copilot`,
-					isDefault: true,
-					when: setupChatAgentContext?.serialize(),
-					slashCommands: [],
-					disambiguation: [],
-					locations: [location],
-					metadata: {
-						welcomeMessageContent
-					},
-					description: location === ChatAgentLocation.Panel ? localize('chatDescription', "Ask Copilot") : localize('editsDescription', "Edit files in your workspace"),
-					extensionId: nullExtensionDescription.identifier,
-					extensionDisplayName: nullExtensionDescription.name,
-					extensionPublisherId: nullExtensionDescription.publisher
-				}),
-				chatAgentService.registerAgentImplementation(id, instantiationService.createInstance(SetupChatAgentImplementation, context, controller))
-			);
+			const disposable = new DisposableStore();
+
+			disposable.add(chatAgentService.registerAgent(id, {
+				id,
+				name: `${defaultChat.providerName} Copilot`,
+				isDefault: true,
+				isToolsAgent,
+				when: setupChatAgentContext?.serialize(),
+				slashCommands: [],
+				disambiguation: [],
+				locations: [location],
+				metadata: { welcomeMessageContent },
+				description: location === ChatAgentLocation.Panel ? localize('chatDescription', "Ask Copilot") : isToolsAgent ? localize('agentDescription', "Edit files in your workspace in agent mode (Experimental)") : localize('editsDescription', "Edit files in your workspace"),
+				extensionId: nullExtensionDescription.identifier,
+				extensionDisplayName: nullExtensionDescription.name,
+				extensionPublisherId: nullExtensionDescription.publisher
+			}));
+
+			disposable.add(chatAgentService.registerAgentImplementation(id, disposable.add(instantiationService.createInstance(SetupChatAgentImplementation, context, controller))));
+
+			return disposable;
 		});
 	}
 
@@ -143,10 +151,21 @@ class SetupChatAgentImplementation implements IChatAgentImplementation {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-	) { }
+		@ITelemetryService private readonly telemetryService: ITelemetryService
+	) {
+		super();
+	}
 
 	async invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void): Promise<IChatAgentResult> {
+		return this.instantiationService.invokeFunction(async accessor => {
+			const chatService = accessor.get(IChatService);						// use accessor for lazy loading
+			const languageModelsService = accessor.get(ILanguageModelsService);	// of chat related services
+
+			return this.doInvoke(request, progress, chatService, languageModelsService);
+		});
+	}
+
+	private async doInvoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService): Promise<IChatAgentResult> {
 		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'chat' });
 
 		const dialog = this.instantiationService.createInstance(ChatSetupDialog, this.context);
@@ -154,22 +173,24 @@ class SetupChatAgentImplementation implements IChatAgentImplementation {
 
 		// Proceed with setting up Copilot
 		if (result) {
-			const listener = this.controller.value.onDidChange(e => {
+			const setupListener = this.controller.value.onDidChange(() => {
 				switch (this.controller.value.step) {
 					case ChatSetupStep.SigningIn:
 						progress({
 							kind: 'progressMessage',
-							content: new MarkdownString(localize('setupChatSignIn2', "Signing in to {0}...", ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.enterpriseProviderId ? defaultChat.enterpriseProviderName : defaultChat.providerName)),
+							content: new MarkdownString(localize('setupChatSignIn2', "Signing in to {0}.", ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.enterpriseProviderId ? defaultChat.enterpriseProviderName : defaultChat.providerName)),
 						} satisfies IChatProgressMessage);
 						break;
 					case ChatSetupStep.Installing:
 						progress({
 							kind: 'progressMessage',
-							content: new MarkdownString(localize('installingCopilot', "Getting Copilot Ready...")),
+							content: new MarkdownString(localize('installingCopilot', "Getting Copilot ready.")),
 						} satisfies IChatProgressMessage);
 						break;
 				}
 			});
+
+			const whenDefaultModel = Event.toPromise(Event.filter(languageModelsService.onDidChangeLanguageModels, e => e.added?.some(added => added.metadata.isDefault) ?? false));
 
 			let success = false;
 			try {
@@ -177,7 +198,7 @@ class SetupChatAgentImplementation implements IChatAgentImplementation {
 			} catch (error) {
 				this.logService.error(localize('setupError', "Error during setup: {0}", toErrorMessage(error)));
 			} finally {
-				listener.dispose();
+				setupListener.dispose();
 			}
 
 			if (success) {
@@ -185,6 +206,18 @@ class SetupChatAgentImplementation implements IChatAgentImplementation {
 					kind: 'progressMessage',
 					content: new MarkdownString(localize('copilotReady', "Copilot is ready to use.")),
 				} satisfies IChatProgressMessage);
+
+				// Await a default model to be present before attempting
+				// to re-submit the request. Otherwise, the request will fail.
+				const hasDefaultModel = await Promise.race([
+					timeout(5000),
+					whenDefaultModel
+				]);
+
+				if (hasDefaultModel) {
+					chatService.cancelCurrentRequestForSession(request.sessionId);
+					chatService.sendRequest(request.sessionId, request.message);
+				}
 			}
 			else {
 				progress({
@@ -336,8 +369,9 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			const disabled = context.state.installed || context.state.hidden || !this.configurationService.getValue('chat.experimental.setupFromDialog');
 			if (!disabled && !registration.value) {
 				registration.value = combinedDisposable(
-					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel, context, controller),
-					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.EditingSession, context, controller)
+					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel, false, context, controller),
+					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.EditingSession, false, context, controller),
+					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.EditingSession, true, context, controller)
 				);
 			} else if (disabled && registration.value) {
 				registration.clear();
