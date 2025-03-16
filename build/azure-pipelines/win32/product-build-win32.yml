@@ -259,7 +259,7 @@ steps:
           $ErrorActionPreference = "Stop"
           $ArchivePath = ".build\win32-$(VSCODE_ARCH)\VSCode-win32-$(VSCODE_ARCH)-$(VSCODE_VERSION).zip"
           New-Item -ItemType Directory -Path .build\win32-$(VSCODE_ARCH) -Force
-          exec { 7z.exe a -tzip $ArchivePath -x!CodeSignSummary*.md ..\VSCode-win32-$(VSCODE_ARCH)\* }
+          exec { 7z.exe a -tzip $ArchivePath ..\VSCode-win32-$(VSCODE_ARCH)\* -xr!CodeSignSummary*.md }
           echo "##vso[task.setvariable variable=CLIENT_PATH]$ArchivePath"
         condition: and(succeededOrFailed(), eq(variables['BUILT_CLIENT'], 'true'))
         displayName: Package client
