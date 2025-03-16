@@ -1171,7 +1171,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				attachedContext,
 				noCommandDetection: options?.noCommandDetection,
 				hasInstructionAttachments: this.inputPart.hasInstructionAttachments,
-				userSelectedTools: ChatInputPart.selectedToolsModel.tools.get().map(tool => tool.id)
+				userSelectedTools: this.input.currentMode === ChatMode.Agent ? ChatInputPart.selectedToolsModel.tools.get().map(tool => tool.id) : undefined
 			});
 
 			if (result) {
