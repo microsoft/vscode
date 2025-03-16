@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/chatViewSetup.css';
 import { $, getActiveElement, setVisibility } from '../../../../base/browser/dom.js';
 import { ButtonWithDropdown } from '../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -56,12 +57,11 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { ChatAgentLocation, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService, IChatWelcomeMessageContent } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { ChatEntitlement, ChatEntitlementService, ChatSetupContext, ChatSetupRequests, IChatEntitlementService } from '../common/chatEntitlementService.js';
+import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, ChatEntitlementService, IChatEntitlementService } from '../common/chatEntitlementService.js';
 import { IChatProgress, IChatProgressMessage, IChatWarningMessage } from '../common/chatService.js';
 import { CHAT_CATEGORY, CHAT_SETUP_ACTION_ID } from './actions/chatActions.js';
 import { ChatViewId, EditsViewId, ensureSideBarChatViewSize, preferCopilotEditsView, showCopilotView } from './chat.js';
 import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
-import './media/chatViewSetup.css';
 import { ChatViewsWelcomeExtensions, IChatViewsWelcomeContributionRegistry } from './viewsWelcome/chatViewsWelcome.js';
 
 const defaultChat = {
@@ -89,7 +89,7 @@ const defaultChat = {
 
 class SetupChatAgentImplementation implements IChatAgentImplementation {
 
-	static register(instantiationService: IInstantiationService, location: ChatAgentLocation, context: ChatSetupContext, controller: Lazy<ChatSetupController>): IDisposable {
+	static register(instantiationService: IInstantiationService, location: ChatAgentLocation, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): IDisposable {
 		return instantiationService.invokeFunction(accessor => {
 			const chatAgentService = accessor.get(IChatAgentService);
 
@@ -137,7 +137,7 @@ class SetupChatAgentImplementation implements IChatAgentImplementation {
 	}
 
 	constructor(
-		private readonly context: ChatSetupContext,
+		private readonly context: ChatEntitlementContext,
 		private readonly controller: Lazy<ChatSetupController>,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
@@ -158,7 +158,7 @@ class SetupChatAgentImplementation implements IChatAgentImplementation {
 					case ChatSetupStep.SigningIn:
 						progress({
 							kind: 'progressMessage',
-							content: new MarkdownString(localize('setupChatSignIn2', "Signing in to {0}...", ChatSetupRequests.providerId(this.configurationService) === defaultChat.enterpriseProviderId ? defaultChat.enterpriseProviderName : defaultChat.providerName)),
+							content: new MarkdownString(localize('setupChatSignIn2', "Signing in to {0}...", ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.enterpriseProviderId ? defaultChat.enterpriseProviderName : defaultChat.providerName)),
 						} satisfies IChatProgressMessage);
 						break;
 					case ChatSetupStep.Installing:
@@ -208,7 +208,7 @@ class SetupChatAgentImplementation implements IChatAgentImplementation {
 class ChatSetupDialog {
 
 	constructor(
-		private readonly context: ChatSetupContext,
+		private readonly context: ChatEntitlementContext,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService
@@ -217,7 +217,7 @@ class ChatSetupDialog {
 	async show(): Promise<boolean> {
 		const res = await this.dialogService.prompt<boolean>({
 			type: 'none',
-			message: localize('copilotFree', "Use AI Features with Copilot for Free"),
+			message: localize('copilotFree', "Welcome to Copilot"),
 			cancelButton: {
 				label: localize('cancel', "Cancel"),
 				run: () => false
@@ -280,6 +280,12 @@ class ChatSetupDialog {
 			)
 		);
 
+		// Limited SKU
+		if (this.context.state.entitlement !== ChatEntitlement.Pro && this.context.state.entitlement !== ChatEntitlement.Unavailable) {
+			const free = localize({ key: 'free', comment: ['{Locked="[]({0})"}'] }, "$(sparkle-filled) We now offer [Copilot for free]({0}).", defaultChat.skusDocumentationUrl);
+			element.appendChild($('p', undefined, disposables.add(markdown.render(new MarkdownString(free, { isTrusted: true, supportThemeIcons: true }))).element));
+		}
+
 		// Terms
 		const terms = localize({ key: 'terms', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "By continuing, you agree to the [Terms]({0}) and [Privacy Policy]({1}).", defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl);
 		element.appendChild($('p.legal', undefined, disposables.add(markdown.render(new MarkdownString(terms, { isTrusted: true }))).element));
@@ -322,7 +328,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		this.registerUrlLinkHandler();
 	}
 
-	private registerSetupAgents(context: ChatSetupContext, controller: Lazy<ChatSetupController>): void {
+	private registerSetupAgents(context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): void {
 		const registration = this._register(new MutableDisposable());
 
 		const updateRegistration = () => {
@@ -343,7 +349,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		), () => updateRegistration()));
 	}
 
-	private registerChatWelcome(context: ChatSetupContext, controller: Lazy<ChatSetupController>): void {
+	private registerChatWelcome(context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): void {
 		Registry.as<IChatViewsWelcomeContributionRegistry>(ChatViewsWelcomeExtensions.ChatViewsWelcomeRegistry).register({
 			title: localize('welcomeChat', "Welcome to Copilot"),
 			when: ChatContextKeys.SetupViewCondition,
@@ -352,11 +358,13 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		});
 	}
 
-	private registerActions(context: ChatSetupContext, requests: ChatSetupRequests, controller: Lazy<ChatSetupController>): void {
-		const chatSetupTriggerContext = ContextKeyExpr.or(
-			ChatContextKeys.Setup.installed.negate(),
-			ChatContextKeys.Setup.canSignUp
-		);
+	private registerActions(context: ChatEntitlementContext, requests: ChatEntitlementRequests, controller: Lazy<ChatSetupController>): void {
+		const chatSetupTriggerContext = ContextKeyExpr.and(
+			ChatContextKeys.Setup.fromDialog.negate(), // reduce noise when using the skeleton-view approach
+			ContextKeyExpr.or(
+				ChatContextKeys.Setup.installed.negate(),
+				ChatContextKeys.Entitlement.canSignUp
+			));
 
 		const CHAT_SETUP_ACTION_LABEL = localize2('triggerChatSetup', "Use AI Features with Copilot for Free...");
 
@@ -494,8 +502,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					category: localize2('chat.category', 'Chat'),
 					f1: true,
 					precondition: ContextKeyExpr.or(
-						ChatContextKeys.Setup.canSignUp,
-						ChatContextKeys.Setup.limited,
+						ChatContextKeys.Entitlement.canSignUp,
+						ChatContextKeys.Entitlement.limited,
 					),
 					menu: {
 						id: MenuId.ChatTitleBarMenu,
@@ -597,8 +605,8 @@ class ChatSetupController extends Disposable {
 	private willShutdown = false;
 
 	constructor(
-		private readonly context: ChatSetupContext,
-		private readonly requests: ChatSetupRequests,
+		private readonly context: ChatEntitlementContext,
+		private readonly requests: ChatEntitlementRequests,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IViewsService private readonly viewsService: IViewsService,
@@ -659,7 +667,7 @@ class ChatSetupController extends Disposable {
 		let success = false;
 		try {
 			const setupFromDialog = Boolean(this.configurationService.getValue('chat.experimental.setupFromDialog'));
-			const providerId = ChatSetupRequests.providerId(this.configurationService);
+			const providerId = ChatEntitlementRequests.providerId(this.configurationService);
 			let session: AuthenticationSession | undefined;
 			let entitlement: ChatEntitlement | undefined;
 
@@ -718,7 +726,7 @@ class ChatSetupController extends Disposable {
 		if (!session && !this.willShutdown) {
 			const { confirmed } = await this.dialogService.confirm({
 				type: Severity.Error,
-				message: localize('unknownSignInError', "Failed to sign in to {0}. Would you like to try again?", ChatSetupRequests.providerId(this.configurationService) === defaultChat.enterpriseProviderId ? defaultChat.enterpriseProviderName : defaultChat.providerName),
+				message: localize('unknownSignInError', "Failed to sign in to {0}. Would you like to try again?", ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.enterpriseProviderId ? defaultChat.enterpriseProviderName : defaultChat.providerName),
 				detail: localize('unknownSignInErrorDetail', "You must be signed in to use Copilot."),
 				primaryButton: localize('retry', "Retry")
 			});
@@ -825,7 +833,7 @@ class ChatSetupWelcomeContent extends Disposable {
 
 	constructor(
 		private readonly controller: ChatSetupController,
-		private readonly context: ChatSetupContext,
+		private readonly context: ChatEntitlementContext,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -925,7 +933,7 @@ class ChatSetupWelcomeContent extends Disposable {
 
 		switch (this.controller.step) {
 			case ChatSetupStep.SigningIn:
-				buttonLabel = localize('setupChatSignIn', "$(loading~spin) Signing in to {0}...", ChatSetupRequests.providerId(this.configurationService) === defaultChat.enterpriseProviderId ? defaultChat.enterpriseProviderName : defaultChat.providerName);
+				buttonLabel = localize('setupChatSignIn', "$(loading~spin) Signing in to {0}...", ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.enterpriseProviderId ? defaultChat.enterpriseProviderName : defaultChat.providerName);
 				break;
 			case ChatSetupStep.Installing:
 				buttonLabel = localize('setupChatInstalling', "$(loading~spin) Getting Copilot Ready...");
