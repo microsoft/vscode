@@ -83,6 +83,7 @@ const CORE_TYPES = [
     'Crypto',
     'SubtleCrypto',
     'JsonWebKey',
+    'MessageEvent',
 ];
 // Types that are defined in a common layer but are known to be only
 // available in native environments should not be allowed in browser

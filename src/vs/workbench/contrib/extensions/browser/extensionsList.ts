@@ -11,11 +11,10 @@ import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IPagedRenderer } from '../../../../base/browser/ui/list/listPaging.js';
-import { Event } from '../../../../base/common/event.js';
 import { IExtension, ExtensionContainers, ExtensionState, IExtensionsWorkbenchService, IExtensionsViewState } from '../common/extensions.js';
 import { ManageExtensionAction, ExtensionRuntimeStateAction, ExtensionStatusLabelAction, RemoteInstallAction, ExtensionStatusAction, LocalInstallAction, ButtonWithDropDownExtensionAction, InstallDropdownAction, InstallingLabelAction, ButtonWithDropdownExtensionActionViewItem, DropDownExtensionAction, WebInstallAction, MigrateDeprecatedExtensionAction, SetLanguageAction, ClearLanguageAction, UpdateAction } from './extensionsActions.js';
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
-import { RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, ExtensionPackCountWidget as ExtensionPackBadgeWidget, SyncIgnoredWidget, ExtensionHoverWidget, ExtensionRuntimeStatusWidget, PreReleaseBookmarkWidget, VerifiedPublisherWidget } from './extensionsWidgets.js';
+import { RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, ExtensionPackCountWidget as ExtensionPackBadgeWidget, SyncIgnoredWidget, ExtensionHoverWidget, ExtensionRuntimeStatusWidget, PreReleaseBookmarkWidget, PublisherWidget, ExtensionKindIndicatorWidget } from './extensionsWidgets.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -34,7 +33,6 @@ export interface ITemplateData {
 	element: HTMLElement;
 	icon: HTMLImageElement;
 	name: HTMLElement;
-	publisherDisplayName: HTMLElement;
 	description: HTMLElement;
 	installCount: HTMLElement;
 	ratings: HTMLElement;
@@ -85,13 +83,12 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const installCount = append(header, $('span.install-count'));
 		const ratings = append(header, $('span.ratings'));
 		const syncIgnore = append(header, $('span.sync-ignored'));
+		const extensionKindIndicator = append(header, $('span'));
 		const activationStatus = append(header, $('span.activation-status'));
 		const headerRemoteBadgeWidget = this.instantiationService.createInstance(RemoteBadgeWidget, header, false);
 		const description = append(details, $('.description.ellipsis'));
 		const footer = append(details, $('.footer'));
-		const publisher = append(footer, $('.author.ellipsis'));
-		const verifiedPublisherWidget = this.instantiationService.createInstance(VerifiedPublisherWidget, append(publisher, $(`.verified-publisher`)), true);
-		const publisherDisplayName = append(publisher, $('.publisher-name.ellipsis'));
+		const publisherWidget = this.instantiationService.createInstance(PublisherWidget, append(footer, $('.publisher-container')), true);
 		const actionbar = new ActionBar(footer, {
 			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
 				if (action instanceof ButtonWithDropDownExtensionAction) {
@@ -140,12 +137,13 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			iconRemoteBadgeWidget,
 			extensionPackBadgeWidget,
 			headerRemoteBadgeWidget,
-			verifiedPublisherWidget,
+			publisherWidget,
 			extensionHoverWidget,
 			this.instantiationService.createInstance(SyncIgnoredWidget, syncIgnore),
 			this.instantiationService.createInstance(ExtensionRuntimeStatusWidget, this.extensionViewState, activationStatus),
 			this.instantiationService.createInstance(InstallCountWidget, installCount, true),
 			this.instantiationService.createInstance(RatingsWidget, ratings, true),
+			this.instantiationService.createInstance(ExtensionKindIndicatorWidget, extensionKindIndicator, true),
 		];
 		const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets]);
 
@@ -153,7 +151,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const disposable = combinedDisposable(...actions, ...widgets, actionbar, actionBarListener, extensionContainers);
 
 		return {
-			root, element, icon, name, installCount, ratings, description, publisherDisplayName, disposables: [disposable], actionbar,
+			root, element, icon, name, installCount, ratings, description, disposables: [disposable], actionbar,
 			extensionDisposables: [],
 			set extension(extension: IExtension) {
 				extensionContainers.extension = extension;
@@ -170,7 +168,6 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.icon.src = '';
 		data.name.textContent = '';
 		data.description.textContent = '';
-		data.publisherDisplayName.textContent = '';
 		data.installCount.style.display = 'none';
 		data.ratings.style.display = 'none';
 		data.extension = null;
@@ -208,12 +205,6 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		data.name.textContent = extension.displayName;
 		data.description.textContent = extension.description;
-
-		const updatePublisher = () => {
-			data.publisherDisplayName.textContent = !extension.resourceExtension && extension.local?.source !== 'resource' ? extension.publisherDisplayName : '';
-		};
-		updatePublisher();
-		Event.filter(this.extensionsWorkbenchService.onChange, e => !!e && areSameExtensions(e.identifier, extension.identifier))(() => updatePublisher(), this, data.extensionDisposables);
 
 		data.installCount.style.display = '';
 		data.ratings.style.display = '';

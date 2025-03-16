@@ -21,7 +21,8 @@
   "scripts": {
     "compile": "npx gulp compile-extension:terminal-suggest",
     "watch": "npx gulp watch-extension:terminal-suggest",
-    "pull-zshbuiltins": "ts-node ./scripts/pullZshBuiltins.ts"
+    "pull-zshbuiltins": "ts-node ./scripts/pullZshBuiltins.ts",
+    "pull-fishbuiltins": "ts-node ./scripts/pullFishBuiltins.ts"
   },
   "main": "./out/terminalSuggestMain",
   "activationEvents": [
