@@ -91,7 +91,7 @@ const defaultChat = {
 
 class SetupChatAgentImplementation extends Disposable implements IChatAgentImplementation {
 
-	static register(instantiationService: IInstantiationService, location: ChatAgentLocation, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): IDisposable {
+	static register(instantiationService: IInstantiationService, location: ChatAgentLocation, isToolsAgent: boolean, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): IDisposable {
 		return instantiationService.invokeFunction(accessor => {
 			const chatAgentService = accessor.get(IChatAgentService);
 
@@ -102,19 +102,24 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 				ChatContextKeys.Setup.fromDialog
 			);
 
-			const id = location === ChatAgentLocation.Panel ? 'setup.chat' : 'setup.edits';
+			const id = location === ChatAgentLocation.Panel ? 'setup.chat' : isToolsAgent ? 'setup.agent' : 'setup.edits';
 
 			const welcomeMessageContent: IChatWelcomeMessageContent = location === ChatAgentLocation.Panel ?
 				{
 					title: localize('chatTitle', "Ask Copilot"),
 					message: new MarkdownString(localize('chatMessage', "Copilot is powered by AI, so mistakes are possible. Review output carefully before use.")),
 					icon: Codicon.copilotLarge
-				} :
-				{
-					title: localize('editsTitle', "Edit with Copilot"),
-					message: new MarkdownString(localize('editsMessage', "Start your editing session by defining a set of files that you want to work with. Then ask Copilot for the changes you want to make.")),
-					icon: Codicon.copilotLarge
-				};
+				} : isToolsAgent ?
+					{
+						title: localize('editsTitle', "Edit with Copilot"),
+						message: new MarkdownString(localize('agentMessage', "Ask Copilot to edit your files in agent mode. Copilot will automatically use multiple requests to pick files to edit, run terminal commands, and iterate on errors.")),
+						icon: Codicon.copilotLarge
+					} :
+					{
+						title: localize('editsTitle', "Edit with Copilot"),
+						message: new MarkdownString(localize('editsMessage', "Start your editing session by defining a set of files that you want to work with. Then ask Copilot for the changes you want to make.")),
+						icon: Codicon.copilotLarge
+					};
 
 			const disposable = new DisposableStore();
 
@@ -122,12 +127,13 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 				id,
 				name: `${defaultChat.providerName} Copilot`,
 				isDefault: true,
+				isToolsAgent,
 				when: setupChatAgentContext?.serialize(),
 				slashCommands: [],
 				disambiguation: [],
 				locations: [location],
 				metadata: { welcomeMessageContent },
-				description: location === ChatAgentLocation.Panel ? localize('chatDescription', "Ask Copilot") : localize('editsDescription', "Edit files in your workspace"),
+				description: location === ChatAgentLocation.Panel ? localize('chatDescription', "Ask Copilot") : isToolsAgent ? localize('agentDescription', "Edit files in your workspace in agent mode (Experimental)") : localize('editsDescription', "Edit files in your workspace"),
 				extensionId: nullExtensionDescription.identifier,
 				extensionDisplayName: nullExtensionDescription.name,
 				extensionPublisherId: nullExtensionDescription.publisher
@@ -363,8 +369,9 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			const disabled = context.state.installed || context.state.hidden || !this.configurationService.getValue('chat.experimental.setupFromDialog');
 			if (!disabled && !registration.value) {
 				registration.value = combinedDisposable(
-					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel, context, controller),
-					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.EditingSession, context, controller)
+					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel, false, context, controller),
+					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.EditingSession, false, context, controller),
+					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.EditingSession, true, context, controller)
 				);
 			} else if (disabled && registration.value) {
 				registration.clear();
