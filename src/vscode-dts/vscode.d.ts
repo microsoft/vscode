@@ -9221,7 +9221,7 @@ declare module 'vscode' {
 	export interface TaskProcessEndEvent {
 
 		/**
-		 * The task execution for which the process ended.
+		 * The task execution for which the process got started.
 		 */
 		readonly execution: TaskExecution;
 
