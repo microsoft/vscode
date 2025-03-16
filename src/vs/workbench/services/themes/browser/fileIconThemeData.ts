@@ -318,7 +318,6 @@ export class FileIconThemeLoader {
 
 						if (!name.includes('*')) {
 							selectors.push(css.inline`.${classSelectorPart(name)}-name-folder-icon`);
-							selectors.push(css.inline`.folder-icon`); // extra segment to increase folder-name score
 							selectors.push(css.inline`.name-folder-icon`); // extra segment to increase folder-name score
 						}
 
@@ -388,15 +387,15 @@ export class FileIconThemeLoader {
 							selectors.push(css.inline`.name-file-icon`); // extra segment to increase file-name score
 						}
 
-						pushGlobSelectors(fileName, selectors, 'file');
-
 						const segments = fileName.split('.');
-						if (segments.length) {
+						if (!fileName.includes('*') && segments.length) {
 							for (let i = 1; i < segments.length; i++) {
 								selectors.push(css.inline`.${classSelectorPart(segments.slice(i).join('.'))}-ext-file-icon`);
 							}
 							selectors.push(css.inline`.ext-file-icon`); // extra segment to increase file-ext score
 						}
+
+						pushGlobSelectors(fileName, selectors, 'file');
 
 						addSelector(css.inline`${qualifier} ${selectors.join('')}.file-icon::before`, fileNames[key]);
 						result.hasFileIcons = true;
