@@ -859,12 +859,27 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 }
 
-.interactive-session .chat-input-toolbars :first-child {
-	margin-right: auto;
+@container chat-input-container (max-width: 130px) {
+	.interactive-session .chat-input-toolbars .chat-modelPicker-item {
+		/* Hides modelpicker when the container width is 130px or less */
+		display: none;
+	}
+}
+
+.interactive-session .interactive-input-part:not(.compact) .chat-input-toolbars > .chat-execute-toolbar {
+	container-type: inline-size;
+	container-name: chat-input-container;
+	flex: 1;
+	display: flex;
+	justify-content: flex-end;
 }
 
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar {
 	min-width: 0px;
+
+	.monaco-action-bar {
+		min-width: 0px;
+	}
 
 	.chat-modelPicker-item {
 		min-width: 0px;
@@ -888,7 +903,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-icon-foreground) !important;
 }
 
-.interactive-session .chat-input-toolbars .chat-modelPicker-item .action-label {
+.interactive-session .chat-input-toolbars .chat-dropdown-item .action-label {
 	height: 16px;
 	padding: 3px 0px 3px 6px;
 	display: flex;
@@ -896,7 +911,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 
-.interactive-session .chat-input-toolbars .chat-modelPicker-item .action-label .codicon-chevron-down {
+.interactive-session .chat-input-toolbars .chat-dropdown-item .action-label .codicon-chevron-down {
 	font-size: 12px;
 	margin-left: 2px;
 }

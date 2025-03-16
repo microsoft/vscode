@@ -1498,7 +1498,7 @@ class ModelPickerActionViewItem extends DropdownMenuActionViewItemWithKeybinding
 
 	override render(container: HTMLElement): void {
 		super.render(container);
-		container.classList.add('chat-modelPicker-item');
+		container.classList.add('chat-modelPicker-item', 'chat-dropdown-item');
 	}
 }
 
@@ -1573,7 +1573,7 @@ class ToggleChatModeActionViewItem extends DropdownMenuActionViewItemWithKeybind
 
 	override render(container: HTMLElement): void {
 		super.render(container);
-		container.classList.add('chat-modelPicker-item');
+		container.classList.add('chat-dropdown-item');
 	}
 }
 
