@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 export interface IMcpConfiguration {
-	inputs: unknown[];
+	inputs?: unknown[];
 	/** @deprecated Only for rough cross-compat with other formats */
 	mcpServers?: Record<string, IMcpConfigurationStdio>;
-	servers: Record<string, IMcpConfigurationStdio | IMcpConfigurationSSE>;
+	servers?: Record<string, IMcpConfigurationStdio | IMcpConfigurationSSE>;
 }
+
+export type McpConfigurationServer = IMcpConfigurationStdio | IMcpConfigurationSSE;
 
 export interface IMcpConfigurationStdio {
 	type?: 'stdio';
