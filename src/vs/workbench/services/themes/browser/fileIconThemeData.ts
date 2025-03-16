@@ -508,8 +508,8 @@ export class FileIconThemeLoader {
 }
 
 function pushGlobSelectors(name: string, selectors: css.Builder, kind: string): void {
-	const extname = paths.extname(name);
-	const basename = paths.basename(name, extname);
+	const extname = name === '*' ? '*' : paths.extname(name);
+	const basename = name === '*' ? '*' : paths.basename(name, extname);
 	selectors.push(getGlobSelector(basename, kind, 'basename'));
 	selectors.push(getGlobSelector(extname.substring(1), kind, 'extname'));
 }
