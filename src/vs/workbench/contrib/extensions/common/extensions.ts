@@ -68,6 +68,7 @@ export interface IExtension {
 	readonly publisherSponsorLink?: URI;
 	readonly pinned: boolean;
 	readonly version: string;
+	readonly private: boolean;
 	readonly latestVersion: string;
 	readonly preRelease: boolean;
 	readonly isPreReleaseVersion: boolean;

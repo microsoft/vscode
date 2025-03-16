@@ -25,11 +25,11 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 		child: ChildProcessWithoutNullStreams;
 	}>();
 
-	override $startMcp(id: number, launch: McpServerLaunch): void {
+	protected override _startMcp(id: number, launch: McpServerLaunch): void {
 		if (launch.type === McpServerTransportType.Stdio) {
 			this.startNodeMpc(id, launch);
 		} else {
-			super.$startMcp(id, launch);
+			super._startMcp(id, launch);
 		}
 	}
 

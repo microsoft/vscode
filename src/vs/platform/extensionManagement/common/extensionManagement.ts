@@ -229,6 +229,7 @@ export interface IGalleryExtension {
 	releaseDate: number;
 	lastUpdated: number;
 	preview: boolean;
+	private: boolean;
 	hasPreReleaseVersion: boolean;
 	hasReleaseVersion: boolean;
 	isSigned: boolean;
@@ -247,6 +248,7 @@ export type InstallSource = 'gallery' | 'vsix' | 'resource';
 export interface IGalleryMetadata {
 	id: string;
 	publisherId: string;
+	private: boolean;
 	publisherDisplayName: string;
 	isPreReleaseVersion: boolean;
 	targetPlatform?: TargetPlatform;
@@ -274,6 +276,7 @@ export interface ILocalExtension extends IExtension {
 	installedTimestamp?: number;
 	isPreReleaseVersion: boolean;
 	hasPreReleaseVersion: boolean;
+	private: boolean;
 	preRelease: boolean;
 	updated: boolean;
 	pinned: boolean;
@@ -392,7 +395,6 @@ export const IExtensionGalleryService = createDecorator<IExtensionGalleryService
 export interface IExtensionGalleryService {
 	readonly _serviceBrand: undefined;
 	isEnabled(): boolean;
-	getCapabilities(): Promise<IExtensionGalleryCapabilities>;
 	query(options: IQueryOptions, token: CancellationToken): Promise<IPager<IGalleryExtension>>;
 	getExtensions(extensionInfos: ReadonlyArray<IExtensionInfo>, token: CancellationToken): Promise<IGalleryExtension[]>;
 	getExtensions(extensionInfos: ReadonlyArray<IExtensionInfo>, options: IExtensionQueryOptions, token: CancellationToken): Promise<IGalleryExtension[]>;
