@@ -8,7 +8,7 @@ import {
 	Disposable,
 	IDisposable,
 } from "../../../../../base/common/lifecycle.js";
-import { CreatorOverlayPart } from "./creatorOverlayPart";
+import { CreatorOverlayPart } from "./creatorOverlayPart.js";
 import {
 	createDecorator,
 	IInstantiationService,
@@ -63,6 +63,11 @@ export interface ICreatorOverlayService extends IDisposable {
 	 * Returns true if the Creator view popup is locked.
 	 */
 	isLocked(): boolean;
+
+	/**
+	 * Hides the loading overlay message.
+	 */
+	hideOverlayLoadingMessage(): void;
 }
 
 export class CreatorOverlayService
@@ -128,13 +133,10 @@ export class CreatorOverlayService
 			},
 		);
 
-		CommandsRegistry.registerCommand(
-			"pearai.toggleCreatorOverlay",
-			(accessor) => {
-				const overlayService = accessor.get(ICreatorOverlayService);
-				overlayService.toggle();
-			},
-		);
+		CommandsRegistry.registerCommand("pearai.toggleCreator", (accessor) => {
+			const overlayService = accessor.get(ICreatorOverlayService);
+			overlayService.toggle();
+		});
 
 		CommandsRegistry.registerCommand(
 			"pearai.lockCreatorOverlay",
@@ -157,6 +159,14 @@ export class CreatorOverlayService
 			(accessor) => {
 				const overlayService = accessor.get(ICreatorOverlayService);
 				return overlayService.isLocked();
+			},
+		);
+
+		CommandsRegistry.registerCommand(
+			"pearai.hideCreatorOverlayLoadingMessage",
+			(accessor) => {
+				const overlayService = accessor.get(ICreatorOverlayService);
+				overlayService.hideOverlayLoadingMessage();
 			},
 		);
 	}
@@ -187,6 +197,10 @@ export class CreatorOverlayService
 
 	isLocked(): boolean {
 		return this._creatorOverlayPart.isLocked;
+	}
+
+	hideOverlayLoadingMessage(): void {
+		this._creatorOverlayPart.hideOverlayLoadingMessage();
 	}
 
 	override dispose(): void {

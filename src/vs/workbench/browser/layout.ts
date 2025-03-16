@@ -263,6 +263,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private editorPartView!: ISerializableView;
 	private statusBarPartView!: ISerializableView;
 	private pearOverlayPartView!: ISerializableView;
+	private pearCreatorOverlayPartView!: ISerializableView;
 
 	private environmentService!: IBrowserWorkbenchEnvironmentService;
 	private extensionService!: IExtensionService;
@@ -1489,6 +1490,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const sideBar = this.getPart(Parts.SIDEBAR_PART);
 		const statusBar = this.getPart(Parts.STATUSBAR_PART);
 		const pearOverlayPart = this.getPart(Parts.PEAROVERLAY_PART);
+		const pearCreatorOverlayPart = this.getPart(Parts.PEARCREATOROVERLAY_PART);
 
 		// View references for all parts
 		this.titleBarPartView = titleBar;
@@ -1500,6 +1502,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.auxiliaryBarPartView = auxiliaryBarPart;
 		this.statusBarPartView = statusBar;
 		this.pearOverlayPartView = pearOverlayPart;
+		this.pearCreatorOverlayPartView = pearCreatorOverlayPart;
 
 		// Create a new container for PearOverlayPart
 		const pearOverlayPartContainer = document.createElement("div");
@@ -1516,6 +1519,22 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.mainContainer.appendChild(pearOverlayPartContainer);
 		pearOverlayPart.create(pearOverlayPartContainer);
 
+		// Create a container for the PearCreatorOverlayPart
+
+		const pearCreatorOverlayPartContainer = document.createElement("div");
+		pearCreatorOverlayPartContainer.style.position = "absolute";
+		pearCreatorOverlayPartContainer.style.top = "0";
+		pearCreatorOverlayPartContainer.style.left = "0";
+		pearCreatorOverlayPartContainer.style.right = "0";
+		pearCreatorOverlayPartContainer.style.bottom = "0";
+		pearCreatorOverlayPartContainer.style.zIndex = "-10";
+		pearCreatorOverlayPartContainer.style.display = "absolute";
+		pearCreatorOverlayPartContainer.classList.add("pearcreatoroverlay-part-container");
+		pearCreatorOverlayPartContainer.style.backgroundColor = 'transparent';
+
+		this.mainContainer.appendChild(pearCreatorOverlayPartContainer);
+		pearCreatorOverlayPart.create(pearCreatorOverlayPartContainer);
+
 		const viewMap = {
 			[Parts.ACTIVITYBAR_PART]: this.activityBarPartView,
 			[Parts.BANNER_PART]: this.bannerPartView,
@@ -1526,6 +1545,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			[Parts.STATUSBAR_PART]: this.statusBarPartView,
 			[Parts.AUXILIARYBAR_PART]: this.auxiliaryBarPartView,
 			[Parts.PEAROVERLAY_PART]: this.pearOverlayPartView,
+			[Parts.PEARCREATOROVERLAY_PART]: this.pearCreatorOverlayPartView,
 		};
 
 		const fromJSON = ({ type }: { type: Parts }) => viewMap[type];

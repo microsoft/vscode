@@ -1,9 +1,11 @@
+/* eslint-disable header/header */
+
 import {
 	registerAction2,
 	Action2,
 } from "../../../../../platform/actions/common/actions.js";
 import { ServicesAccessor } from "../../../../../platform/instantiation/common/instantiation.js";
-import { ICreatorOverlayService } from "./creatorOverlayService";
+import { ICreatorOverlayService } from "./creatorOverlayService.js"; // Added .js extension
 import { KeyCode, KeyMod } from "../../../../../base/common/keyCodes.js";
 
 export class CloseCreatorOverlayAction extends Action2 {
@@ -89,7 +91,7 @@ export class UnlockCreatorOverlayAction extends Action2 {
 }
 
 // Register all actions
-registerAction2(ToggleCreatorOverlayAction);
 registerAction2(CloseCreatorOverlayAction);
+registerAction2(ToggleCreatorOverlayAction);
 registerAction2(LockCreatorOverlayAction);
 registerAction2(UnlockCreatorOverlayAction);

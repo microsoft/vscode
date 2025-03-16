@@ -1,13 +1,19 @@
-import { registerAction2, Action2 } from "../../../../platform/actions/common/actions.js";
+/* eslint-disable header/header */
+
+import {
+	registerAction2,
+	Action2,
+} from "../../../../platform/actions/common/actions.js";
 import { ServicesAccessor } from "../../../../platform/instantiation/common/instantiation.js";
 import { IPearOverlayService } from "./pearOverlayService.js";
 import { KeyCode, KeyMod } from "../../../../base/common/keyCodes.js";
-import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IStorageService } from "../../../../platform/storage/common/storage.js";
 import { PEARAI_FIRST_LAUNCH_KEY } from "./common.js";
-import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
-
-
+import {
+	INotificationService,
+	Severity,
+} from "../../../../platform/notification/common/notification.js";
+import { ICommandService } from "../../../../platform/commands/common/commands.js";
 
 export class ClosePearOverlayAction extends Action2 {
 	static readonly ID = "workbench.action.closePearAI";
@@ -36,7 +42,10 @@ export class TogglePearOverlayAction extends Action2 {
 	constructor() {
 		super({
 			id: TogglePearOverlayAction.ID,
-			title: { value: "Toggle PearAI Popup", original: "Toggle PearAI Popup" },
+			title: {
+				value: "Toggle PearAI Popup",
+				original: "Toggle PearAI Popup",
+			},
 			f1: true,
 			keybinding: {
 				weight: 200,
@@ -57,7 +66,10 @@ export class MarkPearAIFirstLaunchCompleteAction extends Action2 {
 	constructor() {
 		super({
 			id: MarkPearAIFirstLaunchCompleteAction.ID,
-			title: { value: "Mark PearAI First Launch Key Complete", original: "Mark PearAI First Launch Key Complete" },
+			title: {
+				value: "Mark PearAI First Launch Key Complete",
+				original: "Mark PearAI First Launch Key Complete",
+			},
 			f1: true,
 		});
 	}
@@ -92,7 +104,10 @@ export class ResetPearAIFirstLaunchKeyAction extends Action2 {
 	constructor() {
 		super({
 			id: ResetPearAIFirstLaunchKeyAction.ID,
-			title: { value: "Reset PearAI First Launch Key", original: "Reset PearAI First Launch Key" },
+			title: {
+				value: "Reset PearAI First Launch Key",
+				original: "Reset PearAI First Launch Key",
+			},
 			f1: true,
 		});
 	}
@@ -100,24 +115,26 @@ export class ResetPearAIFirstLaunchKeyAction extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		const storageService = accessor.get(IStorageService);
 		const notificationService = accessor.get(INotificationService);
-		const commandService = accessor.get(ICommandService);  // Get command service early
+		const commandService = accessor.get(ICommandService); // Get command service early
 
 		storageService.store(PEARAI_FIRST_LAUNCH_KEY, false, 0, 0);
 		notificationService.notify({
 			severity: Severity.Info,
-			message: 'Successfully reset PearAI first launch Key',
+			message: "Successfully reset PearAI first launch Key",
 			actions: {
-				primary: [{
-					id: 'reloadWindow',
-					label: 'Reload Window',
-					tooltip: 'Reload Window',
-					class: '',
-					enabled: true,
-					run: () => {
-						commandService.executeCommand('workbench.action.reloadWindow');
-					}
-				}]
-			}
+				primary: [
+					{
+						id: "reloadWindow",
+						label: "Reload Window",
+						tooltip: "Reload Window",
+						class: "",
+						enabled: true,
+						run: () => {
+							commandService.executeCommand("workbench.action.reloadWindow");
+						},
+					},
+				],
+			},
 		});
 	}
 }
@@ -128,7 +145,10 @@ export class IsPearAIFirstLaunchAction extends Action2 {
 	constructor() {
 		super({
 			id: IsPearAIFirstLaunchAction.ID,
-			title: { value: "Is PearAI First Launch", original: "Is PearAI First Launch" },
+			title: {
+				value: "Is PearAI First Launch",
+				original: "Is PearAI First Launch",
+			},
 			f1: true,
 		});
 	}

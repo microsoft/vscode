@@ -151,6 +151,7 @@ export const PanelAlignmentContext = new RawContextKey<string>('panelAlignment',
 export const PanelVisibleContext = new RawContextKey<boolean>('panelVisible', false, localize('panelVisible', "Whether the panel is visible"));
 export const PanelMaximizedContext = new RawContextKey<boolean>('panelMaximized', false, localize('panelMaximized', "Whether the panel is maximized"));
 export const PearAIVisibleContext = new RawContextKey<boolean>('pearaiVisible', true, localize('pearaiVisible', "Whether the PearAI overlay is visible"));
+export const PearAICreatorVisibleContext = new RawContextKey<boolean>('pearaiCreatorVisible', true, localize('pearaiCreatorVisible', "Whether the PearAI Creator overlay is visible"));
 
 //#endregion
 
