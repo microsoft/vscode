@@ -27,7 +27,7 @@ import { classNames } from '../utils/utils.js';
 export interface IOriginalEditorInlineDiffViewState {
 	diff: DetailedLineRangeMapping[];
 	modifiedText: AbstractText;
-	mode: 'mixedLines' | 'insertionInline' | 'interleavedLines' | 'sideBySide' | 'deletion';
+	mode: 'insertionInline' | 'sideBySide' | 'deletion';
 
 	modifiedCodeEditor: ICodeEditor;
 }
@@ -90,10 +90,6 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 			if (!s) { return origViewZones; }
 
 			for (const diff of s.diff) {
-				if (s.mode !== 'interleavedLines') {
-					continue;
-				}
-
 				this._tokenizationFinished.read(reader); // Update view-zones once tokenization completes
 
 				const source = new LineSource(diff.modified.mapToLineArray(l => this._modifiedTextModel.tokenization.getLineTokens(l)));
@@ -135,7 +131,7 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 		if (!diff) { return undefined; }
 
 		const modified = diff.modifiedText;
-		const showInline = diff.mode === 'mixedLines' || diff.mode === 'insertionInline';
+		const showInline = diff.mode === 'insertionInline';
 
 		const showEmptyDecorations = true;
 

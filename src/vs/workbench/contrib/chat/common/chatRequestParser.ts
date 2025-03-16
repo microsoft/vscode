@@ -96,7 +96,7 @@ export class ChatRequestParser {
 
 	private tryToParseAgent(message: string, fullMessage: string, offset: number, position: IPosition, parts: Array<IParsedChatRequestPart>, location: ChatAgentLocation, context: IChatParserContext | undefined): ChatRequestAgentPart | undefined {
 		const nextAgentMatch = message.match(agentReg);
-		if (!nextAgentMatch) {
+		if (!nextAgentMatch || context?.mode !== undefined && context.mode !== ChatMode.Chat) {
 			return;
 		}
 

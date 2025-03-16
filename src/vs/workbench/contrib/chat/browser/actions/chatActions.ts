@@ -8,8 +8,10 @@ import { coalesce } from '../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { fromNowByDay, safeIntl } from '../../../../../base/common/date.js';
 import { Event } from '../../../../../base/common/event.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, markAsSingleton } from '../../../../../base/common/lifecycle.js';
+import { language } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -21,8 +23,10 @@ import { IActionViewItemService } from '../../../../../platform/actions/browser/
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { Action2, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
@@ -30,18 +34,21 @@ import product from '../../../../../platform/product/common/product.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { EXTENSIONS_CATEGORY, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
-import { ChatAgentLocation } from '../../common/constants.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatEntitlement, ChatSentiment, IChatEntitlementService } from '../../common/chatEntitlementService.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
+import { ChatMode } from '../../common/constants.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { ChatViewId, EditsViewId, IChatWidget, IChatWidgetService, showChatView, showCopilotView } from '../chat.js';
@@ -50,13 +57,6 @@ import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
-import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { language } from '../../../../../base/common/platform.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
-import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../common/chatEntitlementService.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 
@@ -356,7 +356,7 @@ export function registerChatActions() {
 				category: CHAT_CATEGORY,
 				menu: {
 					id: MenuId.ChatInput,
-					when: ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
+					when: ChatContextKeys.chatMode.isEqualTo(ChatMode.Chat),
 					group: 'navigation',
 					order: 1
 				}
@@ -513,8 +513,8 @@ export function registerChatActions() {
 				f1: true,
 				precondition: ContextKeyExpr.and(
 					ContextKeyExpr.or(
-						ChatContextKeys.Setup.limited,
-						ChatContextKeys.Setup.pro
+						ChatContextKeys.Entitlement.limited,
+						ChatContextKeys.Entitlement.pro
 					),
 					nonEnterpriseCopilotUsers
 				),
@@ -691,7 +691,6 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 		@IChatAgentService agentService: IChatAgentService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
@@ -707,7 +706,7 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 				run() { }
 			});
 
-			const chatExtensionInstalled = contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.installed.key) === true;
+			const chatExtensionInstalled = chatEntitlementService.sentiment === ChatSentiment.Installed;
 			const { chatQuotaExceeded, completionsQuotaExceeded } = chatEntitlementService.quotas;
 			const signedOut = chatEntitlementService.entitlement === ChatEntitlement.Unknown;
 			const setupFromDialog = configurationService.getValue('chat.experimental.setupFromDialog');
@@ -744,7 +743,7 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 				icon: primaryActionIcon,
 			}, undefined, undefined, undefined, undefined), dropdownAction, action.actions, '', { ...options, skipTelemetry: true });
 		}, Event.any(
-			agentService.onDidChangeAgents,
+			chatEntitlementService.onDidChangeSentiment,
 			chatEntitlementService.onDidChangeQuotaExceeded,
 			chatEntitlementService.onDidChangeEntitlement,
 			Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('chat.experimental.setupFromDialog'))
@@ -753,4 +752,9 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 		// Reduces flicker a bit on reload/restart
 		markAsSingleton(disposable);
 	}
+}
+
+export function getEditsViewId(accessor: ServicesAccessor): string {
+	const chatService = accessor.get(IChatService);
+	return chatService.unifiedViewEnabled ? ChatViewId : EditsViewId;
 }

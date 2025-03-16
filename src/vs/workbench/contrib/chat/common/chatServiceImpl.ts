@@ -504,7 +504,7 @@ export class ChatService extends Disposable implements IChatService {
 			}
 
 			const sampleQuestions = await defaultAgent.provideSampleQuestions?.(model.initialLocation, token) ?? undefined;
-			model.initialize(undefined, sampleQuestions);
+			model.initialize(sampleQuestions);
 		} catch (err) {
 			this.trace('startSession', `initializeSession failed: ${err}`);
 			model.setInitializationError(err);

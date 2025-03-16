@@ -18,7 +18,7 @@ import { IEditorGroupsService } from '../../../../services/editor/common/editorG
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { isChatViewTitleActionContext } from '../../common/chatActions.js';
-import { ChatAgentLocation } from '../../common/chatAgents.js';
+import { ChatAgentLocation } from '../../common/constants.js';
 
 enum MoveToNewLocation {
 	Editor = 'Editor',
