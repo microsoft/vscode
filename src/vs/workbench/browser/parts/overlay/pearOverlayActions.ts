@@ -14,6 +14,7 @@ import {
 	Severity,
 } from "../../../../platform/notification/common/notification.js";
 import { ICommandService } from "../../../../platform/commands/common/commands.js";
+import { PearAIVisibleContext } from "../../../common/contextkeys.js";
 
 export class ClosePearOverlayAction extends Action2 {
 	static readonly ID = "workbench.action.closePearAI";
@@ -26,6 +27,7 @@ export class ClosePearOverlayAction extends Action2 {
 			keybinding: {
 				weight: 200,
 				primary: KeyCode.Escape,
+				// when: PearAIVisibleContext.negate(),
 			},
 		});
 	}
