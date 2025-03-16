@@ -8,11 +8,10 @@ import { URI } from '../../../../base/common/uri.js';
 import { Location } from '../../../../editor/common/languages.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { ChatAgentLocation } from '../common/chatAgents.js';
 import { IChatRequestVariableData, IChatRequestVariableEntry } from '../common/chatModel.js';
 import { ChatRequestDynamicVariablePart, ChatRequestToolPart, IParsedChatRequest } from '../common/chatParserTypes.js';
 import { IChatVariablesService, IDynamicVariable } from '../common/chatVariables.js';
-import { ChatConfiguration } from '../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration } from '../common/constants.js';
 import { IChatWidgetService, showChatView, showEditsView } from './chat.js';
 import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
 

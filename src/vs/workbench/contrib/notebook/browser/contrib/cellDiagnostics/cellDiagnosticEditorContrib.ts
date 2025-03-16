@@ -13,7 +13,8 @@ import { INotebookEditor, INotebookEditorContribution } from '../../notebookBrow
 import { registerNotebookContribution } from '../../notebookEditorExtensions.js';
 import { CodeCellViewModel } from '../../viewModel/codeCellViewModel.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { ChatAgentLocation, IChatAgentService } from '../../../../chat/common/chatAgents.js';
+import { IChatAgentService } from '../../../../chat/common/chatAgents.js';
+import { ChatAgentLocation } from '../../../../chat/common/constants.js';
 
 export class CellDiagnostics extends Disposable implements INotebookEditorContribution {
 
