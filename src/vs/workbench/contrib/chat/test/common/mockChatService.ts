@@ -37,7 +37,7 @@ export class MockChatService implements IChatService {
 		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		return this.sessions.get(sessionId) ?? {} as IChatModel;
 	}
-	getOrRestoreSession(sessionId: string): IChatModel | undefined {
+	async getOrRestoreSession(sessionId: string): Promise<IChatModel | undefined> {
 		throw new Error('Method not implemented.');
 	}
 	loadSessionFromContent(data: ISerializableChatData): IChatModel | undefined {
@@ -67,13 +67,13 @@ export class MockChatService implements IChatService {
 	addCompleteRequest(sessionId: string, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, attempt: number | undefined, response: IChatCompleteResponse): void {
 		throw new Error('Method not implemented.');
 	}
-	getHistory(): IChatDetail[] {
+	async getHistory(): Promise<IChatDetail[]> {
 		throw new Error('Method not implemented.');
 	}
-	clearAllHistoryEntries(): void {
+	async clearAllHistoryEntries() {
 		throw new Error('Method not implemented.');
 	}
-	removeHistoryEntry(sessionId: string): void {
+	async removeHistoryEntry(sessionId: string) {
 		throw new Error('Method not implemented.');
 	}
 
@@ -93,6 +93,14 @@ export class MockChatService implements IChatService {
 
 	unifiedViewEnabled = false;
 	isEditingLocation(location: ChatAgentLocation): boolean {
+		throw new Error('Method not implemented.');
+	}
+
+	getChatStorageFolder(): URI {
+		throw new Error('Method not implemented.');
+	}
+
+	logChatIndex(): void {
 		throw new Error('Method not implemented.');
 	}
 }

@@ -124,7 +124,7 @@ async function moveToSidebar(accessor: ServicesAccessor): Promise<void> {
 	if (chatEditor instanceof ChatEditor && chatEditorInput instanceof ChatEditorInput && chatEditorInput.sessionId) {
 		await editorService.closeEditor({ editor: chatEditor.input, groupId: editorGroupService.activeGroup.id });
 		view = await viewsService.openView(ChatViewId) as ChatViewPane;
-		view.loadSession(chatEditorInput.sessionId, chatEditor.getViewState());
+		await view.loadSession(chatEditorInput.sessionId, chatEditor.getViewState());
 	} else {
 		view = await viewsService.openView(ChatViewId) as ChatViewPane;
 	}

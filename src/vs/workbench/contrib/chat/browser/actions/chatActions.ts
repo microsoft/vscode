@@ -315,7 +315,7 @@ export function registerChatActions() {
 						const item = picker.selectedItems[0];
 						const sessionId = item.chat.sessionId;
 						const view = await viewsService.openView(ChatViewId) as ChatViewPane;
-						view.loadSession(sessionId);
+						await view.loadSession(sessionId);
 					} finally {
 						picker.hide();
 					}

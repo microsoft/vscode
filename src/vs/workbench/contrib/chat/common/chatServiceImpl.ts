@@ -517,14 +517,20 @@ export class ChatService extends Disposable implements IChatService {
 		return this._sessionModels.get(sessionId);
 	}
 
-	getOrRestoreSession(sessionId: string): ChatModel | undefined {
+	async getOrRestoreSession(sessionId: string): Promise<ChatModel | undefined> {
 		this.trace('getOrRestoreSession', `sessionId: ${sessionId}`);
 		const model = this._sessionModels.get(sessionId);
 		if (model) {
 			return model;
 		}
 
-		const sessionData = revive<ISerializableChatData>(this._persistedSessions[sessionId]);
+		let sessionData: ISerializableChatData | undefined;
+		if (this.useFileStorage) {
+			sessionData = revive(await this._chatSessionStore.readSession(sessionId));
+		} else {
+			sessionData = revive(this._persistedSessions[sessionId]);
+		}
+
 		if (!sessionData) {
 			return undefined;
 		}
