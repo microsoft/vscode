@@ -97,7 +97,7 @@ To rebuild the app after initial setup:
 2. For watching extension - open another terminal and run:
    ```bash
    cd extensions/pearai-submodule/extensions/vscode
-   yarn tsc-watch
+   npm run tsc-watch
    ```
 3. Open another terminal to run the app:
    - **macOS and Linux**:
