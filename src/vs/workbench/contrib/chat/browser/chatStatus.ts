@@ -144,36 +144,33 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		let ariaLabel = localize('chatStatus', "Copilot Status");
 		let kind: StatusbarEntryKind | undefined;
 
-		const { chatQuotaExceeded, completionsQuotaExceeded } = this.chatEntitlementService.quotas;
+		if (!isNewUser(this.chatEntitlementService)) {
+			const { chatQuotaExceeded, completionsQuotaExceeded } = this.chatEntitlementService.quotas;
 
-		// New User
-		if (isNewUser(this.chatEntitlementService)) {
-			ariaLabel = localize('triggerChatSetup', "Use AI Features with Copilot for Free");
-		}
+			// Signed out
+			if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown) {
+				const signedOutWarning = localize('notSignedIntoCopilot', "Signed out");
 
-		// Signed out
-		else if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown) {
-			const signedOutWarning = localize('notSignedIntoCopilot', "Signed out");
-
-			text = `$(copilot-not-connected) ${signedOutWarning}`;
-			ariaLabel = signedOutWarning;
-			kind = 'prominent';
-		}
-
-		// Quota Exceeded
-		else if (chatQuotaExceeded || completionsQuotaExceeded) {
-			let quotaWarning: string;
-			if (chatQuotaExceeded && !completionsQuotaExceeded) {
-				quotaWarning = localize('chatQuotaExceededStatus', "Chat limit reached");
-			} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
-				quotaWarning = localize('completionsQuotaExceededStatus', "Completions limit reached");
-			} else {
-				quotaWarning = localize('chatAndCompletionsQuotaExceededStatus', "Limit reached");
+				text = `$(copilot-not-connected) ${signedOutWarning}`;
+				ariaLabel = signedOutWarning;
+				kind = 'prominent';
 			}
 
-			text = `$(copilot-warning) ${quotaWarning}`;
-			ariaLabel = quotaWarning;
-			kind = 'prominent';
+			// Quota Exceeded
+			else if (chatQuotaExceeded || completionsQuotaExceeded) {
+				let quotaWarning: string;
+				if (chatQuotaExceeded && !completionsQuotaExceeded) {
+					quotaWarning = localize('chatQuotaExceededStatus', "Chat limit reached");
+				} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
+					quotaWarning = localize('completionsQuotaExceededStatus', "Completions limit reached");
+				} else {
+					quotaWarning = localize('chatAndCompletionsQuotaExceededStatus', "Limit reached");
+				}
+
+				text = `$(copilot-warning) ${quotaWarning}`;
+				ariaLabel = quotaWarning;
+				kind = 'prominent';
+			}
 		}
 
 		return {
@@ -238,13 +235,16 @@ class ChatStatusDashboard extends Disposable {
 		disposables.add(token.onCancellationRequested(() => disposables.dispose()));
 
 		let needsSeparator = false;
-		const addSeparator = (label: string) => {
+		const addSeparator = (label: string | undefined) => {
 			if (needsSeparator) {
 				this.element.appendChild($('hr'));
 				needsSeparator = false;
 			}
 
-			this.element.appendChild($('div.header', undefined, label));
+			if (label) {
+				this.element.appendChild($('div.header', undefined, label));
+			}
+
 			needsSeparator = true;
 		};
 
@@ -286,14 +286,18 @@ class ChatStatusDashboard extends Disposable {
 		}
 
 		// New to Copilot / Signed out
-		const newUser = isNewUser(this.chatEntitlementService);
-		const signedOut = this.chatEntitlementService.entitlement === ChatEntitlement.Unknown;
-		if (newUser || signedOut) {
-			addSeparator(newUser ? localize('setupTitle', "Set up required to use Copilot") : localize('signInTitle', "Sign in required to use Copilot"));
+		{
+			const newUser = isNewUser(this.chatEntitlementService);
+			const signedOut = this.chatEntitlementService.entitlement === ChatEntitlement.Unknown;
+			if (newUser || signedOut) {
+				addSeparator(undefined);
 
-			const button = disposables.add(new Button(this.element, { ...defaultButtonStyles }));
-			button.label = newUser ? localize('setupCopilotForFreeButton', "Set up Copilot") : localize('signInToUseCopilotButton', "Sign in");
-			disposables.add(button.onDidClick(() => this.runCommandAndClose(newUser ? { id: 'workbench.action.chat.triggerSetup' } : () => this.chatEntitlementService.requests?.value.signIn())));
+				this.element.appendChild($('div.description', undefined, newUser ? localize('activateDescription', "You need to set up Copilot.") : localize('signInDescription', "You need to sign in to use Copilot.")));
+
+				const button = disposables.add(new Button(this.element, { ...defaultButtonStyles }));
+				button.label = newUser ? localize('activateCopilotButton', "Set Up Copilot") : localize('signInToUseCopilotButton', "Sign In");
+				disposables.add(button.onDidClick(() => this.runCommandAndClose(newUser ? { id: 'workbench.action.chat.triggerSetup' } : () => this.chatEntitlementService.requests?.value.signIn())));
+			}
 		}
 
 		return this.element;
