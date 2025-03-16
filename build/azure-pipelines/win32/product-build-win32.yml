@@ -259,7 +259,7 @@ steps:
           $ErrorActionPreference = "Stop"
           $ArchivePath = ".build\win32-$(VSCODE_ARCH)\VSCode-win32-$(VSCODE_ARCH)-$(VSCODE_VERSION).zip"
           New-Item -ItemType Directory -Path .build\win32-$(VSCODE_ARCH) -Force
-          exec { 7z.exe a -tzip $ArchivePath -x!CodeSignSummary*.md ..\VSCode-win32-$(VSCODE_ARCH)\* -r }
+          exec { 7z.exe a -tzip $ArchivePath -x!CodeSignSummary*.md $(Agent.BuildDirectory)\VSCode-win32-$(VSCODE_ARCH)\* -r }
           echo "##vso[task.setvariable variable=CLIENT_PATH]$ArchivePath"
         condition: and(succeededOrFailed(), eq(variables['BUILT_CLIENT'], 'true'))
         displayName: Package client
@@ -269,7 +269,7 @@ steps:
           $ErrorActionPreference = "Stop"
           $ArchivePath = ".build\win32-$(VSCODE_ARCH)\vscode-server-win32-$(VSCODE_ARCH).zip"
           New-Item -ItemType Directory -Path .build\win32-$(VSCODE_ARCH) -Force
-          exec { 7z.exe a -tzip $ArchivePath ..\vscode-server-win32-$(VSCODE_ARCH) -r }
+          exec { 7z.exe a -tzip $ArchivePath $(Agent.BuildDirectory)\vscode-server-win32-$(VSCODE_ARCH) -r }
           echo "Listing archive contents"
           7z.exe l $ArchivePath
           echo "##vso[task.setvariable variable=SERVER_PATH]$ArchivePath"
@@ -281,7 +281,7 @@ steps:
           $ErrorActionPreference = "Stop"
           $ArchivePath = ".build\win32-$(VSCODE_ARCH)\vscode-server-win32-$(VSCODE_ARCH)-web.zip"
           New-Item -ItemType Directory -Path .build\win32-$(VSCODE_ARCH) -Force
-          exec { 7z.exe a -tzip $ArchivePath ..\vscode-server-win32-$(VSCODE_ARCH)-web -r }
+          exec { 7z.exe a -tzip $ArchivePath $(Agent.BuildDirectory)\vscode-server-win32-$(VSCODE_ARCH)-web -r }
           echo "Listing archive contents"
           7z.exe l $ArchivePath
           echo "##vso[task.setvariable variable=WEB_PATH]$ArchivePath"
