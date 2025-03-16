@@ -22,7 +22,7 @@ import { URI } from "../../../../../base/common/uri.js";
 import { ExtensionIdentifier } from "../../../../../platform/extensions/common/extensions.js";
 import { IEditorGroupsService } from "../../../../../workbench/services/editor/common/editorGroupsService.js";
 
-const CREATOR_CHAT_ID = "pearai.creatorView";
+const CREATOR_VIEW_ID = "pearai.roo.creatorOverlayView";
 const CREATOR_OVERLAY_TITLE = "pearai.creatorOverlayView";
 
 export class CreatorOverlayPart extends Part {
@@ -76,7 +76,7 @@ export class CreatorOverlayPart extends Part {
 		this.state = "closed";
 
 		const extensionDescription: WebviewExtensionDescription = {
-			id: new ExtensionIdentifier(CREATOR_CHAT_ID),
+			id: new ExtensionIdentifier(CREATOR_VIEW_ID),
 			location: URI.parse(""),
 		};
 
@@ -136,11 +136,15 @@ export class CreatorOverlayPart extends Part {
 		// Connect webviewView to the provider
 		const source = new CancellationTokenSource();
 		try {
+			console.dir(`RESOLVING CreatorOverlayPart WEBVIEW SERVICE....`);
 			await this._webviewViewService.resolve(
-				CREATOR_CHAT_ID,
+				CREATOR_VIEW_ID,
 				this.webviewView!,
 				source.token,
 			);
+
+			console.dir(`WEBVIEW CreatorOverlayPart SERVICE RESOLVED!`);
+			console.dir(this.webviewView);
 
 			// Set up layout if everything is ready
 			if (this.overlayContainer && this.webviewView) {
@@ -165,27 +169,63 @@ export class CreatorOverlayPart extends Part {
 			this.overlayContainer.style.left = "0";
 			this.overlayContainer.style.right = "0";
 			this.overlayContainer.style.bottom = "0";
-			this.overlayContainer.style.backgroundColor = "rgba(0, 0, 0, 0.5)";
 			this.overlayContainer.style.zIndex = "-10"; // Initially hidden
 			this.overlayContainer.style.display = "flex";
 			this.overlayContainer.style.alignItems = "center";
 			this.overlayContainer.style.justifyContent = "center";
 			this.overlayContainer.style.transition = "opacity 0.3s ease-in-out";
 			this.overlayContainer.style.opacity = "0";
+			this.overlayContainer.style.width = "100%";
+			this.overlayContainer.style.height = "100%";
+			this.overlayContainer.onclick = (event) => {
+				// close the overlay if clicked outside the webview
+				if (event.target === this.overlayContainer) {
+					this.close();
+				}
+			};
 
-			// Create loading text inside the container
+			// Create container div for the gradient effect
+			const container = document.createElement("div");
+			container.style.position = "relative";
+
+			// Create the gradient background element
+			const gradientBg = document.createElement("div");
+			gradientBg.style.position = "absolute";
+			gradientBg.style.top = "-20px";
+			gradientBg.style.left = "-20px";
+			gradientBg.style.right = "-20px";
+			gradientBg.style.bottom = "-20px";
+			gradientBg.style.background =
+				"linear-gradient(45deg, #ff00cc, #3333ff, #00ccff, #33cc33)";
+			gradientBg.style.borderRadius = "40px";
+			gradientBg.style.zIndex = "-1";
+			gradientBg.style.filter = "blur(20px)";
+			gradientBg.style.opacity = "0.7";
+
+			// Create loading text
 			this.loadingText = $("div.loading-text");
-			this.loadingText.textContent = "Loading Creator View...";
-			this.loadingText.style.color = "#839497";
+			this.loadingText.textContent = "Loading...";
 			this.loadingText.style.fontSize = "20px";
 			this.loadingText.style.backgroundColor =
-				"var(--vscode-editor-background)";
-			this.loadingText.style.padding = "15px 30px";
-			this.loadingText.style.borderRadius = "8px";
-			this.loadingText.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.2)";
-			this.loadingText.style.zIndex = "10000"; // Ensure it's above everything
+				"var(--vscode-editor-foreground)";
+			this.loadingText.style.color = "var(--vscode-editorGhostText-foreground)";
+			this.loadingText.style.color = "#333";
+			this.loadingText.style.width = "300px";
+			this.loadingText.style.textAlign = "center";
+			this.loadingText.style.padding = "12px 20px";
+			this.loadingText.style.borderRadius = "30px";
+			this.loadingText.style.position = "relative"; // Important for z-index to work
+			this.loadingText.style.zIndex = "1";
 
-			this.overlayContainer.appendChild(this.loadingText);
+			// First add the gradient background to the container
+			container.appendChild(gradientBg);
+			// Then add the loading text to the container
+			container.appendChild(this.loadingText);
+
+			// Add the container to the overlay container
+			this.overlayContainer.appendChild(container);
+
+			// Add the overlay container to the main element
 			this.element.appendChild(this.overlayContainer);
 		}
 
@@ -197,7 +237,6 @@ export class CreatorOverlayPart extends Part {
 
 		return element;
 	}
-
 	override layout(
 		width: number,
 		height: number,
@@ -222,8 +261,6 @@ export class CreatorOverlayPart extends Part {
 		}
 
 		this.state = "open";
-
-		console.log(`CREATOR OVERLAY: opening...`, this.overlayContainer);
 
 		// Shows the parent element
 		this.element.style.zIndex = "20";

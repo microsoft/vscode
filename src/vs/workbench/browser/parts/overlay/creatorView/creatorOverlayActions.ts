@@ -7,7 +7,7 @@ import {
 import { ServicesAccessor } from "../../../../../platform/instantiation/common/instantiation.js";
 import { ICreatorOverlayService } from "./creatorOverlayService.js"; // Added .js extension
 import { KeyCode, KeyMod } from "../../../../../base/common/keyCodes.js";
-import { PearAICreatorVisibleContext } from "../../../../common/contextkeys.js";
+// import { PearAICreatorVisibleContext } from "../../../../common/contextkeys.js";
 
 export class CloseCreatorOverlayAction extends Action2 {
 	static readonly ID = "workbench.action.closeCreatorView";

@@ -14,7 +14,7 @@ import {
 	Severity,
 } from "../../../../platform/notification/common/notification.js";
 import { ICommandService } from "../../../../platform/commands/common/commands.js";
-import { PearAIVisibleContext } from "../../../common/contextkeys.js";
+// import { PearAIVisibleContext } from "../../../common/contextkeys.js";
 
 export class ClosePearOverlayAction extends Action2 {
 	static readonly ID = "workbench.action.closePearAI";
