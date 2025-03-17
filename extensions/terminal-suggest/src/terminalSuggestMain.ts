@@ -43,8 +43,8 @@ let pathExecutableCache: PathExecutableCache;
 export const availableSpecs: Fig.Spec[] = [
 	cdSpec,
 	codeInsidersCompletionSpec,
-	codeTunnelCompletionSpec,
 	codeCompletionSpec,
+	codeTunnelCompletionSpec,
 	npxCompletionSpec,
 	setLocationSpec,
 ];
