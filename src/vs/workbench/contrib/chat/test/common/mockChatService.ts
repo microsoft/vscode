@@ -61,7 +61,7 @@ export class MockChatService implements IChatService {
 	cancelCurrentRequestForSession(sessionId: string): void {
 		throw new Error('Method not implemented.');
 	}
-	clearSession(sessionId: string): void {
+	clearSession(sessionId: string): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 	addCompleteRequest(sessionId: string, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, attempt: number | undefined, response: IChatCompleteResponse): void {
