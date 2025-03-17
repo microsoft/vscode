@@ -189,6 +189,7 @@ export class ViewOverlayLine implements IVisibleLine {
 		if (this._domNode) {
 			this._domNode.setTop(deltaTop);
 			this._domNode.setHeight(lineHeight);
+			this._domNode.setLineHeight(lineHeight);
 		}
 	}
 }

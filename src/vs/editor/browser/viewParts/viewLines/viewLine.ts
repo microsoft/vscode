@@ -164,7 +164,6 @@ export class ViewLine implements IVisibleLine {
 			options.renderControlCharacters,
 			options.fontLigatures !== EditorFontLigatures.OFF,
 			selectionsOnLine,
-			lineHeight
 		);
 
 		if (this._renderedViewLine && this._renderedViewLine.input.equals(renderLineInput)) {
@@ -214,6 +213,7 @@ export class ViewLine implements IVisibleLine {
 		if (this._renderedViewLine && this._renderedViewLine.domNode) {
 			this._renderedViewLine.domNode.setTop(deltaTop);
 			this._renderedViewLine.domNode.setHeight(lineHeight);
+			this._renderedViewLine.domNode.setLineHeight(lineHeight);
 		}
 	}
 
