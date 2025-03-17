@@ -141,7 +141,7 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	readonly onDidChangeZenMode: Event<boolean>;
 
 	/**
-	 * Pear AI Zen mode 🚀
+	 * Pear AI Creator mode 🚀
 	 */
 	readonly onDidChangeCreatorMode: Event<boolean>;
 

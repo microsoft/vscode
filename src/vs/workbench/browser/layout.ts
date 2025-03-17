@@ -1514,7 +1514,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Check if we need to go to full screen
 		let toggleMainWindowFullScreen = false;
-		// TODO: Create Creator Mode specific configuration service
 		const config = getCreatorModeConfiguration(this.configurationService);
 		const creatorModeExitInfo = this.stateModel.getRuntimeValue(LayoutStateKeys.CREATOR_MODE_EXIT_INFO);
 
@@ -1528,14 +1527,75 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			creatorModeExitInfo.wasVisible.sideBar = this.isVisible(Parts.SIDEBAR_PART);
 			creatorModeExitInfo.wasVisible.panel = this.isVisible(Parts.PANEL_PART);
 			creatorModeExitInfo.wasVisible.auxiliaryBar = this.isVisible(Parts.AUXILIARYBAR_PART);
+
+			// Save the current sizes before modifying them
+			creatorModeExitInfo.sideBarSize = this.getSize(Parts.SIDEBAR_PART).width;
+			creatorModeExitInfo.panelSize = this.getSize(Parts.PANEL_PART).height;
+			creatorModeExitInfo.auxiliaryBarSize = this.getSize(Parts.AUXILIARYBAR_PART).width;
+			creatorModeExitInfo.panelPosition = this.getPanelPosition();
+
 			this.stateModel.setRuntimeValue(LayoutStateKeys.CREATOR_MODE_EXIT_INFO, creatorModeExitInfo);
 		}
 
-		// TODO: Configure what should be hidden in Creator Mode
-		this.setPanelHidden(true, true);
-		this.setAuxiliaryBarHidden(true, true);
+		// --- CREATOR MODE CUSTOM LAYOUT ---
+
+		// 1. Hide primary sidebar
 		this.setSideBarHidden(true, true);
 
+		// 2. Ensure auxiliary bar is visible and set to 40% of screen width
+		this.setAuxiliaryBarHidden(false, true);
+		const dimensions = this.mainContainer.getBoundingClientRect();
+
+		const auxiliaryBarWidth = Math.floor(dimensions.width * 0.4);
+		// Use setSize for direct sizing
+		this.setSize(Parts.AUXILIARYBAR_PART, {
+			width: auxiliaryBarWidth,
+			height: this.getSize(Parts.AUXILIARYBAR_PART).height
+		});
+
+		// 3. Show panel (for terminal) and make it 50% of the remaining height
+		this.setPanelHidden(false, true);
+		const panelHeight = Math.floor(dimensions.height * 0.5);
+		// Use setSize for direct sizing
+		this.setSize(Parts.PANEL_PART, {
+			width: this.getSize(Parts.PANEL_PART).width,
+			height: panelHeight
+		});
+		this.setPanelPosition(Position.BOTTOM);
+
+		// Make sure the editor takes up 100% of the available space
+		const editorPart = this.getPart(Parts.EDITOR_PART);
+		if (editorPart) {
+				// Get the current size and position
+				const size = this.getSize(Parts.EDITOR_PART);
+				const position = editorPart.element.getBoundingClientRect();
+
+				// Force editor width to fill available space by calculating the width
+				// based on container width minus auxiliary bar width (if visible)
+				const containerWidth = this.mainContainer.getBoundingClientRect().width;
+				const auxiliaryBarWidth = this.isVisible(Parts.AUXILIARYBAR_PART) ?
+						this.getSize(Parts.AUXILIARYBAR_PART).width : 0;
+
+				// Calculate the width the editor should have
+				const editorWidth = containerWidth - auxiliaryBarWidth;
+
+				// Update the editor part size
+				this.setSize(Parts.EDITOR_PART, {
+						width: editorWidth,
+						height: size.height
+				});
+
+				// Now layout the editor part with the new size
+				editorPart.layout(editorWidth, size.height, position.top, position.left);
+		}
+
+		// Make sure we call the overall layout after all sizing changes
+		this.layout();
+
+		// NOTE: Views would need to be opened here if you had viewsService available
+		// For now, this would need to be done manually by the user
+
+		// Optional configuration options
 		if (config.hideActivityBar) {
 			this.setActivityBarHidden(true, true);
 		}
@@ -1561,8 +1621,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.centerMainEditorLayout(true, true);
 		}
 
-		// TODO: Set up Creator Mode specific configuration
-		// Creator Mode Configuration Changes
+		// Configuration change handlers
 		this.state.runtime.creatorMode.transitionDisposables.set('configurationChange', this.configurationService.onDidChangeConfiguration(e => {
 			// Handle configuration changes for Creator Mode
 			// Activity Bar
@@ -1617,7 +1676,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	// Exit Creator Mode
 	exitCreatorMode(): void {
+		console.log("Exiting Creator Mode");
 		if (!this.isCreatorModeActive()) {
+			console.warn('Creator Mode is not active');
 			return; // Not in Creator Mode
 		}
 
@@ -1641,41 +1702,94 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const creatorModeExitInfo = this.stateModel.getRuntimeValue(LayoutStateKeys.CREATOR_MODE_EXIT_INFO);
 		let toggleMainWindowFullScreen = false;
 
-		// Restore previous state
+		// Restore panel visibility
 		if (creatorModeExitInfo.wasVisible.panel) {
 			this.setPanelHidden(false, true);
+		} else {
+			this.setPanelHidden(true, true);
 		}
 
+		// Restore panel position
+		if (creatorModeExitInfo.panelPosition) {
+			this.setPanelPosition(creatorModeExitInfo.panelPosition);
+		}
+
+		// Restore panel size - use resizePart instead of directly setting state
+		if (creatorModeExitInfo.panelSize) {
+			// Current size might be different, calculate the delta
+			const currentSize = this.getSize(Parts.PANEL_PART).height;
+			const deltaSize = creatorModeExitInfo.panelSize - currentSize;
+			if (deltaSize !== 0) {
+				// Panel might be horizontal or vertical
+				const position = this.getPanelPosition();
+				if (position === Position.BOTTOM || position === Position.TOP) {
+					this.resizePart(Parts.PANEL_PART, 0, deltaSize);
+				} else {
+					this.resizePart(Parts.PANEL_PART, deltaSize, 0);
+				}
+			}
+		}
+
+		// Restore auxiliary bar visibility
 		if (creatorModeExitInfo.wasVisible.auxiliaryBar) {
 			this.setAuxiliaryBarHidden(false, true);
+		} else {
+			this.setAuxiliaryBarHidden(true, true);
 		}
 
+		// Restore auxiliary bar size
+		if (creatorModeExitInfo.auxiliaryBarSize) {
+			const currentSize = this.getSize(Parts.AUXILIARYBAR_PART).width;
+			const deltaSize = creatorModeExitInfo.auxiliaryBarSize - currentSize;
+			if (deltaSize !== 0) {
+				this.resizePart(Parts.AUXILIARYBAR_PART, deltaSize, 0);
+			}
+		}
+
+		// Restore sidebar visibility
 		if (creatorModeExitInfo.wasVisible.sideBar) {
 			this.setSideBarHidden(false, true);
+		} else {
+			this.setSideBarHidden(true, true);
 		}
 
+		// Restore sidebar size
+		if (creatorModeExitInfo.sideBarSize) {
+			const currentSize = this.getSize(Parts.SIDEBAR_PART).width;
+			const deltaSize = creatorModeExitInfo.sideBarSize - currentSize;
+			if (deltaSize !== 0) {
+				this.resizePart(Parts.SIDEBAR_PART, deltaSize, 0);
+			}
+		}
+
+		// Restore activity bar
 		if (!this.stateModel.getRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN, true)) {
 			this.setActivityBarHidden(false, true);
 		}
 
+		// Restore status bar
 		if (!this.stateModel.getRuntimeValue(LayoutStateKeys.STATUSBAR_HIDDEN, true)) {
 			this.setStatusBarHidden(false, true);
 		}
 
+		// Restore editor layout
 		if (creatorModeExitInfo.transitionedToCenteredEditorLayout) {
 			this.centerMainEditorLayout(false, true);
 		}
 
+		// Restore notifications
 		if (creatorModeExitInfo.handleNotificationsDoNotDisturbMode) {
 			this.notificationService.setFilter(NotificationsFilter.OFF);
 		}
 
+		// Reset editor options
 		setLineNumbers();
 		this.focus();
 
+		// Handle fullscreen
 		toggleMainWindowFullScreen = creatorModeExitInfo.transitionedToFullScreen && this.state.runtime.mainWindowFullscreen;
 
-		// Layout and toggle fullscreen if needed
+		// Perform final layout and fullscreen changes
 		this.layout();
 		if (toggleMainWindowFullScreen) {
 			this.hostService.toggleFullScreen(mainWindow);
@@ -2810,6 +2924,7 @@ const LayoutStateKeys = {
 
 	// Creator Mode
 	CREATOR_MODE_ACTIVE: new RuntimeStateKey<boolean>('creatorMode.active', StorageScope.WORKSPACE, StorageTarget.MACHINE, false),
+
 	CREATOR_MODE_EXIT_INFO: new RuntimeStateKey('creatorMode.exitInfo', StorageScope.WORKSPACE, StorageTarget.MACHINE, {
 		transitionedToCenteredEditorLayout: false,
 		transitionedToFullScreen: false,
@@ -2819,6 +2934,11 @@ const LayoutStateKeys = {
 			panel: false,
 			sideBar: false,
 		},
+		// Additional properties for Creator Mode
+		sideBarSize: 200,
+		panelSize: 300,
+		auxiliaryBarSize: 200,
+		panelPosition: Position.BOTTOM
 	}),
 
 
