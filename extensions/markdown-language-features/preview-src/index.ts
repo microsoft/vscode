@@ -68,7 +68,7 @@ onceDocumentLoaded(() => {
 		getRawData('data-initial-md-content'),
 		'text/html'
 	);
-	document.body.appendChild(markDownHtml.body);
+	document.body.append(...markDownHtml.body.children);
 
 	// Restore
 	const scrollProgress = state.scrollProgress;

@@ -3325,6 +3325,11 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "%config.discardUntrackedChangesToTrash%"
+        },
+        "git.showReferenceDetails": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%config.showReferenceDetails%"
         }
       }
     },

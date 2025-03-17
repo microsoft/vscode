@@ -56,7 +56,7 @@ export class TreeSitterTokens extends AbstractTokens {
 
 	public getLineTokens(lineNumber: number): LineTokens {
 		const content = this._textModel.getLineContent(lineNumber);
-		if (this._tokenizationSupport) {
+		if (this._tokenizationSupport && content.length > 0) {
 			const rawTokens = this._tokenStore.getTokens(this._textModel, lineNumber);
 			if (rawTokens) {
 				return new LineTokens(rawTokens, content, this._languageIdCodec);

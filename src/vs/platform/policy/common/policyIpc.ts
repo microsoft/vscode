@@ -72,5 +72,4 @@ export class PolicyChannelClient extends AbstractPolicyService implements IPolic
 			this.policies.set(name, result[name]);
 		}
 	}
-
 }

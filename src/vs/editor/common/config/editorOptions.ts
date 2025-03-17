@@ -4269,14 +4269,6 @@ export interface IInlineSuggestOptions {
 		/**
 		* @internal
 		*/
-		useMixedLinesDiff?: 'never' | 'whenPossible' | 'forStableInsertions' | 'afterJumpWhenPossible';
-		/**
-		* @internal
-		*/
-		useInterleavedLinesDiff?: 'never' | 'always' | 'afterJump';
-		/**
-		* @internal
-		*/
 		useMultiLineGhostText?: boolean;
 	};
 }
@@ -4302,12 +4294,10 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			suppressSuggestions: false,
 			keepOnBlur: false,
 			fontFamily: 'default',
-			syntaxHighlightingEnabled: false,
+			syntaxHighlightingEnabled: true,
 			edits: {
 				enabled: true,
 				showCollapsed: false,
-				useMixedLinesDiff: 'forStableInsertions',
-				useInterleavedLinesDiff: 'never',
 				renderSideBySide: 'auto',
 				allowCodeShifting: 'always',
 				useMultiLineGhostText: true
@@ -4348,12 +4338,6 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					default: defaults.fontFamily,
 					description: nls.localize('inlineSuggest.fontFamily', "Controls the font family of the inline suggestions.")
 				},
-				/* 'editor.inlineSuggest.edits.useMixedLinesDiff': {
-					type: 'string',
-					default: defaults.edits.useMixedLinesDiff,
-					description: nls.localize('inlineSuggest.edits.useMixedLinesDiff', "Controls whether to enable mixed lines diff in inline suggestions."),
-					enum: ['never', 'whenPossible', 'forStableInsertions', 'afterJumpWhenPossible'],
-				}, */
 				'editor.inlineSuggest.edits.allowCodeShifting': {
 					type: 'string',
 					default: defaults.edits.allowCodeShifting,
@@ -4378,22 +4362,6 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					description: nls.localize('inlineSuggest.edits.showCollapsed', "Controls whether the suggestion will show as collapsed until jumping to it."),
 					tags: ['nextEditSuggestions', 'preview']
 				},
-				/* 'editor.inlineSuggest.edits.useMultiLineGhostText': {
-					type: 'boolean',
-					default: defaults.edits.useMultiLineGhostText,
-					description: nls.localize('inlineSuggest.edits.useMultiLineGhostText', "Controls whether multi line insertions can be shown with Ghost text."),
-				}, */
-				/* 'editor.inlineSuggest.edits.useInterleavedLinesDiff': {
-					type: 'string',
-					default: defaults.edits.useInterleavedLinesDiff,
-					description: nls.localize('inlineSuggest.edits.useInterleavedLinesDiff', "Controls whether to enable interleaved lines diff in inline suggestions."),
-					enum: ['never', 'always', 'afterJump'],
-				}, */
-				/* 'editor.inlineSuggest.edits.useGutterIndicator': {
-					type: 'boolean',
-					default: defaults.edits.useGutterIndicator,
-					description: nls.localize('inlineSuggest.edits.useGutterIndicator', "Controls whether to show a gutter indicator for inline suggestions.")
-				}, */
 			}
 		);
 	}
@@ -4414,10 +4382,8 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			edits: {
 				enabled: boolean(input.edits?.enabled, this.defaultValue.edits.enabled),
 				showCollapsed: boolean(input.edits?.showCollapsed, this.defaultValue.edits.showCollapsed),
-				useMixedLinesDiff: stringSet(input.edits?.useMixedLinesDiff, this.defaultValue.edits.useMixedLinesDiff, ['never', 'whenPossible', 'forStableInsertions', 'afterJumpWhenPossible']),
 				allowCodeShifting: stringSet(input.edits?.allowCodeShifting, this.defaultValue.edits.allowCodeShifting, ['always', 'horizontal', 'never']),
 				renderSideBySide: stringSet(input.edits?.renderSideBySide, this.defaultValue.edits.renderSideBySide, ['never', 'auto']),
-				useInterleavedLinesDiff: stringSet(input.edits?.useInterleavedLinesDiff, this.defaultValue.edits.useInterleavedLinesDiff, ['never', 'always', 'afterJump']),
 				useMultiLineGhostText: boolean(input.edits?.useMultiLineGhostText, this.defaultValue.edits.useMultiLineGhostText),
 			},
 		};

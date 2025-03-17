@@ -6,11 +6,12 @@
 import { coalesce } from '../../../../base/common/arrays.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Location } from '../../../../editor/common/languages.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { ChatAgentLocation } from '../common/chatAgents.js';
 import { IChatRequestVariableData, IChatRequestVariableEntry } from '../common/chatModel.js';
 import { ChatRequestDynamicVariablePart, ChatRequestToolPart, IParsedChatRequest } from '../common/chatParserTypes.js';
 import { IChatVariablesService, IDynamicVariable } from '../common/chatVariables.js';
+import { ChatAgentLocation, ChatConfiguration } from '../common/constants.js';
 import { IChatWidgetService, showChatView, showEditsView } from './chat.js';
 import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
 
@@ -20,6 +21,7 @@ export class ChatVariablesService implements IChatVariablesService {
 	constructor(
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IViewsService private readonly viewsService: IViewsService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 	}
 
@@ -73,7 +75,8 @@ export class ChatVariablesService implements IChatVariablesService {
 			return;
 		}
 
-		const widget = location === ChatAgentLocation.EditingSession
+		const unifiedViewEnabled = !!this.configurationService.getValue(ChatConfiguration.UnifiedChatView);
+		const widget = location === ChatAgentLocation.EditingSession && !unifiedViewEnabled
 			? await showEditsView(this.viewsService)
 			: (this.chatWidgetService.lastFocusedWidget ?? await showChatView(this.viewsService));
 		if (!widget || !widget.viewModel) {

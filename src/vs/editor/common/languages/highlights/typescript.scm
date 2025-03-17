@@ -18,10 +18,10 @@
 (escape_sequence) @constant.character.escape.ts
 
 ((string) @string.quoted.single.ts
-  (#match? @string.quoted.single.ts "^'[^']*'$"))
+  (#match? @string.quoted.single.ts "^'.*'$"))
 
 ((string) @string.quoted.double.ts
-  (#match? @string.quoted.double.ts "^\"[^\"]*\"$"))
+  (#match? @string.quoted.double.ts "^\".*\"$"))
 
 ([
   (template_string)
