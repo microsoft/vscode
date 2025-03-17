@@ -353,6 +353,14 @@ interface IChatSessionEntryMetadata {
 	title: string;
 	lastMessageDate: number;
 	isImported?: boolean;
+	initialLocation?: ChatAgentLocation;
+
+	/**
+	 * This only exists because the migrated data from the storage service had empty sessions persisted, and it's impossible to know which ones are
+	 * currently in use. Now, `clearSession` deletes empty sessions, so old ones shouldn't take up space in the store anymore, but we still need to
+	 * filter the old ones out of history.
+	 */
+	isEmpty?: boolean;
 }
 
 function isChatSessionEntryMetadata(obj: unknown): obj is IChatSessionEntryMetadata {
@@ -399,13 +407,15 @@ function isChatSessionIndex(data: unknown): data is IChatSessionIndexData {
 
 function getSessionMetadata(session: ChatModel | ISerializableChatData): IChatSessionEntryMetadata {
 	const title = session instanceof ChatModel ?
-		(session.title ?? localize('newChat', "New Chat")) :
+		(session.title || localize('newChat', "New Chat")) :
 		session.customTitle ?? ChatModel.getDefaultTitle(session.requests);
 	return {
 		sessionId: session.sessionId,
 		title,
 		lastMessageDate: session.lastMessageDate,
 		isImported: session.isImported,
+		initialLocation: session.initialLocation,
+		isEmpty: session instanceof ChatModel ? session.getRequests().length === 0 : session.requests.length === 0
 	};
 }
 
