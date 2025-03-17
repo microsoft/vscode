@@ -14,7 +14,7 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { Disposable, DisposableMap, IDisposable } from '../../../../base/common/lifecycle.js';
 import { revive } from '../../../../base/common/marshalling.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
-import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { URI } from '../../../../base/common/uri.js';
 import { isLocation } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -32,7 +32,7 @@ import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashC
 import { ChatRequestParser } from './chatRequestParser.js';
 import { IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatTransferredSessionData, IChatUserActionEvent } from './chatService.js';
 import { ChatServiceTelemetry } from './chatServiceTelemetry.js';
-import { ChatSessionStore } from './chatSessionStore.js';
+import { ChatSessionStore, IChatTransfer2 } from './chatSessionStore.js';
 import { IChatSlashCommandService } from './chatSlashCommands.js';
 import { IChatVariablesService } from './chatVariables.js';
 import { ChatAgentLocation, ChatConfiguration, ChatMode } from './constants.js';
@@ -42,14 +42,7 @@ import { ILanguageModelToolsService } from './languageModelToolsService.js';
 const serializedChatKey = 'interactive.sessions';
 
 const globalChatKey = 'chat.workspaceTransfer';
-interface IChatTransfer {
-	toWorkspace: UriComponents;
-	timestampInMilliseconds: number;
-	chat: ISerializableChatData;
-	inputValue: string;
-	location: ChatAgentLocation;
-	mode: ChatMode;
-}
+
 const SESSION_TRANSFER_EXPIRATION_IN_MILLISECONDS = 1000 * 60;
 
 type ChatProviderInvokedEvent = {
@@ -143,8 +136,14 @@ export class ChatService extends Disposable implements IChatService {
 		return !!this.configurationService.getValue(ChatConfiguration.UnifiedChatView);
 	}
 
+	@memoize
 	private get useFileStorage(): boolean {
 		return this.configurationService.getValue(ChatConfiguration.UseFileStorage);
+	}
+
+	private get isEmptyWindow(): boolean {
+		const workspace = this.workspaceContextService.getWorkspace();
+		return !workspace.configuration && workspace.folders.length === 0;
 	}
 
 	constructor(
@@ -164,8 +163,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		this._chatServiceTelemetry = this.instantiationService.createInstance(ChatServiceTelemetry);
 
-		const isEmptyWindow = !workspaceContextService.getWorkspace().folders.length;
-		const sessionData = storageService.get(serializedChatKey, isEmptyWindow ? StorageScope.APPLICATION : StorageScope.WORKSPACE, '');
+		const sessionData = storageService.get(serializedChatKey, this.isEmptyWindow ? StorageScope.APPLICATION : StorageScope.WORKSPACE, '');
 		if (sessionData) {
 			this._persistedSessions = this.deserializeChats(sessionData);
 			const countsForLog = Object.keys(this._persistedSessions).length;
@@ -203,14 +201,12 @@ export class ChatService extends Disposable implements IChatService {
 
 	private saveState(): void {
 		const liveChats = Array.from(this._sessionModels.values())
-			.filter(session => session.initialLocation === ChatAgentLocation.Panel || session.initialLocation === ChatAgentLocation.EditingSession)
-			.filter(session => session.getRequests().length > 0);
+			.filter(session => session.initialLocation === ChatAgentLocation.Panel || session.initialLocation === ChatAgentLocation.EditingSession);
 
 		if (this.useFileStorage) {
 			this._chatSessionStore.storeSessions(liveChats);
 		} else {
-			const isEmptyWindow = !this.workspaceContextService.getWorkspace().folders.length;
-			if (isEmptyWindow) {
+			if (this.isEmptyWindow) {
 				this.syncEmptyWindowChats(liveChats);
 			} else {
 				let allSessions: (ChatModel | ISerializableChatData)[] = liveChats;
@@ -374,8 +370,8 @@ export class ChatService extends Disposable implements IChatService {
 		}
 	}
 
-	private getTransferredSessionData(): IChatTransfer | undefined {
-		const data: IChatTransfer[] = this.storageService.getObject(globalChatKey, StorageScope.PROFILE, []);
+	private getTransferredSessionData(): IChatTransfer2 | undefined {
+		const data: IChatTransfer2[] = this.storageService.getObject(globalChatKey, StorageScope.PROFILE, []);
 		const workspaceUri = this.workspaceContextService.getWorkspace().folders[0]?.uri;
 		if (!workspaceUri) {
 			return;
@@ -1061,7 +1057,7 @@ export class ChatService extends Disposable implements IChatService {
 		this._pendingRequests.deleteAndDispose(sessionId);
 	}
 
-	clearSession(sessionId: string): void {
+	async clearSession(sessionId: string): Promise<void> {
 		this.trace('clearSession', `sessionId: ${sessionId}`);
 		const model = this._sessionModels.get(sessionId);
 		if (!model) {
@@ -1069,11 +1065,23 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		if (model.initialLocation === ChatAgentLocation.Panel) {
-			// Turn all the real objects into actual JSON, otherwise, calling 'revive' may fail when it tries to
-			// assign values to properties that are getters- microsoft/vscode-copilot-release#1233
-			const sessionData: ISerializableChatData = JSON.parse(JSON.stringify(model));
-			sessionData.isNew = true;
-			this._persistedSessions[sessionId] = sessionData;
+			if (this.useFileStorage) {
+				if (model.getRequests().length === 0) {
+					await this._chatSessionStore.deleteSession(sessionId);
+				} else {
+					await this._chatSessionStore.storeSessions([model]);
+				}
+			} else {
+				if (model.getRequests().length === 0) {
+					delete this._persistedSessions[sessionId];
+				} else {
+					// Turn all the real objects into actual JSON, otherwise, calling 'revive' may fail when it tries to
+					// assign values to properties that are getters- microsoft/vscode-copilot-release#1233
+					const sessionData: ISerializableChatData = JSON.parse(JSON.stringify(model));
+					sessionData.isNew = true;
+					this._persistedSessions[sessionId] = sessionData;
+				}
+			}
 		}
 
 		this._sessionModels.deleteAndDispose(sessionId);
@@ -1083,7 +1091,11 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	public hasSessions(): boolean {
-		return Object.values(this._persistedSessions).length > 0;
+		if (this.useFileStorage) {
+			return this._chatSessionStore.hasSessions();
+		} else {
+			return Object.values(this._persistedSessions).length > 0;
+		}
 	}
 
 	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void {
@@ -1092,7 +1104,7 @@ export class ChatService extends Disposable implements IChatService {
 			throw new Error(`Failed to transfer session. Unknown session ID: ${transferredSessionData.sessionId}`);
 		}
 
-		const existingRaw: IChatTransfer[] = this.storageService.getObject(globalChatKey, StorageScope.PROFILE, []);
+		const existingRaw: IChatTransfer2[] = this.storageService.getObject(globalChatKey, StorageScope.PROFILE, []);
 		existingRaw.push({
 			chat: model.toJSON(),
 			timestampInMilliseconds: Date.now(),

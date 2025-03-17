@@ -7,6 +7,7 @@ import { Sequencer } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { revive } from '../../../../base/common/marshalling.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -17,16 +18,24 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { Dto } from '../../../services/extensions/common/proxyIdentifier.js';
+import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { ChatModel, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData } from './chatModel.js';
+import { ChatAgentLocation, ChatMode } from './constants.js';
 
 const maxPersistedSessions = 25;
 
-const ChatIndexStorageKey = 'ChatSessionStore.index.2';
+const ChatIndexStorageKey = 'ChatSessionStore.index.5';
+const ChatTransferIndexStorageKey = 'ChatSessionStore.transferIndex';
 
-export class ChatSessionStore {
+export class ChatSessionStore extends Disposable {
 	private readonly storageRoot: URI;
+	private readonly transferredSessionStorageRoot: URI;
 
 	private readonly storeQueue = new Sequencer();
+
+	private storeTask: Promise<void> | undefined;
+	private shuttingDown = false;
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -35,25 +44,81 @@ export class ChatSessionStore {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
+		super();
+
 		const workspace = this.workspaceContextService.getWorkspace();
 		const isEmptyWindow = !workspace.configuration && workspace.folders.length === 0;
 		const workspaceId = isEmptyWindow ?
 			'no-workspace' :
 			this.workspaceContextService.getWorkspace().id;
 		this.storageRoot = joinPath(this.environmentService.workspaceStorageHome, workspaceId, 'chatSessions');
+
+		// TODO tmpdir
+		this.transferredSessionStorageRoot = joinPath(this.environmentService.workspaceStorageHome, 'transferredChatSessions');
+
+		this._register(this.lifecycleService.onWillShutdown(e => {
+			this.shuttingDown = true;
+			if (!this.storeTask) {
+				return;
+			}
+
+			e.join(this.storeTask, {
+				id: 'join.chatSessionStore',
+				label: localize('join.chatSessionStore', "Saving chat history")
+			});
+		}));
 	}
 
 	async storeSessions(sessions: ChatModel[]): Promise<void> {
-		await this.storeQueue.queue(async () => {
-			try {
-				await Promise.all(sessions.map(session => this.writeSession(session)));
-				await this.trimEntries();
-				await this.flushIndex();
-			} catch (e) {
-				this.reportError('storeSessions', 'Error storing chat sessions', e);
-			}
-		});
+		if (this.shuttingDown) {
+			// Don't start this task if we missed the chance to block shutdown
+			return;
+		}
+
+		try {
+			this.storeTask = this.storeQueue.queue(async () => {
+				try {
+					await Promise.all(sessions.map(session => this.writeSession(session)));
+					await this.trimEntries();
+					await this.flushIndex();
+				} catch (e) {
+					this.reportError('storeSessions', 'Error storing chat sessions', e);
+				}
+			});
+			await this.storeTask;
+		} finally {
+			this.storeTask = undefined;
+		}
+	}
+
+	async storeTransferSession(transferData: IChatTransfer, session: ISerializableChatData): Promise<void> {
+		try {
+			const content = JSON.stringify(session, undefined, 2);
+			await this.fileService.writeFile(this.transferredSessionStorageRoot, VSBuffer.fromString(content));
+		} catch (e) {
+			this.reportError('sessionWrite', 'Error writing chat session', e);
+			return;
+		}
+
+		const index = this.getTransferredSessionIndex();
+		index[transferData.toWorkspace.toString()] = transferData;
+		try {
+			this.storageService.store(ChatTransferIndexStorageKey, index, StorageScope.PROFILE, StorageTarget.MACHINE);
+		} catch (e) {
+			this.reportError('storeTransferSession', 'Error storing chat transfer session', e);
+		}
+	}
+
+	private getTransferredSessionIndex(): IChatTransferIndex {
+		try {
+			const data: IChatTransferIndex = this.storageService.getObject(ChatTransferIndexStorageKey, StorageScope.PROFILE, {});
+			return data;
+		} catch (e) {
+			this.reportError('getTransferredSessionIndex', 'Error reading chat transfer index', e);
+			return {};
+		}
 	}
 
 	private async writeSession(session: ChatModel | ISerializableChatData): Promise<void> {
@@ -104,6 +169,10 @@ export class ChatSessionStore {
 
 	private async internalDeleteSession(sessionId: string): Promise<void> {
 		const index = this.internalGetIndex();
+		if (!index.entries[sessionId]) {
+			return;
+		}
+
 		const storageLocation = this.getStorageLocation(sessionId);
 		try {
 			await this.fileService.del(storageLocation);
@@ -114,6 +183,10 @@ export class ChatSessionStore {
 		} finally {
 			delete index.entries[sessionId];
 		}
+	}
+
+	hasSessions(): boolean {
+		return Object.keys(this.internalGetIndex().entries).length > 0;
 	}
 
 	async deleteSession(sessionId: string): Promise<void> {
@@ -333,3 +406,22 @@ function getSessionMetadata(session: ChatModel | ISerializableChatData): IChatSe
 		lastMessageDate: session.lastMessageDate
 	};
 }
+
+export interface IChatTransfer {
+	toWorkspace: URI;
+	timestampInMilliseconds: number;
+	inputValue: string;
+	location: ChatAgentLocation;
+	mode: ChatMode;
+}
+
+export interface IChatTransfer2 extends IChatTransfer {
+	chat: ISerializableChatData;
+}
+
+type IChatTransferDto = Dto<IChatTransfer>;
+
+/**
+ * Map of destination workspace URI to chat transfer data
+ */
+type IChatTransferIndex = Record<string, IChatTransferDto>;

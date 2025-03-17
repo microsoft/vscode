@@ -233,7 +233,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private async clear(): Promise<void> {
 		if (this.widget.viewModel) {
-			this.chatService.clearSession(this.widget.viewModel.sessionId);
+			await this.chatService.clearSession(this.widget.viewModel.sessionId);
 		}
 
 		// Grab the widget's latest view state because it will be loaded back into the widget
@@ -246,7 +246,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	async loadSession(sessionId: string, viewState?: IChatViewState): Promise<void> {
 		if (this.widget.viewModel) {
-			this.chatService.clearSession(this.widget.viewModel.sessionId);
+			await this.chatService.clearSession(this.widget.viewModel.sessionId);
 		}
 
 		const newModel = await this.chatService.getOrRestoreSession(sessionId);
