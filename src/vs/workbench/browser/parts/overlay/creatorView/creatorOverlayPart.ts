@@ -361,6 +361,30 @@ export class CreatorOverlayPart extends Part {
 		}
 	}
 
+	hideLoadingOverlay(): void {
+		// Instantly hide the loading visualization without transitions
+		// This maintains the current open/closed state of the overlay
+
+		if (this.loadingText) {
+			// Immediately hide the loading text without transition
+			this.loadingText.style.display = "none";
+			this.loadingText.style.opacity = "0";
+		}
+
+		// Set the extension as ready so future opens won't show loading
+		this.isExtensionReady = true;
+
+		// If we're in open state, ensure the webview is visible
+		if (this.state === "open" && this.webviewView) {
+			const container = this.webviewView.webview.container;
+			if (container) {
+				container.style.zIndex = "1000";
+				container.style.display = "flex";
+				container.style.opacity = "1";
+			}
+		}
+	}
+
 	show(): void {
 		if (this.state === "loading") {
 			console.warn("Can't open Creator view while loading");

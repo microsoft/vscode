@@ -40,6 +40,11 @@ export interface ICreatorOverlayService extends IDisposable {
 	hide(): void;
 
 	/**
+	 * Hides the loading overlay.
+	 */
+	hideLoadingOverlay(): void;
+
+	/**
 	 * Toggles the visibility of the Creator view popup.
 	 */
 	toggle(): void;
@@ -193,6 +198,10 @@ export class CreatorOverlayService
 
 	unlock(): void {
 		this._creatorOverlayPart.unlock();
+	}
+
+	hideLoadingOverlay(): void {
+		this._creatorOverlayPart.hideLoadingOverlay();
 	}
 
 	isLocked(): boolean {
