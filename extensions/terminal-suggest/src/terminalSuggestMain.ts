@@ -26,6 +26,7 @@ import { createCompletionItem } from './helpers/completionItem';
 import { getFigSuggestions } from './fig/figInterface';
 import { executeCommand, executeCommandTimeout, IFigExecuteExternals } from './fig/execute';
 import { createTimeoutPromise } from './helpers/promise';
+import codeTunnelCompletionSpec from './completions/code-tunnel';
 
 export const enum TerminalShellType {
 	Bash = 'bash',
@@ -42,6 +43,7 @@ let pathExecutableCache: PathExecutableCache;
 export const availableSpecs: Fig.Spec[] = [
 	cdSpec,
 	codeInsidersCompletionSpec,
+	codeTunnelCompletionSpec,
 	codeCompletionSpec,
 	npxCompletionSpec,
 	setLocationSpec,
