@@ -187,7 +187,7 @@ export class ChatService extends Disposable implements IChatService {
 			};
 		}
 
-		this._chatSessionStore = this.instantiationService.createInstance(ChatSessionStore);
+		this._chatSessionStore = this._register(this.instantiationService.createInstance(ChatSessionStore));
 		if (this.useFileStorage) {
 			this._chatSessionStore.migrateDataIfNeeded(() => this._persistedSessions);
 		}
