@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const commonOptions: Fig.Option[] = [
+import { filepaths } from '../helpers/filepaths';
+
+export const commonOptions: Fig.Option[] = [
 	{
 		name: '-',
 		description: `Read from stdin (e.g. 'ps aux | grep code | code -')`,
@@ -60,7 +62,6 @@ const commonOptions: Fig.Option[] = [
 			'Open a file at the path on the specified line and character position',
 		args: {
 			name: 'file:line[:character]',
-			// TODO: Support :line[:character] completion?
 			template: 'filepaths',
 		},
 	},
@@ -153,7 +154,7 @@ const commonOptions: Fig.Option[] = [
 	}
 ];
 
-const extensionManagementOptions: Fig.Option[] = [
+export const extensionManagementOptions = (cliName: string): Fig.Option[] => [
 	{
 		name: '--extensions-dir',
 		description: 'Set the root path for extensions',
@@ -204,8 +205,13 @@ const extensionManagementOptions: Fig.Option[] = [
 		description:
 			`Installs or updates an extension. The argument is either an extension id or a path to a VSIX. The identifier of an extension is '\${ publisher }.\${ name }'. Use '--force' argument to update to latest version. To install a specific version provide '@\${version}'. For example: 'vscode.csharp@1.2.3'`,
 		args: {
-			// TODO: Create extension ID generator
 			name: 'extension-id[@version] | path-to-vsix',
+			generators: [
+				createCodeGenerators(cliName),
+				filepaths({
+					extensions: ['vsix'],
+				}),
+			],
 		},
 	},
 	{
@@ -217,8 +223,8 @@ const extensionManagementOptions: Fig.Option[] = [
 		name: '--uninstall-extension',
 		description: 'Uninstalls an extension',
 		args: {
-			// TODO: Create extension ID generator
 			name: 'extension-id',
+			generators: createCodeGenerators(cliName)
 		},
 	},
 	{
@@ -228,7 +234,7 @@ const extensionManagementOptions: Fig.Option[] = [
 	},
 ];
 
-const troubleshootingOptions: Fig.Option[] = [
+export const troubleshootingOptions = (cliName: string): Fig.Option[] => [
 	{
 		name: ['-v', '--version'],
 		description: 'Print version',
@@ -270,8 +276,8 @@ const troubleshootingOptions: Fig.Option[] = [
 		name: '--disable-extension',
 		description: 'Disable an extension',
 		args: {
-			// TODO: Create extension ID generator
 			name: 'extension-id',
+			generators: createCodeGenerators(cliName)
 		},
 	},
 	{
@@ -317,6 +323,26 @@ const troubleshootingOptions: Fig.Option[] = [
 	},
 ];
 
+export function createCodeGenerators(cliName: string): Fig.Generator {
+	return {
+		script: [cliName, '--list-extensions', '--show-versions'],
+		postProcess: parseInstalledExtensions
+	};
+}
+
+export function parseInstalledExtensions(out: string): Fig.Suggestion[] | undefined {
+	const extensions = out.split('\n').filter(Boolean).map((line) => {
+		const [id, version] = line.split('@');
+		return {
+			name: id,
+			type: 'option' as Fig.SuggestionType,
+			description: `Version: ${version}`
+		};
+	});
+	return extensions;
+}
+
+
 const codeCompletionSpec: Fig.Spec = {
 	name: 'code',
 	description: 'Visual Studio Code',
@@ -326,9 +352,10 @@ const codeCompletionSpec: Fig.Spec = {
 	},
 	options: [
 		...commonOptions,
-		...extensionManagementOptions,
-		...troubleshootingOptions,
+		...extensionManagementOptions('code'),
+		...troubleshootingOptions('code'),
 	],
 };
 
 export default codeCompletionSpec;
+

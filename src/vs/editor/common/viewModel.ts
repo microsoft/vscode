@@ -40,6 +40,7 @@ export interface IViewModel extends ICursorSimpleModel {
 	setViewport(startLineNumber: number, endLineNumber: number, centeredLineNumber: number): void;
 	visibleLinesStabilized(): void;
 	setHasFocus(hasFocus: boolean): void;
+	setHasWidgetFocus(hasWidgetFocus: boolean): void;
 	onCompositionStart(): void;
 	onCompositionEnd(): void;
 

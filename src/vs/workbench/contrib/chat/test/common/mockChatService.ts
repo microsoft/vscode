@@ -6,10 +6,10 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, ISerializableChatData } from '../../common/chatModel.js';
 import { IParsedChatRequest } from '../../common/chatParserTypes.js';
 import { IChatCompleteResponse, IChatDetail, IChatProviderInfo, IChatSendRequestData, IChatSendRequestOptions, IChatService, IChatTransferredSessionData, IChatUserActionEvent } from '../../common/chatService.js';
+import { ChatAgentLocation } from '../../common/constants.js';
 
 export class MockChatService implements IChatService {
 	_serviceBrand: undefined;
@@ -88,6 +88,11 @@ export class MockChatService implements IChatService {
 	}
 
 	setChatSessionTitle(sessionId: string, title: string): void {
+		throw new Error('Method not implemented.');
+	}
+
+	unifiedViewEnabled = false;
+	isEditingLocation(location: ChatAgentLocation): boolean {
 		throw new Error('Method not implemented.');
 	}
 }

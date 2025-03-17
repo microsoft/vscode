@@ -45,7 +45,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 	private notificationsList: NotificationsList | undefined;
 	private _isVisible: boolean | undefined;
 	private workbenchDimensions: Dimension | undefined;
-	private readonly notificationsCenterVisibleContextKey = NotificationsCenterVisibleContext.bindTo(this.contextKeyService);
+	private readonly notificationsCenterVisibleContextKey;
 	private clearAllAction: ClearAllNotificationsAction | undefined;
 	private configureDoNotDisturbAction: ConfigureDoNotDisturbAction | undefined;
 
@@ -55,7 +55,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@INotificationService private readonly notificationService: INotificationService,

@@ -19,10 +19,10 @@
 (escape_sequence) @constant.character.escape.ts
 
 ((string) @string.quoted.single.ts
-  (#match? @string.quoted.single.ts "^'[^']*'$"))
+  (#match? @string.quoted.single.ts "^'.*'$"))
 
 ((string) @string.quoted.double.ts
-  (#match? @string.quoted.double.ts "^\"[^\"]*\"$"))
+  (#match? @string.quoted.double.ts "^\".*\"$"))
 
 ([
   (template_string)
@@ -68,6 +68,8 @@
 
 (function_expression
   name: (identifier) @entity.name.function.ts)
+(function_signature
+  name: (identifier) @entity.name.function.ts)
 (function_declaration
   name: (identifier) @entity.name.function.ts)
 (method_definition
@@ -78,6 +80,10 @@
   (#eq? @storage.type.ts "constructor"))
 (method_signature
   name: (property_identifier) @meta.definition.method.ts @entity.name.function.ts)
+(generator_function_declaration
+  "*" @keyword.generator.asterisk.ts)
+(generator_function_declaration
+  name: (identifier) @meta.definition.function.ts @entity.name.function.ts)
 
 (pair
   key: (property_identifier) @entity.name.function.ts
@@ -100,13 +106,29 @@
   (identifier) @variable.parameter.ts)
 
 (required_parameter
-  (rest_pattern
-    (identifier) @variable.parameter.ts))
+  (_
+    ([
+      (identifier)
+      (shorthand_property_identifier_pattern)
+    ]) @variable.parameter.ts))
 
 (optional_parameter
   (identifier) @variable.parameter.ts)
 
+(optional_parameter
+  (_
+    ([
+      (identifier)
+      (shorthand_property_identifier_pattern)
+    ]) @variable.parameter.ts))
+
 (catch_clause
+  parameter: (identifier) @variable.parameter.ts)
+
+(index_signature
+  name: (identifier) @variable.parameter.ts)
+
+(arrow_function
   parameter: (identifier) @variable.parameter.ts)
 
 ; Function and method calls
@@ -132,10 +154,34 @@
 ; Special identifiers
 
 (predefined_type) @support.type.ts
-(predefined_type (["string" "boolean" "number" "any" "unknown"])) @support.type.primitive.ts
-(type_identifier) @entity.name.type.ts
+(predefined_type (["string" "boolean" "number" "any" "unknown" "never" "void"])) @support.type.primitive.ts
+
+(_
+  (type_identifier) @entity.name.type.ts)
+
+(type_annotation
+  ([
+    (type_identifier)
+    (nested_type_identifier)
+   ]) @meta.type.annotation.ts @entity.name.type.ts)
+
+(class_declaration
+  (type_identifier) @entity.name.type.class.ts)
+
+(type_alias_declaration
+  (type_identifier) @entity.name.type.alias.ts)
+(type_alias_declaration
+  value: (_
+    (type_identifier) @entity.name.type.ts))
+
+(interface_declaration
+  (type_identifier) @entity.name.type.interface.ts)
+
 (internal_module
   name: (identifier) @entity.name.type.ts)
+
+(enum_declaration
+  name: (identifier) @entity.name.type.enum.ts)
 
 (
   [
@@ -147,6 +193,9 @@
 
 (extends_clause
   value: (identifier) @entity.other.inherited-class.ts)
+
+(extends_type_clause
+  type: (type_identifier) @entity.other.inherited-class.ts)
 
 (implements_clause
   (type_identifier) @entity.other.inherited-class.ts)
@@ -187,6 +236,10 @@
   ">"
   ">="
 ]) @keyword.operator.relational.ts)
+
+(unary_expression ([
+  "-"
+]) @keyword.operator.arithmetic.ts)
 
 [
   "="
@@ -239,6 +292,18 @@
 (type_annotation
   (":") @keyword.operator.type.annotation.ts)
 
+(index_signature
+  (":") @keyword.operator.type.annotation.ts)
+
+(type_predicate_annotation
+  (":") @keyword.operator.type.annotation.ts)
+
+(conditional_type
+  ([
+    "?"
+    ":"
+  ]) @keyword.operator.ternary.ts)
+
 [
   "{"
   "}"
@@ -257,8 +322,12 @@
   "}" @punctuation.definition.template-expression.end.ts)
 
 (type_arguments
-  "<" @punctuation.definition.typeparameters.ts
-  ">" @punctuation.definition.typeparameters.ts)
+  "<" @punctuation.definition.typeparameters.begin.ts
+  ">" @punctuation.definition.typeparameters.end.ts)
+
+(type_parameters
+  "<" @punctuation.definition.typeparameters.begin.ts
+  ">" @punctuation.definition.typeparameters.end.ts)
 
 ; Keywords
 
@@ -299,7 +368,6 @@
   "switch"
   "throw"
   "try"
-  "type"
   "while"
   "yield"
 ] @keyword.control.ts
@@ -332,6 +400,8 @@
   "var"
 ] @storage.type.ts
 
+("type") @storage.type.type.ts
+
 [
   "module"
 ] @storage.type.namespace.ts
@@ -344,9 +414,8 @@
 
 (regex_flags) @keyword.ts
 
-[
-  "void"
-] @support.type.primitive.ts
+(unary_expression
+  "void" @keyword.operator.expression.void.ts)
 
 [
   "new"
@@ -356,6 +425,9 @@
   ("?") @keyword.operator.optional.ts)
 
 (property_signature
+  ("?") @keyword.operator.optional.ts)
+
+(method_signature
   ("?") @keyword.operator.optional.ts)
 
 (optional_parameter
@@ -374,6 +446,8 @@
   ("?.") @punctuation.accessor.optional.ts)
 
 (rest_pattern
+  ("...") @keyword.operator.rest.ts)
+(rest_type
   ("...") @keyword.operator.rest.ts)
 
 (spread_element

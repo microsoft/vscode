@@ -54,7 +54,7 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 		this._domNode = elements.root;
 		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 
-		const renderedTitle = this._register(this.markdownRenderer.render(new MarkdownString(title), {
+		const renderedTitle = this._register(this.markdownRenderer.render(new MarkdownString(title, { supportThemeIcons: true }), {
 			asyncRenderCallback: () => this._onDidChangeHeight.fire(),
 		}));
 		elements.title.append(renderedTitle.element);

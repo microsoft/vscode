@@ -56,8 +56,10 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private readonly _linesDomNodeScrollable: HTMLElement = document.createElement('div');
 	private readonly _linesDomNode: HTMLElement = document.createElement('div');
 
+	private readonly _editor: ICodeEditor;
+
 	private _previousState: StickyScrollWidgetState | undefined;
-	private _lineHeight: number = this._editor.getOption(EditorOption.lineHeight);
+	private _lineHeight: number;
 	private _renderedStickyLines: RenderedStickyLine[] = [];
 	private _lineNumbers: number[] = [];
 	private _lastLineRelativePosition: number = 0;
@@ -71,10 +73,12 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	public readonly onDidChangeStickyScrollHeight = this._onDidChangeStickyScrollHeight.event;
 
 	constructor(
-		private readonly _editor: ICodeEditor
+		editor: ICodeEditor
 	) {
 		super();
 
+		this._editor = editor;
+		this._lineHeight = editor.getOption(EditorOption.lineHeight);
 		this._lineNumbersDomNode.className = 'sticky-widget-line-numbers';
 		this._lineNumbersDomNode.setAttribute('role', 'none');
 
@@ -85,7 +89,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._linesDomNodeScrollable.appendChild(this._linesDomNode);
 
 		this._rootDomNode.className = 'sticky-widget';
-		this._rootDomNode.classList.toggle('peek', _editor instanceof EmbeddedCodeEditorWidget);
+		this._rootDomNode.classList.toggle('peek', editor instanceof EmbeddedCodeEditorWidget);
 		this._rootDomNode.appendChild(this._lineNumbersDomNode);
 		this._rootDomNode.appendChild(this._linesDomNodeScrollable);
 		this._setHeight(0);
@@ -341,14 +345,14 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		lineHTMLNode.tabIndex = 0;
 		lineHTMLNode.className = 'sticky-line-content';
 		lineHTMLNode.classList.add(`stickyLine${line}`);
-		lineHTMLNode.style.lineHeight = `${height}px`;
+		lineHTMLNode.style.lineHeight = `${lineHeight}px`;
 		lineHTMLNode.innerHTML = newLine as string;
 
 		const lineNumberHTMLNode = document.createElement('span');
 		lineNumberHTMLNode.setAttribute(STICKY_INDEX_ATTR, String(index));
 		lineNumberHTMLNode.setAttribute(STICKY_IS_LINE_NUMBER_ATTR, '');
 		lineNumberHTMLNode.className = 'sticky-line-number';
-		lineNumberHTMLNode.style.lineHeight = `${height}px`;
+		lineNumberHTMLNode.style.lineHeight = `${lineHeight}px`;
 		const lineNumbersWidth = layoutInfo.contentLeft;
 		lineNumberHTMLNode.style.width = `${lineNumbersWidth}px`;
 
@@ -373,12 +377,12 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._editor.applyFontInfo(lineNumberHTMLNode);
 
 
-		lineNumberHTMLNode.style.lineHeight = `${height}px`;
-		lineHTMLNode.style.lineHeight = `${height}px`;
-		lineNumberHTMLNode.style.height = `${height}px`;
-		lineHTMLNode.style.height = `${height}px`;
+		lineNumberHTMLNode.style.lineHeight = `${lineHeight}px`;
+		lineHTMLNode.style.lineHeight = `${lineHeight}px`;
+		lineNumberHTMLNode.style.height = `${lineHeight}px`;
+		lineHTMLNode.style.height = `${lineHeight}px`;
 
-		const renderedLine = new RenderedStickyLine(index, line, lineHTMLNode, lineNumberHTMLNode, foldingIcon, renderOutput.characterMapping, lineHTMLNode.scrollWidth, height);
+		const renderedLine = new RenderedStickyLine(index, line, lineHTMLNode, lineNumberHTMLNode, foldingIcon, renderOutput.characterMapping, lineHTMLNode.scrollWidth, lineHeight);
 		return this._updateTopAndZIndexOfStickyLine(renderedLine, previousLinesHeight);
 	}
 
