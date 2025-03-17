@@ -194,9 +194,9 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 	}
 
 	private async _promptForTrustOpenDialog(collection: McpCollectionDefinition): Promise<boolean | undefined> {
-		const labelWithOrigin = collection.presentation?.origin
-			? `[\`${basename(collection.presentation.origin)}\`](${collection.presentation.origin})`
-			: collection.label;
+		const originURI = collection.presentation?.origin;
+		const labelWithOrigin = originURI ? `[\`${basename(originURI)}\`](${originURI})` : collection.label;
+
 		const result = await this._dialogService.prompt(
 			{
 				message: localize('trustTitleWithOrigin', 'Trust MCP servers from {0}?', collection.label),
