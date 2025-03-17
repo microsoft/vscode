@@ -801,7 +801,6 @@ export const codeTunnelSubcommands = [{
 	],
 }];
 
-
 const codeCompletionSpec: Fig.Spec = {
 	name: 'code',
 	description: 'Visual Studio Code',
