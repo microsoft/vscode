@@ -79,8 +79,8 @@ suite('vscode API - env', () => {
 	});
 
 	test('env.isTrustedExternalUris', function () {
-		// Test exact domain match with https
-		const githubUri = Uri.parse('https://github.com/microsoft/vscode');
+		// Test exact domain match
+		const azureUri = Uri.parse('https://portal.azure.com');
 
 		// Test subdomain wildcard match
 		const galleryCdnUri = Uri.parse('https://foo.gallerycdn.vsassets.io/extension');
@@ -95,7 +95,7 @@ suite('vscode API - env', () => {
 		const docsUri = Uri.parse('https://code.visualstudio.com/api');
 
 		const result = env.isTrustedExternalUris([
-			githubUri,
+			azureUri,
 			galleryCdnUri,
 			marketplaceUri,
 			untrustedUri,
