@@ -137,7 +137,10 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 				slashCommands: [],
 				disambiguation: [],
 				locations: [location],
-				metadata: { welcomeMessageContent },
+				metadata: {
+					welcomeMessageContent,
+					helpTextPrefix: SetupChatAgentImplementation.SETUP_WARNING
+				},
 				description: location === ChatAgentLocation.Panel ? localize('chatDescription', "Ask Copilot") : isToolsAgent ? localize('agentDescription', "Edit files in your workspace in agent mode (Experimental)") : localize('editsDescription', "Edit files in your workspace"),
 				extensionId: nullExtensionDescription.identifier,
 				extensionDisplayName: nullExtensionDescription.name,
@@ -149,6 +152,8 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 			return disposable;
 		});
 	}
+
+	private static readonly SETUP_WARNING = new MarkdownString(localize('settingUpCopilotWarning', "You need to [set up Copilot]({0} \"Set up Copilot\") to use Chat.", `command:${CHAT_SETUP_ACTION_ID}`), { isTrusted: true });
 
 	constructor(
 		private readonly context: ChatEntitlementContext,
@@ -246,7 +251,7 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 		else {
 			progress({
 				kind: 'warning',
-				content: new MarkdownString(localize('settingUpCopilotWarning', "You need to [set up Copilot]({0} \"Set up Copilot\") to use Chat.", `command:${CHAT_SETUP_ACTION_ID}`), { isTrusted: true }),
+				content: SetupChatAgentImplementation.SETUP_WARNING,
 			} satisfies IChatWarningMessage);
 		}
 
