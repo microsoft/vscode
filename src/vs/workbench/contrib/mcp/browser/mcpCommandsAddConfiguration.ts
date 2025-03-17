@@ -74,7 +74,7 @@ export class McpAddConfigurationCommand {
 
 		const result = await this._quickInputService.pick<{ kind: AddConfigurationType } & IQuickPickItem>(items, {
 			title: localize('mcp.serverType.title', "Select Server Type"),
-			placeHolder: localize('mcp.serverType.placeholder', "Choose the type of MCP server to add")
+			placeHolder: localize('mcp.serverType.placeholder', "Choose the type of MCP server to add"),
 		});
 
 		return result?.kind;
@@ -118,12 +118,11 @@ export class McpAddConfigurationCommand {
 		};
 	}
 
-	private async getServerId(): Promise<string | undefined> {
-		const suggestedId = `my-mcp-server-${generateUuid().split('-')[0]}`;
+	private async getServerId(suggestion = `my-mcp-server-${generateUuid().split('-')[0]}`): Promise<string | undefined> {
 		const id = await this._quickInputService.input({
 			title: localize('mcp.serverId.title', "Enter Server ID"),
 			placeHolder: localize('mcp.serverId.placeholder', "Unique identifier for this server"),
-			value: suggestedId,
+			value: suggestion,
 			ignoreFocusLost: true,
 		});
 
@@ -155,12 +154,12 @@ export class McpAddConfigurationCommand {
 		return targetPick?.target;
 	}
 
-	private async getAssistedConfig(type: AddConfigurationType): Promise<McpConfigurationServer | undefined> {
+	private async getAssistedConfig(type: AddConfigurationType): Promise<{ name: string; config: McpConfigurationServer } | undefined> {
 		const packageName = await this._quickInputService.input({
 			ignoreFocusLost: true,
 			title: type === AddConfigurationType.NpmPackage
 				? localize('mcp.npm.title', "Enter NPM Package Name")
-				: localize('mcp.pip.title', "Enter PIP Package Name"),
+				: localize('mcp.pip.title', "Enter Pip Package Name"),
 			placeHolder: type === AddConfigurationType.NpmPackage
 				? localize('mcp.npm.placeholder', "Package name (e.g., @org/package)")
 				: localize('mcp.pip.placeholder', "Package name (e.g., package-name)")
@@ -187,7 +186,17 @@ export class McpAddConfigurationCommand {
 			{
 				type: type === AddConfigurationType.NpmPackage ? 'npm' : 'pip',
 				name: packageName,
-				targetConfig: mcpStdioServerSchema,
+				targetConfig: {
+					...mcpStdioServerSchema,
+					properties: {
+						...mcpStdioServerSchema.properties,
+						name: {
+							type: 'string',
+							description: 'Suggested name of the server, alphanumeric and hyphen only',
+						}
+					},
+					required: [...(mcpStdioServerSchema.required || []), 'name'],
+				},
 			}
 		).then(result => {
 			if (!result || result.state === 'error') {
@@ -219,10 +228,17 @@ export class McpAddConfigurationCommand {
 				return undefined;
 		}
 
-		return await this._commandService.executeCommand<McpConfigurationServer>(
+		const configWithName = await this._commandService.executeCommand<McpConfigurationServer & { name: string }>(
 			AddConfigurationCopilotCommand.StartFlow,
 			{ name: packageName }
 		);
+
+		if (!configWithName) {
+			return undefined;
+		}
+
+		const { name, ...config } = configWithName;
+		return { name, config };
 	}
 
 	public async run(): Promise<void> {
@@ -234,6 +250,7 @@ export class McpAddConfigurationCommand {
 
 		// Step 2: Get server details based on type
 		let serverConfig: McpConfigurationServer | undefined;
+		let suggestedName: string | undefined;
 		switch (serverType) {
 			case AddConfigurationType.Stdio:
 				serverConfig = await this.getStdioConfig();
@@ -241,12 +258,18 @@ export class McpAddConfigurationCommand {
 			case AddConfigurationType.SSE:
 				serverConfig = await this.getSSEConfig();
 				break;
-			case AddConfigurationType.NpmPackage:
-				serverConfig = await this.getAssistedConfig(AddConfigurationType.NpmPackage);
+			case AddConfigurationType.NpmPackage: {
+				const r = await this.getAssistedConfig(AddConfigurationType.NpmPackage);
+				serverConfig = r?.config;
+				suggestedName = r?.name;
 				break;
-			case AddConfigurationType.PipPackage:
-				serverConfig = await this.getAssistedConfig(AddConfigurationType.PipPackage);
+			}
+			case AddConfigurationType.PipPackage: {
+				const r = await this.getAssistedConfig(AddConfigurationType.PipPackage);
+				serverConfig = r?.config;
+				suggestedName = r?.name;
 				break;
+			}
 			default:
 				assertNever(serverType);
 		}
@@ -256,7 +279,7 @@ export class McpAddConfigurationCommand {
 		}
 
 		// Step 3: Get server ID
-		const serverId = await this.getServerId();
+		const serverId = await this.getServerId(suggestedName);
 		if (!serverId) {
 			return;
 		}
