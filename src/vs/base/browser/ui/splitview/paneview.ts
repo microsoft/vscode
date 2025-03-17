@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isFirefox } from '../../browser.js';
-import { applyDragImage, DataTransfers } from '../../dnd.js';
+import { DataTransfers } from '../../dnd.js';
 import { $, addDisposableListener, append, clearNode, EventHelper, EventType, getWindow, isHTMLElement, trackFocus } from '../../dom.js';
 import { DomEmitter } from '../../event.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
@@ -18,6 +18,7 @@ import { ScrollEvent } from '../../../common/scrollable.js';
 import './paneview.css';
 import { localize } from '../../../../nls.js';
 import { IView, Sizing, SplitView } from './splitview.js';
+import { applyDragImage } from '../dnd/dnd.js';
 
 export interface IPaneOptions {
 	minimumBodySize?: number;

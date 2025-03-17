@@ -5,7 +5,7 @@
 
 import './media/editortabscontrol.css';
 import { localize } from '../../../../nls.js';
-import { applyDragImage, DataTransfers } from '../../../../base/browser/dnd.js';
+import { DataTransfers } from '../../../../base/browser/dnd.js';
 import { $, Dimension, getActiveWindow, getWindow, isMouseEvent } from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { ActionsOrientation, IActionViewItem, prepareActions } from '../../../../base/browser/ui/actionbar/actionbar.js';
@@ -46,6 +46,7 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
+import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
 
 export class EditorCommandsContextActionRunner extends ActionRunner {
 

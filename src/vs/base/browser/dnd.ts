@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener } from './dom.js';
+import { addDisposableListener } from './dom.js';
 import { Disposable } from '../common/lifecycle.js';
 import { Mimes } from '../common/mime.js';
 
@@ -80,30 +80,6 @@ export const DataTransfers = {
 	 */
 	INTERNAL_URI_LIST: 'application/vnd.code.uri-list',
 };
-
-export function applyDragImage(event: DragEvent, container: HTMLElement, label: string, extraClasses: string[] = []): void {
-	if (!event.dataTransfer) {
-		return;
-	}
-
-	const dragImage = $('.monaco-drag-image');
-	dragImage.textContent = label;
-	dragImage.classList.add(...extraClasses);
-
-	const getDragImageContainer = (e: HTMLElement | null) => {
-		while (e && !e.classList.contains('monaco-workbench')) {
-			e = e.parentElement;
-		}
-		return e || container.ownerDocument.body;
-	};
-
-	const dragContainer = getDragImageContainer(container);
-	dragContainer.appendChild(dragImage);
-	event.dataTransfer.setDragImage(dragImage, -10, -10);
-
-	// Removes the element when the DND operation is done
-	setTimeout(() => dragImage.remove(), 0);
-}
 
 export interface IDragAndDropData {
 	update(dataTransfer: DataTransfer): void;

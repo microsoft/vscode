@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { applyDragImage, DataTransfers, IDragAndDropData } from '../../dnd.js';
+import { DataTransfers, IDragAndDropData } from '../../dnd.js';
 import { addDisposableListener, animate, Dimension, getActiveElement, getContentHeight, getContentWidth, getDocument, getTopLeftOffset, getWindow, isAncestor, isHTMLElement, isSVGElement, scheduleAtNextAnimationFrame } from '../../dom.js';
 import { DomEmitter } from '../../event.js';
 import { IMouseWheelEvent } from '../../mouseEvent.js';
@@ -24,6 +24,7 @@ import { BugIndicatingError } from '../../../common/errors.js';
 import { AriaRole } from '../aria/aria.js';
 import { ScrollableElementChangeOptions } from '../scrollbar/scrollableElementOptions.js';
 import { clamp } from '../../../common/numbers.js';
+import { applyDragImage } from '../dnd/dnd.js';
 
 interface IItem<T> {
 	readonly id: string;

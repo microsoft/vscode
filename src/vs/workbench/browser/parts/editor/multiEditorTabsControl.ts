@@ -57,7 +57,7 @@ import { StickyEditorGroupModel, UnstickyEditorGroupModel } from '../../../commo
 import { IReadonlyEditorGroupModel } from '../../../common/editor/editorGroupModel.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
-import { applyDragImage } from '../../../../base/browser/dnd.js';
+import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
 
 interface IEditorInputLabel {
 	readonly editor: EditorInput;
