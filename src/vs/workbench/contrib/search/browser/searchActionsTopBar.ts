@@ -215,7 +215,7 @@ registerAction2(class SearchWithAIAction extends Action2 {
 			precondition: Constants.SearchContext.hasAIResultProvider,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: ContextKeyExpr.and(Constants.SearchContext.hasAIResultProvider),
+				when: ContextKeyExpr.and(Constants.SearchContext.hasAIResultProvider, Constants.SearchContext.SearchViewFocusedKey),
 				primary: KeyMod.CtrlCmd | KeyCode.KeyI
 			}
 		});
