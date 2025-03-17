@@ -13,7 +13,6 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
 import { REMOTE_DEFAULT_IF_LOCAL_EXTENSIONS } from '../../../../platform/remote/common/remote.js';
 import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { IRemoteExtensionsScannerService } from '../../../../platform/remote/common/remoteExtensionsScanner.js';
@@ -37,8 +36,7 @@ export class InstallRemoteExtensionsContribution implements IWorkbenchContributi
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@ILogService private readonly logService: ILogService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IProductService private readonly productService: IProductService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		this.installDefaultRemoteExtensions();
 		this.installFailedRemoteExtensions();
@@ -64,9 +62,8 @@ export class InstallRemoteExtensionsContribution implements IWorkbenchContributi
 			return;
 		}
 
-		this.logService.info(`Installing '${settingValue.length}' default remote extensions`);
+		this.logService.info(`Evaluating '${settingValue.length}' default remote extensions`);
 
-		const preferPrerelease = this.productService.quality !== 'stable';
 		const galleryExtensions = await this.extensionGalleryService.getExtensions(settingValue.map((id) => ({ id })), CancellationToken.None);
 		const alreadyInstalledInRemote = await this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.getInstalled(ExtensionType.User);
 		const alreadyInstalledLocally = await this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.getInstalled(ExtensionType.User);
@@ -80,9 +77,9 @@ export class InstallRemoteExtensionsContribution implements IWorkbenchContributi
 				continue;
 			}
 
-			const installedLocally = alreadyInstalledLocally.some(e => areSameExtensions(e.identifier, { id }));
+			const installedLocally = alreadyInstalledLocally.find(e => areSameExtensions(e.identifier, { id }));
 			if (!installedLocally) {
-				this.logService.trace(`Default remote extension '${id}' is not already installed locally`);
+				this.logService.trace(`Default remote extension '${id}' is not installed locally`);
 				continue;
 			}
 
@@ -92,7 +89,8 @@ export class InstallRemoteExtensionsContribution implements IWorkbenchContributi
 				continue;
 			}
 
-			const installPreReleaseVersion = preferPrerelease && extension.hasPreReleaseVersion;
+			const installPreReleaseVersion = installedLocally.isPreReleaseVersion;
+			this.logService.trace(`Default remote extension '${id}' queued for install (pre-release=${installPreReleaseVersion})`);
 			(installPreReleaseVersion ? prereleaseExtensionInfo : extensionInfo).push({
 				extension, options: { installPreReleaseVersion },
 			});
@@ -101,7 +99,6 @@ export class InstallRemoteExtensionsContribution implements IWorkbenchContributi
 		// Install pre-release extensions first to avoid a situation where:
 		// An extension without a pre-release (A) is installed first and depends on an extension that has a pre-release version (B)
 		// If this happens, the extension A may result in the installation of the stable version of B
-		// A real life example of this is GitHub.copilot and GitHub.copilot-chat
 		if (prereleaseExtensionInfo.length) {
 			await Promise.allSettled(prereleaseExtensionInfo.map(e => this.extensionManagementServerService.remoteExtensionManagementServer!.extensionManagementService.installFromGallery(e.extension, e.options)));
 		}
