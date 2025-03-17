@@ -9,6 +9,7 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { assertType } from '../../../../../base/common/types.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
@@ -153,11 +154,12 @@ class ChatToolInvocationSubPart extends Disposable {
 	}
 
 	private createConfirmationWidget(toolInvocation: IChatToolInvocation): HTMLElement {
-		if (!toolInvocation.confirmationMessages) {
-			throw new Error('Confirmation messages are missing');
-		}
+		assertType(toolInvocation.confirmationMessages, 'Confirmation messages are missing');
+
 		const title = toolInvocation.confirmationMessages.title;
 		const message = toolInvocation.confirmationMessages.message;
+		const toolInput = toolInvocation.confirmationMessages.toolInput;
+
 		const continueLabel = localize('continue', "Continue");
 		const continueKeybinding = this.keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
 		const continueTooltip = continueKeybinding ? `${continueLabel} (${continueKeybinding})` : continueLabel;
@@ -183,6 +185,7 @@ class ChatToolInvocationSubPart extends Disposable {
 				ChatConfirmationWidget,
 				title,
 				message,
+				toolInput,
 				buttons
 			));
 		} else {
@@ -204,6 +207,7 @@ class ChatToolInvocationSubPart extends Disposable {
 				ChatCustomConfirmationWidget,
 				title,
 				this.markdownPart.domNode,
+				toolInput,
 				buttons
 			));
 		}
@@ -219,9 +223,8 @@ class ChatToolInvocationSubPart extends Disposable {
 	}
 
 	private createTerminalConfirmationWidget(toolInvocation: IChatToolInvocation, terminalData: IChatTerminalToolInvocationData): HTMLElement {
-		if (!toolInvocation.confirmationMessages) {
-			throw new Error('Confirmation messages are missing');
-		}
+		assertType(toolInvocation.confirmationMessages, 'Confirmation messages are missing');
+
 		const title = toolInvocation.confirmationMessages.title;
 		const message = toolInvocation.confirmationMessages.message;
 		const continueLabel = localize('continue', "Continue");
@@ -291,6 +294,7 @@ class ChatToolInvocationSubPart extends Disposable {
 			ChatCustomConfirmationWidget,
 			title,
 			element,
+			undefined,
 			buttons
 		));
 

@@ -12,6 +12,8 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 
 export interface IChatConfirmationButton {
 	label: string;
@@ -41,13 +43,18 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 
 	constructor(
 		title: string,
+		rawInput: object | undefined,
 		buttons: IChatConfirmationButton[],
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
 		const elements = dom.h('.chat-confirmation-widget@root', [
-			dom.h('.chat-confirmation-widget-title@title'),
+			dom.h('.chat-confirmation-widget-title-container@titleContainer', [
+				dom.h('.chat-confirmation-widget-expando@expando'),
+				dom.h('.chat-confirmation-widget-title@title'),
+				dom.h('.chat-confirmation-widget-input-value@inputValue'),
+			]),
 			dom.h('.chat-confirmation-widget-message@message'),
 			dom.h('.chat-confirmation-buttons-container@buttonsContainer'),
 		]);
@@ -58,6 +65,27 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 			asyncRenderCallback: () => this._onDidChangeHeight.fire(),
 		}));
 		elements.title.append(renderedTitle.element);
+
+		elements.titleContainer.classList.toggle('input', !!rawInput);
+
+		if (rawInput) {
+
+			dom.reset(elements.expando, renderIcon(Codicon.chevronRight));
+
+			const inputMDStr = new MarkdownString().appendCodeblock('json', JSON.stringify(rawInput, undefined, 2));
+			const renderedInput = this._register(this.markdownRenderer.render(inputMDStr, { asyncRenderCallback: () => this._onDidChangeHeight.fire() }));
+			elements.inputValue.append(renderedInput.element);
+
+			let expanded = false;
+
+			this._register(dom.addStandardDisposableListener(elements.titleContainer, 'click', () => {
+				expanded = !expanded;
+				elements.titleContainer.classList.toggle('expanded', expanded);
+				this._onDidChangeHeight.fire();
+				dom.reset(elements.expando, expanded ? renderIcon(Codicon.chevronDown) : renderIcon(Codicon.chevronRight));
+			}));
+		}
+
 		this.messageElement = elements.message;
 		buttons.forEach(buttonData => {
 			const button = this._register(new Button(elements.buttonsContainer, { ...defaultButtonStyles, secondary: buttonData.isSecondary, title: buttonData.tooltip }));
@@ -75,10 +103,11 @@ export class ChatConfirmationWidget extends BaseChatConfirmationWidget {
 	constructor(
 		title: string,
 		private readonly message: string | IMarkdownString,
+		rawInput: object | undefined,
 		buttons: IChatConfirmationButton[],
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		super(title, buttons, instantiationService);
+		super(title, rawInput, buttons, instantiationService);
 
 		const renderedMessage = this._register(this.markdownRenderer.render(
 			typeof this.message === 'string' ? new MarkdownString(this.message) : this.message,
@@ -92,10 +121,11 @@ export class ChatCustomConfirmationWidget extends BaseChatConfirmationWidget {
 	constructor(
 		title: string,
 		messageElement: HTMLElement,
+		rawInput: object | undefined,
 		buttons: IChatConfirmationButton[],
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		super(title, buttons, instantiationService);
+		super(title, rawInput, buttons, instantiationService);
 		this.renderMessage(messageElement);
 	}
 }

@@ -14,7 +14,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
-import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../../chat/common/languageModelToolsService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../../chat/common/languageModelToolsService.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServer, McpServerMetadataCache } from './mcpServer.js';
 import { IMcpServer, IMcpService, IMcpTool, McpCollectionDefinition, McpServerDefinition, McpServerToolsState } from './mcpTypes.js';
@@ -217,11 +217,12 @@ class McpToolImplementation implements IToolImpl {
 		return {
 			confirmationMessages: {
 				title: localize('msg.title', "Run `{0}` from $(server) `{1}` (MCP server)", tool.definition.name, server.definition.label),
-				message: new MarkdownString(localize('msg.msg', "{0}\n\nInput:\n\n```json\n{1}\n```\n\n$(warning) {2}", tool.definition.description, JSON.stringify(parameters, undefined, 2), mcpToolWarning), { supportThemeIcons: true })
+				message: new MarkdownString(localize('msg.msg', "{0}\n\n$(warning) {1}", tool.definition.description, mcpToolWarning), { supportThemeIcons: true }),
+				toolInput: parameters
 			},
 			invocationMessage: new MarkdownString(localize('msg.run', "Running `{0}`", tool.definition.name, server.definition.label)),
 			pastTenseMessage: new MarkdownString(localize('msg.ran', "Ran `{0}` ", tool.definition.name, server.definition.label))
-		};
+		} satisfies IPreparedToolInvocation;
 	}
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, token: CancellationToken) {

@@ -39,3 +39,37 @@
 .chat-confirmation-widget.hideButtons .chat-confirmation-buttons-container {
 	display: none;
 }
+
+.chat-confirmation-widget .chat-confirmation-widget-title-container.input {
+	cursor: pointer;
+	display: flex;
+	flex-wrap: wrap;
+}
+
+.chat-confirmation-widget .chat-confirmation-widget-title-container.input .chat-confirmation-widget-title {
+	display: inline-flex;
+}
+
+.chat-confirmation-widget .chat-confirmation-widget-title-container .chat-confirmation-widget-expando {
+	display: none;
+}
+
+.chat-confirmation-widget .chat-confirmation-widget-title-container.input .chat-confirmation-widget-expando {
+	display: inline-flex;
+}
+
+.chat-confirmation-widget .chat-confirmation-widget-title-container .chat-confirmation-widget-input-value {
+	display: none;
+	flex-basis: 100%;
+	width: 100%;
+}
+
+.chat-confirmation-widget .chat-confirmation-widget-title-container .chat-confirmation-widget-input-value .rendered-markdown{
+	width: 100%;
+}
+
+.chat-confirmation-widget .chat-confirmation-widget-title-container.expanded .chat-confirmation-widget-input-value {
+	display: inherit;
+	overflow: scroll;
+	max-height: 400px;
+}
