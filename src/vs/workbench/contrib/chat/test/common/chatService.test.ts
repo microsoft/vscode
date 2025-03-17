@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Event } from '../../../../../base/common/event.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -36,6 +37,7 @@ import { IChatVariablesService } from '../../common/chatVariables.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { MockChatService } from './mockChatService.js';
 import { MockChatVariablesService } from './mockChatVariables.js';
+import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 
 const chatAgentWithUsedContextId = 'ChatProviderWithUsedContext';
 const chatAgentWithUsedContext: IChatAgent = {
@@ -130,6 +132,7 @@ suite('ChatService', () => {
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IChatService, new MockChatService());
 		instantiationService.stub(IEnvironmentService, { workspaceStorageHome: URI.file('/test/path/to/workspaceStorage') });
+		instantiationService.stub(ILifecycleService, { onWillShutdown: Event.None });
 
 		chatAgentService = testDisposables.add(instantiationService.createInstance(ChatAgentService));
 		instantiationService.stub(IChatAgentService, chatAgentService);
