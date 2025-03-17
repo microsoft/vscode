@@ -60,7 +60,7 @@ import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, ChatEntitlementService, IChatEntitlementService } from '../common/chatEntitlementService.js';
 import { IChatProgress, IChatProgressMessage, IChatService, IChatWarningMessage } from '../common/chatService.js';
 import { CHAT_CATEGORY, CHAT_SETUP_ACTION_ID } from './actions/chatActions.js';
-import { ChatViewId, EditsViewId, ensureSideBarChatViewSize, preferCopilotEditsView, showCopilotView } from './chat.js';
+import { ChatViewId, EditsViewId, ensureSideBarChatViewSize, IChatWidgetService, preferCopilotEditsView, showCopilotView } from './chat.js';
 import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
 import { ChatViewsWelcomeExtensions, IChatViewsWelcomeContributionRegistry } from './viewsWelcome/chatViewsWelcome.js';
 import { ChatAgentLocation } from '../common/constants.js';
@@ -170,62 +170,50 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 		return this.instantiationService.invokeFunction(async accessor => {
 			const chatService = accessor.get(IChatService);						// use accessor for lazy loading
 			const languageModelsService = accessor.get(ILanguageModelsService);	// of chat related services
+			const chatWidgetService = accessor.get(IChatWidgetService);
 
-			return this.doInvoke(request, progress, chatService, languageModelsService);
+			return this.doInvoke(request, progress, chatService, languageModelsService, chatWidgetService);
 		});
 	}
 
-	private async doInvoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService): Promise<IChatAgentResult> {
+	private async doInvoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService): Promise<IChatAgentResult> {
 		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'chat' });
 
-		const dialog = this.instantiationService.createInstance(ChatSetupDialog, this.context);
-		const result = await dialog.show();
+		const requestModel = chatWidgetService.getWidgetBySessionId(request.sessionId)?.viewModel?.model.getRequests().at(-1);
 
-		// Proceed with setting up Copilot
-		if (result) {
-			const setupListener = this.controller.value.onDidChange(() => {
-				switch (this.controller.value.step) {
-					case ChatSetupStep.SigningIn:
-						progress({
-							kind: 'progressMessage',
-							content: new MarkdownString(localize('setupChatSignIn2', "Signing in to {0}.", ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.enterpriseProviderId ? defaultChat.enterpriseProviderName : defaultChat.providerName)),
-						} satisfies IChatProgressMessage);
-						break;
-					case ChatSetupStep.Installing:
-						progress({
-							kind: 'progressMessage',
-							content: new MarkdownString(localize('installingCopilot', "Getting Copilot ready.")),
-						} satisfies IChatProgressMessage);
-						break;
-				}
-			});
+		const setup = this.instantiationService.createInstance(ChatSetup, this.context, this.controller);
 
-			const whenDefaultModel = Event.toPromise(Event.filter(languageModelsService.onDidChangeLanguageModels, e => e.added?.some(added => added.metadata.isDefault) ?? false));
-
-			let success = false;
-			try {
-				switch (result) {
-					case ChatSetupDialogResult.SetupWithEnterpriseProvider:
-						success = await this.controller.value.setupWithProvider(true);
-						break;
-					case ChatSetupDialogResult.SetupWithoutEnterpriseProvider:
-						success = await this.controller.value.setupWithProvider(false);
-						break;
-					case ChatSetupDialogResult.DefaultSetup:
-						success = await this.controller.value.setup();
-						break;
-				}
-			} catch (error) {
-				this.logService.error(localize('setupError', "Error during setup: {0}", toErrorMessage(error)));
-			} finally {
-				setupListener.dispose();
+		const setupListener = this.controller.value.onDidChange(() => {
+			switch (this.controller.value.step) {
+				case ChatSetupStep.SigningIn:
+					progress({
+						kind: 'progressMessage',
+						content: new MarkdownString(localize('setupChatSignIn2', "Signing in to {0}.", ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.enterpriseProviderId ? defaultChat.enterpriseProviderName : defaultChat.providerName)),
+					} satisfies IChatProgressMessage);
+					break;
+				case ChatSetupStep.Installing:
+					progress({
+						kind: 'progressMessage',
+						content: new MarkdownString(localize('installingCopilot', "Getting Copilot ready.")),
+					} satisfies IChatProgressMessage);
+					break;
 			}
+		});
 
+		const whenDefaultModel = Event.toPromise(Event.filter(languageModelsService.onDidChangeLanguageModels, e => e.added?.some(added => added.metadata.isDefault) ?? false));
+
+		let success = undefined;
+		try {
+			success = await setup.run();
+		} catch (error) {
+			this.logService.error(localize('setupError', "Error during setup: {0}", toErrorMessage(error)));
+		} finally {
+			setupListener.dispose();
+		}
+
+		// User has agreed to run the setup
+		if (typeof success === 'boolean') {
 			if (success) {
-				progress({
-					kind: 'progressMessage',
-					content: new MarkdownString(localize('copilotReady', "Copilot is ready to use.")),
-				} satisfies IChatProgressMessage);
 
 				// Await a default model to be present before attempting
 				// to re-submit the request. Otherwise, the request will fail.
@@ -234,12 +222,11 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 					whenDefaultModel
 				]);
 
-				if (hasDefaultModel) {
-					chatService.cancelCurrentRequestForSession(request.sessionId);
-					chatService.sendRequest(request.sessionId, request.message);
+				// Resend the request now that the setup is complete
+				if (hasDefaultModel && requestModel) {
+					chatService.resendRequest(requestModel);
 				}
-			}
-			else {
+			} else {
 				progress({
 					kind: 'warning',
 					content: new MarkdownString(localize('copilotSetupError', "Copilot setup failed. [Try again]({0} \"Retry\").", `command:${CHAT_SETUP_ACTION_ID}`), { isTrusted: true }),
@@ -259,48 +246,79 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 	}
 }
 
-enum ChatSetupDialogResult {
+enum ChatSetupStrategy {
 	Canceled = 0,
 	DefaultSetup = 1,
 	SetupWithoutEnterpriseProvider = 2,
 	SetupWithEnterpriseProvider = 3
 }
 
-class ChatSetupDialog {
+class ChatSetup {
 
 	constructor(
 		private readonly context: ChatEntitlementContext,
+		private readonly controller: Lazy<ChatSetupController>,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@ILayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@ILogService private readonly logService: ILogService,
 	) { }
 
-	async show(): Promise<ChatSetupDialogResult> {
+	async run(): Promise<boolean | undefined> {
+		let setupStrategy: ChatSetupStrategy;
+		if (this.chatEntitlementService.entitlement === ChatEntitlement.Pro || this.chatEntitlementService.entitlement === ChatEntitlement.Limited) {
+			setupStrategy = ChatSetupStrategy.DefaultSetup; // existing pro/free users setup without a dialog
+		} else {
+			setupStrategy = await this.showDialog();
+		}
+
+		let success = undefined;
+		try {
+			switch (setupStrategy) {
+				case ChatSetupStrategy.SetupWithEnterpriseProvider:
+					success = await this.controller.value.setupWithProvider(true);
+					break;
+				case ChatSetupStrategy.SetupWithoutEnterpriseProvider:
+					success = await this.controller.value.setupWithProvider(false);
+					break;
+				case ChatSetupStrategy.DefaultSetup:
+					success = await this.controller.value.setup();
+					break;
+			}
+		} catch (error) {
+			this.logService.error(localize('setupError', "Error during setup: {0}", toErrorMessage(error)));
+			success = false;
+		}
+
+		return success;
+	}
+
+	private async showDialog(): Promise<ChatSetupStrategy> {
 		const buttons = [
 			this.getPrimaryButton(),
 			localize('maybeLater', "Maybe Later"),
 		];
 		const disposables = new DisposableStore();
 
-		let result: ChatSetupDialogResult | undefined = undefined;
+		let result: ChatSetupStrategy | undefined = undefined;
 
 		const dialog = disposables.add(new Dialog(
 			this.layoutService.activeContainer,
-			this.chatEntitlementService.entitlement === ChatEntitlement.Pro ? localize('copilotPro', "Set up Copilot") : localize('copilotFree', "Set up Copilot Free"),
+			localize('copilotFree', "Set up Copilot Free"),
 			buttons,
 			createWorkbenchDialogOptions({
 				type: 'none',
 				cancelId: buttons.length - 1,
-				renderBody: body => body.appendChild(this.create(disposables)),
+				renderBody: body => body.appendChild(this.createDialog(disposables)),
 				primaryButtonDropdown: {
 					contextMenuProvider: this.contextMenuService,
 					addPrimaryActionToDropdown: false,
 					actions: [
-						toAction({ id: 'setupWithProvider', label: localize('setupWithProvider', "Sign in with a {0} Account", defaultChat.providerName), run: () => result = ChatSetupDialogResult.SetupWithoutEnterpriseProvider }),
-						toAction({ id: 'setupWithEnterpriseProvider', label: localize('setupWithEnterpriseProvider', "Sign in with a {0} Account", defaultChat.enterpriseProviderName), run: () => result = ChatSetupDialogResult.SetupWithEnterpriseProvider }),
+						toAction({ id: 'setupWithProvider', label: localize('setupWithProvider', "Sign in with a {0} Account", defaultChat.providerName), run: () => result = ChatSetupStrategy.SetupWithoutEnterpriseProvider }),
+						toAction({ id: 'setupWithEnterpriseProvider', label: localize('setupWithEnterpriseProvider', "Sign in with a {0} Account", defaultChat.enterpriseProviderName), run: () => result = ChatSetupStrategy.SetupWithEnterpriseProvider }),
 					]
 				}
 			}, this.keybindingService, this.layoutService)
@@ -310,7 +328,7 @@ class ChatSetupDialog {
 		const { button } = await dialog.show();
 		disposables.dispose();
 
-		return button === 0 ? result ?? ChatSetupDialogResult.DefaultSetup : ChatSetupDialogResult.Canceled;
+		return button === 0 ? result ?? ChatSetupStrategy.DefaultSetup : ChatSetupStrategy.Canceled;
 	}
 
 	private getPrimaryButton(): string {
@@ -328,7 +346,7 @@ class ChatSetupDialog {
 		}
 	}
 
-	private create(disposables: DisposableStore): HTMLElement {
+	private createDialog(disposables: DisposableStore): HTMLElement {
 		const element = $('.chat-setup-view');
 
 		// Icon background
@@ -466,7 +484,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				const layoutService = accessor.get(IWorkbenchLayoutService);
 				const statusbarService = accessor.get(IStatusbarService);
 				const instantiationService = accessor.get(IInstantiationService);
-				const logService = accessor.get(ILogService);
 				const dialogService = accessor.get(IDialogService);
 				const commandService = accessor.get(ICommandService);
 
@@ -482,40 +499,17 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				configurationService.updateValue('chat.commandCenter.enabled', true);
 
 				if (setupFromDialog) {
-					const dialog = instantiationService.createInstance(ChatSetupDialog, context);
-					const result = await dialog.show();
-					if (result) {
-						let success = false;
-						try {
-							switch (result) {
-								case ChatSetupDialogResult.SetupWithEnterpriseProvider:
-									success = await controller.value.setupWithProvider(true);
-									break;
-								case ChatSetupDialogResult.SetupWithoutEnterpriseProvider:
-									success = await controller.value.setupWithProvider(false);
-									break;
-								case ChatSetupDialogResult.DefaultSetup:
-									success = await controller.value.setup();
-									break;
-							}
+					const setup = instantiationService.createInstance(ChatSetup, context, controller);
+					const result = await setup.run();
+					if (result === false) {
+						const { confirmed } = await dialogService.confirm({
+							type: Severity.Error,
+							message: localize('setupErrorDialog', "Copilot setup failed. Would you like to try again?"),
+							primaryButton: localize('retry', "Retry"),
+						});
 
-							if (success) {
-								showCopilotView(viewsService, layoutService);
-							}
-						} catch (error) {
-							logService.error(localize('setupError', "Error during setup: {0}", toErrorMessage(error)));
-						}
-
-						if (!success) {
-							const { confirmed } = await dialogService.confirm({
-								type: Severity.Error,
-								message: localize('setupErrorDialog', "Copilot setup failed. Would you like to try again?"),
-								primaryButton: localize('retry', "Retry"),
-							});
-
-							if (confirmed) {
-								commandService.executeCommand(CHAT_SETUP_ACTION_ID);
-							}
+						if (confirmed) {
+							commandService.executeCommand(CHAT_SETUP_ACTION_ID);
 						}
 					}
 				}
