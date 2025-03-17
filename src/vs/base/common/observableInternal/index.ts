@@ -11,11 +11,13 @@ export { asyncTransaction, disposableObservableValue, globalTransaction, observa
 export { derived, derivedDisposable, derivedHandleChanges, derivedOpts, derivedWithSetter, derivedWithStore } from './derived.js';
 export { ObservableLazy, ObservableLazyPromise, ObservablePromise, PromiseResult, } from './promise.js';
 export { derivedWithCancellationToken, waitForState } from './utilsCancellation.js';
-export { constObservable, debouncedObservable, derivedConstOnceDefined, derivedObservableWithCache, derivedObservableWithWritableCache, keepObserved, latestChangedValue, mapObservableArrayCached, observableFromEvent, observableFromEventOpts, observableFromPromise, observableFromValueWithChangeEvent, observableSignal, observableSignalFromEvent, recomputeInitiallyAndOnChange, runOnChange, runOnChangeWithStore, signalFromObservable, ValueWithChangeEventFromObservable, wasEventTriggeredRecently, type IObservableSignal, } from './utils.js';
+export { constObservable, debouncedObservableDeprecated, derivedConstOnceDefined, derivedObservableWithCache, derivedObservableWithWritableCache, keepObserved, latestChangedValue, mapObservableArrayCached, observableFromEvent, observableFromEventOpts, observableFromPromise, observableFromValueWithChangeEvent, observableSignal, observableSignalFromEvent, recomputeInitiallyAndOnChange, runOnChange, runOnChangeWithStore, signalFromObservable, ValueWithChangeEventFromObservable, wasEventTriggeredRecently, type IObservableSignal, } from './utils.js';
 export { type DebugOwner } from './debugName.js';
 
 import { addLogger, setLogObservableFn } from './logging/logging.js';
 import { ConsoleObservableLogger, logObservableToConsole } from './logging/consoleObservableLogger.js';
+import { DevToolsLogger } from './logging/debugger/devToolsLogger.js';
+import { env } from '../process.js';
 
 setLogObservableFn(logObservableToConsole);
 
@@ -26,4 +28,9 @@ const enableLogging = false
 
 if (enableLogging) {
 	addLogger(new ConsoleObservableLogger());
+}
+
+if (env && env['VSCODE_DEV_DEBUG']) {
+	// To debug observables you also need the extension "ms-vscode.debug-value-editor"
+	addLogger(DevToolsLogger.getInstance());
 }

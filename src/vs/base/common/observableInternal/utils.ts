@@ -102,9 +102,9 @@ export function observableFromEventOpts<T, TArgs = unknown>(
 export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 	public static globalTransaction: ITransaction | undefined;
 
-	private value: T | undefined;
-	private hasValue = false;
-	private subscription: IDisposable | undefined;
+	private _value: T | undefined;
+	private _hasValue = false;
+	private _subscription: IDisposable | undefined;
 
 	constructor(
 		private readonly _debugNameData: DebugNameData,
@@ -126,25 +126,25 @@ export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 	}
 
 	protected override onFirstObserverAdded(): void {
-		this.subscription = this.event(this.handleEvent);
+		this._subscription = this.event(this.handleEvent);
 	}
 
 	private readonly handleEvent = (args: TArgs | undefined) => {
 		const newValue = this._getValue(args);
-		const oldValue = this.value;
+		const oldValue = this._value;
 
-		const didChange = !this.hasValue || !(this._equalityComparator(oldValue!, newValue));
+		const didChange = !this._hasValue || !(this._equalityComparator(oldValue!, newValue));
 		let didRunTransaction = false;
 
 		if (didChange) {
-			this.value = newValue;
+			this._value = newValue;
 
-			if (this.hasValue) {
+			if (this._hasValue) {
 				didRunTransaction = true;
 				subtransaction(
 					this._getTransaction(),
 					(tx) => {
-						getLogger()?.handleObservableUpdated(this, { oldValue, newValue, change: undefined, didChange, hadValue: this.hasValue });
+						getLogger()?.handleObservableUpdated(this, { oldValue, newValue, change: undefined, didChange, hadValue: this._hasValue });
 
 						for (const o of this._observers) {
 							tx.updateObserver(o, this);
@@ -157,32 +157,36 @@ export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 					}
 				);
 			}
-			this.hasValue = true;
+			this._hasValue = true;
 		}
 
 		if (!didRunTransaction) {
-			getLogger()?.handleObservableUpdated(this, { oldValue, newValue, change: undefined, didChange, hadValue: this.hasValue });
+			getLogger()?.handleObservableUpdated(this, { oldValue, newValue, change: undefined, didChange, hadValue: this._hasValue });
 		}
 	};
 
 	protected override onLastObserverRemoved(): void {
-		this.subscription!.dispose();
-		this.subscription = undefined;
-		this.hasValue = false;
-		this.value = undefined;
+		this._subscription!.dispose();
+		this._subscription = undefined;
+		this._hasValue = false;
+		this._value = undefined;
 	}
 
 	public get(): T {
-		if (this.subscription) {
-			if (!this.hasValue) {
+		if (this._subscription) {
+			if (!this._hasValue) {
 				this.handleEvent(undefined);
 			}
-			return this.value!;
+			return this._value!;
 		} else {
 			// no cache, as there are no subscribers to keep it updated
 			const value = this._getValue(undefined);
 			return value;
 		}
+	}
+
+	public debugSetValue(value: unknown) {
+		this._value = value as any;
 	}
 }
 
@@ -316,9 +320,9 @@ export function signalFromObservable<T>(owner: DebugOwner | undefined, observabl
 }
 
 /**
- * @deprecated Use `debouncedObservable2` instead.
+ * @deprecated Use `debouncedObservable` instead.
  */
-export function debouncedObservable<T>(observable: IObservable<T>, debounceMs: number, disposableStore: DisposableStore): IObservable<T | undefined> {
+export function debouncedObservableDeprecated<T>(observable: IObservable<T>, debounceMs: number, disposableStore: DisposableStore): IObservable<T | undefined> {
 	const debouncedObservable = observableValue<T | undefined>('debounced', undefined);
 
 	let timeout: any = undefined;
@@ -344,7 +348,7 @@ export function debouncedObservable<T>(observable: IObservable<T>, debounceMs: n
 /**
  * Creates an observable that debounces the input observable.
  */
-export function debouncedObservable2<T>(observable: IObservable<T>, debounceMs: number): IObservable<T> {
+export function debouncedObservable<T>(observable: IObservable<T>, debounceMs: number): IObservable<T> {
 	let hasValue = false;
 	let lastValue: T | undefined;
 
@@ -421,10 +425,10 @@ _setKeepObserved(keepObserved);
 export function recomputeInitiallyAndOnChange<T>(observable: IObservable<T>, handleValue?: (value: T) => void): IDisposable {
 	const o = new KeepAliveObserver(true, handleValue);
 	observable.addObserver(o);
-	if (handleValue) {
-		handleValue(observable.get());
-	} else {
-		observable.reportChanges();
+	try {
+		o.beginUpdate(observable);
+	} finally {
+		o.endUpdate(observable);
 	}
 
 	return toDisposable(() => {
@@ -447,14 +451,14 @@ export class KeepAliveObserver implements IObserver {
 	}
 
 	endUpdate<T>(observable: IObservable<T>): void {
-		this._counter--;
-		if (this._counter === 0 && this._forceRecompute) {
+		if (this._counter === 1 && this._forceRecompute) {
 			if (this._handleValue) {
 				this._handleValue(observable.get());
 			} else {
 				observable.reportChanges();
 			}
 		}
+		this._counter--;
 	}
 
 	handlePossibleChange<T>(observable: IObservable<T>): void {

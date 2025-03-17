@@ -10,17 +10,16 @@ import { CancellationError, isCancellationError } from '../../../../base/common/
 import { Emitter } from '../../../../base/common/event.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { localize } from '../../../../nls.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatModel } from '../common/chatModel.js';
 import { ChatToolInvocation } from '../common/chatProgressTypes/chatToolInvocation.js';
 import { IChatService } from '../common/chatService.js';
 import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../common/languageModelToolsService.js';
-import { EditToolId } from '../common/tools/editFileTool.js';
 
 interface IToolEntry {
 	data: IToolData;
@@ -38,7 +37,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	private _tools = new Map<string, IToolEntry>();
 	private _toolContextKeys = new Set<string>();
-
+	private readonly _ctxToolsCount: IContextKey<number>;
 
 	private _callsByRequestId = new Map<string, IDisposable[]>();
 
@@ -58,6 +57,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				this._onDidChangeToolsScheduler.schedule();
 			}
 		}));
+
+		this._ctxToolsCount = ChatContextKeys.Tools.toolsCount.bindTo(_contextKeyService);
 	}
 
 	registerToolData(toolData: IToolData): IDisposable {
@@ -66,12 +67,14 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 
 		this._tools.set(toolData.id, { data: toolData });
+		this._ctxToolsCount.set(this._tools.size);
 		this._onDidChangeToolsScheduler.schedule();
 
 		toolData.when?.keys().forEach(key => this._toolContextKeys.add(key));
 
 		return toDisposable(() => {
 			this._tools.delete(toolData.id);
+			this._ctxToolsCount.set(this._tools.size);
 			this._refreshAllToolContextKeys();
 			this._onDidChangeToolsScheduler.schedule();
 		});
@@ -186,17 +189,15 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					await tool.impl.prepareToolInvocation(dto.parameters, token)
 					: undefined;
 
-				const defaultMessage = localize('toolInvocationMessage', "Using {0}", `"${tool.data.displayName}"`);
-				const invocationMessage = prepared?.invocationMessage ?? defaultMessage;
-				if (tool.data.id !== EditToolId) {
-					toolInvocation = new ChatToolInvocation(invocationMessage, prepared?.pastTenseMessage, prepared?.tooltip, prepared?.confirmationMessages);
-					model.acceptResponseProgress(request, toolInvocation);
-					if (prepared?.confirmationMessages) {
-						const userConfirmed = await toolInvocation.confirmed.p;
-						if (!userConfirmed) {
-							throw new CancellationError();
-						}
+				toolInvocation = new ChatToolInvocation(prepared, tool.data);
+				model.acceptResponseProgress(request, toolInvocation);
+				if (prepared?.confirmationMessages) {
+					const userConfirmed = await toolInvocation.confirmed.p;
+					if (!userConfirmed) {
+						throw new CancellationError();
 					}
+
+					dto.toolSpecificData = toolInvocation?.toolSpecificData;
 				}
 			} else {
 				const prepared = tool.impl.prepareToolInvocation ?
@@ -271,6 +272,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		super.dispose();
 
 		this._callsByRequestId.forEach(calls => dispose(calls));
+		this._ctxToolsCount.reset();
 	}
 }
 

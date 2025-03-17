@@ -2,8 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { IDiffResult, ISequence, LcsDiff } from '../../../../../base/common/diff/diff.js';
-import { doHash, numberHash } from '../../../../../base/common/hash.js';
+import { IDiffChange, ISequence, LcsDiff } from '../../../../../base/common/diff/diff.js';
+import { doHash, hash, numberHash } from '../../../../../base/common/hash.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IRequestHandler, IWorkerServer } from '../../../../../base/common/worker/simpleWorker.js';
@@ -15,10 +15,16 @@ import { MirrorModel } from '../../../../../editor/common/services/textModelSync
 import { DefaultEndOfLine } from '../../../../../editor/common/model.js';
 import { IModelChangedEvent } from '../../../../../editor/common/model/mirrorTextModel.js';
 import { filter } from '../../../../../base/common/objects.js';
+import { matchCellBasedOnSimilarties } from './notebookCellMatching.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { DiffChange } from '../../../../../base/common/diff/diffChange.js';
+import { computeDiff } from '../notebookDiff.js';
+
+const PREFIX_FOR_UNMATCHED_ORIGINAL_CELLS = `unmatchedOriginalCell`;
 
 class MirrorCell {
 	private readonly textModel: MirrorModel;
-	private _hash?: Promise<number>;
+	private _hash?: number;
 	public get eol() {
 		return this._eol === '\r\n' ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF;
 	}
@@ -46,17 +52,21 @@ class MirrorCell {
 		return this.textModel.getValue();
 	}
 
-	async getComparisonValue(): Promise<number> {
+	getLinesContent(): string[] {
+		return this.textModel.getLinesContent();
+	}
+	getComparisonValue(): number {
 		return this._hash ??= this._getHash();
 	}
 
-	private async _getHash() {
+	private _getHash() {
 		let hashValue = numberHash(104579, 0);
 
 		hashValue = doHash(this.language, hashValue);
 		hashValue = doHash(this.getValue(), hashValue);
 		hashValue = doHash(this.metadata, hashValue);
-		hashValue = doHash(this.internalMetadata, hashValue);
+		// For purpose of diffing only cellId matters, rest do not
+		hashValue = doHash(this.internalMetadata?.cellId || '', hashValue);
 		for (const op of this.outputs) {
 			hashValue = doHash(op.metadata, hashValue);
 			for (const output of op.outputs) {
@@ -64,14 +74,12 @@ class MirrorCell {
 			}
 		}
 
-		// note: hash has not updated within the Promise.all since we must retain order
-		const digests = await Promise.all(this.outputs.flatMap(op =>
-			op.outputs.map(o => crypto.subtle.digest('sha-1', o.data.buffer))
-		));
+		const digests = this.outputs.flatMap(op =>
+			op.outputs.map(o => hash(Array.from(o.data.buffer)))
+		);
 		for (const digest of digests) {
-			hashValue = numberHash(new Int32Array(digest)[0], hashValue);
+			hashValue = numberHash(digest, hashValue);
 		}
-
 
 		return hashValue;
 	}
@@ -147,25 +155,22 @@ class MirrorNotebookDocument {
 
 class CellSequence implements ISequence {
 
-	static async create(textModel: MirrorNotebookDocument) {
-		const hashValue = new Int32Array(textModel.cells.length);
-		await Promise.all(textModel.cells.map(async (c, i) => {
-			hashValue[i] = await c.getComparisonValue();
-		}));
+	static create(textModel: MirrorNotebookDocument) {
+		const hashValue = textModel.cells.map(c => c.getComparisonValue());
+		return new CellSequence(hashValue);
+	}
+	static createWithCellId(cells: MirrorCell[], includeCellContents?: boolean) {
+		const hashValue = cells.map((c) => {
+			if (includeCellContents) {
+				return `${doHash(c.internalMetadata?.cellId, numberHash(104579, 0))}#${c.getComparisonValue()}`;
+			} else {
+				return `${doHash(c.internalMetadata?.cellId, numberHash(104579, 0))}}`;
+			}
+		});
 		return new CellSequence(hashValue);
 	}
 
-	static async createWithCellId(textModel: MirrorNotebookDocument): Promise<Map<string, number>> {
-		const hashValue = new Map<string, number>();
-		await Promise.all(textModel.cells.map(async (c, i) => {
-			const value = await c.getComparisonValue();
-			const id: string = (c.metadata?.id || '') as string;
-			hashValue.set(id, value);
-		}));
-		return hashValue;
-	}
-
-	constructor(readonly hashValue: Int32Array) { }
+	constructor(readonly hashValue: number[] | string[]) { }
 
 	getElements(): string[] | number[] | Int32Array {
 		return this.hashValue;
@@ -219,100 +224,258 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 		const original = this._getModel(originalUrl);
 		const modified = this._getModel(modifiedUrl);
 
-		const [originalSeq, modifiedSeq] = await Promise.all([
-			CellSequence.create(original),
-			CellSequence.create(modified),
-		]);
-
-		const diff = new LcsDiff(originalSeq, modifiedSeq);
-		const diffResult = diff.ComputeDiff(false);
+		const originalModel = new NotebookTextModelFacade(original);
+		const modifiedModel = new NotebookTextModelFacade(modified);
 
 		const originalMetadata = filter(original.metadata, key => !original.transientDocumentMetadata[key]);
 		const modifiedMetadata = filter(modified.metadata, key => !modified.transientDocumentMetadata[key]);
+		const metadataChanged = JSON.stringify(originalMetadata) !== JSON.stringify(modifiedMetadata);
+		// TODO@DonJayamanne
+		// In the future we might want to avoid computing LCS of outputs
+		// That will make this faster.
+		const originalDiff = new LcsDiff(CellSequence.create(original), CellSequence.create(modified)).ComputeDiff(false);
+		if (originalDiff.changes.length === 0) {
+			return {
+				metadataChanged,
+				cellsDiff: originalDiff
+			};
+		}
+
+		// This will return the mapping of the cells and what cells were inserted/deleted.
+		// We do not care much about accuracy of the diff, but care about the mapping of unmodified cells.
+		// That can be used as anchor points to find the cells that have changed.
+		// And on cells that have changed, we can use similarity algorithms to find the mapping.
+		// Eg as mentioned earlier, its possible after similarity algorithms we find that cells weren't inserted/deleted but were just modified.
+		const cellMapping = computeDiff(originalModel, modifiedModel, { cellsDiff: { changes: originalDiff.changes, quitEarly: false }, metadataChanged: false, }).cellDiffInfo;
+
+		// If we have no insertions/deletions, then this is a good diffing.
+		if (cellMapping.every(c => c.type === 'modified')) {
+			return {
+				metadataChanged,
+				cellsDiff: originalDiff
+			};
+		}
+
+		let diffUsingCellIds = this.canComputeDiffWithCellIds(original, modified);
+		if (!diffUsingCellIds) {
+			/**
+			 * Assume we have cells as follows
+			 * Original   Modified
+			 * A	  		A
+			 * B			B
+			 * C			e
+			 * D			F
+			 * E
+			 * F
+			 *
+			 * Using LCS we know easily that A, B cells match.
+			 * Using LCS it would look like C changed to e
+			 * Using LCS D & E were removed.
+			 *
+			 * A human would be able to tell that cell C, D were removed.
+			 * A human can tell that E changed to e because the code in the cells are very similar.
+			 * Note the words `similar`, humans try to match cells based on certain heuristics.
+			 * & the most obvious one is the similarity of the code in the cells.
+			 *
+			 * LCS has no notion of similarity, it only knows about equality.
+			 * We can use other algorithms to find similarity.
+			 * So if we eliminate A, B, we are left with C, D, E, F and we need to find what they map to in `e, F` in modifed document.
+			 * We can use a similarity algorithm to find that.
+			 *
+			 * The purpose of using LCS first is to find the cells that have not changed.
+			 * This avoids the need to use similarity algorithms on all cells.
+			 *
+			 * At the end of the day what we need is as follows
+			 * A <=> A
+			 * B <=> B
+			 * C => Deleted
+			 * D => Deleted
+			 * E => e
+			 * F => F
+			 */
+
+
+
+			// Note, if cells are swapped, then this compilicates things
+			// Trying to solve diff manually is not easy.
+			// Lets instead use LCS find the cells that haven't changed,
+			// & the cells that have.
+			// For the range of cells that have change, lets see if we can get better results using similarity algorithms.
+			// Assume we have
+			// Code Cell = print("Hello World")
+			// Code Cell = print("Foo Bar")
+			// We now change this to
+			// MD Cell = # Description
+			// Code Cell = print("Hello WorldZ")
+			// Code Cell = print("Foo BarZ")
+			// LCS will tell us that everything changed.
+			// But using similarity algorithms we can tell that the first cell is new and last 2 changed.
+
+
+
+			// Lets try the similarity algorithms on all cells.
+			// We might fare better.
+			const result = matchCellBasedOnSimilarties(modified.cells, original.cells);
+			// If we have at least one match, then great.
+			if (result.some(c => c.original !== -1)) {
+				// We have managed to find similarities between cells.
+				// Now we can definitely find what cell is new/removed.
+				this.updateCellIdsBasedOnMappings(result, original.cells, modified.cells);
+				diffUsingCellIds = true;
+			}
+		}
+
+		if (!diffUsingCellIds) {
+			return {
+				metadataChanged,
+				cellsDiff: originalDiff
+			};
+		}
+
+		// At this stage we can use internalMetadata.cellId for tracking changes.
+		// I.e. we compute LCS diff and the hashes of some cells from original will be equal to that in modified as we're using cellId.
+		// Thus we can find what cells are new/deleted.
+		// After that we can find whether the contents of the cells changed.
+		const cellsInsertedOrDeletedDiff = new LcsDiff(CellSequence.createWithCellId(original.cells), CellSequence.createWithCellId(modified.cells)).ComputeDiff(false);
+		const cellDiffInfo = computeDiff(originalModel, modifiedModel, { cellsDiff: { changes: cellsInsertedOrDeletedDiff.changes, quitEarly: false }, metadataChanged: false, }).cellDiffInfo;
+
+		let processedIndex = 0;
+		const changes: IDiffChange[] = [];
+		cellsInsertedOrDeletedDiff.changes.forEach(change => {
+			if (!change.originalLength && change.modifiedLength) {
+				// Inserted.
+				// Find all modified cells before this.
+				const changeIndex = cellDiffInfo.findIndex(c => c.type === 'insert' && c.modifiedCellIndex === change.modifiedStart);
+				cellDiffInfo.slice(processedIndex, changeIndex).forEach(c => {
+					if (c.type === 'unchanged' || c.type === 'modified') {
+						const originalCell = original.cells[c.originalCellIndex];
+						const modifiedCell = modified.cells[c.modifiedCellIndex];
+						const changed = c.type === 'modified' || originalCell.getComparisonValue() !== modifiedCell.getComparisonValue();
+						if (changed) {
+							changes.push(new DiffChange(c.originalCellIndex, 1, c.modifiedCellIndex, 1));
+						}
+					}
+				});
+				changes.push(change);
+				processedIndex = changeIndex + 1;
+			} else if (change.originalLength && !change.modifiedLength) {
+				// Deleted.
+				// Find all modified cells before this.
+				const changeIndex = cellDiffInfo.findIndex(c => c.type === 'delete' && c.originalCellIndex === change.originalStart);
+				cellDiffInfo.slice(processedIndex, changeIndex).forEach(c => {
+					if (c.type === 'unchanged' || c.type === 'modified') {
+						const originalCell = original.cells[c.originalCellIndex];
+						const modifiedCell = modified.cells[c.modifiedCellIndex];
+						const changed = c.type === 'modified' || originalCell.getComparisonValue() !== modifiedCell.getComparisonValue();
+						if (changed) {
+							changes.push(new DiffChange(c.originalCellIndex, 1, c.modifiedCellIndex, 1));
+						}
+					}
+				});
+				changes.push(change);
+				processedIndex = changeIndex + 1;
+			} else {
+				// This could be a situation where a cell has been deleted on left and inserted on the right.
+				// E.g. markdown cell deleted and code cell inserted.
+				// But LCS shows them as a modification.
+				const changeIndex = cellDiffInfo.findIndex(c => (c.type === 'delete' && c.originalCellIndex === change.originalStart) || (c.type === 'insert' && c.modifiedCellIndex === change.modifiedStart));
+				cellDiffInfo.slice(processedIndex, changeIndex).forEach(c => {
+					if (c.type === 'unchanged' || c.type === 'modified') {
+						const originalCell = original.cells[c.originalCellIndex];
+						const modifiedCell = modified.cells[c.modifiedCellIndex];
+						const changed = c.type === 'modified' || originalCell.getComparisonValue() !== modifiedCell.getComparisonValue();
+						if (changed) {
+							changes.push(new DiffChange(c.originalCellIndex, 1, c.modifiedCellIndex, 1));
+						}
+					}
+				});
+				changes.push(change);
+				processedIndex = changeIndex + 1;
+			}
+		});
+		cellDiffInfo.slice(processedIndex).forEach(c => {
+			if (c.type === 'unchanged' || c.type === 'modified') {
+				const originalCell = original.cells[c.originalCellIndex];
+				const modifiedCell = modified.cells[c.modifiedCellIndex];
+				const changed = c.type === 'modified' || originalCell.getComparisonValue() !== modifiedCell.getComparisonValue();
+				if (changed) {
+					changes.push(new DiffChange(c.originalCellIndex, 1, c.modifiedCellIndex, 1));
+				}
+			}
+		});
+
 		return {
-			metadataChanged: JSON.stringify(originalMetadata) !== JSON.stringify(modifiedMetadata),
-			cellsDiff: diffResult,
-			// linesDiff: cellLineChanges
+			metadataChanged,
+			cellsDiff: {
+				changes,
+				quitEarly: false
+			}
 		};
 	}
 
-	async $computeDiffWithCellIds(original: MirrorNotebookDocument, modified: MirrorNotebookDocument): Promise<IDiffResult | undefined> {
-		const originalCellIds = original.cells.map((cell, index) => ({ index, id: (cell.metadata?.id || '') as string }));
-		const modifiedCellIds = modified.cells.map((cell, index) => ({ index, id: (cell.metadata?.id || '') as string }));
+	canComputeDiffWithCellIds(original: MirrorNotebookDocument, modified: MirrorNotebookDocument): boolean {
+		return this.canComputeDiffWithCellInternalIds(original, modified) || this.canComputeDiffWithCellMetadataIds(original, modified);
+	}
 
-		if (originalCellIds.some(c => !c.id) || modifiedCellIds.some(c => !c.id)) {
-			return;
+	canComputeDiffWithCellInternalIds(original: MirrorNotebookDocument, modified: MirrorNotebookDocument): boolean {
+		const originalCellIndexIds = original.cells.map((cell, index) => ({ index, id: (cell.internalMetadata?.cellId || '') as string }));
+		const modifiedCellIndexIds = modified.cells.map((cell, index) => ({ index, id: (cell.internalMetadata?.cellId || '') as string }));
+		// If we have a cell without an id, do not use metadata.id for diffing.
+		if (originalCellIndexIds.some(c => !c.id) || modifiedCellIndexIds.some(c => !c.id)) {
+			return false;
+		}
+		// If none of the ids in original can be found in modified, then we can't use metadata.id for diffing.
+		// I.e. everything is new, no point trying.
+		return originalCellIndexIds.some(c => modifiedCellIndexIds.find(m => m.id === c.id));
+	}
+
+	canComputeDiffWithCellMetadataIds(original: MirrorNotebookDocument, modified: MirrorNotebookDocument): boolean {
+		const originalCellIndexIds = original.cells.map((cell, index) => ({ index, id: (cell.metadata?.id || '') as string }));
+		const modifiedCellIndexIds = modified.cells.map((cell, index) => ({ index, id: (cell.metadata?.id || '') as string }));
+		// If we have a cell without an id, do not use metadata.id for diffing.
+		if (originalCellIndexIds.some(c => !c.id) || modifiedCellIndexIds.some(c => !c.id)) {
+			return false;
+		}
+		// If none of the ids in original can be found in modified, then we can't use metadata.id for diffing.
+		// I.e. everything is new, no point trying.
+		if (originalCellIndexIds.every(c => !modifiedCellIndexIds.find(m => m.id === c.id))) {
+			return false;
 		}
 
-		const diffResult: IDiffResult = { changes: [], quitEarly: false, };
+		// Internally we use internalMetadata.cellId for diffing, hence update the internalMetadata.cellId
+		original.cells.map((cell, index) => {
+			cell.internalMetadata = cell.internalMetadata || {};
+			cell.internalMetadata.cellId = cell.metadata?.id as string || '';
+		});
+		modified.cells.map((cell, index) => {
+			cell.internalMetadata = cell.internalMetadata || {};
+			cell.internalMetadata.cellId = cell.metadata?.id as string || '';
+		});
+		return true;
+	}
 
-		const computeCellHashesById = async (notebook: MirrorNotebookDocument) => {
-			const hashValue = new Map<string, number>();
-			await Promise.all(notebook.cells.map(async (c, i) => {
-				const value = await c.getComparisonValue();
-				// Verified earlier that these cannot be empty.
-				const id: string = (c.metadata?.id || '') as string;
-				hashValue.set(id, value);
-			}));
-			return hashValue;
-		};
 
-		const [originalSeq, modifiedSeq] = await Promise.all([computeCellHashesById(original), computeCellHashesById(modified)]);
-
-		while (modifiedCellIds.length) {
-			const modifiedCell = modifiedCellIds.shift()!;
-			const originalCell = originalCellIds.find(c => c.id === modifiedCell.id);
-			if (originalCell) {
-				// Everything before this cell is a deletion
-				const index = originalCellIds.indexOf(originalCell);
-				const deletedFromOriginal = originalCellIds.splice(0, index + 1);
-
-				if (deletedFromOriginal.length === 1) {
-					if (originalSeq.get(originalCell.id) === modifiedSeq.get(originalCell.id)) {
-						// Cell contents are the same.
-						// No changes, hence ignore this cell.
-					}
-					else {
-						diffResult.changes.push({
-							originalStart: originalCell.index,
-							originalLength: 1,
-							modifiedStart: modifiedCell.index,
-							modifiedLength: 1
-						});
-					}
-				} else {
-					// This means we have some cells before this and they were removed.
-					diffResult.changes.push({
-						originalStart: deletedFromOriginal[0].index,
-						originalLength: deletedFromOriginal.length - 1,
-						modifiedStart: modifiedCell.index,
-						modifiedLength: 0
-					});
-				}
-				continue;
+	isOriginalCellMatchedWithModifiedCell(originalCell: MirrorCell) {
+		return (originalCell.internalMetadata?.cellId as string || '').startsWith(PREFIX_FOR_UNMATCHED_ORIGINAL_CELLS);
+	}
+	updateCellIdsBasedOnMappings(mappings: { modified: number; original: number }[], originalCells: MirrorCell[], modifiedCells: MirrorCell[]): boolean {
+		const uuids = new Map<number, string>();
+		originalCells.map((cell, index) => {
+			cell.internalMetadata = cell.internalMetadata || { cellId: '' };
+			cell.internalMetadata.cellId = `${PREFIX_FOR_UNMATCHED_ORIGINAL_CELLS}${generateUuid()}`;
+			const found = mappings.find(r => r.original === index);
+			if (found) {
+				// Do not use the indexes as ids.
+				// If we do, then the hashes will be very similar except for last digit.
+				cell.internalMetadata.cellId = generateUuid();
+				uuids.set(found.modified, cell.internalMetadata.cellId as string);
 			}
-			else {
-				// This is a new cell.
-				diffResult.changes.push({
-					originalStart: originalCellIds.length ? originalCellIds[0].index : original.cells.length,
-					originalLength: 0,
-					modifiedStart: modifiedCell.index,
-					modifiedLength: 1
-				});
-			}
-		}
-
-		// If we still have some original cells, then those have been removed.
-		if (originalCellIds.length) {
-			diffResult.changes.push({
-				originalStart: originalCellIds[0].index,
-				originalLength: originalCellIds.length,
-				modifiedStart: modifiedCellIds.length,
-				modifiedLength: 0
-			});
-		}
-
-		return diffResult;
+		});
+		modifiedCells.map((cell, index) => {
+			cell.internalMetadata = cell.internalMetadata || { cellId: '' };
+			cell.internalMetadata.cellId = uuids.get(index) ?? generateUuid();
+		});
+		return true;
 	}
 
 	$canPromptRecommendation(modelUrl: string): boolean {
@@ -364,4 +527,54 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
  */
 export function create(workerServer: IWorkerServer): IRequestHandler {
 	return new NotebookEditorSimpleWorker();
+}
+
+export type CellDiffInfo = {
+	originalCellIndex: number;
+	modifiedCellIndex: number;
+	type: 'unchanged' | 'modified';
+} |
+{
+	originalCellIndex: number;
+	type: 'delete';
+} |
+{
+	modifiedCellIndex: number;
+	type: 'insert';
+};
+
+interface ICell {
+	cellKind: CellKind;
+	getHashValue(): number;
+	equal(cell: ICell): boolean;
+}
+
+class NotebookTextModelFacade {
+	public readonly cells: readonly ICell[];
+	constructor(
+		readonly notebook: MirrorNotebookDocument
+	) {
+
+		this.cells = notebook.cells.map(cell => new NotebookCellTextModelFacade(cell));
+	}
+
+}
+class NotebookCellTextModelFacade implements ICell {
+	get cellKind(): CellKind {
+		return this.cell.cellKind;
+	}
+	constructor(
+		private readonly cell: MirrorCell
+	) {
+	}
+	getHashValue(): number {
+		return this.cell.getComparisonValue();
+	}
+	equal(cell: ICell): boolean {
+		if (cell.cellKind !== this.cellKind) {
+			return false;
+		}
+		return this.getHashValue() === cell.getHashValue();
+	}
+
 }

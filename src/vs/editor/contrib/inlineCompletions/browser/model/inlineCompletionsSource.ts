@@ -10,11 +10,9 @@ import { equalsIfDefined, itemEquals } from '../../../../../base/common/equals.j
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { matchesSubString } from '../../../../../base/common/filters.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, IObservableWithChange, IReader, ITransaction, derived, derivedHandleChanges, disposableObservableValue, observableFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { IObservable, IObservableWithChange, IReader, ITransaction, derived, derivedHandleChanges, disposableObservableValue, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { commonPrefixLength, commonSuffixLength, splitLines } from '../../../../../base/common/strings.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
@@ -34,6 +32,7 @@ import { ILanguageFeaturesService } from '../../../../common/services/languageFe
 import { IModelContentChangedEvent } from '../../../../common/textModelEvents.js';
 import { InlineCompletionItem, InlineCompletionProviderResult, provideInlineCompletions } from './provideInlineCompletions.js';
 import { singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
+import { StructuredLogger, IRecordableEditorLogEntry, IRecordableLogEntry, formatRecordableLogEntry } from '../structuredLogger.js';
 
 export class InlineCompletionsSource extends Disposable {
 	private static _requestId = 0;
@@ -78,9 +77,10 @@ export class InlineCompletionsSource extends Disposable {
 		this._structuredFetchLogger.log(entry);
 	}
 
-	public readonly loading = observableValue(this, false);
+	private readonly _loadingCount = observableValue(this, 0);
+	public readonly loading = this._loadingCount.map(this, v => v > 0);
 
-	public fetch(position: Position, context: InlineCompletionContext, activeInlineCompletion: InlineCompletionWithUpdatedRange | undefined, withDebounce: boolean): Promise<boolean> {
+	public fetch(position: Position, context: InlineCompletionContext, activeInlineCompletion: InlineCompletionWithUpdatedRange | undefined, withDebounce: boolean, userJumpedToActiveCompletion: IObservable<boolean>): Promise<boolean> {
 		const request = new UpdateRequest(position, context, this._textModel.getVersionId());
 
 		const target = context.selectedSuggestionInfo ? this.suggestWidgetInlineCompletions : this.inlineCompletions;
@@ -91,95 +91,102 @@ export class InlineCompletionsSource extends Disposable {
 			return Promise.resolve(true);
 		}
 
-		this.loading.set(true, undefined);
-
 		const updateOngoing = !!this._updateOperation.value;
 		this._updateOperation.clear();
 
 		const source = new CancellationTokenSource();
 
 		const promise = (async () => {
-			const recommendedDebounceValue = this._debounceValue.get(this._textModel);
-			const debounceValue = findLastMax(
-				this._languageFeaturesService.inlineCompletionsProvider.all(this._textModel).map(p => p.debounceDelayMs),
-				compareUndefinedSmallest(numberComparator)
-			) ?? recommendedDebounceValue;
-
-			// Debounce in any case if update is ongoing
-			const shouldDebounce = updateOngoing || (withDebounce && context.triggerKind === InlineCompletionTriggerKind.Automatic);
-			if (shouldDebounce) {
-				// This debounces the operation
-				await wait(debounceValue, source.token);
-			}
-
-			if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId) {
-				return false;
-			}
-
-			const requestId = InlineCompletionsSource._requestId++;
-			if (this._loggingEnabled.get() || this._structuredFetchLogger.isEnabled.get()) {
-				this._log({ sourceId: 'InlineCompletions.fetch', kind: 'start', requestId, modelUri: this._textModel.uri.toString(), modelVersion: this._textModel.getVersionId(), context: { triggerKind: context.triggerKind }, time: Date.now() });
-			}
-
-			const startTime = new Date();
-			let updatedCompletions: InlineCompletionProviderResult | undefined = undefined;
-			let error: any = undefined;
+			this._loadingCount.set(this._loadingCount.get() + 1, undefined);
 			try {
-				updatedCompletions = await provideInlineCompletions(
-					this._languageFeaturesService.inlineCompletionsProvider,
-					position,
-					this._textModel,
-					context,
-					source.token,
-					this._languageConfigurationService
-				);
-			} catch (e) {
-				error = e;
-				throw e;
-			} finally {
+				const recommendedDebounceValue = this._debounceValue.get(this._textModel);
+				const debounceValue = findLastMax(
+					this._languageFeaturesService.inlineCompletionsProvider.all(this._textModel).map(p => p.debounceDelayMs),
+					compareUndefinedSmallest(numberComparator)
+				) ?? recommendedDebounceValue;
+
+				// Debounce in any case if update is ongoing
+				const shouldDebounce = updateOngoing || (withDebounce && context.triggerKind === InlineCompletionTriggerKind.Automatic);
+				if (shouldDebounce) {
+					// This debounces the operation
+					await wait(debounceValue, source.token);
+				}
+
+				if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId) {
+					return false;
+				}
+
+				const requestId = InlineCompletionsSource._requestId++;
 				if (this._loggingEnabled.get() || this._structuredFetchLogger.isEnabled.get()) {
-					if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId) {
-						error = 'canceled';
+					this._log({ sourceId: 'InlineCompletions.fetch', kind: 'start', requestId, modelUri: this._textModel.uri.toString(), modelVersion: this._textModel.getVersionId(), context: { triggerKind: context.triggerKind }, time: Date.now() });
+				}
+
+				const startTime = new Date();
+				let updatedCompletions: InlineCompletionProviderResult | undefined = undefined;
+				let error: any = undefined;
+				try {
+					updatedCompletions = await provideInlineCompletions(
+						this._languageFeaturesService.inlineCompletionsProvider,
+						position,
+						this._textModel,
+						context,
+						source.token,
+						this._languageConfigurationService
+					);
+				} catch (e) {
+					error = e;
+					throw e;
+				} finally {
+					if (this._loggingEnabled.get() || this._structuredFetchLogger.isEnabled.get()) {
+						if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId) {
+							error = 'canceled';
+						}
+						const result = updatedCompletions?.completions.map(c => ({
+							range: c.range.toString(),
+							text: c.insertText,
+							isInlineEdit: !!c.isInlineEdit,
+							source: c.source.provider.groupId,
+						}));
+						this._log({ sourceId: 'InlineCompletions.fetch', kind: 'end', requestId, durationMs: (Date.now() - startTime.getTime()), error, result, time: Date.now() });
 					}
-					const result = updatedCompletions?.completions.map(c => ({
-						range: c.range.toString(),
-						text: c.insertText,
-						isInlineEdit: !!c.sourceInlineCompletion.isInlineEdit,
-						source: c.source.provider.groupId,
-					}));
-					this._log({ sourceId: 'InlineCompletions.fetch', kind: 'end', requestId, durationMs: (Date.now() - startTime.getTime()), error, result, time: Date.now() });
 				}
-			}
 
-			if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId) {
-				updatedCompletions.dispose();
-				return false;
-			}
-
-			// Reuse Inline Edit if possible
-			if (activeInlineCompletion && activeInlineCompletion.isInlineEdit && (activeInlineCompletion.canBeReused(this._textModel, position) || updatedCompletions.has(activeInlineCompletion.inlineCompletion) /* Inline Edit wins over completions if it's already been shown*/)) {
-				updatedCompletions.dispose();
-				return false;
-			}
-
-			const endTime = new Date();
-			this._debounceValue.update(this._textModel, endTime.getTime() - startTime.getTime());
-
-			// Reuse Inline Completion if possible
-			const completions = new UpToDateInlineCompletions(updatedCompletions, request, this._textModel, this._versionId);
-			if (activeInlineCompletion && !activeInlineCompletion.isInlineEdit && activeInlineCompletion.canBeReused(this._textModel, position)) {
-				const asInlineCompletion = activeInlineCompletion.toInlineCompletion(undefined);
-				if (!updatedCompletions.has(asInlineCompletion)) {
-					completions.prepend(activeInlineCompletion.inlineCompletion, asInlineCompletion.range, true);
+				if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId || userJumpedToActiveCompletion.get() /* In the meantime the user showed interest for the active completion so dont hide it */) {
+					updatedCompletions.dispose();
+					return false;
 				}
-			}
 
-			this._updateOperation.clear();
-			transaction(tx => {
-				/** @description Update completions with provider result */
-				target.set(completions, tx);
-				this.loading.set(false, tx);
-			});
+				// Reuse Inline Edit if possible
+				if (activeInlineCompletion && activeInlineCompletion.isInlineEdit && (
+					activeInlineCompletion.canBeReused(this._textModel, position)
+					|| updatedCompletions.has(activeInlineCompletion.inlineCompletion) /* Inline Edit wins over completions if it's already been shown*/
+					|| updatedCompletions.isEmpty() /* Incoming completion is empty, keep the current one alive */
+				)) {
+					updatedCompletions.dispose();
+					return false;
+				}
+
+				const endTime = new Date();
+				this._debounceValue.update(this._textModel, endTime.getTime() - startTime.getTime());
+
+				// Reuse Inline Completion if possible
+				const completions = new UpToDateInlineCompletions(updatedCompletions, request, this._textModel, this._versionId);
+				if (activeInlineCompletion && !activeInlineCompletion.isInlineEdit && activeInlineCompletion.canBeReused(this._textModel, position)) {
+					const asInlineCompletion = activeInlineCompletion.toInlineCompletion(undefined);
+					if (!updatedCompletions.has(asInlineCompletion)) {
+						completions.prepend(activeInlineCompletion.inlineCompletion, asInlineCompletion.range, true);
+					}
+				}
+
+				this._updateOperation.clear();
+				transaction(tx => {
+					/** @description Update completions with provider result */
+					target.set(completions, tx);
+				});
+
+			} finally {
+				this._loadingCount.set(this._loadingCount.get() - 1, undefined);
+			}
 
 			return true;
 		})();
@@ -314,25 +321,13 @@ export class InlineCompletionWithUpdatedRange extends Disposable {
 		return this.source.inlineCompletions.enableForwardStability ?? false;
 	}
 
-	private _updatedEdit: UpdatedEdit; // helper as derivedHandleChanges can not access previous value
-
-	public get updatedEdit(): IObservable<OffsetEdit | undefined> { return this._updatedEdit.offsetEdit; }
-
-	private readonly _updatedRange = derived(reader => {
-		const edit = this.updatedEdit.read(reader);
-		if (!edit || edit.edits.length === 0) {
-			return undefined;
-		}
-
-		return Range.fromPositions(
-			this._textModel.getPositionAt(edit.edits[0].replaceRange.start),
-			this._textModel.getPositionAt(edit.edits[edit.edits.length - 1].replaceRange.endExclusive)
-		);
-	});
+	private readonly _updatedEditObj: UpdatedEdit; // helper as derivedHandleChanges can not access previous value
+	public get updatedEdit(): IObservable<OffsetEdit | undefined> { return this._updatedEditObj.offsetEdit; }
+	public get updatedEditModelVersion() { return this._updatedEditObj.modelVersion; }
 
 	public get source() { return this.inlineCompletion.source; }
 	public get sourceInlineCompletion() { return this.inlineCompletion.sourceInlineCompletion; }
-	public get isInlineEdit() { return this.inlineCompletion.sourceInlineCompletion.isInlineEdit; }
+	public get isInlineEdit() { return this.inlineCompletion.isInlineEdit; }
 
 	constructor(
 		public readonly inlineCompletion: InlineCompletionItem,
@@ -343,68 +338,7 @@ export class InlineCompletionWithUpdatedRange extends Disposable {
 	) {
 		super();
 
-		this._updatedEdit = this._register(this._toUpdatedEdit(updatedRange ?? this.inlineCompletion.range, this.inlineCompletion.insertText));
-	}
-
-	private _toInlineCompletionEdit(editRange: Range, replaceText: string): UpdatedEdit {
-		const startOffset = this._textModel.getOffsetAt(editRange.getStartPosition());
-		const endOffset = this._textModel.getOffsetAt(editRange.getEndPosition());
-		const originalRange = OffsetRange.ofStartAndLength(startOffset, endOffset - startOffset);
-
-		const offsetEdit = new OffsetEdit([new SingleOffsetEdit(originalRange, replaceText)]);
-
-		return new UpdatedEdit(offsetEdit, this._textModel, this._modelVersion, false);
-	}
-
-	private _toUpdatedEdit(editRange: Range, replaceText: string): UpdatedEdit {
-		if (!this.isInlineEdit) {
-			return this._toInlineCompletionEdit(editRange, replaceText);
-		}
-
-		const eol = this._textModel.getEOL();
-		const editOriginalText = this._textModel.getValueInRange(editRange);
-		const editReplaceText = replaceText.replace(/\r\n|\r|\n/g, eol);
-
-		const diffAlgorithm = linesDiffComputers.getDefault();
-		const lineDiffs = diffAlgorithm.computeDiff(
-			splitLines(editOriginalText),
-			splitLines(editReplaceText),
-			{
-				ignoreTrimWhitespace: false,
-				computeMoves: false,
-				extendToSubwords: true,
-				maxComputationTimeMs: 500,
-			}
-		);
-
-		const innerChanges = lineDiffs.changes.flatMap(c => c.innerChanges ?? []);
-
-		function addRangeToPos(pos: Position, range: Range): Range {
-			const start = TextLength.fromPosition(range.getStartPosition());
-			return TextLength.ofRange(range).createRange(start.addToPosition(pos));
-		}
-
-		const modifiedText = new StringText(editReplaceText);
-
-		const offsetEdit = new OffsetEdit(
-			innerChanges.map(c => {
-				const range = addRangeToPos(editRange.getStartPosition(), c.originalRange);
-				const startOffset = this._textModel.getOffsetAt(range.getStartPosition());
-				const endOffset = this._textModel.getOffsetAt(range.getEndPosition());
-				const originalRange = OffsetRange.ofStartAndLength(startOffset, endOffset - startOffset);
-
-				// TODO: EOL are not properly trimmed by the diffAlgorithm #12680
-				const replaceText = modifiedText.getValueOfRange(c.modifiedRange);
-				const oldText = this._textModel.getValueInRange(range);
-				if (replaceText.endsWith(eol) && oldText.endsWith(eol)) {
-					return new SingleOffsetEdit(originalRange.deltaEnd(-eol.length), replaceText.slice(0, -eol.length));
-				}
-
-				return new SingleOffsetEdit(originalRange, replaceText);
-			})
-		);
-
-		return new UpdatedEdit(offsetEdit, this._textModel, this._modelVersion, true);
+		this._updatedEditObj = this._register(this._toUpdatedEdit(updatedRange ?? this.inlineCompletion.range, this.inlineCompletion.insertText));
 	}
 
 	public toInlineCompletion(reader: IReader | undefined): InlineCompletionItem {
@@ -437,7 +371,7 @@ export class InlineCompletionWithUpdatedRange extends Disposable {
 	}
 
 	public isVisible(model: ITextModel, cursorPosition: Position, reader: IReader | undefined): boolean {
-		const minimizedReplacement = singleTextRemoveCommonPrefix(this._toFilterTextReplacement(reader), model);
+		const minimizedReplacement = singleTextRemoveCommonPrefix(this.toSingleTextEdit(reader), model);
 		const updatedRange = this._updatedRange.read(reader);
 		if (
 			!updatedRange
@@ -483,7 +417,7 @@ export class InlineCompletionWithUpdatedRange extends Disposable {
 		}
 
 		if (this.sourceInlineCompletion.isInlineEdit) {
-			return this._updatedEdit.lastChangePartOfInlineEdit;
+			return this._updatedEditObj.lastChangePartOfInlineEdit;
 		}
 
 		const updatedRange = this._updatedRange.read(undefined);
@@ -494,16 +428,83 @@ export class InlineCompletionWithUpdatedRange extends Disposable {
 		return result;
 	}
 
-	private _toFilterTextReplacement(reader: IReader | undefined): SingleTextEdit {
-		const inlineCompletion = this.toInlineCompletion(reader);
-		return new SingleTextEdit(inlineCompletion.range, inlineCompletion.filterText);
+	private readonly _updatedRange = derived(reader => {
+		const edit = this.updatedEdit.read(reader);
+		if (!edit || edit.edits.length === 0) {
+			return undefined;
+		}
+
+		return Range.fromPositions(
+			this._textModel.getPositionAt(edit.edits[0].replaceRange.start),
+			this._textModel.getPositionAt(edit.edits[edit.edits.length - 1].replaceRange.endExclusive)
+		);
+	});
+
+	private _toUpdatedEdit(editRange: Range, replaceText: string): UpdatedEdit {
+		return this.isInlineEdit
+			? this._toInlineEditEdit(editRange, replaceText)
+			: this._toInlineCompletionEdit(editRange, replaceText);
+	}
+
+	private _toInlineCompletionEdit(editRange: Range, replaceText: string): UpdatedEdit {
+		const startOffset = this._textModel.getOffsetAt(editRange.getStartPosition());
+		const endOffset = this._textModel.getOffsetAt(editRange.getEndPosition());
+		const originalRange = OffsetRange.ofStartAndLength(startOffset, endOffset - startOffset);
+		const offsetEdit = new OffsetEdit([new SingleOffsetEdit(originalRange, replaceText)]);
+		return new UpdatedEdit(offsetEdit, this._textModel, this._modelVersion, false);
+	}
+
+	private _toInlineEditEdit(editRange: Range, replaceText: string): UpdatedEdit {
+		const eol = this._textModel.getEOL();
+		const editOriginalText = this._textModel.getValueInRange(editRange);
+		const editReplaceText = replaceText.replace(/\r\n|\r|\n/g, eol);
+
+		const diffAlgorithm = linesDiffComputers.getDefault();
+		const lineDiffs = diffAlgorithm.computeDiff(
+			splitLines(editOriginalText),
+			splitLines(editReplaceText),
+			{
+				ignoreTrimWhitespace: false,
+				computeMoves: false,
+				extendToSubwords: true,
+				maxComputationTimeMs: 500,
+			}
+		);
+
+		const innerChanges = lineDiffs.changes.flatMap(c => c.innerChanges ?? []);
+
+		function addRangeToPos(pos: Position, range: Range): Range {
+			const start = TextLength.fromPosition(range.getStartPosition());
+			return TextLength.ofRange(range).createRange(start.addToPosition(pos));
+		}
+
+		const modifiedText = new StringText(editReplaceText);
+
+		const offsetEdit = new OffsetEdit(
+			innerChanges.map(c => {
+				const range = addRangeToPos(editRange.getStartPosition(), c.originalRange);
+				const startOffset = this._textModel.getOffsetAt(range.getStartPosition());
+				const endOffset = this._textModel.getOffsetAt(range.getEndPosition());
+				const originalRange = OffsetRange.ofStartAndLength(startOffset, endOffset - startOffset);
+
+				const replaceText = modifiedText.getValueOfRange(c.modifiedRange);
+				const originalText = this._textModel.getValueInRange(range);
+				const edit = new SingleOffsetEdit(originalRange, replaceText);
+
+				return reshapeEdit(edit, originalText, innerChanges.length, this._textModel);
+			})
+		);
+
+		return new UpdatedEdit(offsetEdit, this._textModel, this._modelVersion, true);
 	}
 }
 
 class UpdatedEdit extends Disposable {
 
 	private _innerEdits: SingleUpdatedEdit[];
-	private _invalidationTime: number | undefined = Date.now() + 3000;
+
+	private _inlineEditModelVersion: number;
+	public get modelVersion() { return this._inlineEditModelVersion; }
 
 	private _lastChangePartOfInlineEdit = false;
 	public get lastChangePartOfInlineEdit() { return this._lastChangePartOfInlineEdit; }
@@ -523,10 +524,6 @@ class UpdatedEdit extends Disposable {
 
 		for (const change of changeSummary) {
 			this._innerEdits = this._applyTextModelChanges(change, this._innerEdits);
-		}
-
-		if (this._hasInvalidationTimePassed()) {
-			return undefined;
 		}
 
 		if (this._innerEdits.length === 0) {
@@ -550,6 +547,8 @@ class UpdatedEdit extends Disposable {
 	) {
 		super();
 
+		this._inlineEditModelVersion = this._modelVersion.get() ?? -1;
+
 		this._innerEdits = offsetEdit.edits.map(edit => {
 			if (isInlineEdit) {
 				const replacedRange = Range.fromPositions(textModel.getPositionAt(edit.replaceRange.start), textModel.getPositionAt(edit.replaceRange.endExclusive));
@@ -572,9 +571,15 @@ class UpdatedEdit extends Disposable {
 			return []; // change is invalid, so we will have to drop the completion
 		}
 
+		const currentModelVersion = this._modelVersion.get();
+
 		this._lastChangePartOfInlineEdit = edits.some(edit => edit.lastChangeUpdatedEdit);
 		if (this._lastChangePartOfInlineEdit) {
-			this._cancelInvalidationTimer();
+			this._inlineEditModelVersion = currentModelVersion ?? -1;
+		}
+
+		if (currentModelVersion === null || this._inlineEditModelVersion + 20 < currentModelVersion) {
+			return []; // the completion has been ignored for a while, remove it
 		}
 
 		edits = edits.filter(innerEdit => !innerEdit.edit!.isEmpty);
@@ -583,14 +588,6 @@ class UpdatedEdit extends Disposable {
 		}
 
 		return edits;
-	}
-
-	private _cancelInvalidationTimer() {
-		this._invalidationTime = undefined;
-	}
-
-	private _hasInvalidationTimePassed(): boolean {
-		return !!this._invalidationTime && this._invalidationTime < Date.now();
 	}
 }
 
@@ -698,6 +695,14 @@ class SingleUpdatedNextEdit extends SingleUpdatedEdit {
 				continue;
 			}
 
+			// user did exactly the edit
+			if (change.equals(edit)) {
+				editHasChanged = true;
+				editStart = change.replaceRange.endExclusive;
+				editReplaceText = '';
+				continue;
+			}
+
 			// MOVE EDIT
 			if (change.replaceRange.start > editEnd) {
 				// the change happens after the completion range
@@ -725,50 +730,59 @@ class SingleUpdatedNextEdit extends SingleUpdatedEdit {
 
 const emptyRange = new Range(1, 1, 1, 1);
 
-interface IRecordableLogEntry {
-	sourceId: string;
-	time: number;
-}
-
-export interface IRecordableEditorLogEntry extends IRecordableLogEntry {
-	modelUri: string;
-	modelVersion: number;
-}
-
-/**
- * The sourceLabel must not contain '@'!
-*/
-export function formatRecordableLogEntry<T extends IRecordableLogEntry>(entry: T): string {
-	return entry.sourceId + ' @@ ' + JSON.stringify({ ...entry, sourceId: undefined });
-}
-
-export class StructuredLogger<T extends IRecordableLogEntry> extends Disposable {
-	public static cast<T extends IRecordableLogEntry>(): typeof StructuredLogger<T> {
-		return this as typeof StructuredLogger<T>;
+function reshapeEdit(edit: SingleOffsetEdit, originalText: string, totalInnerEdits: number, textModel: ITextModel): SingleOffsetEdit {
+	// TODO: EOL are not properly trimmed by the diffAlgorithm #12680
+	const eol = textModel.getEOL();
+	if (edit.newText.endsWith(eol) && originalText.endsWith(eol)) {
+		edit = new SingleOffsetEdit(edit.replaceRange.deltaEnd(-eol.length), edit.newText.slice(0, -eol.length));
 	}
 
-	private readonly _contextKeyValue = observableContextKey<string>(this._contextKey, this._contextKeyService).recomputeInitiallyAndOnChange(this._store);
-
-	constructor(
-		private readonly _contextKey: string,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@ICommandService private readonly _commandService: ICommandService,
-	) {
-		super();
+	// INSERTION
+	// If the insertion ends with a new line and is inserted at the start of a line which has text,
+	// we move the insertion to the end of the previous line if possible
+	if (totalInnerEdits === 1 && edit.replaceRange.isEmpty && edit.newText.includes(eol)) {
+		edit = reshapeMultiLineInsertion(edit, textModel);
 	}
 
-	public readonly isEnabled = this._contextKeyValue.map(v => v !== undefined);
+	// The diff algorithm extended a simple edit to the entire word
+	// shrink it back to a simple edit if it is deletion/insertion only
+	if (totalInnerEdits === 1) {
+		const prefixLength = commonPrefixLength(originalText, edit.newText);
+		const suffixLength = commonSuffixLength(originalText.slice(prefixLength), edit.newText.slice(prefixLength));
 
-	public log(data: T): boolean {
-		const commandId = this._contextKeyValue.get();
-		if (!commandId) {
-			return false;
+		// reshape it back to an insertion
+		if (prefixLength + suffixLength === originalText.length) {
+			return new SingleOffsetEdit(edit.replaceRange.deltaStart(prefixLength).deltaEnd(-suffixLength), edit.newText.substring(prefixLength, edit.newText.length - suffixLength));
 		}
-		this._commandService.executeCommand(commandId, data);
-		return true;
+
+		// reshape it back to a deletion
+		if (prefixLength + suffixLength === edit.newText.length) {
+			return new SingleOffsetEdit(edit.replaceRange.deltaStart(prefixLength).deltaEnd(-suffixLength), '');
+		}
 	}
+
+	return edit;
 }
 
-export function observableContextKey<T>(key: string, contextKeyService: IContextKeyService): IObservable<T | undefined> {
-	return observableFromEvent(contextKeyService.onDidChangeContext, () => contextKeyService.getContextKeyValue<T>(key));
+function reshapeMultiLineInsertion(edit: SingleOffsetEdit, textModel: ITextModel): SingleOffsetEdit {
+	if (!edit.replaceRange.isEmpty) {
+		throw new BugIndicatingError('Unexpected original range');
+	}
+
+	if (edit.replaceRange.start === 0) {
+		return edit;
+	}
+
+	const eol = textModel.getEOL();
+	const startPosition = textModel.getPositionAt(edit.replaceRange.start);
+	const startColumn = startPosition.column;
+	const startLineNumber = startPosition.lineNumber;
+
+	// If the insertion ends with a new line and is inserted at the start of a line which has text,
+	// we move the insertion to the end of the previous line if possible
+	if (startColumn === 1 && startLineNumber > 1 && textModel.getLineLength(startLineNumber) !== 0 && edit.newText.endsWith(eol) && !edit.newText.startsWith(eol)) {
+		return new SingleOffsetEdit(edit.replaceRange.delta(-1), eol + edit.newText.slice(0, -eol.length));
+	}
+
+	return edit;
 }

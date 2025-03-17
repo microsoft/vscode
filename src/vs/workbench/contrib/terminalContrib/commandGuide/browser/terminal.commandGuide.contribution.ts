@@ -64,7 +64,7 @@ class TerminalCommandGuideContribution extends Disposable implements ITerminalCo
 			this._activeCommandGuide.value = combinedDisposable(
 				addDisposableListener(screenElement, 'mousemove', (e: MouseEvent) => this._tryShowHighlight(screenElement, xterm, e)),
 				addDisposableListener(viewportElement, 'mousemove', (e: MouseEvent) => this._tryShowHighlight(screenElement, xterm, e)),
-				addDisposableListener(xterm.raw.element!, 'mouseout', () => xterm.markTracker.showCommandGuide(undefined)),
+				addDisposableListener(xterm.raw.element!, 'mouseleave', () => xterm.markTracker.showCommandGuide(undefined)),
 				xterm.raw.onData(() => xterm.markTracker.showCommandGuide(undefined)),
 				toDisposable(() => xterm.markTracker.showCommandGuide(undefined)),
 			);

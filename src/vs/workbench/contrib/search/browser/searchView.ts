@@ -44,7 +44,6 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { IOpenerService, withSelection } from '../../../../platform/opener/common/opener.js';
 import { IProgress, IProgressService, IProgressStep } from '../../../../platform/progress/common/progress.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultInputBoxStyles, defaultToggleStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IFileIconTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -72,7 +71,7 @@ import { createEditorFromSearchResult } from '../../searchEditor/browser/searchE
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IPreferencesService, ISettingsEditorOptions } from '../../../services/preferences/common/preferences.js';
 import { ITextQueryBuilderOptions, QueryBuilder } from '../../../services/search/common/queryBuilder.js';
-import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, SearchCompletionExitCode, SearchSortOrder, TextSearchCompleteMessageType, ViewMode } from '../../../services/search/common/search.js';
+import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ISearchService, ITextQuery, SearchCompletionExitCode, SearchSortOrder, TextSearchCompleteMessageType, ViewMode } from '../../../services/search/common/search.js';
 import { TextSearchCompleteMessage } from '../../../services/search/common/searchExtTypes.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
@@ -195,15 +194,15 @@ export class SearchView extends ViewPane {
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ISearchService private readonly searchService: ISearchService,
 		@IOpenerService openerService: IOpenerService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@INotebookService private readonly notebookService: INotebookService,
 		@ILogService private readonly logService: ILogService,
 		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService
 	) {
 
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		this.container = dom.$('.search-view');
 
@@ -1665,8 +1664,29 @@ export class SearchView extends ViewPane {
 		}
 
 		// Special case for when we have an AI provider registered
-		if (this.shouldShowAIResults()) {
+		if (this.shouldShowAIResults() && !allResults) {
 			Constants.SearchContext.AIResultsRequested.bindTo(this.contextKeyService).set(!!aiResults);
+			const messageEl = this.clearMessage();
+			const noResultsMessage = nls.localize('noResultsFallback', "No results found. ");
+			dom.append(messageEl, noResultsMessage);
+
+			const aiName = await this.searchService.getAIName();
+
+			if (aiName) {
+				const kb = this.keybindingService.lookupKeybinding(Constants.SearchCommandIds.SearchWithAIActionId);
+				const searchWithAIButtonTooltip = kb ? nls.localize('searchWithAIButtonTooltipWithKB', "{0} to search", kb.getLabel())
+					: nls.localize('searchWithAIButtonTooltip', "Search");
+				const searchWithAIButton = this.messageDisposables.add(new SearchLinkButton(
+					searchWithAIButtonTooltip,
+					() => {
+						this.commandService.executeCommand(Constants.SearchCommandIds.SearchWithAIActionId);
+					}, this.hoverService));
+				dom.append(messageEl, searchWithAIButton.element);
+
+				const message = nls.localize('triggerAISearch', " with {0}.", aiName);
+				dom.append(messageEl, message);
+			}
+
 			if (!aiResults) {
 				return;
 			}

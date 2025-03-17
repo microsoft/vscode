@@ -3,21 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace } from 'vscode';
-
-const DEFAULT_CLIENT_ID_V1 = 'aebc6443-996d-45c2-90f0-388ff96faa56';
-const DEFAULT_TENANT_V1 = 'organizations';
-const DEFAULT_CLIENT_ID_V2 = 'c27c220f-ce2f-4904-927d-333864217eeb';
-const DEFAULT_TENANT_V2 = 'common';
+const DEFAULT_CLIENT_ID = 'aebc6443-996d-45c2-90f0-388ff96faa56';
+const DEFAULT_TENANT = 'organizations';
 
 const OIDC_SCOPES = ['openid', 'email', 'profile', 'offline_access'];
 const GRAPH_TACK_ON_SCOPE = 'User.Read';
 
 export class ScopeData {
-
-	private readonly _defaultClientId: string;
-	private readonly _defaultTenant: string;
-
 	/**
 	 * The full list of scopes including:
 	 * * the original scopes passed to the constructor
@@ -42,47 +34,57 @@ export class ScopeData {
 	readonly clientId: string;
 
 	/**
-	 * The tenant ID to use for the token request. This is the value of the `VSCODE_TENANT:...` scope if present, otherwise the default tenant ID.
+	 * The tenant ID or `organizations`, `common`, `consumers` to use for the token request. This is the value of the `VSCODE_TENANT:...` scope if present, otherwise it's the default.
 	 */
 	readonly tenant: string;
 
-	constructor(readonly originalScopes: readonly string[] = []) {
-		if (workspace.getConfiguration('microsoft-authentication').get<'v1' | 'v2'>('clientIdVersion') === 'v2') {
-			this._defaultClientId = DEFAULT_CLIENT_ID_V2;
-			this._defaultTenant = DEFAULT_TENANT_V2;
-		} else {
-			this._defaultClientId = DEFAULT_CLIENT_ID_V1;
-			this._defaultTenant = DEFAULT_TENANT_V1;
-		}
+	/**
+	 * The tenant ID to use for the token request. This will only ever be a GUID if one was specified via the `VSCODE_TENANT:...` scope, otherwise undefined.
+	 */
+	readonly tenantId: string | undefined;
 
+	constructor(readonly originalScopes: readonly string[] = []) {
 		const modifiedScopes = [...originalScopes];
 		modifiedScopes.sort();
 		this.allScopes = modifiedScopes;
 		this.scopeStr = modifiedScopes.join(' ');
 		this.scopesToSend = this.getScopesToSend(modifiedScopes);
 		this.clientId = this.getClientId(this.allScopes);
-		this.tenant = this.getTenantId(this.allScopes);
+		this.tenant = this.getTenant(this.allScopes);
+		this.tenantId = this.getTenantId(this.tenant);
 	}
 
-	private getClientId(scopes: string[]) {
+	private getClientId(scopes: string[]): string {
 		return scopes.reduce<string | undefined>((prev, current) => {
 			if (current.startsWith('VSCODE_CLIENT_ID:')) {
 				return current.split('VSCODE_CLIENT_ID:')[1];
 			}
 			return prev;
-		}, undefined) ?? this._defaultClientId;
+		}, undefined) ?? DEFAULT_CLIENT_ID;
 	}
 
-	private getTenantId(scopes: string[]) {
+	private getTenant(scopes: string[]): string {
 		return scopes.reduce<string | undefined>((prev, current) => {
 			if (current.startsWith('VSCODE_TENANT:')) {
 				return current.split('VSCODE_TENANT:')[1];
 			}
 			return prev;
-		}, undefined) ?? this._defaultTenant;
+		}, undefined) ?? DEFAULT_TENANT;
 	}
 
-	private getScopesToSend(scopes: string[]) {
+	private getTenantId(tenant: string): string | undefined {
+		switch (tenant) {
+			case 'organizations':
+			case 'common':
+			case 'consumers':
+				// These are not valid tenant IDs, so we return undefined
+				return undefined;
+			default:
+				return this.tenant;
+		}
+	}
+
+	private getScopesToSend(scopes: string[]): string[] {
 		const scopesToSend = scopes.filter(s => !s.startsWith('VSCODE_'));
 
 		const set = new Set(scopesToSend);

@@ -7,7 +7,7 @@ import './media/notificationsToasts.css';
 import { localize } from '../../../../nls.js';
 import { INotificationsModel, NotificationChangeType, INotificationChangeEvent, INotificationViewItem, NotificationViewItemContentChangeKind } from '../../../common/notifications.js';
 import { IDisposable, dispose, toDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { addDisposableListener, EventType, Dimension, scheduleAtNextAnimationFrame, isAncestorOfActiveElement, getWindow } from '../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, Dimension, scheduleAtNextAnimationFrame, isAncestorOfActiveElement, getWindow, $ } from '../../../../base/browser/dom.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { NotificationsList } from './notificationsList.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
@@ -17,7 +17,7 @@ import { IThemeService, Themable } from '../../../../platform/theme/common/theme
 import { widgetShadow } from '../../../../platform/theme/common/colorRegistry.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { INotificationsToastController } from './notificationsCommands.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { Severity, NotificationsFilter, NotificationPriority } from '../../../../platform/notification/common/notification.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
@@ -71,7 +71,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 	private readonly mapNotificationToToast = new Map<INotificationViewItem, INotificationToast>();
 	private readonly mapNotificationToDisposable = new Map<INotificationViewItem, IDisposable>();
 
-	private readonly notificationsToastsVisibleContextKey = NotificationsToastsVisibleContext.bindTo(this.contextKeyService);
+	private readonly notificationsToastsVisibleContextKey: IContextKey<boolean>;
 
 	private readonly addedToastsIntervalCounter = new IntervalCounter(NotificationsToasts.SPAM_PROTECTION.interval);
 
@@ -82,11 +82,13 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IHostService private readonly hostService: IHostService
 	) {
 		super(themeService);
+
+		this.notificationsToastsVisibleContextKey = NotificationsToastsVisibleContext.bindTo(contextKeyService);
 
 		this.registerListeners();
 	}
@@ -165,8 +167,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		// Lazily create toasts containers
 		let notificationsToastsContainer = this.notificationsToastsContainer;
 		if (!notificationsToastsContainer) {
-			notificationsToastsContainer = this.notificationsToastsContainer = document.createElement('div');
-			notificationsToastsContainer.classList.add('notifications-toasts');
+			notificationsToastsContainer = this.notificationsToastsContainer = $('.notifications-toasts');
 
 			this.container.appendChild(notificationsToastsContainer);
 		}
@@ -175,8 +176,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		notificationsToastsContainer.classList.add('visible');
 
 		// Container
-		const notificationToastContainer = document.createElement('div');
-		notificationToastContainer.classList.add('notification-toast-container');
+		const notificationToastContainer = $('.notification-toast-container');
 
 		const firstToast = notificationsToastsContainer.firstChild;
 		if (firstToast) {
@@ -186,8 +186,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		}
 
 		// Toast
-		const notificationToast = document.createElement('div');
-		notificationToast.classList.add('notification-toast');
+		const notificationToast = $('.notification-toast');
 		notificationToastContainer.appendChild(notificationToast);
 
 		// Create toast with item and show

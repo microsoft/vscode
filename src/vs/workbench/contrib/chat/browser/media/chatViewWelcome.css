@@ -53,6 +53,7 @@ div.chat-welcome-view {
 
 	& > .chat-welcome-view-indicator-container {
 		display: flex;
+		flex-wrap: wrap;
 		margin-top: 5px;
 		gap: 9px;
 		justify-content: center;

@@ -1399,6 +1399,55 @@ suite('observables', () => {
 		});
 	});
 
+	test('recomputeInitiallyAndOnChange should work when a dependency sets an observable', () => {
+		const store = new DisposableStore();
+		const log = new Log();
+
+		const myObservable = new LoggingObservableValue('myObservable', 0, log);
+
+		let shouldUpdate = true;
+
+		const myDerived = derived(reader => {
+			/** @description myDerived */
+
+			log.log('myDerived.computed start');
+
+			const val = myObservable.read(reader);
+
+			if (shouldUpdate) {
+				shouldUpdate = false;
+				myObservable.set(1, undefined);
+			}
+
+			log.log('myDerived.computed end');
+
+			return val;
+		});
+
+		assert.deepStrictEqual(log.getAndClearEntries(), ([]));
+
+		myDerived.recomputeInitiallyAndOnChange(store, val => {
+			log.log(`recomputeInitiallyAndOnChange, myDerived: ${val}`);
+		});
+
+		assert.deepStrictEqual(log.getAndClearEntries(), [
+			"myDerived.computed start",
+			"myObservable.firstObserverAdded",
+			"myObservable.get",
+			"myObservable.set (value 1)",
+			"myDerived.computed end",
+			"myDerived.computed start",
+			"myObservable.get",
+			"myDerived.computed end",
+			"recomputeInitiallyAndOnChange, myDerived: 1",
+		]);
+
+		myDerived.get();
+		assert.deepStrictEqual(log.getAndClearEntries(), ([]));
+
+		store.dispose();
+	});
+
 	suite('prevent invalid usage', () => {
 		suite('reading outside of compute function', () => {
 			test('derived', () => {

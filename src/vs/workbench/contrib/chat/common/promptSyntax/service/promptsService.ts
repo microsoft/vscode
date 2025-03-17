@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPrompt, IPromptsService } from './types.js';
+import { IPromptPath, IPromptsService } from './types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { assert } from '../../../../../../base/common/assert.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
@@ -81,12 +81,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return this.cache.get(model);
 	}
 
-	public async listPromptFiles(): Promise<readonly IPrompt[]> {
-		const globalLocations = [this.userDataService.currentProfile.promptsHome];
+	public async listPromptFiles(): Promise<readonly IPromptPath[]> {
+		const userLocations = [this.userDataService.currentProfile.promptsHome];
 
 		const prompts = await Promise.all([
-			this.fileLocator.listFilesIn(globalLocations, [])
-				.then(withType('global')),
+			this.fileLocator.listFilesIn(userLocations, [])
+				.then(withType('user')),
 			this.fileLocator.listFiles([])
 				.then(withType('local')),
 		]);
@@ -95,18 +95,18 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public getSourceFolders(
-		type: IPrompt['type'],
-	): readonly IPrompt[] {
+		type: IPromptPath['type'],
+	): readonly IPromptPath[] {
 		// sanity check to make sure we don't miss a new prompt type
 		// added in the future
 		assert(
-			type === 'local' || type === 'global',
+			type === 'local' || type === 'user',
 			`Unknown prompt type '${type}'.`,
 		);
 
-		const prompts = (type === 'global')
+		const prompts = (type === 'user')
 			? [this.userDataService.currentProfile.promptsHome]
-			: this.fileLocator.getSourceLocations();
+			: this.fileLocator.getConfigBasedSourceFolders();
 
 		return prompts.map(addType(type));
 	}
@@ -116,8 +116,8 @@ export class PromptsService extends Disposable implements IPromptsService {
  * Utility to add a provided prompt `type` to a prompt URI.
  */
 const addType = (
-	type: 'local' | 'global',
-): (uri: URI) => IPrompt => {
+	type: 'local' | 'user',
+): (uri: URI) => IPromptPath => {
 	return (uri) => {
 		return { uri, type: type };
 	};
@@ -127,8 +127,8 @@ const addType = (
  * Utility to add a provided prompt `type` to a list of prompt URIs.
  */
 const withType = (
-	type: 'local' | 'global',
-): (uris: readonly URI[]) => (readonly IPrompt[]) => {
+	type: 'local' | 'user',
+): (uris: readonly URI[]) => (readonly IPromptPath[]) => {
 	return (uris) => {
 		return uris
 			.map(addType(type));

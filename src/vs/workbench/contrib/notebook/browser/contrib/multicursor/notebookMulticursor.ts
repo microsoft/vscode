@@ -31,7 +31,6 @@ import { indentOfLine } from '../../../../../../editor/common/model/textModel.js
 import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { ICoordinatesConverter } from '../../../../../../editor/common/viewModel.js';
 import { ViewModelEventsCollector } from '../../../../../../editor/common/viewModelEventDispatcher.js';
-import { WordHighlighterContribution } from '../../../../../../editor/contrib/wordHighlighter/browser/wordHighlighter.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -886,21 +885,6 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 				cell.decorationIds,
 				newDecorations
 			);
-
-			/**
-			 * TODO: @Yoyokrazy debt
-			 * goal: draw decorations for occurrence higlight on the cursor blink cycle
-			 *
-			 * Trigger WH with delay: x ms (x = cursor blink cycle)
-			 * -> start = Date()
-			 * -> WordHighlighter -> compute
-			 * -> end = Date()
-			 * -> delay = x - ((end - start) % x)
-			 */
-			const matchingEditor = this.notebookEditor.codeEditors.find(cellEditor => cellEditor[0] === cell.cellViewModel);
-			if (matchingEditor) {
-				WordHighlighterContribution.get(matchingEditor[1])?.wordHighlighter?.trigger();
-			}
 		});
 	}
 
@@ -1051,7 +1035,7 @@ class NotebookAddMatchToMultiSelectionAction extends NotebookAction {
 	constructor() {
 		super({
 			id: NOTEBOOK_ADD_FIND_MATCH_TO_SELECTION_ID,
-			title: localize('addFindMatchToSelection', "Add Selection To Next Find Match"),
+			title: localize('addFindMatchToSelection', "Add Selection to Next Find Match"),
 			precondition: ContextKeyExpr.and(
 				ContextKeyExpr.equals('config.notebook.multiCursor.enabled', true),
 				NOTEBOOK_IS_ACTIVE_EDITOR,

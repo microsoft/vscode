@@ -198,6 +198,9 @@ if [ "$__vsc_stable" = "0" ]; then
 	builtin printf "\e]633;P;ContinuationPrompt=$(echo "$PS2" | sed 's/\x1b/\\\\x1b/g')\a"
 fi
 
+# Report this shell supports rich command detection
+builtin printf '\e]633;P;HasRichCommandDetection=True\a'
+
 __vsc_report_prompt() {
 	# Expand the original PS1 similarly to how bash would normally
 	# See https://stackoverflow.com/a/37137981 for technique
@@ -304,7 +307,7 @@ __trackMissingEnvVars() {
 
 __vsc_update_env() {
 	if [[ "$__vscode_shell_env_reporting" == "1" ]]; then
-		builtin printf '\e]633;EnvSingleStart;%s;\a' $__vsc_nonce
+		builtin printf '\e]633;EnvSingleStart;%s;%s\a' 0 $__vsc_nonce
 
 		if [ "$use_associative_array" = 1 ]; then
 			if [ ${#vsc_aa_env[@]} -eq 0 ]; then

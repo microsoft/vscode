@@ -17,15 +17,15 @@ export const IPromptsService = createDecorator<IPromptsService>('IPromptsService
 /**
 * Supported prompt types.
 *  - `local` means the prompt is a local file.
-*  - `global` means a "roamble" prompt file (similar to snippets).
+*  - `user` means a "roamble" prompt file (similar to snippets).
 */
-type TPromptsType = 'local' | 'global';
+type TPromptsType = 'local' | 'user';
 
 /**
  * Represents a prompt path with its type.
  * This is used for both prompt files and prompt source folders.
  */
-export interface IPrompt {
+export interface IPromptPath {
 	/**
 	 * URI of the prompt.
 	 */
@@ -54,10 +54,10 @@ export interface IPromptsService extends IDisposable {
 	/**
 	 * List all available prompt files.
 	 */
-	listPromptFiles(): Promise<readonly IPrompt[]>;
+	listPromptFiles(): Promise<readonly IPromptPath[]>;
 
 	/**
 	 * Get a list of prompt source folders based on the provided prompt type.
 	 */
-	getSourceFolders(type: TPromptsType): readonly IPrompt[];
+	getSourceFolders(type: TPromptsType): readonly IPromptPath[];
 }

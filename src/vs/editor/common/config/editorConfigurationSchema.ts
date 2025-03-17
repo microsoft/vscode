@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { IJSONSchemaSnippet } from '../../../base/common/jsonSchema.js';
 import { diffEditorDefaultOptions } from './diffEditor.js';
 import { editorOptionsRegistry } from './editorOptions.js';
 import { EDITOR_MODEL_DEFAULTS } from '../core/textModelDefaults.js';
@@ -120,13 +121,13 @@ const editorConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: false,
 			markdownDescription: nls.localize('editor.experimental.preferTreeSitter.typescript', "Controls whether tree sitter parsing should be turned on for typescript. This will take precedence over `editor.experimental.treeSitterTelemetry` for typescript."),
-			tags: ['experimental']
+			tags: ['experimental', 'onExP']
 		},
 		'editor.experimental.preferTreeSitter.ini': {
 			type: 'boolean',
 			default: false,
 			markdownDescription: nls.localize('editor.experimental.preferTreeSitter.ini', "Controls whether tree sitter parsing should be turned on for ini. This will take precedence over `editor.experimental.treeSitterTelemetry` for ini."),
-			tags: ['experimental']
+			tags: ['experimental', 'onExP']
 		},
 		'editor.language.brackets': {
 			type: ['array', 'null'],
@@ -318,3 +319,15 @@ export function isDiffEditorConfigurationKey(key: string): boolean {
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 configurationRegistry.registerConfiguration(editorConfiguration);
+
+export async function registerEditorFontConfigurations(getFontSnippets: () => Promise<IJSONSchemaSnippet[]>) {
+	const editorKeysWithFont = ['editor.fontFamily'];
+	const fontSnippets = await getFontSnippets();
+	for (const key of editorKeysWithFont) {
+		if (
+			editorConfiguration.properties && editorConfiguration.properties[key]
+		) {
+			editorConfiguration.properties[key].defaultSnippets = fontSnippets;
+		}
+	}
+}

@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../base/common/uri.js';
+import { basename } from '../../../../base/common/path.js';
+import { assert, assertNever } from '../../../../base/common/assert.js';
 
 /**
  * Base prompt parsing error class.
  */
-export abstract class ParseError extends Error {
+abstract class ParseError extends Error {
 	/**
 	 * Error type name.
 	 */
@@ -41,22 +43,6 @@ export abstract class ParseError extends Error {
 }
 
 /**
- * A generic error for failing to resolve prompt contents stream.
- */
-export class FailedToResolveContentsStream extends ParseError {
-	public override errorType = 'FailedToResolveContentsStream';
-
-	constructor(
-		public readonly uri: URI,
-		public readonly originalError: unknown,
-		message: string = `Failed to resolve prompt contents stream for '${uri.toString()}': ${originalError}.`,
-	) {
-		super(message);
-	}
-}
-
-
-/**
  * Base resolve error class used when file reference resolution fails.
  */
 export abstract class ResolveError extends ParseError {
@@ -72,10 +58,26 @@ export abstract class ResolveError extends ParseError {
 }
 
 /**
+ * A generic error for failing to resolve prompt contents stream.
+ */
+export class FailedToResolveContentsStream extends ResolveError {
+	public override errorType = 'FailedToResolveContentsStream';
+
+	constructor(
+		uri: URI,
+		public readonly originalError: unknown,
+		message: string = `Failed to resolve prompt contents stream for '${uri.toString()}': ${originalError}.`,
+	) {
+		super(uri, message);
+	}
+}
+
+
+/**
  * Error that reflects the case when attempt to open target file fails.
  */
-export class FileOpenFailed extends FailedToResolveContentsStream {
-	public override errorType = 'FileOpenError';
+export class OpenFailed extends FailedToResolveContentsStream {
+	public override errorType = 'OpenError';
 
 	constructor(
 		uri: URI,
@@ -84,10 +86,16 @@ export class FileOpenFailed extends FailedToResolveContentsStream {
 		super(
 			uri,
 			originalError,
-			`Failed to open file '${uri.toString()}': ${originalError}.`,
+			`Failed to open '${uri.fsPath}': ${originalError}.`,
 		);
 	}
 }
+
+/**
+ * Character use to join filenames/paths in a chain of references that
+ * lead to recursion.
+ */
+const DEFAULT_RECURSIVE_PATH_JOIN_CHAR = ' -> ';
 
 /**
  * Error that reflects the case when attempt resolve nested file
@@ -106,23 +114,67 @@ export class FileOpenFailed extends FailedToResolveContentsStream {
 export class RecursiveReference extends ResolveError {
 	public override errorType = 'RecursiveReferenceError';
 
+	/**
+	 * Cached default string representation of the recursive path.
+	 */
+	private defaultPathStringCache: string | undefined;
+
 	constructor(
 		uri: URI,
 		public readonly recursivePath: string[],
 	) {
-		const references = recursivePath.join(' -> ');
+		// sanity check - a recursive path must always have at least
+		// two items in the list, otherwise it is not a recursive loop
+		assert(
+			recursivePath.length >= 2,
+			`Recursive path must contain at least two paths, got '${recursivePath.length}'.`,
+		);
 
 		super(
-			uri,
-			`Recursive references found: ${references}.`,
+			uri, 'Recursive references found.',
 		);
+	}
+
+	public override get message(): string {
+		return `${super.message} ${this.getRecursivePathString('fullpath')}`;
 	}
 
 	/**
 	 * Returns a string representation of the recursive path.
 	 */
-	public get recursivePathString(): string {
-		return this.recursivePath.join(' -> ');
+	public getRecursivePathString(
+		filename: 'basename' | 'fullpath',
+		pathJoinCharacter: string = DEFAULT_RECURSIVE_PATH_JOIN_CHAR,
+	): string {
+		const isDefault = (filename === 'fullpath') &&
+			(pathJoinCharacter === DEFAULT_RECURSIVE_PATH_JOIN_CHAR);
+
+		if (isDefault && (this.defaultPathStringCache !== undefined)) {
+			return this.defaultPathStringCache;
+		}
+
+		const result = this.recursivePath
+			.map((path) => {
+				if (filename === 'fullpath') {
+					return `'${path}'`;
+				}
+
+				if (filename === 'basename') {
+					return `'${basename(path)}'`;
+				}
+
+				assertNever(
+					filename,
+					`Unknown filename format '${filename}'.`,
+				);
+			})
+			.join(pathJoinCharacter);
+
+		if (isDefault) {
+			this.defaultPathStringCache = result;
+		}
+
+		return result;
 	}
 
 	/**
@@ -138,7 +190,22 @@ export class RecursiveReference extends ResolveError {
 			return false;
 		}
 
-		return this.recursivePathString === other.recursivePathString;
+		// performance optimization - compare number of paths in the
+		// recursive path chains first to avoid comparison of all strings
+		if (this.recursivePath.length !== other.recursivePath.length) {
+			return false;
+		}
+
+		const myRecursivePath = this.getRecursivePathString('fullpath');
+		const theirRecursivePath = other.getRecursivePathString('fullpath');
+
+		// performance optimization - if the path lengths don't match,
+		// no need to compare entire strings as they must be different
+		if (myRecursivePath.length !== theirRecursivePath.length) {
+			return false;
+		}
+
+		return myRecursivePath === theirRecursivePath;
 	}
 
 	/**
@@ -150,11 +217,10 @@ export class RecursiveReference extends ResolveError {
 }
 
 /**
- * Error that reflects the case when resource URI does not point to
- * a prompt snippet file, hence was not attempted to be resolved.
+ * Error for the case when a resource URI doesn't point to a prompt file.
  */
-export class NonPromptSnippetFile extends ResolveError {
-	public override errorType = 'NonPromptSnippetFileError';
+export class NotPromptFile extends ResolveError {
+	public override errorType = 'NotPromptFileError';
 
 	constructor(
 		uri: URI,
@@ -165,7 +231,27 @@ export class NonPromptSnippetFile extends ResolveError {
 
 		super(
 			uri,
-			`Resource at ${uri.path} is not a prompt snippet file${suffix}`,
+			`Resource at ${uri.path} is not a prompt file${suffix}`,
+		);
+	}
+}
+
+/**
+ * Error for the case when a resource URI points to a folder.
+ */
+export class FolderReference extends NotPromptFile {
+	public override errorType = 'FolderReferenceError';
+
+	constructor(
+		uri: URI,
+		message: string = '',
+	) {
+
+		const suffix = message ? `: ${message}` : '';
+
+		super(
+			uri,
+			`Entity at '${uri.path}' is a folder${suffix}`,
 		);
 	}
 }

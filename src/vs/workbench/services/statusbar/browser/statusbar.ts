@@ -8,7 +8,7 @@ import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.
 import { ThemeColor } from '../../../../base/common/themables.js';
 import { Command } from '../../../../editor/common/languages.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
-import { IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
+import { IManagedHoverTooltipHTMLElement, IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
 import { ColorIdentifier } from '../../../../platform/theme/common/colorRegistry.js';
 import { IAuxiliaryStatusbarPart, IStatusbarEntryContainer } from '../../../browser/parts/statusbar/statusbarPart.js';
 
@@ -43,10 +43,14 @@ export const enum StatusbarAlignment {
 export interface IStatusbarEntryLocation {
 
 	/**
-	 * The identifier of another status bar entry to
-	 * position relative to.
+	 * The identifier and priority of another status bar
+	 * entry to position relative to. If the referenced
+	 * entry does not exist, the priority will be used.
 	 */
-	id: string;
+	location: {
+		id: string;
+		priority: number;
+	};
 
 	/**
 	 * The alignment of the status bar entry relative
@@ -65,7 +69,7 @@ export interface IStatusbarEntryLocation {
 export function isStatusbarEntryLocation(thing: unknown): thing is IStatusbarEntryLocation {
 	const candidate = thing as IStatusbarEntryLocation | undefined;
 
-	return typeof candidate?.id === 'string' && typeof candidate.alignment === 'number';
+	return typeof candidate?.location?.id === 'string' && typeof candidate.alignment === 'number';
 }
 
 export interface IStatusbarEntryPriority {
@@ -112,7 +116,7 @@ export interface IStatusbarStyleOverride {
 export type StatusbarEntryKind = 'standard' | 'warning' | 'error' | 'prominent' | 'remote' | 'offline';
 export const StatusbarEntryKinds: StatusbarEntryKind[] = ['standard', 'warning', 'error', 'prominent', 'remote', 'offline'];
 
-export type TooltipContent = string | IMarkdownString | IManagedHoverTooltipMarkdownString | HTMLElement;
+export type TooltipContent = string | IMarkdownString | HTMLElement | IManagedHoverTooltipMarkdownString | IManagedHoverTooltipHTMLElement;
 
 export interface ITooltipWithCommands {
 	readonly content: TooltipContent;

@@ -12,11 +12,19 @@ import { AbstractTokens } from './tokens.js';
 import { IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { ITreeSitterTokenizationStoreService } from './treeSitterTokenStoreService.js';
 import { Range } from '../core/range.js';
+import { BackgroundTokenizationState } from '../tokenizationTextModelPart.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 
 export class TreeSitterTokens extends AbstractTokens {
 	private _tokenizationSupport: ITreeSitterTokenizationSupport | null = null;
+
+	protected _backgroundTokenizationState: BackgroundTokenizationState = BackgroundTokenizationState.InProgress;
+	protected readonly _onDidChangeBackgroundTokenizationState: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidChangeBackgroundTokenizationState: Event<void> = this._onDidChangeBackgroundTokenizationState.event;
+
 	private _lastLanguageId: string | undefined;
 	private readonly _tokensChangedListener: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
+	private readonly _onDidChangeBackgroundTokenization: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 
 	constructor(languageIdCodec: ILanguageIdCodec,
 		textModel: TextModel,
@@ -37,12 +45,18 @@ export class TreeSitterTokens extends AbstractTokens {
 					this._onDidChangeTokens.fire(e.changes);
 				}
 			});
+			this._onDidChangeBackgroundTokenization.value = this._tokenizationSupport?.onDidChangeBackgroundTokenization(e => {
+				if (e.textModel === this._textModel) {
+					this._backgroundTokenizationState = BackgroundTokenizationState.Completed;
+					this._onDidChangeBackgroundTokenizationState.fire();
+				}
+			});
 		}
 	}
 
 	public getLineTokens(lineNumber: number): LineTokens {
 		const content = this._textModel.getLineContent(lineNumber);
-		if (this._tokenizationSupport) {
+		if (this._tokenizationSupport && content.length > 0) {
 			const rawTokens = this._tokenStore.getTokens(this._textModel, lineNumber);
 			if (rawTokens) {
 				return new LineTokens(rawTokens, content, this._languageIdCodec);
@@ -74,6 +88,8 @@ export class TreeSitterTokens extends AbstractTokens {
 		if (e.isFlush) {
 			// Don't fire the event, as the view might not have got the text change event yet
 			this.resetTokenization(false);
+		} else {
+			this._tokenStore.handleContentChanged(this._textModel, e);
 		}
 	}
 

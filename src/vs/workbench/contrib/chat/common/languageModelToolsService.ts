@@ -13,6 +13,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { Location } from '../../../../editor/common/languages.js';
+import { IChatTerminalToolInvocationData } from './chatService.js';
 
 export interface IToolData {
 	id: string;
@@ -35,6 +37,8 @@ export interface IToolInvocation {
 	tokenBudget?: number;
 	context: IToolInvocationContext | undefined;
 	chatRequestId?: string;
+	chatInteractionId?: string;
+	toolSpecificData?: IChatTerminalToolInvocationData;
 }
 
 export interface IToolInvocationContext {
@@ -48,6 +52,7 @@ export function isToolInvocationContext(obj: any): obj is IToolInvocationContext
 export interface IToolResult {
 	content: (IToolResultPromptTsxPart | IToolResultTextPart)[];
 	toolResultMessage?: string | IMarkdownString;
+	toolResultDetails?: Array<URI | Location>;
 }
 
 export interface IToolResultPromptTsxPart {
@@ -68,8 +73,9 @@ export interface IToolConfirmationMessages {
 export interface IPreparedToolInvocation {
 	invocationMessage?: string | IMarkdownString;
 	pastTenseMessage?: string | IMarkdownString;
-	tooltip?: string | IMarkdownString;
 	confirmationMessages?: IToolConfirmationMessages;
+	presentation?: 'hidden' | undefined;
+	toolSpecificData?: IChatTerminalToolInvocationData;
 }
 
 export interface IToolImpl {

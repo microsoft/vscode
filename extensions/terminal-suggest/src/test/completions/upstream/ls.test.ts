@@ -51,18 +51,18 @@ const allOptions = [
 	'-w',
 	'-x',
 ];
-
+const expectedCompletions = [{ label: 'ls', description: (lsSpec as any).description }];
 export const lsTestSuiteSpec: ISuiteSpec = {
 	name: 'ls',
 	completionSpecs: lsSpec,
 	availableCommands: 'ls',
 	testSpecs: [
 		// Empty input
-		{ input: '|', expectedCompletions: ['ls'], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		{ input: '|', expectedCompletions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 
 		// Typing the command
-		{ input: 'l|', expectedCompletions: ['ls'], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
-		{ input: 'ls|', expectedCompletions: ['ls'], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		{ input: 'l|', expectedCompletions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		{ input: 'ls|', expectedCompletions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 
 		// Basic options
 		// TODO: The spec wants file paths and folders (which seems like it should only be folders),

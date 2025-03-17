@@ -26,7 +26,7 @@ import { IFileService } from '../../files/common/files.js';
 import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
-import { IProtocolMainService } from '../../protocol/electron-main/protocol.js';
+import { IIPCObjectUrl, IProtocolMainService } from '../../protocol/electron-main/protocol.js';
 import { resolveMarketplaceHeaders } from '../../externalServices/common/marketplace.js';
 import { IApplicationStorageMainService, IStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
@@ -536,7 +536,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 	private customZoomLevel: number | undefined = undefined;
 
-	private readonly configObjectUrl = this._register(this.protocolMainService.createIPCObjectUrl<INativeWindowConfiguration>());
+	private readonly configObjectUrl: IIPCObjectUrl<INativeWindowConfiguration>;
 	private pendingLoadConfig: INativeWindowConfiguration | undefined;
 	private wasLoaded = false;
 
@@ -558,7 +558,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IProductService private readonly productService: IProductService,
-		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
+		@IProtocolMainService protocolMainService: IProtocolMainService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IStateService stateService: IStateService,
 		@IInstantiationService instantiationService: IInstantiationService
@@ -567,6 +567,8 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 		//#region create browser window
 		{
+			this.configObjectUrl = this._register(protocolMainService.createIPCObjectUrl<INativeWindowConfiguration>());
+
 			// Load window state
 			const [state, hasMultipleDisplays] = this.restoreWindowState(config.state);
 			this.windowState = state;

@@ -21,7 +21,6 @@
     "contribSourceControlInputBoxMenu",
     "contribSourceControlTitleMenu",
     "contribViewsWelcome",
-    "diffCommand",
     "editSessionIdentityProvider",
     "quickDiffProvider",
     "quickInputButtonLocation",
@@ -3322,10 +3321,15 @@
           "markdownDescription": "%config.diagnosticsCommitHook.Sources%",
           "scope": "resource"
         },
-        "git.untrackedChangesSoftDelete": {
+        "git.discardUntrackedChangesToTrash": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "%config.untrackedChangesSoftDelete%"
+          "markdownDescription": "%config.discardUntrackedChangesToTrash%"
+        },
+        "git.showReferenceDetails": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%config.showReferenceDetails%"
         }
       }
     },
@@ -3434,10 +3438,10 @@
         "id": "git.blame.editorDecorationForeground",
         "description": "%colors.blameEditorDecoration%",
         "defaults": {
-          "dark": "editorCodeLens.foreground",
-          "light": "editorCodeLens.foreground",
-          "highContrast": "editorCodeLens.foreground",
-          "highContrastLight": "editorCodeLens.foreground"
+          "dark": "editorInlayHint.foreground",
+          "light": "editorInlayHint.foreground",
+          "highContrast": "editorInlayHint.foreground",
+          "highContrastLight": "editorInlayHint.foreground"
         }
       }
     ],
