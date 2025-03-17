@@ -81,6 +81,20 @@
 				},
 				"publisherDisplayName": "Microsoft"
 			}
+		},
+		{
+			"name": "wso2-micro-integrator",
+			"version": "2.0.4",
+			"vsix": "extensions/vsix/wso2.micro-integrator-2.0.4.vsix",
+			"sha256": "4ae97af1deb86c7968a7bf8367f5bc05dd2207717d359cc7cc0183381d95a33f",
+			"metadata": {
+				"publisherId": {
+					"publisherName": "wso2-micro-integrator",
+					"displayName": "wso2",
+					"flags": "verified"
+				},
+				"publisherDisplayName": "wso2"
+			}
 		}
 	]
 }
