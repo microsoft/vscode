@@ -677,7 +677,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private renderSampleQuestions() {
 		if (this.viewModel) {
 			// TODO@roblourens hack- only Chat mode supports sample questions
-			this.renderFollowups(this.input.currentMode === ChatMode.Chat ? this.viewModel.model.sampleQuestions : undefined);
+			this.renderFollowups(this.input.currentMode === ChatMode.Ask ? this.viewModel.model.sampleQuestions : undefined);
 		}
 	}
 

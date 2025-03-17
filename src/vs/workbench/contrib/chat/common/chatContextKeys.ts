@@ -32,7 +32,7 @@ export namespace ChatContextKeys {
 	export const inChatSession = new RawContextKey<boolean>('inChat', false, { type: 'boolean', description: localize('inChat', "True when focus is in the chat widget, false otherwise.") });
 	export const inUnifiedChat = new RawContextKey<boolean>('inUnifiedChat', false, { type: 'boolean', description: localize('inUnifiedChat', "True when focus is in the unified chat widget, false otherwise.") });
 	export const instructionsAttached = new RawContextKey<boolean>('chatInstructionsAttached', false, { type: 'boolean', description: localize('chatInstructionsAttachedContextDescription', "True when the chat has a prompt instructions attached.") });
-	export const chatMode = new RawContextKey<ChatMode>('chatMode', ChatMode.Chat, { type: 'string', description: localize('chatMode', "The current chat mode.") });
+	export const chatMode = new RawContextKey<ChatMode>('chatMode', ChatMode.Ask, { type: 'string', description: localize('chatMode', "The current chat mode.") });
 
 	export const supported = ContextKeyExpr.or(IsWebContext.toNegated(), RemoteNameContext.notEqualsTo('')); // supported on desktop and in web only with a remote connection
 	export const enabled = new RawContextKey<boolean>('chatIsEnabled', false, { type: 'boolean', description: localize('chatIsEnabled', "True when chat is enabled because a default chat participant is activated with an implementation.") });
