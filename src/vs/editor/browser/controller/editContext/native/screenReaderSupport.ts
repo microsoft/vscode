@@ -28,7 +28,6 @@ export class ScreenReaderSupport {
 	private _contentWidth: number = 1;
 	private _contentHeight: number = 1;
 	private _divWidth: number = 1;
-	private _lineHeight: number = 1;
 	private _fontInfo!: FontInfo;
 	private _accessibilityPageSize: number = 1;
 	private _ignoreSelectionChangeTime: number = 0;
@@ -135,7 +134,8 @@ export class ScreenReaderSupport {
 		const offsetForStartPositionWithinEditor = this._context.viewLayout.getVerticalOffsetForLineNumber(this._screenReaderContentState.startPositionWithinEditor.lineNumber);
 		const offsetForPositionLineNumber = this._context.viewLayout.getVerticalOffsetForLineNumber(positionLineNumber);
 		const scrollTop = offsetForPositionLineNumber - offsetForStartPositionWithinEditor;
-		this._doRender(scrollTop, top, this._contentLeft, this._divWidth, this._lineHeight);
+		const height = this._context.viewLayout.getLineHeightForLineNumber(positionLineNumber);
+		this._doRender(scrollTop, top, this._contentLeft, this._divWidth, height);
 	}
 
 	private _renderAtTopLeft(): void {
