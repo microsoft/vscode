@@ -39,6 +39,7 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 	private _rootTreeSitterTree: TreeSitterParseResult | undefined;
 
 	private _query: Parser.Query | undefined;
+	// TODO: @alexr00 use a better data structure for this
 	private _injectionTreeSitterTrees: Map<string, TreeSitterParseResult> = new Map();
 	private _versionId: number = 0;
 
@@ -175,40 +176,140 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 			return;
 		}
 
-		// TODO this needs to be done on smaller chunks to avoid slowing down the renderer
-		const injectionCaptures = query.captures(tree.rootNode);
+		const injections = await this._collectInjections(tree, query);
+		await this._processInjections(injections, parentTree, parentLanguage, modelChanges);
+	}
 
-		// TODO @alexr00: Use a better data structure for this
+	private async _collectInjections(tree: Parser.Tree, query: Parser.Query): Promise<Map<string, Parser.Range[]>> {
+		const cursor = tree.walk();
 		const injections: Map<string, Parser.Range[]> = new Map();
-		for (const capture of injectionCaptures) {
-			const injectionLanguage = capture.setProperties ? capture.setProperties['injection.language'] : undefined;
+		let hasNext = true;
+
+		while (hasNext) {
+			hasNext = await this._processNode(cursor, query, injections);
+			// Yield periodically
+			await new Promise<void>(resolve => setTimeout0(resolve));
+		}
+
+		return this._mergeAdjacentRanges(injections);
+	}
+
+	private _processNode(cursor: Parser.TreeCursor, query: Parser.Query, injections: Map<string, Parser.Range[]>): boolean {
+		const node = cursor.currentNode;
+		const nodeLineCount = node.endPosition.row - node.startPosition.row;
+
+		if (nodeLineCount <= 1000) {
+			this._processCaptures(query, node, injections);
+			// Move to next sibling or up and over
+			return cursor.gotoNextSibling() || this.gotoNextSiblingOfAncestor(cursor);
+		} else {
+			// Node is too large, go to first child or next sibling
+			return cursor.gotoFirstChild() || cursor.gotoNextSibling() || this.gotoNextSiblingOfAncestor(cursor);
+		}
+	}
+
+	private _processCaptures(query: Parser.Query, node: Parser.Node, injections: Map<string, Parser.Range[]>): void {
+		const captures = query.captures(node);
+		for (const capture of captures) {
+			const injectionLanguage = capture.setProperties?.['injection.language'];
 			if (injectionLanguage) {
-				const range: Parser.Range = {
-					startIndex: capture.node.startIndex,
-					endIndex: capture.node.endIndex,
-					startPosition: { row: capture.node.startPosition.row, column: capture.node.startPosition.column },
-					endPosition: { row: capture.node.endPosition.row, column: capture.node.endPosition.column }
-				};
+				const range = this._createRangeFromNode(capture.node);
 				if (!injections.has(injectionLanguage)) {
 					injections.set(injectionLanguage, []);
 				}
 				injections.get(injectionLanguage)?.push(range);
 			}
 		}
+	}
+
+	private _createRangeFromNode(node: Parser.Node): Parser.Range {
+		return {
+			startIndex: node.startIndex,
+			endIndex: node.endIndex,
+			startPosition: { row: node.startPosition.row, column: node.startPosition.column },
+			endPosition: { row: node.endPosition.row, column: node.endPosition.column }
+		};
+	}
+
+	private _mergeAdjacentRanges(injections: Map<string, Parser.Range[]>): Map<string, Parser.Range[]> {
+		for (const [languageId, ranges] of injections) {
+			if (ranges.length <= 1) {
+				continue;
+			}
+
+			const mergedRanges: Parser.Range[] = [];
+			let current = ranges[0];
+
+			for (let i = 1; i < ranges.length; i++) {
+				const next = ranges[i];
+				if (next.startIndex <= current.endIndex) {
+					current = this._mergeRanges(current, next);
+				} else {
+					mergedRanges.push(current);
+					current = next;
+				}
+			}
+			mergedRanges.push(current);
+
+			injections.set(languageId, mergedRanges);
+		}
+
+		return injections;
+	}
+
+	private _mergeRanges(current: Parser.Range, next: Parser.Range): Parser.Range {
+		return {
+			startIndex: current.startIndex,
+			endIndex: Math.max(current.endIndex, next.endIndex),
+			startPosition: current.startPosition,
+			endPosition: next.endPosition.row > current.endPosition.row ?
+				next.endPosition :
+				current.endPosition
+		};
+	}
+
+	private async _processInjections(
+		injections: Map<string, Parser.Range[]>,
+		parentTree: ITreeSitterParseResult,
+		parentLanguage: string,
+		modelChanges: IModelContentChangedEvent[] | undefined
+	): Promise<void> {
 		for (const [languageId, ranges] of injections) {
 			const language = await this._treeSitterLanguages.getLanguage(languageId);
 			if (!language) {
 				continue;
 			}
-			let treeSitterTree = this._injectionTreeSitterTrees.get(languageId);
-			if (!treeSitterTree) {
-				const Parser = await this._treeSitterImporter.getParserClass();
-				treeSitterTree = new TreeSitterParseResult(new Parser(), languageId, language, this._logService, this._telemetryService);
-				this._parseSessionDisposables.add(treeSitterTree.onDidUpdate(e => this._handleTreeUpdate(e, parentTree, parentLanguage)));
-				this._injectionTreeSitterTrees.set(languageId, treeSitterTree);
+
+			const treeSitterTree = await this._getOrCreateInjectedTree(languageId, language, parentTree, parentLanguage);
+			if (treeSitterTree) {
+				this._onDidChangeContent(treeSitterTree, modelChanges, ranges);
 			}
-			this._onDidChangeContent(treeSitterTree, modelChanges, ranges);
 		}
+	}
+
+	private async _getOrCreateInjectedTree(
+		languageId: string,
+		language: Parser.Language,
+		parentTree: ITreeSitterParseResult,
+		parentLanguage: string
+	): Promise<TreeSitterParseResult | undefined> {
+		let treeSitterTree = this._injectionTreeSitterTrees.get(languageId);
+		if (!treeSitterTree) {
+			const Parser = await this._treeSitterImporter.getParserClass();
+			treeSitterTree = new TreeSitterParseResult(new Parser(), languageId, language, this._logService, this._telemetryService);
+			this._parseSessionDisposables.add(treeSitterTree.onDidUpdate(e => this._handleTreeUpdate(e, parentTree, parentLanguage)));
+			this._injectionTreeSitterTrees.set(languageId, treeSitterTree);
+		}
+		return treeSitterTree;
+	}
+
+	private gotoNextSiblingOfAncestor(cursor: Parser.TreeCursor): boolean {
+		while (cursor.gotoParent()) {
+			if (cursor.gotoNextSibling()) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	getInjection(offset: number, parentLanguage: string): ITreeSitterParseResult | undefined {
