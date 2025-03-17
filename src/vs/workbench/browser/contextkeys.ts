@@ -52,6 +52,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	private temporaryWorkspaceContext: IContextKey<boolean>;
 
 	private inZenModeContext: IContextKey<boolean>;
+	private inCreatorModeContext: IContextKey<boolean>;
 	private isMainWindowFullscreenContext: IContextKey<boolean>;
 	private isAuxiliaryWindowFocusedContext: IContextKey<boolean>;
 	private isMainEditorCenteredLayoutContext: IContextKey<boolean>;
@@ -168,6 +169,9 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		// Zen Mode
 		this.inZenModeContext = InEditorZenModeContext.bindTo(this.contextKeyService);
 
+		// Creator Mode
+		this.inCreatorModeContext = InEditorZenModeContext.bindTo(this.contextKeyService);
+
 		// Centered Layout (Main Editor)
 		this.isMainEditorCenteredLayoutContext = IsMainEditorCenteredLayoutContext.bindTo(this.contextKeyService);
 
@@ -231,6 +235,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		}));
 
 		this._register(this.layoutService.onDidChangeZenMode(enabled => this.inZenModeContext.set(enabled)));
+		this._register(this.layoutService.onDidChangeCreatorMode(enabled => this.inCreatorModeContext.set(enabled)));
 		this._register(this.layoutService.onDidChangeActiveContainer(() => this.isAuxiliaryWindowFocusedContext.set(this.layoutService.activeContainer !== this.layoutService.mainContainer)));
 		this._register(onDidChangeFullscreen(windowId => {
 			if (windowId === mainWindow.vscodeWindowId) {

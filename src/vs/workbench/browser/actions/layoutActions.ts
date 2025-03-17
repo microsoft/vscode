@@ -22,7 +22,7 @@ import { IPaneCompositePartService } from '../../services/panecomposite/browser/
 import { ToggleAuxiliaryBarAction } from '../parts/auxiliarybar/auxiliaryBarActions.js';
 import { TogglePanelAction } from '../parts/panel/panelActions.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
-import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsMainEditorCenteredLayoutContext, MainEditorAreaVisibleContext, IsMainWindowFullscreenContext, PanelPositionContext, IsAuxiliaryWindowFocusedContext, TitleBarStyleContext, PearAIVisibleContext, PearAICreatorVisibleContext } from '../../common/contextkeys.js';
+import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsMainEditorCenteredLayoutContext, MainEditorAreaVisibleContext, IsMainWindowFullscreenContext, PanelPositionContext, IsAuxiliaryWindowFocusedContext, TitleBarStyleContext, PearAIVisibleContext, PearAICreatorVisibleContext, InEditorCreatorModeContext } from '../../common/contextkeys.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
@@ -776,6 +776,55 @@ registerAction2(class extends Action2 {
 	}
 });
 
+// --- Enter Creator Mode
+
+registerAction2(class extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.enterCreatorMode',
+			title: {
+				original: 'Enter Creator Mode',
+				value: "Enter Creator Mode"
+			},
+			// precondition: InEditorCreatorModeContext.toNegated(),
+			category: Categories.View,
+			f1: true
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		return accessor.get(IWorkbenchLayoutService).enterCreatorMode();
+	}
+});
+
+// --- Exit Creator Mode
+
+registerAction2(class extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.exitCreatorMode',
+			title: {
+				original: 'Exit Creator Mode',
+				value: "Exit Creator Mode"
+			},
+			// precondition: InEditorCreatorModeContext,
+			category: Categories.View,
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.EditorContrib - 1,
+				primary: KeyCode.Escape,
+				secondary: [KeyMod.Shift | KeyCode.Escape]
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		return accessor.get(IWorkbenchLayoutService).exitCreatorMode();
+	}
+});
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.action.exitZenMode',
 	weight: KeybindingWeight.EditorContrib - 1000,
@@ -1413,6 +1462,7 @@ const AlignPanelActions: CustomizeLayoutItem[] = [
 const MiscLayoutOptions: CustomizeLayoutItem[] = [
 	CreateOptionLayoutItem('workbench.action.toggleFullScreen', IsMainWindowFullscreenContext, localize('fullscreen', "Full Screen"), fullscreenIcon),
 	CreateOptionLayoutItem('workbench.action.toggleZenMode', InEditorZenModeContext, localize('zenMode', "Zen Mode"), zenModeIcon),
+	CreateOptionLayoutItem('workbench.action.toggleCreatorMode', InEditorCreatorModeContext, "Creator Mode", zenModeIcon),// TODO: REMOVE - ONLY USED FOR TESTING
 	CreateOptionLayoutItem('workbench.action.toggleCenteredLayout', IsMainEditorCenteredLayoutContext, localize('centeredLayout', "Centered Layout"), centerLayoutIcon),
 ];
 
