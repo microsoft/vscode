@@ -162,6 +162,7 @@ export class InlineCompletionsSource extends Disposable {
 					|| updatedCompletions.has(activeInlineCompletion.inlineCompletion) /* Inline Edit wins over completions if it's already been shown*/
 					|| updatedCompletions.isEmpty() /* Incoming completion is empty, keep the current one alive */
 				)) {
+					activeInlineCompletion.reuse();
 					updatedCompletions.dispose();
 					return false;
 				}
@@ -411,6 +412,10 @@ export class InlineCompletionWithUpdatedRange extends Disposable {
 			&& !!matchesSubString(originalValueAfter, filterTextAfter);
 	}
 
+	public reuse(): void {
+		this._updatedEditObj.reuse();
+	}
+
 	public canBeReused(model: ITextModel, position: Position): boolean {
 		if (!this.updatedEdit.get()) {
 			return false;
@@ -541,7 +546,7 @@ class UpdatedEdit extends Disposable {
 
 	constructor(
 		offsetEdit: OffsetEdit,
-		textModel: ITextModel,
+		private readonly _textModel: ITextModel,
 		private readonly _modelVersion: IObservableWithChange<number | null, IModelContentChangedEvent | undefined>,
 		isInlineEdit: boolean,
 	) {
@@ -551,8 +556,8 @@ class UpdatedEdit extends Disposable {
 
 		this._innerEdits = offsetEdit.edits.map(edit => {
 			if (isInlineEdit) {
-				const replacedRange = Range.fromPositions(textModel.getPositionAt(edit.replaceRange.start), textModel.getPositionAt(edit.replaceRange.endExclusive));
-				const replacedText = textModel.getValueInRange(replacedRange);
+				const replacedRange = Range.fromPositions(this._textModel.getPositionAt(edit.replaceRange.start), this._textModel.getPositionAt(edit.replaceRange.endExclusive));
+				const replacedText = this._textModel.getValueInRange(replacedRange);
 				return new SingleUpdatedNextEdit(edit, replacedText);
 			}
 
@@ -588,6 +593,10 @@ class UpdatedEdit extends Disposable {
 		}
 
 		return edits;
+	}
+
+	reuse(): void {
+		this._inlineEditModelVersion = this._modelVersion.get() ?? -1;
 	}
 }
 
