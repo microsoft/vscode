@@ -20,7 +20,6 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
-import { listActiveSelectionBackground, listActiveSelectionForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillEditorsDragData, isWindowDraggedOver } from '../../dnd.js';
 import { EditorPane } from './editorPane.js';
@@ -317,7 +316,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 				label = localize('draggedEditorGroup', "{0} (+{1})", label, this.groupView.count - 1);
 			}
 
-			applyDragImage(e, element, label, 'monaco-editor-group-drag-image', this.getColor(listActiveSelectionBackground), this.getColor(listActiveSelectionForeground));
+			applyDragImage(e, element, label);
 		}
 
 		return isNewWindowOperation;
