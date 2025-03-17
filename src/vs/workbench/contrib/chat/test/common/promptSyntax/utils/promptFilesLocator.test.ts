@@ -13,9 +13,9 @@ import { IFileService } from '../../../../../../../platform/files/common/files.j
 import { PromptsConfig } from '../../../../../../../platform/prompts/common/config.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
-import { isValidGlob, PromptFilesLocator } from '../../../../common/promptSyntax/utils/promptFilesLocator.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { mockObject, mockService } from '../../../../../../../platform/prompts/test/common/utils/mock.js';
+import { isValidGlob, PromptFilesLocator } from '../../../../common/promptSyntax/utils/promptFilesLocator.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IConfigurationOverrides, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
@@ -2366,6 +2366,45 @@ suite('PromptFilesLocator', () => {
 					`'${glob}' must be an 'invalid' glob pattern.`,
 				);
 			}
+		});
+	});
+
+	suite('• getConfigBasedSourceFolders', () => {
+		test('• gets unambiguous list of folders', async () => {
+			const locator = await createPromptsLocator(
+				{
+					'.github/prompts': true,
+					'/Users/**/repos/**': true,
+					'gen/text/**': true,
+					'gen/text/nested/*.prompt.md': true,
+					'general/*': true,
+					'/Users/legomushroom/repos/vscode/my-prompts': true,
+					'/Users/legomushroom/repos/vscode/your-prompts/*.md': true,
+					'/Users/legomushroom/repos/prompts/shared-prompts/*': true,
+				},
+				[
+					'/Users/legomushroom/repos/vscode',
+					'/Users/legomushroom/repos/prompts',
+				],
+				[],
+			);
+
+			assert.deepStrictEqual(
+				locator.getConfigBasedSourceFolders()
+					.map((file) => file.fsPath),
+				[
+					createURI('/Users/legomushroom/repos/vscode/.github/prompts').fsPath,
+					createURI('/Users/legomushroom/repos/prompts/.github/prompts').fsPath,
+					createURI('/Users/legomushroom/repos/vscode/gen/text/nested').fsPath,
+					createURI('/Users/legomushroom/repos/prompts/gen/text/nested').fsPath,
+					createURI('/Users/legomushroom/repos/vscode/general').fsPath,
+					createURI('/Users/legomushroom/repos/prompts/general').fsPath,
+					createURI('/Users/legomushroom/repos/vscode/my-prompts').fsPath,
+					createURI('/Users/legomushroom/repos/vscode/your-prompts').fsPath,
+					createURI('/Users/legomushroom/repos/prompts/shared-prompts').fsPath,
+				],
+				'Must find correct prompts.',
+			);
 		});
 	});
 });

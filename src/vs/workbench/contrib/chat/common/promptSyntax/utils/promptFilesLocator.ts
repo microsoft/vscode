@@ -16,11 +16,6 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { isPromptFile, PROMPT_FILE_EXTENSION } from '../../../../../../platform/prompts/common/constants.js';
 
 /**
- * TODO: @lego - list
- *  - update `getConfigBasedSourceFolders()` logic / make the `> Create Prompt` command work with exising prompt file locations
- */
-
-/**
  * Utility class to locate prompt files.
  */
 export class PromptFilesLocator {
@@ -59,65 +54,50 @@ export class PromptFilesLocator {
 	}
 
 	/**
-	 * Get all possible prompt file source folders based on the current
-	 * workspace folder structure.
+	 * Get all possible unambiguous prompt file source folders based
+	 * on the current workspace folder structure.
 	 *
-	 * @returns List of possible prompt file folders.
+	 * @returns List of possible unambiguous prompt file folders.
 	 */
-	// TODO: @lego - update the logic here
 	public getConfigBasedSourceFolders(): readonly URI[] {
-		const paths = new ResourceSet();
-		const sourceFolders = PromptsConfig.promptSourceFolders(this.configService);
+		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService);
+		const absoluteLocations = toAbsoluteLocations(configuredLocations, this.workspaceService);
 
-		// otherwise for each folder provided in the configuration, create
-		// a URI per each folder in the current workspace
-		for (const sourceFolderName of sourceFolders) {
-			// if source folder is an absolute path, add the path as is
-			// without trying to resolve it against the workspace folders
-			const sourceFolderUri = URI.file(sourceFolderName);
-			if (sourceFolderUri.path === sourceFolderName) {
-				if (paths.has(sourceFolderUri)) {
+		// locations in the settings can contain glob patterns so we need
+		// to process them to get "clean" paths; the goal here is to have
+		// a list of unambiguous folder paths where prompt files are stored
+		const result = new ResourceSet();
+		for (const absoluteLocation of absoluteLocations) {
+			let { path } = absoluteLocation;
+			const baseName = basename(absoluteLocation);
+
+			// if a path ends with a well-known "any file" pattern, remove
+			// it so we can get the dirname path of that setting value
+			const filePatterns = ['*.md', `*${PROMPT_FILE_EXTENSION}`];
+			for (const filePattern of filePatterns) {
+				if (baseName === filePattern) {
+					path = URI.joinPath(absoluteLocation, '..').path;
+
 					continue;
 				}
+			}
 
-				paths.add(sourceFolderUri);
+			// likewise, if the pattern ends with single `*` (any file name)
+			// remove it to get the dirname path of the setting value
+			if (baseName === '*') {
+				path = URI.joinPath(absoluteLocation, '..').path;
+			}
+
+			// if after replacing the "file name" glob pattern, the path
+			// still contains a glob pattern, then ignore the path
+			if (isValidGlob(path) === true) {
 				continue;
 			}
 
-			const { folders } = this.workspaceService.getWorkspace();
-			for (const folder of folders) {
-				// create the source path as a path relative to the workspace
-				// folder, or as an absolute path if the absolute value is provided
-				const relativeFolderUri = extUri.resolvePath(folder.uri, sourceFolderName);
-				if (!paths.has(relativeFolderUri)) {
-					paths.add(relativeFolderUri);
-				}
-
-				// if not inside a workspace, we are done
-				if (folders.length <= 1) {
-					continue;
-				}
-
-				// if inside a multi-root workspace, consider the specified prompts source folder
-				// inside the workspace root, to allow users to use some (e.g., `.github/prompts`)
-				// folder as a top-level folder in the workspace
-				const workspaceRootUri = dirname(folder.uri);
-				const workspaceFolderUri = extUri.resolvePath(workspaceRootUri, sourceFolderName);
-				// if we already have this folder in the list, skip it
-				if (paths.has(workspaceFolderUri)) {
-					continue;
-				}
-
-				// otherwise, if the prompt source folder is inside a top-level workspace folder,
-				// add it to the list of paths too; this helps to handle the case when a relative
-				// path must be resolved from `root` of the workspace
-				if (workspaceFolderUri.fsPath.startsWith(folder.uri.fsPath)) {
-					paths.add(workspaceFolderUri);
-				}
-			}
+			result.add(URI.file(path));
 		}
 
-		return [...paths];
+		return [...result];
 	}
 
 	/**
@@ -136,10 +116,10 @@ export class PromptFilesLocator {
 		// the found file paths against (possible) glob patterns
 		const paths = new ResourceSet();
 		for (const absoluteLocation of absoluteLocations) {
-			// assert(
-			// 	isAbsolute(location),
-			// 	`Provided location must be an absolute path, got '${location}'.`,
-			// );
+			assert(
+				isAbsolute(absoluteLocation.path),
+				`Provided location must be an absolute path, got '${absoluteLocation.path}'.`,
+			);
 
 			// normalize the glob pattern to always end with "any prompt file" pattern
 			// unless the last part of the path is already a glob pattern itself; this is
