@@ -20,7 +20,7 @@ export const createURI = (linkPath: string): URI => {
  */
 export const createPath = (linkPath: string): string => {
 	if (isWindows && linkPath.startsWith('/')) {
-		return `/d:${linkPath}`;
+		return `/D:${linkPath}`;
 	}
 
 	return linkPath;
