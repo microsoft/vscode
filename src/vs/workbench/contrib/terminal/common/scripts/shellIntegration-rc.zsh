@@ -74,34 +74,23 @@ if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 	builtin return
 fi
 
-# The property (P) and command (E) codes embed values which require escaping.
-# Backslashes are doubled. Non-alphanumeric characters are converted to escaped hex.
 __vsc_escape_value() {
 	builtin emulate -L zsh
 
 	# Process text byte by byte, not by codepoint.
-	builtin local LC_ALL=C str="$1" i byte token out=''
+	builtin local LC_ALL=C str="$1" i byte token out='' val
 
 	for (( i = 0; i < ${#str}; ++i )); do
+	# Escape backslashes, semi-colons and special characters, similar to bash shell integration
 		byte="${str:$i:1}"
-
-		# Escape backslashes, semi-colons and newlines
-
-		# REPRO: echo "$(echo -e "$(__vsc_escape_value "ESC\033 BEL\007")")"
-		# Encode them properly
-		# print byte value --> Shows We cant just be looking at one byte to capture things like \a \033, etc..
-		printf 'my byte value is %s \n' "$byte"
-
-		if [ "$byte" = "\\" ]; then
+		val=$(printf "%d" "'$byte")
+		if (( val < 31 )); then
+			# For control characters, use hex encoding
+			token=$(printf "\\\\x%02x" "'$byte")
+		elif [ "$byte" = "\\" ]; then
 			token="\\\\"
-		elif [ "$byte" = $'\e' ]; then
-			token="\\x1b"
-		elif [ "$byte" = $'\a' ]; then
-			token="\\x07"
 		elif [ "$byte" = ";" ]; then
 			token="\\x3b"
-		elif [ "$byte" = $'\n' ]; then
-			token="\x0a"
 		else
 			token="$byte"
 		fi
