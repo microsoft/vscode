@@ -352,6 +352,7 @@ interface IChatSessionEntryMetadata {
 	sessionId: string;
 	title: string;
 	lastMessageDate: number;
+	isImported?: boolean;
 }
 
 function isChatSessionEntryMetadata(obj: unknown): obj is IChatSessionEntryMetadata {
@@ -403,7 +404,8 @@ function getSessionMetadata(session: ChatModel | ISerializableChatData): IChatSe
 	return {
 		sessionId: session.sessionId,
 		title,
-		lastMessageDate: session.lastMessageDate
+		lastMessageDate: session.lastMessageDate,
+		isImported: session.isImported,
 	};
 }
 

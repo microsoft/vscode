@@ -408,7 +408,7 @@ export class ChatService extends Disposable implements IChatService {
 
 			const index = await this._chatSessionStore.getIndex();
 			const entries = Object.values(index)
-				.filter(entry => !this._sessionModels.has(entry.sessionId))
+				.filter(entry => !this._sessionModels.has(entry.sessionId) && !entry.isImported)
 				.map((entry): IChatDetail => ({
 					...entry,
 					isActive: this._sessionModels.has(entry.sessionId),
