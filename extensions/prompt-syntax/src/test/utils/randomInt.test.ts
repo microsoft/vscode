@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 
-import { randomInt } from '../../src/utils/randomInt';
+import { randomInt } from '../../utils/randomInt';
 
 suite('randomInt', () => {
 	/**

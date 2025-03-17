@@ -3,9 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export { Lazy } from './lazy';
-export { VSBuffer } from './vsBuffer';
-export { Range, IRange } from './range';
-export { DeferredPromise } from './deferredPromise';
-export { ObservableDisposable } from './observableDisposable';
-export { type ReadableStream, type WriteableStream } from './types/streams';
+export { Line } from './line';
+export { NewLine } from './newLine';
+export { CarriageReturn } from './carriageReturn';

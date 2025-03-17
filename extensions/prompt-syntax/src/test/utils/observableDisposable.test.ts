@@ -5,17 +5,17 @@
 
 import assert from 'assert';
 import { spy } from 'sinon';
-import { wait, waitRandom } from '../../src/utils/wait';
+import { wait, waitRandom } from '../../utils/wait';
 import {
 	assertNotDisposed,
 	ObservableDisposable,
-} from '../../src/utils/vscode/observableDisposable';
+} from '../../utils/vscode/observableDisposable';
 
 suite('ObservableDisposable', () => {
 	test('tracks `disposed` state', () => {
 		// this is an abstract class, so we have to create
 		// an anonymous class that extends it
-		const object = new (class extends ObservableDisposable {})();
+		const object = new (class extends ObservableDisposable { })();
 		assert(
 			object instanceof ObservableDisposable,
 			'Object must be instance of ObservableDisposable.'
@@ -29,7 +29,7 @@ suite('ObservableDisposable', () => {
 		test('fires the event on dispose', async () => {
 			// this is an abstract class, so we have to create
 			// an anonymous class that extends it
-			const object = new (class extends ObservableDisposable {})();
+			const object = new (class extends ObservableDisposable { })();
 			assert(!object.disposed, 'Object must not be disposed yet.');
 			const onDisposeSpy = spy(() => {
 				return undefined;
@@ -60,7 +60,7 @@ suite('ObservableDisposable', () => {
 		test('executes callback immediately if already disposed', async () => {
 			// this is an abstract class, so we have to create
 			// an anonymous class that extends it
-			const object = new (class extends ObservableDisposable {})();
+			const object = new (class extends ObservableDisposable { })();
 			// dispose object and wait for the event to be fired/received
 			object.dispose();
 			await wait(1);
@@ -86,7 +86,7 @@ suite('ObservableDisposable', () => {
 		test('not disposed (method)', async () => {
 			// this is an abstract class, so we have to create
 			// an anonymous class that extends it
-			const object: ObservableDisposable = new (class extends ObservableDisposable {})();
+			const object: ObservableDisposable = new (class extends ObservableDisposable { })();
 			assert.doesNotThrow(() => {
 				object.assertNotDisposed('Object must not be disposed.');
 			});
@@ -109,7 +109,7 @@ suite('ObservableDisposable', () => {
 		test('not disposed (function)', async () => {
 			// this is an abstract class, so we have to create
 			// an anonymous class that extends it
-			const object: ObservableDisposable = new (class extends ObservableDisposable {})();
+			const object: ObservableDisposable = new (class extends ObservableDisposable { })();
 			assert.doesNotThrow(() => {
 				assertNotDisposed(object, 'Object must not be disposed.');
 			});
