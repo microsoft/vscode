@@ -152,7 +152,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._attachmentModel;
 	}
 
-	static selectedToolsModel: ChatSelectedTools;
+	readonly selectedToolsModel: ChatSelectedTools;
 
 	public getAttachedAndImplicitContext(sessionId: string): IChatRequestVariableEntry[] {
 		const contextArr = [...this.attachmentModel.attachments];
@@ -374,10 +374,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		super();
 
 		this._attachmentModel = this._register(this.instantiationService.createInstance(ChatAttachmentModel));
-		if (!ChatInputPart.selectedToolsModel) {
-			ChatInputPart.selectedToolsModel = this._register(this.instantiationService.createInstance(ChatSelectedTools));
-		}
-
+		this.selectedToolsModel = this._register(this.instantiationService.createInstance(ChatSelectedTools));
 		this.dnd = this._register(this.instantiationService.createInstance(ChatDragAndDrop, this._attachmentModel, styles));
 
 		this.getInputState = (): IChatInputState => {
@@ -569,7 +566,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.setChatMode(ChatMode.Edit);
 		}
 
-		ChatInputPart.selectedToolsModel.reset();
+		this.selectedToolsModel.reset();
 	}
 
 	logInputHistory(): void {

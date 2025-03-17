@@ -23,7 +23,6 @@ import { isResponseVM } from '../../common/chatViewModel.js';
 import { ChatMode } from '../../common/constants.js';
 import { ILanguageModelToolsService, IToolData } from '../../common/languageModelToolsService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
-import { ChatInputPart } from '../chatInputPart.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
 export const AcceptToolConfirmationActionId = 'workbench.action.chat.acceptTool';
@@ -138,7 +137,7 @@ export class AttachToolsAction extends Action2 {
 			picked: true,
 		};
 
-		const nowSelectedTools = new Set(ChatInputPart.selectedToolsModel.tools.get());
+		const nowSelectedTools = new Set(widget.input.selectedToolsModel.tools.get());
 		const toolBuckets = new Map<string, BucketPick>();
 
 		for (const tool of toolsService.getTools()) {
@@ -229,7 +228,7 @@ export class AttachToolsAction extends Action2 {
 				picker.items = picks;
 				picker.selectedItems = items;
 
-				ChatInputPart.selectedToolsModel.update(items.filter(isToolPick).map(tool => tool.tool));
+				widget.input.selectedToolsModel.update(items.filter(isToolPick).map(tool => tool.tool));
 
 			} finally {
 				ignoreEvent = false;
