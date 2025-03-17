@@ -126,12 +126,14 @@ class ToggleChatModeAction extends Action2 {
 					id: MenuId.ChatExecute,
 					order: 1,
 					// Either in edits with agent mode available, or in unified chat view
-					when: ContextKeyExpr.or(
-						ContextKeyExpr.and(
-							ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
-							ChatContextKeys.Editing.hasToolsAgent,
-						),
-						ChatContextKeys.inUnifiedChat),
+					when: ContextKeyExpr.and(
+						ChatContextKeys.enabled,
+						ContextKeyExpr.or(
+							ContextKeyExpr.and(
+								ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
+								ChatContextKeys.Editing.hasToolsAgent,
+							),
+							ChatContextKeys.inUnifiedChat)),
 					group: 'navigation',
 				},
 			]
@@ -145,6 +147,11 @@ class ToggleChatModeAction extends Action2 {
 
 		const context = getEditingSessionContext(accessor, args);
 		if (!context?.chatWidget) {
+			return;
+		}
+
+		const arg = args.at(0) as IToggleChatModeArgs | undefined;
+		if (arg?.mode === context.chatWidget.input.currentMode) {
 			return;
 		}
 
@@ -170,7 +177,6 @@ class ToggleChatModeAction extends Action2 {
 			}
 		}
 
-		const arg = args[0] as IToggleChatModeArgs | undefined;
 		if (arg?.mode) {
 			context.chatWidget.input.setChatMode(arg.mode);
 		} else {

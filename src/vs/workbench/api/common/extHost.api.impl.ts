@@ -146,6 +146,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostManagedSockets = accessor.get(IExtHostManagedSockets);
 	const extHostAuthentication = accessor.get(IExtHostAuthentication);
 	const extHostLanguageModels = accessor.get(IExtHostLanguageModels);
+	const extHostMcp = accessor.get(IExtHostMpcService);
 
 	// register addressable instances
 	rpcProtocol.set(ExtHostContext.ExtHostFileSystemInfo, extHostFileSystemInfo);
@@ -1358,9 +1359,13 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			onDidEndTaskProcess: (listeners, thisArgs?, disposables?) => {
 				return _asExtensionEvent(extHostTask.onDidEndTaskProcess)(listeners, thisArgs, disposables);
 			},
-			onDidChangeTaskStatus: (listeners) => {
-				checkProposedApiEnabled(extension, 'taskStatus');
-				return _asExtensionEvent(extHostTask.onDidChangeTaskTerminalStatus)(listeners);
+			onDidStartTaskProblemMatchers: (listeners, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'taskProblemMatcherStatus');
+				return _asExtensionEvent(extHostTask.onDidStartTaskProblemMatchers)(listeners, thisArgs, disposables);
+			},
+			onDidEndTaskProblemMatchers: (listeners, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'taskProblemMatcherStatus');
+				return _asExtensionEvent(extHostTask.onDidEndTaskProblemMatchers)(listeners, thisArgs, disposables);
 			}
 		};
 
@@ -1514,6 +1519,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			registerIgnoredFileProvider(provider: vscode.LanguageModelIgnoredFileProvider) {
 				return extHostLanguageModels.registerIgnoredFileProvider(extension, provider);
+			},
+			registerMcpConfigurationProvider(id, provider) {
+				checkProposedApiEnabled(extension, 'mcpConfigurationProvider');
+				return extHostMcp.registerMcpConfigurationProvider(extension, id, provider);
 			}
 		};
 
@@ -1814,6 +1823,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TextSearchMatch2: TextSearchMatch2,
 			TextSearchCompleteMessageTypeNew: TextSearchCompleteMessageType,
 			ChatErrorLevel: extHostTypes.ChatErrorLevel,
+			McpSSEServerDefinition: extHostTypes.McpSSEServerDefinition,
+			McpStdioServerDefinition: extHostTypes.McpStdioServerDefinition,
 		};
 	};
 }

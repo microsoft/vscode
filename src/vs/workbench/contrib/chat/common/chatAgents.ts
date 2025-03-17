@@ -125,6 +125,7 @@ export interface IChatAgentMetadata {
 	followupPlaceholder?: string;
 	isSticky?: boolean;
 	requester?: IChatRequesterInformation;
+	welcomeMessageContent?: IChatWelcomeMessageContent;
 }
 
 
@@ -749,4 +750,3 @@ export function reviveSerializedAgent(raw: ISerializableChatAgentData): IChatAge
 
 	return revive(agent);
 }
-export { ChatAgentLocation };

@@ -247,13 +247,16 @@ steps:
         condition: succeededOrFailed()
         displayName: Get product version
 
-      - powershell:  |
+      - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
           $ArchivePath = ".build\win32-$(VSCODE_ARCH)\VSCode-win32-$(VSCODE_ARCH)-$(VSCODE_VERSION).zip"
           New-Item -ItemType Directory -Path .build\win32-$(VSCODE_ARCH) -Force
-          exec { 7z.exe a -tzip $ArchivePath -x!CodeSignSummary*.md ..\VSCode-win32-$(VSCODE_ARCH)\* -r }
+          exec { 7z.exe a -tzip $ArchivePath ..\VSCode-win32-$(VSCODE_ARCH)\* "-xr!CodeSignSummary*.md" }
           echo "##vso[task.setvariable variable=CLIENT_PATH]$ArchivePath"
+
+          echo "Listing archive contents"
+          7z.exe l $ArchivePath
         condition: and(succeededOrFailed(), eq(variables['BUILT_CLIENT'], 'true'))
         displayName: Package client
 
@@ -262,8 +265,11 @@ steps:
           $ErrorActionPreference = "Stop"
           $ArchivePath = ".build\win32-$(VSCODE_ARCH)\vscode-server-win32-$(VSCODE_ARCH).zip"
           New-Item -ItemType Directory -Path .build\win32-$(VSCODE_ARCH) -Force
-          exec { 7z.exe a -tzip $ArchivePath ..\vscode-server-win32-$(VSCODE_ARCH) -r }
+          exec { 7z.exe a -tzip $ArchivePath ..\vscode-server-win32-$(VSCODE_ARCH) }
           echo "##vso[task.setvariable variable=SERVER_PATH]$ArchivePath"
+
+          echo "Listing archive contents"
+          7z.exe l $ArchivePath
         condition: and(succeededOrFailed(), eq(variables['BUILT_SERVER'], 'true'))
         displayName: Package server
 
@@ -272,8 +278,11 @@ steps:
           $ErrorActionPreference = "Stop"
           $ArchivePath = ".build\win32-$(VSCODE_ARCH)\vscode-server-win32-$(VSCODE_ARCH)-web.zip"
           New-Item -ItemType Directory -Path .build\win32-$(VSCODE_ARCH) -Force
-          exec { 7z.exe a -tzip $ArchivePath ..\vscode-server-win32-$(VSCODE_ARCH)-web -r }
+          exec { 7z.exe a -tzip $ArchivePath ..\vscode-server-win32-$(VSCODE_ARCH)-web }
           echo "##vso[task.setvariable variable=WEB_PATH]$ArchivePath"
+
+          echo "Listing archive contents"
+          7z.exe l $ArchivePath
         condition: and(succeededOrFailed(), eq(variables['BUILT_WEB'], 'true'))
         displayName: Package server (web)
 

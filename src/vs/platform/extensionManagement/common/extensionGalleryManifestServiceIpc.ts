@@ -21,7 +21,7 @@ export class ExtensionGalleryManifestIPCService extends ExtensionGalleryManifest
 	private readonly barrier = new Barrier();
 
 	constructor(
-		server: IPCServer,
+		server: IPCServer<any>,
 		@IProductService productService: IProductService
 	) {
 		super(productService);

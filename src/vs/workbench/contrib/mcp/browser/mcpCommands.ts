@@ -19,12 +19,15 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { spinningLoading } from '../../../../platform/theme/common/iconRegistry.js';
+import { ActiveEditorContext, ResourceContextKey } from '../../../common/contextkeys.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { ChatMode } from '../../chat/common/constants.js';
+import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { McpContextKeys } from '../common/mcpContextKeys.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
-import { IMcpServer, IMcpService, McpConnectionState, McpServerToolsState } from '../common/mcpTypes.js';
+import { IMcpServer, IMcpService, LazyCollectionState, McpConnectionState, McpServerToolsState } from '../common/mcpTypes.js';
+import { McpAddConfigurationCommand } from './mcpCommandsAddConfiguration.js';
 
 // acroynms do not get localized
 const category: ILocalizedString = {
@@ -41,6 +44,15 @@ export class ListMcpServerCommand extends Action2 {
 			icon: Codicon.server,
 			category,
 			f1: true,
+			menu: {
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.or(McpContextKeys.hasUnknownTools, McpContextKeys.hasServersWithErrors),
+					ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent)
+				),
+				id: MenuId.ChatInputAttachmentToolbar,
+				group: 'navigation',
+				order: 0
+			},
 		});
 	}
 
@@ -99,17 +111,7 @@ export class McpServerOptionsCommand extends Action2 {
 			id: McpServerOptionsCommand.id,
 			title: localize2('mcp.options', 'Server Options'),
 			category,
-			icon: Codicon.server,
-			f1: true,
-			menu: {
-				when: ContextKeyExpr.and(
-					McpContextKeys.hasUnknownTools,
-					ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent)
-				),
-				id: MenuId.ChatInputAttachmentToolbar,
-				group: 'navigation',
-				order: 0
-			},
+			f1: false,
 		});
 	}
 
@@ -197,7 +199,9 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 			Refreshing,
 		}
 
-		const displayedState = derived(reader => {
+
+
+		const displayedState = derived((reader) => {
 			const servers = mcpService.servers.read(reader);
 			const serversPerState: IMcpServer[][] = [];
 			for (const server of servers) {
@@ -213,7 +217,7 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 					case McpServerToolsState.RefreshingFromUnknown:
 						thisState = DisplayedState.Refreshing;
 						break;
-					case McpServerToolsState.Cached:
+					default:
 						thisState = server.connectionState.read(reader).state === McpConnectionState.Kind.Error ? DisplayedState.Error : DisplayedState.None;
 						break;
 				}
@@ -222,11 +226,18 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 				serversPerState[thisState].push(server);
 			}
 
+			const unknownServerStates = mcpService.lazyCollectionState.read(reader);
+			if (unknownServerStates === LazyCollectionState.LoadingUnknown) {
+				serversPerState[DisplayedState.Refreshing] ??= [];
+			} else if (unknownServerStates === LazyCollectionState.HasUnknown) {
+				serversPerState[DisplayedState.NewTools] ??= [];
+			}
+
 			const maxState = (serversPerState.length - 1) as DisplayedState;
-			return { state: maxState, servers: serversPerState[maxState] };
+			return { state: maxState, servers: serversPerState[maxState] || [] };
 		});
 
-		this._store.add(actionViewItemService.register(MenuId.ChatInputAttachmentToolbar, McpServerOptionsCommand.id, (action, options) => {
+		this._store.add(actionViewItemService.register(MenuId.ChatInputAttachmentToolbar, ListMcpServerCommand.id, (action, options) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
@@ -241,7 +252,7 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 					const action = h('button.chat-mcp-action', [h('span@icon')]);
 
 					this._register(autorun(r => {
-						const { state, servers } = displayedState.read(r);
+						const { state } = displayedState.read(r);
 						const { root, icon } = action;
 						this.updateTooltip();
 						container.classList.toggle('chat-mcp-has-action', state !== DisplayedState.None);
@@ -250,7 +261,7 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 							container.appendChild(root);
 						}
 
-						root.ariaLabel = this.getLabelForState({ state, servers });
+						root.ariaLabel = this.getLabelForState(displayedState.read(r));
 						root.className = 'chat-mcp-action';
 						icon.className = '';
 						if (state === DisplayedState.NewTools) {
@@ -275,6 +286,7 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 					const { state, servers } = displayedState.get();
 					if (state === DisplayedState.NewTools) {
 						servers.forEach(server => server.start());
+						mcpService.activateCollections();
 					} else if (state === DisplayedState.Refreshing) {
 						servers.at(-1)?.showOutput();
 					} else if (state === DisplayedState.Error) {
@@ -293,9 +305,9 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 
 				private getLabelForState({ state, servers } = displayedState.get()) {
 					if (state === DisplayedState.NewTools) {
-						return localize('mcp.newTools', "New tools available ({0})", servers.length);
+						return localize('mcp.newTools', "New tools available ({0})", servers.length || 1);
 					} else if (state === DisplayedState.Error) {
-						return localize('mcp.toolError', "Error loading {0} tool(s)", servers.length);
+						return localize('mcp.toolError', "Error loading {0} tool(s)", servers.length || 1);
 					} else if (state === DisplayedState.Refreshing) {
 						return localize('mcp.toolRefresh', "Discovering tools...");
 					} else {
@@ -316,7 +328,7 @@ export class ResetMcpTrustCommand extends Action2 {
 	constructor() {
 		super({
 			id: ResetMcpTrustCommand.ID,
-			title: localize2('mcp.resetTrust', "Reset MCP Trust"),
+			title: localize2('mcp.resetTrust', "Reset Trust"),
 			category,
 			f1: true,
 			precondition: McpContextKeys.toolsCount.greater(0),
@@ -326,5 +338,52 @@ export class ResetMcpTrustCommand extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		const mcpService = accessor.get(IMcpRegistry);
 		mcpService.resetTrust();
+	}
+}
+
+
+export class ResetMcpCachedTools extends Action2 {
+	static readonly ID = 'workbench.mcp.resetCachedTools';
+
+	constructor() {
+		super({
+			id: ResetMcpCachedTools.ID,
+			title: localize2('mcp.resetCachedTools', "Reset Cached Tools"),
+			category,
+			f1: true,
+			precondition: McpContextKeys.toolsCount.greater(0),
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const mcpService = accessor.get(IMcpService);
+		mcpService.resetCaches();
+	}
+}
+
+export class AddConfigurationAction extends Action2 {
+	static readonly ID = 'workbench.mcp.addConfiguration';
+
+	constructor() {
+		super({
+			id: AddConfigurationAction.ID,
+			title: localize2('mcp.addConfiguration', "Add Server..."),
+			metadata: {
+				description: localize2('mcp.addConfiguration.description', "Installs a new Model Context protocol to the mcp.json settings"),
+			},
+			category,
+			f1: true,
+			menu: {
+				id: MenuId.EditorContent,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.regex(ResourceContextKey.Path.key, /\.vscode[/\\]mcp\.json$/),
+					ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID)
+				)
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, configUri?: string): Promise<void> {
+		return accessor.get(IInstantiationService).createInstance(McpAddConfigurationCommand, configUri).run();
 	}
 }

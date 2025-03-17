@@ -10,17 +10,14 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import Severity from '../../../../base/common/severity.js';
 import { Dialog, IDialogResult } from '../../../../base/browser/ui/dialog/dialog.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { EventHelper, isHTMLElement } from '../../../../base/browser/dom.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { fromNow } from '../../../../base/common/date.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { MarkdownRenderer, openLinkFromMarkdown } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
-import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { ResultKind } from '../../../../platform/keybinding/common/keybindingResolver.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { createWorkbenchDialogOptions } from '../../../../platform/dialogs/browser/dialog.js';
 
 export class BrowserDialogHandler extends AbstractDialogHandler {
 
@@ -130,42 +127,24 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 				result.element.classList.add(...(markdownDetail.classes || []));
 				dialogDisposables.add(result);
 			});
-			customOptions.htmlDetails?.forEach(htmlDetail => {
-				if (isHTMLElement(htmlDetail.element)) {
-					parent.appendChild(htmlDetail.element);
-					dialogDisposables.add(htmlDetail);
-				}
-			});
 		} : undefined;
 
 		const dialog = new Dialog(
 			this.layoutService.activeContainer,
 			message,
 			buttons,
-			{
+			createWorkbenchDialogOptions({
 				detail,
 				cancelId,
 				type: this.getDialogType(type),
-				keyEventProcessor: (event: StandardKeyboardEvent) => {
-					const resolved = this.keybindingService.softDispatch(event, this.layoutService.activeContainer);
-					if (resolved.kind === ResultKind.KbFound && resolved.commandId) {
-						if (BrowserDialogHandler.ALLOWABLE_COMMANDS.indexOf(resolved.commandId) === -1) {
-							EventHelper.stop(event, true);
-						}
-					}
-				},
 				renderBody,
 				icon: customOptions?.icon,
 				disableCloseAction: customOptions?.disableCloseAction,
 				buttonDetails: customOptions?.buttonDetails,
 				checkboxLabel: checkbox?.label,
 				checkboxChecked: checkbox?.checked,
-				inputs,
-				buttonStyles: defaultButtonStyles,
-				checkboxStyles: defaultCheckboxStyles,
-				inputBoxStyles: defaultInputBoxStyles,
-				dialogStyles: defaultDialogStyles
-			}
+				inputs
+			}, this.keybindingService, this.layoutService, BrowserDialogHandler.ALLOWABLE_COMMANDS)
 		);
 
 		dialogDisposables.add(dialog);
