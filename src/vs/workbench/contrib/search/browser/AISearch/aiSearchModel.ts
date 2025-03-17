@@ -25,12 +25,15 @@ import { textSearchResultToMatches } from '../searchTreeModel/match.js';
 import { ISearchTreeAIFileMatch } from './aiSearchModelBase.js';
 
 export class AITextSearchHeadingImpl extends TextSearchHeadingImpl<IAITextQuery> {
+	public override hidden: boolean;
 	constructor(
 		parent: ISearchResult,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService
 	) {
 		super(false, parent, instantiationService, uriIdentityService);
+
+		this.hidden = true;
 	}
 
 	override name(): string {
