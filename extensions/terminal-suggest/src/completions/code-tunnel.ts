@@ -49,12 +49,7 @@ const codeTunnelCompletionSpec: Fig.Spec = {
 				],
 			},
 		},
-	],
-	args: {
-		name: 'paths',
-		isVariadic: true,
-		isOptional: true,
-	},
+	]
 };
 
 export default codeTunnelCompletionSpec;
