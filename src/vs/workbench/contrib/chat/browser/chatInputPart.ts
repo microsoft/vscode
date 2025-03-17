@@ -1449,6 +1449,7 @@ class ModelPickerActionViewItem extends DropdownMenuActionViewItemWithKeybinding
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@ICommandService commandService: ICommandService,
+		@IMenuService menuService: IMenuService,
 	) {
 		const modelActionsProvider: IActionProvider = {
 			getActions: () => {
@@ -1470,11 +1471,18 @@ class ModelPickerActionViewItem extends DropdownMenuActionViewItemWithKeybinding
 
 				const models: ILanguageModelChatMetadataAndIdentifier[] = this.delegate.getModels();
 				const actions = models.map(entry => setLanguageModelAction(entry));
+
+				// Add menu contributions from extensions
+				const menuActions = menuService.getMenuActions(MenuId.ChatModelPicker, contextKeyService);
+				const menuContributions = getFlatActionBarActions(menuActions);
+				if (menuContributions.length > 0 || chatEntitlementService.entitlement === ChatEntitlement.Limited) {
+					actions.push(new Separator());
+				}
+				actions.push(...menuContributions);
 				if (chatEntitlementService.entitlement === ChatEntitlement.Limited) {
 					actions.push(new Separator());
 					actions.push(toAction({ id: 'moreModels', label: localize('chat.moreModels', "Add More Models..."), run: () => commandService.executeCommand('workbench.action.chat.upgradePlan', 'chat-models') }));
 				}
-
 				return actions;
 			}
 		};
