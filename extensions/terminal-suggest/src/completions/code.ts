@@ -412,7 +412,7 @@ export function parseInstalledExtensions(out: string): Fig.Suggestion[] | undefi
 	return extensions;
 }
 
-const commonAuthOptions: Fig.Option[] = [
+export const commonAuthOptions: Fig.Option[] = [
 	{
 		name: '--access-token',
 		description: 'An access token to store for authentication',
