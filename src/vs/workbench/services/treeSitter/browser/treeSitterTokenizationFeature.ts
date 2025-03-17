@@ -730,7 +730,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 
 	private _getInjectionCaptures(textModelTreeSitter: ITextModelTreeSitter, parentCapture: QueryCapture, range: Range) {
 		const injection = textModelTreeSitter.getInjection(parentCapture.node.startIndex, this._languageId);
-		if (!injection?.tree) {
+		if (!injection?.tree || injection.versionId !== textModelTreeSitter.parseResult?.versionId) {
 			return undefined;
 		}
 

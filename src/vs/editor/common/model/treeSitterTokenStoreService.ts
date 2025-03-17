@@ -80,10 +80,7 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 				const deletedCharCount = change.rangeLength - change.text.length;
 				storeInfo.store.delete(deletedCharCount, change.rangeOffset);
 			}
-			const refreshLength = change.rangeLength > change.text.length ? change.rangeLength : change.text.length;
-			storeInfo.store.markForRefresh(change.rangeOffset, change.rangeOffset + refreshLength);
 		}
-
 	}
 
 	rangeHasTokens(model: ITextModel, range: Range, minimumTokenQuality: TokenQuality): boolean {
