@@ -157,3 +157,18 @@
 	margin: 4px 5px; /* allows button focus outline to be visible */
 	outline-offset: 2px !important;
 }
+
+/** Dialog: Dropdown */
+.monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button-dropdown {
+	margin: 4px 5px;
+}
+
+.monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button-dropdown > .monaco-text-button {
+	padding-left: 10px;
+	padding-right: 10px;
+}
+
+.monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button-dropdown > .monaco-dropdown-button {
+	padding-left: 5px;
+	padding-right: 5px;
+}

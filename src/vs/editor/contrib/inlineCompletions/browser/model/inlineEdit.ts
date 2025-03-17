@@ -10,7 +10,6 @@ import { InlineCompletionItem } from './provideInlineCompletions.js';
 export class InlineEdit {
 	constructor(
 		public readonly edit: SingleTextEdit,
-		public readonly jumpedTo: boolean,
 		public readonly commands: readonly Command[],
 		public readonly inlineCompletion: InlineCompletionItem,
 	) { }
@@ -25,7 +24,6 @@ export class InlineEdit {
 
 	public equals(other: InlineEdit): boolean {
 		return this.edit.equals(other.edit)
-			&& this.jumpedTo === other.jumpedTo
 			&& this.inlineCompletion === other.inlineCompletion;
 	}
 }
