@@ -41,7 +41,7 @@ enum CompositionClassName {
 export class NativeEditContext extends AbstractEditContext {
 
 	// Text area used to handle paste events
-	public readonly textArea: FastDomNode<HTMLTextAreaElement>;
+	private readonly textArea: FastDomNode<HTMLTextAreaElement>;
 	public readonly domNode: FastDomNode<HTMLDivElement>;
 	private readonly _editContext: EditContext;
 	private readonly _screenReaderSupport: ScreenReaderSupport;
@@ -253,7 +253,17 @@ export class NativeEditContext extends AbstractEditContext {
 		return true;
 	}
 
-	public onWillPaste(): void {
+	public executePaste(): boolean {
+		const textArea = this.textArea;
+		this.onWillPaste();
+		textArea.focus();
+		const result = this.textArea.domNode.ownerDocument.execCommand('paste');
+		textArea.domNode.textContent = '';
+		this.domNode.focus();
+		return result;
+	}
+
+	private onWillPaste(): void {
 		this._screenReaderSupport.setIgnoreSelectionChangeTime('onWillPaste');
 	}
 

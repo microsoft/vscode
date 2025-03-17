@@ -242,12 +242,7 @@ if (PasteAction) {
 				// see nativeEditContext.ts for more details
 				const nativeEditContext = NativeEditContextRegistry.get(focusedEditor.getId());
 				if (nativeEditContext) {
-					const textArea = nativeEditContext.textArea;
-					nativeEditContext.onWillPaste();
-					textArea.focus();
-					result = focusedEditor.getContainerDomNode().ownerDocument.execCommand('paste');
-					textArea.domNode.textContent = '';
-					nativeEditContext.domNode.focus();
+					result = nativeEditContext.executePaste();
 				} else {
 					result = false;
 				}
