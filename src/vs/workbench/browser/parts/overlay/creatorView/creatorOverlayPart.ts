@@ -93,10 +93,10 @@ export class CreatorOverlayPart extends Part {
 			extension: extensionDescription,
 		});
 
-		// Set initial visibility
+		// Set initial visibility - important for initial state
 		webview.container.style.display = "none";
 		webview.container.style.opacity = "0";
-		webview.container.style.zIndex = "-1";
+		webview.container.style.zIndex = "-9999";
 		webview.container.style.transition = "opacity 0.3s ease-in";
 		webview.container.style.position = "absolute";
 		webview.container.setAttribute("id", "creator-overlay-webview");
@@ -169,8 +169,8 @@ export class CreatorOverlayPart extends Part {
 			this.overlayContainer.style.left = "0";
 			this.overlayContainer.style.right = "0";
 			this.overlayContainer.style.bottom = "0";
-			this.overlayContainer.style.zIndex = "-10"; // Initially hidden
-			this.overlayContainer.style.display = "flex";
+			this.overlayContainer.style.zIndex = "-9999"; // Initially hidden
+			this.overlayContainer.style.display = "none"; // Start with display none
 			this.overlayContainer.style.alignItems = "center";
 			this.overlayContainer.style.justifyContent = "center";
 			this.overlayContainer.style.transition = "opacity 0.3s ease-in-out";
@@ -232,11 +232,15 @@ export class CreatorOverlayPart extends Part {
 		// Set up webview layout if both are ready
 		if (this.overlayContainer && this.webviewView) {
 			this.webviewView.webview.layoutWebviewOverElement(this.overlayContainer);
-			this.close(); // Ensure it starts closed
+			this.state = "closed"; // Ensure it starts closed
 		}
+
+		// Make sure the element has its initial z-index set properly
+		this.element.style.zIndex = "-9999";
 
 		return element;
 	}
+
 	override layout(
 		width: number,
 		height: number,
@@ -318,7 +322,8 @@ export class CreatorOverlayPart extends Part {
 
 		this.state = "closed";
 
-		this.element.style.zIndex = "-10";
+		// Hide the parent element completely
+		this.element.style.zIndex = "-9999";
 
 		// Fade out overlay container
 		this.overlayContainer.style.opacity = "0";
@@ -332,11 +337,12 @@ export class CreatorOverlayPart extends Part {
 		// Hide elements after transition completes
 		setTimeout(() => {
 			if (this.overlayContainer) {
-				this.overlayContainer.style.zIndex = "-10";
+				this.overlayContainer.style.zIndex = "-9999";
 				this.overlayContainer.style.display = "none";
 			}
 
 			if (container) {
+				container.style.zIndex = "-9999";
 				container.style.display = "none";
 			}
 
@@ -363,29 +369,6 @@ export class CreatorOverlayPart extends Part {
 
 		// Add debug logging
 		console.log("CREATOR OVERLAY: show() called");
-
-		if (this.overlayContainer) {
-			// Force visibility for debugging
-			this.overlayContainer.style.display = "flex";
-			this.overlayContainer.style.backgroundColor = "red";
-			this.overlayContainer.style.width = "100%";
-			this.overlayContainer.style.height = "100%";
-
-			if (this.loadingText) {
-				this.loadingText.style.display = "block";
-				this.loadingText.style.color = "white";
-				this.loadingText.style.fontSize = "30px";
-				this.loadingText.textContent = "CREATOR OVERLAY VISIBLE";
-			}
-
-			// Debug info
-			console.log("CREATOR OVERLAY: container styles", {
-				display: this.overlayContainer.style.display,
-				opacity: this.overlayContainer.style.opacity,
-				zIndex: this.overlayContainer.style.zIndex,
-				backgroundColor: this.overlayContainer.style.backgroundColor,
-			});
-		}
 
 		this.open();
 	}
