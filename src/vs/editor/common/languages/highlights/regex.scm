@@ -1,5 +1,4 @@
-; Heavily inspired by https://github.com/zed-industries/zed/blob/main/crates/languages/src/regex/highlights.scm
-
+; Order matters! Place lower precedence first.
 [
   "?"
   "="

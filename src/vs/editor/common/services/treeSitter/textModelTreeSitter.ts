@@ -33,7 +33,6 @@ const enum TelemetryParseType {
 	Incremental = 'incrementalParse'
 }
 
-
 export class TextModelTreeSitter extends Disposable implements ITextModelTreeSitter {
 	private _onDidChangeParseResult: Emitter<ModelTreeUpdateEvent> = this._register(new Emitter<ModelTreeUpdateEvent>());
 	public readonly onDidChangeParseResult: Event<ModelTreeUpdateEvent> = this._onDidChangeParseResult.event;
@@ -63,13 +62,13 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 	}
 
 	private readonly _parseSessionDisposables = this._register(new DisposableStore());
-	/**
-	 * Be very careful when making changes to this method as it is easy to introduce race conditions.
-	 */
 	private async _onDidChangeLanguage(languageId: string) {
 		this.parse(languageId);
 	}
 
+	/**
+	 * Be very careful when making changes to this method as it is easy to introduce race conditions.
+	 */
 	public async parse(languageId: string = this.textModel.getLanguageId()): Promise<ITreeSitterParseResult | undefined> {
 		this._parseSessionDisposables.clear();
 		this._rootTreeSitterTree = undefined;
@@ -176,6 +175,7 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 			return;
 		}
 
+		// TODO this needs to be done on smaller chunks to avoid slowing down the renderer
 		const injectionCaptures = query.captures(tree.rootNode);
 
 		// TODO @alexr00: Use a better data structure for this
@@ -232,11 +232,6 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 
 	private _onDidChangeContent(treeSitterTree: TreeSitterParseResult, change: IModelContentChangedEvent[] | undefined, ranges?: Parser.Range[]) {
 		treeSitterTree.onDidChangeContent(this.textModel, change, ranges);
-	}
-
-	override dispose() {
-		super.dispose();
-		console.log('dispose');
 	}
 }
 
@@ -624,29 +619,7 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 				for (let i = 0; i < this._ranges.length; i++) {
 					const existingRange = this._ranges[i];
 
-					if (rangesEqual(existingRange, newRange)) {
-						isFullyIncluded = true;
-						break;
-					} else if (rangesIntersect(existingRange, newRange)) {
-						// Check if the newRange has parts outside the existingRange
-						// if (newRange.startIndex < existingRange.startIndex) {
-						// 	unKnownRanges.push({
-						// 		startIndex: newRange.startIndex,
-						// 		endIndex: existingRange.startIndex,
-						// 		startPosition: newRange.startPosition,
-						// 		endPosition: existingRange.startPosition
-						// 	});
-						// }
-
-						// if (newRange.endIndex > existingRange.endIndex) {
-						// 	unKnownRanges.push({
-						// 		startIndex: existingRange.endIndex,
-						// 		endIndex: newRange.endIndex,
-						// 		startPosition: existingRange.endPosition,
-						// 		endPosition: newRange.endPosition
-						// 	});
-						// }
-
+					if (rangesEqual(existingRange, newRange) || rangesIntersect(existingRange, newRange)) {
 						isFullyIncluded = true;
 						break;
 					}

@@ -1,5 +1,4 @@
 ; Order matters! Place lower precedence first.
-; Adapted from https://github.com/zed-industries/zed/blob/main/crates/languages/src/typescript/highlights.scm
 
 ; Variables
 

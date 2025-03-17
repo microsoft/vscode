@@ -434,6 +434,7 @@ CommandsRegistry.registerCommand('_workbench.captureSyntaxTokens', function (acc
 
 CommandsRegistry.registerCommand('_workbench.captureTreeSitterSyntaxTokens', function (accessor: ServicesAccessor, resource?: URI) {
 	// If no resource is provided, use the active editor's resource
+	// This is useful for testing the command
 	if (!resource) {
 		const editorService = accessor.get(IEditorService);
 		resource = editorService.activeEditor?.resource;

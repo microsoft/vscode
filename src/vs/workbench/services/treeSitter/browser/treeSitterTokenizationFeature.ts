@@ -290,10 +290,12 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 				// Split the range into chunks to avoid long operations
 				const fullRangeEndLineNumber = ranges[i].newRange.endLineNumber;
 				let chunkLineStart = ranges[i].newRange.startLineNumber;
+				let chunkColumnStart = ranges[i].newRange.startColumn;
 				let chunkLineEnd = chunkLineStart + chunkSize;
 				do {
-					const chunkStartingPosition = new Position(chunkLineStart, 1);
-					const chunkEndPosition = new Position(chunkLineEnd, textModel.getLineMaxColumn(chunkLineEnd));
+					const chunkStartingPosition = new Position(chunkLineStart, chunkColumnStart);
+					const chunkEndColumn = ((chunkLineEnd === ranges[i].newRange.endLineNumber) ? ranges[i].newRange.endColumn : textModel.getLineMaxColumn(chunkLineEnd));
+					const chunkEndPosition = new Position(chunkLineEnd, chunkEndColumn);
 					const chunkRange = Range.fromPositions(chunkStartingPosition, chunkEndPosition);
 
 					rangeChanges.push({
@@ -303,6 +305,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 					});
 
 					chunkLineStart = chunkLineEnd + 1;
+					chunkColumnStart = 1;
 					if (chunkLineEnd < fullRangeEndLineNumber && chunkLineEnd + chunkSize > fullRangeEndLineNumber) {
 						chunkLineEnd = fullRangeEndLineNumber;
 					} else {
