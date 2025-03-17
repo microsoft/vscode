@@ -7,5 +7,6 @@ export { Lazy } from './lazy';
 export { VSBuffer } from './vsBuffer';
 export { Range, IRange } from './range';
 export { DeferredPromise } from './deferredPromise';
+export { newWriteableStream } from './writableStream';
 export { ObservableDisposable } from './observableDisposable';
 export { type ReadableStream, type WriteableStream } from './types/streams';

@@ -3,5 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export { assertNever } from './assertNever';
-export { assertDefined } from './assertDefined';
+import { BaseToken } from '../../baseToken';
+
+/**
+ * Common base token that all chatbot `prompt` tokens should inherit from.
+ */
+export abstract class PromptToken extends BaseToken { }

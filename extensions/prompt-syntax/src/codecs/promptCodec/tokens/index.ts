@@ -3,5 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export { assertNever } from './assertNever';
-export { assertDefined } from './assertDefined';
+export { PromptToken } from './promptToken';
+export { FileReference } from './fileReference';
+export { PromptVariable, PromptVariableWithData } from './promptVariable';

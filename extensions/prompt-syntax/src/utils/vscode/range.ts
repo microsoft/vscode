@@ -37,4 +37,11 @@ export class Range implements IRange {
 			this.endColumn === other.endColumn
 		);
 	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	public isEmpty(): boolean {
+		return (this.startLineNumber === this.endLineNumber && this.startColumn === this.endColumn);
+	}
 }

@@ -3,5 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export { assertNever } from './assertNever';
-export { assertDefined } from './assertDefined';
+/**
+ * TODO: @legomushroom
+ */
+export function assertNever(_value: never, message = 'Unreachable'): never {
+	throw new Error(message);
+}
