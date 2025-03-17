@@ -79,6 +79,7 @@ import { ChatInputHistoryMaxEntries, IChatHistoryEntry, IChatInputState, IChatWi
 import { ChatAgentLocation, ChatMode } from '../common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { CancelAction, ChatSubmitAction, ChatSubmitSecondaryAgentAction, ChatSwitchToNextModelActionId, IChatExecuteActionContext, IToggleChatModeArgs, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
+import { AttachToolsAction } from './actions/chatToolActions.js';
 import { ImplicitContextAttachmentWidget } from './attachments/implicitContextAttachment.js';
 import { PromptAttachmentsCollectionWidget } from './attachments/promptAttachments/promptAttachmentsCollectionWidget.js';
 import { IChatWidget } from './chat.js';
@@ -152,7 +153,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._attachmentModel;
 	}
 
-	static selectedToolsModel: ChatSelectedTools;
+	readonly selectedToolsModel: ChatSelectedTools;
 
 	public getAttachedAndImplicitContext(sessionId: string): IChatRequestVariableEntry[] {
 		const contextArr = [...this.attachmentModel.attachments];
@@ -374,10 +375,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		super();
 
 		this._attachmentModel = this._register(this.instantiationService.createInstance(ChatAttachmentModel));
-		if (!ChatInputPart.selectedToolsModel) {
-			ChatInputPart.selectedToolsModel = this._register(this.instantiationService.createInstance(ChatSelectedTools));
-		}
-
+		this.selectedToolsModel = this._register(this.instantiationService.createInstance(ChatSelectedTools));
 		this.dnd = this._register(this.instantiationService.createInstance(ChatDragAndDrop, this._attachmentModel, styles));
 
 		this.getInputState = (): IChatInputState => {
@@ -569,7 +567,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.setChatMode(ChatMode.Edit);
 		}
 
-		ChatInputPart.selectedToolsModel.reset();
+		this.selectedToolsModel.reset();
 	}
 
 	logInputHistory(): void {
@@ -1028,6 +1026,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				if (action.id === 'workbench.action.chat.editing.attachContext' || action.id === 'workbench.action.chat.attachContext') {
 					const viewItem = this.instantiationService.createInstance(AddFilesButton, undefined, action, options);
 					return viewItem;
+				}
+				if (action.id === AttachToolsAction.id) {
+					return this.selectedToolsModel.toolsActionItemViewItemProvider(action, options);
 				}
 				return undefined;
 			}

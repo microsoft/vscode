@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/chatViewSetup.css';
+import './media/chatSetup.css';
 import { $, getActiveElement, setVisibility } from '../../../../base/browser/dom.js';
 import { ButtonWithDropdown } from '../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -31,7 +31,7 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../platform
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { ICustomDialogHTMLElement, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -65,6 +65,11 @@ import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID } from './chatView
 import { ChatViewsWelcomeExtensions, IChatViewsWelcomeContributionRegistry } from './viewsWelcome/chatViewsWelcome.js';
 import { ChatAgentLocation } from '../common/constants.js';
 import { ILanguageModelsService } from '../common/languageModels.js';
+import { Dialog } from '../../../../base/browser/ui/dialog/dialog.js';
+import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { createWorkbenchDialogOptions } from '../../../../platform/dialogs/browser/dialog.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -194,7 +199,17 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 
 			let success = false;
 			try {
-				success = await this.controller.value.setup();
+				switch (result) {
+					case ChatSetupDialogResult.SetupWithEnterpriseProvider:
+						success = await this.controller.value.setupWithProvider(true);
+						break;
+					case ChatSetupDialogResult.SetupWithoutEnterpriseProvider:
+						success = await this.controller.value.setupWithProvider(false);
+						break;
+					case ChatSetupDialogResult.DefaultSetup:
+						success = await this.controller.value.setup();
+						break;
+				}
 			} catch (error) {
 				this.logService.error(localize('setupError', "Error during setup: {0}", toErrorMessage(error)));
 			} finally {
@@ -239,56 +254,80 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 	}
 }
 
+enum ChatSetupDialogResult {
+	Canceled = 0,
+	DefaultSetup = 1,
+	SetupWithoutEnterpriseProvider = 2,
+	SetupWithEnterpriseProvider = 3
+}
+
 class ChatSetupDialog {
 
 	constructor(
 		private readonly context: ChatEntitlementContext,
-		@IDialogService private readonly dialogService: IDialogService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@ILayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService
 	) { }
 
-	async show(): Promise<boolean> {
-		const res = await this.dialogService.prompt<boolean>({
-			type: 'none',
-			message: localize('copilotFree', "Welcome to Copilot"),
-			cancelButton: {
-				label: localize('cancel', "Cancel"),
-				run: () => false
-			},
-			buttons: [
-				{
-					label: this.getPrimaryButton(),
-					run: () => true
-				},
-			],
-			custom: {
-				icon: Codicon.copilotLarge,
-				htmlDetails: [this.create()]
-			}
-		});
+	async show(): Promise<ChatSetupDialogResult> {
+		const buttons = [
+			this.getPrimaryButton(),
+			localize('maybeLater', "Maybe Later"),
+		];
+		const disposables = new DisposableStore();
 
-		return res.result;
+		let result: ChatSetupDialogResult | undefined = undefined;
+
+		const dialog = disposables.add(new Dialog(
+			this.layoutService.activeContainer,
+			this.chatEntitlementService.entitlement === ChatEntitlement.Pro ? localize('copilotPro', "Set up Copilot") : localize('copilotFree', "Set up Copilot Free"),
+			buttons,
+			createWorkbenchDialogOptions({
+				type: 'none',
+				cancelId: buttons.length - 1,
+				renderBody: body => body.appendChild(this.create(disposables)),
+				primaryButtonDropdown: {
+					contextMenuProvider: this.contextMenuService,
+					addPrimaryActionToDropdown: false,
+					actions: [
+						toAction({ id: 'setupWithProvider', label: localize('setupWithProvider', "Sign in with a {0} Account", defaultChat.providerName), run: () => result = ChatSetupDialogResult.SetupWithoutEnterpriseProvider }),
+						toAction({ id: 'setupWithEnterpriseProvider', label: localize('setupWithEnterpriseProvider', "Sign in with a {0} Account", defaultChat.enterpriseProviderName), run: () => result = ChatSetupDialogResult.SetupWithEnterpriseProvider }),
+					]
+				}
+			}, this.keybindingService, this.layoutService)
+		));
+		dialog.element.classList.add('chat-setup-dialog');
+
+		const { button } = await dialog.show();
+		disposables.dispose();
+
+		return button === 0 ? result ?? ChatSetupDialogResult.DefaultSetup : ChatSetupDialogResult.Canceled;
 	}
 
 	private getPrimaryButton(): string {
 		switch (this.context.state.entitlement) {
 			case ChatEntitlement.Unknown:
-				return this.context.state.registered ? localize('signUp', "Sign in to Use Copilot") : localize('signUpFree', "Sign in to Use Copilot for Free");
+				return this.context.state.registered ? localize('signUp', "Sign in to use Copilot") : localize('signUpFree', "Sign in to use Copilot Free");
 			case ChatEntitlement.Unresolved:
-				return this.context.state.registered ? localize('startUp', "Use Copilot") : localize('startUpLimited', "Use Copilot for Free");
+				return this.context.state.registered ? localize('startUp', "Use Copilot") : localize('startUpLimited', "Use Copilot Free");
 			case ChatEntitlement.Available:
 			case ChatEntitlement.Limited:
-				return localize('startUpLimited', "Use Copilot for Free");
+				return localize('startUpLimited', "Use Copilot Free");
 			case ChatEntitlement.Pro:
 			case ChatEntitlement.Unavailable:
 				return localize('startUp', "Use Copilot");
 		}
 	}
 
-	private create(): ICustomDialogHTMLElement {
-		const disposables = new DisposableStore();
+	private create(disposables: DisposableStore): HTMLElement {
 		const element = $('.chat-setup-view');
+
+		// Icon background
+		element.appendChild($('.chat-setup-dialog-icon-background')).classList.add(...ThemeIcon.asClassNameArray(Codicon.copilotLarge));
 
 		const markdown = this.instantiationService.createInstance(MarkdownRenderer, {});
 
@@ -314,12 +353,6 @@ class ChatSetupDialog {
 			)
 		);
 
-		// Limited SKU
-		if (this.context.state.entitlement !== ChatEntitlement.Pro && this.context.state.entitlement !== ChatEntitlement.Unavailable) {
-			const free = localize({ key: 'free', comment: ['{Locked="[]({0})"}'] }, "$(sparkle-filled) We now offer [Copilot for free]({0}).", defaultChat.skusDocumentationUrl);
-			element.appendChild($('p', undefined, disposables.add(markdown.render(new MarkdownString(free, { isTrusted: true, supportThemeIcons: true }))).element));
-		}
-
 		// Terms
 		const terms = localize({ key: 'terms', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "By continuing, you agree to the [Terms]({0}) and [Privacy Policy]({1}).", defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl);
 		element.appendChild($('p.legal', undefined, disposables.add(markdown.render(new MarkdownString(terms, { isTrusted: true }))).element));
@@ -330,7 +363,7 @@ class ChatSetupDialog {
 			element.appendChild($('p.legal', undefined, disposables.add(markdown.render(new MarkdownString(settings, { isTrusted: true }))).element));
 		}
 
-		return { element, dispose: () => disposables.dispose() };
+		return element;
 	}
 }
 
@@ -401,7 +434,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				ChatContextKeys.Entitlement.canSignUp
 			));
 
-		const CHAT_SETUP_ACTION_LABEL = localize2('triggerChatSetup', "Use AI Features with Copilot for Free...");
+		const CHAT_SETUP_ACTION_LABEL = localize2('triggerChatSetup', "Use AI Features with Copilot Free...");
 
 		class ChatSetupTriggerAction extends Action2 {
 
@@ -449,7 +482,17 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					if (result) {
 						let success = false;
 						try {
-							success = await controller.value.setup({ notificationProgress: true });
+							switch (result) {
+								case ChatSetupDialogResult.SetupWithEnterpriseProvider:
+									success = await controller.value.setupWithProvider(true);
+									break;
+								case ChatSetupDialogResult.SetupWithoutEnterpriseProvider:
+									success = await controller.value.setupWithProvider(false);
+									break;
+								case ChatSetupDialogResult.DefaultSetup:
+									success = await controller.value.setup();
+									break;
+							}
 
 							if (success) {
 								showCopilotView(viewsService, layoutService);
@@ -657,6 +700,7 @@ class ChatSetupController extends Disposable {
 		@IDialogService private readonly dialogService: IDialogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 	) {
 		super();
 
@@ -860,129 +904,8 @@ class ChatSetupController extends Disposable {
 			throw error;
 		}
 	}
-}
 
-class ChatSetupWelcomeContent extends Disposable {
-
-	readonly element = $('.chat-setup-view');
-
-	constructor(
-		private readonly controller: ChatSetupController,
-		private readonly context: ChatEntitlementContext,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IDialogService private readonly dialogService: IDialogService,
-	) {
-		super();
-
-		this.create();
-	}
-
-	private create(): void {
-		const markdown = this.instantiationService.createInstance(MarkdownRenderer, {});
-
-		// Header
-		{
-			const header = localize({ key: 'header', comment: ['{Locked="[Copilot]({0})"}'] }, "[Copilot]({0}) is your AI pair programmer.", this.context.state.installed ? `command:${defaultChat.walkthroughCommand}` : defaultChat.documentationUrl);
-			this.element.appendChild($('p', undefined, this._register(markdown.render(new MarkdownString(header, { isTrusted: true }))).element));
-
-			this.element.appendChild(
-				$('div.chat-features-container', undefined,
-					$('div', undefined,
-						$('div.chat-feature-container', undefined,
-							renderIcon(Codicon.code),
-							$('span', undefined, localize('featureChat', "Code faster with Completions"))
-						),
-						$('div.chat-feature-container', undefined,
-							renderIcon(Codicon.editSession),
-							$('span', undefined, localize('featureEdits', "Build features with Copilot Edits"))
-						),
-						$('div.chat-feature-container', undefined,
-							renderIcon(Codicon.commentDiscussion),
-							$('span', undefined, localize('featureExplore', "Explore your codebase with Chat"))
-						)
-					)
-				)
-			);
-		}
-
-		// Limited SKU
-		const free = localize({ key: 'free', comment: ['{Locked="[]({0})"}'] }, "$(sparkle-filled) We now offer [Copilot for free]({0}).", defaultChat.skusDocumentationUrl);
-		const freeContainer = this.element.appendChild($('p', undefined, this._register(markdown.render(new MarkdownString(free, { isTrusted: true, supportThemeIcons: true }))).element));
-
-		// Setup Button
-		const buttonContainer = this.element.appendChild($('p'));
-		buttonContainer.classList.add('button-container');
-		const button = this._register(new ButtonWithDropdown(buttonContainer, {
-			actions: [
-				toAction({ id: 'chatSetup.setupWithProvider', label: localize('setupWithProvider', "Sign in with a {0} Account", defaultChat.providerName), run: () => this.setupWithProvider(false) }),
-				toAction({ id: 'chatSetup.setupWithEnterpriseProvider', label: localize('setupWithEnterpriseProvider', "Sign in with a {0} Account", defaultChat.enterpriseProviderName), run: () => this.setupWithProvider(true) })
-			],
-			addPrimaryActionToDropdown: false,
-			contextMenuProvider: this.contextMenuService,
-			supportIcons: true,
-			...defaultButtonStyles
-		}));
-		this._register(button.onDidClick(() => this.controller.setup()));
-
-		// Terms
-		const terms = localize({ key: 'terms', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "By continuing, you agree to the [Terms]({0}) and [Privacy Policy]({1}).", defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl);
-		this.element.appendChild($('p', undefined, this._register(markdown.render(new MarkdownString(terms, { isTrusted: true }))).element));
-
-		// SKU Settings
-		const settings = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "Copilot Free and Pro may show [public code]({0}) suggestions and we may use your data for product improvement. You can change these [settings]({1}) at any time.", defaultChat.publicCodeMatchesUrl, defaultChat.manageSettingsUrl);
-		const settingsContainer = this.element.appendChild($('p', undefined, this._register(markdown.render(new MarkdownString(settings, { isTrusted: true }))).element));
-
-		// Update based on model state
-		this._register(Event.runAndSubscribe(this.controller.onDidChange, () => this.update(freeContainer, settingsContainer, button)));
-	}
-
-	private update(freeContainer: HTMLElement, settingsContainer: HTMLElement, button: ButtonWithDropdown): void {
-		const showSettings = this.telemetryService.telemetryLevel !== TelemetryLevel.NONE;
-		let showFree: boolean;
-		let buttonLabel: string;
-
-		switch (this.context.state.entitlement) {
-			case ChatEntitlement.Unknown:
-				showFree = true;
-				buttonLabel = this.context.state.registered ? localize('signUp', "Sign in to Use Copilot") : localize('signUpFree', "Sign in to Use Copilot for Free");
-				break;
-			case ChatEntitlement.Unresolved:
-				showFree = true;
-				buttonLabel = this.context.state.registered ? localize('startUp', "Use Copilot") : localize('startUpLimited', "Use Copilot for Free");
-				break;
-			case ChatEntitlement.Available:
-			case ChatEntitlement.Limited:
-				showFree = true;
-				buttonLabel = localize('startUpLimited', "Use Copilot for Free");
-				break;
-			case ChatEntitlement.Pro:
-			case ChatEntitlement.Unavailable:
-				showFree = false;
-				buttonLabel = localize('startUp', "Use Copilot");
-				break;
-		}
-
-		switch (this.controller.step) {
-			case ChatSetupStep.SigningIn:
-				buttonLabel = localize('setupChatSignIn', "$(loading~spin) Signing in to {0}...", ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.enterpriseProviderId ? defaultChat.enterpriseProviderName : defaultChat.providerName);
-				break;
-			case ChatSetupStep.Installing:
-				buttonLabel = localize('setupChatInstalling', "$(loading~spin) Getting Copilot Ready...");
-				break;
-		}
-
-		setVisibility(showFree, freeContainer);
-		setVisibility(showSettings, settingsContainer);
-
-		button.label = buttonLabel;
-		button.enabled = this.controller.step === ChatSetupStep.Initial;
-	}
-
-	private async setupWithProvider(useEnterpriseProvider: boolean): Promise<boolean> {
+	async setupWithProvider(useEnterpriseProvider: boolean): Promise<boolean> {
 		const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 		registry.registerConfiguration({
 			'id': 'copilot.setup',
@@ -1027,7 +950,7 @@ class ChatSetupWelcomeContent extends Disposable {
 			await this.configurationService.updateValue(defaultChat.providerUriSetting, undefined, ConfigurationTarget.USER);
 		}
 
-		return this.controller.setup({ forceSignIn: true });
+		return this.setup({ forceSignIn: true });
 	}
 
 	private async handleEnterpriseInstance(): Promise<boolean /* success */> {
@@ -1095,6 +1018,125 @@ class ChatSetupWelcomeContent extends Disposable {
 		await this.configurationService.updateValue(defaultChat.providerUriSetting, resolvedUri, ConfigurationTarget.USER);
 
 		return true;
+	}
+}
+
+class ChatSetupWelcomeContent extends Disposable {
+
+	readonly element = $('.chat-setup-view');
+
+	constructor(
+		private readonly controller: ChatSetupController,
+		private readonly context: ChatEntitlementContext,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+	) {
+		super();
+
+		this.create();
+	}
+
+	private create(): void {
+		const markdown = this.instantiationService.createInstance(MarkdownRenderer, {});
+
+		// Header
+		{
+			const header = localize({ key: 'header', comment: ['{Locked="[Copilot]({0})"}'] }, "[Copilot]({0}) is your AI pair programmer.", this.context.state.installed ? `command:${defaultChat.walkthroughCommand}` : defaultChat.documentationUrl);
+			this.element.appendChild($('p', undefined, this._register(markdown.render(new MarkdownString(header, { isTrusted: true }))).element));
+
+			this.element.appendChild(
+				$('div.chat-features-container', undefined,
+					$('div', undefined,
+						$('div.chat-feature-container', undefined,
+							renderIcon(Codicon.code),
+							$('span', undefined, localize('featureChat', "Code faster with Completions"))
+						),
+						$('div.chat-feature-container', undefined,
+							renderIcon(Codicon.editSession),
+							$('span', undefined, localize('featureEdits', "Build features with Copilot Edits"))
+						),
+						$('div.chat-feature-container', undefined,
+							renderIcon(Codicon.commentDiscussion),
+							$('span', undefined, localize('featureExplore', "Explore your codebase with Chat"))
+						)
+					)
+				)
+			);
+		}
+
+		// Limited SKU
+		const free = localize({ key: 'free', comment: ['{Locked="[]({0})"}'] }, "$(sparkle-filled) We now offer [Copilot Free]({0}).", defaultChat.skusDocumentationUrl);
+		const freeContainer = this.element.appendChild($('p', undefined, this._register(markdown.render(new MarkdownString(free, { isTrusted: true, supportThemeIcons: true }))).element));
+
+		// Setup Button
+		const buttonContainer = this.element.appendChild($('p'));
+		buttonContainer.classList.add('button-container');
+		const button = this._register(new ButtonWithDropdown(buttonContainer, {
+			actions: [
+				toAction({ id: 'chatSetup.setupWithProvider', label: localize('setupWithProvider', "Sign in with a {0} Account", defaultChat.providerName), run: () => this.controller.setupWithProvider(false) }),
+				toAction({ id: 'chatSetup.setupWithEnterpriseProvider', label: localize('setupWithEnterpriseProvider', "Sign in with a {0} Account", defaultChat.enterpriseProviderName), run: () => this.controller.setupWithProvider(true) })
+			],
+			addPrimaryActionToDropdown: false,
+			contextMenuProvider: this.contextMenuService,
+			supportIcons: true,
+			...defaultButtonStyles
+		}));
+		this._register(button.onDidClick(() => this.controller.setup()));
+
+		// Terms
+		const terms = localize({ key: 'terms', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "By continuing, you agree to the [Terms]({0}) and [Privacy Policy]({1}).", defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl);
+		this.element.appendChild($('p', undefined, this._register(markdown.render(new MarkdownString(terms, { isTrusted: true }))).element));
+
+		// SKU Settings
+		const settings = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "Copilot Free and Pro may show [public code]({0}) suggestions and we may use your data for product improvement. You can change these [settings]({1}) at any time.", defaultChat.publicCodeMatchesUrl, defaultChat.manageSettingsUrl);
+		const settingsContainer = this.element.appendChild($('p', undefined, this._register(markdown.render(new MarkdownString(settings, { isTrusted: true }))).element));
+
+		// Update based on model state
+		this._register(Event.runAndSubscribe(this.controller.onDidChange, () => this.update(freeContainer, settingsContainer, button)));
+	}
+
+	private update(freeContainer: HTMLElement, settingsContainer: HTMLElement, button: ButtonWithDropdown): void {
+		const showSettings = this.telemetryService.telemetryLevel !== TelemetryLevel.NONE;
+		let showFree: boolean;
+		let buttonLabel: string;
+
+		switch (this.context.state.entitlement) {
+			case ChatEntitlement.Unknown:
+				showFree = true;
+				buttonLabel = this.context.state.registered ? localize('signUp', "Sign in to use Copilot") : localize('signUpFree', "Sign in to use Copilot Free");
+				break;
+			case ChatEntitlement.Unresolved:
+				showFree = true;
+				buttonLabel = this.context.state.registered ? localize('startUp', "Use Copilot") : localize('startUpLimited', "Use Copilot Free");
+				break;
+			case ChatEntitlement.Available:
+			case ChatEntitlement.Limited:
+				showFree = true;
+				buttonLabel = localize('startUpLimited', "Use Copilot Free");
+				break;
+			case ChatEntitlement.Pro:
+			case ChatEntitlement.Unavailable:
+				showFree = false;
+				buttonLabel = localize('startUp', "Use Copilot");
+				break;
+		}
+
+		switch (this.controller.step) {
+			case ChatSetupStep.SigningIn:
+				buttonLabel = localize('setupChatSignIn', "$(loading~spin) Signing in to {0}...", ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.enterpriseProviderId ? defaultChat.enterpriseProviderName : defaultChat.providerName);
+				break;
+			case ChatSetupStep.Installing:
+				buttonLabel = localize('setupChatInstalling', "$(loading~spin) Getting Copilot Ready...");
+				break;
+		}
+
+		setVisibility(showFree, freeContainer);
+		setVisibility(showSettings, settingsContainer);
+
+		button.label = buttonLabel;
+		button.enabled = this.controller.step === ChatSetupStep.Initial;
 	}
 }
 
