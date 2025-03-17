@@ -231,7 +231,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		let top: number = 0;
 		// For existing sticky lines update the top and z-index
 		for (const stickyLine of this._renderedStickyLines) {
-			this._updateTopAndZIndexOfStickyLine(stickyLine, top);
+			this._updatePosition(stickyLine, top);
 			top += stickyLine.height;
 		}
 		// For new sticky lines
@@ -383,25 +383,30 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		lineHTMLNode.style.height = `${lineHeight}px`;
 
 		const renderedLine = new RenderedStickyLine(index, line, lineHTMLNode, lineNumberHTMLNode, foldingIcon, renderOutput.characterMapping, lineHTMLNode.scrollWidth, lineHeight);
-		return this._updateTopAndZIndexOfStickyLine(renderedLine, top);
+		return this._updatePosition(renderedLine, top);
 	}
 
-	private _updateTopAndZIndexOfStickyLine(stickyLine: RenderedStickyLine, top: number): RenderedStickyLine {
+	private _updatePosition(stickyLine: RenderedStickyLine, top: number): RenderedStickyLine {
 		const index = stickyLine.index;
 		const lineHTMLNode = stickyLine.lineDomNode;
 		const lineNumberHTMLNode = stickyLine.lineNumberDomNode;
 		const isLastLine = index === this._lineNumbers.length - 1;
-
-		const lastLineZIndex = '0';
-		const intermediateLineZIndex = '1';
-		lineHTMLNode.style.zIndex = isLastLine ? lastLineZIndex : intermediateLineZIndex;
-		lineNumberHTMLNode.style.zIndex = isLastLine ? lastLineZIndex : intermediateLineZIndex;
-
-		const widgetHeight = this._getHeightOfLines(this._lineNumbers, index);
-		const lastLineTop = `${widgetHeight + this._lastLineRelativePosition + (stickyLine.foldingIcon?.isCollapsed ? 1 : 0)}px`;
-		const intermediateLineTop = `${top}px`;
-		lineHTMLNode.style.top = isLastLine ? lastLineTop : intermediateLineTop;
-		lineNumberHTMLNode.style.top = isLastLine ? lastLineTop : intermediateLineTop;
+		if (isLastLine) {
+			const zIndex = '0';
+			lineHTMLNode.style.zIndex = zIndex;
+			lineNumberHTMLNode.style.zIndex = zIndex;
+			const widgetHeight = this._getHeightOfLines(this._lineNumbers, index);
+			const top = `${widgetHeight + this._lastLineRelativePosition + (stickyLine.foldingIcon?.isCollapsed ? 1 : 0)}px`;
+			lineHTMLNode.style.top = top;
+			lineNumberHTMLNode.style.top = top;
+		} else {
+			const zIndex = '1';
+			lineHTMLNode.style.zIndex = zIndex;
+			lineNumberHTMLNode.style.zIndex = zIndex;
+			const top = `${index * this._lineHeight}px`;
+			lineHTMLNode.style.top = top;
+			lineNumberHTMLNode.style.top = top;
+		}
 		return stickyLine;
 	}
 

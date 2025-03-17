@@ -80,7 +80,7 @@ export class InlineCompletionsSource extends Disposable {
 	private readonly _loadingCount = observableValue(this, 0);
 	public readonly loading = this._loadingCount.map(this, v => v > 0);
 
-	public fetch(position: Position, context: InlineCompletionContext, activeInlineCompletion: InlineCompletionWithUpdatedRange | undefined, withDebounce: boolean): Promise<boolean> {
+	public fetch(position: Position, context: InlineCompletionContext, activeInlineCompletion: InlineCompletionWithUpdatedRange | undefined, withDebounce: boolean, userJumpedToActiveCompletion: IObservable<boolean>): Promise<boolean> {
 		const request = new UpdateRequest(position, context, this._textModel.getVersionId());
 
 		const target = context.selectedSuggestionInfo ? this.suggestWidgetInlineCompletions : this.inlineCompletions;
@@ -151,13 +151,17 @@ export class InlineCompletionsSource extends Disposable {
 					}
 				}
 
-				if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId) {
+				if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId || userJumpedToActiveCompletion.get() /* In the meantime the user showed interest for the active completion so dont hide it */) {
 					updatedCompletions.dispose();
 					return false;
 				}
 
 				// Reuse Inline Edit if possible
-				if (activeInlineCompletion && activeInlineCompletion.isInlineEdit && (activeInlineCompletion.canBeReused(this._textModel, position) || updatedCompletions.has(activeInlineCompletion.inlineCompletion) /* Inline Edit wins over completions if it's already been shown*/)) {
+				if (activeInlineCompletion && activeInlineCompletion.isInlineEdit && (
+					activeInlineCompletion.canBeReused(this._textModel, position)
+					|| updatedCompletions.has(activeInlineCompletion.inlineCompletion) /* Inline Edit wins over completions if it's already been shown*/
+					|| updatedCompletions.isEmpty() /* Incoming completion is empty, keep the current one alive */
+				)) {
 					updatedCompletions.dispose();
 					return false;
 				}
@@ -567,9 +571,15 @@ class UpdatedEdit extends Disposable {
 			return []; // change is invalid, so we will have to drop the completion
 		}
 
+		const currentModelVersion = this._modelVersion.get();
+
 		this._lastChangePartOfInlineEdit = edits.some(edit => edit.lastChangeUpdatedEdit);
 		if (this._lastChangePartOfInlineEdit) {
-			this._inlineEditModelVersion = this._modelVersion.get() ?? -1;
+			this._inlineEditModelVersion = currentModelVersion ?? -1;
+		}
+
+		if (currentModelVersion === null || this._inlineEditModelVersion + 20 < currentModelVersion) {
+			return []; // the completion has been ignored for a while, remove it
 		}
 
 		edits = edits.filter(innerEdit => !innerEdit.edit!.isEmpty);
