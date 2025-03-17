@@ -34,7 +34,10 @@ export class LspTerminalModelContentProvider extends Disposable implements IText
 		const extension = resource.path.split('.').pop();
 
 		let languageId = extension ? this._languageService.getLanguageIdByLanguageName(extension) : undefined;
+		// let languageIdTry = this._languageService.getLanguageIdByLanguageName('python');
+		// console.log(languageIdTry);
 		languageId = 'python'; // Can't remember if this is ms-python or python.
+
 		const languageSelection = languageId ? this._languageService.createById(languageId) : this._languageService.createById('plaintext');
 
 		return this._modelService.createModel('', languageSelection, resource, false);
