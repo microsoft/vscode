@@ -31,7 +31,7 @@ import { IWorkbenchAssignmentService } from '../../../services/assignment/common
 import { mcpSchemaId } from '../../../services/configuration/common/configuration.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { mcpConfigurationSection, mcpDiscoverySection, mcpSchemaExampleServers } from '../../mcp/common/mcpConfiguration.js';
-import { ChatAgentLocation, ChatAgentNameService, ChatAgentService, IChatAgentNameService, IChatAgentService } from '../common/chatAgents.js';
+import { ChatAgentNameService, ChatAgentService, IChatAgentNameService, IChatAgentService } from '../common/chatAgents.js';
 import { CodeMapperService, ICodeMapperService } from '../common/chatCodeMapperService.js';
 import '../common/chatColors.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
@@ -44,6 +44,7 @@ import { ChatSlashCommandService, IChatSlashCommandService } from '../common/cha
 import { ChatTransferService, IChatTransferService } from '../common/chatTransferService.js';
 import { IChatVariablesService } from '../common/chatVariables.js';
 import { ChatWidgetHistoryService, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
+import { ChatAgentLocation } from '../common/constants.js';
 import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } from '../common/ignoredFiles.js';
 import { ILanguageModelsService, LanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelStatsService, LanguageModelStatsService } from '../common/languageModelStats.js';
@@ -204,6 +205,12 @@ configurationRegistry.registerConfiguration({
 			default: product.quality !== 'stable',
 			tags: ['experimental', 'onExp']
 		},
+		'chat.experimental.setupFromDialog': { // TODO@bpasero remove this eventually
+			type: 'boolean',
+			description: nls.localize('chat.setupFromChat', "Controls whether Copilot setup starts from a dialog or from the welcome view."),
+			default: product.quality !== 'stable',
+			tags: ['experimental', 'onExp']
+		},
 		[mcpConfigurationSection]: {
 			type: 'object',
 			default: {
@@ -347,7 +354,8 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 			if (enabled) {
 				this.registerEnablementSetting();
 				expDisabledKey.set(false);
-			} else if (enabled === false) {
+			} else if (this.productService.quality === 'stable') {
+				// undefined treatment- on stable, fall back to disabled
 				this.deregisterSetting();
 				expDisabledKey.set(true);
 			}

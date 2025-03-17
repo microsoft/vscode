@@ -10,8 +10,8 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export type PolicyName = string;
-export type PolicyValue = string | number;
-export type PolicyDefinition = { type: 'string' | 'number' };
+export type PolicyValue = string | number | boolean;
+export type PolicyDefinition = { type: 'string' | 'number' | 'boolean' };
 
 export const IPolicyService = createDecorator<IPolicyService>('policy');
 

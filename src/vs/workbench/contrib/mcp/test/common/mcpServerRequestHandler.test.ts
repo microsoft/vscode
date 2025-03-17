@@ -40,6 +40,10 @@ class TestMcpHostDelegate extends Disposable implements IMcpHostDelegate {
 	getTransport(): TestMcpMessageTransport {
 		return this._transport;
 	}
+
+	waitForInitialProviderPromises(): Promise<void> {
+		return Promise.resolve();
+	}
 }
 
 suite('Workbench - MCP - ServerRequestHandler', () => {

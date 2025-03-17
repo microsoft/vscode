@@ -2250,10 +2250,10 @@ export enum TaskEventKind {
 	/** Indicates the task's problem matcher has started */
 	ProblemMatcherStarted = 'problemMatcherStarted',
 
-	/** Indicates the task's problem matcher has ended */
+	/** Indicates the task's problem matcher has ended without errors */
 	ProblemMatcherEnded = 'problemMatcherEnded',
 
-	/** Indicates the task's problem matcher has found errors */
+	/** Indicates the task's problem matcher has ended with errors */
 	ProblemMatcherFoundErrors = 'problemMatcherFoundErrors'
 }
 
@@ -5038,4 +5038,25 @@ export enum InlineEditTriggerKind {
 	Automatic = 1,
 }
 
+//#endregion
+
+//#region MC
+export class McpStdioServerDefinition implements vscode.McpStdioServerDefinition {
+	cwd?: URI;
+
+	constructor(
+		public label: string,
+		public command: string,
+		public args: string[],
+		public env: Record<string, string | number | null>
+	) { }
+}
+
+export class McpSSEServerDefinition implements vscode.McpSSEServerDefinition {
+	headers: [string, string][] = [];
+	constructor(
+		public label: string,
+		public uri: URI
+	) { }
+}
 //#endregion
