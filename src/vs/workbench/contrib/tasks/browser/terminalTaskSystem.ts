@@ -989,7 +989,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				if (event.kind === ProblemCollectorEventKind.BackgroundProcessingBegins) {
 					this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherStarted, task, terminal?.instanceId));
 				} else if (event.kind === ProblemCollectorEventKind.BackgroundProcessingEnds) {
-					if (startStopProblemMatcher.numberOfMatches) {
+					if (startStopProblemMatcher.numberOfMatches && startStopProblemMatcher.maxMarkerSeverity && startStopProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error) {
 						this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherFoundErrors, task, terminal?.instanceId));
 					} else {
 						this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherEnded, task, terminal?.instanceId));
@@ -1058,7 +1058,11 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 						delete this._busyTasks[mapKey];
 					}
 					this._fireTaskEvent(TaskEvent.general(TaskEventKind.Inactive, task, terminal?.instanceId));
-					this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherEnded, task, terminal?.instanceId));
+					if (startStopProblemMatcher.numberOfMatches && startStopProblemMatcher.maxMarkerSeverity && startStopProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error) {
+						this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherFoundErrors, task, terminal?.instanceId));
+					} else {
+						this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherEnded, task, terminal?.instanceId));
+					}
 					this._fireTaskEvent(TaskEvent.general(TaskEventKind.End, task, terminal?.instanceId));
 					resolve({ exitCode: exitCode ?? undefined });
 				});
