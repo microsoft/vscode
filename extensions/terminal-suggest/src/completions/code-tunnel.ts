@@ -47,27 +47,27 @@ const tunnelSubcommands: Fig.Subcommand[] = [
 	{
 		name: 'prune',
 		description: 'Delete all servers which are currently not running',
-		options: [...commonCLIOptions],
+		options: commonCLIOptions,
 	},
 	{
 		name: 'kill',
 		description: 'Stops any running tunnel on the system',
-		options: [...commonCLIOptions],
+		options: commonCLIOptions,
 	},
 	{
 		name: 'restart',
 		description: 'Restarts any running tunnel on the system',
-		options: [...commonCLIOptions],
+		options: commonCLIOptions,
 	},
 	{
 		name: 'status',
 		description: 'Gets whether there is a tunnel running on the current machine',
-		options: [...commonCLIOptions],
+		options: commonCLIOptions,
 	},
 	{
 		name: 'rename',
 		description: 'Rename the name of this machine associated with port forwarding service',
-		options: [...commonCLIOptions],
+		options: commonCLIOptions,
 		args: {
 			name: 'name',
 		},
@@ -75,12 +75,12 @@ const tunnelSubcommands: Fig.Subcommand[] = [
 	{
 		name: 'status',
 		description: 'Print process usage and diagnostics information',
-		options: [...commonCLIOptions],
+		options: commonCLIOptions,
 	},
 	{
 		name: 'unregister',
 		description: 'Remove this machine\'s association with the port forwarding service',
-		options: [...commonCLIOptions],
+		options: commonCLIOptions,
 	},
 	{
 		name: 'user',
@@ -93,12 +93,12 @@ const tunnelSubcommands: Fig.Subcommand[] = [
 			{
 				name: 'logout',
 				description: 'Log out of port forwarding service',
-				options: [...commonCLIOptions],
+				options: commonCLIOptions,
 			},
 			{
 				name: 'show',
 				description: 'Show the account that\'s logged into port forwarding service',
-				options: [...commonCLIOptions],
+				options: commonCLIOptions,
 			},
 			buildSubcommandWithCommonOptions({
 				name: 'help',
@@ -111,7 +111,7 @@ const tunnelSubcommands: Fig.Subcommand[] = [
 				],
 			}),
 		],
-		options: [...commonCLIOptions],
+		options: commonCLIOptions,
 	},
 	{
 		name: 'service',
@@ -140,18 +140,18 @@ const tunnelSubcommands: Fig.Subcommand[] = [
 			{
 				name: 'uninstall',
 				description: 'Uninstalls and stops the tunnel service',
-				options: [...commonCLIOptions],
+				options: commonCLIOptions,
 			},
 			{
 				name: 'log',
 				description: 'Shows logs for the running service',
-				options: [...commonCLIOptions],
+				options: commonCLIOptions,
 			},
 			{
 				name: 'internal-run',
 				description: 'Internal command for running the service',
 				hidden: true,
-				options: [...commonCLIOptions],
+				options: commonCLIOptions,
 			},
 			buildSubcommandWithCommonOptions({
 				name: 'help',
@@ -165,7 +165,7 @@ const tunnelSubcommands: Fig.Subcommand[] = [
 				],
 			}),
 		],
-		options: [...commonCLIOptions],
+		options: commonCLIOptions,
 	},
 	{
 		name: 'forward-internal',

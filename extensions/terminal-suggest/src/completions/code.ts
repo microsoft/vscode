@@ -425,7 +425,7 @@ const codeCompletionSpec: Fig.Spec = {
 	},
 	subcommands: codeTunnelSubcommands,
 	options: [
-		...commonCLIOptions,
+		...commonOptions,
 		...extensionManagementOptions('code'),
 		...troubleshootingOptions('code'),
 	],
