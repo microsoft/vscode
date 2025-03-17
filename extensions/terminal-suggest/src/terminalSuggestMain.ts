@@ -200,11 +200,9 @@ function getPrefix(commandLine: string, cursorPosition: number): string {
 
 	// Extract the part of the line up to the cursor position
 	const beforeCursor = commandLine.slice(0, cursorPosition);
-	// Remove all newlines since terminal wrapping is just visual
-	const sanitized = beforeCursor.replace(/\n/g, '');
-	// Extract the last contiguous non-whitespace sequence
-	const match = sanitized.match(/(\S+)$/);
-	return match ? match[1] : '';
+	// Extract the last contiguous non-whitespace sequence allowing newlines
+	const match = beforeCursor.match(/(\S+)(?:\s*\n\s*\S+)*$/);
+	return match ? match[0] : '';
 }
 
 export function asArray<T>(x: T | T[]): T[];

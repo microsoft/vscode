@@ -116,7 +116,7 @@ export class SimpleCompletionModel<T extends SimpleCompletionItem> {
 			const overwriteBefore = item.completion.replacementLength; // item.position.column - item.editStart.column;
 			const wordLen = overwriteBefore + characterCountDelta; // - (item.position.column - this._column);
 			if (word.length !== wordLen) {
-				word = wordLen === 0 ? '' : leadingLineContent.slice(-wordLen);
+				word = wordLen === 0 ? '' : leadingLineContent.slice(-wordLen).replaceAll('\n', '');
 				wordLow = word.toLowerCase();
 			}
 
@@ -185,7 +185,7 @@ export class SimpleCompletionModel<T extends SimpleCompletionItem> {
 			labelLengths.push(item.textLabel.length);
 		}
 
-		this._filteredItems = target.sort(this._rawCompareFn?.bind(undefined, leadingLineContent));
+		this._filteredItems = target.sort(this._rawCompareFn?.bind(undefined, word));
 		this._refilterKind = Refilter.Nothing;
 
 		this._stats = {

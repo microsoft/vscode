@@ -792,7 +792,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			} else {
 				resultSequence = [
 					// Backspace (left) to remove all additional input
-					'\x7F'.repeat(replacementText.length - commonPrefixLen),
+					'\x7F'.repeat(replacementText.replaceAll('\n', '').length - commonPrefixLen),
 					// Delete (right) to remove any additional text in the same word
 					'\x1b[3~'.repeat(rightSideReplacementText.length),
 					// Write the completion
