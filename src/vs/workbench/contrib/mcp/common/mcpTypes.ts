@@ -9,6 +9,7 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { Location } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
@@ -55,7 +56,7 @@ export interface McpCollectionDefinition {
 	readonly presentation?: {
 		/** Sort order of the collection. */
 		readonly order?: number;
-		/** Place where this server is configured, used in workspac trust prompts */
+		/** Place where this collection is configured, used in workspace trust prompts and "show config" */
 		readonly origin?: URI;
 	};
 }
@@ -94,6 +95,13 @@ export interface McpServerDefinition {
 	readonly launch: McpServerLaunch;
 	/** If set, allows configuration variables to be resolved in the {@link launch} with the given context */
 	readonly variableReplacement?: McpServerDefinitionVariableReplacement;
+
+	readonly presentation?: {
+		/** Sort order of the definition. */
+		readonly order?: number;
+		/** Place where this server is configured, used in workspace trust prompts and "show config" */
+		readonly origin?: Location;
+	};
 }
 
 export namespace McpServerDefinition {
@@ -262,6 +270,7 @@ export interface McpServerTransportStdio {
 export interface McpServerTransportSSE {
 	readonly type: McpServerTransportType.SSE;
 	readonly uri: URI;
+	readonly headers: [string, string][];
 }
 
 export type McpServerLaunch =
@@ -270,7 +279,7 @@ export type McpServerLaunch =
 
 export namespace McpServerLaunch {
 	export type Serialized =
-		| { type: McpServerTransportType.SSE; uri: UriComponents }
+		| { type: McpServerTransportType.SSE; uri: UriComponents; headers: [string, string][] }
 		| { type: McpServerTransportType.Stdio; cwd: UriComponents | undefined; command: string; args: readonly string[]; env: Record<string, string | number | null> };
 
 	export function toSerialized(launch: McpServerLaunch): McpServerLaunch.Serialized {
@@ -280,7 +289,7 @@ export namespace McpServerLaunch {
 	export function fromSerialized(launch: McpServerLaunch.Serialized): McpServerLaunch {
 		switch (launch.type) {
 			case McpServerTransportType.SSE:
-				return { type: launch.type, uri: URI.revive(launch.uri) };
+				return { type: launch.type, uri: URI.revive(launch.uri), headers: launch.headers };
 			case McpServerTransportType.Stdio:
 				return {
 					type: launch.type,

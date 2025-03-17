@@ -24,9 +24,10 @@ import { TestLoggerService, TestStorageService } from '../../../../test/common/w
 import { McpRegistry } from '../../common/mcpRegistry.js';
 import { IMcpHostDelegate, IMcpMessageTransport } from '../../common/mcpRegistryTypes.js';
 import { McpServerConnection } from '../../common/mcpServerConnection.js';
-import { LazyCollectionState, McpCollectionDefinition, McpServerDefinition, McpServerTransportType } from '../../common/mcpTypes.js';
+import { LazyCollectionState, McpCollectionDefinition, McpCollectionReference, McpServerDefinition, McpServerTransportType } from '../../common/mcpTypes.js';
 import { TestMcpMessageTransport } from './mcpRegistryTypes.js';
 import { timeout } from '../../../../../base/common/async.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 
 class TestConfigurationResolverService implements Partial<IConfigurationResolverService> {
 	declare readonly _serviceBrand: undefined;
@@ -171,7 +172,8 @@ suite('Workbench - MCP - Registry', () => {
 			[ISecretStorageService, new TestSecretStorageService()],
 			[ILoggerService, store.add(new TestLoggerService())],
 			[IOutputService, upcast({ showChannel: () => { } })],
-			[IDialogService, testDialogService]
+			[IDialogService, testDialogService],
+			[IProductService, {}],
 		);
 
 		const instaService = store.add(new TestInstantiationService(services));
@@ -488,6 +490,102 @@ suite('Workbench - MCP - Registry', () => {
 			store.add(registry.registerCollection(uncachedLazy));
 
 			assert.strictEqual(registry.lazyCollectionState.get(), LazyCollectionState.HasUnknown);
+		});
+	});
+
+	suite('Collection Tool Prefixes', () => {
+		test('assigns unique prefixes to collections', () => {
+			const collection1: McpCollectionDefinition = {
+				id: 'collection1',
+				label: 'Collection 1',
+				remoteAuthority: null,
+				serverDefinitions: observableValue('serverDefs', []),
+				isTrustedByDefault: true,
+				scope: StorageScope.APPLICATION
+			};
+
+			const collection2: McpCollectionDefinition = {
+				id: 'collection2',
+				label: 'Collection 2',
+				remoteAuthority: null,
+				serverDefinitions: observableValue('serverDefs', []),
+				isTrustedByDefault: true,
+				scope: StorageScope.APPLICATION
+			};
+
+			store.add(registry.registerCollection(collection1));
+			store.add(registry.registerCollection(collection2));
+
+			const prefix1 = registry.collectionToolPrefix(collection1).get();
+			const prefix2 = registry.collectionToolPrefix(collection2).get();
+
+			assert.notStrictEqual(prefix1, prefix2);
+			assert.ok(/^[a-f0-9]{3}\.$/.test(prefix1));
+			assert.ok(/^[a-f0-9]{3}\.$/.test(prefix2));
+		});
+
+		test('handles hash collisions by incrementing view', () => {
+			// These strings are known to have SHA1 hash collisions in their first 3 characters
+			const collection1: McpCollectionDefinition = {
+				id: 'potato',
+				label: 'Collection 1',
+				remoteAuthority: null,
+				serverDefinitions: observableValue('serverDefs', []),
+				isTrustedByDefault: true,
+				scope: StorageScope.APPLICATION
+			};
+
+			const collection2: McpCollectionDefinition = {
+				id: 'candidate_83048',
+				label: 'Collection 2',
+				remoteAuthority: null,
+				serverDefinitions: observableValue('serverDefs', []),
+				isTrustedByDefault: true,
+				scope: StorageScope.APPLICATION
+			};
+
+			store.add(registry.registerCollection(collection1));
+			store.add(registry.registerCollection(collection2));
+
+			const prefix1 = registry.collectionToolPrefix(collection1).get();
+			const prefix2 = registry.collectionToolPrefix(collection2).get();
+
+			assert.notStrictEqual(prefix1, prefix2);
+			assert.ok(/^[a-f0-9]{3}\.$/.test(prefix1));
+			assert.ok(/^[a-f0-9]{3}\.$/.test(prefix2));
+		});
+
+		test('prefix changes when collections change', () => {
+			const collection1: McpCollectionDefinition = {
+				id: 'collection1',
+				label: 'Collection 1',
+				remoteAuthority: null,
+				serverDefinitions: observableValue('serverDefs', []),
+				isTrustedByDefault: true,
+				scope: StorageScope.APPLICATION
+			};
+
+			const disposable = registry.registerCollection(collection1);
+			store.add(disposable);
+
+			const prefix1 = registry.collectionToolPrefix(collection1).get();
+			assert.ok(!!prefix1);
+
+			disposable.dispose();
+
+			const prefix2 = registry.collectionToolPrefix(collection1).get();
+
+			assert.strictEqual(prefix2, '');
+		});
+
+		test('prefix is empty for unknown collections', () => {
+			const unknownCollection: McpCollectionReference = {
+				id: 'unknown',
+				label: 'Unknown'
+			};
+
+			const prefix = registry.collectionToolPrefix(unknownCollection).get();
+			assert.strictEqual(prefix, '');
 		});
 	});
 });

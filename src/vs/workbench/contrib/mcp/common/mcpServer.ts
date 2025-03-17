@@ -110,11 +110,7 @@ export class McpServer extends Disposable implements IMcpServer {
 	private readonly toolsFromServerPromise = observableValue<ObservablePromise<readonly MCP.Tool[]> | undefined>(this, undefined);
 	private readonly toolsFromServer = derived(reader => this.toolsFromServerPromise.read(reader)?.promiseResult.read(reader)?.data);
 
-	public readonly tools = derived(reader => {
-		const serverTools = this.toolsFromServer.read(reader);
-		const definitions = serverTools ?? this.toolsFromCache ?? [];
-		return definitions.map(def => new McpTool(this, def));
-	});
+	public readonly tools: IObservable<readonly IMcpTool[]>;
 
 	public readonly toolsState = derived(reader => {
 		const fromServer = this.toolsFromServerPromise.read(reader);
@@ -183,6 +179,15 @@ export class McpServer extends Disposable implements IMcpServer {
 				this._toolCache.storeTools(definition.id, tools);
 			}
 		}));
+
+		// 4. Publish tools
+		const toolPrefix = this._mcpRegistry.collectionToolPrefix(this.collection);
+		this.tools = derived(reader => {
+			const serverTools = this.toolsFromServer.read(reader);
+			const definitions = serverTools ?? this.toolsFromCache ?? [];
+			const prefix = toolPrefix.read(reader);
+			return definitions.map(def => new McpTool(this, prefix, def));
+		});
 	}
 
 	public showOutput(): void {
@@ -204,6 +209,12 @@ export class McpServer extends Disposable implements IMcpServer {
 			}
 
 			let connection = this._connection.get();
+			if (connection && McpConnectionState.canBeStarted(connection.state.get().state)) {
+				connection.dispose();
+				connection = undefined;
+				this._connection.set(connection, undefined);
+			}
+
 			if (!connection) {
 				connection = await this._mcpRegistry.resolveConnection({
 					collectionRef: this.collection,
@@ -243,7 +254,8 @@ export class McpServer extends Disposable implements IMcpServer {
 		// todo: add more than just tools here
 
 		const updateTools = (tx: ITransaction | undefined) => {
-			this.toolsFromServerPromise.set(new ObservablePromise(handler.listTools({}, cts.token)), tx);
+			const toolPromise = handler.capabilities.tools ? handler.listTools({}, cts.token) : Promise.resolve([]);
+			this.toolsFromServerPromise.set(new ObservablePromise(toolPromise), tx);
 		};
 
 		store.add(handler.onDidChangeToolList(() => updateTools(undefined)));
@@ -302,9 +314,10 @@ export class McpTool implements IMcpTool {
 
 	constructor(
 		private readonly _server: McpServer,
+		idPrefix: string,
 		public readonly definition: MCP.Tool,
 	) {
-		this.id = `${_server.definition.id}_${definition.name}`.replaceAll('.', '_');
+		this.id = (idPrefix + definition.name).replaceAll('.', '_');
 	}
 
 	call(params: Record<string, unknown>, token?: CancellationToken): Promise<MCP.CallToolResult> {

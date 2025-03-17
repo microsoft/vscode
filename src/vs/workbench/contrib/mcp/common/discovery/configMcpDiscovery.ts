@@ -4,15 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals as arrayEquals } from '../../../../../base/common/arrays.js';
-import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Throttler } from '../../../../../base/common/async.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { Location } from '../../../../../editor/common/languages.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../nls.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
+import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
+import { getMcpServerMapping } from '../mcpConfigFileUtils.js';
 import { IMcpConfiguration, mcpConfigurationSection } from '../mcpConfiguration.js';
 import { IMcpRegistry } from '../mcpRegistryTypes.js';
 import { McpCollectionSortOrder, McpServerDefinition, McpServerTransportType } from '../mcpTypes.js';
@@ -32,7 +40,11 @@ export class ConfigMcpDiscovery extends Disposable implements IMcpDiscovery {
 		disposable: MutableDisposable<IDisposable>;
 		order: number;
 		remoteAuthority?: string;
+		uri(): URI | undefined;
+		getServerToLocationMapping(uri: URI): Promise<Map<string, Location>>;
 	}[];
+
+	private _remoteEnvironment: IRemoteAgentEnvironment | null = null;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -40,6 +52,9 @@ export class ConfigMcpDiscovery extends Disposable implements IMcpDiscovery {
 		@IProductService productService: IProductService,
 		@ILabelService labelService: ILabelService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
+		@IPreferencesService preferencesService: IPreferencesService,
+		@ITextModelService private readonly _textModelService: ITextModelService,
 	) {
 		super();
 		const remoteLabel = environmentService.remoteAuthority ? labelService.getHostLabel(Schemas.vscodeRemote, environmentService.remoteAuthority) : 'Remote';
@@ -52,6 +67,8 @@ export class ConfigMcpDiscovery extends Disposable implements IMcpDiscovery {
 				scope: StorageScope.PROFILE,
 				disposable: this._register(new MutableDisposable()),
 				order: McpCollectionSortOrder.User,
+				uri: () => preferencesService.userSettingsResource,
+				getServerToLocationMapping: uri => this._getServerIdMapping(uri, [mcpConfigurationSection, 'servers']),
 			},
 			{
 				key: 'userRemoteValue',
@@ -62,6 +79,8 @@ export class ConfigMcpDiscovery extends Disposable implements IMcpDiscovery {
 				disposable: this._register(new MutableDisposable()),
 				remoteAuthority: environmentService.remoteAuthority,
 				order: McpCollectionSortOrder.User + McpCollectionSortOrder.RemotePenalty,
+				uri: () => this._remoteEnvironment?.settingsPath,
+				getServerToLocationMapping: uri => this._getServerIdMapping(uri, [mcpConfigurationSection, 'servers']),
 			},
 			{
 				key: 'workspaceValue',
@@ -71,25 +90,51 @@ export class ConfigMcpDiscovery extends Disposable implements IMcpDiscovery {
 				scope: StorageScope.WORKSPACE,
 				disposable: this._register(new MutableDisposable()),
 				order: McpCollectionSortOrder.Workspace,
-
+				uri: () => preferencesService.workspaceSettingsResource ? URI.joinPath(preferencesService.workspaceSettingsResource, '../mcp.json') : undefined,
+				getServerToLocationMapping: uri => this._getServerIdMapping(uri, ['servers']),
 			},
 		];
 	}
 
 	public start() {
+		const throttler = this._register(new Throttler());
+
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(mcpConfigurationSection)) {
-				this.sync();
+				throttler.queue(() => this.sync());
 			}
 		}));
 
-		this.sync();
+		this._remoteAgentService.getEnvironment().then(remoteEnvironment => {
+			this._remoteEnvironment = remoteEnvironment;
+			throttler.queue(() => this.sync());
+		});
+
+		throttler.queue(() => this.sync());
 	}
 
-	private sync() {
-		const configurationKey = this._configurationService.inspect<IMcpConfiguration>(mcpConfigurationSection);
+	private async _getServerIdMapping(resource: URI, pathToServers: string[]): Promise<Map<string, Location>> {
+		const store = new DisposableStore();
+		try {
+			const ref = await this._textModelService.createModelReference(resource);
+			store.add(ref);
+			const serverIdMapping = getMcpServerMapping({ model: ref.object.textEditorModel, pathToServers });
+			return serverIdMapping;
+		} catch {
+			return new Map();
+		} finally {
+			store.dispose();
+		}
+	}
 
-		for (const src of this.configSources) {
+	private async sync() {
+		const configurationKey = this._configurationService.inspect<IMcpConfiguration>(mcpConfigurationSection);
+		const configMappings = await Promise.all(this.configSources.map(src => {
+			const uri = src.uri();
+			return uri && src.getServerToLocationMapping(uri);
+		}));
+
+		for (const [index, src] of this.configSources.entries()) {
 			const collectionId = `mcp.config.${src.key}`;
 			let value = configurationKey[src.key];
 
@@ -99,10 +144,15 @@ export class ConfigMcpDiscovery extends Disposable implements IMcpDiscovery {
 				this._configurationService.updateValue(mcpConfigurationSection, value, {}, src.target, { donotNotifyError: true });
 			}
 
+			const configMapping = configMappings[index];
 			const nextDefinitions = Object.entries(value?.servers || {}).map(([name, value]): McpServerDefinition => ({
 				id: `${collectionId}.${name}`,
 				label: name,
-				launch: {
+				launch: 'type' in value && value.type === 'sse' ? {
+					type: McpServerTransportType.SSE,
+					uri: URI.parse(value.url),
+					headers: Object.entries(value.headers || {}),
+				} : {
 					type: McpServerTransportType.Stdio,
 					args: value.args || [],
 					command: value.command,
@@ -112,13 +162,16 @@ export class ConfigMcpDiscovery extends Disposable implements IMcpDiscovery {
 				variableReplacement: {
 					section: mcpConfigurationSection,
 					target: src.target,
+				},
+				presentation: {
+					order: src.order,
+					origin: configMapping?.get(name),
 				}
 			}));
 
 			if (arrayEquals(nextDefinitions, src.serverDefinitions.get(), McpServerDefinition.equals)) {
 				continue;
 			}
-
 
 			if (!nextDefinitions.length) {
 				src.disposable.clear();
@@ -128,7 +181,7 @@ export class ConfigMcpDiscovery extends Disposable implements IMcpDiscovery {
 				src.disposable.value ??= this._mcpRegistry.registerCollection({
 					id: collectionId,
 					label: src.label,
-					presentation: { order: src.order },
+					presentation: { order: src.order, origin: src.uri() },
 					remoteAuthority: src.remoteAuthority || null,
 					serverDefinitions: src.serverDefinitions,
 					isTrustedByDefault: true,

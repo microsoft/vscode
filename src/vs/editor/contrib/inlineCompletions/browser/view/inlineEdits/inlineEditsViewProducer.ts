@@ -48,7 +48,7 @@ export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This c
 		const diffEdits = new TextEdit(edits);
 		const text = new TextModelText(textModel);
 
-		return new InlineEditWithChanges(text, diffEdits, model.primaryPosition.get(), inlineEdit.jumpedTo, inlineEdit.commands, inlineEdit.inlineCompletion);
+		return new InlineEditWithChanges(text, diffEdits, model.primaryPosition.get(), inlineEdit.commands, inlineEdit.inlineCompletion);
 	});
 
 	private readonly _inlineEditModel = derived<InlineEditModel | undefined>(this, reader => {
@@ -81,9 +81,8 @@ export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This c
 		}
 
 		const lineRange = LineRange.ofLength(state.primaryGhostText.lineNumber, 1);
-		const renderExplicitly = false;
 
-		return new GhostTextIndicator(this._editor, model, lineRange, inlineCompletion, renderExplicitly);
+		return new GhostTextIndicator(this._editor, model, lineRange, inlineCompletion);
 	});
 
 	constructor(

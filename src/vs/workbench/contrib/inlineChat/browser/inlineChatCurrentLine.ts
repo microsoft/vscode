@@ -27,7 +27,7 @@ import './media/inlineChat.css';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { InlineCompletionsController } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
-import { ChatAgentLocation, IChatAgentService } from '../../chat/common/chatAgents.js';
+import { IChatAgentService } from '../../chat/common/chatAgents.js';
 import { IMarkerDecorationsService } from '../../../../editor/common/services/markerDecorations.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { toAction } from '../../../../base/common/actions.js';
@@ -39,6 +39,7 @@ import { createStyleSheet2 } from '../../../../base/browser/domStylesheets.js';
 import { stringValue } from '../../../../base/browser/cssValue.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { ChatAgentLocation } from '../../chat/common/constants.js';
 
 export const CTX_INLINE_CHAT_SHOWING_HINT = new RawContextKey<boolean>('inlineChatShowingHint', false, localize('inlineChatShowingHint', "Whether inline chat shows a contextual hint"));
 

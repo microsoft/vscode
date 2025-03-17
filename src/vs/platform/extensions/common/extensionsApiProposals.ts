@@ -151,7 +151,7 @@ const _allApiProposals = {
 	},
 	defaultChatParticipant: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.defaultChatParticipant.d.ts',
-		version: 2
+		version: 3
 	},
 	diffCommand: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.diffCommand.d.ts',
@@ -173,6 +173,9 @@ const _allApiProposals = {
 	},
 	embeddings: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.embeddings.d.ts',
+	},
+	envExtractUri: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.envExtractUri.d.ts',
 	},
 	extensionRuntime: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.extensionRuntime.d.ts',
@@ -337,8 +340,8 @@ const _allApiProposals = {
 	taskPresentationGroup: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.taskPresentationGroup.d.ts',
 	},
-	taskStatus: {
-		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.taskStatus.d.ts',
+	taskProblemMatcherStatus: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.taskProblemMatcherStatus.d.ts',
 	},
 	telemetry: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.telemetry.d.ts',
@@ -363,9 +366,6 @@ const _allApiProposals = {
 	},
 	terminalShellEnv: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.terminalShellEnv.d.ts',
-	},
-	terminalShellType: {
-		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.terminalShellType.d.ts',
 	},
 	testObserver: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.testObserver.d.ts',

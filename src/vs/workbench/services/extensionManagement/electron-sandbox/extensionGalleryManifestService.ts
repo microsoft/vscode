@@ -60,12 +60,15 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 	private extensionGalleryManifestPromise: Promise<IExtensionGalleryManifest | null> | undefined;
 	override getExtensionGalleryManifest(): Promise<IExtensionGalleryManifest | null> {
 		if (!this.extensionGalleryManifestPromise) {
-			const configuredServiceUrl = this.configurationService.inspect<string>('extensions.gallery.serviceUrl').userLocalValue;
-			if (configuredServiceUrl) {
-				this.extensionGalleryManifestPromise = this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl);
-			} else {
-				this.extensionGalleryManifestPromise = super.getExtensionGalleryManifest();
+			if (this.productService.quality !== 'stable') {
+				const configuredServiceUrl = this.configurationService.inspect<string>('extensions.gallery.serviceUrl').userLocalValue;
+				if (configuredServiceUrl) {
+					this.extensionGalleryManifestPromise = this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl);
+				}
 			}
+		}
+		if (!this.extensionGalleryManifestPromise) {
+			this.extensionGalleryManifestPromise = super.getExtensionGalleryManifest();
 		}
 		return this.extensionGalleryManifestPromise;
 	}

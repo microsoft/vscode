@@ -42,9 +42,9 @@ export class ExtensionGalleryManifestIPCService extends ExtensionGalleryManifest
 	}
 
 	private setExtensionGalleryManifest(manifest: IExtensionGalleryManifest | null): void {
-		this.barrier.open();
 		this.extensionGalleryManifest = manifest;
 		this._onDidChangeExtensionGalleryManifest.fire(manifest);
+		this.barrier.open();
 	}
 
 }

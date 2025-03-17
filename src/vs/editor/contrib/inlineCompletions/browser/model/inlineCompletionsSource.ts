@@ -62,10 +62,14 @@ export class InlineCompletionsSource extends Disposable {
 	) {
 		super();
 
-		this._register(this._textModel.onDidChangeContent((e) => {
-			this._updateOperation.clear();
-		}));
+		this.clearOperationOnTextModelChange.recomputeInitiallyAndOnChange(this._store);
 	}
+
+	public readonly clearOperationOnTextModelChange = derived(this, reader => {
+		this._versionId.read(reader);
+		this._updateOperation.clear();
+		return undefined; // always constant
+	});
 
 	private _log(entry:
 		{ sourceId: string; kind: 'start'; requestId: number; context: unknown } & IRecordableEditorLogEntry
@@ -80,7 +84,7 @@ export class InlineCompletionsSource extends Disposable {
 	private readonly _loadingCount = observableValue(this, 0);
 	public readonly loading = this._loadingCount.map(this, v => v > 0);
 
-	public fetch(position: Position, context: InlineCompletionContext, activeInlineCompletion: InlineCompletionWithUpdatedRange | undefined, withDebounce: boolean): Promise<boolean> {
+	public fetch(position: Position, context: InlineCompletionContext, activeInlineCompletion: InlineCompletionWithUpdatedRange | undefined, withDebounce: boolean, userJumpedToActiveCompletion: IObservable<boolean>): Promise<boolean> {
 		const request = new UpdateRequest(position, context, this._textModel.getVersionId());
 
 		const target = context.selectedSuggestionInfo ? this.suggestWidgetInlineCompletions : this.inlineCompletions;
@@ -151,13 +155,18 @@ export class InlineCompletionsSource extends Disposable {
 					}
 				}
 
-				if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId) {
+				if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId || userJumpedToActiveCompletion.get() /* In the meantime the user showed interest for the active completion so dont hide it */) {
 					updatedCompletions.dispose();
 					return false;
 				}
 
 				// Reuse Inline Edit if possible
-				if (activeInlineCompletion && activeInlineCompletion.isInlineEdit && (activeInlineCompletion.canBeReused(this._textModel, position) || updatedCompletions.has(activeInlineCompletion.inlineCompletion) /* Inline Edit wins over completions if it's already been shown*/)) {
+				if (activeInlineCompletion && activeInlineCompletion.isInlineEdit && (
+					activeInlineCompletion.canBeReused(this._textModel, position)
+					|| updatedCompletions.has(activeInlineCompletion.inlineCompletion) /* Inline Edit wins over completions if it's already been shown*/
+					|| updatedCompletions.isEmpty() /* Incoming completion is empty, keep the current one alive */
+				)) {
+					activeInlineCompletion.reuse();
 					updatedCompletions.dispose();
 					return false;
 				}
@@ -319,6 +328,7 @@ export class InlineCompletionWithUpdatedRange extends Disposable {
 
 	private readonly _updatedEditObj: UpdatedEdit; // helper as derivedHandleChanges can not access previous value
 	public get updatedEdit(): IObservable<OffsetEdit | undefined> { return this._updatedEditObj.offsetEdit; }
+	public get updatedEditModelVersion() { return this._updatedEditObj.modelVersion; }
 
 	public get source() { return this.inlineCompletion.source; }
 	public get sourceInlineCompletion() { return this.inlineCompletion.sourceInlineCompletion; }
@@ -404,6 +414,10 @@ export class InlineCompletionWithUpdatedRange extends Disposable {
 
 		return filterTextBefore.startsWith(originalValueBefore)
 			&& !!matchesSubString(originalValueAfter, filterTextAfter);
+	}
+
+	public reuse(): void {
+		this._updatedEditObj.reuse();
 	}
 
 	public canBeReused(model: ITextModel, position: Position): boolean {
@@ -497,7 +511,9 @@ export class InlineCompletionWithUpdatedRange extends Disposable {
 class UpdatedEdit extends Disposable {
 
 	private _innerEdits: SingleUpdatedEdit[];
-	private _invalidationTime: number | undefined = Date.now() + 3000;
+
+	private _inlineEditModelVersion: number;
+	public get modelVersion() { return this._inlineEditModelVersion; }
 
 	private _lastChangePartOfInlineEdit = false;
 	public get lastChangePartOfInlineEdit() { return this._lastChangePartOfInlineEdit; }
@@ -519,10 +535,6 @@ class UpdatedEdit extends Disposable {
 			this._innerEdits = this._applyTextModelChanges(change, this._innerEdits);
 		}
 
-		if (this._hasInvalidationTimePassed()) {
-			return undefined;
-		}
-
 		if (this._innerEdits.length === 0) {
 			return undefined;
 		}
@@ -538,16 +550,18 @@ class UpdatedEdit extends Disposable {
 
 	constructor(
 		offsetEdit: OffsetEdit,
-		textModel: ITextModel,
+		private readonly _textModel: ITextModel,
 		private readonly _modelVersion: IObservableWithChange<number | null, IModelContentChangedEvent | undefined>,
 		isInlineEdit: boolean,
 	) {
 		super();
 
+		this._inlineEditModelVersion = this._modelVersion.get() ?? -1;
+
 		this._innerEdits = offsetEdit.edits.map(edit => {
 			if (isInlineEdit) {
-				const replacedRange = Range.fromPositions(textModel.getPositionAt(edit.replaceRange.start), textModel.getPositionAt(edit.replaceRange.endExclusive));
-				const replacedText = textModel.getValueInRange(replacedRange);
+				const replacedRange = Range.fromPositions(this._textModel.getPositionAt(edit.replaceRange.start), this._textModel.getPositionAt(edit.replaceRange.endExclusive));
+				const replacedText = this._textModel.getValueInRange(replacedRange);
 				return new SingleUpdatedNextEdit(edit, replacedText);
 			}
 
@@ -566,9 +580,15 @@ class UpdatedEdit extends Disposable {
 			return []; // change is invalid, so we will have to drop the completion
 		}
 
+		const currentModelVersion = this._modelVersion.get();
+
 		this._lastChangePartOfInlineEdit = edits.some(edit => edit.lastChangeUpdatedEdit);
 		if (this._lastChangePartOfInlineEdit) {
-			this._cancelInvalidationTimer();
+			this._inlineEditModelVersion = currentModelVersion ?? -1;
+		}
+
+		if (currentModelVersion === null || this._inlineEditModelVersion + 20 < currentModelVersion) {
+			return []; // the completion has been ignored for a while, remove it
 		}
 
 		edits = edits.filter(innerEdit => !innerEdit.edit!.isEmpty);
@@ -579,12 +599,8 @@ class UpdatedEdit extends Disposable {
 		return edits;
 	}
 
-	private _cancelInvalidationTimer() {
-		this._invalidationTime = undefined;
-	}
-
-	private _hasInvalidationTimePassed(): boolean {
-		return !!this._invalidationTime && this._invalidationTime < Date.now();
+	reuse(): void {
+		this._inlineEditModelVersion = this._modelVersion.get() ?? -1;
 	}
 }
 

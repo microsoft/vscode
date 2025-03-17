@@ -17,7 +17,6 @@ import { mnemonicButtonLabel } from '../../../base/common/labels.js';
 import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { IProductService } from '../../product/common/productService.js';
 import { deepClone } from '../../../base/common/objects.js';
-import { IDisposable } from '../../../base/common/lifecycle.js';
 
 export interface IDialogArgs {
 	readonly confirmArgs?: IConfirmDialogArgs;
@@ -276,7 +275,6 @@ export const IDialogService = createDecorator<IDialogService>('dialogService');
 export interface ICustomDialogOptions {
 	readonly buttonDetails?: string[];
 	readonly markdownDetails?: ICustomDialogMarkdown[];
-	readonly htmlDetails?: ICustomDialogHTMLElement[];
 	readonly classes?: string[];
 	readonly icon?: ThemeIcon;
 	readonly disableCloseAction?: boolean;
@@ -286,10 +284,6 @@ export interface ICustomDialogMarkdown {
 	readonly markdown: IMarkdownString;
 	readonly classes?: string[];
 	readonly dismissOnLinkClick?: boolean;
-}
-
-export interface ICustomDialogHTMLElement extends IDisposable {
-	readonly element: unknown /* HTMLElement */;
 }
 
 /**

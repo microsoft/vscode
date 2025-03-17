@@ -83,7 +83,6 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 	private readonly cellEntryMap = new ResourceMap<ChatEditingNotebookCellEntry>();
 	private modifiedToOriginalCell = new ResourceMap<URI>();
 	private readonly _cellsDiffInfo = observableValue<ICellDiffInfo[]>('diffInfo', []);
-	private readonly _maxModifiedLineNumbers = observableValue<number[]>('changedMaxLineNumber', []);
 
 	get cellsDiffInfo(): IObservable<ICellDiffInfo[]> {
 		return this._cellsDiffInfo;
@@ -186,7 +185,6 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		this.originalModel = this._register(originalResourceRef).object.notebook;
 		this.originalURI = this.originalModel.uri;
 		this.initialContent = initialContent;
-		this._maxModifiedLineNumbers.set(this.modifiedModel.cells.map(() => 0), undefined);
 		this.initializeModelsFromDiff();
 		this._register(this.modifiedModel.onDidChangeContent(this.mirrorNotebookEdits, this));
 	}
@@ -476,7 +474,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			this.editedCells.clear();
 		};
 
-		await this._applyEdits(async () => {
+		this._applyEditsSync(async () => {
 			edits.map(edit => {
 				if (TextEdit.isTextEdit(edit)) {
 					// Possible we're getting the raw content for the notebook.
@@ -521,7 +519,8 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			if (!isLastEdits) {
 				this._stateObs.set(WorkingSetEntryState.Modified, tx);
 				this._isCurrentlyBeingModifiedByObs.set(responseModel, tx);
-				this._rewriteRatioObs.set(Math.min(1, calculateNotebookRewriteRatio(this._cellsDiffInfo.get(), this.originalModel, this.modifiedModel)), tx);
+				const newRewriteRation = Math.max(this._rewriteRatioObs.get(), calculateNotebookRewriteRatio(this._cellsDiffInfo.get(), this.originalModel, this.modifiedModel));
+				this._rewriteRatioObs.set(Math.min(1, newRewriteRation), tx);
 
 			} else {
 				finishPreviousCells();
@@ -852,15 +851,16 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		});
 	}
 
+	private readonly cellTextModelMap = new ResourceMap<ITextModel>();
+
 	private async resolveCellModel(cellURI: URI): Promise<ITextModel> {
 		const cell = this.originalModel.cells.concat(this.modifiedModel.cells).find(cell => isEqual(cell.uri, cellURI));
 		if (!cell) {
 			throw new Error('Cell not found');
 		}
-		if (cell.textModel) {
-			return cell.textModel;
-		}
-		return this._register(await this.textModelService.createModelReference(cell.uri)).object.textEditorModel;
+		const model = this.cellTextModelMap.get(cell.uri) || this._register(await this.textModelService.createModelReference(cell.uri)).object.textEditorModel;
+		this.cellTextModelMap.set(cell.uri, model);
+		return model;
 	}
 
 	getOrCreateModifiedTextFileEntryForCell(cell: NotebookCellTextModel, modifiedCellModel: ITextModel, originalCellModel: ITextModel): ChatEditingNotebookCellEntry | undefined {
@@ -898,13 +898,9 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 				};
 			}
 			diffs.splice(entryIndex, 1, { ...entry });
-			const maxModifiedLineNumber = cellEntry.maxModifiedLineNumber.read(r);
-			const maxModifiedLineNumbers = this._maxModifiedLineNumbers.get().slice();
-			maxModifiedLineNumbers[index] = maxModifiedLineNumber;
 
 			transaction(tx => {
 				this.updateCellDiffInfo(diffs, tx);
-				this._maxModifiedLineNumbers.set(maxModifiedLineNumbers, tx);
 			});
 		}));
 

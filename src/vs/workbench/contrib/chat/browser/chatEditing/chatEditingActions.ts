@@ -448,7 +448,7 @@ registerAction2(class RemoveAction extends Action2 {
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 				},
-				when: ContextKeyExpr.and(ChatContextKeys.chatMode.notEqualsTo(ChatMode.Chat), ChatContextKeys.inChatSession, ChatContextKeys.inChatInput.negate()),
+				when: ContextKeyExpr.and(ChatContextKeys.chatMode.notEqualsTo(ChatMode.Ask), ChatContextKeys.inChatSession, ChatContextKeys.inChatInput.negate()),
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
 			menu: [
@@ -456,7 +456,7 @@ registerAction2(class RemoveAction extends Action2 {
 					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(ChatContextKeys.chatMode.notEqualsTo(ChatMode.Chat), ChatContextKeys.isRequest)
+					when: ContextKeyExpr.and(ChatContextKeys.chatMode.notEqualsTo(ChatMode.Ask), ChatContextKeys.isRequest)
 				}
 			]
 		});
@@ -620,7 +620,7 @@ registerAction2(class ResolveSymbolsContextAction extends EditingSessionAction {
 				id: MenuId.ChatInputSymbolAttachmentContext,
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyExpr.and(ChatContextKeys.chatMode.isEqualTo(ChatMode.Chat), EditorContextKeys.hasReferenceProvider)
+				when: ContextKeyExpr.and(ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask), EditorContextKeys.hasReferenceProvider)
 			}
 		});
 	}

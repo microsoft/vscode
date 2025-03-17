@@ -1347,14 +1347,14 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		if (styles.listFocusAndSelectionBackground) {
 			content.push(`
-				.monaco-drag-image,
+				.monaco-drag-image${suffix},
 				.monaco-list${suffix}:focus > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected.focused { background-color: ${styles.listFocusAndSelectionBackground}; }
 			`);
 		}
 
 		if (styles.listFocusAndSelectionForeground) {
 			content.push(`
-				.monaco-drag-image,
+				.monaco-drag-image${suffix},
 				.monaco-list${suffix}:focus > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected.focused { color: ${styles.listFocusAndSelectionForeground}; }
 			`);
 		}
@@ -1387,7 +1387,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		if (styles.listFocusOutline) {
 			content.push(`
-				.monaco-drag-image,
+				.monaco-drag-image${suffix},
 				.monaco-list${suffix}:focus > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }
 			`);
 		}

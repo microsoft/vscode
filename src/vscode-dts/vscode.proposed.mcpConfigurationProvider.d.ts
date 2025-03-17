@@ -24,6 +24,8 @@ declare module 'vscode' {
 
 		uri: Uri;
 
+		headers: [string, string][];
+
 		constructor(label: string, uri: Uri);
 	}
 
