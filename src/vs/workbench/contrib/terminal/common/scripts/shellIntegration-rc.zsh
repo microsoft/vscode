@@ -74,6 +74,8 @@ if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 	builtin return
 fi
 
+# The property (P) and command (E) codes embed values which require escaping.
+# Backslashes are doubled. Non-alphanumeric characters are converted to escaped hex.
 __vsc_escape_value() {
 	builtin emulate -L zsh
 
@@ -110,6 +112,8 @@ unset VSCODE_NONCE
 
 __vscode_shell_env_reporting="$VSCODE_SHELL_ENV_REPORTING"
 unset VSCODE_SHELL_ENV_REPORTING
+
+builtin printf "\e]633;P;ContinuationPrompt=%s\a" "$(echo "$PS2" | sed 's/\x1b/\\\\x1b/g')"
 
 # Report this shell supports rich command detection
 builtin printf '\e]633;P;HasRichCommandDetection=True\a'
@@ -211,11 +215,7 @@ __vsc_update_env() {
 				# Associative array is empty, do not diff, just add
 				while IFS='=' read -r key value; do
 					vsc_aa_env["$key"]="$value"
-					# print key value pair
-					# builtin printf ' Iterating through single key, value: \n'
-					# builtin printf 'my key is %s and my escaped value is %s \n' "$key" "$(__vsc_escape_value "$value")"
 					builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
-					# builtin printf ' Done iterating through single key, value: \n\n '
 				done < <(env)
 			else
 				# Diff approach for associative array
@@ -232,12 +232,7 @@ __vsc_update_env() {
 				while IFS='=' read -r key value; do
 					__vsc_env_keys+=("$key")
 					__vsc_env_values+=("$value")
-					if [[ "$key" == "PS1" ]]; then
-						builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$value" "$__vsc_nonce"
-					else
-						builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
-					fi
-
+					builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
 				done < <(env)
 			else
 				# Diff approach for non-associative arrays
@@ -292,12 +287,6 @@ __vsc_update_prompt() {
 	__vsc_prior_prompt="$PS1"
 	__vsc_prior_prompt2="$PS2"
 	__vsc_in_command_execution=""
-	# builtin print value of __vsc_prompt_start, ps1, __vsc_prompt_end
-	# builtin printf 'printing value of __vsc_prompt_start, ps1, __vsc_prompt_end'
-	# builtin printf 'my __vsc_prompt_start is %s \n' "$__vsc_prompt_start"
-	# builtin printf 'my PS1 is %s \n' "$PS1"
-	# builtin printf 'my __vsc_prompt_end %s \n' "$__vsc_prompt_end"
-
 	PS1="%{$(__vsc_prompt_start)%}$PS1%{$(__vsc_prompt_end)%}"
 	PS2="%{$(__vsc_continuation_start)%}$PS2%{$(__vsc_continuation_end)%}"
 	if [ -n "$RPROMPT" ]; then
