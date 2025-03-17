@@ -254,13 +254,23 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	public executePaste(): boolean {
-		const textArea = this.textArea;
 		this.onWillPaste();
-		textArea.focus();
-		const result = this.textArea.domNode.ownerDocument.execCommand('paste');
-		textArea.domNode.textContent = '';
-		this.domNode.focus();
-		return result;
+		try {
+			// pause focus tracking because we don't want to react to focus/blur
+			// events while pasting since we move the focus to the textarea
+			this._focusTracker.pause();
+
+			// Since we can not call execCommand('paste') on a dom node with edit context set
+			// we added a hidden text area that receives the paste execution
+			this.textArea.focus();
+			const result = this.textArea.domNode.ownerDocument.execCommand('paste');
+			this.textArea.domNode.textContent = '';
+			this.domNode.focus();
+
+			return result;
+		} finally {
+			this._focusTracker.resume(); // resume focus tracking
+		}
 	}
 
 	private onWillPaste(): void {
@@ -272,7 +282,7 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	public isFocused(): boolean {
-		return this._focusTracker.isFocused || (getActiveWindow().document.activeElement === this.textArea.domNode);
+		return this._focusTracker.isFocused;
 	}
 
 	public focus(): void {

@@ -237,9 +237,6 @@ if (PasteAction) {
 			let result: boolean;
 			const experimentalEditContextEnabled = focusedEditor.getOption(EditorOption.effectiveExperimentalEditContextEnabled);
 			if (experimentalEditContextEnabled) {
-				// Since we can not call execCommand('paste') on a dom node with edit context set
-				// we added a hidden text area that receives the paste execution
-				// see nativeEditContext.ts for more details
 				const nativeEditContext = NativeEditContextRegistry.get(focusedEditor.getId());
 				if (nativeEditContext) {
 					result = nativeEditContext.executePaste();
