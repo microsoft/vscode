@@ -7,7 +7,7 @@ import assert from 'assert';
 
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { isURLDomainTrusted } from '../../browser/trustedDomainService.js';
+import { isURLDomainTrusted } from '../../common/trustedDomains.js';
 
 function linkAllowedByRules(link: string, rules: string[]) {
 	assert.ok(isURLDomainTrusted(URI.parse(link), rules), `Link\n${link}\n should be allowed by rules\n${JSON.stringify(rules)}`);
