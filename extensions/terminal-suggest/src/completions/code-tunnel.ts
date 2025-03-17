@@ -2,12 +2,76 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import code, { commonCLIOptions, commonOptions, extensionManagementOptions, troubleshootingOptions } from './code';
+import code, { commonOptions, extensionManagementOptions, troubleshootingOptions } from './code';
 
-export const buildSubcommandWithCommonOptions = (command: any) => ({
-	...command,
-	options: [...(command.options || []), ...commonCLIOptions]
-});
+export const commonCLIOptions: Fig.Option[] = [
+	{
+		name: '--cli-data-dir',
+		description: 'Directory where CLI metadata should be stored',
+		isRepeatable: true,
+		args: {
+			name: 'cli_data_dir',
+			isOptional: true,
+		},
+	},
+	{
+		name: '--log-to-file',
+		description: 'Log to a file in addition to stdout. Used when running as a service',
+		hidden: true,
+		isRepeatable: true,
+		args: {
+			name: 'log_to_file',
+			isOptional: true,
+			template: 'filepaths',
+		},
+	},
+	{
+		name: '--log',
+		description: 'Log level to use',
+		isRepeatable: true,
+		args: {
+			name: 'log',
+			isOptional: true,
+			suggestions: [
+				'trace',
+				'debug',
+				'info',
+				'warn',
+				'error',
+				'critical',
+				'off',
+			],
+		},
+	},
+	{
+		name: '--telemetry-level',
+		description: 'Sets the initial telemetry level',
+		hidden: true,
+		isRepeatable: true,
+		args: {
+			name: 'telemetry_level',
+			isOptional: true,
+			suggestions: [
+				'off',
+				'crash',
+				'error',
+				'all',
+			],
+		},
+	},
+	{
+		name: '--verbose',
+		description: 'Print verbose output (implies --wait)',
+	},
+	{
+		name: '--disable-telemetry',
+		description: 'Disable telemetry for the current command, even if it was previously accepted as part of the license prompt or specified in \'--telemetry-level\'',
+	},
+	{
+		name: ['-h', '--help'],
+		description: 'Print help',
+	},
+];
 
 const commonAuthOptions: Fig.Option[] = [
 	{
@@ -100,7 +164,7 @@ const tunnelSubcommands: Fig.Subcommand[] = [
 				description: 'Show the account that\'s logged into port forwarding service',
 				options: commonCLIOptions,
 			},
-			buildSubcommandWithCommonOptions({
+			{
 				name: 'help',
 				description: 'Print this message or the help of the given subcommand(s)',
 				subcommands: [
@@ -109,7 +173,8 @@ const tunnelSubcommands: Fig.Subcommand[] = [
 					{ name: 'show', description: 'Show the account that\'s logged into port forwarding service' },
 					{ name: 'help', description: 'Print this message or the help of the given subcommand(s)' },
 				],
-			}),
+				options: commonCLIOptions,
+			},
 		],
 		options: commonCLIOptions,
 	},
@@ -153,7 +218,7 @@ const tunnelSubcommands: Fig.Subcommand[] = [
 				hidden: true,
 				options: commonCLIOptions,
 			},
-			buildSubcommandWithCommonOptions({
+			{
 				name: 'help',
 				description: 'Print this message or the help of the given subcommand(s)',
 				subcommands: [
@@ -163,7 +228,8 @@ const tunnelSubcommands: Fig.Subcommand[] = [
 					{ name: 'internal-run', description: 'Internal command for running the service', hidden: true },
 					{ name: 'help', description: 'Print this message or the help of the given subcommand(s)' },
 				],
-			}),
+				options: commonCLIOptions
+			},
 		],
 		options: commonCLIOptions,
 	},
@@ -178,7 +244,7 @@ const tunnelSubcommands: Fig.Subcommand[] = [
 			isOptional: true,
 		},
 	},
-	buildSubcommandWithCommonOptions({
+	{
 		name: 'help',
 		description: 'Print this message or the help of the given subcommand(s)',
 		subcommands: [
@@ -209,56 +275,8 @@ const tunnelSubcommands: Fig.Subcommand[] = [
 			{ name: 'forward-internal', description: '(Preview) Forwards local port using the dev tunnel', hidden: true },
 			{ name: 'help', description: 'Print this message or the help of the given subcommand(s)' },
 		],
-	}),
+	},
 ];
-const codeTunnelCompletionSpec: Fig.Spec = {
-	...code,
-	name: 'code-tunnel',
-	description: 'Create a tunnel that\'s accessible on vscode.dev from anywhere.',
-	subcommands: tunnelSubcommands,
-	options: [
-		...commonOptions,
-		...extensionManagementOptions('code-tunnel'),
-		...troubleshootingOptions('code-tunnel'),
-		{
-			name: '--cli-data-dir',
-			description: 'Directory where CLI metadata should be stored',
-			isRepeatable: true,
-			args: {
-				name: 'cli_data_dir',
-				isOptional: true,
-			},
-		},
-		{
-			name: '--log-to-file',
-			description: 'Log to a file in addition to stdout. Used when running as a service',
-			hidden: true,
-			isRepeatable: true,
-			args: {
-				name: 'log_to_file',
-				isOptional: true,
-				template: 'filepaths',
-			},
-		},
-
-		{
-			name: '--telemetry-level',
-			description: 'Sets the initial telemetry level',
-			hidden: true,
-			isRepeatable: true,
-			args: {
-				name: 'telemetry_level',
-				isOptional: true,
-				suggestions: [
-					'off',
-					'crash',
-					'error',
-					'all',
-				],
-			},
-		},
-	]
-};
 export const codeTunnelSubcommands = [{
 	name: 'serve-web',
 	description: 'Runs a local web version of Code - OSS',
@@ -443,5 +461,53 @@ export const codeTunnelSubcommands = [{
 	],
 }];
 
+const codeTunnelCompletionSpec: Fig.Spec = {
+	...code,
+	name: 'code-tunnel',
+	description: 'Create a tunnel that\'s accessible on vscode.dev from anywhere.',
+	subcommands: tunnelSubcommands,
+	options: [
+		...commonOptions,
+		...extensionManagementOptions('code-tunnel'),
+		...troubleshootingOptions('code-tunnel'),
+		{
+			name: '--cli-data-dir',
+			description: 'Directory where CLI metadata should be stored',
+			isRepeatable: true,
+			args: {
+				name: 'cli_data_dir',
+				isOptional: true,
+			},
+		},
+		{
+			name: '--log-to-file',
+			description: 'Log to a file in addition to stdout. Used when running as a service',
+			hidden: true,
+			isRepeatable: true,
+			args: {
+				name: 'log_to_file',
+				isOptional: true,
+				template: 'filepaths',
+			},
+		},
+
+		{
+			name: '--telemetry-level',
+			description: 'Sets the initial telemetry level',
+			hidden: true,
+			isRepeatable: true,
+			args: {
+				name: 'telemetry_level',
+				isOptional: true,
+				suggestions: [
+					'off',
+					'crash',
+					'error',
+					'all',
+				],
+			},
+		},
+	]
+};
 
 export default codeTunnelCompletionSpec;
