@@ -403,9 +403,8 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			const zIndex = '1';
 			lineHTMLNode.style.zIndex = zIndex;
 			lineNumberHTMLNode.style.zIndex = zIndex;
-			const top = `${index * this._lineHeight}px`;
-			lineHTMLNode.style.top = top;
-			lineNumberHTMLNode.style.top = top;
+			lineHTMLNode.style.top = `${top}px`;
+			lineNumberHTMLNode.style.top = `${top}px`;
 		}
 		return stickyLine;
 	}
