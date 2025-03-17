@@ -60,7 +60,7 @@ import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, ChatEntitlementService, IChatEntitlementService } from '../common/chatEntitlementService.js';
 import { IChatProgress, IChatProgressMessage, IChatService, IChatWarningMessage } from '../common/chatService.js';
 import { CHAT_CATEGORY, CHAT_SETUP_ACTION_ID } from './actions/chatActions.js';
-import { ChatViewId, EditsViewId, ensureSideBarChatViewSize, preferCopilotEditsView, showCopilotView } from './chat.js';
+import { ChatViewId, EditsViewId, ensureSideBarChatViewSize, IChatWidgetService, preferCopilotEditsView, showCopilotView } from './chat.js';
 import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
 import { ChatViewsWelcomeExtensions, IChatViewsWelcomeContributionRegistry } from './viewsWelcome/chatViewsWelcome.js';
 import { ChatAgentLocation } from '../common/constants.js';
@@ -170,13 +170,16 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 		return this.instantiationService.invokeFunction(async accessor => {
 			const chatService = accessor.get(IChatService);						// use accessor for lazy loading
 			const languageModelsService = accessor.get(ILanguageModelsService);	// of chat related services
+			const chatWidgetService = accessor.get(IChatWidgetService);
 
-			return this.doInvoke(request, progress, chatService, languageModelsService);
+			return this.doInvoke(request, progress, chatService, languageModelsService, chatWidgetService);
 		});
 	}
 
-	private async doInvoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService): Promise<IChatAgentResult> {
+	private async doInvoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService): Promise<IChatAgentResult> {
 		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'chat' });
+
+		const requestModel = chatWidgetService.getWidgetBySessionId(request.sessionId)?.viewModel?.model.getRequests().at(-1);
 
 		const setup = this.instantiationService.createInstance(ChatSetup, this.context, this.controller);
 
@@ -211,10 +214,6 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 		// User has agreed to run the setup
 		if (typeof success === 'boolean') {
 			if (success) {
-				progress({
-					kind: 'progressMessage',
-					content: new MarkdownString(localize('copilotReady', "Copilot is ready to use.")),
-				} satisfies IChatProgressMessage);
 
 				// Await a default model to be present before attempting
 				// to re-submit the request. Otherwise, the request will fail.
@@ -223,9 +222,9 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 					whenDefaultModel
 				]);
 
-				if (hasDefaultModel) {
-					chatService.cancelCurrentRequestForSession(request.sessionId);
-					chatService.sendRequest(request.sessionId, request.message);
+				// Resend the request now that the setup is complete
+				if (hasDefaultModel && requestModel) {
+					chatService.resendRequest(requestModel);
 				}
 			} else {
 				progress({
