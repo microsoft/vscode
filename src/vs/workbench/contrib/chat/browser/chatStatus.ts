@@ -292,7 +292,7 @@ class ChatStatusDashboard extends Disposable {
 			if (newUser || signedOut) {
 				addSeparator(undefined);
 
-				this.element.appendChild($('div.description', undefined, newUser ? localize('activateDescription', "You need to set up Copilot.") : localize('signInDescription', "You need to sign in to use Copilot.")));
+				this.element.appendChild($('div.description', undefined, newUser ? localize('activateDescription', "Set up Copilot to use AI features.") : localize('signInDescription', "Sign in to use Copilot AI features.")));
 
 				const button = disposables.add(new Button(this.element, { ...defaultButtonStyles }));
 				button.label = newUser ? localize('activateCopilotButton', "Set up Copilot Free") : localize('signInToUseCopilotButton', "Sign In");
