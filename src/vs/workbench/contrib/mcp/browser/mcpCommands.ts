@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { h } from '../../../../base/browser/dom.js';
+import { assertNever } from '../../../../base/common/assert.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { groupBy } from '../../../../base/common/collections.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, derived } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ILocalizedString, localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -21,6 +23,7 @@ import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickin
 import { spinningLoading } from '../../../../platform/theme/common/iconRegistry.js';
 import { ActiveEditorContext, ResourceContextKey } from '../../../common/contextkeys.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { ChatMode } from '../../chat/common/constants.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
@@ -118,13 +121,19 @@ export class McpServerOptionsCommand extends Action2 {
 	override async run(accessor: ServicesAccessor, id: string): Promise<void> {
 		const mcpService = accessor.get(IMcpService);
 		const quickInputService = accessor.get(IQuickInputService);
+		const mcpRegistry = accessor.get(IMcpRegistry);
+		const editorService = accessor.get(IEditorService);
 		const server = mcpService.servers.get().find(s => s.definition.id === id);
 		if (!server) {
 			return;
 		}
 
+
+		const collection = mcpRegistry.collections.get().find(c => c.id === server.collection.id);
+		const serverDefinition = collection?.serverDefinitions.get().find(s => s.id === server.definition.id);
+
 		interface ActionItem extends IQuickPickItem {
-			action: 'start' | 'stop' | 'restart' | 'showOutput';
+			action: 'start' | 'stop' | 'restart' | 'showOutput' | 'config';
 		}
 
 		const items: ActionItem[] = [];
@@ -133,24 +142,32 @@ export class McpServerOptionsCommand extends Action2 {
 		// Only show start when server is stopped or in error state
 		if (McpConnectionState.canBeStarted(serverState.state)) {
 			items.push({
-				label: localize2('mcp.start', 'Start Server').value,
+				label: localize('mcp.start', 'Start Server'),
 				action: 'start'
 			});
 		} else {
 			items.push({
-				label: localize2('mcp.stop', 'Stop Server').value,
+				label: localize('mcp.stop', 'Stop Server'),
 				action: 'stop'
 			});
 			items.push({
-				label: localize2('mcp.restart', 'Restart Server').value,
+				label: localize('mcp.restart', 'Restart Server'),
 				action: 'restart'
 			});
 		}
 
 		items.push({
-			label: localize2('mcp.showOutput', 'Show Output').value,
+			label: localize('mcp.showOutput', 'Show Output'),
 			action: 'showOutput'
 		});
+
+		const configTarget = serverDefinition?.presentation?.origin || collection?.presentation?.origin;
+		if (configTarget) {
+			items.push({
+				label: localize('mcp.config', 'Show Configuration'),
+				action: 'config',
+			});
+		}
 
 		const pick = await quickInputService.pick(items, {
 			title: server.definition.label,
@@ -176,6 +193,14 @@ export class McpServerOptionsCommand extends Action2 {
 			case 'showOutput':
 				server.showOutput();
 				break;
+			case 'config':
+				editorService.openEditor({
+					resource: URI.isUri(configTarget) ? configTarget : configTarget!.uri,
+					options: { selection: URI.isUri(configTarget) ? undefined : configTarget!.range }
+				});
+				break;
+			default:
+				assertNever(pick.action);
 		}
 	}
 }

@@ -3,8 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { mapFindFirst } from '../../../../base/common/arraysFind.js';
 import { assertNever } from '../../../../base/common/assert.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -14,8 +17,11 @@ import { IMcpConfiguration, IMcpConfigurationSSE, McpConfigurationServer } from 
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IJSONEditingService } from '../../../services/configuration/common/jsonEditing.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IMcpConfigurationStdio, mcpStdioServerSchema } from '../common/mcpConfiguration.js';
+import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
+import { McpServerOptionsCommand } from './mcpCommands.js';
 
 
 const enum AddConfigurationType {
@@ -48,6 +54,8 @@ export class McpAddConfigurationCommand {
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@ICommandService private readonly _commandService: ICommandService,
+		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
+		@IEditorService private readonly _openerService: IEditorService,
 	) { }
 
 	private async getServerType(): Promise<AddConfigurationType | undefined> {
@@ -241,6 +249,32 @@ export class McpAddConfigurationCommand {
 		return { name, config };
 	}
 
+	private showOnceDiscovered(name: string) {
+		const store = new DisposableStore();
+		store.add(autorun(reader => {
+			const colls = this._mcpRegistry.collections.read(reader);
+			const match = mapFindFirst(colls, collection => mapFindFirst(collection.serverDefinitions.read(reader),
+				server => server.label === name ? { server, collection } : undefined));
+			if (match) {
+				if (match.collection.presentation?.origin) {
+					this._openerService.openEditor({
+						resource: match.collection.presentation.origin,
+						options: {
+							selection: match.server.presentation?.origin?.range,
+							preserveFocus: true,
+						}
+					});
+				} else {
+					this._commandService.executeCommand(McpServerOptionsCommand.id, name);
+				}
+
+				store.dispose();
+			}
+		}));
+
+		store.add(disposableTimeout(() => store.dispose(), 5000));
+	}
+
 	public async run(): Promise<void> {
 		// Step 1: Choose server type
 		const serverType = await this.getServerType();
@@ -311,5 +345,7 @@ export class McpAddConfigurationCommand {
 			settings.servers = { ...settings.servers, [serverId]: serverConfig };
 			await this._configurationService.updateValue('mcp', settings, target!);
 		}
+
+		this.showOnceDiscovered(serverId);
 	}
 }
