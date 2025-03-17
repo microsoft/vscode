@@ -717,7 +717,7 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 			let primaryActionIcon: ThemeIcon;
 			if (!chatExtensionInstalled && !setupFromDialog) {
 				primaryActionId = CHAT_SETUP_ACTION_ID;
-				primaryActionTitle = localize('triggerChatSetup', "Use AI Features with Copilot for Free...");
+				primaryActionTitle = localize('triggerChatSetup', "Use AI Features with Copilot Free...");
 				primaryActionIcon = Codicon.copilot;
 			} else if (chatExtensionInstalled && signedOut) {
 				primaryActionId = TOGGLE_CHAT_ACTION_ID;

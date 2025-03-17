@@ -283,7 +283,7 @@ class ChatSetupDialog {
 
 		const dialog = disposables.add(new Dialog(
 			this.layoutService.activeContainer,
-			localize('copilotFree', "Activate Copilot Free"),
+			localize('copilotFree', "Set up Copilot Free"),
 			buttons,
 			createWorkbenchDialogOptions({
 				type: 'none',
@@ -310,12 +310,12 @@ class ChatSetupDialog {
 	private getPrimaryButton(): string {
 		switch (this.context.state.entitlement) {
 			case ChatEntitlement.Unknown:
-				return this.context.state.registered ? localize('signUp', "Sign in to Use Copilot") : localize('signUpFree', "Sign in to Use Copilot for Free");
+				return this.context.state.registered ? localize('signUp', "Sign in to Use Copilot") : localize('signUpFree', "Sign in to Use Copilot Free");
 			case ChatEntitlement.Unresolved:
-				return this.context.state.registered ? localize('startUp', "Use Copilot") : localize('startUpLimited', "Use Copilot for Free");
+				return this.context.state.registered ? localize('startUp', "Use Copilot") : localize('startUpLimited', "Use Copilot Free");
 			case ChatEntitlement.Available:
 			case ChatEntitlement.Limited:
-				return localize('startUpLimited', "Use Copilot for Free");
+				return localize('startUpLimited', "Use Copilot Free");
 			case ChatEntitlement.Pro:
 			case ChatEntitlement.Unavailable:
 				return localize('startUp', "Use Copilot");
@@ -433,7 +433,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				ChatContextKeys.Entitlement.canSignUp
 			));
 
-		const CHAT_SETUP_ACTION_LABEL = localize2('triggerChatSetup', "Use AI Features with Copilot for Free...");
+		const CHAT_SETUP_ACTION_LABEL = localize2('triggerChatSetup', "Use AI Features with Copilot Free...");
 
 		class ChatSetupTriggerAction extends Action2 {
 
@@ -1066,7 +1066,7 @@ class ChatSetupWelcomeContent extends Disposable {
 		}
 
 		// Limited SKU
-		const free = localize({ key: 'free', comment: ['{Locked="[]({0})"}'] }, "$(sparkle-filled) We now offer [Copilot for free]({0}).", defaultChat.skusDocumentationUrl);
+		const free = localize({ key: 'free', comment: ['{Locked="[]({0})"}'] }, "$(sparkle-filled) We now offer [Copilot Free]({0}).", defaultChat.skusDocumentationUrl);
 		const freeContainer = this.element.appendChild($('p', undefined, this._register(markdown.render(new MarkdownString(free, { isTrusted: true, supportThemeIcons: true }))).element));
 
 		// Setup Button
@@ -1104,16 +1104,16 @@ class ChatSetupWelcomeContent extends Disposable {
 		switch (this.context.state.entitlement) {
 			case ChatEntitlement.Unknown:
 				showFree = true;
-				buttonLabel = this.context.state.registered ? localize('signUp', "Sign in to Use Copilot") : localize('signUpFree', "Sign in to Use Copilot for Free");
+				buttonLabel = this.context.state.registered ? localize('signUp', "Sign in to Use Copilot") : localize('signUpFree', "Sign in to Use Copilot Free");
 				break;
 			case ChatEntitlement.Unresolved:
 				showFree = true;
-				buttonLabel = this.context.state.registered ? localize('startUp', "Use Copilot") : localize('startUpLimited', "Use Copilot for Free");
+				buttonLabel = this.context.state.registered ? localize('startUp', "Use Copilot") : localize('startUpLimited', "Use Copilot Free");
 				break;
 			case ChatEntitlement.Available:
 			case ChatEntitlement.Limited:
 				showFree = true;
-				buttonLabel = localize('startUpLimited', "Use Copilot for Free");
+				buttonLabel = localize('startUpLimited', "Use Copilot Free");
 				break;
 			case ChatEntitlement.Pro:
 			case ChatEntitlement.Unavailable:
