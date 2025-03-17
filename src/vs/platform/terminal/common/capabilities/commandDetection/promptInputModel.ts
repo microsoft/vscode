@@ -10,6 +10,7 @@ import type { ITerminalCommand } from '../capabilities.js';
 import { throttle } from '../../../../../base/common/decorators.js';
 
 import type { Terminal, IMarker, IBufferCell, IBufferLine, IBuffer } from '@xterm/headless';
+import { PosixShellType, TerminalShellType } from '../../terminal.js';
 
 const enum PromptInputState {
 	Unknown = 0,
@@ -38,6 +39,8 @@ export interface IPromptInputModel extends IPromptInputModelState {
 	 * empty (as opposed to '|').
 	 */
 	getCombinedString(emptyStringWhenEmpty?: boolean): string;
+
+	setShellType(shellType?: TerminalShellType): void;
 }
 
 export interface IPromptInputModelState {
@@ -79,6 +82,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 	private _commandStartX: number = 0;
 	private _lastPromptLine: string | undefined;
 	private _continuationPrompt: string | undefined;
+	private _shellType: TerminalShellType | undefined;
 
 	private _lastUserInput: string = '';
 
@@ -133,6 +137,10 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		if (this._logService.getLevel() === LogLevel.Trace) {
 			this._logService.trace(message, this.getCombinedString());
 		}
+	}
+
+	setShellType(shellType: TerminalShellType): void {
+		this._shellType = shellType;
 	}
 
 	setContinuationPrompt(value: string): void {
@@ -300,8 +308,9 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			line = buffer.getLine(y);
 			const lineText = line?.translateToString(true);
 			if (lineText && line) {
-				// Check if the line wrapped without a new line (continuation)
-				if (line.isWrapped) {
+				// Check if the line wrapped without a new line (continuation) or if the first line was empty
+				// for fish, which doesn't use a continuation prompt.
+				if (line.isWrapped || (commandLine === '' && this._shellType === PosixShellType.Fish)) {
 					value += lineText;
 					const relativeCursorIndex = this._getRelativeCursorIndex(0, buffer, line);
 					if (absoluteCursorY === y) {
