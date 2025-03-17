@@ -5,18 +5,16 @@
 
 
 import { reset } from '../../../../base/browser/dom.js';
+import { IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { assertType } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
-import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILanguageModelToolsService, IToolData } from '../common/languageModelToolsService.js';
-import { AttachToolsAction } from './actions/chatToolActions.js';
 
 export class ChatSelectedTools extends Disposable {
 
@@ -24,8 +22,9 @@ export class ChatSelectedTools extends Disposable {
 
 	readonly tools: IObservable<IToolData[]>;
 
+	readonly toolsActionItemViewItemProvider: IActionViewItemProvider;
+
 	constructor(
-		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
 		@IInstantiationService instaService: IInstantiationService
 	) {
@@ -47,7 +46,7 @@ export class ChatSelectedTools extends Disposable {
 			return { count, enabled };
 		});
 
-		this._store.add(actionViewItemService.register(MenuId.ChatInputAttachmentToolbar, AttachToolsAction.id, (action, options) => {
+		this.toolsActionItemViewItemProvider = (action, options) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
@@ -81,7 +80,7 @@ export class ChatSelectedTools extends Disposable {
 
 			}, action, { ...options, keybindingNotRenderedWithLabel: true });
 
-		}, Event.fromObservable(toolsCount)));
+		};
 	}
 
 	update(tools: IToolData[]): void {
