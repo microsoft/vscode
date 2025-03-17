@@ -62,7 +62,7 @@ export class InlineCompletionsModel extends Disposable {
 	private readonly _suggestPreviewMode = this._editorObs.getOption(EditorOption.suggest).map(v => v.previewMode);
 	private readonly _inlineSuggestMode = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => v.mode);
 	private readonly _inlineEditsEnabled = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !!v.edits.enabled);
-	private readonly _inlineEditsShowCollapsed = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.showCollapsed);
+	private readonly _inlineEditsShowCollapsedEnabled = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.showCollapsed);
 
 	constructor(
 		public readonly textModel: ITextModel,
@@ -391,8 +391,7 @@ export class InlineCompletionsModel extends Disposable {
 			}
 
 			const commands = inlineEditResult.inlineCompletion.source.inlineCompletions.commands;
-			const renderExplicitly = this._jumpedTo.read(reader);
-			const inlineEdit = new InlineEdit(edit, renderExplicitly, commands ?? [], inlineEditResult.inlineCompletion);
+			const inlineEdit = new InlineEdit(edit, commands ?? [], inlineEditResult.inlineCompletion);
 
 			const edits = inlineEditResult.updatedEdit.read(reader);
 			const e = edits ? TextEdit.fromOffsetEdit(edits, new TextModelText(this.textModel)).edits : [edit];
@@ -510,6 +509,18 @@ export class InlineCompletionsModel extends Disposable {
 		return v?.primaryGhostText;
 	});
 
+	public readonly showCollapsed = derived<boolean>(this, reader => {
+		const state = this.state.read(reader);
+		if (!state || state.kind !== 'inlineEdit') {
+			return false;
+		}
+
+		const isCurrentModelVersion = state.inlineCompletion.updatedEditModelVersion === this._textModelVersionId.read(reader); // TODO: this is a hack
+		return (this._inlineEditsShowCollapsedEnabled.read(reader) || !isCurrentModelVersion)
+			&& !this._jumpedTo.read(reader)
+			&& !this._inAcceptFlow.read(reader);
+	});
+
 	private readonly _tabShouldIndent = derived(this, reader => {
 		if (this._inAcceptFlow.read(reader)) {
 			return false;
@@ -546,8 +557,8 @@ export class InlineCompletionsModel extends Disposable {
 			return false;
 		}
 
-		if (this._inlineEditsShowCollapsed.read(reader)) {
-			return !this._jumpedTo.read(reader);
+		if (this.showCollapsed.read(reader)) {
+			return true;
 		}
 
 		return !s.cursorAtInlineEdit;
@@ -558,8 +569,8 @@ export class InlineCompletionsModel extends Disposable {
 		if (!s) {
 			return false;
 		}
-		if (this._inlineEditsShowCollapsed.read(reader)) {
-			return this._jumpedTo.read(reader);
+		if (this.showCollapsed.read(reader)) {
+			return false;
 		}
 		if (s.inlineEdit.range.startLineNumber === this._editorObs.cursorLineNumber.read(reader)) {
 			return true;

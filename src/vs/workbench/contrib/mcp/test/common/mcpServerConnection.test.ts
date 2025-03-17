@@ -49,6 +49,10 @@ class TestMcpHostDelegate extends Disposable implements IMcpHostDelegate {
 	setCanStart(value: boolean): void {
 		this._canStartValue = value;
 	}
+
+	waitForInitialProviderPromises(): Promise<void> {
+		return Promise.resolve();
+	}
 }
 
 suite('Workbench - MCP - ServerConnection', () => {

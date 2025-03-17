@@ -8,12 +8,10 @@ import { safeIntl } from '../../../../base/common/date.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { language } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, ShowTooltipCommand, StatusbarAlignment, StatusbarEntryKind } from '../../../services/statusbar/browser/statusbar.js';
-import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { $, addDisposableListener, append, clearNode, EventHelper, EventType } from '../../../../base/browser/dom.js';
-import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../common/chatEntitlementService.js';
+import { ChatEntitlement, ChatEntitlementService, ChatSentiment, IChatEntitlementService } from '../common/chatEntitlementService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
@@ -30,8 +28,6 @@ import { isObject } from '../../../../base/common/types.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
-import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { Codicon } from '../../../../base/common/codicons.js';
 
 //#region --- colors
 
@@ -105,7 +101,6 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	constructor(
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
@@ -116,7 +111,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	}
 
 	private async create(): Promise<void> {
-		const hidden = this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.hidden.key) === true;
+		const hidden = this.chatEntitlementService.sentiment === ChatSentiment.Disabled;
 		const disabled = this.configurationService.getValue<boolean>(ChatStatusBarEntry.SETTING) === false;
 
 		if (!hidden && !disabled) {
@@ -139,18 +134,8 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			}
 		}));
 
-		const contextKeysSet = new Set([ChatContextKeys.Setup.installed.key]);
-		this._register(this.contextKeyService.onDidChangeContext(e => {
-			if (!this.entry) {
-				return;
-			}
-
-			if (e.affectsSome(contextKeysSet)) {
-				this.entry.update(this.getEntryProps());
-			}
-		}));
-
 		this._register(this.chatEntitlementService.onDidChangeQuotaExceeded(() => this.entry?.update(this.getEntryProps())));
+		this._register(this.chatEntitlementService.onDidChangeSentiment(() => this.entry?.update(this.getEntryProps())));
 		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => this.entry?.update(this.getEntryProps())));
 	}
 
@@ -159,36 +144,33 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		let ariaLabel = localize('chatStatus', "Copilot Status");
 		let kind: StatusbarEntryKind | undefined;
 
-		const { chatQuotaExceeded, completionsQuotaExceeded } = this.chatEntitlementService.quotas;
+		if (!isNewUser(this.chatEntitlementService)) {
+			const { chatQuotaExceeded, completionsQuotaExceeded } = this.chatEntitlementService.quotas;
 
-		// New User
-		if (isNewUser(this.contextKeyService, this.chatEntitlementService)) {
-			ariaLabel = localize('triggerChatSetup', "Use AI Features with Copilot for Free");
-		}
+			// Signed out
+			if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown) {
+				const signedOutWarning = localize('notSignedIntoCopilot', "Signed out");
 
-		// Signed out
-		else if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown) {
-			const signedOutWarning = localize('notSignedIntoCopilot', "Signed out");
-
-			text = `$(copilot-not-connected) ${signedOutWarning}`;
-			ariaLabel = signedOutWarning;
-			kind = 'prominent';
-		}
-
-		// Quota Exceeded
-		else if (chatQuotaExceeded || completionsQuotaExceeded) {
-			let quotaWarning: string;
-			if (chatQuotaExceeded && !completionsQuotaExceeded) {
-				quotaWarning = localize('chatQuotaExceededStatus', "Chat limit reached");
-			} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
-				quotaWarning = localize('completionsQuotaExceededStatus', "Completions limit reached");
-			} else {
-				quotaWarning = localize('chatAndCompletionsQuotaExceededStatus', "Limit reached");
+				text = `$(copilot-not-connected) ${signedOutWarning}`;
+				ariaLabel = signedOutWarning;
+				kind = 'prominent';
 			}
 
-			text = `$(copilot-warning) ${quotaWarning}`;
-			ariaLabel = quotaWarning;
-			kind = 'prominent';
+			// Quota Exceeded
+			else if (chatQuotaExceeded || completionsQuotaExceeded) {
+				let quotaWarning: string;
+				if (chatQuotaExceeded && !completionsQuotaExceeded) {
+					quotaWarning = localize('chatQuotaExceededStatus', "Chat limit reached");
+				} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
+					quotaWarning = localize('completionsQuotaExceededStatus', "Completions limit reached");
+				} else {
+					quotaWarning = localize('chatAndCompletionsQuotaExceededStatus', "Limit reached");
+				}
+
+				text = `$(copilot-warning) ${quotaWarning}`;
+				ariaLabel = quotaWarning;
+				kind = 'prominent';
+			}
 		}
 
 		return {
@@ -210,13 +192,13 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	}
 }
 
-function isNewUser(contextKeyService: IContextKeyService, chatEntitlementService: IChatEntitlementService): boolean {
-	return contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.installed.key) === false ||	// copilot not installed
-		chatEntitlementService.entitlement === ChatEntitlement.Available;									// not yet signed up to copilot
+function isNewUser(chatEntitlementService: IChatEntitlementService): boolean {
+	return chatEntitlementService.sentiment !== ChatSentiment.Installed ||	// copilot not installed
+		chatEntitlementService.entitlement === ChatEntitlement.Available;	// not yet signed up to copilot
 }
 
-function canUseCopilot(contextKeyService: IContextKeyService, chatEntitlementService: IChatEntitlementService): boolean {
-	const newUser = isNewUser(contextKeyService, chatEntitlementService);
+function canUseCopilot(chatEntitlementService: IChatEntitlementService): boolean {
+	const newUser = isNewUser(chatEntitlementService);
 	const signedOut = chatEntitlementService.entitlement === ChatEntitlement.Unknown;
 	const allQuotaReached = chatEntitlementService.quotas.chatQuotaExceeded && chatEntitlementService.quotas.completionsQuotaExceeded;
 
@@ -236,7 +218,6 @@ class ChatStatusDashboard extends Disposable {
 	private readonly entryDisposables = this._register(new MutableDisposable());
 
 	constructor(
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
@@ -253,44 +234,25 @@ class ChatStatusDashboard extends Disposable {
 		const disposables = this.entryDisposables.value = new DisposableStore();
 		disposables.add(token.onCancellationRequested(() => disposables.dispose()));
 
-		let addSeparator = false;
+		let needsSeparator = false;
+		const addSeparator = (label: string | undefined) => {
+			if (needsSeparator) {
+				this.element.appendChild($('hr'));
+				needsSeparator = false;
+			}
 
-		const newUser = isNewUser(this.contextKeyService, this.chatEntitlementService);
-		const signedOut = this.chatEntitlementService.entitlement === ChatEntitlement.Unknown;
+			if (label) {
+				this.element.appendChild($('div.header', undefined, label));
+			}
 
-		// New to Copilot / Signed out
-		if (newUser || signedOut) {
-			this.element.appendChild($('div.header', undefined, localize('setupCopilot', "Use AI Features with Copilot")));
-			addSeparator = true;
-
-			const setup = this.element.appendChild(
-				$('div.setup', undefined,
-					$('div.chat-feature-container', undefined,
-						renderIcon(Codicon.code),
-						$('span', undefined, localize('featureChat', "Code faster with Completions"))
-					),
-					$('div.chat-feature-container', undefined,
-						renderIcon(Codicon.editSession),
-						$('span', undefined, localize('featureEdits', "Build features with Copilot Edits"))
-					),
-					$('div.chat-feature-container', undefined,
-						renderIcon(Codicon.commentDiscussion),
-						$('span', undefined, localize('featureExplore', "Explore your codebase with Chat"))
-					)
-				)
-			);
-
-			const button = disposables.add(new Button(setup, { ...defaultButtonStyles }));
-			button.label = newUser ? localize('setupCopilotForFreeButton', "Setup Copilot for Free") : localize('signInToUseCopilotButton', "Sign In to Use Copilot");
-			disposables.add(button.onDidClick(() => this.runCommandAndClose(newUser ? { id: 'workbench.action.chat.triggerSetup' } : () => this.chatEntitlementService.requests?.value.signIn())));
-		}
+			needsSeparator = true;
+		};
 
 		// Quota Indicator
-		else if (this.chatEntitlementService.entitlement === ChatEntitlement.Limited) {
+		if (this.chatEntitlementService.entitlement === ChatEntitlement.Limited) {
 			const { chatTotal, chatRemaining, completionsTotal, completionsRemaining, quotaResetDate, chatQuotaExceeded, completionsQuotaExceeded } = this.chatEntitlementService.quotas;
 
-			this.element.appendChild($('div.header', undefined, localize('usageTitle', "Copilot Free Usage")));
-			addSeparator = true;
+			addSeparator(localize('usageTitle', "Copilot Free Usage"));
 
 			const chatQuotaIndicator = this.createQuotaIndicator(this.element, chatTotal, chatRemaining, localize('chatsLabel', "Chat messages"));
 			const completionsQuotaIndicator = this.createQuotaIndicator(this.element, completionsTotal, completionsRemaining, localize('completionsLabel', "Code completions"));
@@ -298,7 +260,7 @@ class ChatStatusDashboard extends Disposable {
 			this.element.appendChild($('div.description', undefined, localize('limitQuota', "Limits will reset on {0}.", this.dateFormatter.value.format(quotaResetDate))));
 
 			if (chatQuotaExceeded || completionsQuotaExceeded) {
-				const upgradePlanButton = disposables.add(new Button(this.element, { ...defaultButtonStyles, secondary: canUseCopilot(this.contextKeyService, this.chatEntitlementService) /* use secondary color when copilot can still be used */ }));
+				const upgradePlanButton = disposables.add(new Button(this.element, { ...defaultButtonStyles, secondary: canUseCopilot(this.chatEntitlementService) /* use secondary color when copilot can still be used */ }));
 				upgradePlanButton.label = localize('upgradeToCopilotPro', "Upgrade to Copilot Pro");
 				disposables.add(upgradePlanButton.onDidClick(() => this.runCommandAndClose({ id: 'workbench.action.chat.upgradePlan', args: ['chat-status'] })));
 			}
@@ -317,16 +279,25 @@ class ChatStatusDashboard extends Disposable {
 		}
 
 		// Settings
-		if (canUseCopilot(this.contextKeyService, this.chatEntitlementService)) {
-			if (addSeparator) {
-				this.element.appendChild($('hr'));
-				addSeparator = false;
-			}
-
-			this.element.appendChild($('div.header', undefined, localize('settingsTitle', "Settings")));
-			addSeparator = true;
+		{
+			addSeparator(localize('settingsTitle', "Settings"));
 
 			this.createSettings(this.element, disposables);
+		}
+
+		// New to Copilot / Signed out
+		{
+			const newUser = isNewUser(this.chatEntitlementService);
+			const signedOut = this.chatEntitlementService.entitlement === ChatEntitlement.Unknown;
+			if (newUser || signedOut) {
+				addSeparator(undefined);
+
+				this.element.appendChild($('div.description', undefined, newUser ? localize('activateDescription', "You need to set up Copilot.") : localize('signInDescription', "You need to sign in to use Copilot.")));
+
+				const button = disposables.add(new Button(this.element, { ...defaultButtonStyles }));
+				button.label = newUser ? localize('activateCopilotButton', "Set Up Copilot") : localize('signInToUseCopilotButton', "Sign In");
+				disposables.add(button.onDidClick(() => this.runCommandAndClose(newUser ? { id: 'workbench.action.chat.triggerSetup' } : () => this.chatEntitlementService.requests?.value.signIn())));
+			}
 		}
 
 		return this.element;
@@ -433,6 +404,11 @@ class ChatStatusDashboard extends Disposable {
 			}
 		}));
 
+		if (!canUseCopilot(this.chatEntitlementService)) {
+			container.classList.add('disabled');
+			checkbox.disable();
+		}
+
 		return checkbox;
 	}
 
@@ -493,7 +469,7 @@ class ChatStatusDashboard extends Disposable {
 
 		disposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(completionsSettingId)) {
-				if (completionsSettingAccessor.readSetting()) {
+				if (completionsSettingAccessor.readSetting() && canUseCopilot(this.chatEntitlementService)) {
 					checkbox.enable();
 					container.classList.remove('disabled');
 				} else {

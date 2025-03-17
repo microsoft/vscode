@@ -178,5 +178,5 @@
 		"*": "error",
 		"ts": "warning",
 		"eslint": "warning"
-	},
+	}
 }

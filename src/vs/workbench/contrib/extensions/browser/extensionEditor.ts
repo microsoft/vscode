@@ -1071,7 +1071,7 @@ class AdditionalDetailsWidget extends Disposable {
 		if (extension.url) {
 			resources.push([localize('Marketplace', "Marketplace"), URI.parse(extension.url)]);
 		}
-		if (extension.url && extension.supportUrl) {
+		if (extension.supportUrl) {
 			try {
 				resources.push([localize('issues', "Issues"), URI.parse(extension.supportUrl)]);
 			} catch (error) {/* Ignore */ }
@@ -1081,7 +1081,7 @@ class AdditionalDetailsWidget extends Disposable {
 				resources.push([localize('repository', "Repository"), URI.parse(extension.repository)]);
 			} catch (error) {/* Ignore */ }
 		}
-		if (extension.url && extension.licenseUrl) {
+		if (extension.licenseUrl) {
 			try {
 				resources.push([localize('license', "License"), URI.parse(extension.licenseUrl)]);
 			} catch (error) {/* Ignore */ }

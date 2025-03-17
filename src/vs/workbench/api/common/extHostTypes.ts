@@ -5039,3 +5039,24 @@ export enum InlineEditTriggerKind {
 }
 
 //#endregion
+
+//#region MC
+export class McpStdioServerDefinition implements vscode.McpStdioServerDefinition {
+	cwd?: URI;
+
+	constructor(
+		public label: string,
+		public command: string,
+		public args: string[],
+		public env: Record<string, string | number | null>
+	) { }
+}
+
+export class McpSSEServerDefinition implements vscode.McpSSEServerDefinition {
+	headers: [string, string][] = [];
+	constructor(
+		public label: string,
+		public uri: URI
+	) { }
+}
+//#endregion
