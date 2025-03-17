@@ -358,20 +358,20 @@ export function registerChatTitleActions() {
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.x,
-				precondition: ChatContextKeys.chatMode.isEqualTo(ChatMode.Chat),
+				precondition: ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask),
 				keybinding: {
 					primary: KeyCode.Delete,
 					mac: {
 						primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 					},
-					when: ContextKeyExpr.and(ChatContextKeys.chatMode.isEqualTo(ChatMode.Chat), ChatContextKeys.inChatSession, ChatContextKeys.inChatInput.negate()),
+					when: ContextKeyExpr.and(ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask), ChatContextKeys.inChatSession, ChatContextKeys.inChatInput.negate()),
 					weight: KeybindingWeight.WorkbenchContrib,
 				},
 				menu: {
 					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(ChatContextKeys.chatMode.isEqualTo(ChatMode.Chat), ChatContextKeys.isRequest)
+					when: ContextKeyExpr.and(ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask), ChatContextKeys.isRequest)
 				}
 			});
 		}
