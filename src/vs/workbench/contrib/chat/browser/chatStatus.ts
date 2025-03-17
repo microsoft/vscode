@@ -295,7 +295,7 @@ class ChatStatusDashboard extends Disposable {
 				this.element.appendChild($('div.description', undefined, newUser ? localize('activateDescription', "You need to set up Copilot.") : localize('signInDescription', "You need to sign in to use Copilot.")));
 
 				const button = disposables.add(new Button(this.element, { ...defaultButtonStyles }));
-				button.label = newUser ? localize('activateCopilotButton', "Set up Copilot") : localize('signInToUseCopilotButton', "Sign In");
+				button.label = newUser ? localize('activateCopilotButton', "Set up Copilot Free") : localize('signInToUseCopilotButton', "Sign In");
 				disposables.add(button.onDidClick(() => this.runCommandAndClose(newUser ? { id: 'workbench.action.chat.triggerSetup' } : () => this.chatEntitlementService.requests?.value.signIn())));
 			}
 		}
