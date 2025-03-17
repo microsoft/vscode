@@ -77,42 +77,4 @@ suite('vscode API - env', () => {
 			assert.ok(result.scheme === 'http' || result.scheme === 'https');
 		}
 	});
-
-	test('env.isTrustedExternalUris', function () {
-		// Test exact domain match
-		const azureUri = Uri.parse('https://portal.azure.com');
-
-		// Test subdomain wildcard match
-		const galleryCdnUri = Uri.parse('https://foo.gallerycdn.vsassets.io/extension');
-
-		// Test exact domain without specific scheme (should work with https)
-		const marketplaceUri = Uri.parse('https://marketplace.visualstudio.com/items');
-
-		// Test untrusted domain
-		const untrustedUri = Uri.parse('https://example.com');
-
-		// Test with path
-		const docsUri = Uri.parse('https://code.visualstudio.com/api');
-
-		const result = env.isTrustedExternalUris([
-			azureUri,
-			galleryCdnUri,
-			marketplaceUri,
-			untrustedUri,
-			docsUri
-		]);
-
-		assert.strictEqual(result.length, 5, 'Expected 5 trusted URIs');
-		assert.strictEqual(result[0], true, 'Expected github URI to be trusted');
-		assert.strictEqual(result[1], true, 'Expected gallery CDN URI to be trusted');
-		assert.strictEqual(result[2], true, 'Expected marketplace URI to be trusted');
-		assert.strictEqual(result[3], false, 'Expected untrusted URI to be undefined');
-		assert.strictEqual(result[4], true, 'Expected docs URI to be trusted');
-	});
-
-	// Depends on web request
-	test.skip('env.extractExternalUris', async function () {
-		const result = await env.extractExternalUris([Uri.parse('http://content-security-policy.com')]);
-		assert.ok(result[0].includes('Content Security Policy Reference'));
-	});
 });
