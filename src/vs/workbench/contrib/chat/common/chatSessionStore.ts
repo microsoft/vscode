@@ -25,7 +25,7 @@ import { ChatAgentLocation, ChatMode } from './constants.js';
 
 const maxPersistedSessions = 25;
 
-const ChatIndexStorageKey = 'ChatSessionStore.index.5';
+const ChatIndexStorageKey = 'chat.ChatSessionStore.index';
 const ChatTransferIndexStorageKey = 'ChatSessionStore.transferIndex';
 
 export class ChatSessionStore extends Disposable {
