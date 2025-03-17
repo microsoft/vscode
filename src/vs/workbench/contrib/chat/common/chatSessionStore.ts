@@ -18,7 +18,6 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { Dto } from '../../../services/extensions/common/proxyIdentifier.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { ChatModel, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData } from './chatModel.js';
 import { ChatAgentLocation, ChatMode } from './constants.js';
@@ -26,11 +25,11 @@ import { ChatAgentLocation, ChatMode } from './constants.js';
 const maxPersistedSessions = 25;
 
 const ChatIndexStorageKey = 'chat.ChatSessionStore.index';
-const ChatTransferIndexStorageKey = 'ChatSessionStore.transferIndex';
+// const ChatTransferIndexStorageKey = 'ChatSessionStore.transferIndex';
 
 export class ChatSessionStore extends Disposable {
 	private readonly storageRoot: URI;
-	private readonly transferredSessionStorageRoot: URI;
+	// private readonly transferredSessionStorageRoot: URI;
 
 	private readonly storeQueue = new Sequencer();
 
@@ -56,7 +55,7 @@ export class ChatSessionStore extends Disposable {
 		this.storageRoot = joinPath(this.environmentService.workspaceStorageHome, workspaceId, 'chatSessions');
 
 		// TODO tmpdir
-		this.transferredSessionStorageRoot = joinPath(this.environmentService.workspaceStorageHome, 'transferredChatSessions');
+		// this.transferredSessionStorageRoot = joinPath(this.environmentService.workspaceStorageHome, 'transferredChatSessions');
 
 		this._register(this.lifecycleService.onWillShutdown(e => {
 			this.shuttingDown = true;
@@ -93,33 +92,33 @@ export class ChatSessionStore extends Disposable {
 		}
 	}
 
-	async storeTransferSession(transferData: IChatTransfer, session: ISerializableChatData): Promise<void> {
-		try {
-			const content = JSON.stringify(session, undefined, 2);
-			await this.fileService.writeFile(this.transferredSessionStorageRoot, VSBuffer.fromString(content));
-		} catch (e) {
-			this.reportError('sessionWrite', 'Error writing chat session', e);
-			return;
-		}
+	// async storeTransferSession(transferData: IChatTransfer, session: ISerializableChatData): Promise<void> {
+	// 	try {
+	// 		const content = JSON.stringify(session, undefined, 2);
+	// 		await this.fileService.writeFile(this.transferredSessionStorageRoot, VSBuffer.fromString(content));
+	// 	} catch (e) {
+	// 		this.reportError('sessionWrite', 'Error writing chat session', e);
+	// 		return;
+	// 	}
 
-		const index = this.getTransferredSessionIndex();
-		index[transferData.toWorkspace.toString()] = transferData;
-		try {
-			this.storageService.store(ChatTransferIndexStorageKey, index, StorageScope.PROFILE, StorageTarget.MACHINE);
-		} catch (e) {
-			this.reportError('storeTransferSession', 'Error storing chat transfer session', e);
-		}
-	}
+	// 	const index = this.getTransferredSessionIndex();
+	// 	index[transferData.toWorkspace.toString()] = transferData;
+	// 	try {
+	// 		this.storageService.store(ChatTransferIndexStorageKey, index, StorageScope.PROFILE, StorageTarget.MACHINE);
+	// 	} catch (e) {
+	// 		this.reportError('storeTransferSession', 'Error storing chat transfer session', e);
+	// 	}
+	// }
 
-	private getTransferredSessionIndex(): IChatTransferIndex {
-		try {
-			const data: IChatTransferIndex = this.storageService.getObject(ChatTransferIndexStorageKey, StorageScope.PROFILE, {});
-			return data;
-		} catch (e) {
-			this.reportError('getTransferredSessionIndex', 'Error reading chat transfer index', e);
-			return {};
-		}
-	}
+	// private getTransferredSessionIndex(): IChatTransferIndex {
+	// 	try {
+	// 		const data: IChatTransferIndex = this.storageService.getObject(ChatTransferIndexStorageKey, StorageScope.PROFILE, {});
+	// 		return data;
+	// 	} catch (e) {
+	// 		this.reportError('getTransferredSessionIndex', 'Error reading chat transfer index', e);
+	// 		return {};
+	// 	}
+	// }
 
 	private async writeSession(session: ChatModel | ISerializableChatData): Promise<void> {
 		try {
@@ -431,9 +430,9 @@ export interface IChatTransfer2 extends IChatTransfer {
 	chat: ISerializableChatData;
 }
 
-type IChatTransferDto = Dto<IChatTransfer>;
+// type IChatTransferDto = Dto<IChatTransfer>;
 
 /**
  * Map of destination workspace URI to chat transfer data
  */
-type IChatTransferIndex = Record<string, IChatTransferDto>;
+// type IChatTransferIndex = Record<string, IChatTransferDto>;
