@@ -69,6 +69,7 @@ import { Dialog } from '../../../../base/browser/ui/dialog/dialog.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { createWorkbenchDialogOptions } from '../../../../platform/dialogs/browser/dialog.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -274,7 +275,7 @@ class ChatSetupDialog {
 	async show(): Promise<ChatSetupDialogResult> {
 		const buttons = [
 			this.getPrimaryButton(),
-			localize('cancelButton', "Cancel")
+			localize('maybeLater', "Maybe Later"),
 		];
 		const disposables = new DisposableStore();
 
@@ -282,13 +283,12 @@ class ChatSetupDialog {
 
 		const dialog = disposables.add(new Dialog(
 			this.layoutService.activeContainer,
-			localize('copilotFree', "Welcome to Copilot"),
+			localize('copilotFree', "Activate Copilot Free"),
 			buttons,
 			createWorkbenchDialogOptions({
 				type: 'none',
 				cancelId: buttons.length - 1,
 				renderBody: body => body.appendChild(this.create(disposables)),
-				icon: Codicon.copilotLarge,
 				primaryButtonDropdown: {
 					contextMenuProvider: this.contextMenuService,
 					addPrimaryActionToDropdown: false,
@@ -299,6 +299,7 @@ class ChatSetupDialog {
 				}
 			}, this.keybindingService, this.layoutService)
 		));
+		dialog.element.classList.add('chat-setup-dialog');
 
 		const { button } = await dialog.show();
 		disposables.dispose();
@@ -324,6 +325,9 @@ class ChatSetupDialog {
 	private create(disposables: DisposableStore): HTMLElement {
 		const element = $('.chat-setup-view');
 
+		// Icon background
+		element.appendChild($('.chat-setup-dialog-icon-background')).classList.add(...ThemeIcon.asClassNameArray(Codicon.copilotLarge));
+
 		const markdown = this.instantiationService.createInstance(MarkdownRenderer, {});
 
 		// Header
@@ -347,12 +351,6 @@ class ChatSetupDialog {
 				)
 			)
 		);
-
-		// Limited SKU
-		if (this.context.state.entitlement !== ChatEntitlement.Pro && this.context.state.entitlement !== ChatEntitlement.Unavailable) {
-			const free = localize({ key: 'free', comment: ['{Locked="[]({0})"}'] }, "$(sparkle-filled) We now offer [Copilot for free]({0}).", defaultChat.skusDocumentationUrl);
-			element.appendChild($('p', undefined, disposables.add(markdown.render(new MarkdownString(free, { isTrusted: true, supportThemeIcons: true }))).element));
-		}
 
 		// Terms
 		const terms = localize({ key: 'terms', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "By continuing, you agree to the [Terms]({0}) and [Privacy Policy]({1}).", defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl);
