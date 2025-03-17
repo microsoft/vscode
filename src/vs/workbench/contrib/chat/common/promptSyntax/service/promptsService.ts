@@ -97,8 +97,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 	public getSourceFolders(
 		type: IPromptPath['type'],
 	): readonly IPromptPath[] {
-		// sanity check to make sure we don't miss a new prompt type
-		// added in the future
+		// sanity check to make sure we don't miss a new
+		// prompt type that could be added in the future
 		assert(
 			type === 'local' || type === 'user',
 			`Unknown prompt type '${type}'.`,
