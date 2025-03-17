@@ -28,7 +28,6 @@ export class PromptFilesLocator {
 	/**
 	 * List all prompt files from the filesystem.
 	 *
-	 * @param exclude List of `URIs` to exclude from the result.
 	 * @returns List of prompt files found in the workspace.
 	 */
 	public async listFiles(): Promise<readonly URI[]> {
@@ -44,7 +43,6 @@ export class PromptFilesLocator {
 	 * @throws if any of the provided folder paths is not an `absolute path`.
 	 *
 	 * @param absoluteLocations List of prompt file source folders to search for prompt files in. Must be absolute paths.
-	 * @param exclude List of `URIs` to exclude from the result.
 	 * @returns List of prompt files found in the provided folders.
 	 */
 	public async listFilesIn(
@@ -54,8 +52,14 @@ export class PromptFilesLocator {
 	}
 
 	/**
-	 * Get all possible unambiguous prompt file source folders based
-	 * on the current workspace folder structure.
+	 * Get all possible unambiguous prompt file source folders based on
+	 * the current workspace folder structure.
+	 *
+	 * This method is currently primarily used by the `> Create Prompt`
+	 * command that providers users with the list of destination folders
+	 * for a newly created prompt file. Because such a list cannot contain
+	 * paths that include `glob pattern` in them, we need to process config
+	 * values and try to create a list of clear and unambiguous locations.
 	 *
 	 * @returns List of possible unambiguous prompt file folders.
 	 */
@@ -106,7 +110,6 @@ export class PromptFilesLocator {
 	 * @throws if any of the provided folder paths is not an `absolute path`.
 	 *
 	 * @param absoluteLocations List of prompt file source folders to search for prompt files in. Must be absolute paths.
-	 * @param exclude Map of `path -> boolean` to exclude from the result.
 	 * @returns List of prompt files found in the provided source folders.
 	 */
 	private async findInstructionFiles(
@@ -218,13 +221,6 @@ export const isValidGlob = (pattern: string): boolean => {
 
 	return false;
 };
-
-/**
- * TODO: @lego - notes
- * - if path `starts with a glob`, it must be relative to current workspace folders, otherwise we would need to scan through entire filesystem of the machine
- * - likewise if a `relative path`, it must be relative to current workspace folders
- * - only if path is `absolute`, we can try to resolve all prompt files in it and its subfolders, and then try to match the files against a glob pattern
- */
 
 /**
  * Finds the first parent of the provided location that does not contain a `glob pattern`.
