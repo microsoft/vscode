@@ -7,20 +7,24 @@ import { localize } from '../../../../../../../nls.js';
 import { createPromptFile } from './utils/createPromptFile.js';
 import { CHAT_CATEGORY } from '../../../actions/chatActions.js';
 import { askForPromptName } from './dialogs/askForPromptName.js';
+import { ChatContextKeys } from '../../../../common/chatContextKeys.js';
+import { ILogService } from '../../../../../../../platform/log/common/log.js';
 import { askForPromptSourceFolder } from './dialogs/askForPromptSourceFolder.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { PromptsConfig } from '../../../../../../../platform/prompts/common/config.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
+import { MenuId, MenuRegistry } from '../../../../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IPromptPath, IPromptsService } from '../../../../common/promptSyntax/service/types.js';
 import { IQuickInputService } from '../../../../../../../platform/quickinput/common/quickInput.js';
 import { ServicesAccessor } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
+import { CONFIGURE_SYNC_COMMAND_ID } from '../../../../../../services/userDataSync/common/userDataSync.js';
+import { IUserDataSyncEnablementService, SyncResource } from '../../../../../../../platform/userDataSync/common/userDataSync.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { MenuId, MenuRegistry } from '../../../../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr } from '../../../../../../../platform/contextkey/common/contextkey.js';
-import { ChatContextKeys } from '../../../../common/chatContextKeys.js';
+import { INotificationService, NeverShowAgainScope, Severity } from '../../../../../../../platform/notification/common/notification.js';
 
 /**
  * Base command ID prefix.
@@ -54,13 +58,16 @@ const command = async (
 	accessor: ServicesAccessor,
 	type: IPromptPath['type'],
 ): Promise<void> => {
+	const logService = accessor.get(ILogService);
 	const fileService = accessor.get(IFileService);
 	const labelService = accessor.get(ILabelService);
 	const openerService = accessor.get(IOpenerService);
 	const commandService = accessor.get(ICommandService);
 	const promptsService = accessor.get(IPromptsService);
 	const quickInputService = accessor.get(IQuickInputService);
+	const notificationService = accessor.get(INotificationService);
 	const workspaceService = accessor.get(IWorkspaceContextService);
+	const userDataSyncEnablementService = accessor.get(IUserDataSyncEnablementService);
 
 	const fileName = await askForPromptName(type, quickInputService);
 	if (!fileName) {
@@ -82,7 +89,7 @@ const command = async (
 
 	const content = localize(
 		'workbench.command.prompts.create.initial-content',
-		"Add prompt contents..",
+		"Add prompt contents...",
 	);
 	const promptUri = await createPromptFile({
 		fileName,
@@ -93,6 +100,47 @@ const command = async (
 	});
 
 	await openerService.open(promptUri);
+
+	// if created a `user` prompt, check if prompts synchronization
+	// was configured before, and show a suggestion notification if not
+	if (type !== 'user') {
+		return;
+	}
+
+	// TODO: @legomushroom - add better logic to check if never was set
+	const notSet = (userDataSyncEnablementService.isResourceEnabled(SyncResource.Prompts, true) === true) &&
+		(userDataSyncEnablementService.isResourceEnabled(SyncResource.Prompts, false) === false);
+
+	// if prompts synchronization was configured before, nothing to do
+	if (notSet === false) {
+		return;
+	}
+
+	// show suggestion to enable synchronization of the user prompts to the user
+	notificationService.prompt(
+		Severity.Info,
+		localize(
+			'workbench.command.prompts.create.user.enable-sync-notification',
+			"User prompts are not currently synchronized. Do you want to enable synchronization of the user prompts?",
+		),
+		[
+			{
+				label: localize('enable.capitalized', "Enable"),
+				run: () => {
+					commandService.executeCommand(CONFIGURE_SYNC_COMMAND_ID)
+						.catch((error) => {
+							logService.error(`Failed to run '${CONFIGURE_SYNC_COMMAND_ID}' command: ${error}.`);
+						});
+				},
+			}
+		],
+		{
+			neverShowAgain: {
+				id: 'workbench.command.prompts.create.user.enable-sync-notification',
+				scope: NeverShowAgainScope.PROFILE,
+			},
+		},
+	);
 };
 
 /**
