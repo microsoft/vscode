@@ -270,6 +270,7 @@ class ChatSetupDialog {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@ILayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService
 	) { }
 
 	async show(): Promise<ChatSetupDialogResult> {
@@ -283,7 +284,7 @@ class ChatSetupDialog {
 
 		const dialog = disposables.add(new Dialog(
 			this.layoutService.activeContainer,
-			localize('copilotFree', "Set up Copilot Free"),
+			this.chatEntitlementService.entitlement === ChatEntitlement.Pro ? localize('copilotPro', "Set up Copilot") : localize('copilotFree', "Set up Copilot Free"),
 			buttons,
 			createWorkbenchDialogOptions({
 				type: 'none',
