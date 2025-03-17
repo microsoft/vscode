@@ -310,7 +310,7 @@ class ChatSetupDialog {
 	private getPrimaryButton(): string {
 		switch (this.context.state.entitlement) {
 			case ChatEntitlement.Unknown:
-				return this.context.state.registered ? localize('signUp', "Sign in to Use Copilot") : localize('signUpFree', "Sign in to Use Copilot Free");
+				return this.context.state.registered ? localize('signUp', "Sign in to use Copilot") : localize('signUpFree', "Sign in to use Copilot Free");
 			case ChatEntitlement.Unresolved:
 				return this.context.state.registered ? localize('startUp', "Use Copilot") : localize('startUpLimited', "Use Copilot Free");
 			case ChatEntitlement.Available:
@@ -1104,7 +1104,7 @@ class ChatSetupWelcomeContent extends Disposable {
 		switch (this.context.state.entitlement) {
 			case ChatEntitlement.Unknown:
 				showFree = true;
-				buttonLabel = this.context.state.registered ? localize('signUp', "Sign in to Use Copilot") : localize('signUpFree', "Sign in to Use Copilot Free");
+				buttonLabel = this.context.state.registered ? localize('signUp', "Sign in to use Copilot") : localize('signUpFree', "Sign in to use Copilot Free");
 				break;
 			case ChatEntitlement.Unresolved:
 				showFree = true;
