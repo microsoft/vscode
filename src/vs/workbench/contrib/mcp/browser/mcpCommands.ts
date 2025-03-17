@@ -19,12 +19,15 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { spinningLoading } from '../../../../platform/theme/common/iconRegistry.js';
+import { ActiveEditorContext, ResourceContextKey } from '../../../common/contextkeys.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { ChatMode } from '../../chat/common/constants.js';
+import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { McpContextKeys } from '../common/mcpContextKeys.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
-import { LazyCollectionState, IMcpServer, IMcpService, McpConnectionState, McpServerToolsState } from '../common/mcpTypes.js';
+import { IMcpServer, IMcpService, LazyCollectionState, McpConnectionState, McpServerToolsState } from '../common/mcpTypes.js';
+import { McpAddConfigurationCommand } from './mcpCommandsAddConfiguration.js';
 
 // acroynms do not get localized
 const category: ILocalizedString = {
@@ -355,5 +358,32 @@ export class ResetMcpCachedTools extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		const mcpService = accessor.get(IMcpService);
 		mcpService.resetCaches();
+	}
+}
+
+export class AddConfigurationAction extends Action2 {
+	static readonly ID = 'workbench.mcp.addConfiguration';
+
+	constructor() {
+		super({
+			id: AddConfigurationAction.ID,
+			title: localize2('mcp.addConfiguration', "Add Server..."),
+			metadata: {
+				description: localize2('mcp.addConfiguration.description', "Installs a new Model Context protocol to the mcp.json settings"),
+			},
+			category,
+			f1: true,
+			menu: {
+				id: MenuId.EditorContent,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.regex(ResourceContextKey.Path.key, /\.vscode[/\\]mcp\.json$/),
+					ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID)
+				)
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, configUri?: string): Promise<void> {
+		return accessor.get(IInstantiationService).createInstance(McpAddConfigurationCommand, configUri).run();
 	}
 }

@@ -32,7 +32,7 @@ export namespace ChatContextKeys {
 	export const inChatSession = new RawContextKey<boolean>('inChat', false, { type: 'boolean', description: localize('inChat', "True when focus is in the chat widget, false otherwise.") });
 	export const inUnifiedChat = new RawContextKey<boolean>('inUnifiedChat', false, { type: 'boolean', description: localize('inUnifiedChat', "True when focus is in the unified chat widget, false otherwise.") });
 	export const instructionsAttached = new RawContextKey<boolean>('chatInstructionsAttached', false, { type: 'boolean', description: localize('chatInstructionsAttachedContextDescription', "True when the chat has a prompt instructions attached.") });
-	export const chatMode = new RawContextKey<ChatMode>('chatMode', ChatMode.Chat, { type: 'string', description: localize('chatMode', "The current chat mode.") });
+	export const chatMode = new RawContextKey<ChatMode>('chatMode', ChatMode.Ask, { type: 'string', description: localize('chatMode', "The current chat mode.") });
 
 	export const supported = ContextKeyExpr.or(IsWebContext.toNegated(), RemoteNameContext.notEqualsTo('')); // supported on desktop and in web only with a remote connection
 	export const enabled = new RawContextKey<boolean>('chatIsEnabled', false, { type: 'boolean', description: localize('chatIsEnabled', "True when chat is enabled because a default chat participant is activated with an implementation.") });
@@ -51,20 +51,19 @@ export namespace ChatContextKeys {
 	export const languageModelsAreUserSelectable = new RawContextKey<boolean>('chatModelsAreUserSelectable', false, { type: 'boolean', description: localize('chatModelsAreUserSelectable', "True when the chat model can be selected manually by the user.") });
 
 	export const Setup = {
-
-		// State
-		signedOut: new RawContextKey<boolean>('chatSetupSignedOut', false, true), 	// True when user is signed out.
 		hidden: new RawContextKey<boolean>('chatSetupHidden', false, true), 		// True when chat setup is explicitly hidden.
 		installed: new RawContextKey<boolean>('chatSetupInstalled', false, true),  	// True when the chat extension is installed.
 		fromDialog: ContextKeyExpr.has('config.chat.experimental.setupFromDialog'),
+	};
 
-		// Plans
+	export const Entitlement = {
+		signedOut: new RawContextKey<boolean>('chatSetupSignedOut', false, true), 	// True when user is signed out.
 		canSignUp: new RawContextKey<boolean>('chatPlanCanSignUp', false, true), 	// True when user can sign up to be a chat limited user.
 		limited: new RawContextKey<boolean>('chatPlanLimited', false, true),		// True when user is a chat limited user.
 		pro: new RawContextKey<boolean>('chatPlanPro', false, true) 				// True when user is a chat pro user.
 	};
 
-	export const SetupViewKeys = new Set([ChatContextKeys.Setup.hidden.key, ChatContextKeys.Setup.installed.key, ChatContextKeys.Setup.signedOut.key, ChatContextKeys.Setup.canSignUp.key, ...Setup.fromDialog.keys()]);
+	export const SetupViewKeys = new Set([ChatContextKeys.Setup.hidden.key, ChatContextKeys.Setup.installed.key, ChatContextKeys.Entitlement.signedOut.key, ChatContextKeys.Entitlement.canSignUp.key, ...Setup.fromDialog.keys()]);
 	export const SetupViewCondition = ContextKeyExpr.or(
 		ContextKeyExpr.and(
 			ChatContextKeys.Setup.hidden.negate(),
@@ -72,11 +71,11 @@ export namespace ChatContextKeys {
 			Setup.fromDialog.negate()
 		),
 		ContextKeyExpr.and(
-			ChatContextKeys.Setup.canSignUp,
+			ChatContextKeys.Entitlement.canSignUp,
 			ChatContextKeys.Setup.installed
 		),
 		ContextKeyExpr.and(
-			ChatContextKeys.Setup.signedOut,
+			ChatContextKeys.Entitlement.signedOut,
 			ChatContextKeys.Setup.installed
 		)
 	)!;

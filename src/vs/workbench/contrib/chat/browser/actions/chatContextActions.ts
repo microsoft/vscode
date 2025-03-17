@@ -48,12 +48,13 @@ import { isSearchTreeFileMatch, isSearchTreeMatch } from '../../../search/browse
 import { SearchView } from '../../../search/browser/searchView.js';
 import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from '../../../search/browser/symbolsQuickAccess.js';
 import { SearchContext } from '../../../search/common/constants.js';
-import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
+import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
 import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData } from '../../common/chatModel.js';
 import { ChatRequestAgentPart } from '../../common/chatParserTypes.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
+import { ChatAgentLocation } from '../../common/constants.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView, showEditsView } from '../chat.js';
 import { imageToHash, isImage } from '../chatPasteProviders.js';

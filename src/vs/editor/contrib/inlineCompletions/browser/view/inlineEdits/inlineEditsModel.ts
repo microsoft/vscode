@@ -21,6 +21,7 @@ export class InlineEditModel implements IInlineEditModel {
 	readonly displayName: string;
 	readonly extensionCommands: Command[];
 
+	readonly showCollapsed: IObservable<boolean>;
 	readonly inAcceptFlow: IObservable<boolean>;
 	readonly inPartialAcceptFlow: IObservable<boolean>;
 
@@ -35,6 +36,7 @@ export class InlineEditModel implements IInlineEditModel {
 
 		this.inAcceptFlow = this._model.inAcceptFlow;
 		this.inPartialAcceptFlow = this._model.inPartialAcceptFlow;
+		this.showCollapsed = this._model.showCollapsed;
 	}
 
 	accept() {
@@ -65,7 +67,6 @@ export class GhostTextIndicator {
 		model: InlineCompletionsModel,
 		readonly lineRange: LineRange,
 		inlineCompletion: InlineCompletionWithUpdatedRange,
-		renderExplicitly: boolean,
 	) {
 		const editorObs = observableCodeEditor(editor);
 		const tabAction = derived<InlineEditTabAction>(this, reader => {
@@ -83,7 +84,6 @@ export class GhostTextIndicator {
 				new StringText(''),
 				new TextEdit([]),
 				model.primaryPosition.get(),
-				renderExplicitly,
 				inlineCompletion.source.inlineCompletions.commands ?? [],
 				inlineCompletion.inlineCompletion
 			),

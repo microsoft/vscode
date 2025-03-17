@@ -19,7 +19,6 @@ export class InlineEditWithChanges {
 		public readonly originalText: AbstractText,
 		public readonly edit: TextEdit,
 		public readonly cursorPosition: Position,
-		public readonly userJumpedToIt: boolean,
 		public readonly commands: readonly Command[],
 		public readonly inlineCompletion: InlineCompletionItem
 	) {
@@ -29,7 +28,6 @@ export class InlineEditWithChanges {
 		return this.originalText.getValue() === other.originalText.getValue() &&
 			this.edit.equals(other.edit) &&
 			this.cursorPosition.equals(other.cursorPosition) &&
-			this.userJumpedToIt === other.userJumpedToIt &&
 			this.commands === other.commands &&
 			this.inlineCompletion === other.inlineCompletion;
 	}

@@ -677,7 +677,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private renderSampleQuestions() {
 		if (this.viewModel) {
 			// TODO@roblourens hack- only Chat mode supports sample questions
-			this.renderFollowups(this.input.currentMode === ChatMode.Chat ? this.viewModel.model.sampleQuestions : undefined);
+			this.renderFollowups(this.input.currentMode === ChatMode.Ask ? this.viewModel.model.sampleQuestions : undefined);
 		}
 	}
 
@@ -942,6 +942,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._register(this.input.onDidChangeCurrentChatMode(() => {
 			this.renderSampleQuestions();
 			this.renderWelcomeViewContentIfNeeded();
+			this.refreshParsedInput();
 		}));
 	}
 
@@ -1171,7 +1172,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				attachedContext,
 				noCommandDetection: options?.noCommandDetection,
 				hasInstructionAttachments: this.inputPart.hasInstructionAttachments,
-				userSelectedTools: ChatInputPart.selectedToolsModel.tools.get().map(tool => tool.id)
+				userSelectedTools: this.input.currentMode === ChatMode.Agent ? this.inputPart.selectedToolsModel.tools.get().map(tool => tool.id) : undefined
 			});
 
 			if (result) {
