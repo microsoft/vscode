@@ -66,6 +66,7 @@ export interface ITreeSitterParseResult {
 	readonly tree: Parser.Tree | undefined;
 	readonly language: Parser.Language;
 	readonly languageId: string;
+	readonly ranges: Parser.Range[] | undefined;
 	versionId: number;
 }
 
@@ -74,6 +75,7 @@ export interface ITextModelTreeSitter {
 	 * For testing purposes so that the time to parse can be measured.
 	 */
 	parse(languageId?: string): Promise<ITreeSitterParseResult | undefined>;
+	textModel: ITextModel;
 	parseResult: ITreeSitterParseResult | undefined;
 	getInjection(offset: number, parentLanguage: string): ITreeSitterParseResult | undefined;
 	dispose(): void;

@@ -46,7 +46,7 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 	get parseResult(): ITreeSitterParseResult | undefined { return this._rootTreeSitterTree; }
 
 	constructor(
-		readonly model: ITextModel,
+		readonly textModel: ITextModel,
 		private readonly _treeSitterLanguages: TreeSitterLanguages,
 		parseImmediately: boolean = true,
 		@ITreeSitterImporter private readonly _treeSitterImporter: ITreeSitterImporter,
@@ -56,9 +56,9 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 	) {
 		super();
 		if (parseImmediately) {
-			this._register(Event.runAndSubscribe(this.model.onDidChangeLanguage, (e => this._onDidChangeLanguage(e ? e.newLanguage : this.model.getLanguageId()))));
+			this._register(Event.runAndSubscribe(this.textModel.onDidChangeLanguage, (e => this._onDidChangeLanguage(e ? e.newLanguage : this.textModel.getLanguageId()))));
 		} else {
-			this._register(this.model.onDidChangeLanguage(e => this._onDidChangeLanguage(e ? e.newLanguage : this.model.getLanguageId())));
+			this._register(this.textModel.onDidChangeLanguage(e => this._onDidChangeLanguage(e ? e.newLanguage : this.textModel.getLanguageId())));
 		}
 	}
 
@@ -70,7 +70,7 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 		this.parse(languageId);
 	}
 
-	public async parse(languageId: string = this.model.getLanguageId()): Promise<ITreeSitterParseResult | undefined> {
+	public async parse(languageId: string = this.textModel.getLanguageId()): Promise<ITreeSitterParseResult | undefined> {
 		this._parseSessionDisposables.clear();
 		this._rootTreeSitterTree = undefined;
 
@@ -93,7 +93,7 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 		const treeSitterTree = this._parseSessionDisposables.add(new TreeSitterParseResult(new Parser(), languageId, language, this._logService, this._telemetryService));
 		this._rootTreeSitterTree = treeSitterTree;
 		this._parseSessionDisposables.add(treeSitterTree.onDidUpdate(e => this._handleTreeUpdate(e)));
-		this._parseSessionDisposables.add(this.model.onDidChangeContent(e => this._onDidChangeContent(treeSitterTree, [e])));
+		this._parseSessionDisposables.add(this.textModel.onDidChangeContent(e => this._onDidChangeContent(treeSitterTree, [e])));
 		this._onDidChangeContent(treeSitterTree, undefined);
 		if (token.isCancellationRequested) {
 			return;
@@ -127,16 +127,16 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 		if (e.ranges && (e.versionId >= this._versionId)) {
 			this._versionId = e.versionId;
 			// kick off check for injected languages
-			this._parseInjected(parentTreeResult ?? this._rootTreeSitterTree!, parentLanguage ?? this.model.getLanguageId(), e.includedModelChanges);
+			this._parseInjected(parentTreeResult ?? this._rootTreeSitterTree!, parentLanguage ?? this.textModel.getLanguageId(), e.includedModelChanges);
 
-			this._onDidChangeParseResult.fire({ ranges: e.ranges, versionId: e.versionId, tree: this, languageId: this.model.getLanguageId() });
+			this._onDidChangeParseResult.fire({ ranges: e.ranges, versionId: e.versionId, tree: this, languageId: this.textModel.getLanguageId() });
 		}
 	}
 
 	private _queries: string | undefined;
 	private async _ensureInjectionQueries() {
 		if (!this._queries) {
-			const injectionsQueriesLocation: AppResourcePath = `vs/editor/common/languages/injections/${this.model.getLanguageId()}.scm`;
+			const injectionsQueriesLocation: AppResourcePath = `vs/editor/common/languages/injections/${this.textModel.getLanguageId()}.scm`;
 			const uri = FileAccess.asFileUri(injectionsQueriesLocation);
 			if (!(await this._fileService.exists(uri))) {
 				this._queries = '';
@@ -152,7 +152,7 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 
 	private async _getQuery() {
 		if (!this._query) {
-			const language = await this._treeSitterLanguages.getLanguage(this.model.getLanguageId());
+			const language = await this._treeSitterLanguages.getLanguage(this.textModel.getLanguageId());
 			if (!language) {
 				return;
 			}
@@ -215,7 +215,7 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 		if (this._injectionTreeSitterTrees.size === 0) {
 			return undefined;
 		}
-		let hasFoundParentLanguage = parentLanguage === this.model.getLanguageId();
+		let hasFoundParentLanguage = parentLanguage === this.textModel.getLanguageId();
 
 		for (const [_, treeSitterTree] of this._injectionTreeSitterTrees) {
 			if (treeSitterTree.tree) {
@@ -231,7 +231,12 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 	}
 
 	private _onDidChangeContent(treeSitterTree: TreeSitterParseResult, change: IModelContentChangedEvent[] | undefined, ranges?: Parser.Range[]) {
-		treeSitterTree.onDidChangeContent(this.model, change, ranges);
+		treeSitterTree.onDidChangeContent(this.textModel, change, ranges);
+	}
+
+	override dispose() {
+		super.dispose();
+		console.log('dispose');
 	}
 }
 
