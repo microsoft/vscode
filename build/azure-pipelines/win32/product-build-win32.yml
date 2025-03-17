@@ -200,6 +200,9 @@ steps:
           $CliAppName = $AppProductJson.tunnelApplicationName
           $AppName = $AppProductJson.applicationName
           Move-Item -Path "$(Build.ArtifactStagingDirectory)/cli/$AppName.exe" -Destination "$(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)/bin/$CliAppName.exe"
+
+          echo "List remaining CLI files"
+          ls $(Build.ArtifactStagingDirectory)/cli
         displayName: Move VS Code CLI
 
       - task: UseDotNet@2
