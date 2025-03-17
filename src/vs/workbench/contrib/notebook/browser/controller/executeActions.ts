@@ -144,7 +144,6 @@ registerAction2(class ExecuteNotebookAction extends NotebookAction {
 					group: 'navigation',
 					when: ContextKeyExpr.and(
 						NOTEBOOK_IS_ACTIVE_EDITOR,
-						executeNotebookCondition,
 						ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_SOMETHING_RUNNING.toNegated()),
 						ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
 					)
@@ -154,7 +153,6 @@ registerAction2(class ExecuteNotebookAction extends NotebookAction {
 					order: -1,
 					group: 'navigation/execute',
 					when: ContextKeyExpr.and(
-						executeNotebookCondition,
 						ContextKeyExpr.or(
 							NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(),
 							NOTEBOOK_HAS_SOMETHING_RUNNING.toNegated(),
