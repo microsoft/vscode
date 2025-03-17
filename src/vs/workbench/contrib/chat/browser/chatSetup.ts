@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatViewSetup.css';
-import { $, EventHelper, getActiveElement, setVisibility } from '../../../../base/browser/dom.js';
+import { $, getActiveElement, setVisibility } from '../../../../base/browser/dom.js';
 import { ButtonWithDropdown } from '../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { mainWindow } from '../../../../base/browser/window.js';
@@ -41,7 +41,7 @@ import { IProgressService, ProgressLocation } from '../../../../platform/progres
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ITelemetryService, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
-import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
@@ -67,9 +67,8 @@ import { ChatAgentLocation } from '../common/constants.js';
 import { ILanguageModelsService } from '../common/languageModels.js';
 import { Dialog } from '../../../../base/browser/ui/dialog/dialog.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
-import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { ResultKind } from '../../../../platform/keybinding/common/keybindingResolver.js';
+import { createWorkbenchDialogOptions } from '../../../../platform/dialogs/browser/dialog.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -273,15 +272,6 @@ class ChatSetupDialog {
 	) { }
 
 	async show(): Promise<ChatSetupDialogResult> {
-		const allowableCommands = [
-			'copy',
-			'cut',
-			'editor.action.selectAll',
-			'editor.action.clipboardCopyAction',
-			'editor.action.clipboardCutAction',
-			'editor.action.clipboardPasteAction'
-		];
-
 		const buttons = [
 			this.getPrimaryButton(),
 			localize('cancelButton', "Cancel")
@@ -294,22 +284,10 @@ class ChatSetupDialog {
 			this.layoutService.activeContainer,
 			localize('copilotFree', "Welcome to Copilot"),
 			buttons,
-			{
+			createWorkbenchDialogOptions({
 				type: 'none',
 				cancelId: buttons.length - 1,
 				renderBody: body => body.appendChild(this.create(disposables)),
-				keyEventProcessor: (event: StandardKeyboardEvent) => {
-					const resolved = this.keybindingService.softDispatch(event, this.layoutService.activeContainer);
-					if (resolved.kind === ResultKind.KbFound && resolved.commandId) {
-						if (!allowableCommands.includes(resolved.commandId)) {
-							EventHelper.stop(event, true);
-						}
-					}
-				},
-				buttonStyles: defaultButtonStyles,
-				checkboxStyles: defaultCheckboxStyles,
-				inputBoxStyles: defaultInputBoxStyles,
-				dialogStyles: defaultDialogStyles,
 				icon: Codicon.copilotLarge,
 				primaryButtonDropdown: {
 					contextMenuProvider: this.contextMenuService,
@@ -319,7 +297,7 @@ class ChatSetupDialog {
 						toAction({ id: 'setupWithEnterpriseProvider', label: localize('setupWithEnterpriseProvider', "Sign in with a {0} Account", defaultChat.enterpriseProviderName), run: () => result = ChatSetupDialogResult.SetupWithEnterpriseProvider }),
 					]
 				}
-			}
+			}, this.keybindingService, this.layoutService)
 		));
 
 		const { button } = await dialog.show();
