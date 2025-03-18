@@ -43,6 +43,7 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { EXTENSIONS_CATEGORY, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { ChatEntitlement, ChatSentiment, IChatEntitlementService } from '../../common/chatEntitlementService.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
@@ -239,6 +240,24 @@ export function registerChatActions() {
 			const quickInputService = accessor.get(IQuickInputService);
 			const viewsService = accessor.get(IViewsService);
 			const editorService = accessor.get(IEditorService);
+			const dialogService = accessor.get(IDialogService);
+			const chatEditingService = accessor.get(IChatEditingService);
+
+			const view = await viewsService.openView<ChatViewPane>(ChatViewId);
+			if (!view) {
+				return;
+			}
+
+			const chatSessionId = view.widget.viewModel?.model.sessionId;
+			if (!chatSessionId) {
+				return;
+			}
+
+			const editingSession = chatEditingService.getEditingSession(chatSessionId);
+			if (editingSession) {
+				const phrase = localize('switchChat.confirmPhrase', "Switching chats will end your current edit session.");
+				await handleCurrentEditingSession(editingSession, phrase, dialogService);
+			}
 
 			const showPicker = async () => {
 				const openInEditorButton: IQuickInputButton = {
@@ -314,7 +333,6 @@ export function registerChatActions() {
 					try {
 						const item = picker.selectedItems[0];
 						const sessionId = item.chat.sessionId;
-						const view = await viewsService.openView(ChatViewId) as ChatViewPane;
 						await view.loadSession(sessionId);
 					} finally {
 						picker.hide();
@@ -758,4 +776,46 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 export function getEditsViewId(accessor: ServicesAccessor): string {
 	const chatService = accessor.get(IChatService);
 	return chatService.unifiedViewEnabled ? ChatViewId : EditsViewId;
+}
+
+/**
+ * Returns whether we can continue clearing/switching chat sessions, false to cancel.
+ */
+export async function handleCurrentEditingSession(currentEditingSession: IChatEditingSession, phrase: string | undefined, dialogService: IDialogService): Promise<boolean> {
+	const currentEdits = currentEditingSession.entries.get();
+	const currentEditCount = currentEdits.length;
+
+	if (currentEditCount) {
+		const undecidedEdits = currentEdits.filter((edit) => edit.state.get() === WorkingSetEntryState.Modified);
+		if (undecidedEdits.length) {
+			const defaultPhrase = localize('chat.startEditing.confirmation.pending.message.default', "Starting a new chat will end your current edit session.");
+			phrase = phrase ?? defaultPhrase;
+			const { result } = await dialogService.prompt({
+				title: localize('chat.startEditing.confirmation.title', "Start new chat?"),
+				message: phrase + ' ' + localize('chat.startEditing.confirmation.pending.message.2', "Do you want to accept pending edits to {0} files?", undecidedEdits.length),
+				type: 'info',
+				cancelButton: true,
+				buttons: [
+					{
+						label: localize('chat.startEditing.confirmation.acceptEdits', "Accept & Continue"),
+						run: async () => {
+							await currentEditingSession.accept();
+							return true;
+						}
+					},
+					{
+						label: localize('chat.startEditing.confirmation.discardEdits', "Discard & Continue"),
+						run: async () => {
+							await currentEditingSession.reject();
+							return true;
+						}
+					}
+				],
+			});
+
+			return Boolean(result);
+		}
+	}
+
+	return true;
 }
