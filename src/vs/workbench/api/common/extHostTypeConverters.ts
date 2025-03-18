@@ -2427,7 +2427,7 @@ export namespace LanguageModelChatMessage2 {
 					data: c.value.data.buffer,
 				};
 
-				return new types.LanguageModelImagePart(value);
+				return new types.LanguageModelDataPart(value);
 			} else {
 				return new types.LanguageModelToolCallPart(c.toolCallId, c.name, c.parameters);
 			}
@@ -2470,7 +2470,7 @@ export namespace LanguageModelChatMessage2 {
 					})),
 					isError: c.isError
 				};
-			} else if (c instanceof types.LanguageModelImagePart) {
+			} else if (c instanceof types.LanguageModelDataPart) {
 				const value: chatProvider.IChatImageURLPart = {
 					mimeType: c.value.mimeType,
 					data: VSBuffer.wrap(c.value.data),

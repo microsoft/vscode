@@ -21,7 +21,7 @@ declare module 'vscode' {
 		 * @param content The content of the message.
 		 * @param name The optional name of a user for the message.
 		 */
-		static User(content: string | Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelImagePart>, name?: string): LanguageModelChatMessage2;
+		static User(content: string | Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelDataPart>, name?: string): LanguageModelChatMessage2;
 
 		/**
 		 * Utility to create a new assistant message.
@@ -29,7 +29,7 @@ declare module 'vscode' {
 		 * @param content The content of the message.
 		 * @param name The optional name of a user for the message.
 		 */
-		static Assistant(content: string | Array<LanguageModelTextPart | LanguageModelToolCallPart | LanguageModelImagePart>, name?: string): LanguageModelChatMessage2;
+		static Assistant(content: string | Array<LanguageModelTextPart | LanguageModelToolCallPart | LanguageModelDataPart>, name?: string): LanguageModelChatMessage2;
 
 		/**
 		 * The role of this message.
@@ -40,7 +40,7 @@ declare module 'vscode' {
 		 * A string or heterogeneous array of things that a message can contain as content. Some parts may be message-type
 		 * specific for some models.
 		 */
-		content: Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelImagePart>;
+		content: Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart>;
 
 		/**
 		 * The optional name of a user for this message.
@@ -54,13 +54,13 @@ declare module 'vscode' {
 		 * @param content The content of the message.
 		 * @param name The optional name of a user for the message.
 		 */
-		constructor(role: LanguageModelChatMessageRole, content: string | Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelImagePart>, name?: string);
+		constructor(role: LanguageModelChatMessageRole, content: string | Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart>, name?: string);
 	}
 
 	/**
  * A language model response part containing an image, returned from a {@link LanguageModelChatResponse}.
  */
-	export class LanguageModelImagePart {
+	export class LanguageModelDataPart {
 		/**
 		 * The image content of the part.
 		 */
