@@ -335,31 +335,59 @@ export class ChatDragAndDrop extends Themable {
 				method: 'GET',
 				mode: 'cors',
 				credentials: 'omit',
-				headers: {
-					'User-Agent': 'Mozilla/5.0',
-				}
 			});
 
 			if (!response.ok) {
-				return undefined;
+				throw new Error('Fetch failed');
 			}
 
 			// Verify content type and size
 			const contentType = response.headers.get('content-type');
-			const contentLength = response.headers.get('content-length');
+			const contentLength = parseInt(response.headers.get('content-length') || '0', 10);
 
-			if (!contentType || parseInt(contentLength || '0') > 50 * 1024 * 1024) { // 50MB limit
+			if (!contentType?.startsWith('image/') || contentLength > 50 * 1024 * 1024) {
 				return undefined;
 			}
 
 			const blob = await response.blob();
-			const arrayBuffer = await blob.arrayBuffer();
-			return new Uint8Array(arrayBuffer);
-		} catch (e) {
-			console.error('Failed to fetch URL content:', e);
-			this.notificationService.error(localize('failedToFetchURL', 'Failed to fetch URL content: {0}', e));
-			return undefined;
+			return new Uint8Array(await blob.arrayBuffer());
+		} catch (fetchError) {
+			console.warn('Fetch failed, attempting canvas approach:', fetchError);
+			return this.downloadImageViaCanvas(url);
 		}
+	}
+
+	private downloadImageViaCanvas(url: string): Promise<Uint8Array | undefined> {
+		return new Promise((resolve) => {
+			const img = new Image();
+			img.crossOrigin = 'anonymous';
+
+			img.onload = () => {
+				const canvas = document.createElement('canvas');
+				const ctx = canvas.getContext('2d');
+				if (!ctx) {
+					return resolve(undefined);
+				}
+
+				canvas.width = img.width;
+				canvas.height = img.height;
+				ctx.drawImage(img, 0, 0);
+
+				canvas.toBlob(async (blob) => {
+					if (blob) {
+						resolve(new Uint8Array(await blob.arrayBuffer()));
+					} else {
+						resolve(undefined);
+					}
+				}, 'image/png');
+			};
+
+			img.onerror = () => {
+				this.notificationService.warn(localize('failedToLoadImage', 'Failed to load image: The image could not be loaded. Please check the URL and try again.'));
+				resolve(undefined);
+			};
+			img.src = url;
+		});
 	}
 
 	private async resolveHTMLAttachContext(data: string): Promise<IChatRequestVariableEntry[]> {
@@ -396,7 +424,6 @@ export class ChatDragAndDrop extends Themable {
 					isImage: true,
 					isFile: false,
 					isDirectory: false,
-					isURL: true,
 				}];
 			}
 		}
@@ -535,3 +562,4 @@ function extractImageAttributes(html: string): { src: string; alt?: string } {
 
 	return { src: html, alt: undefined };
 }
+
