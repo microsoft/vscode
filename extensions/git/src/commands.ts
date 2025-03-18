@@ -2720,7 +2720,7 @@ export class CommandCenter {
 		const quickPick = window.createQuickPick();
 		quickPick.busy = true;
 		quickPick.sortByLabel = false;
-		quickPick.matchOnDetail = true;
+		quickPick.matchOnDetail = false;
 		quickPick.placeholder = opts?.detached
 			? l10n.t('Select a branch to checkout in detached mode')
 			: l10n.t('Select a branch or tag to checkout');
