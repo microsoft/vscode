@@ -7,7 +7,6 @@ import * as vscode from 'vscode';
 
 /**
  * TODO: @legomushroom - list
- *  - move in `prompt content providers`
  *  - move in `prompt parsers`
  *  - move in `prompt file reference`
  *  - create extension API

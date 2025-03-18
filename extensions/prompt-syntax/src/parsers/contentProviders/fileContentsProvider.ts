@@ -17,7 +17,7 @@ import { FolderReference, NotPromptFile, OpenFailed, ResolveError } from '../err
 import { newWriteableStream, type ReadableStream, VSBuffer } from '../../utils/vscode';
 
 /**
- * Prompt contents provider for a file on the disk referenced by the provided {@linkcode URI}.
+ * Prompt contents provider for a file on the disk referenced by the provided file {@link URI}.
  */
 export class FileContentsProvider extends ContentsProviderBase<FileChangeEvent> implements IContentsProvider {
 	constructor(
@@ -112,15 +112,9 @@ export class FileContentsProvider extends ContentsProviderBase<FileChangeEvent> 
 			throw new NotPromptFile(this.uri);
 		}
 
-		// const stream = newWriteableStream<VSBuffer>((chunks) => {
-		// 	return VSBuffer.concat(chunks);
-		// });
-
 		const stream = newWriteableStream<VSBuffer>((chunks) => {
 			return VSBuffer.concat(chunks);
 		});
-
-		stream.pause();
 
 		let contentsBuffer = VSBuffer.fromByteArray([...fileContents]);
 

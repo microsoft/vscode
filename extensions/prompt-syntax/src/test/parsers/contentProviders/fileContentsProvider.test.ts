@@ -7,10 +7,10 @@ import assert from 'assert';
 import { workspace, Uri } from 'vscode';
 
 import { wait } from '../../../utils/wait';
-import { VSBuffer, type ReadableStream } from '../../../utils/vscode';
 import { assertDefined } from '../../../utils/asserts';
 import { Line } from '../../../codecs/linesCodec/tokens';
 import { VSCodeFileSystem } from '../../../utils/vscodeFilesystem';
+import { VSBuffer, type ReadableStream } from '../../../utils/vscode';
 import { LinesDecoder } from '../../../codecs/linesCodec/linesDecoder';
 import { FileContentsProvider } from '../../../parsers/contentProviders/fileContentsProvider';
 
@@ -42,7 +42,6 @@ suite('FileContentsProvider', function () {
 		}
 
 		await filesystem.writeFile(fileUri, VSBuffer.fromString('Hello, world!').buffer);
-		await wait(50); // TODO: @legomushroom - fix the timeout
 
 		const contentsProvider = new FileContentsProvider(fileUri, filesystem);
 
