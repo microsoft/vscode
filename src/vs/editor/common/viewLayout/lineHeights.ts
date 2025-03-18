@@ -122,30 +122,48 @@ export class LineHeightManager {
 		} else {
 			endIndexOfDeletionExclusive = -(candidateEndIndexOfDeletionExclusive + 1);
 		}
-		let totalHeightDeleted: number = 0;
 		if (endIndexOfDeletionExclusive > startIndexOfDeletion) {
-			const firstLineDeleted = this._orderedSpecialLines[startIndexOfDeletion];
-			const lastLineDeleted = this._orderedSpecialLines[endIndexOfDeletionExclusive - 1];
-			totalHeightDeleted = lastLineDeleted.prefixSum
-				+ lastLineDeleted.maximumSpecialHeight
-				- firstLineDeleted.prefixSum
-				+ this._defaultLineHeight * (toLineNumber - lastLineDeleted.lineNumber)
-				+ this._defaultLineHeight * (firstLineDeleted.lineNumber - fromLineNumber);
+			let maximumSpecialHeightOnDeletedInterval = 0;
+			for (let i = startIndexOfDeletion; i < endIndexOfDeletionExclusive; i++) {
+				maximumSpecialHeightOnDeletedInterval = Math.max(maximumSpecialHeightOnDeletedInterval, this._orderedSpecialLines[i].maximumSpecialHeight);
+			}
+			let prefixSumOnDeletedInterval = 0;
+			if (startIndexOfDeletion > 0) {
+				const previousSpecialLine = this._orderedSpecialLines[startIndexOfDeletion - 1];
+				prefixSumOnDeletedInterval = previousSpecialLine.prefixSum + previousSpecialLine.maximumSpecialHeight + this._defaultLineHeight * (fromLineNumber - previousSpecialLine.lineNumber - 1);
+			} else {
+				prefixSumOnDeletedInterval = fromLineNumber > 0 ? (fromLineNumber - 1) * this._defaultLineHeight : 0;
+			}
+			const firstSpecialLineDeleted = this._orderedSpecialLines[startIndexOfDeletion];
+			const lastSpecialLineDeleted = this._orderedSpecialLines[endIndexOfDeletionExclusive - 1];
+			const firstSpecialLineAfterDeletion = this._orderedSpecialLines[endIndexOfDeletionExclusive];
+			const heightOfFirstLineAfterDeletion = firstSpecialLineAfterDeletion && firstSpecialLineAfterDeletion.lineNumber === toLineNumber + 1 ? firstSpecialLineAfterDeletion.maximumSpecialHeight : this._defaultLineHeight;
+			const totalHeightDeleted = lastSpecialLineDeleted.prefixSum
+				+ lastSpecialLineDeleted.maximumSpecialHeight
+				- firstSpecialLineDeleted.prefixSum
+				+ this._defaultLineHeight * (toLineNumber - lastSpecialLineDeleted.lineNumber)
+				+ this._defaultLineHeight * (firstSpecialLineDeleted.lineNumber - fromLineNumber)
+				+ heightOfFirstLineAfterDeletion - maximumSpecialHeightOnDeletedInterval;
+
+			for (let i = startIndexOfDeletion; i < this._orderedSpecialLines.length; i++) {
+				const specialLine = this._orderedSpecialLines[i];
+				if (i >= startIndexOfDeletion && i < endIndexOfDeletionExclusive) {
+					specialLine.lineNumber = fromLineNumber;
+					specialLine.prefixSum = prefixSumOnDeletedInterval;
+					specialLine.maximumSpecialHeight = maximumSpecialHeightOnDeletedInterval;
+				} else if (i >= endIndexOfDeletionExclusive) {
+					specialLine.lineNumber -= deleteCount;
+					specialLine.prefixSum -= totalHeightDeleted;
+				}
+			}
 		} else {
-			totalHeightDeleted = deleteCount * this._defaultLineHeight;
-		}
-		const newOrderedSpecialLines: SpecialLine[] = [];
-		for (let i = 0; i < this._orderedSpecialLines.length; i++) {
-			if (i < startIndexOfDeletion) {
-				newOrderedSpecialLines.push(this._orderedSpecialLines[i]);
-			} else if (i >= endIndexOfDeletionExclusive) {
+			const totalHeightDeleted = deleteCount * this._defaultLineHeight;
+			for (let i = endIndexOfDeletionExclusive; i < this._orderedSpecialLines.length; i++) {
 				const specialLine = this._orderedSpecialLines[i];
 				specialLine.lineNumber -= deleteCount;
 				specialLine.prefixSum -= totalHeightDeleted;
-				newOrderedSpecialLines.push(specialLine);
 			}
 		}
-		this._orderedSpecialLines = newOrderedSpecialLines;
 	}
 
 	public onLinesInserted(fromLineNumber: number, toLineNumber: number): void {
