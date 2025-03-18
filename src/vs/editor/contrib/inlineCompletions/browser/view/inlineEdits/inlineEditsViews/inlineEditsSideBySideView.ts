@@ -66,7 +66,6 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 		private readonly _edit: IObservable<InlineEditWithChanges | undefined>,
 		private readonly _previewTextModel: ITextModel,
 		private readonly _uiState: IObservable<{
-			edit: InlineEditWithChanges;
 			newTextLineCount: number;
 			originalDisplayRange: LineRange;
 		} | undefined>,
@@ -196,11 +195,12 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 		}
 
 		const uiState = this._uiState.read(reader);
-		if (!uiState) {
+		const edit = this._edit.read(reader);
+		if (!uiState || !edit) {
 			return;
 		}
 
-		const range = uiState.edit.originalLineRange;
+		const range = edit.originalLineRange;
 
 		const hiddenAreas: Range[] = [];
 		if (range.startLineNumber > 1) {
@@ -344,10 +344,8 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 		const codeHeight = selectionBottom - selectionTop;
 		const previewEditorHeight = Math.max(codeHeight, editHeight);
 
-		const codeEditDistRange = new OffsetRange(60, 61);
-
 		const clipped = dist === 0;
-		const codeEditDist = !isInsertion ? 0 : codeEditDistRange.clip(dist);
+		const codeEditDist = 0;
 		const previewEditorWidth = Math.min(previewContentWidth + 12, remainingWidthRightOfEditor + editorLayout.width - editorLayout.contentLeft - codeEditDist);
 
 		let editRect = Rect.fromLeftTopWidthHeight(codeRect.right + codeEditDist, selectionTop, previewEditorWidth, previewEditorHeight);
@@ -431,7 +429,7 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 	]).keepUpdated(this._store);
 
 	private readonly _originalOverlay = n.div({
-		style: { pointerEvents: 'none', }
+		style: { pointerEvents: 'none', display: this._previewEditorLayoutInfo.map(layoutInfo => layoutInfo?.isInsertion ? 'none' : 'block') },
 	}, derived(reader => {
 		const layoutInfoObs = mapOutFalsy(this._previewEditorLayoutInfo).read(reader);
 		if (!layoutInfoObs) { return undefined; }
@@ -536,7 +534,23 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 		const overlayRect = layoutInfoObs.map(layoutInfo => layoutInfo.editRect.withMargin(0, BORDER_WIDTH));
 		const separatorRect = overlayRect.map(overlayRect => overlayRect.withMargin(WIDGET_SEPARATOR_WIDTH, WIDGET_SEPARATOR_WIDTH, WIDGET_SEPARATOR_WIDTH, 0));
 
+		const insertionRect = derived(reader => {
+			const overlay = overlayRect.read(reader);
+			const layoutinfo = layoutInfoObs.read(reader);
+			if (!layoutinfo.isInsertion || layoutinfo.contentLeft >= overlay.left) {
+				return Rect.fromLeftTopWidthHeight(overlay.left, overlay.top, 0, 0);
+			}
+			return new Rect(layoutinfo.contentLeft, overlay.top, overlay.left, overlay.top + BORDER_WIDTH * 2);
+		});
+
 		return [
+			n.div({
+				class: 'modifiedInsertionSideBySide',
+				style: {
+					...insertionRect.read(reader).toStyles(),
+					backgroundColor: getModifiedBorderColor(this._tabAction).map(c => asCssVariable(c)),
+				}
+			}),
 			n.div({
 				class: 'modifiedSeparatorSideBySide',
 				style: {
