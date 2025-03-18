@@ -199,6 +199,7 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 		const node = cursor.currentNode;
 		const nodeLineCount = node.endPosition.row - node.startPosition.row;
 
+		// We check the node line count to avoid processing large nodes in one go as that can cause performance issues.
 		if (nodeLineCount <= 1000) {
 			this._processCaptures(query, node, injections);
 			// Move to next sibling or up and over
