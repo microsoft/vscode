@@ -3328,7 +3328,7 @@
         },
         "git.showReferenceDetails": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "markdownDescription": "%config.showReferenceDetails%"
         }
       }
