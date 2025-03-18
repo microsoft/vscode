@@ -326,7 +326,12 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 							value = value.substring(0, value.length - 1);
 							value += `${lineText.trim()}`;
 						} else {
-							value += `\n${lineText.trim()}`;
+							if (/^ {6,}/.test(lineText)) {
+								// Was likely a new line
+								value += `\n${lineText.trim()}`;
+							} else {
+								value += lineText;
+							}
 						}
 					} else {
 						value += `\n${lineText}`;
@@ -347,7 +352,12 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 							value = value.substring(0, value.length - 1);
 							value += `${trimmedLineText.trim()}`;
 						} else {
-							value += `\n${trimmedLineText.trim()}`;
+							if (/^ {6,}/.test(lineText)) {
+								// Was likely a new line
+								value += `\n${lineText.trim()}`;
+							} else {
+								value += lineText;
+							}
 						}
 					} else {
 						value += `\n${trimmedLineText}`;
