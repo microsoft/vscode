@@ -1190,7 +1190,7 @@ class TreeDataSource implements IAsyncDataSource<ITreeItem, ITreeItem> {
 		return !!this.treeView.dataProvider && (element.collapsibleState !== TreeItemCollapsibleState.None);
 	}
 
-	private batch: { elements: ITreeItem[], promise: Promise<ITreeItem[][] | undefined> | undefined } | undefined;
+	private batch: { elements: ITreeItem[]; promise: Promise<ITreeItem[][] | undefined> | undefined } | undefined;
 	async getChildren(element: ITreeItem): Promise<ITreeItem[]> {
 		const dataProvider = this.treeView.dataProvider;
 		if (!dataProvider) {
