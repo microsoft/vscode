@@ -218,12 +218,10 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 					inputs = result.workspaceFolderValue?.inputs;
 					break;
 			}
-		} else {
-			const valueResult = this.configurationService.getValue<any>(section, overrides);
-			if (valueResult) {
-				inputs = valueResult.inputs;
-			}
 		}
+
+
+		inputs ??= this.configurationService.getValue<any>(section, overrides)?.inputs;
 
 		return inputs;
 	}
