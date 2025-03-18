@@ -150,7 +150,7 @@ suite('Sticky Scroll Tests', () => {
 				await provider.update();
 				assert.deepStrictEqual(provider.getCandidateStickyLinesIntersecting({ startLineNumber: 1, endLineNumber: 4 }), [new StickyLineCandidate(1, 2, 0, 19)]);
 				assert.deepStrictEqual(provider.getCandidateStickyLinesIntersecting({ startLineNumber: 8, endLineNumber: 10 }), [new StickyLineCandidate(7, 11, 0, 19), new StickyLineCandidate(9, 11, 19, 19), new StickyLineCandidate(10, 10, 38, 19)]);
-				assert.deepStrictEqual(provider.getCandidateStickyLinesIntersecting({ startLineNumber: 10, endLineNumber: 13 }), [new StickyLineCandidate(7, 11, 0, 19), new StickyLineCandidate(9, 11, 19, 19), new StickyLineCandidate(10, 10, 38, 19)]);
+				assert.deepStrictEqual(provider.getCandidateStickyLinesIntersecting({ startLineNumber: 10, endLineNumber: 13 }), [new StickyLineCandidate(7, 11, 0, 19), new StickyLineCandidate(9, 11, 19, 19), new StickyLineCandidate(10, 10, 38, 19), new StickyLineCandidate(13, 13, 0, 19)]);
 
 				provider.dispose();
 				model.dispose();
