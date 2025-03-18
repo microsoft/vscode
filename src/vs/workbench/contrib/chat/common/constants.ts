@@ -5,6 +5,7 @@
 
 export enum ChatConfiguration {
 	UnifiedChatView = 'chat.experimental.unifiedChatView',
+	UseFileStorage = 'chat.useFileStorage',
 }
 
 export enum ChatMode {

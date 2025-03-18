@@ -484,7 +484,7 @@ export interface IChatService {
 	hasSessions(): boolean;
 	startSession(location: ChatAgentLocation, token: CancellationToken): ChatModel;
 	getSession(sessionId: string): IChatModel | undefined;
-	getOrRestoreSession(sessionId: string): IChatModel | undefined;
+	getOrRestoreSession(sessionId: string): Promise<IChatModel | undefined>;
 	loadSessionFromContent(data: IExportableChatData | ISerializableChatData): IChatModel | undefined;
 
 	/**
@@ -496,12 +496,14 @@ export interface IChatService {
 	adoptRequest(sessionId: string, request: IChatRequestModel): Promise<void>;
 	removeRequest(sessionid: string, requestId: string): Promise<void>;
 	cancelCurrentRequestForSession(sessionId: string): void;
-	clearSession(sessionId: string): void;
+	clearSession(sessionId: string): Promise<void>;
 	addCompleteRequest(sessionId: string, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, attempt: number | undefined, response: IChatCompleteResponse): void;
-	getHistory(): IChatDetail[];
+	getHistory(): Promise<IChatDetail[]>;
 	setChatSessionTitle(sessionId: string, title: string): void;
-	clearAllHistoryEntries(): void;
-	removeHistoryEntry(sessionId: string): void;
+	clearAllHistoryEntries(): Promise<void>;
+	removeHistoryEntry(sessionId: string): Promise<void>;
+	getChatStorageFolder(): URI;
+	logChatIndex(): void;
 
 	onDidPerformUserAction: Event<IChatUserActionEvent>;
 	notifyUserAction(event: IChatUserActionEvent): void;
