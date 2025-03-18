@@ -22,7 +22,7 @@ import { IPaneCompositePartService } from '../../services/panecomposite/browser/
 import { ToggleAuxiliaryBarAction } from '../parts/auxiliarybar/auxiliaryBarActions.js';
 import { TogglePanelAction } from '../parts/panel/panelActions.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
-import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsMainEditorCenteredLayoutContext, MainEditorAreaVisibleContext, IsMainWindowFullscreenContext, PanelPositionContext, IsAuxiliaryWindowFocusedContext, TitleBarStyleContext, PearAIVisibleContext, PearAICreatorVisibleContext, InEditorCreatorModeContext } from '../../common/contextkeys.js';
+import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsMainEditorCenteredLayoutContext, MainEditorAreaVisibleContext, IsMainWindowFullscreenContext, PanelPositionContext, IsAuxiliaryWindowFocusedContext, TitleBarStyleContext, PearAIVisibleContext, PearAICreatorVisibleContext } from '../../common/contextkeys.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
@@ -787,7 +787,6 @@ registerAction2(class extends Action2 {
 				original: 'Enter Creator Mode',
 				value: "Enter Creator Mode"
 			},
-			// precondition: InEditorCreatorModeContext.toNegated(),
 			category: Categories.View,
 			f1: true
 		});
@@ -809,7 +808,6 @@ registerAction2(class extends Action2 {
 				original: 'Exit Creator Mode',
 				value: "Exit Creator Mode"
 			},
-			// precondition: InEditorCreatorModeContext,
 			category: Categories.View,
 			f1: true,
 			keybinding: {
@@ -1462,7 +1460,6 @@ const AlignPanelActions: CustomizeLayoutItem[] = [
 const MiscLayoutOptions: CustomizeLayoutItem[] = [
 	CreateOptionLayoutItem('workbench.action.toggleFullScreen', IsMainWindowFullscreenContext, localize('fullscreen', "Full Screen"), fullscreenIcon),
 	CreateOptionLayoutItem('workbench.action.toggleZenMode', InEditorZenModeContext, localize('zenMode', "Zen Mode"), zenModeIcon),
-	CreateOptionLayoutItem('workbench.action.toggleCreatorMode', InEditorCreatorModeContext, "Creator Mode", zenModeIcon),// TODO: REMOVE - ONLY USED FOR TESTING
 	CreateOptionLayoutItem('workbench.action.toggleCenteredLayout', IsMainEditorCenteredLayoutContext, localize('centeredLayout', "Centered Layout"), centerLayoutIcon),
 ];
 
