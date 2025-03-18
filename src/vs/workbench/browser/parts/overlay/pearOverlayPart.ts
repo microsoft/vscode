@@ -156,11 +156,14 @@ export class PearOverlayPart extends Part {
 
 		// 3. ask the webviewViewService to connect our webviewView to the webviewViewProvider, PearInventoryPanel
 		const source = new CancellationTokenSource(); // todo add to disposables
+		console.dir(`RESOLVING pearOverlayPart WEBVIEW SERVICE...`);
+
 		await this._webviewViewService.resolve(
 			PEARAI_CHAT_ID,
 			this.webviewView!,
 			source.token,
 		);
+		console.dir(`WEBVIEW CreatorOverlayPart SERVICE RESOLVED!`);
 
 		// if both content and webview are ready, end loading state and open
 		if (this.popupAreaOverlay && this.webviewView) {
