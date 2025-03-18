@@ -488,12 +488,12 @@ export class StartServer extends Action2 {
 }
 
 export class StopServer extends Action2 {
-	static readonly ID = 'workbench.mcp.StopServer';
+	static readonly ID = 'workbench.mcp.stopServer';
 
 	constructor() {
 		super({
 			id: StopServer.ID,
-			title: localize2('mcp.command.StopServer', "Stop Server"),
+			title: localize2('mcp.command.stopServer', "Stop Server"),
 			category,
 			f1: false,
 		});

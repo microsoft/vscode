@@ -22,7 +22,8 @@ import { IMcpService, McpConnectionState } from '../common/mcpTypes.js';
 import { EditStoredInput, RemoveStoredInput, ShowOutput, StartServer, StopServer } from './mcpCommands.js';
 
 export class McpLanguageFeatures extends Disposable implements IWorkbenchContribution {
-	private readonly _cachedMcpSection = new MutableDisposable<{ model: ITextModel; node: Node } & IDisposable>();
+	private readonly _cachedMcpSection = this._register(new MutableDisposable<{ model: ITextModel; node: Node } & IDisposable>());
+
 	constructor(
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
