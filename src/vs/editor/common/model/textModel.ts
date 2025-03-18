@@ -213,7 +213,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private readonly _onWillDispose: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onWillDispose: Event<void> = this._onWillDispose.event;
 
-	private readonly _onDidChangeDecorations: DidChangeDecorationsEmitter = this._register(new DidChangeDecorationsEmitter((affectedInjectedTextLines, specialLineHeights) => this.handleBeforeFireDecorationsChangedEvent(affectedInjectedTextLines, specialLineHeights)));
+	private readonly _onDidChangeDecorations: DidChangeDecorationsEmitter = this._register(new DidChangeDecorationsEmitter((affectedInjectedTextLines, affectedLineHeights) => this.handleBeforeFireDecorationsChangedEvent(affectedInjectedTextLines, affectedLineHeights)));
 	public readonly onDidChangeDecorations: Event<IModelDecorationsChangedEvent> = this._onDidChangeDecorations.event;
 
 	public get onDidChangeLanguage() { return this._tokenizationTextModelPart.onDidChangeLanguage; }
@@ -228,8 +228,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	private readonly _onDidChangeInjectedText: Emitter<ModelInjectedTextChangedEvent> = this._register(new Emitter<ModelInjectedTextChangedEvent>());
 
-	private readonly _onDidChangeSpecialLineHeight: Emitter<ModelLineHeightChangedEvent> = this._register(new Emitter<ModelLineHeightChangedEvent>());
-	public readonly onDidChangeSpecialLineHeight: Event<ModelLineHeightChangedEvent> = this._onDidChangeSpecialLineHeight.event;
+	private readonly _onDidChangeLineHeight: Emitter<ModelLineHeightChangedEvent> = this._register(new Emitter<ModelLineHeightChangedEvent>());
+	public readonly onDidChangeLineHeight: Event<ModelLineHeightChangedEvent> = this._onDidChangeLineHeight.event;
 
 	private readonly _eventEmitter: DidChangeContentEmitter = this._register(new DidChangeContentEmitter());
 	public onDidChangeContent(listener: (e: IModelContentChangedEvent) => void): IDisposable {
@@ -416,7 +416,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			|| this._onDidChangeOptions.hasListeners()
 			|| this._onDidChangeAttached.hasListeners()
 			|| this._onDidChangeInjectedText.hasListeners()
-			|| this._onDidChangeSpecialLineHeight.hasListeners()
+			|| this._onDidChangeLineHeight.hasListeners()
 			|| this._eventEmitter.hasListeners()
 		);
 	}
@@ -1580,7 +1580,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	//#region Decorations
 
-	private handleBeforeFireDecorationsChangedEvent(affectedInjectedTextLines: Set<number> | null, specialLineHeights: Set<{ ownerId: number; decorationId: string; lineNumber: number }> | null): void {
+	private handleBeforeFireDecorationsChangedEvent(affectedInjectedTextLines: Set<number> | null, affectedLineHeights: Set<{ ownerId: number; decorationId: string; lineNumber: number }> | null): void {
 		// This is called before the decoration changed event is fired.
 
 		if (affectedInjectedTextLines && affectedInjectedTextLines.size > 0) {
@@ -1588,10 +1588,10 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			const injectedTextChangeEvent = affectedLinesByTextInjection.map(lineNumber => new ModelRawLineChanged(lineNumber, this.getLineContent(lineNumber), this._getInjectedTextInLine(lineNumber)));
 			this._onDidChangeInjectedText.fire(new ModelInjectedTextChangedEvent(injectedTextChangeEvent));
 		}
-		if (specialLineHeights && specialLineHeights.size > 0) {
-			const affectedLinesByLineHeightChange = Array.from(specialLineHeights);
+		if (affectedLineHeights && affectedLineHeights.size > 0) {
+			const affectedLinesByLineHeightChange = Array.from(affectedLineHeights);
 			const lineHeightChangeEvent = affectedLinesByLineHeightChange.map(specialLineHeightChange => new ModelLineHeightChanged(specialLineHeightChange.ownerId, specialLineHeightChange.decorationId, specialLineHeightChange.lineNumber, this._getLineHeightForLine(specialLineHeightChange.lineNumber)));
-			this._onDidChangeSpecialLineHeight.fire(new ModelLineHeightChangedEvent(lineHeightChangeEvent));
+			this._onDidChangeLineHeight.fire(new ModelLineHeightChangedEvent(lineHeightChangeEvent));
 		}
 	}
 
@@ -2463,11 +2463,11 @@ class DidChangeDecorationsEmitter extends Disposable {
 	private _affectsMinimap: boolean;
 	private _affectsOverviewRuler: boolean;
 	private _affectedInjectedTextLines: Set<number> | null = null;
-	private _specialLineHeights: Set<{ ownerId: number; decorationId: string; lineNumber: number }> | null = null;
+	private _affectedLineHeights: Set<{ ownerId: number; decorationId: string; lineNumber: number }> | null = null;
 	private _affectsGlyphMargin: boolean;
 	private _affectsLineNumber: boolean;
 
-	constructor(private readonly handleBeforeFire: (affectedInjectedTextLines: Set<number> | null, specialLineHeights: Set<{ ownerId: number; decorationId: string; lineNumber: number }> | null) => void) {
+	constructor(private readonly handleBeforeFire: (affectedInjectedTextLines: Set<number> | null, affectedLineHeights: Set<{ ownerId: number; decorationId: string; lineNumber: number }> | null) => void) {
 		super();
 		this._deferredCnt = 0;
 		this._shouldFireDeferred = false;
@@ -2494,8 +2494,8 @@ class DidChangeDecorationsEmitter extends Disposable {
 
 			this._affectedInjectedTextLines?.clear();
 			this._affectedInjectedTextLines = null;
-			this._specialLineHeights?.clear();
-			this._specialLineHeights = null;
+			this._affectedLineHeights?.clear();
+			this._affectedLineHeights = null;
 		}
 	}
 
@@ -2507,10 +2507,10 @@ class DidChangeDecorationsEmitter extends Disposable {
 	}
 
 	public recordLineAffectedByLineHeightChange(ownerId: number, decorationId: string, lineNumber: number): void {
-		if (!this._specialLineHeights) {
-			this._specialLineHeights = new Set();
+		if (!this._affectedLineHeights) {
+			this._affectedLineHeights = new Set();
 		}
-		this._specialLineHeights.add({ ownerId, decorationId, lineNumber });
+		this._affectedLineHeights.add({ ownerId, decorationId, lineNumber });
 	}
 
 	public checkAffectedAndFire(options: ModelDecorationOptions): void {
@@ -2537,7 +2537,7 @@ class DidChangeDecorationsEmitter extends Disposable {
 	}
 
 	private doFire() {
-		this.handleBeforeFire(this._affectedInjectedTextLines, this._specialLineHeights);
+		this.handleBeforeFire(this._affectedInjectedTextLines, this._affectedLineHeights);
 
 		const event: IModelDecorationsChangedEvent = {
 			affectsMinimap: this._affectsMinimap,

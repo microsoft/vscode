@@ -260,10 +260,9 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._editor.layoutOverlayWidget(this);
 	}
 
-	private _getHeightOfLines(lineNumbers: number[], untilIndex?: number): number {
-		const indexToSumUntil = untilIndex ?? lineNumbers.length;
+	private _getHeightOfLines(lineNumbers: number[]): number {
 		let totalHeight = 0;
-		for (let i = 0; i < indexToSumUntil; i++) {
+		for (let i = 0; i < lineNumbers.length; i++) {
 			totalHeight += this._editor.getLineHeightForLineNumber(lineNumbers[i]);
 		}
 		return totalHeight;

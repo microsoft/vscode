@@ -245,6 +245,10 @@ export class ModelLineHeightChanged {
 	 */
 	public readonly ownerId: number;
 	/**
+	 * The decoration ID that has changed.
+	 */
+	public readonly decorationId: string;
+	/**
 	 * The line that has changed.
 	 */
 	public readonly lineNumber: number;
@@ -252,7 +256,6 @@ export class ModelLineHeightChanged {
 	 * The line height on the line.
 	 */
 	public readonly lineHeight: number | null;
-	public readonly decorationId: string;
 
 	constructor(ownerId: number, decorationId: string, lineNumber: number, lineHeight: number | null) {
 		this.ownerId = ownerId;

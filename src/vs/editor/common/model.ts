@@ -1247,7 +1247,7 @@ export interface ITextModel {
 	 * @internal
 	 * @event
 	 */
-	readonly onDidChangeSpecialLineHeight: Event<ModelLineHeightChangedEvent>;
+	readonly onDidChangeLineHeight: Event<ModelLineHeightChangedEvent>;
 	/**
 	 * An event emitted when the model options have changed.
 	 * @event

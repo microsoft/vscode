@@ -419,7 +419,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			this._handleVisibleLinesChanged();
 		}));
 
-		this._register(this.model.onDidChangeSpecialLineHeight((e) => {
+		this._register(this.model.onDidChangeLineHeight((e) => {
 			e.changes.forEach((change) => {
 				if (change.ownerId !== this._editorId && change.ownerId !== 0) {
 					return;

@@ -436,8 +436,8 @@ export class LinesLayout {
 		return linesHeight + whitespacesHeight + this._paddingTop + this._paddingBottom;
 	}
 
-	private _linesHeight(_untilLineNumber?: number): number {
-		const untilLineNumber = _untilLineNumber ?? this._lineCount;
+	private _linesHeight(until?: number): number {
+		const untilLineNumber = typeof until === 'number' ? until : this._lineCount;
 		return this._specialLineHeightsManager.totalHeightUntilLineNumber(untilLineNumber);
 	}
 

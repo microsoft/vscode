@@ -845,11 +845,11 @@ export class TextAreaEditContext extends AbstractEditContext {
 		const tac = this.textAreaCover;
 
 		applyFontInfo(ta, this._fontInfo);
-		ta.setLineHeight(renderData.height);
 		ta.setTop(renderData.top);
 		ta.setLeft(renderData.left);
 		ta.setWidth(renderData.width);
 		ta.setHeight(renderData.height);
+		ta.setLineHeight(renderData.height);
 
 		ta.setColor(renderData.color ? Color.Format.CSS.formatHex(renderData.color) : '');
 		ta.setFontStyle(renderData.italic ? 'italic' : '');

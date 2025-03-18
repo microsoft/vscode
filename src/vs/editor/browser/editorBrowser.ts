@@ -892,11 +892,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	getConfiguredWordAtPosition(position: Position): IWordAtPosition | null;
 
 	/**
-	 * An event emitted when line heights from decorations changes
+	 * An event emitted when line heights from decorations change
 	 * @internal
 	 * @event
 	 */
-	onDidChangeSpecialLineHeight: Event<ModelLineHeightChangedEvent>;
+	onDidChangeLineHeight: Event<ModelLineHeightChangedEvent>;
 
 	/**
 	 * Get value of the current model attached to this editor.
