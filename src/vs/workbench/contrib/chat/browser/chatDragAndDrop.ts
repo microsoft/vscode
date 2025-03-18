@@ -393,7 +393,7 @@ export class ChatDragAndDrop extends Themable {
 			finalDisplayName = `${displayName} ${appendValue}`;
 		}
 
-		const { src, alt } = extractImageAttributes2(e);
+		const { src, alt } = extractImageAttributes(e);
 		finalDisplayName = alt ?? finalDisplayName;
 
 		if (/^data:image\/[a-z]+;base64,/.test(src)) {
@@ -544,22 +544,7 @@ function symbolId(resource: URI, range?: IRange): string {
 	return resource.fsPath + rangePart;
 }
 
-function extractImageAttributes(html: string): { src: string; alt?: string } {
-	const imgTagRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/;
-	const altRegex = /alt=["']([^"']+)["']/;
-
-	const match = imgTagRegex.exec(html);
-	if (match) {
-		const src = match[1];
-		const altMatch = match[0].match(altRegex);
-		return { src, alt: altMatch ? altMatch[1] : undefined };
-	}
-
-	return { src: html, alt: undefined };
-}
-
-
-function extractImageAttributes2(e: DragEvent): { src: string; alt?: string } {
+function extractImageAttributes(e: DragEvent): { src: string; alt?: string } {
 	const html = e.dataTransfer?.getData('text/html');
 	if (html) {
 		const imgTagRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/;
