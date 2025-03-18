@@ -30,7 +30,7 @@ const { getProductionDependencies } = require('./lib/dependencies');
 const { config } = require('./lib/electron');
 const createAsar = require('./lib/asar').createAsar;
 const minimist = require('minimist');
-const { compileBuildTask } = require('./gulpfile.compile');
+const { compileBuildWithoutManglingTask, compileBuildWithManglingTask } = require('./gulpfile.compile');
 const { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask } = require('./gulpfile.extensions');
 const { promisify } = require('util');
 const glob = promisify(require('glob'));
@@ -166,25 +166,25 @@ const minifyVSCodeTask = task.define('minify-vscode', task.series(
 ));
 gulp.task(minifyVSCodeTask);
 
-const core = task.define('core-ci', task.series(
-	gulp.task('compile-build'),
+const coreCI = task.define('core-ci', task.series(
+	gulp.task('compile-build-with-mangling'),
 	task.parallel(
 		gulp.task('minify-vscode'),
 		gulp.task('minify-vscode-reh'),
 		gulp.task('minify-vscode-reh-web'),
 	)
 ));
-gulp.task(core);
+gulp.task(coreCI);
 
-const corePr = task.define('core-ci-pr', task.series(
-	gulp.task('compile-build-pr'),
+const coreCIPR = task.define('core-ci-pr', task.series(
+	gulp.task('compile-build-without-mangling'),
 	task.parallel(
 		gulp.task('minify-vscode'),
 		gulp.task('minify-vscode-reh'),
 		gulp.task('minify-vscode-reh-web'),
 	)
 ));
-gulp.task(corePr);
+gulp.task(coreCIPR);
 
 /**
  * Compute checksums for some files.
@@ -501,7 +501,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 		gulp.task(vscodeTaskCI);
 
 		const vscodeTask = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
-			compileBuildTask,
+			compileBuildWithoutManglingTask,
 			cleanExtensionsBuildTask,
 			compileNonNativeExtensionsBuildTask,
 			compileExtensionMediaBuildTask,
@@ -539,7 +539,7 @@ const innoSetupConfig = {
 gulp.task(task.define(
 	'vscode-translations-export',
 	task.series(
-		core,
+		coreCI,
 		compileAllExtensionsBuildTask,
 		function () {
 			const pathToMetadata = './out-build/nls.metadata.json';
