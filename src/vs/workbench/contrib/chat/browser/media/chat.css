@@ -373,6 +373,33 @@
 	.progress-container .rendered-markdown [data-code] {
 		margin: 0;
 	}
+
+	.tool-input-output-part {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+	}
+
+	.tool-input-output-part .rendered-markdown p {
+		margin: inherit;
+	}
+
+	.tool-input-output-part .expando {
+		display: flex;
+		align-items: center;
+		cursor: pointer;
+	}
+
+	.tool-input-output-part .input-output {
+		display: none;
+		padding: 6px 0;
+		flex-basis: 100%;
+		width: 100%;
+	}
+
+	.tool-input-output-part.expanded .input-output {
+		display: inherit;
+	}
 }
 
 .interactive-item-container .value > .rendered-markdown li > p {
