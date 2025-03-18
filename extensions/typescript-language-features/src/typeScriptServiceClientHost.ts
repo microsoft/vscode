@@ -170,10 +170,16 @@ export default class TypeScriptServiceClientHost extends Disposable {
 				vscode.window.onDidChangeVisibleTextEditors(e => {
 					e.forEach(async editor => {
 						this._setDecorations(editor);
+						setTimeout(() => {
+							this._setModifiedDecorations(editor);
+						}, 5000);
 					});
 				});
 				vscode.window.visibleTextEditors.forEach(async editor => {
 					this._setDecorations(editor);
+					setTimeout(() => {
+						this._setModifiedDecorations(editor);
+					}, 5000);
 				});
 				// assume they don't recompute on text change
 				// vscode.workspace.onDidChangeTextDocument(_ => {
@@ -230,22 +236,10 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		editor.setDecorations(this._interfaceLineHeightDecorationType, interfaceRanges);
 		editor.setDecorations(this._functionLineHeightDecorationType, functionRanges);
 		editor.setDecorations(this._methodLineHeightDecorationType, methodRanges);
+	}
 
-
-		/* TEST CODE
-		editor.setDecorations(this._classFontSizeDecorationType1, classRangesFonts1);
-		editor.setDecorations(this._interfaceFontSizeDecorationType1, interfaceRangesFonts1);
-		editor.setDecorations(this._functionFontSizeDecorationType1, functionRangesFonts1);
-		editor.setDecorations(this._methodFontSizeDecorationType1, methodRangesFonts1);
-		editor.setDecorations(this._classFontSizeDecorationType2, classRangesFonts2);
-		editor.setDecorations(this._interfaceFontSizeDecorationType2, interfaceRangesFonts2);
-		editor.setDecorations(this._functionFontSizeDecorationType2, functionRangesFonts2);
-		editor.setDecorations(this._methodFontSizeDecorationType2, methodRangesFonts2);
-		editor.setDecorations(this._classFontSizeDecorationTypeInjectedText, classRangesFonts2);
-		editor.setDecorations(this._interfaceFontSizeDecorationTypeInjectedText, interfaceRangesFonts2);
-		editor.setDecorations(this._functionFontSizeDecorationTypeInjectedText, functionRangesFonts2);
-		editor.setDecorations(this._methodFontSizeDecorationTypeInjectedText, methodRangesFonts2);
-		*/
+	private async _setModifiedDecorations(editor: vscode.TextEditor): Promise<void> {
+		editor.setDecorations(this._interfaceLineHeightDecorationType, []);
 	}
 
 	private _getRanges(activeTextEditor: vscode.TextEditor, symbols: vscode.DocumentSymbol[], kind: vscode.SymbolKind, rangesForLineHeight: vscode.Range[]) {

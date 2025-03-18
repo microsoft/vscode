@@ -189,7 +189,6 @@ export class LineHeightManager {
 		}
 	}
 
-
 	public mustCommit(): boolean {
 		return this._hasPending;
 	}
@@ -215,6 +214,7 @@ export class LineHeightManager {
 		}
 
 		let numberOfDeletions = 0;
+		let previousSpecialLine: SpecialLine | undefined;
 		for (let i = this._invalidIndex; i < this._orderedSpecialLines.length; i++) {
 			const specialLine = this._orderedSpecialLines[i];
 			if (specialLine.deleted) {
@@ -222,7 +222,6 @@ export class LineHeightManager {
 				continue;
 			}
 			specialLine.index = i - numberOfDeletions;
-			const previousSpecialLine: SpecialLine | undefined = i > 0 ? this._orderedSpecialLines[i - 1] : undefined;
 			if (previousSpecialLine && previousSpecialLine.lineNumber === specialLine.lineNumber) {
 				specialLine.maximumSpecialHeight = previousSpecialLine.maximumSpecialHeight;
 				specialLine.prefixSum = previousSpecialLine.prefixSum;
@@ -247,8 +246,8 @@ export class LineHeightManager {
 					prefixSum = this._defaultLineHeight * (specialLine.lineNumber - 1);
 				}
 				specialLine.prefixSum = prefixSum;
-				// don't we want to update the line number too?
 			}
+			previousSpecialLine = specialLine;
 			newOrderedSpecialLines.push(specialLine);
 			newDecorationIDToSpecialLine.set(specialLine.decorationId, specialLine);
 		}
