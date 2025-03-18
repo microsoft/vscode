@@ -345,7 +345,7 @@ export class ChatDragAndDrop extends Themable {
 			const blob = await response.blob();
 			return new Uint8Array(await blob.arrayBuffer());
 		} catch (fetchError) {
-			console.warn('Fetch failed, attempting canvas approach:', fetchError);
+			console.warn('Fetch failed attempting canvas:', fetchError);
 			return this.downloadImageViaCanvas(url);
 		}
 	}
@@ -369,16 +369,16 @@ export class ChatDragAndDrop extends Themable {
 				canvas.toBlob(async (blob) => {
 					if (blob) {
 						resolve(new Uint8Array(await blob.arrayBuffer()));
-					} else {
-						resolve(undefined);
 					}
+					resolve(undefined);
 				}, 'image/png');
 			};
 
 			img.onerror = () => {
-				this.notificationService.warn(localize('failedToLoadImage', 'Failed to load image: The image could not be loaded. Please check the URL and try again.'));
+				this.notificationService.warn(localize('failedToLoadImage', 'The image could not be loaded. Please check the URL and try again.'));
 				resolve(undefined);
 			};
+
 			img.src = url;
 		});
 	}
