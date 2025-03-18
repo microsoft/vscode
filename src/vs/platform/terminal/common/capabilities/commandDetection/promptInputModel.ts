@@ -273,17 +273,28 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			return;
 		}
 
-		const commandStartY = this._commandStartMarker?.line;
+		let commandStartY = this._commandStartMarker?.line;
 		if (commandStartY === undefined) {
 			return;
 		}
 
 		const buffer = this._xterm.buffer.active;
 		let line = buffer.getLine(commandStartY);
-		const commandLine = line?.translateToString(true, this._commandStartX);
+		let commandLine = line?.translateToString(true, this._commandStartX);
 		if (!line || commandLine === undefined) {
-			this._logService.trace(`PromptInputModel#_sync: no line`);
-			return;
+			if (this._shellType === PosixShellType.Fish) {
+				commandStartY += 1;
+				line = buffer.getLine(commandStartY);
+				if (line) {
+					commandLine = line.translateToString(true);
+				}
+				if (!commandLine || !line) {
+					return;
+				}
+			} else {
+				this._logService.trace(`PromptInputModel#_sync: no line`);
+				return;
+			}
 		}
 
 		const absoluteCursorY = buffer.baseY + buffer.cursorY;
@@ -308,10 +319,18 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			line = buffer.getLine(y);
 			const lineText = line?.translateToString(true);
 			if (lineText && line) {
-				// Check if the line wrapped without a new line (continuation) or if the first line was empty
-				// for fish, which doesn't use a continuation prompt.
-				if (line.isWrapped || this._shellType === PosixShellType.Fish) {
-					value += lineText;
+				// Check if the line wrapped without a new line (continuation)
+				if (line.isWrapped || (this._shellType === PosixShellType.Fish) && y === commandStartY + 1) {
+					if (this._shellType === PosixShellType.Fish) {
+						if (value.endsWith('\\')) {
+							value = value.substring(0, value.length - 1);
+							value += `${lineText.trim()}`;
+						} else {
+							value += `\n${lineText.trim()}`;
+						}
+					} else {
+						value += `\n${lineText}`;
+					}
 					const relativeCursorIndex = this._getRelativeCursorIndex(0, buffer, line);
 					if (absoluteCursorY === y) {
 						cursorIndex += relativeCursorIndex;
@@ -323,7 +342,16 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 				// user likely just pressed enter.
 				else if (this._continuationPrompt === undefined || this._lineContainsContinuationPrompt(lineText)) {
 					const trimmedLineText = this._trimContinuationPrompt(lineText);
-					value += `\n${trimmedLineText}`;
+					if (this._shellType === PosixShellType.Fish) {
+						if (value.endsWith('\\')) {
+							value = value.substring(0, value.length - 1);
+							value += `${trimmedLineText.trim()}`;
+						} else {
+							value += `\n${trimmedLineText.trim()}`;
+						}
+					} else {
+						value += `\n${trimmedLineText}`;
+					}
 					if (absoluteCursorY === y) {
 						const continuationCellWidth = this._getContinuationPromptCellWidth(line, lineText);
 						const relativeCursorIndex = this._getRelativeCursorIndex(continuationCellWidth, buffer, line);
