@@ -267,7 +267,7 @@ class ChatSetup {
 		@ILogService private readonly logService: ILogService,
 	) { }
 
-	async run(options?: { notificationProgress?: boolean }): Promise<boolean | undefined> {
+	async run(): Promise<boolean | undefined> {
 		let setupStrategy: ChatSetupStrategy;
 		if (this.chatEntitlementService.entitlement === ChatEntitlement.Pro || this.chatEntitlementService.entitlement === ChatEntitlement.Limited) {
 			setupStrategy = ChatSetupStrategy.DefaultSetup; // existing pro/free users setup without a dialog
@@ -279,13 +279,13 @@ class ChatSetup {
 		try {
 			switch (setupStrategy) {
 				case ChatSetupStrategy.SetupWithEnterpriseProvider:
-					success = await this.controller.value.setupWithProvider(true, options);
+					success = await this.controller.value.setupWithProvider(true);
 					break;
 				case ChatSetupStrategy.SetupWithoutEnterpriseProvider:
-					success = await this.controller.value.setupWithProvider(false, options);
+					success = await this.controller.value.setupWithProvider(false);
 					break;
 				case ChatSetupStrategy.DefaultSetup:
-					success = await this.controller.value.setup(options);
+					success = await this.controller.value.setup();
 					break;
 			}
 		} catch (error) {
@@ -500,7 +500,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 				if (setupFromDialog) {
 					const setup = instantiationService.createInstance(ChatSetup, context, controller);
-					const result = await setup.run({ notificationProgress: true });
+					const result = await setup.run();
 					if (result === false) {
 						const { confirmed } = await dialogService.confirm({
 							type: Severity.Error,
@@ -720,7 +720,7 @@ class ChatSetupController extends Disposable {
 		this._onDidChange.fire();
 	}
 
-	async setup(options?: { forceSignIn?: boolean; notificationProgress?: boolean }): Promise<boolean> {
+	async setup(options?: { forceSignIn?: boolean }): Promise<boolean> {
 		const watch = new StopWatch(false);
 		const title = localize('setupChatProgress', "Getting Copilot ready...");
 		const badge = this.activityService.showViewContainerActivity(preferCopilotEditsView(this.viewsService) ? CHAT_EDITING_SIDEBAR_PANEL_ID : CHAT_SIDEBAR_PANEL_ID, {
@@ -729,7 +729,7 @@ class ChatSetupController extends Disposable {
 
 		try {
 			return await this.progressService.withProgress({
-				location: options?.notificationProgress ? ProgressLocation.Notification : ProgressLocation.Window,
+				location: ProgressLocation.Window,
 				command: CHAT_OPEN_ACTION_ID,
 				title,
 			}, () => this.doSetup(options?.forceSignIn ?? false, watch));
@@ -904,7 +904,7 @@ class ChatSetupController extends Disposable {
 		}
 	}
 
-	async setupWithProvider(useEnterpriseProvider: boolean, options?: { notificationProgress?: boolean }): Promise<boolean> {
+	async setupWithProvider(useEnterpriseProvider: boolean): Promise<boolean> {
 		const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 		registry.registerConfiguration({
 			'id': 'copilot.setup',
@@ -949,7 +949,7 @@ class ChatSetupController extends Disposable {
 			await this.configurationService.updateValue(defaultChat.providerUriSetting, undefined, ConfigurationTarget.USER);
 		}
 
-		return this.setup({ ...options, forceSignIn: true });
+		return this.setup({ forceSignIn: true });
 	}
 
 	private async handleEnterpriseInstance(): Promise<boolean /* success */> {
