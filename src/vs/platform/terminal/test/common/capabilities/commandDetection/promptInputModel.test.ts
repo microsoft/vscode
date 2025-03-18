@@ -693,11 +693,11 @@ suite('PromptInputModel', () => {
 			await assertPromptInput(`ech|`);
 
 			await writePromise('o ');
-			await assertPromptInput(`echo |`);
+			await assertPromptInput(`ech\no|`);
 
 			await writePromise('"a"');
 			// HACK: Trailing whitespace is due to flaky detection in wrapped lines (but it doesn't matter much)
-			await assertPromptInput(`echo "a"| `);
+			await assertPromptInput(`ech\no "a|"`);
 		});
 	});
 
