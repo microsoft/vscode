@@ -10,7 +10,6 @@ import * as cp from 'child_process';
 import { fileURLToPath } from 'url';
 import which from 'which';
 import { EventEmitter } from 'events';
-import * as iconv from '@vscode/iconv-lite-umd';
 import * as filetype from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals, isMacintosh, isDescendant, relativePath } from './util';
 import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
@@ -1739,10 +1738,10 @@ export class Repository {
 		await this.exec(args);
 	}
 
-	async stage(path: string, data: string, encoding: string): Promise<void> {
+	async stage(path: string, data: Uint8Array): Promise<void> {
 		const relativePath = sanitizeRelativePath(this.repositoryRoot, path);
 		const child = this.stream(['hash-object', '--stdin', '-w', '--path', relativePath], { stdio: [null, null, null] });
-		child.stdin!.end(iconv.encode(data, encoding));
+		child.stdin!.end(data);
 
 		const { exitCode, stdout } = await exec(child);
 		const hash = stdout.toString('utf8');
