@@ -641,6 +641,34 @@ const configuration: IConfigurationNode = {
 				},
 			},
 		},
+		'accessibility.signals.undoEdits': {
+			...signalFeatureBase,
+			'description': localize('accessibility.signals.undoEdits', "Plays a signal - sound (audio cue) and/or announcement (alert) - when edits have been undone."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.undoEdits.sound', "Plays a sound when edits have been undone."),
+					...soundFeatureBase
+				},
+				'announcement': {
+					'description': localize('accessibility.signals.undoEdits.announcement', "Announces when edits have been undone."),
+					...announcementFeatureBase
+				},
+			},
+		},
+		'accessibility.signals.keepEdits': {
+			...signalFeatureBase,
+			'description': localize('accessibility.signals.keepEdits', "Plays a signal - sound (audio cue) and/or announcement (alert) - when edits are kept."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.keepEdits.sound', "Plays a sound when edits are kept."),
+					...soundFeatureBase
+				},
+				'announcement': {
+					'description': localize('accessibility.signals.keepEdits.announcement', "Announces when edits are kept."),
+					...announcementFeatureBase
+				},
+			},
+		},
 		'accessibility.signals.save': {
 			'type': 'object',
 			'tags': ['accessibility'],
