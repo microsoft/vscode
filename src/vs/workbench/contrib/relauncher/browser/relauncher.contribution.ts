@@ -22,6 +22,7 @@ import { IWorkbenchEnvironmentService } from '../../../services/environment/comm
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IUserDataSyncEnablementService, IUserDataSyncService, SyncStatus } from '../../../../platform/userDataSync/common/userDataSync.js';
 import { IUserDataSyncWorkbenchService } from '../../../services/userDataSync/common/userDataSync.js';
+import { ChatConfiguration } from '../../chat/common/constants.js';
 
 interface IConfiguration extends IWindowsConfiguration {
 	update?: { mode?: string };
@@ -30,8 +31,10 @@ interface IConfiguration extends IWindowsConfiguration {
 	security?: { workspace?: { trust?: { enabled?: boolean } }; restrictUNCAccess?: boolean };
 	window: IWindowSettings;
 	workbench?: { enableExperiments?: boolean };
+	telemetry?: { disableFeedback?: boolean };
 	_extensionsGallery?: { enablePPE?: boolean };
 	accessibility?: { verbosity?: { debug?: boolean } };
+	chat?: { experimental?: { unifiedChatView?: boolean }; useFileStorage?: boolean };
 }
 
 export class SettingsChangeRelauncher extends Disposable implements IWorkbenchContribution {
@@ -48,7 +51,10 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'workbench.enableExperiments',
 		'_extensionsGallery.enablePPE',
 		'security.restrictUNCAccess',
-		'accessibility.verbosity.debug'
+		'accessibility.verbosity.debug',
+		ChatConfiguration.UnifiedChatView,
+		ChatConfiguration.UseFileStorage,
+		'telemetry.disableFeedback'
 	];
 
 	private readonly titleBarStyle = new ChangeObserver<TitlebarStyle>('string');
@@ -63,6 +69,9 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private readonly enablePPEExtensionsGallery = new ChangeObserver('boolean');
 	private readonly restrictUNCAccess = new ChangeObserver('boolean');
 	private readonly accessibilityVerbosityDebug = new ChangeObserver('boolean');
+	private readonly unifiedChatView = new ChangeObserver('boolean');
+	private readonly useFileStorage = new ChangeObserver('boolean');
+	private readonly telemetryDisableFeedback = new ChangeObserver('boolean');
 
 	constructor(
 		@IHostService private readonly hostService: IHostService,
@@ -141,6 +150,9 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 			// Debug accessibility verbosity
 			processChanged(this.accessibilityVerbosityDebug.handleChange(config?.accessibility?.verbosity?.debug));
+
+			processChanged(this.unifiedChatView.handleChange(config.chat?.experimental?.unifiedChatView));
+			processChanged(this.useFileStorage.handleChange(config.chat?.useFileStorage));
 		}
 
 		// Experiments
@@ -148,6 +160,9 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 		// Profiles
 		processChanged(this.productService.quality !== 'stable' && this.enablePPEExtensionsGallery.handleChange(config._extensionsGallery?.enablePPE));
+
+		// Disable Feedback
+		processChanged(this.telemetryDisableFeedback.handleChange(config.telemetry?.disableFeedback));
 
 		if (askToRelaunch && changed && this.hostService.hasFocus) {
 			this.doConfirm(

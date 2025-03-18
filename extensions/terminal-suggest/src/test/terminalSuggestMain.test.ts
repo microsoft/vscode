@@ -106,7 +106,16 @@ suite('Terminal Suggest', () => {
 						undefined,
 						new MockFigExecuteExternals()
 					);
-					deepStrictEqual(result.items.map(i => i.label).sort(), (testSpec.expectedCompletions ?? []).sort());
+					deepStrictEqual(
+						// Add detail to the label if it exists
+						result.items.map(i => {
+							if (typeof i.label === 'object' && i.label.detail) {
+								return `${i.label.label}${i.label.detail}`;
+							}
+							return i.label;
+						}).sort(),
+						(testSpec.expectedCompletions ?? []).sort()
+					);
 					strictEqual(result.filesRequested, filesRequested, 'Files requested different than expected, got: ' + result.filesRequested);
 					strictEqual(result.foldersRequested, foldersRequested, 'Folders requested different than expected, got: ' + result.foldersRequested);
 					if (testSpec.expectedResourceRequests?.cwd) {

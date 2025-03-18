@@ -5,10 +5,11 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
+import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { findLast } from '../../../../../base/common/arraysFind.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -26,6 +27,7 @@ import { IMenuService, MenuId } from '../../../../../platform/actions/common/act
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { FileKind } from '../../../../../platform/files/common/files.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -294,6 +296,9 @@ class CollapsedCodeBlock extends Disposable {
 
 	public readonly element: HTMLElement;
 
+	private readonly hover = this._register(new MutableDisposable());
+	private tooltip: string | undefined;
+
 	private _uri: URI | undefined;
 	public get uri(): URI | undefined {
 		return this._uri;
@@ -315,6 +320,7 @@ class CollapsedCodeBlock extends Disposable {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 		this.element = $('.chat-codeblock-pill-widget');
@@ -375,8 +381,7 @@ class CollapsedCodeBlock extends Disposable {
 		}
 
 		this.element.replaceChildren(iconEl, ...children);
-		this.element.title = this.labelService.getUriLabel(uri, { relative: false });
-
+		this.updateTooltip(this.labelService.getUriLabel(uri, { relative: false }));
 
 		const renderDiff = (changes: IEditSessionEntryDiff | undefined) => {
 			const labelAdded = this.element.querySelector('.label-added') ?? this.element.appendChild(dom.$('span.label-added'));
@@ -387,7 +392,9 @@ class CollapsedCodeBlock extends Disposable {
 				labelRemoved.textContent = `-${changes.removed}`;
 				const insertionsFragment = changes.added === 1 ? localize('chat.codeblock.insertions.one', "1 insertion") : localize('chat.codeblock.insertions', "{0} insertions", changes.added);
 				const deletionsFragment = changes.removed === 1 ? localize('chat.codeblock.deletions.one', "1 deletion") : localize('chat.codeblock.deletions', "{0} deletions", changes.removed);
-				this.element.ariaLabel = this.element.title = localize('summary', 'Edited {0}, {1}, {2}', iconText, insertionsFragment, deletionsFragment);
+				const summary = localize('summary', 'Edited {0}, {1}, {2}', iconText, insertionsFragment, deletionsFragment);
+				this.element.ariaLabel = summary;
+				this.updateTooltip(summary);
 			}
 		};
 
@@ -415,5 +422,19 @@ class CollapsedCodeBlock extends Disposable {
 				renderDiff(diffBetweenStops.read(r));
 			}
 		}));
+	}
+
+	private updateTooltip(tooltip: string): void {
+		this.tooltip = tooltip;
+		if (!this.hover.value) {
+			this.hover.value = this.hoverService.setupDelayedHover(this.element, () => (
+				{
+					content: this.tooltip!,
+					appearance: { compact: true, showPointer: true },
+					position: { hoverPosition: HoverPosition.BELOW },
+					persistence: { hideOnKeyDown: true },
+				}
+			));
+		}
 	}
 }

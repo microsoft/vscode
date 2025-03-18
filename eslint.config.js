@@ -997,6 +997,7 @@ export default tseslint.config(
 				{
 					'target': 'src/vs/workbench/api/~',
 					'restrictions': [
+						'@c4312/eventsource-umd',
 						'vscode',
 						'vs/base/~',
 						'vs/base/parts/*/~',

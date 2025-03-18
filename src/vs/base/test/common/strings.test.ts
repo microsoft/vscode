@@ -422,132 +422,9 @@ suite('Strings', () => {
 		}), 'a0ca1ca2ca3c');
 	});
 
-	test('removeAnsiEscapeCodes', () => {
-		const CSI = '\x1b\[';
-		const sequences = [
-			// Base cases from https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h3-Functions-using-CSI-_-ordered-by-the-final-character_s_
-			`${CSI}42@`,
-			`${CSI}42 @`,
-			`${CSI}42A`,
-			`${CSI}42 A`,
-			`${CSI}42B`,
-			`${CSI}42C`,
-			`${CSI}42D`,
-			`${CSI}42E`,
-			`${CSI}42F`,
-			`${CSI}42G`,
-			`${CSI}42;42H`,
-			`${CSI}42I`,
-			`${CSI}42J`,
-			`${CSI}?42J`,
-			`${CSI}42K`,
-			`${CSI}?42K`,
-			`${CSI}42L`,
-			`${CSI}42M`,
-			`${CSI}42P`,
-			`${CSI}#P`,
-			`${CSI}3#P`,
-			`${CSI}#Q`,
-			`${CSI}3#Q`,
-			`${CSI}#R`,
-			`${CSI}42S`,
-			`${CSI}?1;2;3S`,
-			`${CSI}42T`,
-			`${CSI}42;42;42;42;42T`,
-			`${CSI}>3T`,
-			`${CSI}42X`,
-			`${CSI}42Z`,
-			`${CSI}42^`,
-			`${CSI}42\``,
-			`${CSI}42a`,
-			`${CSI}42b`,
-			`${CSI}42c`,
-			`${CSI}=42c`,
-			`${CSI}>42c`,
-			`${CSI}42d`,
-			`${CSI}42e`,
-			`${CSI}42;42f`,
-			`${CSI}42g`,
-			`${CSI}3h`,
-			`${CSI}?3h`,
-			`${CSI}42i`,
-			`${CSI}?42i`,
-			`${CSI}3l`,
-			`${CSI}?3l`,
-			`${CSI}3m`,
-			`${CSI}>0;0m`,
-			`${CSI}>0m`,
-			`${CSI}?0m`,
-			`${CSI}42n`,
-			`${CSI}>42n`,
-			`${CSI}?42n`,
-			`${CSI}>42p`,
-			`${CSI}!p`,
-			`${CSI}0;0"p`,
-			`${CSI}42$p`,
-			`${CSI}?42$p`,
-			`${CSI}#p`,
-			`${CSI}3#p`,
-			`${CSI}>42q`,
-			`${CSI}42q`,
-			`${CSI}42 q`,
-			`${CSI}42"q`,
-			`${CSI}#q`,
-			`${CSI}42;42r`,
-			`${CSI}?3r`,
-			`${CSI}0;0;0;0;3$r`,
-			`${CSI}s`,
-			`${CSI}0;0s`,
-			`${CSI}>42s`,
-			`${CSI}?3s`,
-			`${CSI}42;42;42t`,
-			`${CSI}>3t`,
-			`${CSI}42 t`,
-			`${CSI}0;0;0;0;3$t`,
-			`${CSI}u`,
-			`${CSI}42 u`,
-			`${CSI}0;0;0;0;0;0;0;0$v`,
-			`${CSI}42$w`,
-			`${CSI}0;0;0;0'w`,
-			`${CSI}42x`,
-			`${CSI}42*x`,
-			`${CSI}0;0;0;0;0$x`,
-			`${CSI}42#y`,
-			`${CSI}0;0;0;0;0;0*y`,
-			`${CSI}42;0'z`,
-			`${CSI}0;1;2;4$z`,
-			`${CSI}3'{`,
-			`${CSI}#{`,
-			`${CSI}3#{`,
-			`${CSI}0;0;0;0\${`,
-			`${CSI}0;0;0;0#|`,
-			`${CSI}42$|`,
-			`${CSI}42'|`,
-			`${CSI}42*|`,
-			`${CSI}#}`,
-			`${CSI}42'}`,
-			`${CSI}42$}`,
-			`${CSI}42'~`,
-			`${CSI}42$~`,
-
-			// Common SGR cases:
-			`${CSI}1;31m`, // multiple attrs
-			`${CSI}105m`, // bright background
-			`${CSI}48:5:128m`, // 256 indexed color
-			`${CSI}48;5;128m`, // 256 indexed color alt
-			`${CSI}38:2:0:255:255:255m`, // truecolor
-			`${CSI}38;2;255;255;255m`, // truecolor alt
-
-			// Custom sequences:
-			'\x1b]633;SetMark;\x07',
-			'\x1b]633;P;Cwd=/foo\x07',
-		];
-
-		for (const sequence of sequences) {
+	suite('removeAnsiEscapeCodes', () => {
+		function testSequence(sequence: string) {
 			assert.strictEqual(strings.removeAnsiEscapeCodes(`hello${sequence}world`), 'helloworld', `expect to remove ${JSON.stringify(sequence)}`);
-		}
-
-		for (const sequence of sequences) {
 			assert.deepStrictEqual(
 				[...strings.forAnsiStringParts(`hello${sequence}world`)],
 				[{ isCode: false, str: 'hello' }, { isCode: true, str: sequence }, { isCode: false, str: 'world' }],
@@ -555,10 +432,203 @@ suite('Strings', () => {
 			);
 		}
 
-		// #209937
-		assert.strictEqual(
-			strings.removeAnsiEscapeCodes(`localhost:\x1b[31m1234`),
-			'localhost:1234',);
+		test('CSI sequences', () => {
+			const CSI = '\x1b[';
+			const sequences = [
+				// Base cases from https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h3-Functions-using-CSI-_-ordered-by-the-final-character_s_
+				`${CSI}42@`,
+				`${CSI}42 @`,
+				`${CSI}42A`,
+				`${CSI}42 A`,
+				`${CSI}42B`,
+				`${CSI}42C`,
+				`${CSI}42D`,
+				`${CSI}42E`,
+				`${CSI}42F`,
+				`${CSI}42G`,
+				`${CSI}42;42H`,
+				`${CSI}42I`,
+				`${CSI}42J`,
+				`${CSI}?42J`,
+				`${CSI}42K`,
+				`${CSI}?42K`,
+				`${CSI}42L`,
+				`${CSI}42M`,
+				`${CSI}42P`,
+				`${CSI}#P`,
+				`${CSI}3#P`,
+				`${CSI}#Q`,
+				`${CSI}3#Q`,
+				`${CSI}#R`,
+				`${CSI}42S`,
+				`${CSI}?1;2;3S`,
+				`${CSI}42T`,
+				`${CSI}42;42;42;42;42T`,
+				`${CSI}>3T`,
+				`${CSI}42X`,
+				`${CSI}42Z`,
+				`${CSI}42^`,
+				`${CSI}42\``,
+				`${CSI}42a`,
+				`${CSI}42b`,
+				`${CSI}42c`,
+				`${CSI}=42c`,
+				`${CSI}>42c`,
+				`${CSI}42d`,
+				`${CSI}42e`,
+				`${CSI}42;42f`,
+				`${CSI}42g`,
+				`${CSI}3h`,
+				`${CSI}?3h`,
+				`${CSI}42i`,
+				`${CSI}?42i`,
+				`${CSI}3l`,
+				`${CSI}?3l`,
+				`${CSI}3m`,
+				`${CSI}>0;0m`,
+				`${CSI}>0m`,
+				`${CSI}?0m`,
+				`${CSI}42n`,
+				`${CSI}>42n`,
+				`${CSI}?42n`,
+				`${CSI}>42p`,
+				`${CSI}!p`,
+				`${CSI}0;0"p`,
+				`${CSI}42$p`,
+				`${CSI}?42$p`,
+				`${CSI}#p`,
+				`${CSI}3#p`,
+				`${CSI}>42q`,
+				`${CSI}42q`,
+				`${CSI}42 q`,
+				`${CSI}42"q`,
+				`${CSI}#q`,
+				`${CSI}42;42r`,
+				`${CSI}?3r`,
+				`${CSI}0;0;0;0;3$r`,
+				`${CSI}s`,
+				`${CSI}0;0s`,
+				`${CSI}>42s`,
+				`${CSI}?3s`,
+				`${CSI}42;42;42t`,
+				`${CSI}>3t`,
+				`${CSI}42 t`,
+				`${CSI}0;0;0;0;3$t`,
+				`${CSI}u`,
+				`${CSI}42 u`,
+				`${CSI}0;0;0;0;0;0;0;0$v`,
+				`${CSI}42$w`,
+				`${CSI}0;0;0;0'w`,
+				`${CSI}42x`,
+				`${CSI}42*x`,
+				`${CSI}0;0;0;0;0$x`,
+				`${CSI}42#y`,
+				`${CSI}0;0;0;0;0;0*y`,
+				`${CSI}42;0'z`,
+				`${CSI}0;1;2;4$z`,
+				`${CSI}3'{`,
+				`${CSI}#{`,
+				`${CSI}3#{`,
+				`${CSI}0;0;0;0\${`,
+				`${CSI}0;0;0;0#|`,
+				`${CSI}42$|`,
+				`${CSI}42'|`,
+				`${CSI}42*|`,
+				`${CSI}#}`,
+				`${CSI}42'}`,
+				`${CSI}42$}`,
+				`${CSI}42'~`,
+				`${CSI}42$~`,
+
+				// Common SGR cases:
+				`${CSI}1;31m`, // multiple attrs
+				`${CSI}105m`, // bright background
+				`${CSI}48:5:128m`, // 256 indexed color
+				`${CSI}48;5;128m`, // 256 indexed color alt
+				`${CSI}38:2:0:255:255:255m`, // truecolor
+				`${CSI}38;2;255;255;255m`, // truecolor alt
+			];
+
+			for (const sequence of sequences) {
+				testSequence(sequence);
+			}
+		});
+
+		suite('OSC sequences', () => {
+			function testOscSequence(prefix: string, suffix: string) {
+				const sequenceContent = [
+					`633;SetMark;`,
+					`633;P;Cwd=/foo`,
+					`7;file://local/Users/me/foo/bar`
+				];
+
+				const sequences = [];
+				for (const content of sequenceContent) {
+					sequences.push(`${prefix}${content}${suffix}`);
+				}
+				for (const sequence of sequences) {
+					testSequence(sequence);
+				}
+			}
+			test('ESC ] Ps ; Pt ESC \\', () => {
+				testOscSequence('\x1b]', '\x1b\\');
+			});
+			test('ESC ] Ps ; Pt BEL', () => {
+				testOscSequence('\x1b]', '\x07');
+			});
+			test('ESC ] Ps ; Pt ST', () => {
+				testOscSequence('\x1b]', '\x9c');
+			});
+			test('OSC Ps ; Pt ESC \\', () => {
+				testOscSequence('\x9d', '\x1b\\');
+			});
+			test('OSC Ps ; Pt BEL', () => {
+				testOscSequence('\x9d', '\x07');
+			});
+			test('OSC Ps ; Pt ST', () => {
+				testOscSequence('\x9d', '\x9c');
+			});
+		});
+
+		test('ESC sequences', () => {
+			const sequenceContent = [
+				` F`,
+				` G`,
+				` L`,
+				` M`,
+				` N`,
+				`#3`,
+				`#4`,
+				`#5`,
+				`#6`,
+				`#8`,
+				`%@`,
+				`%G`,
+				`(C`,
+				`)C`,
+				`*C`,
+				`+C`,
+				`-C`,
+				`.C`,
+				`/C`
+			];
+			const sequences = [];
+			for (const content of sequenceContent) {
+				sequences.push(`\x1b${content}`);
+			}
+			for (const sequence of sequences) {
+				testSequence(sequence);
+			}
+		});
+
+		suite('regression tests', () => {
+			test('#209937', () => {
+				assert.strictEqual(
+					strings.removeAnsiEscapeCodes(`localhost:\x1b[31m1234`),
+					'localhost:1234'
+				);
+			});
+		});
 	});
 
 	test('removeAnsiEscapeCodesFromPrompt', () => {

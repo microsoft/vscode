@@ -20,7 +20,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { DEFAULT_EDITOR_ASSOCIATION } from '../../../common/editor.js';
-import { ChatAgentLocation, IChatAgentService } from '../../chat/common/chatAgents.js';
+import { IChatAgentService } from '../../chat/common/chatAgents.js';
 import { IChatService } from '../../chat/common/chatService.js';
 import { CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_HAS_AGENT2, CTX_INLINE_CHAT_POSSIBLE } from '../common/inlineChat.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -35,6 +35,7 @@ import { assertType } from '../../../../base/common/types.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
+import { ChatAgentLocation } from '../../chat/common/constants.js';
 
 
 type SessionData = {
@@ -409,10 +410,10 @@ export class InlineChatEnabler {
 
 		const updateAgent = () => {
 			const agent = chatAgentService.getDefaultAgent(ChatAgentLocation.Editor);
-			if (agent?.locations.length === 1) {
+			if (agent?.id === 'github.copilot.editor') {
 				this._ctxHasProvider.set(true);
 				this._ctxHasProvider2.reset();
-			} else if (agent?.locations.includes(ChatAgentLocation.EditingSession)) {
+			} else if (agent?.id === 'github.copilot.editingSessionEditor') {
 				this._ctxHasProvider.reset();
 				this._ctxHasProvider2.set(true);
 			} else {

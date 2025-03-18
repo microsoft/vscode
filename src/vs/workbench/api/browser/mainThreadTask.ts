@@ -15,7 +15,7 @@ import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../platform/workspace/common/workspace.js';
 
 import {
-	ContributedTask, ConfiguringTask, KeyedTaskIdentifier, ITaskExecution, Task, ITaskEvent, TaskEventKind,
+	ContributedTask, ConfiguringTask, KeyedTaskIdentifier, ITaskExecution, Task, ITaskEvent,
 	IPresentationOptions, CommandOptions, ICommandConfiguration, RuntimeType, CustomTask, TaskScope, TaskSource,
 	TaskSourceKind, IExtensionTaskSource, IRunOptions, ITaskSet, TaskGroup, TaskDefinition, PresentationOptions, RunOptions
 } from '../../contrib/tasks/common/tasks.js';
@@ -29,7 +29,10 @@ import { ExtHostContext, MainThreadTaskShape, ExtHostTaskShape, MainContext } fr
 import {
 	ITaskDefinitionDTO, ITaskExecutionDTO, IProcessExecutionOptionsDTO, ITaskPresentationOptionsDTO,
 	IProcessExecutionDTO, IShellExecutionDTO, IShellExecutionOptionsDTO, ICustomExecutionDTO, ITaskDTO, ITaskSourceDTO, ITaskHandleDTO, ITaskFilterDTO, ITaskProcessStartedDTO, ITaskProcessEndedDTO, ITaskSystemInfoDTO,
-	IRunOptionsDTO, ITaskGroupDTO
+	IRunOptionsDTO, ITaskGroupDTO,
+	ITaskProblemMatcherStarted,
+	ITaskProblemMatcherEnded,
+	TaskEventKind
 } from '../common/shared/tasks.js';
 import { IConfigurationResolverService } from '../../services/configurationResolver/common/configurationResolver.js';
 import { ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
@@ -44,6 +47,40 @@ namespace TaskExecutionDTO {
 		};
 	}
 }
+
+export interface ITaskProblemMatcherStartedDto {
+	execution: ITaskExecutionDTO;
+}
+
+export namespace TaskProblemMatcherStartedDto {
+	export function from(value: ITaskProblemMatcherStarted): ITaskProblemMatcherStartedDto {
+		return {
+			execution: {
+				id: value.execution.id,
+				task: TaskDTO.from(value.execution.task)
+			},
+		};
+	}
+}
+
+export interface ITaskProblemMatcherEndedDto {
+	execution: ITaskExecutionDTO;
+	hasErrors: boolean;
+}
+
+export namespace TaskProblemMatcherEndedDto {
+	export function from(value: ITaskProblemMatcherEnded): ITaskProblemMatcherEndedDto {
+		return {
+			execution: {
+				id: value.execution.id,
+				task: TaskDTO.from(value.execution.task)
+			},
+			hasErrors: value.hasErrors
+		};
+	}
+}
+
+
 
 namespace TaskProcessStartedDTO {
 	export function from(value: ITaskExecution, processId: number): ITaskProcessStartedDTO {
@@ -454,7 +491,14 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 				this._proxy.$onDidEndTaskProcess(TaskProcessEndedDTO.from(task.getTaskExecution(), event.exitCode));
 			} else if (event.kind === TaskEventKind.End) {
 				this._proxy.$OnDidEndTask(TaskExecutionDTO.from(task.getTaskExecution()));
+			} else if (event.kind === TaskEventKind.ProblemMatcherStarted) {
+				this._proxy.$onDidStartTaskProblemMatchers(TaskProblemMatcherStartedDto.from({ execution: task.getTaskExecution() }));
+			} else if (event.kind === TaskEventKind.ProblemMatcherEnded) {
+				this._proxy.$onDidEndTaskProblemMatchers(TaskProblemMatcherEndedDto.from({ execution: task.getTaskExecution(), hasErrors: false }));
+			} else if (event.kind === TaskEventKind.ProblemMatcherFoundErrors) {
+				this._proxy.$onDidEndTaskProblemMatchers(TaskProblemMatcherEndedDto.from({ execution: task.getTaskExecution(), hasErrors: true }));
 			}
+
 		}));
 	}
 

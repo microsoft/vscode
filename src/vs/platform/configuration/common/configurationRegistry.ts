@@ -164,8 +164,13 @@ export interface IPolicy {
 
 	/**
 	 * The Code version in which this policy was introduced.
-	 */
+	*/
 	readonly minimumVersion: `${number}.${number}`;
+
+	/**
+	 * The policy description (optional).
+	 */
+	readonly description?: string;
 }
 
 export interface IConfigurationPropertySchema extends IJSONSchema {

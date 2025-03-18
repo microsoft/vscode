@@ -22,8 +22,8 @@ import { ILanguageService } from '../../../../../../editor/common/languages/lang
 import { FileKind, IFileService } from '../../../../../../platform/files/common/files.js';
 import { IMenuService, MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { getCleanPromptName } from '../../../../../../platform/prompts/common/constants.js';
-import { ChatPromptAttachmentModel } from '../../chatAttachmentModel/chatPromptAttachmentModel.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ChatPromptAttachmentModel } from '../../chatAttachmentModel/chatPromptAttachmentModel.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { getFlatContextMenuActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -118,18 +118,18 @@ export class PromptAttachmentWidget extends Disposable {
 		// add the issue details in the hover title for the attachment, one
 		// error/warning at a time because there is a limited space available
 		if (topError) {
-			const { isRootError, message: details } = topError;
-			const isWarning = !isRootError;
+			const { errorSubject: subject } = topError;
+			const isError = (subject === 'root');
 
 			this.domNode.classList.add(
-				(isWarning) ? 'warning' : 'error',
+				(isError) ? 'error' : 'warning',
 			);
 
-			const errorCaption = (isWarning)
-				? localize('warning', "Warning")
-				: localize('error', "Error");
+			const severity = (isError)
+				? localize('error', "Error")
+				: localize('warning', "Warning");
 
-			title += `\n-\n[${errorCaption}]: ${details}`;
+			title += `\n[${severity}]: ${topError.localizedMessage}`;
 		}
 
 		const fileWithoutExtension = getCleanPromptName(file);

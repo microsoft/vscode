@@ -57,6 +57,7 @@ module.exports.unicodeFilter = [
 	'!extensions/**/out/**',
 	'!extensions/**/snippets/**',
 	'!extensions/**/colorize-fixtures/**',
+	'!extensions/terminal-suggest/src/shell/fishBuiltinsCache.ts',
 
 	'!src/vs/base/browser/dompurify/**',
 	'!src/vs/workbench/services/keybinding/browser/keyboardLayouts/**',
@@ -79,6 +80,7 @@ module.exports.indentationFilter = [
 	'!src/vs/base/node/terminateProcess.sh',
 	'!src/vs/base/node/cpuUsage.sh',
 	'!src/vs/editor/common/languages/highlights/*.scm',
+	'!src/vs/editor/common/languages/injections/*.scm',
 	'!test/unit/assert.js',
 	'!resources/linux/snap/electron-launch',
 	'!build/ext.js',
@@ -90,6 +92,7 @@ module.exports.indentationFilter = [
 	'!test/monaco/out/**',
 	'!test/smoke/out/**',
 	'!extensions/terminal-suggest/src/shell/zshBuiltinsCache.ts',
+	'!extensions/terminal-suggest/src/shell/fishBuiltinsCache.ts',
 	'!extensions/terminal-suggest/src/completions/upstream/**',
 	'!extensions/typescript-language-features/test-workspace/**',
 	'!extensions/typescript-language-features/resources/walkthroughs/**',
@@ -195,6 +198,7 @@ module.exports.tsFormattingFilter = [
 	'!extensions/**/*.test.ts',
 	'!extensions/html-language-features/server/lib/jquery.d.ts',
 	'!extensions/terminal-suggest/src/shell/zshBuiltinsCache.ts',
+	'!extensions/terminal-suggest/src/shell/fishBuiltinsCache.ts',
 ];
 
 module.exports.eslintFilter = [

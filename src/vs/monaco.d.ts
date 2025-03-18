@@ -6920,12 +6920,15 @@ declare namespace monaco.languages {
 	export interface SyntaxNode {
 		startIndex: number;
 		endIndex: number;
+		startPosition: IPosition;
+		endPosition: IPosition;
 	}
 
 	export interface QueryCapture {
 		name: string;
 		text?: string;
 		node: SyntaxNode;
+		encodedLanguageId: number;
 	}
 
 	/**
