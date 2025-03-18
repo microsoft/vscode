@@ -4,9 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Iterable } from '../../../../base/common/iterator.js';
+import { ConfiguredInput } from './configurationResolver.js';
 
 /** A replacement found in the object, as ${name} or ${name:arg} */
-export type Replacement = { id: string; name: string; arg?: string };
+export type Replacement = {
+	/** ${name:arg} */
+	id: string;
+	/** The `name:arg` in ${name:arg} */
+	inner: string;
+	/** The `name` in ${name:arg} */
+	name: string;
+	/** The `arg` in ${name:arg} */
+	arg?: string;
+};
 
 interface IConfigurationResolverExpression<T> {
 	/**
@@ -16,10 +26,15 @@ interface IConfigurationResolverExpression<T> {
 	unresolved(): Iterable<Replacement>;
 
 	/**
+	 * Gets the replacements which have been resolved.
+	 */
+	resolved(): Iterable<[Replacement, IResolvedValue]>;
+
+	/**
 	 * Resolves a replacement into the string value.
 	 * If the value is undefined, the original variable text will be preserved.
 	 */
-	resolve(replacement: Replacement, value: string | undefined): void;
+	resolve(replacement: Replacement, data: string | IResolvedValue): void;
 
 	/**
 	 * Returns the complete object. Any unresolved replacements are left intact.
@@ -32,8 +47,23 @@ type PropertyLocation = {
 	propertyName: string | number;
 };
 
+export interface IResolvedValue {
+	value: string | undefined;
+
+	/** Present when the variable is resolved from an input field. */
+	input?: ConfiguredInput;
+}
+
+interface IReplacementLocation {
+	replacement: Replacement;
+	locations: PropertyLocation[];
+	resolved?: IResolvedValue;
+}
+
 export class ConfigurationResolverExpression<T> implements IConfigurationResolverExpression<T> {
-	private locations = new Map<string, { replacement: Replacement; locations: PropertyLocation[]; resolved?: string }>();
+	public static readonly VARIABLE_LHS = '${';
+
+	private locations = new Map<string, IReplacementLocation>();
 	private root: T;
 	private stringRoot: boolean;
 
@@ -85,12 +115,13 @@ export class ConfigurationResolverExpression<T> implements IConfigurationResolve
 		const inner = str.substring(start + 2, end);
 		const colonIdx = inner.indexOf(':');
 		if (colonIdx === -1) {
-			return { replacement: { id, name: inner }, end };
+			return { replacement: { id, name: inner, inner }, end };
 		}
 
 		return {
 			replacement: {
 				id,
+				inner,
 				name: inner.slice(0, colonIdx),
 				arg: inner.slice(colonIdx + 1)
 			},
@@ -144,12 +175,16 @@ export class ConfigurationResolverExpression<T> implements IConfigurationResolve
 	}
 
 	public unresolved(): Iterable<Replacement> {
-		return Iterable.map(Iterable.filter(this.locations.values(), (location) => location.resolved === undefined), (location) => location.replacement);
+		return Iterable.map(Iterable.filter(this.locations.values(), l => l.resolved === undefined), l => l.replacement);
 	}
 
-	public resolve(replacement: Replacement, value: string | undefined): void {
-		if (value === undefined) {
-			return; // Preserve original text by not updating anything
+	public resolved(): Iterable<[Replacement, IResolvedValue]> {
+		return Iterable.map(Iterable.filter(this.locations.values(), l => !!l.resolved), l => [l.replacement, l.resolved!]);
+	}
+
+	public resolve(replacement: Replacement, data: string | IResolvedValue): void {
+		if (typeof data !== 'object') {
+			data = { value: String(data) };
 		}
 
 		const location = this.locations.get(replacement.id);
@@ -157,11 +192,14 @@ export class ConfigurationResolverExpression<T> implements IConfigurationResolve
 			return;
 		}
 
-		for (const { object, propertyName } of location.locations || []) {
-			const newValue = object[propertyName].replaceAll(replacement.id, value);
-			object[propertyName] = newValue;
+		if (data.value !== undefined) {
+			for (const { object, propertyName } of location.locations || []) {
+				const newValue = object[propertyName].replaceAll(replacement.id, data.value);
+				object[propertyName] = newValue;
+			}
 		}
-		location.resolved = value;
+
+		location.resolved = data;
 	}
 
 	public toObject(): T {

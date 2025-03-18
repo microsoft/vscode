@@ -250,19 +250,20 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		let launch = definition.launch;
 
 		if (definition.variableReplacement) {
+			// todo@connor4312: update with new config resolver API
 			const inputStorage = definition.variableReplacement.folder ? this._workspaceStorage.value : this._profileStorage.value;
 			const previouslyStored = await inputStorage.getMap();
 
 			const { folder, section, target } = definition.variableReplacement;
 
 			// based on _configurationResolverService.resolveWithInteractionReplace
-			launch = await this._configurationResolverService.resolveAnyAsync(folder, launch);
+			launch = await this._configurationResolverService.resolveAsync(folder, launch);
 
 			const newVariables = await this._configurationResolverService.resolveWithInteraction(folder, launch, section, previouslyStored, target);
 
 			if (newVariables?.size) {
 				const completeVariables = { ...previouslyStored, ...Object.fromEntries(newVariables) };
-				launch = await this._configurationResolverService.resolveAnyAsync(folder, launch, completeVariables);
+				launch = await this._configurationResolverService.resolveAsync(folder, launch);
 				await inputStorage.setSecrets(completeVariables);
 			}
 		}

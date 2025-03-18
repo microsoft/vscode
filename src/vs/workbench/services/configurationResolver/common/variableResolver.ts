@@ -14,7 +14,7 @@ import { localize } from '../../../../nls.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { IConfigurationResolverService, VariableError, VariableKind } from './configurationResolver.js';
-import { ConfigurationResolverExpression, Replacement } from './configurationResolverExpression.js';
+import { ConfigurationResolverExpression, IResolvedValue, Replacement } from './configurationResolverExpression.js';
 
 interface IVariableResolveContext {
 	getFolderUri(folderName: string): uri | undefined;
@@ -65,27 +65,6 @@ export abstract class AbstractVariableResolverService implements IConfigurationR
 		return envVariables;
 	}
 
-	public async resolveAsync(folder: IWorkspaceFolderData | undefined, value: string): Promise<string>;
-	public async resolveAsync(folder: IWorkspaceFolderData | undefined, value: string[]): Promise<string[]>;
-	public async resolveAsync(folder: IWorkspaceFolderData | undefined, value: IStringDictionary<string>): Promise<IStringDictionary<string>>;
-	public async resolveAsync(folder: IWorkspaceFolderData | undefined, value: any): Promise<any> {
-		const expr = ConfigurationResolverExpression.parse(value);
-
-		const environment: Environment = {
-			env: await this._envVariablesPromise,
-			userHome: await this._userHomePromise
-		};
-
-		for (const replacement of expr.unresolved()) {
-			const resolvedValue = await this.evaluateSingleVariable(environment, replacement, folder?.uri);
-			if (resolvedValue !== undefined) {
-				expr.resolve(replacement, resolvedValue);
-			}
-		}
-
-		return expr.toObject();
-	}
-
 	public async resolveWithEnvironment(environment: IProcessEnvironment, folder: IWorkspaceFolderData | undefined, value: string): Promise<string> {
 		const expr = ConfigurationResolverExpression.parse(value);
 		const env: Environment = {
@@ -103,7 +82,7 @@ export abstract class AbstractVariableResolverService implements IConfigurationR
 		return expr.toObject();
 	}
 
-	public async resolveAnyAsync(folder: IWorkspaceFolderData | undefined, config: any, commandValueMapping?: IStringDictionary<string>): Promise<any> {
+	public async resolveAsync<T>(folder: IWorkspaceFolderData | undefined, config: T): Promise<T extends ConfigurationResolverExpression<infer R> ? R : T> {
 		const expr = ConfigurationResolverExpression.parse(config);
 
 		const environment: Environment = {
@@ -112,37 +91,13 @@ export abstract class AbstractVariableResolverService implements IConfigurationR
 		};
 
 		for (const replacement of expr.unresolved()) {
-			const resolvedValue = await this.evaluateSingleVariable(environment, replacement, folder?.uri, commandValueMapping);
+			const resolvedValue = await this.evaluateSingleVariable(environment, replacement, folder?.uri);
 			if (resolvedValue !== undefined) {
 				expr.resolve(replacement, resolvedValue);
 			}
 		}
 
-		return expr.toObject();
-	}
-
-	public async resolveAnyMap(folder: IWorkspaceFolderData | undefined, config: any, commandValueMapping?: IStringDictionary<string>): Promise<{ newConfig: any; resolvedVariables: Map<string, string> }> {
-		const expr = ConfigurationResolverExpression.parse(config);
-		const resolvedVariables = new Map<string, string>();
-
-		const environment: Environment = {
-			env: await this._envVariablesPromise,
-			userHome: await this._userHomePromise
-		};
-
-		for (const replacement of expr.unresolved()) {
-			const resolvedValue = await this.evaluateSingleVariable(environment, replacement, folder?.uri, commandValueMapping);
-			if (resolvedValue !== undefined) {
-				expr.resolve(replacement, resolvedValue);
-				const key = replacement.name + (replacement.arg ? ':' + replacement.arg : '');
-				resolvedVariables.set(key, resolvedValue);
-			}
-		}
-
-		return {
-			newConfig: expr.toObject(),
-			resolvedVariables
-		};
+		return expr.toObject() as any;
 	}
 
 	public resolveWithInteractionReplace(folder: IWorkspaceFolderData | undefined, config: any): Promise<any> {
@@ -165,7 +120,7 @@ export abstract class AbstractVariableResolverService implements IConfigurationR
 		return this._labelService ? this._labelService.getUriLabel(displayUri, { noPrefix: true }) : displayUri.fsPath;
 	}
 
-	private async evaluateSingleVariable(environment: Environment, replacement: Replacement, folderUri: uri | undefined, commandValueMapping?: IStringDictionary<string>): Promise<string | undefined> {
+	private async evaluateSingleVariable(environment: Environment, replacement: Replacement, folderUri: uri | undefined, commandValueMapping?: IStringDictionary<IResolvedValue>): Promise<IResolvedValue | string | undefined> {
 		const { name: variable, arg: argument } = replacement;
 
 		// common error handling for all variables that require an open editor
@@ -381,7 +336,7 @@ export abstract class AbstractVariableResolverService implements IConfigurationR
 		}
 	}
 
-	private resolveFromMap(variableKind: VariableKind, match: string, argument: string | undefined, commandValueMapping: IStringDictionary<string> | undefined, prefix: string | undefined): string {
+	private resolveFromMap(variableKind: VariableKind, match: string, argument: string | undefined, commandValueMapping: IStringDictionary<IResolvedValue> | undefined, prefix: string | undefined): string {
 		if (argument && commandValueMapping) {
 			const v = (prefix === undefined) ? commandValueMapping[argument] : commandValueMapping[prefix + ':' + argument];
 			if (typeof v === 'string') {

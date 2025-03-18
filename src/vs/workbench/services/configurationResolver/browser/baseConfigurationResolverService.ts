@@ -23,7 +23,8 @@ import { IExtensionService } from '../../extensions/common/extensions.js';
 import { IPathService } from '../../path/common/pathService.js';
 import { ConfiguredInput, VariableError, VariableKind } from '../common/configurationResolver.js';
 import { AbstractVariableResolverService } from '../common/variableResolver.js';
-import { ConfigurationResolverExpression } from '../common/configurationResolverExpression.js';
+import { ConfigurationResolverExpression, IResolvedValue } from '../common/configurationResolverExpression.js';
+import { Iterable } from '../../../../base/common/iterator.js';
 
 const LAST_INPUT_STORAGE_KEY = 'configResolveInputLru';
 const LAST_INPUT_CACHE_SIZE = 5;
@@ -141,54 +142,40 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 
 	override async resolveWithInteractionReplace(folder: IWorkspaceFolderData | undefined, config: any, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<any> {
 		// First resolve any non-interactive variables and any contributed variables
-		config = await this.resolveAnyAsync(folder, config);
+		config = await this.resolveAsync(folder, config);
 
 		// Then resolve input variables in the order in which they are encountered
-		const resolvedVariables = await this.resolveWithInteraction(folder, config, section, variables, target);
-		if (!resolvedVariables) {
-			return null;
-		}
+		const parsed = ConfigurationResolverExpression.parse(config);
+		await this.resolveWithInteraction(folder, parsed, section, variables, target);
 
-		// Finally resolve any remaining variables and apply the resolved input/command variables
-		if (resolvedVariables.size > 0) {
-			return this.resolveAnyAsync(folder, config, Object.fromEntries(resolvedVariables));
-		}
-
-		return config;
+		return parsed.toObject();
 	}
 
 	override async resolveWithInteraction(folder: IWorkspaceFolderData | undefined, config: any, section?: string, variableToCommandMap?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<Map<string, string> | undefined> {
 		const expr = ConfigurationResolverExpression.parse(config);
-		const resolvedVariables = new Map<string, string>();
-
-		// Get all variables and their order of appearance
-		const variables: { name: string; type: string; arg?: string }[] = [];
-		for (const replacement of expr.unresolved()) {
-			if (replacement.name === 'input' || replacement.name === 'command') {
-				variables.push({ name: replacement.name, type: replacement.name, arg: replacement.arg });
-			}
-		}
-
-		// If there are no input or command variables, we don't need to go through the UI flow
-		if (!variables.length) {
-			return resolvedVariables;
-		}
 
 		// Get values for input variables from UI
-		for (const variable of variables) {
-			let result: string | undefined;
+		for (const variable of expr.unresolved()) {
+			let result: IResolvedValue | undefined;
 
 			// Command
-			if (variable.type === 'command') {
+			if (variable.name === 'command') {
 				const commandId = (variableToCommandMap ? variableToCommandMap[variable.arg!] : undefined) || variable.arg!;
-				result = await this.commandService.executeCommand(commandId, config);
-				if (typeof result !== 'string' && !Types.isUndefinedOrNull(result)) {
-					throw new VariableError(VariableKind.Command, localize('commandVariable.noStringType', "Cannot substitute command variable '{0}' because command did not return a result of type string.", commandId));
+				const value = await this.commandService.executeCommand(commandId, expr.toObject());
+				if (!Types.isUndefinedOrNull(value)) {
+					if (typeof value !== 'string') {
+						throw new VariableError(VariableKind.Command, localize('commandVariable.noStringType', "Cannot substitute command variable '{0}' because command did not return a result of type string.", commandId));
+					}
+					result = { value };
 				}
 			}
 			// Input
-			else if (variable.type === 'input') {
+			else if (variable.name === 'input') {
 				result = await this.showUserInput(section!, variable.arg!, await this.resolveInputs(folder, section!, target));
+			}
+			// Not something we can handle
+			else {
+				continue;
 			}
 
 			if (result === undefined) {
@@ -196,10 +183,10 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 				return undefined;
 			}
 
-			resolvedVariables.set((variable.type === 'command' ? 'command:' : 'input:') + variable.arg!, result);
+			expr.resolve(variable, result);
 		}
 
-		return resolvedVariables;
+		return new Map(Iterable.map(expr.resolved(), ([key, value]) => [key.inner, value.value!]));
 	}
 
 	private async resolveInputs(folder: IWorkspaceFolderData | undefined, section: string, target?: ConfigurationTarget): Promise<ConfiguredInput[] | undefined> {
@@ -247,7 +234,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		this.storageService.store(LAST_INPUT_STORAGE_KEY, JSON.stringify(lru.toJSON()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
-	private async showUserInput(section: string, variable: string, inputInfos: ConfiguredInput[] | undefined): Promise<string | undefined> {
+	private async showUserInput(section: string, variable: string, inputInfos: ConfiguredInput[] | undefined): Promise<IResolvedValue | undefined> {
 		if (!inputInfos) {
 			throw new VariableError(VariableKind.Input, localize('inputVariable.noInputSection', "Variable '{0}' must be defined in an '{1}' section of the debug or task configuration.", variable, 'inputs'));
 		}
@@ -279,7 +266,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 						if (typeof resolvedInput === 'string') {
 							this.storeInputLru(defaultValueMap.set(defaultValueKey, resolvedInput));
 						}
-						return resolvedInput as string;
+						return { value: resolvedInput as string, input: info };
 					});
 				}
 
@@ -325,7 +312,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 						if (resolvedInput) {
 							const value = (resolvedInput as PickStringItem).value;
 							this.storeInputLru(defaultValueMap.set(defaultValueKey, value));
-							return value;
+							return { value, input: info };
 						}
 						return undefined;
 					});
@@ -337,7 +324,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 					}
 					return this.userInputAccessQueue.queue(() => this.commandService.executeCommand<string>(info.command, info.args)).then(result => {
 						if (typeof result === 'string' || Types.isUndefinedOrNull(result)) {
-							return result;
+							return { value: result, input: info };
 						}
 						throw new VariableError(VariableKind.Input, localize('inputVariable.command.noStringType', "Cannot substitute input variable '{0}' because command '{1}' did not return a result of type string.", variable, info.command));
 					});

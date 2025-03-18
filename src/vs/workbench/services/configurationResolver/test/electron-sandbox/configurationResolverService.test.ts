@@ -822,8 +822,8 @@ suite('ConfigurationResolverExpression', () => {
 			path: '${env:HOME}/folder'
 		});
 
-		expr.resolve({ id: '${env:USERNAME}', name: 'env', arg: 'USERNAME' }, 'testuser');
-		expr.resolve({ id: '${env:HOME}', name: 'env', arg: 'HOME' }, '/home/testuser');
+		expr.resolve({ inner: 'env:USERNAME', id: '${env:USERNAME}', name: 'env', arg: 'USERNAME' }, 'testuser');
+		expr.resolve({ inner: 'env:HOME', id: '${env:HOME}', name: 'env', arg: 'HOME' }, '/home/testuser');
 
 		assert.deepStrictEqual(expr.toObject(), {
 			name: 'testuser',
@@ -875,8 +875,8 @@ suite('ConfigurationResolverExpression', () => {
 		const unresolved = Array.from(expr.unresolved());
 		assert.strictEqual(unresolved.length, 2);
 
-		expr.resolve({ id: '${env:HOME}', name: 'env', arg: 'HOME' }, '/home/user');
-		expr.resolve({ id: '${env:SHELL}', name: 'env', arg: 'SHELL' }, '/bin/bash');
+		expr.resolve({ id: '${env:HOME}', inner: 'env:HOME', name: 'env', arg: 'HOME' }, '/home/user');
+		expr.resolve({ id: '${env:SHELL}', inner: 'env:SHELL', name: 'env', arg: 'SHELL' }, '/bin/bash');
 		assert.strictEqual(expr.toObject(), '/home/user/folder/bin/bash');
 	});
 
