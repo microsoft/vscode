@@ -73,97 +73,125 @@ export class CreatorOverlayPart extends Part {
 		return this.state === "open";
 	}
 
+	private initializingPromise: Promise<void> | null = null;
+
 	private async initialize() {
+		// If already initialized, don't do anything
 		if (this.initializedWebview) {
 			console.log("Webview already initialized, skipping initialization");
 			return;
 		}
 
-		this.state = "loading";
+		// If we're already in the process of initializing, return the existing promise
+		if (this.initializingPromise) {
+			console.log("Initialization already in progress, waiting for it to complete");
+			return this.initializingPromise;
+		}
 
-		const extensionDescription: WebviewExtensionDescription = {
-			id: new ExtensionIdentifier(CREATOR_VIEW_ID),
-			location: URI.parse(""),
-		};
+		// Create a new initialization promise
+		this.initializingPromise = new Promise<void>(async (resolve) => {
+			try {
+				this.state = "loading";
 
-		// Create the webview overlay
-		const webview = this._webviewService!.createWebviewOverlay({
-			title: CREATOR_OVERLAY_TITLE,
-			options: {
-				enableFindWidget: false,
-			},
-			contentOptions: {
-				allowScripts: true,
-				localResourceRoots: [],
-			},
-			extension: extensionDescription,
+				const extensionDescription: WebviewExtensionDescription = {
+					id: new ExtensionIdentifier(CREATOR_VIEW_ID),
+					location: URI.parse(""),
+				};
+
+				// Create the webview overlay
+				const webview = this._webviewService!.createWebviewOverlay({
+					title: CREATOR_OVERLAY_TITLE,
+					options: {
+						enableFindWidget: false,
+					},
+					contentOptions: {
+						allowScripts: true,
+						localResourceRoots: [],
+					},
+					extension: extensionDescription,
+				});
+
+				// Set initial visibility - important for initial state
+				webview.container.style.display = "none";
+				webview.container.style.opacity = "0";
+				webview.container.style.transition = "opacity 0.3s ease-in";
+				webview.container.style.position = "absolute";
+				webview.container.style.zIndex = "-1"; // Using -1 instead of -9999 to maintain proper stacking
+				webview.container.setAttribute("id", "creator-overlay-webview");
+
+				// Claim the webview
+				webview.claim(this, getActiveWindow(), undefined);
+
+				// Initialize webviewView
+				this.webviewView = {
+					webview,
+					onDidChangeVisibility: () => {
+						return { dispose: () => {} };
+					},
+					onDispose: () => {
+						return { dispose: () => {} };
+					},
+
+					get title(): string | undefined {
+						return CREATOR_OVERLAY_TITLE;
+					},
+					set title(value: string | undefined) {},
+
+					get description(): string | undefined {
+						return undefined;
+					},
+					set description(value: string | undefined) {},
+
+					get badge() {
+						return undefined;
+					},
+					set badge(badge) {},
+
+					dispose: () => {},
+
+					show: (preserveFocus) => {},
+				};
+
+				// Connect webviewView to the provider - only try once
+				const source = new CancellationTokenSource();
+				try {
+					console.log("RESOLVING CreatorOverlayPart WEBVIEW SERVICE....");
+
+					await this._webviewViewService.resolve(
+						CREATOR_VIEW_ID,
+						this.webviewView!,
+						source.token,
+					);
+
+					console.log("WEBVIEW CreatorOverlayPart SERVICE RESOLVED!");
+				} catch (error) {
+					console.error("Failed to resolve creator view:", error);
+					// Continue despite error - we'll still mark as initialized
+				} finally {
+					// Always mark as initialized and closed when we're done trying
+					this.initializedWebview = true;
+					this.state = "closed";
+
+					// Set up layout if everything is ready
+					if (this.overlayContainer && this.webviewView) {
+						this.webviewView.webview.layoutWebviewOverElement(
+							this.overlayContainer,
+						);
+					}
+
+					resolve();
+				}
+			} catch (error) {
+				console.error("Critical error during initialization:", error);
+				this.state = "closed";
+				resolve();
+			} finally {
+				// Clear the promise once we're done
+				this.initializingPromise = null;
+			}
 		});
 
-		// Set initial visibility - important for initial state
-		webview.container.style.display = "none";
-		webview.container.style.opacity = "0";
-		webview.container.style.transition = "opacity 0.3s ease-in";
-		webview.container.style.position = "absolute";
-		webview.container.style.zIndex = "-1"; // Using -1 instead of -9999 to maintain proper stacking
-		webview.container.setAttribute("id", "creator-overlay-webview");
-
-		// Claim the webview
-		webview.claim(this, getActiveWindow(), undefined);
-
-		// Initialize webviewView
-		this.webviewView = {
-			webview,
-			onDidChangeVisibility: () => {
-				return { dispose: () => {} };
-			},
-			onDispose: () => {
-				return { dispose: () => {} };
-			},
-
-			get title(): string | undefined {
-				return CREATOR_OVERLAY_TITLE;
-			},
-			set title(value: string | undefined) {},
-
-			get description(): string | undefined {
-				return undefined;
-			},
-			set description(value: string | undefined) {},
-
-			get badge() {
-				return undefined;
-			},
-			set badge(badge) {},
-
-			dispose: () => {},
-
-			show: (preserveFocus) => {},
-		};
-
-		// Connect webviewView to the provider
-		const source = new CancellationTokenSource();
-		try {
-			console.log("RESOLVING CreatorOverlayPart WEBVIEW SERVICE....");
-			await this._webviewViewService.resolve(
-				CREATOR_VIEW_ID,
-				this.webviewView!,
-				source.token,
-			);
-
-			console.log("WEBVIEW CreatorOverlayPart SERVICE RESOLVED!");
-			this.initializedWebview = true;
-			this.state = "closed"; // Mark as closed once initialized
-
-			// Set up layout if everything is ready
-			if (this.overlayContainer && this.webviewView) {
-				this.webviewView.webview.layoutWebviewOverElement(
-					this.overlayContainer,
-				);
-			}
-		} catch (error) {
-			console.error("Failed to resolve creator view:", error);
-			this.state = "closed"; // Still mark as closed on error
-		}
+		return this.initializingPromise;
 	}
 
 	protected override createContentArea(element: HTMLElement): HTMLElement {
@@ -260,16 +288,33 @@ export class CreatorOverlayPart extends Part {
 		}
 	}
 
-	private open() {
-		// Make sure webview is initialized before opening
-		if (!this.initializedWebview) {
-			console.log("Webview not initialized yet, initializing...");
-			this.initialize().then(() => this.open());
+	private openInProgress = false;
+
+	private async open() {
+		// Prevent multiple simultaneous open attempts
+		if (this.openInProgress) {
+			console.log("Open already in progress, skipping");
 			return;
 		}
 
-		this.handleSlideAnimation("down").then(() => {
+		this.openInProgress = true;
+
+		try {
+			// Make sure webview is initialized before opening
+			if (!this.initializedWebview) {
+				console.log("Webview not initialized yet, initializing...");
+				await this.initialize();
+				// If we're already open after initialization somehow, don't continue
+				if (this.state === "open") {
+					this.openInProgress = false;
+					return;
+				}
+			}
+
+			await this.handleSlideAnimation("down");
+
 			if (this.state === "open" || !this.overlayContainer || !this.webviewView) {
+				this.openInProgress = false;
 				return;
 			}
 
@@ -322,7 +367,9 @@ export class CreatorOverlayPart extends Part {
 			}
 
 			this.focus();
-		});
+		} finally {
+			this.openInProgress = false;
+		}
 	}
 
 	private close() {
@@ -392,11 +439,18 @@ export class CreatorOverlayPart extends Part {
 
 	show(): void {
 		console.log("CREATOR OVERLAY: show() called");
-		this.open();
+
+		// Prevent calling open() if we're already open to avoid duplicate animations
+		if (this.state !== "open") {
+			this.open();
+		}
 	}
 
 	hide(): void {
-		this.close();
+		// Prevent calling close() if we're already closed
+		if (this.state !== "closed") {
+			this.close();
+		}
 	}
 
 	toggle(): void {
@@ -453,64 +507,45 @@ export class CreatorOverlayPart extends Part {
 
 			// Create the container element for slide-down animation
 			const topOfBodyElement = document.createElement("div");
-			topOfBodyElement.style.position = "fixed"; // Changed from relative to fixed
+			topOfBodyElement.style.position = "relative"; // Changed back to relative as requested
 			topOfBodyElement.style.top = "0";
 			topOfBodyElement.style.left = "0";
-			topOfBodyElement.style.width = "100vw";
+			topOfBodyElement.style.width = "100%";
 			topOfBodyElement.style.height = direction === "up" ? "100vh" : "0";
 			topOfBodyElement.style.backgroundColor = "#FFFFFF";
-			topOfBodyElement.style.display = "flex";
-			topOfBodyElement.style.justifyContent = "center";
-			topOfBodyElement.style.alignItems = "center";
+			topOfBodyElement.style.display = "block";
 			topOfBodyElement.style.overflow = "hidden";
-			topOfBodyElement.style.transition = "height 500ms ease-in-out, opacity 500ms ease-in-out";
-			topOfBodyElement.style.opacity = "1";
+			topOfBodyElement.style.transition = "height 500ms ease-in-out";
 			topOfBodyElement.style.zIndex = "20";
 			topOfBodyElement.setAttribute("id", "top-of-body-injected-container");
 
 			// Add to body
 			body.insertBefore(topOfBodyElement, body.firstChild);
 
-			// Hide body overflow to prevent scrolling during animation
-			body.style.overflow = "hidden";
-
 			// Force layout reflow before starting animation
 			void topOfBodyElement.offsetWidth;
 
 			// Start animation - expand to full height
 			requestAnimationFrame(() => {
-				if(!topOfBodyElement) {
+				if (!topOfBodyElement || !topOfBodyElement.parentNode) {
 					console.warn("topOfBodyElement not found in request animation frame");
 					return resolve();
 				}
-				topOfBodyElement.style.height = direction === "up" ? "0" : "100vh";
-				console.log("Animation started - expanding to full height");
 
-				if(direction === "down") {
-					// After slide down animation completes, show the overlay content and hide the slide animation
-					setTimeout(() => {
-						if(!topOfBodyElement) {
-							console.warn("topOfBodyElement not in requestAnimationFrame timeout");
-							return resolve();
-						}
-						topOfBodyElement.style.opacity = "0";
-						setTimeout(() => {
-							// Slide animation complete - remove the element
-							if (topOfBodyElement.parentNode) {
-								topOfBodyElement.parentNode.removeChild(topOfBodyElement);
-							}
-							// Re-enable body scrolling
-							body.style.overflow = "";
-							resolve();
-						}, 200);
-					}, 500); // Match the transition duration
-				} else {
-					if (topOfBodyElement.parentNode) {
-						topOfBodyElement.parentNode.removeChild(topOfBodyElement);
+				topOfBodyElement.style.height = direction === "up" ? "0" : "100vh";
+				console.log("Animation started - height change to:", direction === "up" ? "0" : "100vh");
+
+				// Set a single timeout for animation completion
+				setTimeout(() => {
+					if (!topOfBodyElement || !topOfBodyElement.parentNode) {
+						console.warn("Animation element removed before animation completed");
+						return resolve();
 					}
-					body.style.overflow = "";
+
+					// Remove the element after animation completes
+					topOfBodyElement.parentNode.removeChild(topOfBodyElement);
 					resolve();
-				}
+				}, 500); // Match the transition duration
 			});
 		});
 	}
