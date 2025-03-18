@@ -243,9 +243,7 @@ export class ChatDragAndDrop extends Themable {
 		}
 
 		if (containsDragType(e, 'text/uri-list') && ((containsDragType(e, 'text/html') || containsDragType(e, 'text/plain')))) {
-			const data = e.dataTransfer?.getData('text/html');
-			const dataFromURIList = e.dataTransfer?.getData('text/uri-list');
-			return data ? this.resolveHTMLAttachContext(data) : (dataFromURIList ? this.resolveHTMLAttachContext(dataFromURIList) : []);
+			return this.resolveHTMLAttachContext(e);
 		}
 
 		const data = extractEditorsDropData(e);
@@ -329,6 +327,9 @@ export class ChatDragAndDrop extends Themable {
 				method: 'GET',
 				mode: 'cors',
 				credentials: 'omit',
+				headers: {
+					'User-Agent': 'Mozilla/5.0'
+				}
 			});
 
 			if (!response.ok) {
@@ -368,9 +369,10 @@ export class ChatDragAndDrop extends Themable {
 
 				canvas.toBlob(async (blob) => {
 					if (blob) {
-						resolve(new Uint8Array(await blob.arrayBuffer()));
+						return resolve(new Uint8Array(await blob.arrayBuffer()));
+					} else {
+						return resolve(undefined);
 					}
-					resolve(undefined);
 				}, 'image/png');
 			};
 
@@ -383,7 +385,7 @@ export class ChatDragAndDrop extends Themable {
 		});
 	}
 
-	private async resolveHTMLAttachContext(data: string): Promise<IChatRequestVariableEntry[]> {
+	private async resolveHTMLAttachContext(e: DragEvent): Promise<IChatRequestVariableEntry[]> {
 		const displayName = localize('dragAndDroppedImageName', 'Image from URL');
 		let finalDisplayName = displayName;
 
@@ -391,7 +393,7 @@ export class ChatDragAndDrop extends Themable {
 			finalDisplayName = `${displayName} ${appendValue}`;
 		}
 
-		const { src, alt } = extractImageAttributes(data);
+		const { src, alt } = extractImageAttributes2(e);
 		finalDisplayName = alt ?? finalDisplayName;
 
 		if (/^data:image\/[a-z]+;base64,/.test(src)) {
@@ -554,5 +556,28 @@ function extractImageAttributes(html: string): { src: string; alt?: string } {
 	}
 
 	return { src: html, alt: undefined };
+}
+
+
+function extractImageAttributes2(e: DragEvent): { src: string; alt?: string } {
+	const html = e.dataTransfer?.getData('text/html');
+	if (html) {
+		const imgTagRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/;
+		const altRegex = /alt=["']([^"']+)["']/;
+
+		const match = imgTagRegex.exec(html);
+		if (match) {
+			const src = match[1];
+			const altMatch = match[0].match(altRegex);
+			return { src, alt: altMatch ? altMatch[1] : undefined };
+		}
+	}
+
+	const text = e.dataTransfer?.getData('text/uri-list');
+	if (text) {
+		return { src: text, alt: undefined };
+	}
+
+	return { src: '', alt: undefined };
 }
 
