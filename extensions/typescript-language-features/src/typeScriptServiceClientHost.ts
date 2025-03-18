@@ -35,7 +35,6 @@ import TypingsStatus, { AtaProgressReporter } from './ui/typingsStatus';
 import { VersionStatus } from './ui/versionStatus';
 import { coalesce } from './utils/arrays';
 import { Disposable } from './utils/dispose';
-import { typeScriptDocumentSymbolProvider } from './languageFeatures/documentSymbol';
 
 // Style check diagnostics that can be reported as warnings
 const styleCheckDiagnostics = new Set([
@@ -49,20 +48,6 @@ const styleCheckDiagnostics = new Set([
 ]);
 
 export default class TypeScriptServiceClientHost extends Disposable {
-
-	// TEST CODE
-
-	private readonly _classLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 100 });
-	private readonly _interfaceLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 100 });
-	private readonly _functionLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 70 });
-	private readonly _methodLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 30 });
-
-	// PROD CODE
-
-	// private readonly _classLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 22 });
-	// private readonly _interfaceLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 22 });
-	// private readonly _functionLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 20 });
-	// private readonly _methodLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 20 });
 
 	private readonly client: TypeScriptServiceClient;
 	private readonly languages: LanguageProvider[] = [];
@@ -165,31 +150,6 @@ export default class TypeScriptServiceClientHost extends Disposable {
 					standardFileExtensions: [],
 				}, onCompletionAccepted);
 			}
-
-			setTimeout(() => {
-				vscode.window.onDidChangeVisibleTextEditors(e => {
-					e.forEach(async editor => {
-						this._setDecorations(editor);
-						setTimeout(() => {
-							this._setModifiedDecorations(editor);
-						}, 5000);
-					});
-				});
-				vscode.window.visibleTextEditors.forEach(async editor => {
-					this._setDecorations(editor);
-					setTimeout(() => {
-						this._setModifiedDecorations(editor);
-					}, 5000);
-				});
-				// assume they don't recompute on text change
-				// vscode.workspace.onDidChangeTextDocument(_ => {
-				// 	const activeTextEditor = vscode.window.activeTextEditor;
-				// 	if (!activeTextEditor) {
-				// 		return;
-				// 	}
-				// 	this._setDecorations(activeTextEditor);
-				// });
-			}, 5000);
 		});
 
 		this.client.onTsServerStarted(() => {
@@ -199,57 +159,6 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		vscode.workspace.onDidChangeConfiguration(this.configurationChanged, this, this._disposables);
 		this.configurationChanged();
 		this._register(new LogLevelMonitor(context));
-	}
-
-
-	private async _setDecorations(editor: vscode.TextEditor): Promise<void> {
-
-		if (!typeScriptDocumentSymbolProvider) {
-			return;
-		}
-
-		const document = editor.document;
-		const token = new vscode.CancellationTokenSource().token;
-		const result = await typeScriptDocumentSymbolProvider.provideDocumentSymbols(document, token);
-		if (result === undefined) {
-			return;
-		}
-
-		const classRanges: vscode.Range[] = [];
-		this._getRanges(editor, result, vscode.SymbolKind.Class, classRanges);
-
-		const interfaceRanges: vscode.Range[] = [];
-		this._getRanges(editor, result, vscode.SymbolKind.Interface, interfaceRanges);
-
-		const functionRanges: vscode.Range[] = [];
-		this._getRanges(editor, result, vscode.SymbolKind.Function, functionRanges);
-
-		const methodRanges: vscode.Range[] = [];
-		this._getRanges(editor, result, vscode.SymbolKind.Method, methodRanges);
-
-		console.log('_setDecorations');
-		console.log('classRanges ', classRanges);
-		console.log('interfaceRanges ', interfaceRanges);
-		console.log('functionRanges ', functionRanges);
-		console.log('methodRanges ', methodRanges);
-		editor.setDecorations(this._classLineHeightDecorationType, classRanges);
-		editor.setDecorations(this._interfaceLineHeightDecorationType, interfaceRanges);
-		editor.setDecorations(this._functionLineHeightDecorationType, functionRanges);
-		editor.setDecorations(this._methodLineHeightDecorationType, methodRanges);
-	}
-
-	private async _setModifiedDecorations(editor: vscode.TextEditor): Promise<void> {
-		editor.setDecorations(this._interfaceLineHeightDecorationType, []);
-	}
-
-	private _getRanges(activeTextEditor: vscode.TextEditor, symbols: vscode.DocumentSymbol[], kind: vscode.SymbolKind, rangesForLineHeight: vscode.Range[]) {
-		for (const symbol of symbols) {
-			if (symbol.kind === kind) {
-				const line = symbol.range.start.line;
-				rangesForLineHeight.push(new vscode.Range(line, 0, line, 0));
-			}
-			this._getRanges(activeTextEditor, symbol.children, kind, rangesForLineHeight);
-		}
 	}
 
 	private registerExtensionLanguageProvider(description: LanguageDescription, onCompletionAccepted: (item: vscode.CompletionItem) => void) {
