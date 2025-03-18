@@ -599,14 +599,20 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		}
 		//#endregion
 
-
+		let sampleInterval = parseInt(this.environmentMainService.args['unresponsive-sample-interval'] || '1000');
+		let samplePeriod = parseInt(this.environmentMainService.args['unresponsive-sample-period'] || '15000');
+		if (sampleInterval <= 0 || samplePeriod <= 0 || sampleInterval > samplePeriod) {
+			this.logService.warn(`Invalid unresponsive sample interval (${sampleInterval}ms) or period (${samplePeriod}ms), using defaults.`);
+			sampleInterval = 1000;
+			samplePeriod = 15000;
+		}
 		this.jsCallStackCollector = this._register(
-			new Delayer<void>(1000));
+			new Delayer<void>(sampleInterval));
 		this.jsCallStackMap = new Map<string, number>();
 		// Stop collecting after 15s max
 		this.jsCallStackCollectorStopScheduler = this._register(new RunOnceScheduler(() => {
 			this.stopCollectingJScallStacks();
-		}, 15000));
+		}, samplePeriod));
 
 		// respect configured menu bar visibility
 		this.onConfigurationUpdated();

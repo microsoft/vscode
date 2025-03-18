@@ -123,6 +123,8 @@ export interface NativeParsedArgs {
 	sandbox?: boolean;
 
 	'enable-coi'?: boolean;
+	'unresponsive-sample-interval'?: string;
+	'unresponsive-sample-period'?: string;
 
 	// chromium command line args: https://electronjs.org/docs/all#supported-chrome-command-line-switches
 	'no-proxy-server'?: boolean;

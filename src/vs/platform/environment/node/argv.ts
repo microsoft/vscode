@@ -184,6 +184,8 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'continueOn': { type: 'string' },
 
 	'enable-coi': { type: 'boolean' },
+	'unresponsive-sample-interval': { type: 'string' },
+	'unresponsive-sample-period': { type: 'string' },
 
 	// chromium flags
 	'no-proxy-server': { type: 'boolean' },
