@@ -1810,6 +1810,7 @@ export class SearchView extends ViewPane {
 		const result = this.viewModel.addAIResults();
 		return result.then((complete) => {
 			clearTimeout(slowTimer);
+			this.updateSearchResultCount(this.viewModel.searchResult.query?.userDisabledExcludesAndIgnoreFiles, this.viewModel.searchResult.query?.onlyOpenEditors, false);
 			return this.onSearchComplete(progressComplete, excludePatternText, includePatternText, complete, false);
 		}, (e) => {
 			clearTimeout(slowTimer);
