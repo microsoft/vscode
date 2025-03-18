@@ -137,9 +137,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 					notebookEditor.setOptions({ isReadOnly: false });
 					disposable.dispose();
 				}, 100);
-				const disposable = toDisposable(() => {
-					clearTimeout(timeout);
-				});
+				const disposable = toDisposable(() => clearTimeout(timeout));
 				this._register(disposable);
 			}
 		}));
