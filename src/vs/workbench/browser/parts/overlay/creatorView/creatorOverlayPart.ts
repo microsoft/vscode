@@ -149,7 +149,7 @@ export class CreatorOverlayPart extends Part {
 					dispose: () => {},
 
 					show: (preserveFocus) => {},
-				};
+				} satisfies WebviewView;
 
 				// Connect webviewView to the provider - only try once
 				const source = new CancellationTokenSource();
@@ -446,21 +446,17 @@ export class CreatorOverlayPart extends Part {
 
 	}
 
-	private handleSlideAnimation(direction: "up" | "down"): Promise<void> {
-		return new Promise((resolve) => {
-			const {body} = document;
-			const existingElement = document.getElementById("top-of-body-injected-container");
-			if (existingElement) {
-				existingElement.parentNode?.removeChild(existingElement);
-			}
-
+	private getTopOfBodyElement(): HTMLElement {
+		const existingElement = document.getElementById("top-of-body-injected-container");
+		if (existingElement) {
+			return existingElement;
+		}
 			// Create the container element for slide-down animation
 			const topOfBodyElement = document.createElement("div");
 			topOfBodyElement.style.position = "relative"; // Changed back to relative as requested
 			topOfBodyElement.style.top = "0";
 			topOfBodyElement.style.left = "0";
 			topOfBodyElement.style.width = "100%";
-			topOfBodyElement.style.height = direction === "up" ? "100vh" : "0";
 			topOfBodyElement.style.backgroundColor = "#FFFFFF";
 			topOfBodyElement.style.display = "block";
 			topOfBodyElement.style.overflow = "hidden";
@@ -469,7 +465,19 @@ export class CreatorOverlayPart extends Part {
 			topOfBodyElement.setAttribute("id", "top-of-body-injected-container");
 
 			// Add to body
-			body.insertBefore(topOfBodyElement, body.firstChild);
+			document.body.insertBefore(topOfBodyElement, document.body.firstChild);
+
+			return topOfBodyElement;
+	}
+
+
+	private handleSlideAnimation(direction: "up" | "down"): Promise<void> {
+		return new Promise((resolve) => {
+
+			// Create the container element for slide-down animation
+			const topOfBodyElement = this.getTopOfBodyElement();
+
+			topOfBodyElement.style.height = direction === "up" ? "100vh" : "0";
 
 			// Force layout reflow before starting animation
 			void topOfBodyElement.offsetWidth;
