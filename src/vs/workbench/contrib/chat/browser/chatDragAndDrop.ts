@@ -325,12 +325,6 @@ export class ChatDragAndDrop extends Themable {
 
 	private async downloadImageAsUint8Array(url: string): Promise<Uint8Array | undefined> {
 		try {
-			// Validate URL
-			const parsedUrl = new URL(url);
-			if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
-				return undefined;
-			}
-
 			const response = await fetch(url, {
 				method: 'GET',
 				mode: 'cors',
@@ -341,7 +335,6 @@ export class ChatDragAndDrop extends Themable {
 				throw new Error('Fetch failed');
 			}
 
-			// Verify content type and size
 			const contentType = response.headers.get('content-type');
 			const contentLength = parseInt(response.headers.get('content-length') || '0', 10);
 
