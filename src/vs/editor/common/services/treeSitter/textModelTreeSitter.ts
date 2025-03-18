@@ -378,7 +378,7 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 		let next = true;
 
 		do {
-			if (newCursor.currentNode.hasChanges) {
+			if (newCursor.currentNode.hasChanges || (oldCursor.currentNode.hasError !== newCursor.currentNode.hasError)) {
 				// Check if only one of the children has changes.
 				// If it's only one, then we go to that child.
 				// If it's more then, we need to go to each child
@@ -386,23 +386,25 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 				const newChildren = newCursor.currentNode.children;
 				const indexChangedChildren: number[] = [];
 				const changedChildren = newChildren.filter((c, index) => {
-					if (c?.hasChanges) {
+					if (c?.hasChanges || (oldCursor.currentNode.children.length <= index) || (oldCursor.currentNode.children[index]?.hasError !== c?.hasError)) {
 						indexChangedChildren.push(index);
+						return true;
 					}
-					return c?.hasChanges;
+					return false;
 				});
 				// If we have changes and we *had* an error, the whole node should be refreshed.
-				if ((changedChildren.length === 0)) {
+				if ((changedChildren.length === 0) || (newCursor.currentNode.hasError !== oldCursor.currentNode.hasError)) {
 					// walk up again until we get to the first one that's named as unnamed nodes can be too granular
-					while (newCursor.currentNode.parent && !newCursor.currentNode.isNamed && next) {
+					while (newCursor.currentNode.parent && next && (!newCursor.currentNode.isNamed || (newCursor.startIndex === newCursor.endIndex))) {
 						next = gotoParent(newCursor, oldCursor);
 					}
-
+					// Use the end position of the previous node and the start position of the current node
 					const newNode = newCursor.currentNode;
+					const closestPreviousNode = getClosestPreviousNodes(newCursor, newTree) ?? newNode;
 					nodes.push({
-						startIndex: newNode.startIndex,
+						startIndex: closestPreviousNode.startIndex,
 						endIndex: newNode.endIndex,
-						startPosition: newNode.startPosition,
+						startPosition: closestPreviousNode.startPosition,
 						endPosition: newNode.endPosition
 					});
 					next = nextSiblingOrParentSibling(newCursor, oldCursor);
