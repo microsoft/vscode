@@ -105,14 +105,19 @@ export abstract class ParserBase<TToken extends BaseToken, TNextObject> {
  * @throws the resulting decorated method throws if the parser object was already consumed.
  */
 export function assertNotConsumed<T extends ParserBase<any, any>>(
-	originalMethod: (...args: Parameters<T['accept']>) => ReturnType<T['accept']>,
+	_target: T,
+	propertyKey: 'accept',
+	descriptor: PropertyDescriptor,
 ) {
+	// store the original method reference
+	const originalMethod = descriptor.value;
+
 	// validate that the current parser object was not yet consumed
 	// before invoking the original accept method
-	return function (
+	descriptor.value = function (
 		this: T,
-		...args: Parameters<T['accept']>
-	): ReturnType<T['accept']> {
+		...args: Parameters<T[typeof propertyKey]>
+	): ReturnType<T[typeof propertyKey]> {
 		assert(
 			this.isConsumed === false,
 			`The parser object is already consumed and should not be used anymore.`,
@@ -120,4 +125,6 @@ export function assertNotConsumed<T extends ParserBase<any, any>>(
 
 		return originalMethod.apply(this, args);
 	};
+
+	return descriptor;
 }

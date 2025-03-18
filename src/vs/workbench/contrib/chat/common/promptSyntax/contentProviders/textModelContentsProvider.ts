@@ -47,7 +47,7 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 		const stream = newWriteableStream<VSBuffer>(null);
 		const linesCount = this.model.getLineCount();
 
-		// provide the changed lines to the stream incrementaly and asynchronously
+		// provide the changed lines to the stream incrementally and asynchronously
 		// to avoid blocking the main thread and save system resources used
 		let i = 1;
 		const interval = setInterval(() => {
@@ -74,7 +74,7 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 					VSBuffer.fromString(this.model.getLineContent(i)),
 				);
 
-				// for all lines exept the last one, write the EOL character
+				// for all lines except the last one, write the EOL character
 				// to separate the lines in the stream
 				if (i !== linesCount) {
 					stream.write(

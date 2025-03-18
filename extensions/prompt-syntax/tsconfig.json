@@ -4,7 +4,8 @@
 		"outDir": "./out",
 		"types": [
 			"node"
-		]
+		],
+		"experimentalDecorators": true
 	},
 	"include": [
 		"src/**/*",

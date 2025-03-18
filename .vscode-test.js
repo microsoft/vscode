@@ -83,6 +83,7 @@ const extensions = [
 	{
 		label: 'prompt-syntax',
 		extensionDevelopmentPath: `extensions/prompt-syntax`,
+		workspaceFolder: 'extensions/prompt-syntax/out/test',
 		mocha: { timeout: 60_000 },
 		files: 'extensions/prompt-syntax/out/**/*.test.js',
 	}
