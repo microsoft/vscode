@@ -513,7 +513,10 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						order: 1,
 						when: ContextKeyExpr.and(
 							chatSetupTriggerContext,
-							ChatContextKeys.Setup.fromDialog.negate(), // reduce noise when using the skeleton-view approach
+							ContextKeyExpr.or(
+								ChatContextKeys.Setup.fromDialog.negate(),	// reduce noise when using the skeleton-view approach
+								ChatContextKeys.Setup.hidden				// but enforce it if copilot is hidden
+							)
 						)
 					}
 				});
