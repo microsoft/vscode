@@ -690,7 +690,7 @@ export class ChatEntitlementRequests extends Disposable {
 
 		const { confirmed } = await this.dialogService.confirm({
 			type: Severity.Error,
-			message: localize('unknownSignUpError', "An error occurred while signing up for Copilot Free. Would you like to try again?"),
+			message: localize('unknownSignUpError', "An error occurred while signing up for the Copilot Free plan. Would you like to try again?"),
 			detail,
 			primaryButton: localize('retry', "Retry")
 		});
@@ -703,7 +703,7 @@ export class ChatEntitlementRequests extends Disposable {
 
 		this.dialogService.prompt({
 			type: Severity.Error,
-			message: localize('unprocessableSignUpError', "An error occurred while signing up for Copilot Free."),
+			message: localize('unprocessableSignUpError', "An error occurred while signing up for the Copilot Free plan."),
 			detail: logDetails,
 			buttons: [
 				{

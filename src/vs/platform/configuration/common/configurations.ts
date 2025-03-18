@@ -91,6 +91,8 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 	private readonly _onDidChangeConfiguration = this._register(new Emitter<ConfigurationModel>());
 	readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
 
+	private readonly configurationRegistry: IConfigurationRegistry;
+
 	private _configurationModel = ConfigurationModel.createEmptyModel(this.logService);
 	get configurationModel() { return this._configurationModel; }
 
@@ -100,11 +102,14 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
+		this.configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	}
 
 	async initialize(): Promise<ConfigurationModel> {
 		this.logService.trace('PolicyConfiguration#initialize');
+
 		this.update(await this.updatePolicyDefinitions(this.defaultConfiguration.configurationModel.keys), false);
+		this.update(await this.updatePolicyDefinitions(Object.keys(this.configurationRegistry.getExcludedConfigurationProperties())), false);
 		this._register(this.policyService.onDidChange(policyNames => this.onDidChangePolicies(policyNames)));
 		this._register(this.defaultConfiguration.onDidChangeConfiguration(async ({ properties }) => this.update(await this.updatePolicyDefinitions(properties), true)));
 		return this._configurationModel;
@@ -114,10 +119,11 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 		this.logService.trace('PolicyConfiguration#updatePolicyDefinitions', properties);
 		const policyDefinitions: IStringDictionary<PolicyDefinition> = {};
 		const keys: string[] = [];
-		const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
+		const configurationProperties = this.configurationRegistry.getConfigurationProperties();
+		const excludedConfigurationProperties = this.configurationRegistry.getExcludedConfigurationProperties();
 
 		for (const key of properties) {
-			const config = configurationProperties[key];
+			const config = configurationProperties[key] ?? excludedConfigurationProperties[key];
 			if (!config) {
 				// Config is removed. So add it to the list if in case it was registered as policy before
 				keys.push(key);
@@ -142,19 +148,20 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 
 	private onDidChangePolicies(policyNames: readonly PolicyName[]): void {
 		this.logService.trace('PolicyConfiguration#onDidChangePolicies', policyNames);
-		const policyConfigurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getPolicyConfigurations();
+		const policyConfigurations = this.configurationRegistry.getPolicyConfigurations();
 		const keys = coalesce(policyNames.map(policyName => policyConfigurations.get(policyName)));
 		this.update(keys, true);
 	}
 
 	private update(keys: string[], trigger: boolean): void {
 		this.logService.trace('PolicyConfiguration#update', keys);
-		const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
+		const configurationProperties = this.configurationRegistry.getConfigurationProperties();
+		const excludedConfigurationProperties = this.configurationRegistry.getExcludedConfigurationProperties();
 		const changed: [string, any][] = [];
 		const wasEmpty = this._configurationModel.isEmpty();
 
 		for (const key of keys) {
-			const proprety = configurationProperties[key];
+			const proprety = configurationProperties[key] ?? excludedConfigurationProperties[key];
 			const policyName = proprety?.policy?.name;
 			if (policyName) {
 				let policyValue = this.policyService.getPolicyValue(policyName);

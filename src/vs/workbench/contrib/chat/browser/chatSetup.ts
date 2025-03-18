@@ -58,7 +58,7 @@ import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.
 import { IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService, IChatWelcomeMessageContent } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, ChatEntitlementService, IChatEntitlementService } from '../common/chatEntitlementService.js';
-import { IChatProgress, IChatProgressMessage, IChatService, IChatWarningMessage } from '../common/chatService.js';
+import { IChatProgress, IChatService } from '../common/chatService.js';
 import { CHAT_CATEGORY, CHAT_OPEN_ACTION_ID, CHAT_SETUP_ACTION_ID } from './actions/chatActions.js';
 import { ChatViewId, EditsViewId, ensureSideBarChatViewSize, IChatWidgetService, preferCopilotEditsView, showCopilotView } from './chat.js';
 import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
@@ -157,7 +157,7 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 				locations: [location],
 				metadata: {
 					welcomeMessageContent,
-					helpTextPrefix: SetupChatAgentImplementation.SETUP_WARNING
+					helpTextPrefix: SetupChatAgentImplementation.SETUP_NEEDED_MESSAGE
 				},
 				description,
 				extensionId: nullExtensionDescription.identifier,
@@ -171,7 +171,7 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 		});
 	}
 
-	private static readonly SETUP_WARNING = new MarkdownString(localize('settingUpCopilotWarning', "You need to [set up Copilot]({0} \"Set up Copilot\") to use Chat.", `command:${CHAT_SETUP_ACTION_ID}`), { isTrusted: true });
+	private static readonly SETUP_NEEDED_MESSAGE = new MarkdownString(localize('settingUpCopilotNeeded', "You need to [set up Copilot]({0} \"Set up Copilot\") to use Chat.", `command:${CHAT_SETUP_ACTION_ID}`), { isTrusted: true });
 
 	constructor(
 		private readonly context: ChatEntitlementContext,
@@ -207,13 +207,13 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 					progress({
 						kind: 'progressMessage',
 						content: new MarkdownString(localize('setupChatSignIn2', "Signing in to {0}.", ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.enterpriseProviderId ? defaultChat.enterpriseProviderName : defaultChat.providerName)),
-					} satisfies IChatProgressMessage);
+					});
 					break;
 				case ChatSetupStep.Installing:
 					progress({
 						kind: 'progressMessage',
 						content: new MarkdownString(localize('installingCopilot', "Getting Copilot ready.")),
-					} satisfies IChatProgressMessage);
+					});
 					break;
 			}
 		}));
@@ -248,16 +248,16 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 				progress({
 					kind: 'warning',
 					content: new MarkdownString(localize('copilotSetupError', "Copilot setup failed. [Try again]({0} \"Retry\").", `command:${CHAT_SETUP_ACTION_ID}`), { isTrusted: true }),
-				} satisfies IChatWarningMessage);
+				});
 			}
 		}
 
 		// User has cancelled the setup
 		else {
 			progress({
-				kind: 'warning',
-				content: SetupChatAgentImplementation.SETUP_WARNING,
-			} satisfies IChatWarningMessage);
+				kind: 'markdownContent',
+				content: SetupChatAgentImplementation.SETUP_NEEDED_MESSAGE,
+			});
 		}
 
 		return {};
@@ -353,7 +353,7 @@ class ChatSetup {
 
 		const dialog = disposables.add(new Dialog(
 			this.layoutService.activeContainer,
-			localize('copilotFree', "Set up Copilot Free"),
+			localize('copilotFree', "Set up Copilot for free"),
 			buttons,
 			createWorkbenchDialogOptions({
 				type: 'none',
@@ -378,18 +378,11 @@ class ChatSetup {
 	}
 
 	private getPrimaryButton(): string {
-		switch (this.context.state.entitlement) {
-			case ChatEntitlement.Unknown:
-				return this.context.state.registered ? localize('signUp', "Sign in to use Copilot") : localize('signUpFree', "Sign in to use Copilot Free");
-			case ChatEntitlement.Unresolved:
-				return this.context.state.registered ? localize('startUp', "Use Copilot") : localize('startUpLimited', "Use Copilot Free");
-			case ChatEntitlement.Available:
-			case ChatEntitlement.Limited:
-				return localize('startUpLimited', "Use Copilot Free");
-			case ChatEntitlement.Pro:
-			case ChatEntitlement.Unavailable:
-				return localize('startUp', "Use Copilot");
+		if (this.context.state.entitlement === ChatEntitlement.Unknown) {
+			return localize('signIn', "Sign in");
 		}
+
+		return localize('useCopilot', "Use Copilot");
 	}
 
 	private createDialog(disposables: DisposableStore): HTMLElement {
@@ -498,14 +491,12 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 	}
 
 	private registerActions(context: ChatEntitlementContext, requests: ChatEntitlementRequests, controller: Lazy<ChatSetupController>): void {
-		const chatSetupTriggerContext = ContextKeyExpr.and(
-			ChatContextKeys.Setup.fromDialog.negate(), // reduce noise when using the skeleton-view approach
-			ContextKeyExpr.or(
-				ChatContextKeys.Setup.installed.negate(),
-				ChatContextKeys.Entitlement.canSignUp
-			));
+		const chatSetupTriggerContext = ContextKeyExpr.or(
+			ChatContextKeys.Setup.installed.negate(),
+			ChatContextKeys.Entitlement.canSignUp
+		);
 
-		const CHAT_SETUP_ACTION_LABEL = localize2('triggerChatSetup', "Use AI Features with Copilot Free...");
+		const CHAT_SETUP_ACTION_LABEL = localize2('triggerChatSetup', "Use AI Features with Copilot for free...");
 
 		class ChatSetupTriggerAction extends Action2 {
 
@@ -520,7 +511,13 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						id: MenuId.ChatTitleBarMenu,
 						group: 'a_last',
 						order: 1,
-						when: chatSetupTriggerContext
+						when: ContextKeyExpr.and(
+							chatSetupTriggerContext,
+							ContextKeyExpr.or(
+								ChatContextKeys.Setup.fromDialog.negate(),	// reduce noise when using the skeleton-view approach
+								ChatContextKeys.Setup.hidden				// but enforce it if copilot is hidden
+							)
+						)
 					}
 				});
 			}
@@ -1032,7 +1029,7 @@ class ChatSetupController extends Disposable {
 					};
 				} if (!fullUriRegEx.test(value)) {
 					return {
-						content: localize('invalidEnterpriseInstance', 'Please enter a valid {0} instance (i.e. "octocat" or "https://octocat.ghe.com")', defaultChat.enterpriseProviderName),
+						content: localize('invalidEnterpriseInstance', 'You must enter a valid {0} instance (i.e. "octocat" or "https://octocat.ghe.com")', defaultChat.enterpriseProviderName),
 						severity: Severity.Error
 					};
 				}
@@ -1118,7 +1115,7 @@ class ChatSetupWelcomeContent extends Disposable {
 		}
 
 		// Limited SKU
-		const free = localize({ key: 'free', comment: ['{Locked="[]({0})"}'] }, "$(sparkle-filled) We now offer [Copilot Free]({0}).", defaultChat.skusDocumentationUrl);
+		const free = localize({ key: 'free', comment: ['{Locked="[]({0})"}'] }, "$(sparkle-filled) We now offer [Copilot for free]({0}).", defaultChat.skusDocumentationUrl);
 		const freeContainer = this.element.appendChild($('p', undefined, this._register(markdown.render(new MarkdownString(free, { isTrusted: true, supportThemeIcons: true }))).element));
 
 		// Setup Button
@@ -1156,16 +1153,16 @@ class ChatSetupWelcomeContent extends Disposable {
 		switch (this.context.state.entitlement) {
 			case ChatEntitlement.Unknown:
 				showFree = true;
-				buttonLabel = this.context.state.registered ? localize('signUp', "Sign in to use Copilot") : localize('signUpFree', "Sign in to use Copilot Free");
+				buttonLabel = this.context.state.registered ? localize('signUp', "Sign in to use Copilot") : localize('signUpFree', "Sign in to use Copilot for free");
 				break;
 			case ChatEntitlement.Unresolved:
 				showFree = true;
-				buttonLabel = this.context.state.registered ? localize('startUp', "Use Copilot") : localize('startUpLimited', "Use Copilot Free");
+				buttonLabel = this.context.state.registered ? localize('startUp', "Use Copilot") : localize('startUpLimited', "Use Copilot for free");
 				break;
 			case ChatEntitlement.Available:
 			case ChatEntitlement.Limited:
 				showFree = true;
-				buttonLabel = localize('startUpLimited', "Use Copilot Free");
+				buttonLabel = localize('startUpLimited', "Use Copilot for free");
 				break;
 			case ChatEntitlement.Pro:
 			case ChatEntitlement.Unavailable:
