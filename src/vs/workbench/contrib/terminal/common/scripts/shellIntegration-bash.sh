@@ -322,9 +322,6 @@ __vsc_update_env() {
 						local value="${line#*=}"
 
 						vsc_aa_env["$key"]="$value"
-						builtin printf 'this is the key that I will be sending. Key: %s \n' "$key"
-						builtin printf 'this is the value that I will be sending. Value: %s \n' "$value"
-						builtin printf ' thank you\n'
 						builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
 					fi
 				done < <(env)
