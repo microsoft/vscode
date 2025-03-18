@@ -146,7 +146,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 					logService.error(`Edit session session to restore is a non-existing chat session: ${rawSessionsToRestore}`);
 					return;
 				}
-				await this.startOrContinueGlobalEditingSession(chatModel.sessionId);
+				await this.startOrContinueGlobalEditingSession(chatModel.sessionId, false);
 			});
 
 			this._restoringEditingSession = Promise.all(tasks).finally(() => {
@@ -162,8 +162,10 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		super.dispose();
 	}
 
-	async startOrContinueGlobalEditingSession(chatSessionId: string): Promise<IChatEditingSession> {
-		await this._restoringEditingSession;
+	async startOrContinueGlobalEditingSession(chatSessionId: string, waitForRestore = true): Promise<IChatEditingSession> {
+		if (waitForRestore) {
+			await this._restoringEditingSession;
+		}
 
 		const session = this.getEditingSession(chatSessionId);
 		if (session) {
