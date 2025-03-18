@@ -1563,9 +1563,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		});
 		this.setPanelPosition(Position.BOTTOM);
 
+
 		// Make sure the editor takes up 100% of the available space
 		const editorPart = this.getPart(Parts.EDITOR_PART);
 		if (editorPart) {
+				this.centerMainEditorLayout(false, false);
+				this.editorPartView
+
 				// Get the current size and position
 				const size = this.getSize(Parts.EDITOR_PART);
 				const position = editorPart.element.getBoundingClientRect();
@@ -1588,6 +1592,36 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				// Now layout the editor part with the new size
 				editorPart.layout(editorWidth, size.height, position.top, position.left);
 		}
+
+		// Use the editorPartView to ensure it takes full width
+		if (this.editorPartView && typeof this.editorPartView.layout === 'function') {
+			// Get container dimensions
+			const containerRect = this.mainContainer.getBoundingClientRect();
+
+			// Calculate the available width (container width minus auxiliary bar if visible)
+			const auxiliaryBarWidth = this.isVisible(Parts.AUXILIARYBAR_PART) ?
+					this.getSize(Parts.AUXILIARYBAR_PART).width : 0;
+
+			// Calculate the width the editor should have
+			const editorWidth = containerRect.width - auxiliaryBarWidth;
+
+			// Calculate the height (take into account panel if visible)
+			const panelHeight = this.isVisible(Parts.PANEL_PART) ?
+					this.getSize(Parts.PANEL_PART).height : 0;
+			const editorHeight = containerRect.height - panelHeight;
+
+			// Get the current position of the editor element
+			const editorRect = this.editorPartView.element.getBoundingClientRect();
+
+			// Call layout with all required parameters
+			this.editorPartView.layout(
+					editorWidth,         // width - ensure it takes full available width
+					editorHeight,        // height - based on container minus panel
+					editorRect.top,      // top - keep current top position
+					editorRect.left      // left - keep current left position
+			);
+		}
+
 
 		// Make sure we call the overall layout after all sizing changes
 		this.layout();
@@ -1617,9 +1651,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.notificationService.setFilter(NotificationsFilter.ERROR);
 		}
 
-		if (config.centerLayout) {
-			this.centerMainEditorLayout(true, true);
-		}
+
+		this.centerMainEditorLayout(false, true);
 
 		// Configuration change handlers
 		this.state.runtime.creatorMode.transitionDisposables.set('configurationChange', this.configurationService.onDidChangeConfiguration(e => {
