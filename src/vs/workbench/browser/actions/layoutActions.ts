@@ -788,7 +788,7 @@ registerAction2(class extends Action2 {
 				value: "Enter Creator Mode"
 			},
 			category: Categories.View,
-			f1: true
+			f1: true // TODO: REMOVE THIS FROM THE F1 MENU BEFORE DEPLOYMENT
 		});
 	}
 
@@ -809,7 +809,7 @@ registerAction2(class extends Action2 {
 				value: "Exit Creator Mode"
 			},
 			category: Categories.View,
-			f1: true,
+			f1: true, // TODO: REMOVE THIS FROM THE F1 MENU BEFORE DEPLOYMENT
 			keybinding: {
 				weight: KeybindingWeight.EditorContrib - 1,
 				primary: KeyCode.Escape,
