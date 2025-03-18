@@ -707,6 +707,7 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 			});
 
 			const chatExtensionInstalled = chatEntitlementService.sentiment === ChatSentiment.Installed;
+			const chatHidden = chatEntitlementService.sentiment === ChatSentiment.Disabled;
 			const { chatQuotaExceeded, completionsQuotaExceeded } = chatEntitlementService.quotas;
 			const signedOut = chatEntitlementService.entitlement === ChatEntitlement.Unknown;
 			const setupFromDialog = configurationService.getValue('chat.experimental.setupFromDialog');
@@ -714,9 +715,9 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 			let primaryActionId: string;
 			let primaryActionTitle: string;
 			let primaryActionIcon: ThemeIcon;
-			if (!chatExtensionInstalled && !setupFromDialog) {
+			if (!chatExtensionInstalled && (!setupFromDialog || chatHidden)) {
 				primaryActionId = CHAT_SETUP_ACTION_ID;
-				primaryActionTitle = localize('triggerChatSetup', "Use AI Features with Copilot Free...");
+				primaryActionTitle = localize('triggerChatSetup', "Use AI Features with Copilot for free...");
 				primaryActionIcon = Codicon.copilot;
 			} else if (chatExtensionInstalled && signedOut) {
 				primaryActionId = TOGGLE_CHAT_ACTION_ID;
