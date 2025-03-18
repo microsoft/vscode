@@ -320,21 +320,25 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			const lineText = line?.translateToString(true);
 			if (lineText && line) {
 				// Check if the line wrapped without a new line (continuation)
-				if (line.isWrapped || (this._shellType === PosixShellType.Fish && y === commandStartY + 1)) {
-					if (this._shellType === PosixShellType.Fish) {
-						if (value.endsWith('\\')) {
-							value = value.substring(0, value.length - 1);
-							value += `${lineText.trim()}`;
-						} else {
-							if (/^ {6,}/.test(lineText)) {
-								// Was likely a new line
-								value += `\n${lineText.trim()}`;
-							} else {
-								value += lineText;
-							}
-						}
+				if (line.isWrapped) {
+					value += `\n${lineText}`;
+					const relativeCursorIndex = this._getRelativeCursorIndex(0, buffer, line);
+					if (absoluteCursorY === y) {
+						cursorIndex += relativeCursorIndex;
 					} else {
-						value += `\n${lineText}`;
+						cursorIndex += lineText.length;
+					}
+				} else if (this._shellType === PosixShellType.Fish) {
+					if (value.endsWith('\\')) {
+						value = value.substring(0, value.length - 1);
+						value += `${lineText.trim()}`;
+					} else {
+						if (/^ {6,}/.test(lineText)) {
+							// Was likely a new line
+							value += `\n${lineText.trim()}`;
+						} else {
+							value += lineText;
+						}
 					}
 					const relativeCursorIndex = this._getRelativeCursorIndex(0, buffer, line);
 					if (absoluteCursorY === y) {
