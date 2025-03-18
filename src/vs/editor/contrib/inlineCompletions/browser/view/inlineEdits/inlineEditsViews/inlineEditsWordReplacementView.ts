@@ -137,7 +137,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 					n.div({
 						style: {
 							position: 'absolute',
-							...rectToProps(reader => layout.read(reader).lowerBackground),
+							...rectToProps(reader => layout.read(reader).lowerBackground.withMargin(0, 2, 0, 0)),
 							background: asCssVariable(editorBackground),
 							//boxShadow: `${asCssVariable(scrollbarShadow)} 0 6px 6px -6px`,
 							cursor: 'pointer',
@@ -168,6 +168,8 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 							display: 'flex',
 							justifyContent: 'center',
 							alignItems: 'center',
+
+							outline: `2px solid ${asCssVariable(editorBackground)}`,
 						}
 					}, [this._line]),
 					n.div({

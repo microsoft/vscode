@@ -8,7 +8,7 @@ import { BugIndicatingError } from '../../../../../../base/common/errors.js';
 import { IObservable } from '../../../../../../base/common/observable.js';
 import { observableFromEventOpts } from '../../../../../../base/common/observableInternal/utils.js';
 import { localize } from '../../../../../../nls.js';
-import { diffRemoved, diffInsertedLine, diffInserted, editorHoverStatusBarBackground, buttonBackground, buttonForeground, buttonSecondaryBackground, buttonSecondaryForeground, editorBackground } from '../../../../../../platform/theme/common/colorRegistry.js';
+import { diffRemoved, diffInsertedLine, diffInserted, buttonBackground, buttonForeground, buttonSecondaryBackground, buttonSecondaryForeground, editorBackground } from '../../../../../../platform/theme/common/colorRegistry.js';
 import { registerColor, transparent, darken, ColorIdentifier } from '../../../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { InlineEditTabAction } from './inlineEditsViewInterface.js';
@@ -57,17 +57,6 @@ export const modifiedChangedTextOverlayColor = registerColor(
 	transparent(diffInserted, 0.7),
 	localize('inlineEdit.modifiedChangedTextBackground', 'Overlay color for the changed text in the modified text of inline edits.'),
 	true
-);
-
-export const replacementViewBackground = registerColor(
-	'inlineEdit.wordReplacementView.background',
-	{
-		light: transparent(editorHoverStatusBarBackground, 0.1),
-		dark: transparent(editorHoverStatusBarBackground, 0.1),
-		hcLight: transparent(editorHoverStatusBarBackground, 0.1),
-		hcDark: transparent(editorHoverStatusBarBackground, 0.1),
-	},
-	localize('inlineEdit.wordReplacementView.background', 'Background color for the inline edit word replacement view.')
 );
 
 // ------- GUTTER INDICATOR -------
@@ -132,7 +121,7 @@ const originalBorder = registerColor(
 const modifiedBorder = registerColor(
 	'inlineEdit.modifiedBorder',
 	{
-		light: diffInserted,
+		light: darken(diffInserted, 0.6),
 		dark: diffInserted,
 		hcDark: diffInserted,
 		hcLight: diffInserted
