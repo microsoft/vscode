@@ -174,11 +174,6 @@ export interface ISplitViewOptions<TLayoutContext = undefined, TView extends IVi
 	readonly inverseAltBehavior?: boolean;
 
 	/**
-	 * Make collapse go down/right rather than up/left.
-	 */
-	readonly inverseCollapseBehavior?: boolean;
-
-	/**
 	 * Resize each view proportionally when resizing the SplitView.
 	 *
 	 * @defaultValue `true`
@@ -454,7 +449,6 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 	private sashDragState: ISashDragState | undefined;
 	private state: State = State.Idle;
 	private inverseAltBehavior: boolean;
-	private inverseCollapseBehavior: boolean;
 	private proportionalLayout: boolean;
 	private readonly getSashOrthogonalSize: { (): number } | undefined;
 
@@ -576,7 +570,6 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 
 		this.orientation = options.orientation ?? Orientation.VERTICAL;
 		this.inverseAltBehavior = options.inverseAltBehavior ?? false;
-		this.inverseCollapseBehavior = options.inverseCollapseBehavior ?? false;
 		this.proportionalLayout = options.proportionalLayout ?? true;
 		this.getSashOrthogonalSize = options.getSashOrthogonalSize;
 
@@ -1023,7 +1016,7 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 			this.resize(index - 1, Math.floor((item.size - size) / 2));
 			this.distributeEmptySpace();
 			this.layoutViews();
-		} else if (collapsing && this.inverseCollapseBehavior && index > 0) {
+		} else if (collapsing && index > 0) {
 			// Collapse downwards / rightwards
 			this.resize(index - 1, item.size - size);
 			this.distributeEmptySpace();

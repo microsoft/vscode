@@ -400,7 +400,6 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	create(parent: HTMLElement): void {
 		const options = this.options as IPaneViewOptions;
 		options.orientation = this.orientation;
-		options.collapseSplitDownwards = this.configurationService.getValue<boolean>('workbench.view.collapseDownwards');
 		this.paneview = this._register(new PaneView(parent, this.options));
 
 		if (this._boundarySashes) {
