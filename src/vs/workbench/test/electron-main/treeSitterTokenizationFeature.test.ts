@@ -120,13 +120,13 @@ suite('Tree Sitter TokenizationFeature', function () {
 	let fileService: IFileService;
 	let textResourcePropertiesService: ITextResourcePropertiesService;
 	let languageConfigurationService: ILanguageConfigurationService;
-	const telemetryService: ITelemetryService = new MockTelemetryService();
-	const logService: ILogService = new NullLogService();
-	const configurationService: IConfigurationService = new TestConfigurationService({ 'editor.experimental.preferTreeSitter.typescript': true });
-	const themeService: IThemeService = new TestThemeService(new TestTreeSitterColorTheme());
+	let telemetryService: ITelemetryService;
+	let logService: ILogService;
+	let configurationService: IConfigurationService;
+	let themeService: IThemeService;
 	let languageService: ILanguageService;
-	const environmentService: IEnvironmentService = {} as IEnvironmentService;
-	const tokenStoreService: ITreeSitterTokenizationStoreService = new MockTokenStoreService();
+	let environmentService: IEnvironmentService;
+	let tokenStoreService: ITreeSitterTokenizationStoreService;
 	let treeSitterParserService: TreeSitterTextModelService;
 	let treeSitterTokenizationSupport: ITreeSitterTokenizationSupport;
 
@@ -135,6 +135,14 @@ suite('Tree Sitter TokenizationFeature', function () {
 	setup(async () => {
 		disposables = new DisposableStore();
 		instantiationService = disposables.add(new TestInstantiationService());
+
+		telemetryService = new MockTelemetryService();
+		logService = new NullLogService();
+		configurationService = new TestConfigurationService({ 'editor.experimental.preferTreeSitter.typescript': true });
+		themeService = new TestThemeService(new TestTreeSitterColorTheme());
+		environmentService = {} as IEnvironmentService;
+		tokenStoreService = new MockTokenStoreService();
+
 		instantiationService.set(IEnvironmentService, environmentService);
 		instantiationService.set(IConfigurationService, configurationService);
 		instantiationService.set(ILogService, logService);

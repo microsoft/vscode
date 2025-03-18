@@ -62,10 +62,14 @@ export class InlineCompletionsSource extends Disposable {
 	) {
 		super();
 
-		this._register(this._textModel.onDidChangeContent((e) => {
-			this._updateOperation.clear();
-		}));
+		this.clearOperationOnTextModelChange.recomputeInitiallyAndOnChange(this._store);
 	}
+
+	public readonly clearOperationOnTextModelChange = derived(this, reader => {
+		this._versionId.read(reader);
+		this._updateOperation.clear();
+		return undefined; // always constant
+	});
 
 	private _log(entry:
 		{ sourceId: string; kind: 'start'; requestId: number; context: unknown } & IRecordableEditorLogEntry

@@ -254,7 +254,8 @@ export class McpServer extends Disposable implements IMcpServer {
 		// todo: add more than just tools here
 
 		const updateTools = (tx: ITransaction | undefined) => {
-			this.toolsFromServerPromise.set(new ObservablePromise(handler.listTools({}, cts.token)), tx);
+			const toolPromise = handler.capabilities.tools ? handler.listTools({}, cts.token) : Promise.resolve([]);
+			this.toolsFromServerPromise.set(new ObservablePromise(toolPromise), tx);
 		};
 
 		store.add(handler.onDidChangeToolList(() => updateTools(undefined)));

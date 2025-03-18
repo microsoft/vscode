@@ -71,7 +71,7 @@ import { IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatEditingSession } from '../common/chatEditingService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../common/chatEntitlementService.js';
-import { IChatRequestVariableEntry, isImageVariableEntry, isLinkVariableEntry, isPasteVariableEntry } from '../common/chatModel.js';
+import { IChatRequestVariableEntry, isImageVariableEntry, isPasteVariableEntry } from '../common/chatModel.js';
 import { IChatFollowup, IChatService } from '../common/chatService.js';
 import { IChatVariablesService } from '../common/chatVariables.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
@@ -85,7 +85,7 @@ import { PromptAttachmentsCollectionWidget } from './attachments/promptAttachmen
 import { IChatWidget } from './chat.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { toChatVariable } from './chatAttachmentModel/chatPromptAttachmentsCollection.js';
-import { DefaultChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, LinkAttachmentWidget, PasteAttachmentWidget } from './chatAttachmentWidgets.js';
+import { DefaultChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, PasteAttachmentWidget } from './chatAttachmentWidgets.js';
 import { IDisposableReference } from './chatContentParts/chatCollections.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from './chatContentParts/chatReferencesContentPart.js';
 import { ChatDragAndDrop } from './chatDragAndDrop.js';
@@ -159,26 +159,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const contextArr = [...this.attachmentModel.attachments];
 		if (this.implicitContext?.enabled && this.implicitContext.value) {
 			contextArr.push(this.implicitContext.toBaseEntry());
-		}
-
-		// retrieve links from the input editor
-		const linkOccurrences = this.inputEditor.getContribution<LinkDetector>(LinkDetector.ID)?.getAllLinkOccurrences() ?? [];
-		const linksSeen = new Set<string>();
-		for (const linkOccurrence of linkOccurrences) {
-			const link = linkOccurrence.link;
-			const uri = URI.isUri(link.url) ? link.url : link.url ? URI.parse(link.url) : undefined;
-			if (!uri || linksSeen.has(uri.toString())) {
-				continue;
-			}
-
-			linksSeen.add(uri.toString());
-			contextArr.push({
-				kind: 'link',
-				id: uri.toString(),
-				name: uri.fsPath,
-				value: uri,
-				isFile: false,
-			});
 		}
 
 		// factor in nested file links of a prompt into the implicit context
@@ -1078,8 +1058,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				attachmentWidget = this.instantiationService.createInstance(ImageAttachmentWidget, resource, attachment, this._currentLanguageModel, shouldFocusClearButton, container, this._contextResourceLabels, hoverDelegate);
 			} else if (isPasteVariableEntry(attachment)) {
 				attachmentWidget = this.instantiationService.createInstance(PasteAttachmentWidget, attachment, this._currentLanguageModel, shouldFocusClearButton, container, this._contextResourceLabels, hoverDelegate);
-			} else if (isLinkVariableEntry(attachment)) {
-				attachmentWidget = this.instantiationService.createInstance(LinkAttachmentWidget, attachment, this._currentLanguageModel, shouldFocusClearButton, container, this._contextResourceLabels, hoverDelegate);
 			} else {
 				attachmentWidget = this.instantiationService.createInstance(DefaultChatAttachmentWidget, resource, range, attachment, this._currentLanguageModel, shouldFocusClearButton, container, this._contextResourceLabels, hoverDelegate);
 			}
@@ -1449,6 +1427,7 @@ class ModelPickerActionViewItem extends DropdownMenuActionViewItemWithKeybinding
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@ICommandService commandService: ICommandService,
+		@IMenuService menuService: IMenuService,
 	) {
 		const modelActionsProvider: IActionProvider = {
 			getActions: () => {
@@ -1470,11 +1449,17 @@ class ModelPickerActionViewItem extends DropdownMenuActionViewItemWithKeybinding
 
 				const models: ILanguageModelChatMetadataAndIdentifier[] = this.delegate.getModels();
 				const actions = models.map(entry => setLanguageModelAction(entry));
-				if (chatEntitlementService.entitlement === ChatEntitlement.Limited) {
+
+				// Add menu contributions from extensions
+				const menuActions = menuService.getMenuActions(MenuId.ChatModelPicker, contextKeyService);
+				const menuContributions = getFlatActionBarActions(menuActions);
+				if (menuContributions.length > 0 || chatEntitlementService.entitlement === ChatEntitlement.Limited) {
 					actions.push(new Separator());
+				}
+				actions.push(...menuContributions);
+				if (chatEntitlementService.entitlement === ChatEntitlement.Limited) {
 					actions.push(toAction({ id: 'moreModels', label: localize('chat.moreModels', "Add More Models..."), run: () => commandService.executeCommand('workbench.action.chat.upgradePlan', 'chat-models') }));
 				}
-
 				return actions;
 			}
 		};
