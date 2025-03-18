@@ -140,15 +140,14 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 			const sessionIds = rawSessionsToRestore.split(',');
 
-			const tasks: Promise<any>[] = [];
-			for (const sessionId of sessionIds) {
-				const chatModel = _chatService.getOrRestoreSession(sessionId);
+			const tasks = sessionIds.map(async sessionId => {
+				const chatModel = await _chatService.getOrRestoreSession(sessionId);
 				if (!chatModel) {
 					logService.error(`Edit session session to restore is a non-existing chat session: ${rawSessionsToRestore}`);
-					continue;
+					return;
 				}
-				tasks.push(this.startOrContinueGlobalEditingSession(chatModel.sessionId));
-			}
+				await this.startOrContinueGlobalEditingSession(chatModel.sessionId, false);
+			});
 
 			this._restoringEditingSession = Promise.all(tasks).finally(() => {
 				this._restoringEditingSession = undefined;
@@ -163,8 +162,10 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		super.dispose();
 	}
 
-	async startOrContinueGlobalEditingSession(chatSessionId: string): Promise<IChatEditingSession> {
-		await this._restoringEditingSession;
+	async startOrContinueGlobalEditingSession(chatSessionId: string, waitForRestore = true): Promise<IChatEditingSession> {
+		if (waitForRestore) {
+			await this._restoringEditingSession;
+		}
 
 		const session = this.getEditingSession(chatSessionId);
 		if (session) {
@@ -204,7 +205,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		const store = new DisposableStore();
 		this._store.add(store);
 
-		store.add(this.installAutoApplyObserver(session));
+		store.add(await this.installAutoApplyObserver(session));
 
 		store.add(session.onDidDispose(e => {
 			removeSession();
@@ -217,8 +218,8 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		return session;
 	}
 
-	private installAutoApplyObserver(session: ChatEditingSession): IDisposable {
-		const chatModel = this._chatService.getOrRestoreSession(session.chatSessionId);
+	private async installAutoApplyObserver(session: ChatEditingSession): Promise<IDisposable> {
+		const chatModel = await this._chatService.getOrRestoreSession(session.chatSessionId);
 		if (!chatModel) {
 			throw new ErrorNoTelemetry(`Edit session was created for a non-existing chat session: ${session.chatSessionId}`);
 		}

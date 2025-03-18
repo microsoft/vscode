@@ -4,12 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { Location } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../nls.js';
@@ -20,7 +24,7 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatMarkdownContent, IChatProgressMessage, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized } from '../../common/chatService.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../common/codeBlockModelCollection.js';
-import { IToolResult } from '../../common/languageModelToolsService.js';
+import { isToolResultInputOutputDetails, IToolResultInputOutputDetails } from '../../common/languageModelToolsService.js';
 import { CancelChatActionId } from '../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../actions/chatToolActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../chat.js';
@@ -141,8 +145,10 @@ class ChatToolInvocationSubPart extends Disposable {
 			}
 		} else if (toolInvocation.toolSpecificData?.kind === 'terminal') {
 			this.domNode = this.createTerminalMarkdownProgressPart(toolInvocation, toolInvocation.toolSpecificData);
-		} else if (toolInvocation.resultDetails?.length) {
+		} else if (Array.isArray(toolInvocation.resultDetails) && toolInvocation.resultDetails?.length) {
 			this.domNode = this.createResultList(toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage, toolInvocation.resultDetails);
+		} else if (isToolResultInputOutputDetails(toolInvocation.resultDetails)) {
+			this.domNode = this.createInputOutputMarkdownProgressPart(toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage, toolInvocation.resultDetails);
 		} else {
 			this.domNode = this.createProgressPart();
 		}
@@ -355,9 +361,21 @@ class ChatToolInvocationSubPart extends Disposable {
 		return progressPart.domNode;
 	}
 
+	private createInputOutputMarkdownProgressPart(message: string | IMarkdownString, inputOutputData: IToolResultInputOutputDetails): HTMLElement {
+
+		const part = this._register(this.instantiationService.createInstance(ChatToolInputOutputInvocationPart, message, inputOutputData, this.editorPool, this.codeBlockStartIndex, () => this.currentWidthDelegate(), this.renderer));
+		this._register(part.onDidChangeHeight(() => this._onDidChangeHeight.fire(), this));
+		const icon = !this.toolInvocation.isConfirmed ?
+			Codicon.error :
+			this.toolInvocation.isComplete ?
+				Codicon.check : ThemeIcon.modify(Codicon.loading, 'spin');
+		const progressPart = this.instantiationService.createInstance(ChatCustomProgressPart, part.domNode, icon);
+		return progressPart.domNode;
+	}
+
 	private createResultList(
 		message: string | IMarkdownString,
-		toolDetails: NonNullable<IToolResult['toolResultDetails']>,
+		toolDetails: Array<URI | Location>,
 	): HTMLElement {
 		const collapsibleListPart = this._register(this.instantiationService.createInstance(
 			ChatCollapsibleListContentPart,
@@ -371,5 +389,88 @@ class ChatToolInvocationSubPart extends Disposable {
 		));
 		this._register(collapsibleListPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		return collapsibleListPart.domNode;
+	}
+}
+
+
+class ChatToolInputOutputInvocationPart extends Disposable {
+
+	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
+	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
+
+	public readonly domNode: HTMLElement;
+
+	constructor(
+		message: string | IMarkdownString,
+		inputOutputData: IToolResultInputOutputDetails,
+		editorPool: EditorPool,
+		codeBlockIndex: number,
+		currentWidthDelegate: () => number,
+		renderer: MarkdownRenderer,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IModelService modelService: IModelService,
+		@ILanguageService languageService: ILanguageService,
+	) {
+		super();
+
+		const elements = dom.h('div.tool-input-output-part', [
+			dom.h('div.message@message'),
+			dom.h('div.expando@expando'),
+			dom.h('div.input-output@inputOutput'),
+		]);
+
+		this.domNode = elements.root;
+
+		// TITLE
+		if (typeof message === 'string') {
+			message = new MarkdownString().appendText(message);
+		}
+		const renderResult = this._store.add(renderer.render(message));
+		dom.reset(elements.message, renderResult.element);
+
+		const btn = this._store.add(new Button(elements.expando, { supportIcons: true }));
+		const expanded = observableValue(this, false);
+
+		this._store.add(autorun(r => {
+			const value = expanded.read(r);
+			elements.root.classList.toggle('expanded', value);
+			if (value) {
+				btn.icon = Codicon.chevronDown;
+				btn.setTitle(localize('hide', "Hide Tool Input & Output"));
+			} else {
+				btn.icon = Codicon.chevronRight;
+				btn.setTitle(localize('show', "Show Tool Input & Output"));
+			}
+			this._onDidChangeHeight.fire();
+		}));
+
+		this._store.add(btn.onDidClick(() => {
+			const value = expanded.get();
+			expanded.set(!value, undefined);
+		}));
+
+		// INPUT/OUTPUT
+		const editorInfo = this._store.add(editorPool.get().object);
+		dom.reset(elements.inputOutput, editorInfo.element);
+		this._store.add(editorInfo.onDidChangeContentHeight(this._onDidChangeHeight.fire, this));
+
+		const model = this._store.add(modelService.createModel(
+			`${inputOutputData.input}\n\n${inputOutputData.output}`,
+			languageService.createById('json')
+		));
+
+		editorInfo.render({
+			textModel: Promise.resolve(model),
+			languageId: model.getLanguageId(),
+			element: undefined,
+			codeBlockIndex,
+			codeBlockPartIndex: 0,
+			parentContextKeyService: contextKeyService,
+			renderOptions: {
+				hideToolbar: true,
+				reserveWidth: 19,
+				verticalPadding: 5,
+			}
+		}, currentWidthDelegate());
 	}
 }

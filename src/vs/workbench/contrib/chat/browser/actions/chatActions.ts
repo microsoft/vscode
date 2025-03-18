@@ -240,7 +240,7 @@ export function registerChatActions() {
 			const viewsService = accessor.get(IViewsService);
 			const editorService = accessor.get(IEditorService);
 
-			const showPicker = () => {
+			const showPicker = async () => {
 				const openInEditorButton: IQuickInputButton = {
 					iconClass: ThemeIcon.asClassName(Codicon.file),
 					tooltip: localize('interactiveSession.history.editor', "Open in Editor"),
@@ -258,8 +258,8 @@ export function registerChatActions() {
 					chat: IChatDetail;
 				}
 
-				const getPicks = () => {
-					const items = chatService.getHistory();
+				const getPicks = async () => {
+					const items = await chatService.getHistory();
 					items.sort((a, b) => (b.lastMessageDate ?? 0) - (a.lastMessageDate ?? 0));
 
 					let lastDate: string | undefined = undefined;
@@ -290,7 +290,7 @@ export function registerChatActions() {
 				const store = new DisposableStore();
 				const picker = store.add(quickInputService.createQuickPick<IChatPickerItem>({ useSeparators: true }));
 				picker.placeholder = localize('interactiveSession.history.pick', "Switch to chat");
-				const picks = getPicks();
+				const picks = await getPicks();
 				picker.items = picks;
 				store.add(picker.onDidTriggerItemButton(async context => {
 					if (context.button === openInEditorButton) {
@@ -299,7 +299,7 @@ export function registerChatActions() {
 						picker.hide();
 					} else if (context.button === deleteButton) {
 						chatService.removeHistoryEntry(context.item.chat.sessionId);
-						picker.items = getPicks();
+						picker.items = await getPicks();
 					} else if (context.button === renameButton) {
 						const title = await quickInputService.input({ title: localize('newChatTitle', "New chat title"), value: context.item.chat.title });
 						if (title) {
@@ -307,7 +307,7 @@ export function registerChatActions() {
 						}
 
 						// The quick input hides the picker, it gets disposed, so we kick it off from scratch
-						showPicker();
+						await showPicker();
 					}
 				}));
 				store.add(picker.onDidAccept(async () => {
@@ -315,7 +315,7 @@ export function registerChatActions() {
 						const item = picker.selectedItems[0];
 						const sessionId = item.chat.sessionId;
 						const view = await viewsService.openView(ChatViewId) as ChatViewPane;
-						view.loadSession(sessionId);
+						await view.loadSession(sessionId);
 					} finally {
 						picker.hide();
 					}
@@ -324,7 +324,7 @@ export function registerChatActions() {
 
 				picker.show();
 			};
-			showPicker();
+			await showPicker();
 		}
 	});
 
@@ -356,7 +356,7 @@ export function registerChatActions() {
 				category: CHAT_CATEGORY,
 				menu: {
 					id: MenuId.ChatInput,
-					when: ChatContextKeys.chatMode.isEqualTo(ChatMode.Chat),
+					when: ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask),
 					group: 'navigation',
 					order: 1
 				}
@@ -418,15 +418,14 @@ export function registerChatActions() {
 		}
 		async run(accessor: ServicesAccessor, ...args: any[]) {
 			const editorGroupsService = accessor.get(IEditorGroupsService);
-			const viewsService = accessor.get(IViewsService);
 
 			const chatService = accessor.get(IChatService);
-			chatService.clearAllHistoryEntries();
+			await chatService.clearAllHistoryEntries();
 
-			const chatView = viewsService.getViewWithId(ChatViewId) as ChatViewPane | undefined;
-			if (chatView) {
-				chatView.widget.clear();
-			}
+			const widgetService = accessor.get(IChatWidgetService);
+			widgetService.getAllWidgets().forEach(widget => {
+				widget.clear();
+			});
 
 			// Clear all chat editors. Have to go this route because the chat editor may be in the background and
 			// not have a ChatEditorInput.

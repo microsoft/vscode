@@ -39,7 +39,7 @@ export interface IChatWidgetService {
 
 	readonly onDidAddWidget: Event<IChatWidget>;
 
-
+	getAllWidgets(): ReadonlyArray<IChatWidget>;
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined;
 	getWidgetBySessionId(sessionId: string): IChatWidget | undefined;
 	getWidgetsByLocations(location: ChatAgentLocation): ReadonlyArray<IChatWidget>;

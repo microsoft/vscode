@@ -14,7 +14,6 @@ import * as iconv from '@vscode/iconv-lite-umd';
 import * as filetype from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals, isMacintosh, isDescendant, relativePath } from './util';
 import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
-import { detectEncoding } from './encoding';
 import { Commit as ApiCommit, Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery, InitOptions } from './api/git';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
@@ -194,7 +193,6 @@ function cpErrorHandler(cb: (reason?: any) => void): (reason?: any) => void {
 
 export interface SpawnOptions extends cp.SpawnOptions {
 	input?: string;
-	encoding?: string;
 	log?: boolean;
 	cancellationToken?: CancellationToken;
 	onSpawn?: (childProcess: cp.ChildProcess) => void;
@@ -621,12 +619,9 @@ export class Git {
 			}
 		}
 
-		let encoding = options.encoding || 'utf8';
-		encoding = iconv.encodingExists(encoding) ? encoding : 'utf8';
-
 		const result: IExecutionResult<string> = {
 			exitCode: bufferResult.exitCode,
-			stdout: iconv.decode(bufferResult.stdout, encoding),
+			stdout: bufferResult.stdout.toString('utf8'),
 			stderr: bufferResult.stderr
 		};
 
@@ -1396,18 +1391,6 @@ export class Repository {
 
 		return result.stdout.split('\n')
 			.filter(entry => !!entry);
-	}
-
-	async bufferString(ref: string, filePath: string, encoding: string = 'utf8', autoGuessEncoding = false, candidateGuessEncodings: string[] = []): Promise<string> {
-		const stdout = await this.buffer(ref, filePath);
-
-		if (autoGuessEncoding) {
-			encoding = detectEncoding(stdout, candidateGuessEncodings) || encoding;
-		}
-
-		encoding = iconv.encodingExists(encoding) ? encoding : 'utf8';
-
-		return iconv.decode(stdout, encoding);
 	}
 
 	async buffer(ref: string, filePath: string): Promise<Buffer> {

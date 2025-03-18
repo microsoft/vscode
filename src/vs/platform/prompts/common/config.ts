@@ -115,9 +115,12 @@ export namespace PromptsConfig {
 
 			// copy all the enabled paths to the result list
 			for (const [path, enabled] of Object.entries(value)) {
-				if (enabled && path !== DEFAULT_SOURCE_FOLDER) {
-					paths.push(path);
+				// we already added the default source folder, so skip it
+				if ((enabled === false) || (path === DEFAULT_SOURCE_FOLDER)) {
+					continue;
 				}
+
+				paths.push(path);
 			}
 
 			return paths;

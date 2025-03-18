@@ -372,7 +372,8 @@ export function registerNewChatActions() {
 				}, {
 					id: MenuId.ChatTitleBarMenu,
 					group: 'a_open',
-					order: 2
+					order: 2,
+					when: ChatContextKeyExprs.unifiedChatEnabled.negate()
 				}, {
 					id: MenuId.ChatEditingEditorContent,
 					when: ctxIsGlobalEditingSession,
