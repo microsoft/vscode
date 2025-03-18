@@ -424,7 +424,7 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 			const node = changedNodes[nodeIndex];
 
 			if (mergedChanges.length > 0) {
-				if ((node.startIndex > mergedChanges[mergedChanges.length - 1].newRangeStartOffset) && (node.endIndex < mergedChanges[mergedChanges.length - 1].newRangeEndOffset)) {
+				if ((node.startIndex >= mergedChanges[mergedChanges.length - 1].newRangeStartOffset) && (node.endIndex <= mergedChanges[mergedChanges.length - 1].newRangeEndOffset)) {
 					// This node is within the previous range, skip it
 					continue;
 				}
@@ -463,7 +463,7 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 				let child = cursor.gotoFirstChild();
 				nodesInRange = [];
 				while (child) {
-					if (cursor.startIndex <= node.startIndex && cursor.endIndex > node.startIndex) {
+					if (cursor.endIndex > node.startIndex) {
 						// Found the starting point of our nodes
 						nodesInRange.push(cursor.currentNode);
 						do {
