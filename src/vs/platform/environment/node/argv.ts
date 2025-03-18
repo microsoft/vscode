@@ -104,6 +104,8 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'update-extensions': { type: 'boolean', cat: 'e', description: localize('updateExtensions', "Update the installed extensions.") },
 	'enable-proposed-api': { type: 'string[]', allowEmptyValue: true, cat: 'e', args: 'ext-id', description: localize('experimentalApis', "Enables proposed API features for extensions. Can receive one or more extension IDs to enable individually.") },
 
+	'add-mcp': { type: 'string[]', cat: 'o', args: 'json', description: localize('addMcp', "Adds a Model Context Protocol server definition to the user profile, or workspace or folder when used with --mcp-workspace. Accepts JSON input in the form '{\"name\":\"server-name\",\"command\":...}'") },
+
 	'version': { type: 'boolean', cat: 't', alias: 'v', description: localize('version', "Print version.") },
 	'verbose': { type: 'boolean', cat: 't', global: true, description: localize('verbose', "Print verbose output (implies --wait).") },
 	'log': { type: 'string[]', cat: 't', args: 'level', global: true, description: localize('log', "Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'. You can also configure the log level of an extension by passing extension id and log level in the following format: '${publisher}.${name}:${logLevel}'. For example: 'vscode.csharp:trace'. Can receive one or more such entries.") },
@@ -410,9 +412,12 @@ function indent(count: number): string {
 function wrapText(text: string, columns: number): string[] {
 	const lines: string[] = [];
 	while (text.length) {
-		const index = text.length < columns ? text.length : text.lastIndexOf(' ', columns);
+		let index = text.length < columns ? text.length : text.lastIndexOf(' ', columns);
+		if (index === 0) {
+			index = columns;
+		}
 		const line = text.slice(0, index).trim();
-		text = text.slice(index);
+		text = text.slice(index).trimStart();
 		lines.push(line);
 	}
 	return lines;

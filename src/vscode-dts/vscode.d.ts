@@ -1877,6 +1877,9 @@ declare module 'vscode' {
 		/**
 		 * A human-readable string which is rendered prominent. Supports rendering of {@link ThemeIcon theme icons} via
 		 * the `$(<name>)`-syntax.
+		 *
+		 * Note: When {@link QuickPickItem.kind kind} is set to {@link QuickPickItemKind.Default} (so a regular item
+		 * instead of a separator), it supports rendering of {@link ThemeIcon theme icons} via the `$(<name>)`-syntax.
 		 */
 		label: string;
 
@@ -7733,6 +7736,18 @@ declare module 'vscode' {
 		 * https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
 		 */
 		readonly isInteractedWith: boolean;
+
+		/**
+		 * The detected shell type of the {@link Terminal}. This will be `undefined` when there is
+		 * not a clear signal as to what the shell is, or the shell is not supported yet. This
+		 * value should change to the shell type of a sub-shell when launched (for example, running
+		 * `bash` inside `zsh`).
+		 *
+		 * Note that the possible values are currently defined as any of the following:
+		 * 'bash', 'cmd', 'csh', 'fish', 'gitbash', 'julia', 'ksh', 'node', 'nu', 'pwsh', 'python',
+		 * 'sh', 'wsl', 'zsh'.
+		 */
+		readonly shell: string | undefined;
 	}
 
 	/**

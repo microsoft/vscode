@@ -16,9 +16,9 @@ import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js'
 import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import type { IChatEditorOptions } from './chatEditor.js';
-import { ChatAgentLocation } from '../common/chatAgents.js';
 import { IChatModel } from '../common/chatModel.js';
 import { IChatService } from '../common/chatService.js';
+import { ChatAgentLocation } from '../common/constants.js';
 
 const ChatEditorIcon = registerIcon('chat-editor-label-icon', Codicon.commentDiscussion, nls.localize('chatEditorLabelIcon', 'Icon of the chat editor label.'));
 
@@ -93,7 +93,7 @@ export class ChatEditorInput extends EditorInput {
 
 	override async resolve(): Promise<ChatEditorModel | null> {
 		if (typeof this.sessionId === 'string') {
-			this.model = this.chatService.getOrRestoreSession(this.sessionId);
+			this.model = await this.chatService.getOrRestoreSession(this.sessionId);
 		} else if (!this.options.target) {
 			this.model = this.chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None);
 		} else if ('data' in this.options.target) {

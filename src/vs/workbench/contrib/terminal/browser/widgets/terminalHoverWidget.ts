@@ -44,7 +44,7 @@ export class TerminalHover extends Disposable implements ITerminalWidget {
 			return;
 		}
 		const target = new CellHoverTarget(container, this._targetOptions);
-		const hover = this._hoverService.showHover({
+		const hover = this._hoverService.showInstantHover({
 			target,
 			content: this._text,
 			actions: this._actions,

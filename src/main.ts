@@ -522,6 +522,18 @@ function getJSFlags(cliArgs: NativeParsedArgs): string | null {
 		jsFlags.push(cliArgs['js-flags']);
 	}
 
+	if (process.platform === 'linux') {
+		// Fix cppgc crash on Linux with 16KB page size.
+		// Refs https://issues.chromium.org/issues/378017037
+		// The fix from https://github.com/electron/electron/commit/6c5b2ef55e08dc0bede02384747549c1eadac0eb
+		// only affects non-renderer process.
+		// The following will ensure that the flag will be
+		// applied to the renderer process as well.
+		// TODO(deepak1556): Remove this once we update to
+		// Chromium >= 134.
+		jsFlags.push('--nodecommit_pooled_pages');
+	}
+
 	return jsFlags.length > 0 ? jsFlags.join(' ') : null;
 }
 

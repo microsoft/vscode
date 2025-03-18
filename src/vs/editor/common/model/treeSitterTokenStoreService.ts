@@ -72,7 +72,7 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 					newToken = { startOffsetInclusive: oldToken.startOffsetInclusive, length: oldToken.length + change.text.length - change.rangeLength, token: oldToken.token };
 				} else {
 					// The document got larger and the change is at the end of the document.
-					newToken = { startOffsetInclusive: offset, length: change.text.length + 1, token: 0 };
+					newToken = { startOffsetInclusive: offset, length: change.text.length, token: 0 };
 				}
 				storeInfo.store.update(oldToken?.length ?? 0, [newToken], TokenQuality.EditGuess);
 			} else if (change.text.length < change.rangeLength) {

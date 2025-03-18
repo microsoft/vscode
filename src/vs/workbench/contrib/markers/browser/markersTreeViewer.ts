@@ -35,7 +35,7 @@ import { applyCodeAction, ApplyCodeActionReason, getCodeActions } from '../../..
 import { CodeActionKind, CodeActionSet, CodeActionTriggerSource } from '../../../../editor/contrib/codeAction/common/types.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IEditorService, ACTIVE_GROUP } from '../../../services/editor/common/editorService.js';
-import { SeverityIcon } from '../../../../platform/severityIcon/browser/severityIcon.js';
+import { SeverityIcon } from '../../../../base/browser/ui/severityIcon/severityIcon.js';
 import { CodeActionTriggerType } from '../../../../editor/common/languages.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { Progress } from '../../../../platform/progress/common/progress.js';

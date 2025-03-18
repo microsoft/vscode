@@ -9,6 +9,7 @@ import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { LineRange } from '../../../../../common/core/lineRange.js';
 import { StringText, TextEdit } from '../../../../../common/core/textEdit.js';
+import { Command } from '../../../../../common/languages.js';
 import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
 import { InlineCompletionWithUpdatedRange } from '../../model/inlineCompletionsSource.js';
 import { IInlineEditModel, InlineEditTabAction } from './inlineEditsViewInterface.js';
@@ -16,18 +17,27 @@ import { InlineEditWithChanges } from './inlineEditWithChanges.js';
 
 export class InlineEditModel implements IInlineEditModel {
 
-	readonly action = this.inlineEdit.inlineCompletion.action;
-	readonly displayName = this.inlineEdit.inlineCompletion.source.provider.displayName ?? localize('inlineEdit', "Inline Edit");
-	readonly extensionCommands = this.inlineEdit.inlineCompletion.source.inlineCompletions.commands ?? [];
+	readonly action: Command | undefined;
+	readonly displayName: string;
+	readonly extensionCommands: Command[];
 
-	readonly inAcceptFlow = this._model.inAcceptFlow;
-	readonly inPartialAcceptFlow = this._model.inPartialAcceptFlow;
+	readonly showCollapsed: IObservable<boolean>;
+	readonly inAcceptFlow: IObservable<boolean>;
+	readonly inPartialAcceptFlow: IObservable<boolean>;
 
 	constructor(
 		private readonly _model: InlineCompletionsModel,
 		readonly inlineEdit: InlineEditWithChanges,
 		readonly tabAction: IObservable<InlineEditTabAction>,
-	) { }
+	) {
+		this.action = this.inlineEdit.inlineCompletion.action;
+		this.displayName = this.inlineEdit.inlineCompletion.source.provider.displayName ?? localize('inlineEdit', "Inline Edit");
+		this.extensionCommands = this.inlineEdit.inlineCompletion.source.inlineCompletions.commands ?? [];
+
+		this.inAcceptFlow = this._model.inAcceptFlow;
+		this.inPartialAcceptFlow = this._model.inPartialAcceptFlow;
+		this.showCollapsed = this._model.showCollapsed;
+	}
 
 	accept() {
 		this._model.accept();
@@ -52,18 +62,15 @@ export class GhostTextIndicator {
 
 	readonly model: InlineEditModel;
 
-	private readonly _editorObs = observableCodeEditor(this._editor);
-
 	constructor(
-		private _editor: ICodeEditor,
+		editor: ICodeEditor,
 		model: InlineCompletionsModel,
 		readonly lineRange: LineRange,
 		inlineCompletion: InlineCompletionWithUpdatedRange,
-		renderExplicitly: boolean,
 	) {
-
+		const editorObs = observableCodeEditor(editor);
 		const tabAction = derived<InlineEditTabAction>(this, reader => {
-			if (this._editorObs.isFocused.read(reader)) {
+			if (editorObs.isFocused.read(reader)) {
 				if (model.inlineCompletionState.read(reader)?.inlineCompletion?.sourceInlineCompletion.showInlineEditMenu) {
 					return InlineEditTabAction.Accept;
 				}
@@ -77,7 +84,6 @@ export class GhostTextIndicator {
 				new StringText(''),
 				new TextEdit([]),
 				model.primaryPosition.get(),
-				renderExplicitly,
 				inlineCompletion.source.inlineCompletions.commands ?? [],
 				inlineCompletion.inlineCompletion
 			),
