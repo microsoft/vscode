@@ -210,5 +210,5 @@ export function markdownCommandLink(command: { title: string; id: string; argume
 		query: command.arguments?.length ? encodeURIComponent(JSON.stringify(command.arguments)) : undefined,
 	}).toString();
 
-	return `[${command.title}](${uri})`;
+	return `[${escapeMarkdownSyntaxTokens(command.title)}](${uri})`;
 }
