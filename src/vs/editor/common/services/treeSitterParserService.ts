@@ -41,6 +41,7 @@ export interface ModelTreeUpdateEvent {
 	versionId: number;
 	tree: ITextModelTreeSitter;
 	languageId: string;
+	hasInjections: boolean;
 }
 
 export interface TreeUpdateEvent extends ModelTreeUpdateEvent {
