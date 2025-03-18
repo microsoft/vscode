@@ -320,16 +320,11 @@ export abstract class AbstractVariableResolverService implements IConfigurationR
 						return paths.sep;
 
 					default: {
-						const contributedValue = this._contributedVariables.get(variable);
-						if (contributedValue) {
-							const value = await contributedValue();
-							if (value) {
-								return value;
-							}
-							throw new VariableError(VariableKind.Unknown, localize('extensionNoValue', "Variable {0} can not be resolved because the extension didn't return a value.", replacement.id));
+						try {
+							return this.resolveFromMap(VariableKind.Unknown, replacement.id, argument, commandValueMapping, undefined);
+						} catch {
+							return replacement.id;
 						}
-
-						return replacement.id;
 					}
 				}
 			}

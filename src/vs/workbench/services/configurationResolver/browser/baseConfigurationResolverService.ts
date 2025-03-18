@@ -173,6 +173,10 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 			else if (variable.name === 'input') {
 				result = await this.showUserInput(section!, variable.arg!, await this.resolveInputs(folder, section!, target));
 			}
+			// Contributed variable
+			else if (this._contributedVariables.has(variable.inner)) {
+				result = { value: await this._contributedVariables.get(variable.inner)!() };
+			}
 			// Not something we can handle
 			else {
 				continue;
