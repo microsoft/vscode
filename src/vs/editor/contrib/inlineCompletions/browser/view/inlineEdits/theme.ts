@@ -21,7 +21,7 @@ export const originalBackgroundColor = registerColor(
 );
 export const modifiedBackgroundColor = registerColor(
 	'inlineEdit.modifiedBackground',
-	transparent(diffInserted, 0.2),
+	transparent(diffInserted, 0.3),
 	localize('inlineEdit.modifiedBackground', 'Background color for the modified text in inline edits.'),
 	true
 );
@@ -43,8 +43,8 @@ export const originalChangedTextOverlayColor = registerColor(
 export const modifiedChangedLineBackgroundColor = registerColor(
 	'inlineEdit.modifiedChangedLineBackground',
 	{
-		light: transparent(diffInsertedLine, 0.8),
-		dark: transparent(diffInsertedLine, 0.8),
+		light: transparent(diffInsertedLine, 0.7),
+		dark: transparent(diffInsertedLine, 0.7),
 		hcDark: diffInsertedLine,
 		hcLight: diffInsertedLine
 	},
@@ -54,7 +54,7 @@ export const modifiedChangedLineBackgroundColor = registerColor(
 
 export const modifiedChangedTextOverlayColor = registerColor(
 	'inlineEdit.modifiedChangedTextBackground',
-	transparent(diffInserted, 0.9),
+	transparent(diffInserted, 0.7),
 	localize('inlineEdit.modifiedChangedTextBackground', 'Overlay color for the changed text in the modified text of inline edits.'),
 	true
 );

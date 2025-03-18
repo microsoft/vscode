@@ -231,7 +231,6 @@ export class InlineEditsView extends Disposable {
 		this._model.map(m => m?.inlineEdit),
 		this._previewTextModel,
 		this._uiState.map(s => s && s.state?.kind === 'sideBySide' ? ({
-			edit: s.edit,
 			newTextLineCount: s.newTextLineCount,
 			originalDisplayRange: s.originalDisplayRange,
 		}) : undefined),
