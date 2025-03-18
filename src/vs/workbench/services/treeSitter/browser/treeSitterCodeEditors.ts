@@ -43,7 +43,7 @@ export class TreeSitterCodeEditors extends Disposable {
 		const viewports: IViewPortChangeEvent[] = [];
 		for (const editor of editors) {
 			const model = await this.getEditorModel(editor);
-			if (model) {
+			if (model && model.getLanguageId() === this._languageId) {
 				viewports.push({
 					model,
 					ranges: this._nonIntersectingViewPortRanges(editor)
