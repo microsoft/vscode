@@ -16,8 +16,10 @@ export const FetchWebPageToolData: IToolData = {
 	id: InternalFetchWebPageToolId,
 	displayName: 'Fetch Web Page',
 	tags: ['vscode_editing'],
+	canBeReferencedInPrompt: true,
+	toolReferenceName: 'fetch',
 	modelDescription: localize('fetchWebPage.modelDescription', 'Fetches the main content from a web page. This tool is useful for summarizing or analyzing the content of a webpage.'),
-	userDescription: localize('fetchWebPage.userDescription', 'Fetch the main content from a web page. This tool is useful for summarizing or analyzing the content of a webpage.'),
+	userDescription: localize('fetchWebPage.userDescription', 'Fetch the main content from a web page. You should include the URL of the page you want to fetch.'),
 	inputSchema: {
 		type: 'object',
 		properties: {
