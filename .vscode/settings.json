@@ -180,5 +180,4 @@
 		"eslint": "warning"
 	},
 	"git.showReferenceDetails": true,
-	"editor.experimental.preferTreeSitter.typescript": true
 }
