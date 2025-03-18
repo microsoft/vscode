@@ -208,7 +208,6 @@ export class McpServerOptionsCommand extends Action2 {
 	}
 }
 
-
 export class MCPServerActionRendering extends Disposable implements IWorkbenchContribution {
 	public static readonly ID = 'workbench.contrib.mcp.discovery';
 
@@ -449,5 +448,59 @@ export class EditStoredInput extends Action2 {
 	run(accessor: ServicesAccessor, inputId: string, uri: URI | undefined, configSection: string, target: ConfigurationTarget): void {
 		const workspaceFolder = uri && accessor.get(IWorkspaceContextService).getWorkspaceFolder(uri);
 		accessor.get(IMcpRegistry).editSavedInput(inputId, workspaceFolder || undefined, configSection, target);
+	}
+}
+
+export class ShowOutput extends Action2 {
+	static readonly ID = 'workbench.mcp.showOutput';
+
+	constructor() {
+		super({
+			id: ShowOutput.ID,
+			title: localize2('mcp.command.showOutput', "Show Output"),
+			category,
+			f1: false,
+		});
+	}
+
+	run(accessor: ServicesAccessor, serverId: string): void {
+		accessor.get(IMcpService).servers.get().find(s => s.definition.id === serverId)?.showOutput();
+	}
+}
+
+export class StartServer extends Action2 {
+	static readonly ID = 'workbench.mcp.startServer';
+
+	constructor() {
+		super({
+			id: StartServer.ID,
+			title: localize2('mcp.command.startServer', "Start Server"),
+			category,
+			f1: false,
+		});
+	}
+
+	async run(accessor: ServicesAccessor, serverId: string) {
+		const s = accessor.get(IMcpService).servers.get().find(s => s.definition.id === serverId);
+		await s?.stop();
+		await s?.start();
+	}
+}
+
+export class StopServer extends Action2 {
+	static readonly ID = 'workbench.mcp.StopServer';
+
+	constructor() {
+		super({
+			id: StopServer.ID,
+			title: localize2('mcp.command.StopServer', "Stop Server"),
+			category,
+			f1: false,
+		});
+	}
+
+	async run(accessor: ServicesAccessor, serverId: string) {
+		const s = accessor.get(IMcpService).servers.get().find(s => s.definition.id === serverId);
+		await s?.stop();
 	}
 }

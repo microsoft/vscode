@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -22,8 +21,7 @@ import { McpRegistry } from '../common/mcpRegistry.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
 import { McpService } from '../common/mcpService.js';
 import { IMcpService } from '../common/mcpTypes.js';
-import { AddConfigurationAction, EditStoredInput, ListMcpServerCommand, MCPServerActionRendering, McpServerOptionsCommand, RemoveStoredInput, ResetMcpCachedTools, ResetMcpTrustCommand } from './mcpCommands.js';
-import { McpConfigEditorContribution } from './mcpConfigEditorContribution.js';
+import { AddConfigurationAction, EditStoredInput, ListMcpServerCommand, MCPServerActionRendering, McpServerOptionsCommand, RemoveStoredInput, ResetMcpCachedTools, ResetMcpTrustCommand, ShowOutput, StartServer, StopServer } from './mcpCommands.js';
 import { McpDiscovery } from './mcpDiscovery.js';
 import { McpLanguageFeatures } from './mcpLanguageFeatures.js';
 
@@ -46,10 +44,11 @@ registerAction2(ResetMcpCachedTools);
 registerAction2(AddConfigurationAction);
 registerAction2(RemoveStoredInput);
 registerAction2(EditStoredInput);
+registerAction2(StartServer);
+registerAction2(StopServer);
+registerAction2(ShowOutput);
 
 registerWorkbenchContribution2('mcpActionRendering', MCPServerActionRendering, WorkbenchPhase.BlockRestore);
 
 const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
 jsonRegistry.registerSchema(mcpSchemaId, mcpServerSchema);
-
-registerEditorContribution(McpConfigEditorContribution.ID, McpConfigEditorContribution, EditorContributionInstantiation.AfterFirstRender);
