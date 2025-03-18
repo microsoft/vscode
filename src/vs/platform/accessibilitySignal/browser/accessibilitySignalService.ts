@@ -316,6 +316,8 @@ export class Sound {
 	public static readonly voiceRecordingStopped = Sound.register({ fileName: 'voiceRecordingStopped.mp3' });
 	public static readonly progress = Sound.register({ fileName: 'progress.mp3' });
 	public static readonly chatEditModifiedFile = Sound.register({ fileName: 'chatEditModifiedFile.mp3' });
+	public static readonly keepEdits = Sound.register({ fileName: 'keepEdits.mp3' });
+	public static readonly undoEdits = Sound.register({ fileName: 'undoEdits.mp3' });
 
 	private constructor(public readonly fileName: string) { }
 }
@@ -637,5 +639,19 @@ export class AccessibilitySignal {
 		sound: Sound.voiceRecordingStopped,
 		legacySoundSettingsKey: 'audioCues.voiceRecordingStopped',
 		settingsKey: 'accessibility.signals.voiceRecordingStopped'
+	});
+
+	public static readonly keepEdits = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.keepEdits', 'Keep Edits'),
+		sound: Sound.keepEdits,
+		announcementMessage: localize('accessibility.signals.keepEdits', 'Keep Edits'),
+		settingsKey: 'accessibility.signals.keepEdits',
+	});
+
+	public static readonly undoEdits = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.undoEdits', 'Undo Edits'),
+		sound: Sound.undoEdits,
+		announcementMessage: localize('accessibility.signals.undoEdits', 'Undo Edits'),
+		settingsKey: 'accessibility.signals.undoEdits',
 	});
 }
