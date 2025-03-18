@@ -166,6 +166,40 @@ const topLevelSubcommands: Fig.Subcommand[] = [
 	},
 ];
 
+export const tunnelOptions: Fig.Option[] = [
+	{
+		name: '--cli-data-dir',
+		description: 'Directory where CLI metadata should be stored',
+		args: {
+			name: 'cli_data_dir',
+		},
+	},
+	{
+		name: '--log-to-file',
+		description: 'Log to a file in addition to stdout. Used when running as a service',
+		hidden: true,
+		args: {
+			name: 'log_to_file',
+			template: 'filepaths',
+		},
+	},
+
+	{
+		name: '--telemetry-level',
+		description: 'Sets the initial telemetry level',
+		hidden: true,
+		args: {
+			name: 'telemetry_level',
+			suggestions: [
+				'off',
+				'crash',
+				'error',
+				'all',
+			],
+		},
+	}
+];
+
 const codeTunnelCompletionSpec: Fig.Spec = {
 	...code,
 	name: 'code-tunnel',
@@ -175,37 +209,7 @@ const codeTunnelCompletionSpec: Fig.Spec = {
 		...commonOptions,
 		...extensionManagementOptions('code-tunnel'),
 		...troubleshootingOptions('code-tunnel'),
-		{
-			name: '--cli-data-dir',
-			description: 'Directory where CLI metadata should be stored',
-			args: {
-				name: 'cli_data_dir',
-			},
-		},
-		{
-			name: '--log-to-file',
-			description: 'Log to a file in addition to stdout. Used when running as a service',
-			hidden: true,
-			args: {
-				name: 'log_to_file',
-				template: 'filepaths',
-			},
-		},
-
-		{
-			name: '--telemetry-level',
-			description: 'Sets the initial telemetry level',
-			hidden: true,
-			args: {
-				name: 'telemetry_level',
-				suggestions: [
-					'off',
-					'crash',
-					'error',
-					'all',
-				],
-			},
-		},
+		...tunnelOptions
 	]
 };
 
