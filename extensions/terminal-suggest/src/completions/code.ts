@@ -525,7 +525,7 @@ export const codeTunnelSubcommands = [{
 },
 {
 	name: 'tunnel',
-	description: 'Create a tunnel that\'s accessible on vscode.dev from anywhere.Run`code tunnel --help` for more usage info',
+	description: 'Create a tunnel that\'s accessible on vscode.dev from anywhere. Run`code tunnel --help` for more usage info',
 	subcommands: [
 		{
 			name: 'prune',
