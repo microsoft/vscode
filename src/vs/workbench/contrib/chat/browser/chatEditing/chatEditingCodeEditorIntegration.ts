@@ -73,7 +73,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		@IChatEditingService chatEditingService: IChatEditingService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IAccessibilitySignalService private readonly _accessibilitySignalsService: IAccessibilitySignalService,
+		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		this._diffLineDecorations = _editor.createDecorationsCollection();
@@ -176,11 +176,11 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 			const diff = documentDiffInfo.read(r);
 			const mapping = diff.changes.find(m => m.modified.contains(position.lineNumber) || m.modified.isEmpty && m.modified.startLineNumber === position.lineNumber);
 			if (mapping?.modified.isEmpty) {
-				this._accessibilitySignalsService.playSignal(AccessibilitySignal.diffLineDeleted, { source: 'chatEditingEditor.cursorPositionChanged' });
+				this._accessibilitySignalService.playSignal(AccessibilitySignal.diffLineDeleted, { source: 'chatEditingEditor.cursorPositionChanged' });
 			} else if (mapping?.original.isEmpty) {
-				this._accessibilitySignalsService.playSignal(AccessibilitySignal.diffLineInserted, { source: 'chatEditingEditor.cursorPositionChanged' });
+				this._accessibilitySignalService.playSignal(AccessibilitySignal.diffLineInserted, { source: 'chatEditingEditor.cursorPositionChanged' });
 			} else if (mapping) {
-				this._accessibilitySignalsService.playSignal(AccessibilitySignal.diffLineModified, { source: 'chatEditingEditor.cursorPositionChanged' });
+				this._accessibilitySignalService.playSignal(AccessibilitySignal.diffLineModified, { source: 'chatEditingEditor.cursorPositionChanged' });
 			}
 		}));
 
@@ -582,6 +582,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		closestWidget = closestWidget ?? this._findClosestWidget();
 		if (closestWidget instanceof DiffHunkWidget) {
 			closestWidget.reject();
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.undoEdits, { allowManyInParallel: true });
 			this.next(true);
 		}
 	}
@@ -590,6 +591,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		closestWidget = closestWidget ?? this._findClosestWidget();
 		if (closestWidget instanceof DiffHunkWidget) {
 			closestWidget.accept();
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.keepEdits, { allowManyInParallel: true });
 			this.next(true);
 		}
 	}

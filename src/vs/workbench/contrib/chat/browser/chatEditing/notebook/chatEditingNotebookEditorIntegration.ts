@@ -12,6 +12,7 @@ import { LineRange } from '../../../../../../editor/common/core/lineRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { nullDocumentDiff } from '../../../../../../editor/common/diff/documentDiffProvider.js';
 import { localize } from '../../../../../../nls.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IEditorPane, IResourceDiffEditorInput } from '../../../../../common/editor.js';
@@ -40,6 +41,7 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 		originalModel: NotebookTextModel,
 		cellChanges: IObservable<ICellDiffInfo[]>,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 	) {
 		super();
 
@@ -72,9 +74,11 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 		this.integration.enableAccessibleDiffView();
 	}
 	acceptNearestChange(change: IModifiedFileEntryChangeHunk): void {
+		this._accessibilitySignalService.playSignal(AccessibilitySignal.keepEdits, { allowManyInParallel: true });
 		this.integration.acceptNearestChange(change);
 	}
 	rejectNearestChange(change: IModifiedFileEntryChangeHunk): void {
+		this._accessibilitySignalService.playSignal(AccessibilitySignal.undoEdits, { allowManyInParallel: true });
 		this.integration.rejectNearestChange(change);
 	}
 	toggleDiff(change: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
