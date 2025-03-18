@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import code, { commonOptions, commonAuthOptions, extensionManagementOptions, troubleshootingOptions, commonCLIOptions } from './code';
 
-const tunnelSubcommands: Fig.Subcommand[] = [
+const topLevelSubcommands: Fig.Subcommand[] = [
 	{
 		name: 'prune',
 		description: 'Delete all servers which are currently not running',
@@ -86,10 +86,10 @@ const tunnelSubcommands: Fig.Subcommand[] = [
 					{
 						name: '--name',
 						description: 'Sets the machine name for port forwarding service',
-						isRepeatable: true,
+
 						args: {
 							name: 'name',
-							isOptional: true,
+
 						},
 					},
 					{
@@ -110,19 +110,12 @@ const tunnelSubcommands: Fig.Subcommand[] = [
 				options: commonCLIOptions,
 			},
 			{
-				name: 'internal-run',
-				description: 'Internal command for running the service',
-				hidden: true,
-				options: commonCLIOptions,
-			},
-			{
 				name: 'help',
 				description: 'Print this message or the help of the given subcommand(s)',
 				subcommands: [
 					{ name: 'install', description: 'Installs or re-installs the tunnel service on the machine' },
 					{ name: 'uninstall', description: 'Uninstalls and stops the tunnel service' },
 					{ name: 'log', description: 'Shows logs for the running service' },
-					{ name: 'internal-run', description: 'Internal command for running the service', hidden: true },
 					{ name: 'help', description: 'Print this message or the help of the given subcommand(s)' },
 				],
 				options: commonCLIOptions
@@ -166,10 +159,8 @@ const tunnelSubcommands: Fig.Subcommand[] = [
 					{ name: 'install', description: 'Installs or re-installs the tunnel service on the machine' },
 					{ name: 'uninstall', description: 'Uninstalls and stops the tunnel service' },
 					{ name: 'log', description: 'Shows logs for the running service' },
-					{ name: 'internal-run', description: 'Internal command for running the service', hidden: true },
 				],
 			},
-			{ name: 'forward-internal', description: '(Preview) Forwards local port using the dev tunnel', hidden: true },
 			{ name: 'help', description: 'Print this message or the help of the given subcommand(s)' },
 		],
 	},
@@ -179,7 +170,7 @@ const codeTunnelCompletionSpec: Fig.Spec = {
 	...code,
 	name: 'code-tunnel',
 	description: 'Create a tunnel that\'s accessible on vscode.dev from anywhere.',
-	subcommands: tunnelSubcommands,
+	subcommands: topLevelSubcommands,
 	options: [
 		...commonOptions,
 		...extensionManagementOptions('code-tunnel'),
@@ -187,20 +178,16 @@ const codeTunnelCompletionSpec: Fig.Spec = {
 		{
 			name: '--cli-data-dir',
 			description: 'Directory where CLI metadata should be stored',
-			isRepeatable: true,
 			args: {
 				name: 'cli_data_dir',
-				isOptional: true,
 			},
 		},
 		{
 			name: '--log-to-file',
 			description: 'Log to a file in addition to stdout. Used when running as a service',
 			hidden: true,
-			isRepeatable: true,
 			args: {
 				name: 'log_to_file',
-				isOptional: true,
 				template: 'filepaths',
 			},
 		},
@@ -209,10 +196,8 @@ const codeTunnelCompletionSpec: Fig.Spec = {
 			name: '--telemetry-level',
 			description: 'Sets the initial telemetry level',
 			hidden: true,
-			isRepeatable: true,
 			args: {
 				name: 'telemetry_level',
-				isOptional: true,
 				suggestions: [
 					'off',
 					'crash',
