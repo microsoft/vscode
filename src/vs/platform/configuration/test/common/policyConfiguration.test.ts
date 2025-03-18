@@ -66,6 +66,15 @@ suite('PolicyConfiguration', () => {
 					minimumVersion: '1.0.0',
 				}
 			},
+			'policy.internalSetting': {
+				'type': 'string',
+				'default': 'defaultInternalValue',
+				included: false,
+				policy: {
+					name: 'PolicyInternalSetting',
+					minimumVersion: '1.0.0',
+				}
+			},
 			'nonPolicy.setting': {
 				'type': 'boolean',
 				'default': true
@@ -260,6 +269,20 @@ suite('PolicyConfiguration', () => {
 		assert.strictEqual(acutal.getValue('policy.settingB'), undefined);
 		assert.strictEqual(acutal.getValue('nonPolicy.setting'), undefined);
 		assert.deepStrictEqual(acutal.keys, []);
+		assert.deepStrictEqual(acutal.overrides, []);
+	});
+
+	test('initialize: with internal policies', async () => {
+		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicyInternalSetting': 'internalValue' })));
+
+		await testObject.initialize();
+		const acutal = testObject.configurationModel;
+
+		assert.strictEqual(acutal.getValue('policy.settingA'), undefined);
+		assert.strictEqual(acutal.getValue('policy.settingB'), undefined);
+		assert.strictEqual(acutal.getValue('policy.internalSetting'), 'internalValue');
+		assert.strictEqual(acutal.getValue('nonPolicy.setting'), undefined);
+		assert.deepStrictEqual(acutal.keys, ['policy.internalSetting']);
 		assert.deepStrictEqual(acutal.overrides, []);
 	});
 
