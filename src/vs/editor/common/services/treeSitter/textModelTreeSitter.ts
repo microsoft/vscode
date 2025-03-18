@@ -167,15 +167,16 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 	}
 
 	private async _parseInjected(parentTree: ITreeSitterParseResult, parentLanguage: string, modelChanges: IModelContentChangedEvent[] | undefined): Promise<void> {
-		const tree = this._rootTreeSitterTree?.tree;
-		if (!tree) {
-			return;
-		}
 		const query = await this._getQuery();
 		if (!query) {
 			return;
 		}
 
+		const tree = this._rootTreeSitterTree?.tree;
+		if (!tree?.rootNode) {
+			// need to check the root node here as `walk` will throw if not defined.
+			return;
+		}
 		const injections = await this._collectInjections(tree, query);
 		await this._processInjections(injections, parentTree, parentLanguage, modelChanges);
 	}
