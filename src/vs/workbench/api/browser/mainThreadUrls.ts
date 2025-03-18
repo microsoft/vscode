@@ -38,7 +38,7 @@ class ExtensionUrlHandler implements IExtensionContributedURLHandler {
 export class MainThreadUrls extends Disposable implements MainThreadUrlsShape {
 
 	private readonly proxy: ExtHostUrlsShape;
-	private handlers = new Map<number, { extensionId: ExtensionIdentifier; disposable: IDisposable }>();
+	private readonly handlers = new Map<number, { extensionId: ExtensionIdentifier; disposable: IDisposable }>();
 
 	constructor(
 		context: IExtHostContext,
