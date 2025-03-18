@@ -181,9 +181,9 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 
 		const requestModel = chatWidgetService.getWidgetBySessionId(request.sessionId)?.viewModel?.model.getRequests().at(-1);
 
-		const setup = this.instantiationService.createInstance(ChatSetup, this.context, this.controller);
+		const setup = ChatSetup.getInstance(this.instantiationService, this.context, this.controller);
 
-		const setupListener = this.controller.value.onDidChange(() => {
+		const setupListener = Event.runAndSubscribe(this.controller.value.onDidChange, (() => {
 			switch (this.controller.value.step) {
 				case ChatSetupStep.SigningIn:
 					progress({
@@ -198,7 +198,7 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 					} satisfies IChatProgressMessage);
 					break;
 			}
-		});
+		}));
 
 		const whenDefaultModel = Event.toPromise(Event.filter(languageModelsService.onDidChangeLanguageModels, e => e.added?.some(added => added.metadata.isDefault) ?? false));
 
@@ -255,7 +255,21 @@ enum ChatSetupStrategy {
 
 class ChatSetup {
 
-	constructor(
+	private static instance: ChatSetup | undefined = undefined;
+	static getInstance(instantiationService: IInstantiationService, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): ChatSetup {
+		let instance = ChatSetup.instance;
+		if (!instance) {
+			instance = ChatSetup.instance = instantiationService.invokeFunction(accessor => {
+				return new ChatSetup(context, controller, instantiationService, accessor.get(ITelemetryService), accessor.get(IContextMenuService), accessor.get(IWorkbenchLayoutService), accessor.get(IKeybindingService), accessor.get(IChatEntitlementService), accessor.get(ILogService));
+			});
+		}
+
+		return instance;
+	}
+
+	private pendingRun: Promise<boolean | undefined> | undefined = undefined;
+
+	private constructor(
 		private readonly context: ChatEntitlementContext,
 		private readonly controller: Lazy<ChatSetupController>,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -268,6 +282,20 @@ class ChatSetup {
 	) { }
 
 	async run(): Promise<boolean | undefined> {
+		if (this.pendingRun) {
+			return this.pendingRun;
+		}
+
+		this.pendingRun = this.doRun();
+
+		try {
+			return await this.pendingRun;
+		} finally {
+			this.pendingRun = undefined;
+		}
+	}
+
+	private async doRun(): Promise<boolean | undefined> {
 		let setupStrategy: ChatSetupStrategy;
 		if (this.chatEntitlementService.entitlement === ChatEntitlement.Pro || this.chatEntitlementService.entitlement === ChatEntitlement.Limited) {
 			setupStrategy = ChatSetupStrategy.DefaultSetup; // existing pro/free users setup without a dialog
@@ -499,7 +527,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				configurationService.updateValue('chat.commandCenter.enabled', true);
 
 				if (setupFromDialog) {
-					const setup = instantiationService.createInstance(ChatSetup, context, controller);
+					const setup = ChatSetup.getInstance(instantiationService, context, controller);
 					const result = await setup.run();
 					if (result === false) {
 						const { confirmed } = await dialogService.confirm({
