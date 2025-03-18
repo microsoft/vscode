@@ -1399,6 +1399,7 @@ export interface MainThreadUrlsShape extends IDisposable {
 	$registerUriHandler(handle: number, extensionId: ExtensionIdentifier, extensionDisplayName: string): Promise<void>;
 	$unregisterUriHandler(handle: number): Promise<void>;
 	$createAppUri(uri: UriComponents): Promise<UriComponents>;
+	$extractExternalUris(uris: UriComponents[]): Promise<string[]>;
 }
 
 export interface IChatDto {
@@ -1436,6 +1437,7 @@ export type IChatProgressDto =
 
 export interface ExtHostUrlsShape {
 	$handleExternalUri(handle: number, uri: UriComponents): Promise<void>;
+	$updateTrustedDomains(trustedDomains: string[]): Promise<void>;
 }
 
 export interface MainThreadUriOpenersShape extends IDisposable {
@@ -2554,7 +2556,8 @@ export interface ExtHostTaskShape {
 	$onDidStartTaskProcess(value: tasks.ITaskProcessStartedDTO): void;
 	$onDidEndTaskProcess(value: tasks.ITaskProcessEndedDTO): void;
 	$OnDidEndTask(execution: tasks.ITaskExecutionDTO): void;
-	$onDidChangeTaskTerminalStatus(status: tasks.ITaskStatusDTO): void;
+	$onDidStartTaskProblemMatchers(status: tasks.ITaskProblemMatcherStartedDto): void;
+	$onDidEndTaskProblemMatchers(status: tasks.ITaskProblemMatcherEndedDto): void;
 	$resolveVariables(workspaceFolder: UriComponents, toResolve: { process?: { name: string; cwd?: string }; variables: string[] }): Promise<{ process?: string; variables: { [key: string]: string } }>;
 	$jsonTasksSupported(): Promise<boolean>;
 	$findExecutable(command: string, cwd?: string, paths?: string[]): Promise<string | undefined>;

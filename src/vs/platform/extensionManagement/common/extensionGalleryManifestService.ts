@@ -25,7 +25,7 @@ export class ExtensionGalleryManifestService extends Disposable implements IExte
 	readonly onDidChangeExtensionGalleryManifest = Event.None;
 
 	constructor(
-		@IProductService private readonly productService: IProductService,
+		@IProductService protected readonly productService: IProductService,
 	) {
 		super();
 	}
