@@ -286,27 +286,44 @@ steps:
         condition: and(succeededOrFailed(), eq(variables['BUILT_WEB'], 'true'))
         displayName: Package server (web)
 
-      - powershell: |
+      - powershell:
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
-          exec { npm run -- gulp "vscode-win32-$(VSCODE_ARCH)-system-setup" --sign }
-          $SetupPath = ".build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup-$(VSCODE_ARCH)-$(VSCODE_VERSION).exe"
-          mv .build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup.exe $SetupPath
-          echo "##vso[task.setvariable variable=SYSTEM_SETUP_PATH]$SetupPath"
-        env:
-          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-        displayName: Build system setup
+          exec { npm exec -- npm-run-all -lp "gulp vscode-win32-$(VSCODE_ARCH)-system-setup --sign" "gulp vscode-win32-$(VSCODE_ARCH)-user-setup --sign"  }
 
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          exec { npm run -- gulp "vscode-win32-$(VSCODE_ARCH)-user-setup" --sign }
-          $SetupPath = ".build\win32-$(VSCODE_ARCH)\user-setup\VSCodeUserSetup-$(VSCODE_ARCH)-$(VSCODE_VERSION).exe"
-          mv .build\win32-$(VSCODE_ARCH)\user-setup\VSCodeSetup.exe $SetupPath
-          echo "##vso[task.setvariable variable=USER_SETUP_PATH]$SetupPath"
+          $SystemSetupPath = ".build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup-$(VSCODE_ARCH)-$(VSCODE_VERSION).exe"
+          $UserSetupPath = ".build\win32-$(VSCODE_ARCH)\user-setup\VSCodeUserSetup-$(VSCODE_ARCH)-$(VSCODE_VERSION).exe"
+
+          mv .build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup.exe $SystemSetupPath
+          mv .build\win32-$(VSCODE_ARCH)\user-setup\VSCodeSetup.exe $UserSetupPath
+
+          echo "##vso[task.setvariable variable=SYSTEM_SETUP_PATH]$SystemSetupPath"
+          echo "##vso[task.setvariable variable=USER_SETUP_PATH]$UserSetupPath"
         env:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-        displayName: Build user setup
+        displayName: Build setup
+
+      # - powershell: |
+      #     . build/azure-pipelines/win32/exec.ps1
+      #     $ErrorActionPreference = "Stop"
+      #     exec { npm run -- gulp "vscode-win32-$(VSCODE_ARCH)-system-setup" --sign }
+      #     $SetupPath = ".build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup-$(VSCODE_ARCH)-$(VSCODE_VERSION).exe"
+      #     mv .build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup.exe $SetupPath
+      #     echo "##vso[task.setvariable variable=SYSTEM_SETUP_PATH]$SetupPath"
+      #   env:
+      #     SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      #   displayName: Build system setup
+
+      # - powershell: |
+      #     . build/azure-pipelines/win32/exec.ps1
+      #     $ErrorActionPreference = "Stop"
+      #     exec { npm run -- gulp "vscode-win32-$(VSCODE_ARCH)-user-setup" --sign }
+      #     $SetupPath = ".build\win32-$(VSCODE_ARCH)\user-setup\VSCodeUserSetup-$(VSCODE_ARCH)-$(VSCODE_VERSION).exe"
+      #     mv .build\win32-$(VSCODE_ARCH)\user-setup\VSCodeSetup.exe $SetupPath
+      #     echo "##vso[task.setvariable variable=USER_SETUP_PATH]$SetupPath"
+      #   env:
+      #     SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      #   displayName: Build user setup
 
       - powershell: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX]attempt$(System.JobAttempt)_"
         condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))
