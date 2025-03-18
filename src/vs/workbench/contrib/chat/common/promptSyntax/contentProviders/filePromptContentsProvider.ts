@@ -11,7 +11,7 @@ import { CancellationError } from '../../../../../../base/common/errors.js';
 import { PromptContentsProviderBase } from './promptContentsProviderBase.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { OpenFailed, NotPromptFile, ParseError, FolderReference } from '../../promptFileReferenceErrors.js';
+import { OpenFailed, NotPromptFile, ResolveError, FolderReference } from '../../promptFileReferenceErrors.js';
 import { FileChangesEvent, FileChangeType, IFileService } from '../../../../../../platform/files/common/files.js';
 
 /**
@@ -81,7 +81,7 @@ export class FilePromptContentProvider extends PromptContentsProviderBase<FileCh
 
 			fileStream = await this.fileService.readFileStream(this.uri);
 		} catch (error) {
-			if (error instanceof ParseError) {
+			if (error instanceof ResolveError) {
 				throw error;
 			}
 

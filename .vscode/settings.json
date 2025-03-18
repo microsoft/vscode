@@ -157,6 +157,7 @@
 	"application.experimental.rendererProfiling": true,
 	"editor.experimental.asyncTokenization": true,
 	"editor.experimental.asyncTokenizationVerification": true,
+	"terminal.integrated.suggest.enabled": true,
 	"typescript.preferences.autoImportFileExcludePatterns": [
 		"@xterm/xterm",
 		"@xterm/headless",
@@ -177,5 +178,7 @@
 		"*": "error",
 		"ts": "warning",
 		"eslint": "warning"
-	}
+	},
+	"git.showReferenceDetails": true,
+	"editor.experimental.preferTreeSitter.typescript": true
 }

@@ -8,7 +8,52 @@ import codeCompletionSpec from '../../completions/code';
 import { testPaths, type ISuiteSpec, type ITestSpec } from '../helpers';
 import codeInsidersCompletionSpec from '../../completions/code-insiders';
 
-export const codeSpecOptions = ['-', '--add', '--category', '--diff', '--disable-extension', '--disable-extensions', '--disable-gpu', '--enable-proposed-api', '--extensions-dir', '--goto', '--help', '--inspect-brk-extensions', '--inspect-extensions', '--install-extension', '--list-extensions', '--locale', '--locate-shell-integration-path', '--log', '--max-memory', '--merge', '--new-window', '--pre-release', '--prof-startup', '--profile', '--reuse-window', '--show-versions', '--status', '--sync', '--telemetry', '--uninstall-extension', '--user-data-dir', '--verbose', '--version', '--wait', '-a', '-d', '-g', '-h', '-m', '-n', '-r', '-s', '-v', '-w'];
+export const codeSpecOptions = [
+	'-a <folder>',
+	'-d <file> <file>',
+	'-g <file:line[:character]>',
+	'-h',
+	'-m <path1> <path2> <base> <result>',
+	'-n',
+	'-r',
+	'-s',
+	'-v',
+	'-w',
+	'-',
+	'--add <folder>',
+	'--category <category>',
+	'--diff <file> <file>',
+	'--disable-extension <extension-id>',
+	'--disable-extensions',
+	'--disable-gpu',
+	'--enable-proposed-api',
+	'--extensions-dir <dir>',
+	'--goto <file:line[:character]>',
+	'--help',
+	'--inspect-brk-extensions <port>',
+	'--inspect-extensions <port>',
+	'--install-extension <extension-id[@version] | path-to-vsix>',
+	'--list-extensions',
+	'--locale <locale>',
+	'--locate-shell-integration-path <shell>',
+	'--log <level>',
+	'--max-memory <memory>',
+	'--merge <path1> <path2> <base> <result>',
+	'--new-window',
+	'--pre-release',
+	'--prof-startup',
+	'--profile <settingsProfileName>',
+	'--reuse-window',
+	'--show-versions',
+	'--status',
+	'--sync <sync>',
+	'--telemetry',
+	'--uninstall-extension <extension-id>',
+	'--user-data-dir <dir>',
+	'--verbose',
+	'--version',
+	'--wait',
+];
 
 export function createCodeTestSpecs(executable: string): ITestSpec[] {
 	const localeOptions = ['bg', 'de', 'en', 'es', 'fr', 'hu', 'it', 'ja', 'ko', 'pt-br', 'ru', 'tr', 'zh-CN', 'zh-TW'];

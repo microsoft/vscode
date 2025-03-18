@@ -8,6 +8,7 @@ import * as DOM from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { Toggle, unthemedToggleStyles } from '../../../../base/browser/ui/toggle/toggle.js';
@@ -506,12 +507,6 @@ export class ListSettingWidget<TListDataItem extends IListDataItem> extends Abst
 
 	private dragDetails: ListSettingWidgetDragDetails<TListDataItem> | undefined;
 
-	private getDragImage(item: TListDataItem): HTMLElement {
-		const dragImage = $('.monaco-drag-image');
-		dragImage.textContent = item.value.data;
-		return dragImage;
-	}
-
 	protected renderItem(item: TListDataItem, idx: number): RowElementGroup {
 		const rowElement = $('.setting-list-row');
 		const valueElement = DOM.append(rowElement, $('.setting-list-value'));
@@ -539,13 +534,8 @@ export class ListSettingWidget<TListDataItem extends IListDataItem> extends Abst
 				item,
 				itemIndex: idx
 			};
-			if (ev.dataTransfer) {
-				ev.dataTransfer.dropEffect = 'move';
-				const dragImage = this.getDragImage(item);
-				rowElement.ownerDocument.body.appendChild(dragImage);
-				ev.dataTransfer.setDragImage(dragImage, -10, -10);
-				setTimeout(() => dragImage.remove(), 0);
-			}
+
+			applyDragImage(ev, rowElement, item.value.data);
 		}));
 		this.listDisposables.add(DOM.addDisposableListener(rowElement, DOM.EventType.DRAG_OVER, (ev) => {
 			if (!this.dragDetails) {

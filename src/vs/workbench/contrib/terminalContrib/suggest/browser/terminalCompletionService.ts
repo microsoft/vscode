@@ -16,6 +16,7 @@ import { TerminalSuggestSettingId } from '../common/terminalSuggestConfiguration
 import { TerminalCompletionItemKind, type ITerminalCompletion } from './terminalCompletionItem.js';
 import { env as processEnv } from '../../../../../base/common/process.js';
 import type { IProcessEnvironment } from '../../../../../base/common/platform.js';
+import { timeout } from '../../../../../base/common/async.js';
 
 export const ITerminalCompletionService = createDecorator<ITerminalCompletionService>('terminalCompletionService');
 
@@ -166,7 +167,10 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			if (provider.shellTypes && !provider.shellTypes.includes(shellType)) {
 				return undefined;
 			}
-			const completions = await provider.provideCompletions(promptValue, cursorPosition, allowFallbackCompletions, token);
+			const completions = await Promise.race([
+				provider.provideCompletions(promptValue, cursorPosition, allowFallbackCompletions, token),
+				timeout(5000)
+			]);
 			if (!completions) {
 				return undefined;
 			}

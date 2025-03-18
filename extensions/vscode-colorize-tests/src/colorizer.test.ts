@@ -74,10 +74,12 @@ suite('colorization', () => {
 		];
 		await workspace.getConfiguration('editor.experimental').update('preferTreeSitter.typescript', true, ConfigurationTarget.Global);
 		await workspace.getConfiguration('editor.experimental').update('preferTreeSitter.ini', true, ConfigurationTarget.Global);
+		await workspace.getConfiguration('editor.experimental').update('preferTreeSitter.regex', true, ConfigurationTarget.Global);
 	});
 	suiteTeardown(async function () {
 		await workspace.getConfiguration('editor.experimental').update('preferTreeSitter.typescript', originalSettingValues[0], ConfigurationTarget.Global);
 		await workspace.getConfiguration('editor.experimental').update('preferTreeSitter.ini', originalSettingValues[1], ConfigurationTarget.Global);
+		await workspace.getConfiguration('editor.experimental').update('preferTreeSitter.regex', originalSettingValues[2], ConfigurationTarget.Global);
 	});
 
 	for (const fixture of fs.readdirSync(fixturesPath)) {
