@@ -60,11 +60,6 @@ interface ILoadOptions {
 	readonly disableExtensions?: boolean;
 }
 
-interface IUnresponsiveWindowSettings {
-	readonly sampleInterval: number;
-	readonly samplePeriod: number;
-}
-
 const enum ReadyState {
 
 	/**
@@ -605,16 +600,13 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		//#endregion
 
 
-		const unresponsiveWindowSettings =
-			this.configurationService.getValue<IUnresponsiveWindowSettings>('window.unresponsive') ||
-			{ sampleInterval: 1000, samplePeriod: 15000 };
 		this.jsCallStackCollector = this._register(
-			new Delayer<void>(unresponsiveWindowSettings.sampleInterval));
+			new Delayer<void>(1000));
 		this.jsCallStackMap = new Map<string, number>();
 		// Stop collecting after 15s max
 		this.jsCallStackCollectorStopScheduler = this._register(new RunOnceScheduler(() => {
 			this.stopCollectingJScallStacks();
-		}, unresponsiveWindowSettings.samplePeriod));
+		}, 15000));
 
 		// respect configured menu bar visibility
 		this.onConfigurationUpdated();
@@ -995,18 +987,6 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				this._win.webContents.session.setProxy({ proxyRules, proxyBypassRules, pacScript: '' });
 				electron.app.setProxy({ proxyRules, proxyBypassRules, pacScript: '' });
 			}
-		}
-
-		// JS callstack period and frequency
-		if (e && e.affectsConfiguration('window.unresponsive')) {
-			const unresponsiveWindowSettings =
-				this.configurationService.getValue<IUnresponsiveWindowSettings>('window.unresponsive');
-			// Settings cannot affect current unresponsive window,
-			// so avoid rescheduling here.
-			this.jsCallStackCollector.cancel();
-			this.jsCallStackCollector.delay = unresponsiveWindowSettings.sampleInterval;
-			this.jsCallStackCollectorStopScheduler.cancel();
-			this.jsCallStackCollectorStopScheduler.delay = unresponsiveWindowSettings.samplePeriod;
 		}
 	}
 

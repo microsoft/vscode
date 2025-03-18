@@ -789,24 +789,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('confirmBeforeCloseWeb', "Controls whether to show a confirmation dialog before closing the browser tab or window. Note that even if enabled, browsers may still decide to close a tab or window without confirmation and that this setting is only a hint that may not work in all cases.") :
 					localize('confirmBeforeClose', "Controls whether to show a confirmation dialog before closing a window or quitting the application."),
 				'scope': ConfigurationScope.APPLICATION
-			},
-			'window.unresponsive': {
-				type: 'object',
-				description: localize('unresponsive', "Configures the sample interval and sample period to collect JS stacks from unresponsive window."),
-				additionalProperties: false,
-				default: { sampleInterval: 1000, samplePeriod: 15000 },
-				properties: {
-					sampleInterval: {
-						type: 'number',
-						description: localize('window.unresponsive.sampleInterval', "Frequency in milliseconds at which to collect samples."),
-					},
-					samplePeriod: {
-						type: 'number',
-						description: localize('window.unresponsive.samplePeriod', "Duration in milliseconds for which samples are collected."),
-					}
-				},
-				scope: ConfigurationScope.APPLICATION
-			},
+			}
 		}
 	});
 
