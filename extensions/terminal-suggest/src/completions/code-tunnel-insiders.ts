@@ -2,8 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { commonOptions, extensionManagementOptions, troubleshootingOptions } from './code';
-import codeTunnelCompletionSpec, { tunnelOptions } from './code-tunnel';
+import { commonOptions, extensionManagementOptions, troubleshootingOptions, tunnelOptions } from './code';
+import codeTunnelCompletionSpec from './code-tunnel';
 
 const codeTunnelInsidersCompletionSpec: Fig.Spec = {
 	...codeTunnelCompletionSpec,
