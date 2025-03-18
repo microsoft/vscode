@@ -17,10 +17,13 @@ import { IActionViewItemService } from '../../../../platform/actions/browser/act
 import { MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Action2, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { spinningLoading } from '../../../../platform/theme/common/iconRegistry.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { ActiveEditorContext, ResourceContextKey } from '../../../common/contextkeys.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -410,5 +413,41 @@ export class AddConfigurationAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, configUri?: string): Promise<void> {
 		return accessor.get(IInstantiationService).createInstance(McpAddConfigurationCommand, configUri).run();
+	}
+}
+
+
+export class RemoveStoredInput extends Action2 {
+	static readonly ID = 'workbench.mcp.removeStoredInput';
+
+	constructor() {
+		super({
+			id: RemoveStoredInput.ID,
+			title: localize2('mcp.resetCachedTools', "Reset Cached Tools"),
+			category,
+			f1: false,
+		});
+	}
+
+	run(accessor: ServicesAccessor, scope: StorageScope, id?: string): void {
+		accessor.get(IMcpRegistry).clearSavedInputs(scope, id);
+	}
+}
+
+export class EditStoredInput extends Action2 {
+	static readonly ID = 'workbench.mcp.editStoredInput';
+
+	constructor() {
+		super({
+			id: EditStoredInput.ID,
+			title: localize2('mcp.editStoredInput', "Edit Stored Input"),
+			category,
+			f1: false,
+		});
+	}
+
+	run(accessor: ServicesAccessor, inputId: string, uri: URI | undefined, configSection: string, target: ConfigurationTarget): void {
+		const workspaceFolder = uri && accessor.get(IWorkspaceContextService).getWorkspaceFolder(uri);
+		accessor.get(IMcpRegistry).editSavedInput(inputId, workspaceFolder || undefined, configSection, target);
 	}
 }
