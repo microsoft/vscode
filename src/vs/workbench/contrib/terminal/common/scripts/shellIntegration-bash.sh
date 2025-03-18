@@ -245,8 +245,12 @@ __updateEnvCacheAA() {
 __trackMissingEnvVarsAA() {
 	if [ "$use_associative_array" = 1 ]; then
 		declare -A currentEnvMap
-		while IFS='=' read -r key value; do
-			currentEnvMap["$key"]="$value"
+		while IFS= read -r line; do
+			if [[ "$line" == *"="* ]]; then
+				local key="${line%%=*}"
+				local value="${line#*=}"
+				currentEnvMap["$key"]="$value"
+			fi
 		done < <(env)
 
 		for key in "${!vsc_aa_env[@]}"; do
@@ -312,34 +316,53 @@ __vsc_update_env() {
 		if [ "$use_associative_array" = 1 ]; then
 			if [ ${#vsc_aa_env[@]} -eq 0 ]; then
 				# Associative array is empty, do not diff, just add
-				while IFS='=' read -r key value; do
-					vsc_aa_env["$key"]="$value"
-					builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+				while IFS= read -r line; do
+					if [[ "$line" == *"="* ]]; then
+						local key="${line%%=*}"
+						local value="${line#*=}"
+
+						vsc_aa_env["$key"]="$value"
+						builtin printf 'this is the key that I will be sending. Key: %s \n' "$key"
+						builtin printf 'this is the value that I will be sending. Value: %s \n' "$value"
+						builtin printf ' thank you\n'
+						builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+					fi
 				done < <(env)
 			else
 				# Diff approach for associative array
-				while IFS='=' read -r key value; do
-					__updateEnvCacheAA "$key" "$value"
+				while IFS= read -r line; do
+					if [[ "$line" == *"="* ]]; then
+						local key="${line%%=*}"
+						local value="${line#*=}"
+						__updateEnvCacheAA "$key" "$value"
+					fi
 				done < <(env)
 				__trackMissingEnvVarsAA
 			fi
 
 		else
 			if [[ -z ${vsc_env_keys[@]} ]] && [[ -z ${vsc_env_values[@]} ]]; then
-			# Non associative arrays are both empty, do not diff, just add
-				while IFS='=' read -r key value; do
-					vsc_env_keys+=("$key")
-					vsc_env_values+=("$value")
-					builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+				# Non associative arrays are both empty, do not diff, just add
+				while IFS= read -r line; do
+					if [[ "$line" == *"="* ]]; then
+						local key="${line%%=*}"
+						local value="${line#*=}"
+						vsc_env_keys+=("$key")
+						vsc_env_values+=("$value")
+						builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+					fi
 				done < <(env)
 			else
 				# Diff approach for non-associative arrays
-				while IFS='=' read -r key value; do
-					__updateEnvCache "$key" "$value"
+				while IFS= read -r line; do
+					if [[ "$line" == *"="* ]]; then
+						local key="${line%%=*}"
+						local value="${line#*=}"
+						__updateEnvCache "$key" "$value"
+					fi
 				done < <(env)
 				__trackMissingEnvVars
 			fi
-
 		fi
 		builtin printf '\e]633;EnvSingleEnd;%s;\a' $__vsc_nonce
 	fi
