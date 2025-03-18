@@ -114,7 +114,7 @@ export class McpServerRequestHandler extends Disposable {
 
 	protected constructor(
 		private readonly launch: IMcpMessageTransport,
-		private readonly logger: ILogger,
+		public readonly logger: ILogger,
 	) {
 		super();
 		this._register(launch.onDidReceiveMessage(message => this.handleMessage(message)));
