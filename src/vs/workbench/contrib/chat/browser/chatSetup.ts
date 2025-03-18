@@ -59,7 +59,7 @@ import { IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAge
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, ChatEntitlementService, IChatEntitlementService } from '../common/chatEntitlementService.js';
 import { IChatProgress, IChatProgressMessage, IChatService, IChatWarningMessage } from '../common/chatService.js';
-import { CHAT_CATEGORY, CHAT_SETUP_ACTION_ID } from './actions/chatActions.js';
+import { CHAT_CATEGORY, CHAT_OPEN_ACTION_ID, CHAT_SETUP_ACTION_ID } from './actions/chatActions.js';
 import { ChatViewId, EditsViewId, ensureSideBarChatViewSize, IChatWidgetService, preferCopilotEditsView, showCopilotView } from './chat.js';
 import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
 import { ChatViewsWelcomeExtensions, IChatViewsWelcomeContributionRegistry } from './viewsWelcome/chatViewsWelcome.js';
@@ -730,7 +730,7 @@ class ChatSetupController extends Disposable {
 		try {
 			return await this.progressService.withProgress({
 				location: options?.notificationProgress ? ProgressLocation.Notification : ProgressLocation.Window,
-				command: CHAT_SETUP_ACTION_ID,
+				command: CHAT_OPEN_ACTION_ID,
 				title,
 			}, () => this.doSetup(options?.forceSignIn ?? false, watch));
 		} finally {
