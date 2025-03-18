@@ -267,7 +267,7 @@ class ChatSetup {
 		@ILogService private readonly logService: ILogService,
 	) { }
 
-	async run(): Promise<boolean | undefined> {
+	async run(options?: { notificationProgress?: boolean }): Promise<boolean | undefined> {
 		let setupStrategy: ChatSetupStrategy;
 		if (this.chatEntitlementService.entitlement === ChatEntitlement.Pro || this.chatEntitlementService.entitlement === ChatEntitlement.Limited) {
 			setupStrategy = ChatSetupStrategy.DefaultSetup; // existing pro/free users setup without a dialog
@@ -279,13 +279,13 @@ class ChatSetup {
 		try {
 			switch (setupStrategy) {
 				case ChatSetupStrategy.SetupWithEnterpriseProvider:
-					success = await this.controller.value.setupWithProvider(true);
+					success = await this.controller.value.setupWithProvider(true, options);
 					break;
 				case ChatSetupStrategy.SetupWithoutEnterpriseProvider:
-					success = await this.controller.value.setupWithProvider(false);
+					success = await this.controller.value.setupWithProvider(false, options);
 					break;
 				case ChatSetupStrategy.DefaultSetup:
-					success = await this.controller.value.setup();
+					success = await this.controller.value.setup(options);
 					break;
 			}
 		} catch (error) {
@@ -500,7 +500,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 				if (setupFromDialog) {
 					const setup = instantiationService.createInstance(ChatSetup, context, controller);
-					const result = await setup.run();
+					const result = await setup.run({ notificationProgress: true });
 					if (result === false) {
 						const { confirmed } = await dialogService.confirm({
 							type: Severity.Error,
@@ -904,7 +904,7 @@ class ChatSetupController extends Disposable {
 		}
 	}
 
-	async setupWithProvider(useEnterpriseProvider: boolean): Promise<boolean> {
+	async setupWithProvider(useEnterpriseProvider: boolean, options?: { notificationProgress?: boolean }): Promise<boolean> {
 		const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 		registry.registerConfiguration({
 			'id': 'copilot.setup',
@@ -949,7 +949,7 @@ class ChatSetupController extends Disposable {
 			await this.configurationService.updateValue(defaultChat.providerUriSetting, undefined, ConfigurationTarget.USER);
 		}
 
-		return this.setup({ forceSignIn: true });
+		return this.setup({ ...options, forceSignIn: true });
 	}
 
 	private async handleEnterpriseInstance(): Promise<boolean /* success */> {
