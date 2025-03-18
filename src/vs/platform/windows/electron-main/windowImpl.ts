@@ -60,6 +60,11 @@ interface ILoadOptions {
 	readonly disableExtensions?: boolean;
 }
 
+interface IUnresponsiveWindowSettings {
+	readonly sampleInterval: number;
+	readonly samplePeriod: number;
+}
+
 const enum ReadyState {
 
 	/**
@@ -540,9 +545,9 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	private pendingLoadConfig: INativeWindowConfiguration | undefined;
 	private wasLoaded = false;
 
-	private _jsCallStackCollector: Delayer<void>;
-	private _jsCallStackMap: Map<string, number>;
-	private _jsCallStackCollectorStopScheduler: RunOnceScheduler;
+	private jsCallStackCollector: Delayer<void>;
+	private jsCallStackMap: Map<string, number>;
+	private jsCallStackCollectorStopScheduler: RunOnceScheduler;
 
 	constructor(
 		config: IWindowCreationOptions,
@@ -603,11 +608,11 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		const unresponsiveWindowSettings =
 			this.configurationService.getValue<IUnresponsiveWindowSettings>('window.unresponsive') ||
 			{ sampleInterval: 1000, samplePeriod: 15000 };
-		this._jsCallStackCollector = this._register(
+		this.jsCallStackCollector = this._register(
 			new Delayer<void>(unresponsiveWindowSettings.sampleInterval));
-		this._jsCallStackMap = new Map<string, number>();
+		this.jsCallStackMap = new Map<string, number>();
 		// Stop collecting after 15s max
-		this._jsCallStackCollectorStopScheduler = this._register(new RunOnceScheduler(() => {
+		this.jsCallStackCollectorStopScheduler = this._register(new RunOnceScheduler(() => {
 			this.stopCollectingJScallStacks();
 		}, unresponsiveWindowSettings.samplePeriod));
 
@@ -821,14 +826,12 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 					}
 
 					// Interrupt V8 and collect JavaScript stack
-					this._jsCallStackCollector.trigger(() => this.startCollectingJScallStacks());
+					this.jsCallStackCollector.trigger(() => this.startCollectingJScallStacks());
 					// Stack collection will stop under any of the following conditions:
 					// - The window becomes responsive again
 					// - The window is destroyed i-e reopen or closed
 					// - sampling period is complete, default is 15s
-					if (!this._jsCallStackCollectorStopScheduler.isScheduled()) {
-						this._jsCallStackCollectorStopScheduler.schedule();
-					}
+					this.jsCallStackCollectorStopScheduler.schedule();
 
 					// Show Dialog
 					const { response, checkboxChecked } = await this.dialogMainService.showMessageBox({
@@ -1000,32 +1003,32 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				this.configurationService.getValue<IUnresponsiveWindowSettings>('window.unresponsive');
 			// Settings cannot affect current unresponsive window,
 			// so avoid rescheduling here.
-			this._jsCallStackCollector.dispose();
-			this._jsCallStackCollector.delay = unresponsiveWindowSettings.sampleInterval;
-			this._jsCallStackCollectorStopScheduler.cancel();
-			this._jsCallStackCollectorStopScheduler.delay = unresponsiveWindowSettings.samplePeriod;
+			this.jsCallStackCollector.cancel();
+			this.jsCallStackCollector.delay = unresponsiveWindowSettings.sampleInterval;
+			this.jsCallStackCollectorStopScheduler.cancel();
+			this.jsCallStackCollectorStopScheduler.delay = unresponsiveWindowSettings.samplePeriod;
 		}
 	}
 
 	private async startCollectingJScallStacks(): Promise<void> {
-		if (!this._jsCallStackCollector.isTriggered()) {
+		if (!this.jsCallStackCollector.isTriggered()) {
 			const stack = await this._win.webContents.mainFrame.collectJavaScriptCallStack();
 			// Increment the count for this stack trace
 			if (stack) {
-				const count = this._jsCallStackMap.get(stack) || 0;
-				this._jsCallStackMap.set(stack, count + 1);
+				const count = this.jsCallStackMap.get(stack) || 0;
+				this.jsCallStackMap.set(stack, count + 1);
 			}
-			this._jsCallStackCollector.trigger(() => this.startCollectingJScallStacks());
+			this.jsCallStackCollector.trigger(() => this.startCollectingJScallStacks());
 		}
 	}
 
-	private async stopCollectingJScallStacks(): Promise<void> {
-		this._jsCallStackCollectorStopScheduler.cancel();
-		this._jsCallStackCollector.dispose();
-		if (this._jsCallStackMap.size) {
+	private stopCollectingJScallStacks(): void {
+		this.jsCallStackCollectorStopScheduler.cancel();
+		this.jsCallStackCollector.cancel();
+		if (this.jsCallStackMap.size) {
 			let logMessage = `CodeWindow unresponsive samples:\n`;
 			let samples = 0;
-			const sortedEntries = Array.from(this._jsCallStackMap.entries())
+			const sortedEntries = Array.from(this.jsCallStackMap.entries())
 				.sort((a, b) => b[1] - a[1]);
 			for (const [stack, count] of sortedEntries) {
 				samples += count;
@@ -1034,7 +1037,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			logMessage += `Total Samples: ${samples}\n`;
 			this.logService.error(logMessage);
 		}
-		this._jsCallStackMap.clear();
+		this.jsCallStackMap.clear();
 	}
 
 	addTabbedWindow(window: ICodeWindow): void {
