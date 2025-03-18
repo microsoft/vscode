@@ -155,24 +155,26 @@ class ToggleChatModeAction extends Action2 {
 			return;
 		}
 
-		// TODO will not require discarding the session when we are able to switch modes mid-session
-		const entries = context.editingSession?.entries.get();
-		if (context.editingSession && entries && entries.length > 0 && entries.some(entry => entry.state.get() === WorkingSetEntryState.Modified)) {
-			if (!await discardAllEditsWithConfirmation(accessor, context.editingSession)) {
-				// User cancelled
-				return;
-			}
-		} else {
-			const chatSession = context.chatWidget.viewModel?.model;
-			if (chatSession?.getRequests().length) {
-				const confirmation = await dialogService.confirm({
-					title: localize('agent.newSession', "Start new session?"),
-					message: localize('agent.newSessionMessage', "Changing the chat mode will start a new session. Would you like to continue?"),
-					primaryButton: localize('agent.newSession.confirm', "Yes"),
-					type: 'info'
-				});
-				if (!confirmation.confirmed) {
+		if (!chatService.unifiedViewEnabled) {
+			// TODO will not require discarding the session when we are able to switch modes mid-session
+			const entries = context.editingSession?.entries.get();
+			if (context.editingSession && entries && entries.length > 0 && entries.some(entry => entry.state.get() === WorkingSetEntryState.Modified)) {
+				if (!await discardAllEditsWithConfirmation(accessor, context.editingSession)) {
+					// User cancelled
 					return;
+				}
+			} else {
+				const chatSession = context.chatWidget.viewModel?.model;
+				if (chatSession?.getRequests().length) {
+					const confirmation = await dialogService.confirm({
+						title: localize('agent.newSession', "Start new session?"),
+						message: localize('agent.newSessionMessage', "Changing the chat mode will start a new session. Would you like to continue?"),
+						primaryButton: localize('agent.newSession.confirm', "Yes"),
+						type: 'info'
+					});
+					if (!confirmation.confirmed) {
+						return;
+					}
 				}
 			}
 		}
@@ -190,7 +192,7 @@ class ToggleChatModeAction extends Action2 {
 			context.chatWidget.input.setChatMode(newMode);
 		}
 
-		if (context.chatWidget.viewModel?.model.getRequests().length) {
+		if (!chatService.unifiedViewEnabled && context.chatWidget.viewModel?.model.getRequests().length) {
 			const clearAction = chatService.unifiedViewEnabled ? ACTION_ID_NEW_CHAT : ChatDoneActionId;
 			await commandService.executeCommand(clearAction);
 		}
