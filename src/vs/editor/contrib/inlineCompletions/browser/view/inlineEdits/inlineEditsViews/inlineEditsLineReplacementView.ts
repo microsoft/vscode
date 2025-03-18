@@ -29,7 +29,6 @@ import { InlineDecoration, InlineDecorationType } from '../../../../../../common
 import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';
 import { getEditorBlendedColor, getModifiedBorderColor, getOriginalBorderColor, modifiedChangedLineBackgroundColor, originalBackgroundColor } from '../theme.js';
 import { getPrefixTrim, mapOutFalsy, rectToProps } from '../utils/utils.js';
-import { rangesToBubbleRanges, Replacement } from './inlineEditsWordReplacementView.js';
 
 export class InlineEditsLineReplacementView extends Disposable implements IInlineEditsView {
 
@@ -370,4 +369,24 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 			this._editor.editor.setScrollTop(this._editor.scrollTop.get() + viewZoneInfo.height);
 		}
 	}
+}
+
+function rangesToBubbleRanges(ranges: Range[]): Range[] {
+	const result: Range[] = [];
+	while (ranges.length) {
+		let range = ranges.shift()!;
+		if (range.startLineNumber !== range.endLineNumber) {
+			ranges.push(new Range(range.startLineNumber + 1, 1, range.endLineNumber, range.endColumn));
+			range = new Range(range.startLineNumber, range.startColumn, range.startLineNumber, Number.MAX_SAFE_INTEGER); // TODO: this is not correct
+		}
+
+		result.push(range);
+	}
+	return result;
+
+}
+
+export interface Replacement {
+	originalRange: Range;
+	modifiedRange: Range;
 }
