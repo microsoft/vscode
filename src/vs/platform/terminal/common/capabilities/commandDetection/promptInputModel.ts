@@ -330,6 +330,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 					}
 				} else if (this._shellType === PosixShellType.Fish) {
 					if (value.endsWith('\\')) {
+						// Trim off the trailing backslash
 						value = value.substring(0, value.length - 1);
 						value += `${lineText.trim()}`;
 					} else {
