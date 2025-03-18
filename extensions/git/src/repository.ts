@@ -1222,7 +1222,8 @@ export class Repository implements Disposable {
 
 	async stage(resource: Uri, contents: string, encoding: string): Promise<void> {
 		await this.run(Operation.Stage, async () => {
-			await this.repository.stage(resource.fsPath, contents, encoding);
+			const data = await workspace.encode(contents, resource, { encoding });
+			await this.repository.stage(resource.fsPath, data);
 
 			this._onDidChangeOriginalResource.fire(resource);
 			this.closeDiffEditors([], [...resource.fsPath]);
