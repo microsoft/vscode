@@ -16,10 +16,11 @@ import { observableMemento } from '../../../../platform/observable/common/observ
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
+import { ConfigurationResolverExpression, IResolvedValue } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { McpRegistryInputStorage } from './mcpRegistryInputStorage.js';
 import { IMcpHostDelegate, IMcpRegistry, IMcpResolveConnectionOptions } from './mcpRegistryTypes.js';
 import { McpServerConnection } from './mcpServerConnection.js';
-import { IMcpServerConnection, LazyCollectionState, McpCollectionDefinition, McpCollectionReference } from './mcpTypes.js';
+import { IMcpServerConnection, LazyCollectionState, McpCollectionDefinition, McpCollectionReference, McpServerDefinition, McpServerLaunch } from './mcpTypes.js';
 
 const createTrustMemento = observableMemento<Readonly<Record<string, boolean>>>({
 	defaultValue: {},
@@ -216,6 +217,45 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		return result.result;
 	}
 
+	private async _replaceVariablesInLaunch(definition: McpServerDefinition, launch: McpServerLaunch) {
+		if (!definition.variableReplacement) {
+			return launch;
+		}
+
+		// todo@connor4312: update with new config resolver API
+		const { folder, section, target } = definition.variableReplacement;
+		const inputStorage = folder ? this._workspaceStorage.value : this._profileStorage.value;
+		const previouslyStored = await inputStorage.getMap();
+
+		// pre-fill the variables we already resolved to avoid extra prompting
+		const expr = ConfigurationResolverExpression.parse(launch);
+		for (const replacement of expr.unresolved()) {
+			if (previouslyStored.hasOwnProperty(replacement.id)) {
+				expr.resolve(replacement, previouslyStored[replacement.id]);
+			}
+		}
+
+
+		// resolve variables requiring user input
+		await this._configurationResolverService.resolveWithInteraction(folder, expr, section, undefined, target);
+
+		const secrets: Record<string, IResolvedValue> = {};
+		const inputs: Record<string, IResolvedValue> = {};
+		for (const [replacement, resolved] of expr.resolved()) {
+			if (resolved.input?.type === 'promptString' && resolved.input.password) {
+				secrets[replacement.id] = resolved;
+			} else {
+				inputs[replacement.id] = resolved;
+			}
+		}
+
+		inputStorage.setPlainText(inputs);
+		await inputStorage.setSecrets(secrets);
+
+		// resolve other non-interactive variables, returning the final object
+		return await this._configurationResolverService.resolveAsync(folder, expr);
+	}
+
 	public async resolveConnection({ collectionRef, definitionRef, forceTrust }: IMcpResolveConnectionOptions): Promise<IMcpServerConnection | undefined> {
 		const collection = this._collections.get().find(c => c.id === collectionRef.id);
 		const definition = collection?.serverDefinitions.get().find(s => s.id === definitionRef.id);
@@ -247,26 +287,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 			}
 		}
 
-		let launch = definition.launch;
-
-		if (definition.variableReplacement) {
-			// todo@connor4312: update with new config resolver API
-			const inputStorage = definition.variableReplacement.folder ? this._workspaceStorage.value : this._profileStorage.value;
-			const previouslyStored = await inputStorage.getMap();
-
-			const { folder, section, target } = definition.variableReplacement;
-
-			// based on _configurationResolverService.resolveWithInteractionReplace
-			launch = await this._configurationResolverService.resolveAsync(folder, launch);
-
-			const newVariables = await this._configurationResolverService.resolveWithInteraction(folder, launch, section, previouslyStored, target);
-
-			if (newVariables?.size) {
-				const completeVariables = { ...previouslyStored, ...Object.fromEntries(newVariables) };
-				launch = await this._configurationResolverService.resolveAsync(folder, launch);
-				await inputStorage.setSecrets(completeVariables);
-			}
-		}
+		const launch = await this._replaceVariablesInLaunch(definition, definition.launch);
 
 		return this._instantiationService.createInstance(
 			McpServerConnection,

@@ -137,7 +137,7 @@ export namespace McpServerDefinition {
 export interface McpServerDefinitionVariableReplacement {
 	section?: string; // e.g. 'mcp'
 	folder?: IWorkspaceFolderData;
-	target?: ConfigurationTarget;
+	target: ConfigurationTarget;
 }
 
 export namespace McpServerDefinitionVariableReplacement {
