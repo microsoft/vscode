@@ -37,7 +37,6 @@ export class CreatorOverlayPart extends Part {
 	private webviewView: WebviewView | undefined;
 	private _webviewService: WebviewService | undefined;
 	private closeHandler: ((event: MouseEvent) => void) | undefined;
-	private loadingText: HTMLElement | undefined;
 
 	private state: "loading" | "open" | "closed" = "loading";
 	private _isLocked: boolean = false;
@@ -237,23 +236,10 @@ export class CreatorOverlayPart extends Part {
 		gradientBg.style.filter = "blur(20px)";
 		gradientBg.style.opacity = "0.7";
 
-		// Create loading text
-		this.loadingText = $("div.loading-text");
-		this.loadingText.textContent = "Loading...";
-		this.loadingText.style.fontSize = "20px";
-		this.loadingText.style.backgroundColor = "var(--vscode-editor-foreground, #fff)";
-		this.loadingText.style.color = "var(--vscode-editorGhostText-foreground, #333)";
-		this.loadingText.style.width = "300px";
-		this.loadingText.style.textAlign = "center";
-		this.loadingText.style.padding = "12px 20px";
-		this.loadingText.style.borderRadius = "30px";
-		this.loadingText.style.position = "relative";
-		this.loadingText.style.zIndex = "2";
+
 
 		// First add the gradient background to the container
 		container.appendChild(gradientBg);
-		// Then add the loading text to the container
-		container.appendChild(this.loadingText);
 
 		// Add the container to the overlay container
 		this.overlayContainer.appendChild(container);
@@ -328,13 +314,6 @@ export class CreatorOverlayPart extends Part {
 			// Force a layout reflow before setting opacity
 			void this.overlayContainer.offsetHeight;
 			this.overlayContainer.style.opacity = "1";
-
-			// Show loading text if extension is not ready
-			if (!this.isExtensionReady && this.loadingText) {
-				this.loadingText.style.display = "block";
-			} else if (this.loadingText) {
-				this.loadingText.style.display = "none";
-			}
 
 			// Show the webview container
 			const container = this.webviewView.webview.container;
@@ -417,12 +396,6 @@ export class CreatorOverlayPart extends Part {
 	}
 
 	hideLoadingOverlay(): void {
-		if (this.loadingText) {
-			// Immediately hide the loading text
-			this.loadingText.style.display = "none";
-			this.loadingText.style.opacity = "0";
-		}
-
 		// Set the extension as ready so future opens won't show loading
 		this.isExtensionReady = true;
 
@@ -470,31 +443,7 @@ export class CreatorOverlayPart extends Part {
 	}
 
 	public hideOverlayLoadingMessage(): void {
-		if (this.loadingText) {
-			// Hide the loading text
-			this.loadingText.style.transition = "opacity 0.3s ease-out";
-			this.loadingText.style.opacity = "0";
 
-			// Only show webview if we're in the "open" state
-			const container = this.webviewView?.webview.container;
-			if (this.state === "open" && container) {
-				// Ensure proper z-index stacking
-				container.style.zIndex = "1000";
-				container.style.display = "flex";
-				container.style.transition = "opacity 0.3s ease-in";
-				container.style.opacity = "1";
-			} else if (container) {
-				container.style.display = "none";
-			}
-
-			// Clean up after animations complete
-			setTimeout(() => {
-				if (this.loadingText) {
-					this.loadingText.style.display = "none";
-					this.isExtensionReady = true;
-				}
-			}, 300);
-		}
 	}
 
 	private handleSlideAnimation(direction: "up" | "down"): Promise<void> {
