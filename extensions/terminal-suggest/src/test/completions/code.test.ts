@@ -8,7 +8,7 @@ import codeCompletionSpec from '../../completions/code';
 import { testPaths, type ISuiteSpec, type ITestSpec } from '../helpers';
 import codeInsidersCompletionSpec from '../../completions/code-insiders';
 
-export const codeSpecOptions = [
+export const codeSpecOptionsAndSubcommands = [
 	'-a <folder>',
 	'-d <file> <file>',
 	'-g <file:line[:character]>',
@@ -53,6 +53,8 @@ export const codeSpecOptions = [
 	'--verbose',
 	'--version',
 	'--wait',
+	'tunnel',
+	'serve-web'
 ];
 
 export function createCodeTestSpecs(executable: string): ITestSpec[] {
@@ -73,7 +75,7 @@ export function createCodeTestSpecs(executable: string): ITestSpec[] {
 		...typingTests,
 
 		// Basic arguments
-		{ input: `${executable} |`, expectedCompletions: codeSpecOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		{ input: `${executable} |`, expectedCompletions: codeSpecOptionsAndSubcommands, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 		{ input: `${executable} --locale |`, expectedCompletions: localeOptions },
 		{ input: `${executable} --diff |`, expectedResourceRequests: { type: 'files', cwd: testPaths.cwd } },
 		{ input: `${executable} --diff ./file1 |`, expectedResourceRequests: { type: 'files', cwd: testPaths.cwd } },
@@ -89,13 +91,13 @@ export function createCodeTestSpecs(executable: string): ITestSpec[] {
 		{ input: `${executable} --log |`, expectedCompletions: logOptions },
 		{ input: `${executable} --sync |`, expectedCompletions: syncOptions },
 		{ input: `${executable} --extensions-dir |`, expectedResourceRequests: { type: 'folders', cwd: testPaths.cwd } },
-		{ input: `${executable} --list-extensions |`, expectedCompletions: codeSpecOptions.filter(c => c !== '--list-extensions'), expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
-		{ input: `${executable} --show-versions |`, expectedCompletions: codeSpecOptions.filter(c => c !== '--show-versions'), expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		{ input: `${executable} --list-extensions |`, expectedCompletions: codeSpecOptionsAndSubcommands.filter(c => c !== '--list-extensions'), expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		{ input: `${executable} --show-versions |`, expectedCompletions: codeSpecOptionsAndSubcommands.filter(c => c !== '--show-versions'), expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 		{ input: `${executable} --category |`, expectedCompletions: categoryOptions },
 		{ input: `${executable} --category a|`, expectedCompletions: categoryOptions },
 
 		// Middle of command
-		{ input: `${executable} | --locale`, expectedCompletions: codeSpecOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		{ input: `${executable} | --locale`, expectedCompletions: codeSpecOptionsAndSubcommands, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 	];
 }
 
