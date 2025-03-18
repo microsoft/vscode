@@ -8,8 +8,7 @@ import es from 'event-stream';
 import Vinyl from 'vinyl';
 import vfs from 'vinyl-fs';
 import * as util from '../lib/util';
-// @ts-ignore
-import * as deps from '../lib/dependencies';
+import { getProductionDependencies } from '../lib/dependencies';
 import { ClientAssertionCredential } from '@azure/identity';
 const azure = require('gulp-azure-storage');
 
@@ -36,8 +35,8 @@ function main(): Promise<void> {
 		const vs = src('out-vscode-min'); // client source-maps only
 		sources.push(vs);
 
-		const productionDependencies = deps.getProductionDependencies(root);
-		const productionDependenciesSrc = productionDependencies.map(d => path.relative(root, d)).map(d => `./${d}/**/*.map`);
+		const productionDependencies = getProductionDependencies(root);
+		const productionDependenciesSrc = productionDependencies.map((d: string) => path.relative(root, d)).map((d: string) => `./${d}/**/*.map`);
 		const nodeModules = vfs.src(productionDependenciesSrc, { base: '.' })
 			.pipe(util.cleanNodeModules(path.join(root, 'build', '.moduleignore')))
 			.pipe(util.cleanNodeModules(path.join(root, 'build', `.moduleignore.${process.platform}`)));
@@ -61,8 +60,8 @@ function main(): Promise<void> {
 			.pipe(azure.upload({
 				account: process.env.AZURE_STORAGE_ACCOUNT,
 				credential,
-				container: 'sourcemaps',
-				prefix: commit + '/'
+				container: '$web',
+				prefix: `sourcemaps/${commit}/`
 			}))
 			.on('end', () => c())
 			.on('error', (err: any) => e(err));

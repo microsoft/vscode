@@ -50,7 +50,7 @@ export const SHOW_INFO_FILTER_CONTEXT = new RawContextKey<boolean>('output.filte
 export const SHOW_WARNING_FILTER_CONTEXT = new RawContextKey<boolean>('output.filter.warning', true);
 export const SHOW_ERROR_FILTER_CONTEXT = new RawContextKey<boolean>('output.filter.error', true);
 export const OUTPUT_FILTER_FOCUS_CONTEXT = new RawContextKey<boolean>('outputFilterFocus', false);
-export const HIDE_SOURCE_FILTER_CONTEXT = new RawContextKey<string>('output.filter.sources', '');
+export const HIDE_CATEGORY_FILTER_CONTEXT = new RawContextKey<string>('output.filter.categories', '');
 
 export interface IOutputViewFilters {
 	readonly onDidChange: Event<void>;
@@ -60,9 +60,9 @@ export interface IOutputViewFilters {
 	info: boolean;
 	warning: boolean;
 	error: boolean;
-	sources: string;
-	toggleSource(source: string): void;
-	hasSource(source: string): boolean;
+	categories: string;
+	toggleCategory(category: string): void;
+	hasCategory(category: string): boolean;
 }
 
 export const IOutputService = createDecorator<IOutputService>('outputService');
@@ -152,7 +152,7 @@ export interface ILogEntry {
 	readonly timestampRange: Range;
 	readonly logLevel: LogLevel;
 	readonly logLevelRange: Range;
-	readonly source: string | undefined;
+	readonly category: string | undefined;
 }
 
 export interface IOutputChannel {

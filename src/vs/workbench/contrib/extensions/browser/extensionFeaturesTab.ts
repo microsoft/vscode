@@ -27,7 +27,7 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import Severity from '../../../../base/common/severity.js';
 import { errorIcon, infoIcon, warningIcon } from './extensionsIcons.js';
-import { SeverityIcon } from '../../../../platform/severityIcon/browser/severityIcon.js';
+import { SeverityIcon } from '../../../../base/browser/ui/severityIcon/severityIcon.js';
 import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { OS } from '../../../../base/common/platform.js';
 import { IMarkdownString, MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
@@ -292,7 +292,7 @@ class RuntimeStatusMarkdownRenderer extends Disposable implements IExtensionFeat
 				highlightCircle.style.display = 'block';
 				tooltip.style.left = `${closestPoint.x + 24}px`;
 				tooltip.style.top = `${closestPoint.y + 14}px`;
-				hoverDisposable.value = this.hoverService.showHover({
+				hoverDisposable.value = this.hoverService.showInstantHover({
 					content: new MarkdownString(`${closestPoint.date}: ${closestPoint.count} requests`),
 					target: tooltip,
 					appearance: {

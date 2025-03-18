@@ -32,6 +32,7 @@
 	z-index: 40;
 	display: flex;
 	flex-direction: column;
+	border-radius: 3px;
 }
 
 .workbench-suggest-widget.message {
@@ -62,6 +63,18 @@
 	display: flex;
 }
 
+.monaco-workbench .workbench-suggest-widget .suggest-status-bar {
+	box-sizing: border-box;
+	display: none;
+	flex-flow: row nowrap;
+	justify-content: space-between;
+	width: 100%;
+	font-size: 80%;
+	padding: 0 4px 0 4px;
+	border-top: 1px solid var(--vscode-editorSuggestWidget-border);
+	overflow: hidden;
+}
+
 .monaco-workbench .workbench-suggest-widget .suggest-status-bar .left {
 	padding-right: 8px;
 }
@@ -82,6 +95,12 @@
 .monaco-workbench .workbench-suggest-widget.with-status-bar .monaco-list .monaco-list-row > .contents > .main > .right > .readMore,
 .monaco-workbench .workbench-suggest-widget.with-status-bar .monaco-list .monaco-list-row.focused.string-label > .contents > .main > .right > .readMore {
 	display: none;
+}
+
+/* Styles for Message element for when widget is loading or is empty */
+
+.monaco-workbench .workbench-suggest-widget > .message {
+	padding-left: 22px;
 }
 
 /** Styles for each row in the list element **/
@@ -189,6 +208,28 @@
 	height: 0.7em;
 	display: inline-block;
 }
+
+/** ReadMore Icon styles **/
+
+.workbench-suggest-widget .suggest-details > .monaco-scrollable-element > .body > .header > .codicon-close,
+.workbench-suggest-widget .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right > .readMore::before {
+	color: inherit;
+	opacity: 1;
+	font-size: 14px;
+	cursor: pointer;
+}
+
+.monaco-workbench .workbench-suggest-widget .suggest-details .codicon.codicon-close {
+	position: absolute;
+	top: 6px;
+	right: 2px;
+}
+
+.workbench-suggest-widget .suggest-details > .monaco-scrollable-element > .body > .header > .codicon-close:hover,
+.workbench-suggest-widget .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right > .readMore:hover {
+	opacity: 1;
+}
+
 /** signature, qualifier, type/details opacity **/
 
 .workbench-suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right > .details-label {

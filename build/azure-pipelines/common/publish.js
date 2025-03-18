@@ -3,39 +3,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -53,7 +20,7 @@ const os_1 = __importDefault(require("os"));
 const node_worker_threads_1 = require("node:worker_threads");
 const msal_node_1 = require("@azure/msal-node");
 const storage_blob_1 = require("@azure/storage-blob");
-const jws = __importStar(require("jws"));
+const jws_1 = __importDefault(require("jws"));
 const node_timers_1 = require("node:timers");
 function e(name) {
     const result = process.env[name];
@@ -127,7 +94,8 @@ class ESRPReleaseService {
     requestSigningCertificates;
     requestSigningKey;
     containerClient;
-    static async create(log, tenantId, clientId, authCertificatePfx, requestSigningCertificatePfx, containerClient) {
+    stagingSasToken;
+    static async create(log, tenantId, clientId, authCertificatePfx, requestSigningCertificatePfx, containerClient, stagingSasToken) {
         const authKey = getKeyFromPFX(authCertificatePfx);
         const authCertificate = getCertificatesFromPFX(authCertificatePfx)[0];
         const requestSigningKey = getKeyFromPFX(requestSigningCertificatePfx);
@@ -146,16 +114,17 @@ class ESRPReleaseService {
         const response = await app.acquireTokenByClientCredential({
             scopes: ['https://api.esrp.microsoft.com/.default']
         });
-        return new ESRPReleaseService(log, clientId, response.accessToken, requestSigningCertificates, requestSigningKey, containerClient);
+        return new ESRPReleaseService(log, clientId, response.accessToken, requestSigningCertificates, requestSigningKey, containerClient, stagingSasToken);
     }
     static API_URL = 'https://api.esrp.microsoft.com/api/v3/releaseservices/clients/';
-    constructor(log, clientId, accessToken, requestSigningCertificates, requestSigningKey, containerClient) {
+    constructor(log, clientId, accessToken, requestSigningCertificates, requestSigningKey, containerClient, stagingSasToken) {
         this.log = log;
         this.clientId = clientId;
         this.accessToken = accessToken;
         this.requestSigningCertificates = requestSigningCertificates;
         this.requestSigningKey = requestSigningKey;
         this.containerClient = containerClient;
+        this.stagingSasToken = stagingSasToken;
     }
     async createRelease(version, filePath, friendlyFileName) {
         const correlationId = crypto_1.default.randomUUID();
@@ -199,6 +168,7 @@ class ESRPReleaseService {
     async submitRelease(version, filePath, friendlyFileName, correlationId, blobClient) {
         const size = fs_1.default.statSync(filePath).size;
         const hash = await hashStream('sha256', fs_1.default.createReadStream(filePath));
+        const blobUrl = `${blobClient.url}?${this.stagingSasToken}`;
         const message = {
             customerCorrelationId: correlationId,
             esrpCorrelationId: correlationId,
@@ -230,11 +200,11 @@ class ESRPReleaseService {
             files: [{
                     name: path_1.default.basename(filePath),
                     friendlyFileName,
-                    tenantFileLocation: blobClient.url,
+                    tenantFileLocation: blobUrl,
                     tenantFileLocationType: 'AzureBlob',
                     sourceLocation: {
                         type: 'azureBlob',
-                        blobUrl: blobClient.url
+                        blobUrl
                     },
                     hashType: 'sha256',
                     hash: Array.from(hash),
@@ -283,7 +253,7 @@ class ESRPReleaseService {
         return await res.json();
     }
     async generateJwsToken(message) {
-        return jws.sign({
+        return jws_1.default.sign({
             header: {
                 alg: 'RS256',
                 crit: ['exp', 'x5t'],
@@ -412,7 +382,7 @@ async function unzip(packagePath, outputPath) {
     });
 }
 // Contains all of the logic for mapping details to our actual product names in CosmosDB
-function getPlatform(product, os, arch, type, isLegacy) {
+function getPlatform(product, os, arch, type) {
     switch (os) {
         case 'win32':
             switch (product) {
@@ -457,12 +427,12 @@ function getPlatform(product, os, arch, type, isLegacy) {
                         case 'client':
                             return `linux-${arch}`;
                         case 'server':
-                            return isLegacy ? `server-linux-legacy-${arch}` : `server-linux-${arch}`;
+                            return `server-linux-${arch}`;
                         case 'web':
                             if (arch === 'standalone') {
                                 return 'web-standalone';
                             }
-                            return isLegacy ? `server-linux-legacy-${arch}-web` : `server-linux-${arch}-web`;
+                            return `server-linux-${arch}-web`;
                         default:
                             throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
                     }
@@ -575,12 +545,18 @@ async function processArtifact(artifact, filePath) {
         else {
             const stagingContainerClient = blobServiceClient.getContainerClient('staging');
             await stagingContainerClient.createIfNotExists();
-            const releaseService = await ESRPReleaseService.create(log, e('RELEASE_TENANT_ID'), e('RELEASE_CLIENT_ID'), e('RELEASE_AUTH_CERT'), e('RELEASE_REQUEST_SIGNING_CERT'), stagingContainerClient);
+            const now = new Date().valueOf();
+            const oneHour = 60 * 60 * 1000;
+            const oneHourAgo = new Date(now - oneHour);
+            const oneHourFromNow = new Date(now + oneHour);
+            const userDelegationKey = await blobServiceClient.getUserDelegationKey(oneHourAgo, oneHourFromNow);
+            const sasOptions = { containerName: 'staging', permissions: storage_blob_1.ContainerSASPermissions.from({ read: true }), startsOn: oneHourAgo, expiresOn: oneHourFromNow };
+            const stagingSasToken = (0, storage_blob_1.generateBlobSASQueryParameters)(sasOptions, userDelegationKey, e('VSCODE_STAGING_BLOB_STORAGE_ACCOUNT_NAME')).toString();
+            const releaseService = await ESRPReleaseService.create(log, e('RELEASE_TENANT_ID'), e('RELEASE_CLIENT_ID'), e('RELEASE_AUTH_CERT'), e('RELEASE_REQUEST_SIGNING_CERT'), stagingContainerClient, stagingSasToken);
             await releaseService.createRelease(version, filePath, friendlyFileName);
         }
         const { product, os, arch, unprocessedType } = match.groups;
-        const isLegacy = artifact.name.includes('_legacy');
-        const platform = getPlatform(product, os, arch, unprocessedType, isLegacy);
+        const platform = getPlatform(product, os, arch, unprocessedType);
         const type = getRealType(unprocessedType);
         const size = fs_1.default.statSync(filePath).size;
         const stream = fs_1.default.createReadStream(filePath);
@@ -620,15 +596,18 @@ async function main() {
     for (const name of done) {
         console.log(`\u2705 ${name}`);
     }
-    const stages = new Set(['Compile', 'CompileCLI']);
+    const stages = new Set(['Compile']);
+    if (e('VSCODE_BUILD_STAGE_LINUX') === 'True' ||
+        e('VSCODE_BUILD_STAGE_ALPINE') === 'True' ||
+        e('VSCODE_BUILD_STAGE_MACOS') === 'True' ||
+        e('VSCODE_BUILD_STAGE_WINDOWS') === 'True') {
+        stages.add('CompileCLI');
+    }
     if (e('VSCODE_BUILD_STAGE_WINDOWS') === 'True') {
         stages.add('Windows');
     }
     if (e('VSCODE_BUILD_STAGE_LINUX') === 'True') {
         stages.add('Linux');
-    }
-    if (e('VSCODE_BUILD_STAGE_LINUX_LEGACY_SERVER') === 'True') {
-        stages.add('LinuxLegacyServer');
     }
     if (e('VSCODE_BUILD_STAGE_ALPINE') === 'True') {
         stages.add('Alpine');

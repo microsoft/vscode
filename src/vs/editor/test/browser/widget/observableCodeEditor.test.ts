@@ -82,9 +82,9 @@ suite("CodeEditorWidget", () => {
 
 			assert.deepStrictEqual(log.getAndClearEntries(), [
 				'handle change: editor.onDidType "abc"',
-				'handle change: editor.versionId {"changes":[{"range":"[1,1 -> 1,1]","rangeLength":0,"rangeEndPosition":{"lineNumber":1,"column":2},"text":"a","rangeOffset":0}],"eol":"\\n","versionId":2}',
-				'handle change: editor.versionId {"changes":[{"range":"[1,2 -> 1,2]","rangeLength":0,"rangeEndPosition":{"lineNumber":1,"column":3},"text":"b","rangeOffset":1}],"eol":"\\n","versionId":3}',
-				'handle change: editor.versionId {"changes":[{"range":"[1,3 -> 1,3]","rangeLength":0,"rangeEndPosition":{"lineNumber":1,"column":4},"text":"c","rangeOffset":2}],"eol":"\\n","versionId":4}',
+				'handle change: editor.versionId {"changes":[{"range":"[1,1 -> 1,1]","rangeLength":0,"text":"a","rangeOffset":0}],"eol":"\\n","versionId":2}',
+				'handle change: editor.versionId {"changes":[{"range":"[1,2 -> 1,2]","rangeLength":0,"text":"b","rangeOffset":1}],"eol":"\\n","versionId":3}',
+				'handle change: editor.versionId {"changes":[{"range":"[1,3 -> 1,3]","rangeLength":0,"text":"c","rangeOffset":2}],"eol":"\\n","versionId":4}',
 				'handle change: editor.selections {"selection":"[1,4 -> 1,4]","modelVersionId":4,"oldSelections":["[1,1 -> 1,1]"],"oldModelVersionId":1,"source":"keyboard","reason":0}',
 				'running derived: selection: [1,4 -> 1,4], value: 4',
 			]);
@@ -96,9 +96,9 @@ suite("CodeEditorWidget", () => {
 
 			assert.deepStrictEqual(log.getAndClearEntries(), [
 				'handle change: editor.onDidType "abc"',
-				'handle change: editor.versionId {"changes":[{"range":"[1,1 -> 1,1]","rangeLength":0,"rangeEndPosition":{"lineNumber":1,"column":2},"text":"a","rangeOffset":0}],"eol":"\\n","versionId":2}',
-				'handle change: editor.versionId {"changes":[{"range":"[1,2 -> 1,2]","rangeLength":0,"rangeEndPosition":{"lineNumber":1,"column":3},"text":"b","rangeOffset":1}],"eol":"\\n","versionId":3}',
-				'handle change: editor.versionId {"changes":[{"range":"[1,3 -> 1,3]","rangeLength":0,"rangeEndPosition":{"lineNumber":1,"column":4},"text":"c","rangeOffset":2}],"eol":"\\n","versionId":4}',
+				'handle change: editor.versionId {"changes":[{"range":"[1,1 -> 1,1]","rangeLength":0,"text":"a","rangeOffset":0}],"eol":"\\n","versionId":2}',
+				'handle change: editor.versionId {"changes":[{"range":"[1,2 -> 1,2]","rangeLength":0,"text":"b","rangeOffset":1}],"eol":"\\n","versionId":3}',
+				'handle change: editor.versionId {"changes":[{"range":"[1,3 -> 1,3]","rangeLength":0,"text":"c","rangeOffset":2}],"eol":"\\n","versionId":4}',
 				'handle change: editor.selections {"selection":"[1,4 -> 1,4]","modelVersionId":4,"oldSelections":["[1,1 -> 1,1]"],"oldModelVersionId":1,"source":"keyboard","reason":0}',
 				'running derived: selection: [1,4 -> 1,4], value: 4',
 			]);
@@ -134,7 +134,7 @@ suite("CodeEditorWidget", () => {
 					">>> before get",
 					"<<< after get",
 					'handle change: editor.onDidType "a"',
-					'handle change: editor.versionId {"changes":[{"range":"[1,1 -> 1,1]","rangeLength":0,"rangeEndPosition":{"lineNumber":1,"column":2},"text":"a","rangeOffset":0}],"eol":"\\n","versionId":2}',
+					'handle change: editor.versionId {"changes":[{"range":"[1,1 -> 1,1]","rangeLength":0,"text":"a","rangeOffset":0}],"eol":"\\n","versionId":2}',
 					'handle change: editor.selections {"selection":"[1,2 -> 1,2]","modelVersionId":2,"oldSelections":["[1,1 -> 1,1]"],"oldModelVersionId":1,"source":"keyboard","reason":0}',
 					"running derived: selection: [1,2 -> 1,2], value: 2",
 				]);
@@ -172,7 +172,7 @@ suite("CodeEditorWidget", () => {
 					"running derived: selection: [1,2 -> 1,2], value: 2",
 					"<<< after get",
 					'handle change: editor.onDidType "a"',
-					'handle change: editor.versionId {"changes":[{"range":"[1,1 -> 1,1]","rangeLength":0,"rangeEndPosition":{"lineNumber":1,"column":2},"text":"a","rangeOffset":0}],"eol":"\\n","versionId":2}',
+					'handle change: editor.versionId {"changes":[{"range":"[1,1 -> 1,1]","rangeLength":0,"text":"a","rangeOffset":0}],"eol":"\\n","versionId":2}',
 					'handle change: editor.selections {"selection":"[1,2 -> 1,2]","modelVersionId":2,"oldSelections":["[1,1 -> 1,1]"],"oldModelVersionId":1,"source":"keyboard","reason":0}',
 					"running derived: selection: [1,2 -> 1,2], value: 2",
 				]);

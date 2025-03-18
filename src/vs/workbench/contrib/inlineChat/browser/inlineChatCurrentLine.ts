@@ -8,26 +8,26 @@ import { ICodeEditor, MouseTargetType } from '../../../../editor/browser/editorB
 import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { InlineChatController, State } from './inlineChatController.js';
+import { InlineChatController } from './inlineChatController.js';
 import { ACTION_START, CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_VISIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
 import { EditorAction2, ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { EditOperation } from '../../../../editor/common/core/editOperation.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { IPosition, Position } from '../../../../editor/common/core/position.js';
-import { AbstractInlineChatAction } from './inlineChatActions.js';
+import { AbstractInline1ChatAction } from './inlineChatActions.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { IValidEditOperation, TrackedRangeStickiness } from '../../../../editor/common/model.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { StandardTokenType } from '../../../../editor/common/encodedTokenAttributes.js';
-import { autorun, derived, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derivedWithStore, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import './media/inlineChat.css';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { InlineCompletionsController } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
-import { ChatAgentLocation, IChatAgentService } from '../../chat/common/chatAgents.js';
+import { IChatAgentService } from '../../chat/common/chatAgents.js';
 import { IMarkerDecorationsService } from '../../../../editor/common/services/markerDecorations.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { toAction } from '../../../../base/common/actions.js';
@@ -38,6 +38,8 @@ import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modes
 import { createStyleSheet2 } from '../../../../base/browser/domStylesheets.js';
 import { stringValue } from '../../../../base/browser/cssValue.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { ChatAgentLocation } from '../../chat/common/constants.js';
 
 export const CTX_INLINE_CHAT_SHOWING_HINT = new RawContextKey<boolean>('inlineChatShowingHint', false, localize('inlineChatShowingHint', "Whether inline chat shows a contextual hint"));
 
@@ -48,7 +50,7 @@ export class InlineChatExpandLineAction extends EditorAction2 {
 	constructor() {
 		super({
 			id: _inlineChatActionId,
-			category: AbstractInlineChatAction.category,
+			category: AbstractInline1ChatAction.category,
 			title: localize2('startWithCurrentLine', "Start in Editor with Current Line"),
 			f1: true,
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE.negate(), CTX_INLINE_CHAT_HAS_AGENT, EditorContextKeys.writable),
@@ -83,22 +85,14 @@ export class InlineChatExpandLineAction extends EditorAction2 {
 			return null;
 		});
 
-		let lastState: State | undefined;
-		const d = ctrl.onDidEnterState(e => lastState = e);
+		// trigger chat
+		const accepted = await ctrl.run({
+			autoSend: true,
+			message: lineContent.trim(),
+			position: new Position(lineNumber, startColumn)
+		});
 
-		try {
-			// trigger chat
-			await ctrl.run({
-				autoSend: true,
-				message: lineContent.trim(),
-				position: new Position(lineNumber, startColumn)
-			});
-
-		} finally {
-			d.dispose();
-		}
-
-		if (lastState === State.CANCEL) {
+		if (!accepted) {
 			model.pushEditOperations(null, undoEdits, () => null);
 		}
 	}
@@ -109,7 +103,7 @@ export class ShowInlineChatHintAction extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'inlineChat.showHint',
-			category: AbstractInlineChatAction.category,
+			category: AbstractInline1ChatAction.category,
 			title: localize2('showHint', "Show Inline Chat Hint"),
 			f1: false,
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE.negate(), CTX_INLINE_CHAT_HAS_AGENT, EditorContextKeys.writable),
@@ -230,7 +224,7 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 		const configHintEmpty = observableConfigValue(InlineChatConfigKeys.LineEmptyHint, false, this._configurationService);
 		const configHintNL = observableConfigValue(InlineChatConfigKeys.LineNLHint, false, this._configurationService);
 
-		const showDataObs = derived(r => {
+		const showDataObs = derivedWithStore((r, store) => {
 			const ghostState = ghostCtrl?.model.read(r)?.state.read(r);
 
 			const textFocus = editorObs.isTextFocused.read(r);
@@ -246,6 +240,12 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 			if (model.getLanguageId() === PLAINTEXT_LANGUAGE_ID || model.getLanguageId() === 'markdown') {
 				return undefined;
 			}
+
+			// DEBT - I cannot use `model.onDidChangeContent` directly here
+			// https://github.com/microsoft/vscode/issues/242059
+			const emitter = store.add(new Emitter<void>());
+			store.add(model.onDidChangeContent(() => emitter.fire()));
+			observableFromEvent(emitter.event, () => model.getVersionId()).read(r);
 
 			const visible = this._visibilityObs.read(r);
 			const isEol = model.getLineMaxColumn(position.lineNumber) === position.column;

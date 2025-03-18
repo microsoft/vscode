@@ -10,6 +10,10 @@ import { URI, UriComponents } from '../../../base/common/uri.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { IExtensionContributedURLHandler, IExtensionUrlHandler } from '../../services/extensions/browser/extensionUrlHandler.js';
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
+import { ITrustedDomainService } from '../../contrib/url/browser/trustedDomainService.js';
+import { readStaticTrustedDomains } from '../../contrib/url/browser/trustedDomains.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { IWebContentExtractorService } from '../../../platform/webContentExtractor/common/webContentExtractor.js';
 
 class ExtensionUrlHandler implements IExtensionContributedURLHandler {
 
@@ -37,10 +41,15 @@ export class MainThreadUrls implements MainThreadUrlsShape {
 
 	constructor(
 		context: IExtHostContext,
+		@ITrustedDomainService trustedDomainService: ITrustedDomainService,
 		@IURLService private readonly urlService: IURLService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IWebContentExtractorService private readonly webContentExtractorService: IWebContentExtractorService,
 		@IExtensionUrlHandler private readonly extensionUrlHandler: IExtensionUrlHandler
 	) {
 		this.proxy = context.getProxy(ExtHostContext.ExtHostUrls);
+		trustedDomainService.onDidChangeTrustedDomains(() => this.handleTrustedDomainsChange());
+		void this.handleTrustedDomainsChange();
 	}
 
 	$registerUriHandler(handle: number, extensionId: ExtensionIdentifier, extensionDisplayName: string): Promise<void> {
@@ -71,6 +80,16 @@ export class MainThreadUrls implements MainThreadUrlsShape {
 
 	async $createAppUri(uri: UriComponents): Promise<URI> {
 		return this.urlService.create(uri);
+	}
+
+	async handleTrustedDomainsChange() {
+		const { defaultTrustedDomains, trustedDomains, } = this.instantiationService.invokeFunction(readStaticTrustedDomains);
+		await this.proxy.$updateTrustedDomains([...defaultTrustedDomains, ...trustedDomains]);
+	}
+
+	async $extractExternalUris(uris: UriComponents[]): Promise<string[]> {
+		const extractedUris = await this.webContentExtractorService.extract(uris.map(uri => URI.revive(uri)));
+		return extractedUris;
 	}
 
 	dispose(): void {

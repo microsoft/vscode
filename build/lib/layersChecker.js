@@ -81,7 +81,9 @@ const CORE_TYPES = [
     'ImportMeta',
     // webcrypto has been available since Node.js 19, but still live in dom.d.ts
     'Crypto',
-    'SubtleCrypto'
+    'SubtleCrypto',
+    'JsonWebKey',
+    'MessageEvent',
 ];
 // Types that are defined in a common layer but are known to be only
 // available in native environments should not be allowed in browser

@@ -113,6 +113,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onLabelEvent(e.scheme)));
 		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onLabelEvent(e.scheme)));
 		this._register(this.customEditorLabelService.onDidChange(() => this.updateLabel()));
+		this._register(this.filesConfigurationService.onDidChangeReadonly(() => this._onDidChangeCapabilities.fire()));
 	}
 
 	private onLabelEvent(scheme: string): void {

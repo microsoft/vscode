@@ -12,6 +12,14 @@ export class Rect {
 		return new Rect(point.x, point.y, point.x, point.y);
 	}
 
+	public static fromPoints(topLeft: Point, bottomRight: Point): Rect {
+		return new Rect(topLeft.x, topLeft.y, bottomRight.x, bottomRight.y);
+	}
+
+	public static fromPointSize(point: Point, size: Point): Rect {
+		return new Rect(point.x, point.y, point.x + size.x, point.y + size.y);
+	}
+
 	public static fromLeftTopRightBottom(left: number, top: number, right: number, bottom: number): Rect {
 		return new Rect(left, top, right, bottom);
 	}
@@ -25,10 +33,10 @@ export class Rect {
 	}
 
 	public static hull(rects: Rect[]): Rect {
-		let left = Number.MAX_VALUE;
-		let top = Number.MAX_VALUE;
-		let right = Number.MIN_VALUE;
-		let bottom = Number.MIN_VALUE;
+		let left = Number.MAX_SAFE_INTEGER;
+		let top = Number.MAX_SAFE_INTEGER;
+		let right = Number.MIN_SAFE_INTEGER;
+		let bottom = Number.MIN_SAFE_INTEGER;
 
 		for (const rect of rects) {
 			left = Math.min(left, rect.left);
@@ -40,8 +48,8 @@ export class Rect {
 		return new Rect(left, top, right, bottom);
 	}
 
-	public readonly width = this.right - this.left;
-	public readonly height = this.bottom - this.top;
+	public get width() { return this.right - this.left; }
+	public get height() { return this.bottom - this.top; }
 
 	constructor(
 		public readonly left: number,
@@ -100,6 +108,13 @@ export class Rect {
 			&& this.bottom >= other.bottom;
 	}
 
+	containsPoint(point: Point): boolean {
+		return this.left <= point.x
+			&& this.top <= point.y
+			&& this.right >= point.x
+			&& this.bottom >= point.y;
+	}
+
 	moveToBeContainedIn(parent: Rect): Rect {
 		const width = this.width;
 		const height = this.height;
@@ -134,11 +149,43 @@ export class Rect {
 		return new Rect(this.left, top, this.right, this.bottom);
 	}
 
-	moveLeft(delta: number): Rect {
-		return new Rect(this.left - delta, this.top, this.right - delta, this.bottom);
+	translateX(delta: number): Rect {
+		return new Rect(this.left + delta, this.top, this.right + delta, this.bottom);
 	}
 
-	moveUp(delta: number): Rect {
-		return new Rect(this.left, this.top - delta, this.right, this.bottom - delta);
+	translateY(delta: number): Rect {
+		return new Rect(this.left, this.top + delta, this.right, this.bottom + delta);
+	}
+
+	deltaRight(delta: number): Rect {
+		return new Rect(this.left, this.top, this.right + delta, this.bottom);
+	}
+
+	deltaTop(delta: number): Rect {
+		return new Rect(this.left, this.top + delta, this.right, this.bottom);
+	}
+
+	deltaLeft(delta: number): Rect {
+		return new Rect(this.left + delta, this.top, this.right, this.bottom);
+	}
+
+	deltaBottom(delta: number): Rect {
+		return new Rect(this.left, this.top, this.right, this.bottom + delta);
+	}
+
+	getLeftBottom(): Point {
+		return new Point(this.left, this.bottom);
+	}
+
+	getRightBottom(): Point {
+		return new Point(this.right, this.bottom);
+	}
+
+	getLeftTop(): Point {
+		return new Point(this.left, this.top);
+	}
+
+	getRightTop(): Point {
+		return new Point(this.right, this.top);
 	}
 }

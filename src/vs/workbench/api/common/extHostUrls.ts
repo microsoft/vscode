@@ -9,6 +9,7 @@ import { URI, UriComponents } from '../../../base/common/uri.js';
 import { toDisposable } from '../../../base/common/lifecycle.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { ExtensionIdentifierSet, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { isURLDomainTrusted } from '../../contrib/url/common/trustedDomains.js';
 
 export class ExtHostUrls implements ExtHostUrlsShape {
 
@@ -17,6 +18,8 @@ export class ExtHostUrls implements ExtHostUrlsShape {
 
 	private handles = new ExtensionIdentifierSet();
 	private handlers = new Map<number, vscode.UriHandler>();
+
+	private _trustedDomains: string[] = [];
 
 	constructor(
 		mainContext: IMainContext
@@ -59,5 +62,17 @@ export class ExtHostUrls implements ExtHostUrlsShape {
 
 	async createAppUri(uri: URI): Promise<vscode.Uri> {
 		return URI.revive(await this._proxy.$createAppUri(uri));
+	}
+
+	async $updateTrustedDomains(trustedDomains: string[]): Promise<void> {
+		this._trustedDomains = trustedDomains;
+	}
+
+	isTrustedExternalUris(uris: URI[]): boolean[] {
+		return uris.map(uri => isURLDomainTrusted(uri, this._trustedDomains));
+	}
+
+	extractExternalUris(uris: URI[]): Promise<string[]> {
+		return this._proxy.$extractExternalUris(uris);
 	}
 }

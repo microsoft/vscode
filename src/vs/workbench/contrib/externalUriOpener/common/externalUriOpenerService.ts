@@ -45,7 +45,7 @@ export interface IExternalUriOpenerService {
 	registerExternalOpenerProvider(provider: IExternalOpenerProvider): IDisposable;
 
 	/**
-	 * Get the configured IExternalUriOpener for the the uri.
+	 * Get the configured IExternalUriOpener for the uri.
 	 * If there is no opener configured, then returns the first opener that can handle the uri.
 	 */
 	getOpener(uri: URI, ctx: { sourceUri: URI; preferredOpenerId?: string }, token: CancellationToken): Promise<IExternalUriOpener | undefined>;

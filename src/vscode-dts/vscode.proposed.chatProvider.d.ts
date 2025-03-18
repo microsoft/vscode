@@ -70,6 +70,8 @@ declare module 'vscode' {
 		readonly isUserSelectable?: boolean;
 		readonly capabilities?: {
 			readonly vision?: boolean;
+			readonly toolCalling?: boolean;
+			readonly agentMode?: boolean;
 		};
 	}
 

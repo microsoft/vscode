@@ -7,8 +7,8 @@ import type * as ts from 'typescript';
 import lazy from 'lazy.js';
 import { duplex, through } from 'event-stream';
 import File from 'vinyl';
-import * as sm from 'source-map';
-import * as path from 'path';
+import sm from 'source-map';
+import path from 'path';
 import sort from 'gulp-sort';
 
 declare class FileSourceMap extends File {

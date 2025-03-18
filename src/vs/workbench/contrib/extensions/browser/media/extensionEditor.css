@@ -148,6 +148,7 @@
 }
 
 .extension-editor > .header > .details > .subtitle,
+.extension-editor > .header > .details > .subtitle .extension-kind-indicator,
 .extension-editor > .header > .details > .subtitle .install,
 .extension-editor > .header > .details > .subtitle .rating,
 .extension-editor > .header > .details > .subtitle .sponsor {
@@ -163,10 +164,14 @@
 	margin-left: 6px;
 }
 
-.extension-editor > .header > .details > .subtitle > div:not(:first-child):not(:empty):not(.resource) {
-	border-left: 1px solid rgba(128, 128, 128, 0.7);
-	margin-left: 14px;
-	padding-left: 14px;
+.extension-editor > .header > .details > .subtitle .extension-kind-indicator > .codicon {
+	margin-right: 6px;
+}
+
+.extension-editor > .header > .details > .subtitle > .subtitle-entry:not(:empty):not(.last-non-empty) {
+	border-right: 1px solid rgba(128, 128, 128, 0.7);
+	margin-right: 14px;
+	padding-right: 14px;
 }
 
 .extension-editor > .header > .details > .description {
@@ -398,7 +403,7 @@
 }
 
 .extension-editor > .body > .content {
-	height: calc(100% - 36px);
+	height: calc(100% - 37px); /* Correct height so that it is not on top of bottom panel #231439 */
 	position: relative;
 	overflow: hidden;
 	user-select: text;
@@ -734,7 +739,7 @@
 	padding-top: 5px;
 }
 
-.extension-editor .subcontent .monaco-list-row .extension > .details > .footer > .author {
+.extension-editor .subcontent .monaco-list-row .extension > .details > .footer .publisher {
 	font-size: 90%;
 	font-weight: 600;
 	opacity: 0.6;

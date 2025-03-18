@@ -31,7 +31,6 @@ suite('ExtHostTelemetry', function () {
 		extensionTestsLocationURI: undefined,
 		appRoot: undefined,
 		appName: 'test',
-		extensionTelemetryLogResource: URI.parse('fake'),
 		isExtensionTelemetryLoggingOnly: false,
 		appHost: 'test',
 		appLanguage: 'en',
@@ -70,7 +69,7 @@ suite('ExtHostTelemetry', function () {
 	};
 
 	const createExtHostTelemetry = () => {
-		const extensionTelemetry = new ExtHostTelemetry(new class extends mock<IExtHostInitDataService>() {
+		const extensionTelemetry = new ExtHostTelemetry(false, new class extends mock<IExtHostInitDataService>() {
 			override environment: IEnvironment = mockEnvironment;
 			override telemetryInfo = mockTelemetryInfo;
 			override remote = mockRemote;
@@ -274,7 +273,7 @@ suite('ExtHostTelemetry', function () {
 
 		// Have to re-duplicate code here because I the logger service isn't exposed in the simple setup functions
 		const loggerService = new TestTelemetryLoggerService(LogLevel.Trace);
-		const extensionTelemetry = new ExtHostTelemetry(new class extends mock<IExtHostInitDataService>() {
+		const extensionTelemetry = new ExtHostTelemetry(false, new class extends mock<IExtHostInitDataService>() {
 			override environment: IEnvironment = mockEnvironment;
 			override telemetryInfo = mockTelemetryInfo;
 			override remote = mockRemote;

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as es from 'event-stream';
-import * as Vinyl from 'vinyl';
-import * as vfs from 'vinyl-fs';
+import es from 'event-stream';
+import Vinyl from 'vinyl';
+import vfs from 'vinyl-fs';
 import merge from 'gulp-merge-json';
 import gzip from 'gulp-gzip';
 import { ClientAssertionCredential } from '@azure/identity';
@@ -126,8 +126,8 @@ function main(): Promise<void> {
 			.pipe(azure.upload({
 				account: process.env.AZURE_STORAGE_ACCOUNT,
 				credential,
-				container: 'nlsmetadata',
-				prefix: commit + '/',
+				container: '$web',
+				prefix: `nlsmetadata/${commit}/`,
 				contentSettings: {
 					contentEncoding: 'gzip',
 					cacheControl: 'max-age=31536000, public'

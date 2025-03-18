@@ -33,6 +33,7 @@ import { IThemeService, themeColorFromId } from '../../../../platform/theme/comm
 import { Selection } from '../../../common/core/selection.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { FindWidgetSearchHistory } from './findWidgetSearchHistory.js';
+import { ReplaceWidgetHistory } from './replaceWidgetHistory.js';
 
 const SEARCH_STRING_MAX_LENGTH = 524288;
 
@@ -444,6 +445,7 @@ export class FindController extends CommonFindController implements IFindControl
 	private _widget: FindWidget | null;
 	private _findOptionsWidget: FindOptionsWidget | null;
 	private _findWidgetSearchHistory: FindWidgetSearchHistory;
+	private _replaceWidgetHistory: ReplaceWidgetHistory;
 
 	constructor(
 		editor: ICodeEditor,
@@ -460,6 +462,7 @@ export class FindController extends CommonFindController implements IFindControl
 		this._widget = null;
 		this._findOptionsWidget = null;
 		this._findWidgetSearchHistory = FindWidgetSearchHistory.getOrCreate(_storageService);
+		this._replaceWidgetHistory = ReplaceWidgetHistory.getOrCreate(_storageService);
 	}
 
 	protected override async _start(opts: IFindStartOptions, newState?: INewFindReplaceState): Promise<void> {
@@ -511,7 +514,7 @@ export class FindController extends CommonFindController implements IFindControl
 	}
 
 	private _createFindWidget() {
-		this._widget = this._register(new FindWidget(this._editor, this, this._state, this._contextViewService, this._keybindingService, this._contextKeyService, this._themeService, this._storageService, this._notificationService, this._hoverService, this._findWidgetSearchHistory));
+		this._widget = this._register(new FindWidget(this._editor, this, this._state, this._contextViewService, this._keybindingService, this._contextKeyService, this._themeService, this._storageService, this._notificationService, this._hoverService, this._findWidgetSearchHistory, this._replaceWidgetHistory));
 		this._findOptionsWidget = this._register(new FindOptionsWidget(this._editor, this._state, this._keybindingService));
 	}
 
@@ -581,7 +584,7 @@ export class StartFindWithArgsAction extends EditorAction {
 	constructor() {
 		super({
 			id: FIND_IDS.StartFindWithArgs,
-			label: nls.localize2('startFindWithArgsAction', "Find With Arguments"),
+			label: nls.localize2('startFindWithArgsAction', "Find with Arguments"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: null,
@@ -630,7 +633,7 @@ export class StartFindWithSelectionAction extends EditorAction {
 	constructor() {
 		super({
 			id: FIND_IDS.StartFindWithSelection,
-			label: nls.localize2('startFindWithSelectionAction', "Find With Selection"),
+			label: nls.localize2('startFindWithSelectionAction', "Find with Selection"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: null,

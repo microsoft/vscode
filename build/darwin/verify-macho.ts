@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import * as path from 'path';
+import path from 'path';
 import { open, stat, readdir, realpath } from 'fs/promises';
 import { spawn, ExitCodeError } from '@malept/cross-spawn-promise';
 

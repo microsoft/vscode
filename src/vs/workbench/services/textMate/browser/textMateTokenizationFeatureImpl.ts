@@ -52,7 +52,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 
 	private _grammarDefinitions: IValidGrammarDefinition[] | null = null;
 	private _grammarFactory: TMGrammarFactory | null = null;
-	private readonly _tokenizersRegistrations = new DisposableStore();
+	private readonly _tokenizersRegistrations = this._register(new DisposableStore());
 	private _currentTheme: IRawTheme | null = null;
 	private _currentTokenColorMap: string[] | null = null;
 	private readonly _threadedBackgroundTokenizerFactory = this._instantiationService.createInstance(
@@ -291,7 +291,8 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 				-1,
 				this._configurationService
 			);
-			const tokenization = new TextMateTokenizationSupport(
+			const store = new DisposableStore();
+			const tokenization = store.add(new TextMateTokenizationSupport(
 				r.grammar,
 				r.initialState,
 				r.containsEmbeddedLanguages,
@@ -301,15 +302,16 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 					this._reportTokenizationTime(timeMs, languageId, r.sourceExtensionId, lineLength, false, isRandomSample);
 				},
 				true,
-			);
-			const disposable = tokenization.onDidEncounterLanguage((encodedLanguageId) => {
+			));
+			store.add(tokenization.onDidEncounterLanguage((encodedLanguageId) => {
 				if (!this._encounteredLanguages[encodedLanguageId]) {
 					const languageId = this._languageService.languageIdCodec.decodeLanguageId(encodedLanguageId);
 					this._encounteredLanguages[encodedLanguageId] = true;
 					this._languageService.requestBasicLanguageFeatures(languageId);
 				}
-			});
-			return new TokenizationSupportWithLineLimit(encodedLanguageId, tokenization, disposable, maxTokenizationLineLength);
+			}));
+
+			return new TokenizationSupportWithLineLimit(encodedLanguageId, tokenization, store, maxTokenizationLineLength);
 		} catch (err) {
 			if (err.message && err.message === missingTMGrammarErrorMessage) {
 				// Don't log this error message

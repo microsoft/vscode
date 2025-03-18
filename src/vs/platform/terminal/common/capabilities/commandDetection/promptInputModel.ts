@@ -105,6 +105,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 	constructor(
 		private readonly _xterm: Terminal,
 		onCommandStart: Event<ITerminalCommand>,
+		onCommandStartChanged: Event<void>,
 		onCommandExecuted: Event<ITerminalCommand>,
 		@ILogService private readonly _logService: ILogService
 	) {
@@ -118,6 +119,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		this._register(this._xterm.onData(e => this._handleUserInput(e)));
 
 		this._register(onCommandStart(e => this._handleCommandStart(e as { marker: IMarker })));
+		this._register(onCommandStartChanged(() => this._handleCommandStartChanged()));
 		this._register(onCommandExecuted(() => this._handleCommandExecuted()));
 
 		this._register(this.onDidStartInput(() => this._logCombinedStringIfTrace('PromptInputModel#onDidStartInput')));
@@ -215,6 +217,16 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		}
 	}
 
+	private _handleCommandStartChanged() {
+		if (this._state !== PromptInputState.Input) {
+			return;
+		}
+
+		this._commandStartX = this._xterm.buffer.active.cursorX;
+		this._onDidChangeInput.fire(this._createStateObject());
+		this._sync();
+	}
+
 	private _handleCommandExecuted() {
 		if (this._state === PromptInputState.Execute) {
 			return;
@@ -310,7 +322,15 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 					} else {
 						cursorIndex += trimmedLineText.length + 1;
 					}
-				} else {
+				} else if (absoluteCursorY === y && this._continuationPrompt && !this._lineContainsContinuationPrompt(lineText)) {
+					// We're on the last line and the continuation prompt is not present, so we need to add the value
+					value += `${lineText}`;
+					const relativeCursorIndex = this._getRelativeCursorIndex(0, buffer, line);
+					if (absoluteCursorY === y) {
+						cursorIndex += relativeCursorIndex;
+					} else {
+						cursorIndex += lineText.length;
+					}
 					break;
 				}
 			}
@@ -412,6 +432,9 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 	 * non-italic/dim text in the cell closest non-whitespace cell before the cursor.
 	 */
 	private _scanForGhostText(buffer: IBuffer, line: IBufferLine, cursorIndex: number): number {
+		if (!this.value.trim().length) {
+			return -1;
+		}
 		// Check last non-whitespace character has non-ghost text styles
 		let ghostTextIndex = -1;
 		let proceedWithGhostTextCheck = false;
@@ -432,6 +455,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		if (proceedWithGhostTextCheck) {
 			let potentialGhostIndexOffset = 0;
 			let x = buffer.cursorX;
+
 			while (x < line.length) {
 				const cell = line.getCell(x++);
 				if (!cell || cell.getCode() === 0) {
@@ -441,11 +465,111 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 					ghostTextIndex = cursorIndex + potentialGhostIndexOffset;
 					break;
 				}
+
 				potentialGhostIndexOffset += cell.getChars().length;
 			}
 		}
 
+		// Ghost text may not be italic or dimmed, but will have a different style than the
+		// rest of the line that precedes it.
+		if (ghostTextIndex === -1) {
+			ghostTextIndex = this._scanForGhostTextAdvanced(buffer, line, cursorIndex);
+		}
+
+		if (ghostTextIndex > -1 && this.value.substring(ghostTextIndex).endsWith(' ')) {
+			this._value = this.value.trim();
+			if (!this.value.substring(ghostTextIndex)) {
+				ghostTextIndex = -1;
+			}
+		}
 		return ghostTextIndex;
+	}
+
+	private _scanForGhostTextAdvanced(buffer: IBuffer, line: IBufferLine, cursorIndex: number): number {
+		let ghostTextIndex = -1;
+		let currentPos = buffer.cursorX; // Start scanning from the cursor position
+
+		// Map to store styles and their corresponding positions
+		const styleMap = new Map<string, number[]>();
+
+		// Identify the last non-whitespace character in the line
+		let lastNonWhitespaceCell = line.getCell(currentPos);
+		let nextCell: IBufferCell | undefined = lastNonWhitespaceCell;
+
+		// Scan from the cursor position to the end of the line
+		while (nextCell && currentPos < line.length) {
+			const styleKey = this._getCellStyleAsString(nextCell);
+
+			// Track all occurrences of each unique style in the line
+			styleMap.set(styleKey, [...(styleMap.get(styleKey) ?? []), currentPos]);
+
+			// Move to the next cell
+			nextCell = line.getCell(++currentPos);
+
+			// Update `lastNonWhitespaceCell` only if the new cell contains visible characters
+			if (nextCell?.getChars().trim().length) {
+				lastNonWhitespaceCell = nextCell;
+			}
+		}
+
+		// If there's no valid last non-whitespace cell OR the first and last styles match (indicating no ghost text)
+		if (!lastNonWhitespaceCell?.getChars().trim().length ||
+			this._cellStylesMatch(line.getCell(this._commandStartX), lastNonWhitespaceCell)) {
+			return -1;
+		}
+
+		// Retrieve the positions of all cells with the same style as `lastNonWhitespaceCell`
+		const positionsWithGhostStyle = styleMap.get(this._getCellStyleAsString(lastNonWhitespaceCell));
+		if (positionsWithGhostStyle) {
+			// Ensure these positions are contiguous
+			for (let i = 1; i < positionsWithGhostStyle.length; i++) {
+				if (positionsWithGhostStyle[i] !== positionsWithGhostStyle[i - 1] + 1) {
+					// Discontinuous styles, so may be syntax highlighting vs ghost text
+					return -1;
+				}
+			}
+			// Calculate the ghost text start index
+			ghostTextIndex = positionsWithGhostStyle[0] - this._commandStartX;
+		}
+
+		// Ensure no earlier cells in the line match `lastNonWhitespaceCell`'s style,
+		// which would indicate the text is not ghost text.
+		if (ghostTextIndex !== -1) {
+			for (let checkPos = buffer.cursorX; checkPos >= this._commandStartX; checkPos--) {
+				const checkCell = line.getCell(checkPos);
+				if (!checkCell?.getChars.length) {
+					continue;
+				}
+				if (checkCell && checkCell.getCode() !== 0 && this._cellStylesMatch(lastNonWhitespaceCell, checkCell)) {
+					return -1;
+				}
+			}
+		}
+
+		return ghostTextIndex >= cursorIndex ? ghostTextIndex : -1;
+	}
+
+	private _getCellStyleAsString(cell: IBufferCell): string {
+		return `${cell.getFgColor()}${cell.getBgColor()}${cell.isBold()}${cell.isItalic()}${cell.isDim()}${cell.isUnderline()}${cell.isBlink()}${cell.isInverse()}${cell.isInvisible()}${cell.isStrikethrough()}${cell.isOverline()}${cell.getFgColorMode()}${cell.getBgColorMode()}`;
+	}
+
+	private _cellStylesMatch(a: IBufferCell | undefined, b: IBufferCell | undefined): boolean {
+		if (!a || !b) {
+			return false;
+		}
+		return a.getFgColor() === b.getFgColor()
+			&& a.getBgColor() === b.getBgColor()
+			&& a.isBold() === b.isBold()
+			&& a.isItalic() === b.isItalic()
+			&& a.isDim() === b.isDim()
+			&& a.isUnderline() === b.isUnderline()
+			&& a.isBlink() === b.isBlink()
+			&& a.isInverse() === b.isInverse()
+			&& a.isInvisible() === b.isInvisible()
+			&& a.isStrikethrough() === b.isStrikethrough()
+			&& a.isOverline() === b.isOverline()
+			&& a?.getBgColorMode() === b?.getBgColorMode()
+			&& a?.getFgColorMode() === b?.getFgColorMode();
 	}
 
 	private _trimContinuationPrompt(lineText: string): string {
@@ -456,17 +580,22 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 	}
 
 	private _lineContainsContinuationPrompt(lineText: string): boolean {
-		return !!(this._continuationPrompt && lineText.startsWith(this._continuationPrompt));
+		return !!(this._continuationPrompt && lineText.startsWith(this._continuationPrompt.trimEnd()));
 	}
 
 	private _getContinuationPromptCellWidth(line: IBufferLine, lineText: string): number {
-		if (!this._continuationPrompt || !lineText.startsWith(this._continuationPrompt)) {
+		if (!this._continuationPrompt || !lineText.startsWith(this._continuationPrompt.trimEnd())) {
 			return 0;
 		}
 		let buffer = '';
 		let x = 0;
+		let cell: IBufferCell | undefined;
 		while (buffer !== this._continuationPrompt) {
-			buffer += line.getCell(x++)!.getChars();
+			cell = line.getCell(x++);
+			if (!cell) {
+				break;
+			}
+			buffer += cell.getChars();
 		}
 		return x;
 	}

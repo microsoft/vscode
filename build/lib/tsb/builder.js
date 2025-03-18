@@ -80,6 +80,7 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
         }
         if (!file.contents) {
             host.removeScriptSnapshot(file.path);
+            delete lastBuildVersion[normalize(file.path)];
         }
         else {
             host.addScriptSnapshot(file.path, new VinylScriptSnapshot(file));
@@ -617,7 +618,7 @@ class LanguageServiceHost {
         });
         // (2) import-require statements
         info.importedFiles.forEach(ref => {
-            if (!ref.fileName.startsWith('.') || path_1.default.extname(ref.fileName) === '') {
+            if (!ref.fileName.startsWith('.')) {
                 // node module?
                 return;
             }

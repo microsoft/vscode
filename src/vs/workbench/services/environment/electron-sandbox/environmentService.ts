@@ -105,11 +105,6 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 	get extHostLogsPath(): URI { return joinPath(this.windowLogsPath, 'exthost'); }
 
 	@memoize
-	get extHostTelemetryLogFile(): URI {
-		return joinPath(this.extHostLogsPath, 'extensionTelemetry.log');
-	}
-
-	@memoize
 	get webviewExternalEndpoint(): string { return `${Schemas.vscodeWebview}://{{uuid}}`; }
 
 	@memoize
