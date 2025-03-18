@@ -347,21 +347,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 				// user likely just pressed enter.
 				else if (this._continuationPrompt === undefined || this._lineContainsContinuationPrompt(lineText)) {
 					const trimmedLineText = this._trimContinuationPrompt(lineText);
-					if (this._shellType === PosixShellType.Fish) {
-						if (value.endsWith('\\')) {
-							value = value.substring(0, value.length - 1);
-							value += `${trimmedLineText.trim()}`;
-						} else {
-							if (/^ {6,}/.test(lineText)) {
-								// Was likely a new line
-								value += `\n${lineText.trim()}`;
-							} else {
-								value += lineText;
-							}
-						}
-					} else {
-						value += `\n${trimmedLineText}`;
-					}
+					value += `\n${trimmedLineText}`;
 					if (absoluteCursorY === y) {
 						const continuationCellWidth = this._getContinuationPromptCellWidth(line, lineText);
 						const relativeCursorIndex = this._getRelativeCursorIndex(continuationCellWidth, buffer, line);
