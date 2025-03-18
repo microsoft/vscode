@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-
 import { randomInt } from '../../utils/randomInt';
 
 suite('randomInt', () => {

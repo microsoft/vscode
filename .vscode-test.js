@@ -79,6 +79,12 @@ const extensions = [
 		workspaceFolder: `extensions/vscode-api-tests/testworkspace.code-workspace`,
 		mocha: { timeout: 60_000 },
 		files: 'extensions/vscode-api-tests/out/workspace-tests/**/*.test.js',
+	},
+	{
+		label: 'prompt-syntax',
+		extensionDevelopmentPath: `extensions/prompt-syntax`,
+		mocha: { timeout: 60_000 },
+		files: 'extensions/prompt-syntax/out/**/*.test.js',
 	}
 ];
 

@@ -30,6 +30,12 @@ suite('LinesDecoder', () => {
 		test('throws if accessed on not-yet-started decoder instance', () => {
 			const test = new TestLinesDecoder();
 
+			const expectedError = new Error([
+				'Cannot get `settled` promise of a stream that has not been started.',
+				'Please call `start()` first.',
+			].join(' '));
+			expectedError.name = 'AssertionError';
+
 			assert.throws(
 				() => {
 					// testing the field access that throws here, so
@@ -37,10 +43,7 @@ suite('LinesDecoder', () => {
 					// eslint-disable-next-line local/code-no-unused-expressions
 					test.decoder.settled;
 				},
-				[
-					'Cannot get `settled` promise of a stream that has not been started.',
-					'Please call `start()` first.',
-				].join(' '),
+				expectedError,
 			);
 		});
 	});
@@ -80,9 +83,12 @@ suite('LinesDecoder', () => {
 			);
 
 			// validate that calling `start()` after stream has ended throws
+			const expectedError = new Error('Cannot start stream that has already ended.');
+			expectedError.name = 'AssertionError';
+
 			assert.throws(
 				decoder.start.bind(decoder),
-				'Cannot start stream that has already ended.',
+				expectedError,
 			);
 		});
 	});

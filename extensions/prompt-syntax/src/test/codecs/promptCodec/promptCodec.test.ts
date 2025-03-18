@@ -10,6 +10,16 @@ import { newWriteableStream, Range, VSBuffer } from '../../../utils/vscode';
 import { PromptDecoder, TPromptToken } from '../../../codecs/promptCodec/promptDecoder';
 
 /**
+ * TODO: @legomushroom - list
+ *  - move in `prompt content providers`
+ *  - move in `prompt parsers`
+ *  - move in `prompt file reference`
+ *  - create extension API
+ *  - consume extension API
+ *  - remove the old code in core
+ */
+
+/**
  * A reusable test utility that asserts that a `PromptDecoder` instance
  * correctly decodes `inputData` into a stream of `TPromptToken` tokens.
  *
