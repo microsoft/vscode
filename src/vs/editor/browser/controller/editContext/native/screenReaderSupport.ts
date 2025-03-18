@@ -134,8 +134,8 @@ export class ScreenReaderSupport {
 		const offsetForStartPositionWithinEditor = this._context.viewLayout.getVerticalOffsetForLineNumber(this._screenReaderContentState.startPositionWithinEditor.lineNumber);
 		const offsetForPositionLineNumber = this._context.viewLayout.getVerticalOffsetForLineNumber(positionLineNumber);
 		const scrollTop = offsetForPositionLineNumber - offsetForStartPositionWithinEditor;
-		const height = this._context.viewLayout.getLineHeightForLineNumber(positionLineNumber);
-		this._doRender(scrollTop, top, this._contentLeft, this._divWidth, height);
+		const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(positionLineNumber);
+		this._doRender(scrollTop, top, this._contentLeft, this._divWidth, lineHeight);
 	}
 
 	private _renderAtTopLeft(): void {
@@ -145,11 +145,12 @@ export class ScreenReaderSupport {
 	private _doRender(scrollTop: number, top: number, left: number, width: number, height: number): void {
 		// For correct alignment of the screen reader content, we need to apply the correct font
 		applyFontInfo(this._domNode, this._fontInfo);
-		this._domNode.setLineHeight(height);
+
 		this._domNode.setTop(top);
 		this._domNode.setLeft(left);
 		this._domNode.setWidth(width);
 		this._domNode.setHeight(height);
+		this._domNode.setLineHeight(height);
 		this._domNode.domNode.scrollTop = scrollTop;
 	}
 

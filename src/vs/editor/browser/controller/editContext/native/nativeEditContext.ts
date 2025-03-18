@@ -485,8 +485,8 @@ export class NativeEditContext extends AbstractEditContext {
 					break;
 				}
 			}
-			const height = this._context.viewLayout.getLineHeightForLineNumber(lineNumber);
-			characterBounds.push(new DOMRect(parentBounds.left + contentLeft + left - this._scrollLeft, top, width, height));
+			const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(lineNumber);
+			characterBounds.push(new DOMRect(parentBounds.left + contentLeft + left - this._scrollLeft, top, width, lineHeight));
 		}
 		this._editContext.updateCharacterBounds(e.rangeStart, characterBounds);
 	}
