@@ -310,7 +310,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			if (lineText && line) {
 				// Check if the line wrapped without a new line (continuation) or if the first line was empty
 				// for fish, which doesn't use a continuation prompt.
-				if (line.isWrapped || (commandLine === '' && this._shellType === PosixShellType.Fish)) {
+				if (line.isWrapped || this._shellType === PosixShellType.Fish) {
 					value += lineText;
 					const relativeCursorIndex = this._getRelativeCursorIndex(0, buffer, line);
 					if (absoluteCursorY === y) {
