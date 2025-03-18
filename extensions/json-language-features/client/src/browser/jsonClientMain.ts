@@ -40,10 +40,13 @@ export async function activate(context: ExtensionContext) {
 		const logOutputChannel = window.createOutputChannel(languageServerDescription, { log: true });
 		context.subscriptions.push(logOutputChannel);
 
-		client = await startClient(context, newLanguageClient, { schemaRequests, timer, logOutputChannel });
+		const [_client, api] = await startClient(context, newLanguageClient, { schemaRequests, timer, logOutputChannel });
+		client = _client;
 
+		return api;
 	} catch (e) {
 		console.log(e);
+		return;
 	}
 }
 
