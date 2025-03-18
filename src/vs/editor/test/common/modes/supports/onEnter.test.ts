@@ -189,4 +189,28 @@ suite('OnEnter', () => {
 		testIndentAction('const r = /{[0-9]/;', '', IndentAction.None);
 		testIndentAction('const r = /[a-zA-Z]{/;', '', IndentAction.None);
 	});
+
+	test('issue #236138', () => {
+		const brackets: CharacterPair[] = [
+			['{', '}'],
+			['(', ')'],
+			['[', ']']
+		];
+		const support = new OnEnterSupport({
+			brackets: brackets
+		});
+		const testIndentAction = (beforeText: string, afterText: string, expected: IndentAction) => {
+			const actual = support.onEnter(EditorAutoIndentStrategy.Advanced, '', beforeText, afterText);
+			if (expected === IndentAction.None) {
+				assert.deepStrictEqual(actual, { indentAction: IndentAction.None });
+			} else {
+				assert.strictEqual(actual!.indentAction, expected);
+			}
+		};
+
+		testIndentAction('public test()', '{', IndentAction.None);
+		testIndentAction('if (condition)', '{', IndentAction.None);
+		testIndentAction('const v =', '(', IndentAction.None);
+		testIndentAction('rules:', '[', IndentAction.None);
+	});
 });
