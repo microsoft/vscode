@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { Queue } from '../../../../base/common/async.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
+import { Iterable } from '../../../../base/common/iterator.js';
 import { LRUCache } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IProcessEnvironment } from '../../../../base/common/platform.js';
@@ -22,9 +23,8 @@ import { IEditorService } from '../../editor/common/editorService.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { IPathService } from '../../path/common/pathService.js';
 import { ConfiguredInput, VariableError, VariableKind } from '../common/configurationResolver.js';
-import { AbstractVariableResolverService } from '../common/variableResolver.js';
 import { ConfigurationResolverExpression, IResolvedValue } from '../common/configurationResolverExpression.js';
-import { Iterable } from '../../../../base/common/iterator.js';
+import { AbstractVariableResolverService } from '../common/variableResolver.js';
 
 const LAST_INPUT_STORAGE_KEY = 'configResolveInputLru';
 const LAST_INPUT_CACHE_SIZE = 5;
@@ -201,14 +201,22 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		// Look at workspace configuration
 		let inputs: ConfiguredInput[] | undefined;
 		const overrides: IConfigurationOverrides = folder ? { resource: folder.uri } : {};
-		const result = this.configurationService.inspect(section, overrides);
+		const result = this.configurationService.inspect<{ inputs?: ConfiguredInput[] }>(section, overrides);
 
-		if (result && (result.userValue || result.workspaceValue || result.workspaceFolderValue || result.userRemoteValue)) {
+		if (result) {
 			switch (target) {
-				case ConfigurationTarget.USER: inputs = (<any>result.userValue)?.inputs; break;
-				case ConfigurationTarget.USER_REMOTE: inputs = (<any>result.userRemoteValue)?.inputs; break;
-				case ConfigurationTarget.WORKSPACE: inputs = (<any>result.workspaceValue)?.inputs; break;
-				default: inputs = (<any>result.workspaceFolderValue)?.inputs;
+				case ConfigurationTarget.MEMORY: inputs = result.memoryValue?.inputs; break;
+				case ConfigurationTarget.DEFAULT: inputs = result.defaultValue?.inputs; break;
+				case ConfigurationTarget.USER: inputs = result.userValue?.inputs; break;
+				case ConfigurationTarget.USER_LOCAL: inputs = result.userLocalValue?.inputs; break;
+				case ConfigurationTarget.USER_REMOTE: inputs = result.userRemoteValue?.inputs; break;
+				case ConfigurationTarget.APPLICATION: inputs = result.applicationValue?.inputs; break;
+				case ConfigurationTarget.WORKSPACE: inputs = result.workspaceValue?.inputs; break;
+
+				case ConfigurationTarget.WORKSPACE_FOLDER:
+				default:
+					inputs = result.workspaceFolderValue?.inputs;
+					break;
 			}
 		} else {
 			const valueResult = this.configurationService.getValue<any>(section, overrides);

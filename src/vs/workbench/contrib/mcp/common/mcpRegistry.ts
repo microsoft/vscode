@@ -12,11 +12,13 @@ import { basename } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { observableMemento } from '../../../../platform/observable/common/observableMemento.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
 import { ConfigurationResolverExpression, IResolvedValue } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { McpRegistryInputStorage } from './mcpRegistryInputStorage.js';
 import { IMcpHostDelegate, IMcpRegistry, IMcpResolveConnectionOptions } from './mcpRegistryTypes.js';
 import { McpServerConnection } from './mcpServerConnection.js';
@@ -96,6 +98,8 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IProductService private readonly _productService: IProductService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IEditorService private readonly _editorService: IEditorService,
 	) {
 		super();
 	}
@@ -287,7 +291,31 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 			}
 		}
 
-		const launch = await this._replaceVariablesInLaunch(definition, definition.launch);
+		let launch: McpServerLaunch | undefined;
+		try {
+			launch = await this._replaceVariablesInLaunch(definition, definition.launch);
+		} catch (e) {
+			this._notificationService.notify({
+				severity: Severity.Error,
+				message: localize('mcp.launchError', 'Error starting {0}: {1}', definition.label, String(e)),
+				actions: {
+					primary: collection.presentation?.origin && [
+						{
+							id: 'mcp.launchError.openConfig',
+							class: undefined,
+							enabled: true,
+							tooltip: '',
+							label: localize('mcp.launchError.openConfig', 'Open Configuration'),
+							run: () => this._editorService.openEditor({
+								resource: collection.presentation!.origin,
+								options: { selection: definition.presentation?.origin?.range }
+							}),
+						}
+					]
+				}
+			});
+			return;
+		}
 
 		return this._instantiationService.createInstance(
 			McpServerConnection,

@@ -142,9 +142,9 @@ export interface McpServerDefinitionVariableReplacement {
 
 export namespace McpServerDefinitionVariableReplacement {
 	export interface Serialized {
+		target: ConfigurationTarget;
 		section?: string;
 		folder?: { name: string; index: number; uri: UriComponents };
-		target?: ConfigurationTarget;
 	}
 
 	export function toSerialized(def: McpServerDefinitionVariableReplacement): McpServerDefinitionVariableReplacement.Serialized {
