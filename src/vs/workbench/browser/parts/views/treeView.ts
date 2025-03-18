@@ -1190,29 +1190,27 @@ class TreeDataSource implements IAsyncDataSource<ITreeItem, ITreeItem> {
 		return !!this.treeView.dataProvider && (element.collapsibleState !== TreeItemCollapsibleState.None);
 	}
 
-	private batch: ITreeItem[] | undefined;
-	private batchPromise: Promise<ITreeItem[][] | undefined> | undefined;
+	private batch: { elements: ITreeItem[], promise: Promise<ITreeItem[][] | undefined> | undefined } | undefined;
 	async getChildren(element: ITreeItem): Promise<ITreeItem[]> {
 		const dataProvider = this.treeView.dataProvider;
 		if (!dataProvider) {
 			return [];
 		}
 		if (this.batch === undefined) {
-			this.batch = [element];
-			this.batchPromise = undefined;
+			this.batch = { elements: [element], promise: undefined };
 		} else {
-			this.batch.push(element);
+			this.batch.elements.push(element);
 		}
-		const indexInBatch = this.batch.length - 1;
+		const indexInBatch = this.batch.elements.length - 1;
+		const batch = this.batch;
 		return new Promise<ITreeItem[]>((resolve, reject) => {
 			setTimeout(async () => {
-				const batch = this.batch;
 				this.batch = undefined;
-				if (!this.batchPromise) {
-					this.batchPromise = this.withProgress(doGetChildrenOrBatch(dataProvider, batch));
+				if (!batch.promise) {
+					batch.promise = this.withProgress(doGetChildrenOrBatch(dataProvider, batch.elements));
 				}
 				try {
-					const result = await this.batchPromise;
+					const result = await batch.promise;
 					resolve((result && (indexInBatch < result.length)) ? result[indexInBatch] : []);
 				} catch (e) {
 					if (!(<string>e.message).startsWith('Bad progress location:')) {
