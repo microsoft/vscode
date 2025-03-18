@@ -58,7 +58,7 @@ import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.
 import { IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService, IChatWelcomeMessageContent } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, ChatEntitlementService, IChatEntitlementService } from '../common/chatEntitlementService.js';
-import { IChatProgress, IChatProgressMessage, IChatService, IChatWarningMessage } from '../common/chatService.js';
+import { IChatProgress, IChatService } from '../common/chatService.js';
 import { CHAT_CATEGORY, CHAT_OPEN_ACTION_ID, CHAT_SETUP_ACTION_ID } from './actions/chatActions.js';
 import { ChatViewId, EditsViewId, ensureSideBarChatViewSize, IChatWidgetService, preferCopilotEditsView, showCopilotView } from './chat.js';
 import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
@@ -157,7 +157,7 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 				locations: [location],
 				metadata: {
 					welcomeMessageContent,
-					helpTextPrefix: SetupChatAgentImplementation.SETUP_WARNING
+					helpTextPrefix: SetupChatAgentImplementation.SETUP_NEEDED_MESSAGE
 				},
 				description,
 				extensionId: nullExtensionDescription.identifier,
@@ -171,7 +171,7 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 		});
 	}
 
-	private static readonly SETUP_WARNING = new MarkdownString(localize('settingUpCopilotWarning', "You need to [set up Copilot]({0} \"Set up Copilot\") to use Chat.", `command:${CHAT_SETUP_ACTION_ID}`), { isTrusted: true });
+	private static readonly SETUP_NEEDED_MESSAGE = new MarkdownString(localize('settingUpCopilotNeeded', "You need to [set up Copilot]({0} \"Set up Copilot\") to use Chat.", `command:${CHAT_SETUP_ACTION_ID}`), { isTrusted: true });
 
 	constructor(
 		private readonly context: ChatEntitlementContext,
@@ -207,13 +207,13 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 					progress({
 						kind: 'progressMessage',
 						content: new MarkdownString(localize('setupChatSignIn2', "Signing in to {0}.", ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.enterpriseProviderId ? defaultChat.enterpriseProviderName : defaultChat.providerName)),
-					} satisfies IChatProgressMessage);
+					});
 					break;
 				case ChatSetupStep.Installing:
 					progress({
 						kind: 'progressMessage',
 						content: new MarkdownString(localize('installingCopilot', "Getting Copilot ready.")),
-					} satisfies IChatProgressMessage);
+					});
 					break;
 			}
 		}));
@@ -248,16 +248,16 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 				progress({
 					kind: 'warning',
 					content: new MarkdownString(localize('copilotSetupError', "Copilot setup failed. [Try again]({0} \"Retry\").", `command:${CHAT_SETUP_ACTION_ID}`), { isTrusted: true }),
-				} satisfies IChatWarningMessage);
+				});
 			}
 		}
 
 		// User has cancelled the setup
 		else {
 			progress({
-				kind: 'warning',
-				content: SetupChatAgentImplementation.SETUP_WARNING,
-			} satisfies IChatWarningMessage);
+				kind: 'markdownContent',
+				content: SetupChatAgentImplementation.SETUP_NEEDED_MESSAGE,
+			});
 		}
 
 		return {};
@@ -1032,7 +1032,7 @@ class ChatSetupController extends Disposable {
 					};
 				} if (!fullUriRegEx.test(value)) {
 					return {
-						content: localize('invalidEnterpriseInstance', 'Please enter a valid {0} instance (i.e. "octocat" or "https://octocat.ghe.com")', defaultChat.enterpriseProviderName),
+						content: localize('invalidEnterpriseInstance', 'You must enter a valid {0} instance (i.e. "octocat" or "https://octocat.ghe.com")', defaultChat.enterpriseProviderName),
 						severity: Severity.Error
 					};
 				}
