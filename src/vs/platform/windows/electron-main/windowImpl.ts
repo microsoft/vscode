@@ -540,9 +540,9 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	private pendingLoadConfig: INativeWindowConfiguration | undefined;
 	private wasLoaded = false;
 
-	private jsCallStackCollector: Delayer<void>;
-	private jsCallStackMap: Map<string, number>;
-	private jsCallStackCollectorStopScheduler: RunOnceScheduler;
+	private readonly jsCallStackMap: Map<string, number>;
+	private readonly jsCallStackCollector: Delayer<void>;
+	private readonly jsCallStackCollectorStopScheduler: RunOnceScheduler;
 
 	constructor(
 		config: IWindowCreationOptions,
@@ -599,6 +599,8 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		}
 		//#endregion
 
+		//#region JS Callstack Collector
+
 		let sampleInterval = parseInt(this.environmentMainService.args['unresponsive-sample-interval'] || '1000');
 		let samplePeriod = parseInt(this.environmentMainService.args['unresponsive-sample-period'] || '15000');
 		if (sampleInterval <= 0 || samplePeriod <= 0 || sampleInterval > samplePeriod) {
@@ -606,13 +608,14 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			sampleInterval = 1000;
 			samplePeriod = 15000;
 		}
-		this.jsCallStackCollector = this._register(
-			new Delayer<void>(sampleInterval));
+
 		this.jsCallStackMap = new Map<string, number>();
-		// Stop collecting after 15s max
+		this.jsCallStackCollector = this._register(new Delayer<void>(sampleInterval));
 		this.jsCallStackCollectorStopScheduler = this._register(new RunOnceScheduler(() => {
-			this.stopCollectingJScallStacks();
+			this.stopCollectingJScallStacks(); // Stop collecting after 15s max
 		}, samplePeriod));
+
+		//#endregion
 
 		// respect configured menu bar visibility
 		this.onConfigurationUpdated();
@@ -994,37 +997,6 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				electron.app.setProxy({ proxyRules, proxyBypassRules, pacScript: '' });
 			}
 		}
-	}
-
-	private async startCollectingJScallStacks(): Promise<void> {
-		if (!this.jsCallStackCollector.isTriggered()) {
-			const stack = await this._win.webContents.mainFrame.collectJavaScriptCallStack();
-			// Increment the count for this stack trace
-			if (stack) {
-				const count = this.jsCallStackMap.get(stack) || 0;
-				this.jsCallStackMap.set(stack, count + 1);
-			}
-			this.jsCallStackCollector.trigger(() => this.startCollectingJScallStacks());
-		}
-	}
-
-	private stopCollectingJScallStacks(): void {
-		this.jsCallStackCollectorStopScheduler.cancel();
-		this.jsCallStackCollector.cancel();
-		if (this.jsCallStackMap.size) {
-			let logMessage = `CodeWindow unresponsive samples:\n`;
-			let samples = 0;
-			const sortedEntries = Array.from(this.jsCallStackMap.entries())
-				.sort((a, b) => b[1] - a[1]);
-			for (const [stack, count] of sortedEntries) {
-				samples += count;
-				logMessage += `<${count}> ${stack}\n`;
-			}
-			logMessage += `Total Samples: ${samples}\n`;
-			logMessage += 'For full overview of the unresponsive period, capture cpu profile via https://aka.ms/vscode-tracing-cpu-profile';
-			this.logService.error(logMessage);
-		}
-		this.jsCallStackMap.clear();
 	}
 
 	addTabbedWindow(window: ICodeWindow): void {
@@ -1514,6 +1486,44 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		});
 
 		return segments;
+	}
+
+	private async startCollectingJScallStacks(): Promise<void> {
+		if (!this.jsCallStackCollector.isTriggered()) {
+			const stack = await this._win.webContents.mainFrame.collectJavaScriptCallStack();
+
+			// Increment the count for this stack trace
+			if (stack) {
+				const count = this.jsCallStackMap.get(stack) || 0;
+				this.jsCallStackMap.set(stack, count + 1);
+			}
+
+			this.jsCallStackCollector.trigger(() => this.startCollectingJScallStacks());
+		}
+	}
+
+	private stopCollectingJScallStacks(): void {
+		this.jsCallStackCollectorStopScheduler.cancel();
+		this.jsCallStackCollector.cancel();
+
+		if (this.jsCallStackMap.size) {
+			let logMessage = `CodeWindow unresponsive samples:\n`;
+			let samples = 0;
+
+			const sortedEntries = Array.from(this.jsCallStackMap.entries())
+				.sort((a, b) => b[1] - a[1]);
+
+			for (const [stack, count] of sortedEntries) {
+				samples += count;
+				logMessage += `<${count}> ${stack}\n`;
+			}
+
+			logMessage += `Total Samples: ${samples}\n`;
+			logMessage += 'For full overview of the unresponsive period, capture cpu profile via https://aka.ms/vscode-tracing-cpu-profile';
+			this.logService.error(logMessage);
+		}
+
+		this.jsCallStackMap.clear();
 	}
 
 	matches(webContents: electron.WebContents): boolean {

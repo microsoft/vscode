@@ -121,7 +121,6 @@ export interface NativeParsedArgs {
 	'profile-temp'?: boolean;
 	'disable-chromium-sandbox'?: boolean;
 	sandbox?: boolean;
-
 	'enable-coi'?: boolean;
 	'unresponsive-sample-interval'?: string;
 	'unresponsive-sample-period'?: string;
