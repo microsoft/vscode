@@ -9,14 +9,14 @@ import { workspace, Uri } from 'vscode';
 import { wait } from '../../../utils/wait';
 import { assertDefined } from '../../../utils/asserts';
 import { Line } from '../../../codecs/linesCodec/tokens';
-import { VSCodeFileSystem } from '../../../utils/vscodeFilesystem';
+import { FileSystemService } from '../../../services/vscodeFilesystem';
 import { VSBuffer, type ReadableStream } from '../../../utils/vscode';
 import { LinesDecoder } from '../../../codecs/linesCodec/linesDecoder';
 import { FileContentsProvider } from '../../../parsers/contentProviders/fileContentsProvider';
 
 suite('FileContentsProvider', function () {
 	test('provides contents of a file', async () => {
-		const filesystem = new VSCodeFileSystem();
+		const filesystem = new FileSystemService();
 
 		const { workspaceFolders } = workspace;
 		assertDefined(

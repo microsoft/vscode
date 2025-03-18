@@ -11,8 +11,8 @@ import { CancellationError, FileType } from 'vscode';
 
 import { IContentsProvider } from './types';
 import { ContentsProviderBase } from './contentsProviderBase';
-import { FileChangeEvent, IFileSystem } from '../../utils/types';
 import { assertDefined, assertNever } from '../../utils/asserts';
+import { IFileSystemService, FileChangeEvent } from '../../services/types';
 import { FolderReference, NotPromptFile, OpenFailed, ResolveError } from '../errors';
 import { newWriteableStream, type ReadableStream, VSBuffer } from '../../utils/vscode';
 
@@ -22,7 +22,7 @@ import { newWriteableStream, type ReadableStream, VSBuffer } from '../../utils/v
 export class FileContentsProvider extends ContentsProviderBase<FileChangeEvent> implements IContentsProvider {
 	constructor(
 		public readonly uri: URI,
-		private readonly filesystem: IFileSystem,
+		private readonly filesystem: IFileSystemService,
 	) {
 		super();
 

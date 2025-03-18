@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vscode-uri';
-import { FileChangeEvent, IFileSystem } from './types';
 import { FileStat, Disposable, workspace } from 'vscode';
+
+import { ObservableDisposable } from '../utils/vscode';
+import { IFileSystemService, FileChangeEvent } from './types';
 
 /**
  * TODO: @legomushroom
  */
-export class VSCodeFileSystem implements IFileSystem {
+export class FileSystemService extends ObservableDisposable implements IFileSystemService {
 	public async stat(uri: URI): Promise<FileStat> {
 		return workspace.fs.stat(uri);
 	}

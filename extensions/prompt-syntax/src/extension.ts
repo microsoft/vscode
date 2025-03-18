@@ -5,6 +5,8 @@
 
 import * as vscode from 'vscode';
 
+import { services } from './services';
+
 /**
  * TODO: @legomushroom - list
  *  - move in `prompt parsers`
@@ -16,4 +18,6 @@ import * as vscode from 'vscode';
  *  - test in-browser
  */
 
-export function activate(_context: vscode.ExtensionContext): any { }
+export function activate(context: vscode.ExtensionContext): any {
+	services.initialize(context);
+}
