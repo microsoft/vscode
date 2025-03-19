@@ -1617,7 +1617,7 @@ export class Repository implements Disposable {
 		}
 	}
 
-	async getRefs(query: RefQuery = {}, cancellationToken?: CancellationToken): Promise<Ref[]> {
+	async getRefs(query: RefQuery = {}, cancellationToken?: CancellationToken): Promise<(Ref | Branch)[]> {
 		const config = workspace.getConfiguration('git');
 		let defaultSort = config.get<'alphabetically' | 'committerdate'>('branchSortOrder');
 		if (defaultSort !== 'alphabetically' && defaultSort !== 'committerdate') {
