@@ -26,14 +26,15 @@ import { computeCompletionRanges } from '../../../../chat/browser/contrib/chatIn
 import { IChatAgentService } from '../../../../chat/common/chatAgents.js';
 import { ChatAgentLocation } from '../../../../chat/common/constants.js';
 import { ChatContextKeys } from '../../../../chat/common/chatContextKeys.js';
-import { IChatRequestPasteVariableEntry } from '../../../../chat/common/chatModel.js';
+import { IChatRequestPasteVariableEntry, IBaseChatRequestVariableEntry } from '../../../../chat/common/chatModel.js';
 import { chatVariableLeader } from '../../../../chat/common/chatParserTypes.js';
 import { NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT, NOTEBOOK_CELL_OUTPUT_MIMETYPE } from '../../../common/notebookContextKeys.js';
 import { INotebookKernelService } from '../../../common/notebookKernelService.js';
-import { getNotebookEditorFromEditorPane, ICellOutputViewModel, INotebookEditor } from '../../notebookBrowser.js';
+import { getNotebookEditorFromEditorPane, ICellOutputViewModel, INotebookEditor, ICellViewModel } from '../../notebookBrowser.js';
 import * as icons from '../../notebookIcons.js';
 import { getOutputViewModelFromId } from '../cellOutputActions.js';
 import { INotebookOutputActionContext, NOTEBOOK_ACTIONS_CATEGORY } from '../coreActions.js';
+import { CellUri } from '../../../common/notebookCommon.js';
 import './cellChatActions.js';
 import { CTX_NOTEBOOK_CHAT_HAS_AGENT } from './notebookChatContext.js';
 
@@ -103,7 +104,8 @@ class NotebookChatContribution extends Disposable implements IWorkbenchContribut
 		}));
 
 		// output context
-		NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT.bindTo(contextKeyService).set(['image/png']);
+		NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT.bindTo(contextKeyService).set(['image/png', 'text/plain',
+			'application/vnd.code.notebook.stdout', 'application/vnd.code.notebook.stderr', 'application/vnd.code.notebook.error']);
 	}
 
 	private async addKernelVariableCompletion(widget: IChatWidget, result: CompletionList, info: { insert: Range; replace: Range; varWord: IWordAtPosition | null }, token: CancellationToken) {
@@ -334,6 +336,60 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 			};
 
 			widget.attachmentModel.addContext(variableEntry);
+		} else {
+			// TODO: do I need to consider; // not able to find the output from the provided context, use the active cell
+			const chatWidgetService = accessor.get(IChatWidgetService);
+			let widget = chatWidgetService.lastFocusedWidget;
+			if (!widget) {
+				const widgets = chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel);
+				if (widgets.length === 0) {
+					//console.log("no widget");
+					return;
+				}
+				widget = widgets[0];
+			}
+
+			//output context item should have the cell already
+			//outputContext
+
+			// get the cell index
+			const cellFromViewModelHandle = outputViewModel.cellViewModel.handle;
+			const cell: ICellViewModel | undefined = notebookEditor.getCellByHandle(cellFromViewModelHandle);
+			if (!cell) {
+				return;
+			}
+			// uri of the cell
+			const cellUri = cell.uri;
+
+			// get the output index
+			const outputId = outputViewModel?.model.outputId;
+			let outputIndex: number = 0;
+			if (outputId !== undefined) {
+				// find the output index
+
+				outputIndex = cell.outputsViewModels.findIndex(output => {
+					return output.model.outputId === outputId;
+				});
+
+
+			}
+			// get URI of notebook
+			const notebookUri = notebookEditor.textModel?.uri;
+			if (!notebookUri) {
+				return;
+			}
+			// construct the URI using the cell uri and output index
+			const outputCellUri = CellUri.generateCellOutputUriWithIndex(notebookUri, cellUri, outputIndex);
+
+
+
+			const l: IBaseChatRequestVariableEntry = {
+				value: outputCellUri,
+				id: outputCellUri.toString(),
+				name: outputCellUri.toString(),
+				isFile: true,
+			};
+			widget.attachmentModel.addContext(l);
 		}
 	}
 

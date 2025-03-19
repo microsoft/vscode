@@ -489,6 +489,30 @@ class ResourceLabelWidget extends IconLabel {
 			}
 		}
 
+		// if (!options.forceLabel && !isSideBySideEditor && resource?.scheme === Schemas.vscodeNotebookCellOutput) {
+		// 	const outputUriData = CellUri.parseCellOutputUri(resource);
+		// 	if (!outputUriData?.notebook || !outputUriData.cellFragment) {
+		// 		return;
+		// 	}
+		// 	const notebookDocument = this.notebookDocumentService.getNotebook(outputUriData.notebook);
+		// 	const cellUri = outputUriData.notebook.with({
+		// 		scheme: Schemas.vscodeNotebookCell,
+		// 		fragment: outputUriData.cellFragment
+		// 	});
+		// 	const cellIndex = notebookDocument?.getCellIndex(cellUri);
+		// 	const outputIndex = outputUriData.outputIndex;
+
+		// 	if (cellIndex !== undefined && outputIndex !== undefined && typeof label.name === 'string') {
+		// 		label.name = localize(
+		// 			'notebookCellOutputLabel',
+		// 			"{0} • Cell {1} • Output {2}",
+		// 			label.name,
+		// 			`${cellIndex + 1}`,
+		// 			`${outputIndex + 1}`
+		// 		);
+		// 	}
+		// }
+
 		const hasResourceChanged = this.hasResourceChanged(label);
 		const hasPathLabelChanged = hasResourceChanged || this.hasPathLabelChanged(label);
 		const hasFileKindChanged = this.hasFileKindChanged(options);

@@ -180,10 +180,32 @@ export class NotebookProviderInfoStore extends Disposable {
 			};
 			const notebookEditorOptions = {
 				canHandleDiff: () => !!this._configurationService.getValue(NotebookSetting.textDiffEditorPreview) && !this._accessibilityService.isScreenReaderOptimized(),
-				canSupportResource: (resource: URI) => resource.scheme === Schemas.untitled || resource.scheme === Schemas.vscodeNotebookCell || this._fileService.hasProvider(resource)
+				canSupportResource: (resource: URI) => {
+					if (resource.scheme === Schemas.vscodeNotebookCellOutput) {
+						const params = new URLSearchParams(resource.query);
+						return params.get('openIn') === 'notebook';
+					}
+					return resource.scheme === Schemas.untitled || resource.scheme === Schemas.vscodeNotebookCell || this._fileService.hasProvider(resource);
+				}
 			};
 			const notebookEditorInputFactory: EditorInputFactoryFunction = ({ resource, options }) => {
-				const data = CellUri.parse(resource);
+				let data;
+				let highlightOptions: number | undefined;
+				if (resource.scheme === Schemas.vscodeNotebookCellOutput) {
+					const outputUriData = CellUri.parseCellOutputUri(resource);
+					if (!outputUriData || !outputUriData.notebook || !outputUriData.cellFragment) {
+						throw new Error('Invalid cell output uri');
+					}
+					data = {
+						notebook: outputUriData.notebook,
+						handle: outputUriData.cellFragment
+					};
+					highlightOptions = outputUriData.outputIndex;
+
+				} else {
+					data = CellUri.parse(resource);
+				}
+
 				let notebookUri: URI;
 
 				let cellOptions: IResourceEditorInput | undefined;
@@ -202,7 +224,12 @@ export class NotebookProviderInfoStore extends Disposable {
 					cellOptions = (options as INotebookEditorOptions | undefined)?.cellOptions;
 				}
 
-				const notebookOptions: INotebookEditorOptions = { ...options, cellOptions, viewState: undefined };
+				const notebookOptions: INotebookEditorOptions = {
+					...options,
+					cellOptions,
+					viewState: undefined,
+				};
+				// TODO: unsure how to focus on an output cell- I can do a regular cell but the output one doesn't seem like there is a specific answer?
 				const editor = NotebookEditorInput.getOrCreate(this._instantiationService, notebookUri, preferredResource, notebookProviderInfo.id);
 				return { editor, options: notebookOptions };
 			};
