@@ -41,9 +41,9 @@ export function restoreSnapshot(notebook: NotebookTextModel, snapshot: string): 
 		notebook.restoreSnapshot(data, transientOptions);
 		const edits: ICellEditOperation[] = [];
 		data.cells.forEach((cell, index) => {
-			const cellId = cell.internalMetadata?.cellId;
-			if (cellId) {
-				edits.push({ editType: CellEditType.PartialInternalMetadata, index, internalMetadata: { cellId } });
+			const internalId = cell.internalMetadata?.internalId;
+			if (internalId) {
+				edits.push({ editType: CellEditType.PartialInternalMetadata, index, internalMetadata: { internalId } });
 			}
 		});
 		notebook.applyEdits(edits, true, undefined, () => undefined, undefined, false);
