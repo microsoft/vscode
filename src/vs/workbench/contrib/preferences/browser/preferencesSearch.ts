@@ -117,22 +117,15 @@ export class LocalSearchProvider implements ISearchProvider {
 		};
 
 		const filterMatches = preferencesModel.filterSettings(this._filter, this.getGroupFilter(this._filter), settingMatcher);
-		const exactMatch = filterMatches.find(m => m.matchType === SettingMatchType.ExactMatch);
-		if (exactMatch) {
-			return Promise.resolve({
-				filterMatches: [exactMatch],
-				exactMatch: true
-			});
-		}
 
 		// Check the top key match type.
 		const topKeyMatchType = Math.max(...filterMatches.map(m => (m.matchType & SettingKeyMatchTypes)));
 		// Always allow description matches as part of https://github.com/microsoft/vscode/issues/239936.
 		const alwaysAllowedMatchTypes = SettingMatchType.DescriptionOrValueMatch | SettingMatchType.LanguageTagSettingMatch;
-		const filteredMatches = filterMatches.filter(m => (m.matchType & topKeyMatchType) || (m.matchType & alwaysAllowedMatchTypes));
+		const filteredMatches = filterMatches.filter(m => (m.matchType & topKeyMatchType) || (m.matchType & alwaysAllowedMatchTypes) || m.matchType === SettingMatchType.ExactMatch);
 		return Promise.resolve({
 			filterMatches: filteredMatches,
-			exactMatch: false
+			exactMatch: filteredMatches.some(m => m.matchType === SettingMatchType.ExactMatch)
 		});
 	}
 
