@@ -38,10 +38,6 @@ export class MarkdownString implements IMarkdownString {
 	public uris?: { [href: string]: UriComponents } | undefined;
 
 	public static lift(dto: IMarkdownString): MarkdownString {
-		if (dto instanceof MarkdownString) {
-			return dto;
-		}
-
 		const markdownString = new MarkdownString(dto.value, dto);
 		markdownString.uris = dto.uris;
 		markdownString.baseUri = dto.baseUri ? URI.revive(dto.baseUri) : undefined;
