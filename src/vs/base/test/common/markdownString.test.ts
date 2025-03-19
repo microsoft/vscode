@@ -87,6 +87,13 @@ suite('MarkdownString', () => {
 		assert.deepStrictEqual(mds.uris, dto.uris);
 	});
 
+	test('lift returns new instance', () => {
+		const instance = new MarkdownString('hello');
+		const mds2 = MarkdownString.lift(instance).appendText('world');
+		assert.strictEqual(mds2.value, 'helloworld');
+		assert.strictEqual(instance.value, 'hello');
+	});
+
 	suite('appendCodeBlock', () => {
 		function assertCodeBlock(lang: string, code: string, result: string) {
 			const mds = new MarkdownString();
@@ -182,20 +189,6 @@ suite('MarkdownString', () => {
 				assert.strictEqual(mds.value, '\\$(zap) $(not a theme icon) $(add)');
 			});
 
-		});
-
-		test('lift', () => {
-			const dto = { value: 'test', isTrusted: true, supportThemeIcons: true, supportHtml: true };
-			const mds = MarkdownString.lift(dto);
-			assert.strictEqual(mds.value, dto.value);
-			assert.strictEqual(mds.isTrusted, dto.isTrusted);
-			assert.strictEqual(mds.supportThemeIcons, dto.supportThemeIcons);
-			assert.strictEqual(mds.supportHtml, dto.supportHtml);
-
-			const instance = new MarkdownString('hello');
-			const mds2 = MarkdownString.lift(instance).appendText('world');
-			assert.strictEqual(mds2.value, 'helloworld');
-			assert.strictEqual(instance.value, 'hello');
 		});
 	});
 });
