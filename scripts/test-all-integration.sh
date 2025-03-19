@@ -4,11 +4,19 @@ set -eo pipefail
 # Create a temp file to store exit codes
 tmpfile=$(mktemp)
 
+# Determine default DISPLAY based on platform
+if [[ "$(uname)" == "Darwin" ]]; then
+	DEFAULT_DISPLAY=":0"
+else
+	DEFAULT_DISPLAY=":10"
+fi
+
 # Function to run command and store its exit code
 run_with_prefix() {
 	local prefix=$1
 	shift
-	("$@" 2>&1 | sed "s/^/[$prefix] /") || echo $? > "$tmpfile"
+	# Export DISPLAY for the background process
+	DISPLAY=${DISPLAY:-"$DEFAULT_DISPLAY"} ("$@" 2>&1 | sed "s/^/[$prefix] /") || echo $? > "$tmpfile"
 }
 
 # Run all in parallel
