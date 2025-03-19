@@ -483,8 +483,8 @@ export abstract class AbstractScrollableElement extends Widget {
 				if (this.inertialSpeed.X === 0 && this.inertialSpeed.Y === 0) {
 					startPeriodic = true;
 				}
-				this.inertialSpeed.Y = deltaY < 0 ? -1 : 1 * deltaY ** 1.05;
-				this.inertialSpeed.X = deltaX < 0 ? -1 : 1 * deltaX ** 1.05;
+				this.inertialSpeed.Y = (deltaY < 0 ? -1 : 1) * (Math.abs(deltaY) ** 1.02);
+				this.inertialSpeed.X = (deltaX < 0 ? -1 : 1) * (Math.abs(deltaX) ** 1.02);
 				if (startPeriodic) {
 					this._periodicSync();
 				}
