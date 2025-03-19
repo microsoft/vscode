@@ -120,6 +120,15 @@ export class InlineCompletionsModel extends Disposable {
 				this._jumpedToId.set(undefined, undefined);
 			}
 		}));
+
+		const inlineEditSemanticId = this.inlineEditState.map(s => s?.inlineCompletion.semanticId);
+
+		this._register(autorun(reader => {
+			const id = inlineEditSemanticId.read(reader);
+			if (id) {
+				this._editor.pushUndoStop();
+			}
+		}));
 	}
 
 	public debugGetSelectedSuggestItem(): IObservable<SuggestItemInfo | undefined> {
@@ -196,6 +205,7 @@ export class InlineCompletionsModel extends Disposable {
 			return true;
 		},
 	}, (reader, changeSummary) => {
+		this._source.clearOperationOnTextModelChange.read(reader); // Make sure the clear operation runs before the fetch operation
 		this._noDelaySignal.read(reader);
 		this.dontRefetchSignal.read(reader);
 		this._onlyRequestInlineEditsSignal.read(reader);

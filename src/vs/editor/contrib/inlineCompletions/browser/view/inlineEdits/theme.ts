@@ -4,35 +4,38 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Color } from '../../../../../../base/common/color.js';
+import { BugIndicatingError } from '../../../../../../base/common/errors.js';
 import { IObservable } from '../../../../../../base/common/observable.js';
+import { observableFromEventOpts } from '../../../../../../base/common/observableInternal/utils.js';
 import { localize } from '../../../../../../nls.js';
-import { diffRemoved, diffInsertedLine, diffInserted, editorHoverBorder, editorHoverStatusBarBackground, buttonBackground, buttonForeground, buttonSecondaryBackground, buttonSecondaryForeground } from '../../../../../../platform/theme/common/colorRegistry.js';
-import { registerColor, transparent, asCssVariable, lighten, darken } from '../../../../../../platform/theme/common/colorUtils.js';
+import { diffRemoved, diffInsertedLine, diffInserted, buttonBackground, buttonForeground, buttonSecondaryBackground, buttonSecondaryForeground, editorBackground } from '../../../../../../platform/theme/common/colorRegistry.js';
+import { registerColor, transparent, darken, ColorIdentifier } from '../../../../../../platform/theme/common/colorUtils.js';
+import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { InlineEditTabAction } from './inlineEditsViewInterface.js';
 
 export const originalBackgroundColor = registerColor(
 	'inlineEdit.originalBackground',
-	Color.transparent,
+	transparent(diffRemoved, 0.2),
 	localize('inlineEdit.originalBackground', 'Background color for the original text in inline edits.'),
 	true
 );
 export const modifiedBackgroundColor = registerColor(
 	'inlineEdit.modifiedBackground',
-	Color.transparent,
+	transparent(diffInserted, 0.3),
 	localize('inlineEdit.modifiedBackground', 'Background color for the modified text in inline edits.'),
 	true
 );
 
 export const originalChangedLineBackgroundColor = registerColor(
 	'inlineEdit.originalChangedLineBackground',
-	Color.transparent,
+	transparent(diffRemoved, 0.8),
 	localize('inlineEdit.originalChangedLineBackground', 'Background color for the changed lines in the original text of inline edits.'),
 	true
 );
 
 export const originalChangedTextOverlayColor = registerColor(
 	'inlineEdit.originalChangedTextBackground',
-	diffRemoved,
+	transparent(diffRemoved, 0.8),
 	localize('inlineEdit.originalChangedTextBackground', 'Overlay color for the changed text in the original text of inline edits.'),
 	true
 );
@@ -40,8 +43,8 @@ export const originalChangedTextOverlayColor = registerColor(
 export const modifiedChangedLineBackgroundColor = registerColor(
 	'inlineEdit.modifiedChangedLineBackground',
 	{
-		light: transparent(diffInsertedLine, 0.5),
-		dark: transparent(diffInsertedLine, 0.5),
+		light: transparent(diffInsertedLine, 0.7),
+		dark: transparent(diffInsertedLine, 0.7),
 		hcDark: diffInsertedLine,
 		hcLight: diffInsertedLine
 	},
@@ -51,20 +54,9 @@ export const modifiedChangedLineBackgroundColor = registerColor(
 
 export const modifiedChangedTextOverlayColor = registerColor(
 	'inlineEdit.modifiedChangedTextBackground',
-	diffInserted,
+	transparent(diffInserted, 0.7),
 	localize('inlineEdit.modifiedChangedTextBackground', 'Overlay color for the changed text in the modified text of inline edits.'),
 	true
-);
-
-export const replacementViewBackground = registerColor(
-	'inlineEdit.wordReplacementView.background',
-	{
-		light: transparent(editorHoverStatusBarBackground, 0.1),
-		dark: transparent(editorHoverStatusBarBackground, 0.1),
-		hcLight: transparent(editorHoverStatusBarBackground, 0.1),
-		hcDark: transparent(editorHoverStatusBarBackground, 0.1),
-	},
-	localize('inlineEdit.wordReplacementView.background', 'Background color for the inline edit word replacement view.')
 );
 
 // ------- GUTTER INDICATOR -------
@@ -118,10 +110,10 @@ export const inlineEditIndicatorBackground = registerColor(
 const originalBorder = registerColor(
 	'inlineEdit.originalBorder',
 	{
-		light: editorHoverBorder,
-		dark: editorHoverBorder,
-		hcDark: editorHoverBorder,
-		hcLight: editorHoverBorder
+		light: diffRemoved,
+		dark: diffRemoved,
+		hcDark: diffRemoved,
+		hcLight: diffRemoved
 	},
 	localize('inlineEdit.originalBorder', 'Border color for the original text in inline edits.')
 );
@@ -129,40 +121,70 @@ const originalBorder = registerColor(
 const modifiedBorder = registerColor(
 	'inlineEdit.modifiedBorder',
 	{
-		light: editorHoverBorder,
-		dark: editorHoverBorder,
-		hcDark: editorHoverBorder,
-		hcLight: editorHoverBorder
+		light: darken(diffInserted, 0.6),
+		dark: diffInserted,
+		hcDark: diffInserted,
+		hcLight: diffInserted
 	},
 	localize('inlineEdit.modifiedBorder', 'Border color for the modified text in inline edits.')
 );
 
 const tabWillAcceptModifiedBorder = registerColor(
-	'inlineEdit.tabWillAcceptBorder',
+	'inlineEdit.tabWillAcceptModifiedBorder',
 	{
-		light: darken(modifiedBorder, 0.25),
-		dark: lighten(modifiedBorder, 0.25),
-		hcDark: lighten(modifiedBorder, 0.5),
-		hcLight: darken(modifiedBorder, 0.5)
+		light: darken(modifiedBorder, 0),
+		dark: darken(modifiedBorder, 0),
+		hcDark: darken(modifiedBorder, 0),
+		hcLight: darken(modifiedBorder, 0)
 	},
-	localize('inlineEdit.tabWillAcceptBorder', 'Border color for the inline edits widget when tab will accept it.')
+	localize('inlineEdit.tabWillAcceptModifiedBorder', 'Modified border color for the inline edits widget when tab will accept it.')
 );
 
 const tabWillAcceptOriginalBorder = registerColor(
-	'inlineEdit.tabWillAcceptBorder',
+	'inlineEdit.tabWillAcceptOriginalBorder',
 	{
-		light: darken(originalBorder, 0.25),
-		dark: lighten(originalBorder, 0.25),
-		hcDark: lighten(originalBorder, 0.5),
-		hcLight: darken(originalBorder, 0.5)
+		light: darken(originalBorder, 0),
+		dark: darken(originalBorder, 0),
+		hcDark: darken(originalBorder, 0),
+		hcLight: darken(originalBorder, 0)
 	},
-	localize('inlineEdit.tabWillAcceptOriginalBorder', 'Border color for the inline edits widget over the original text when tab will accept it.')
+	localize('inlineEdit.tabWillAcceptOriginalBorder', 'Original border color for the inline edits widget over the original text when tab will accept it.')
 );
 
 export function getModifiedBorderColor(tabAction: IObservable<InlineEditTabAction>): IObservable<string> {
-	return tabAction.map(a => asCssVariable(a === InlineEditTabAction.Accept ? tabWillAcceptModifiedBorder : modifiedBorder));
+	return tabAction.map(a => a === InlineEditTabAction.Accept ? tabWillAcceptModifiedBorder : modifiedBorder);
 }
 
 export function getOriginalBorderColor(tabAction: IObservable<InlineEditTabAction>): IObservable<string> {
-	return tabAction.map(a => asCssVariable(a === InlineEditTabAction.Accept ? tabWillAcceptOriginalBorder : originalBorder));
+	return tabAction.map(a => a === InlineEditTabAction.Accept ? tabWillAcceptOriginalBorder : originalBorder);
+}
+
+export function getEditorBlendedColor(colorIdentifier: ColorIdentifier | IObservable<ColorIdentifier>, themeService: IThemeService): IObservable<Color> {
+	let color: IObservable<Color>;
+	if (typeof colorIdentifier === 'string') {
+		color = observeColor(colorIdentifier, themeService);
+	} else {
+		color = colorIdentifier.map((identifier, reader) => observeColor(identifier, themeService).read(reader));
+	}
+
+	const backgroundColor = observeColor(editorBackground, themeService);
+
+	return color.map((c, reader) => c.makeOpaque(backgroundColor.read(reader)));
+}
+
+export function observeColor(colorIdentifier: ColorIdentifier, themeService: IThemeService): IObservable<Color> {
+	return observableFromEventOpts(
+		{
+			owner: { observeColor: colorIdentifier },
+			equalsFn: (a: Color, b: Color) => a.equals(b),
+		},
+		themeService.onDidColorThemeChange,
+		() => {
+			const color = themeService.getColorTheme().getColor(colorIdentifier);
+			if (!color) {
+				throw new BugIndicatingError(`Missing color: ${colorIdentifier}`);
+			}
+			return color;
+		}
+	);
 }

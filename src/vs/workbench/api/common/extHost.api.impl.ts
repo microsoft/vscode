@@ -416,6 +416,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					throw err;
 				}
 			},
+			isTrustedExternalUris(uris: URI[]): boolean[] {
+				checkProposedApiEnabled(extension, 'envExtractUri');
+				return extHostUrls.isTrustedExternalUris(uris);
+			},
+			extractExternalUris(uris: URI[]): Promise<string[]> {
+				checkProposedApiEnabled(extension, 'envExtractUri');
+				return extHostUrls.extractExternalUris(uris);
+			},
 			get remoteName() {
 				return getRemoteName(initData.remote.authority);
 			},
@@ -1804,11 +1812,13 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatReferenceBinaryData: extHostTypes.ChatReferenceBinaryData,
 			LanguageModelChatMessageRole: extHostTypes.LanguageModelChatMessageRole,
 			LanguageModelChatMessage: extHostTypes.LanguageModelChatMessage,
+			LanguageModelChatMessage2: extHostTypes.LanguageModelChatMessage2,
 			LanguageModelToolResultPart: extHostTypes.LanguageModelToolResultPart,
 			LanguageModelTextPart: extHostTypes.LanguageModelTextPart,
 			LanguageModelToolCallPart: extHostTypes.LanguageModelToolCallPart,
 			LanguageModelError: extHostTypes.LanguageModelError,
 			LanguageModelToolResult: extHostTypes.LanguageModelToolResult,
+			LanguageModelDataPart: extHostTypes.LanguageModelDataPart,
 			ExtendedLanguageModelToolResult: extHostTypes.ExtendedLanguageModelToolResult,
 			PreparedTerminalToolInvocation: extHostTypes.PreparedTerminalToolInvocation,
 			LanguageModelChatToolMode: extHostTypes.LanguageModelChatToolMode,

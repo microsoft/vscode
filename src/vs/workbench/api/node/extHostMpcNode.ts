@@ -96,9 +96,15 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 
 		child.on('spawn', () => this._proxy.$onDidChangeState(id, { state: McpConnectionState.Kind.Running }));
 
-		child.on('error', onError);
+		child.on('error', e => {
+			if (abortCtrl.signal.aborted) {
+				this._proxy.$onDidChangeState(id, { state: McpConnectionState.Kind.Stopped });
+			} else {
+				onError(e);
+			}
+		});
 		child.on('exit', code =>
-			code === 0
+			code === 0 || abortCtrl.signal.aborted
 				? this._proxy.$onDidChangeState(id, { state: McpConnectionState.Kind.Stopped })
 				: this._proxy.$onDidChangeState(id, {
 					state: McpConnectionState.Kind.Error,

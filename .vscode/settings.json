@@ -179,5 +179,5 @@
 		"ts": "warning",
 		"eslint": "warning"
 	},
-	"git.showReferenceDetails": true
+	"git.showReferenceDetails": true,
 }

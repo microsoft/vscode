@@ -201,10 +201,12 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		};
 	}
 
-	restoreFromSnapshot(snapshot: ISnapshotEntry) {
+	restoreFromSnapshot(snapshot: ISnapshotEntry, restoreToDisk = true) {
 		this._stateObs.set(snapshot.state, undefined);
 		this.originalModel.setValue(snapshot.original);
-		this._setDocValue(snapshot.current);
+		if (restoreToDisk) {
+			this._setDocValue(snapshot.current);
+		}
 		this._edit = snapshot.originalToCurrentEdit;
 		this._updateDiffInfoSeq();
 	}

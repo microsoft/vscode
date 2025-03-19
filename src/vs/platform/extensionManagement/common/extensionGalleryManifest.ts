@@ -67,3 +67,5 @@ export interface IExtensionGalleryManifestService {
 	isEnabled(): boolean;
 	getExtensionGalleryManifest(): Promise<IExtensionGalleryManifest | null>;
 }
+
+export const ExtensionGalleryServiceUrlConfigKey = 'extensions.gallery.serviceUrl';

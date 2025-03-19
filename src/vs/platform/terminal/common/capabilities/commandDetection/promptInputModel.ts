@@ -322,7 +322,15 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 					} else {
 						cursorIndex += trimmedLineText.length + 1;
 					}
-				} else {
+				} else if (absoluteCursorY === y && this._continuationPrompt && !this._lineContainsContinuationPrompt(lineText)) {
+					// We're on the last line and the continuation prompt is not present, so we need to add the value
+					value += `${lineText}`;
+					const relativeCursorIndex = this._getRelativeCursorIndex(0, buffer, line);
+					if (absoluteCursorY === y) {
+						cursorIndex += relativeCursorIndex;
+					} else {
+						cursorIndex += lineText.length;
+					}
 					break;
 				}
 			}

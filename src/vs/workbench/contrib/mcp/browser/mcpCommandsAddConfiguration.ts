@@ -3,8 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { mapFindFirst } from '../../../../base/common/arraysFind.js';
 import { assertNever } from '../../../../base/common/assert.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
+import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -13,10 +17,13 @@ import { ConfigurationTarget, getConfigValueInTarget, IConfigurationService } fr
 import { IMcpConfiguration, IMcpConfigurationSSE, McpConfigurationServer } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { EditorsOrder } from '../../../common/editor.js';
 import { IJSONEditingService } from '../../../services/configuration/common/jsonEditing.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
-import { IMcpConfigurationStdio, mcpStdioServerSchema } from '../common/mcpConfiguration.js';
-
+import { IMcpConfigurationStdio, mcpConfigurationSection, mcpStdioServerSchema } from '../common/mcpConfiguration.js';
+import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
+import { McpServerOptionsCommand } from './mcpCommands.js';
 
 const enum AddConfigurationType {
 	Stdio,
@@ -48,6 +55,9 @@ export class McpAddConfigurationCommand {
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@ICommandService private readonly _commandService: ICommandService,
+		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
+		@IEditorService private readonly _openerService: IEditorService,
+		@IEditorService private readonly _editorService: IEditorService,
 	) { }
 
 	private async getServerType(): Promise<AddConfigurationType | undefined> {
@@ -241,6 +251,39 @@ export class McpAddConfigurationCommand {
 		return { name, config };
 	}
 
+	/** Shows the location of a server config once it's disocovered. */
+	private showOnceDiscovered(name: string) {
+		const store = new DisposableStore();
+		store.add(autorun(reader => {
+			const colls = this._mcpRegistry.collections.read(reader);
+			const match = mapFindFirst(colls, collection => mapFindFirst(collection.serverDefinitions.read(reader),
+				server => server.label === name ? { server, collection } : undefined));
+			if (match) {
+				if (match.collection.presentation?.origin) {
+					this._openerService.openEditor({
+						resource: match.collection.presentation.origin,
+						options: {
+							selection: match.server.presentation?.origin?.range,
+							preserveFocus: true,
+						}
+					});
+				} else {
+					this._commandService.executeCommand(McpServerOptionsCommand.id, name);
+				}
+
+				store.dispose();
+			}
+		}));
+
+		store.add(disposableTimeout(() => store.dispose(), 5000));
+	}
+
+	private writeToUserSetting(name: string, config: McpConfigurationServer, target: ConfigurationTarget) {
+		const settings: IMcpConfiguration = { ...getConfigValueInTarget(this._configurationService.inspect<IMcpConfiguration>(mcpConfigurationSection), target) };
+		settings.servers = { ...settings.servers, [name]: config };
+		return this._configurationService.updateValue(mcpConfigurationSection, settings, target);
+	}
+
 	public async run(): Promise<void> {
 		// Step 1: Choose server type
 		const serverType = await this.getServerType();
@@ -307,9 +350,41 @@ export class McpAddConfigurationCommand {
 				value: serverConfig
 			}], true);
 		} else {
-			const settings: IMcpConfiguration = { ...getConfigValueInTarget(this._configurationService.inspect<IMcpConfiguration>('mcp'), target!) };
-			settings.servers = { ...settings.servers, [serverId]: serverConfig };
-			await this._configurationService.updateValue('mcp', settings, target!);
+			await this.writeToUserSetting(serverId, serverConfig, target!);
+		}
+
+		this.showOnceDiscovered(serverId);
+	}
+
+	public async pickForUrlHandler(resource: URI, config: McpConfigurationServer): Promise<void> {
+		const name = decodeURIComponent(basename(resource)).replace(/\.json$/, '');
+		const title = localize('install.title', 'Install MCP server {0}', name);
+		const pick = await this._quickInputService.pick([
+			{ id: 'show', label: localize('install.show', 'Show Configuration', name) },
+			{ id: 'install', label: localize('install.start', 'Install Server'), description: localize('install.description', 'Install in your user settings') },
+			{ id: 'rename', label: localize('install.rename', 'Rename "{0}"', name) },
+			{ id: 'cancel', label: localize('cancel', 'Cancel') },
+		], { title, ignoreFocusLost: true });
+		switch (pick?.id) {
+			case 'show': {
+				await this._editorService.openEditor({ resource });
+				break;
+			}
+			case 'install': {
+				await this.writeToUserSetting(name, config, ConfigurationTarget.USER_LOCAL);
+				this._editorService.closeEditors(
+					this._editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).filter(e => e.editor.resource?.toString() === resource.toString())
+				);
+				this.showOnceDiscovered(name);
+				break;
+			}
+			case 'rename': {
+				const newName = await this._quickInputService.input({ title, placeHolder: localize('install.newName', 'Enter new name'), value: name });
+				if (newName) {
+					return this.pickForUrlHandler(resource.with({ path: `/${encodeURIComponent(newName)}.json` }), config);
+				}
+				break;
+			}
 		}
 	}
 }

@@ -10,6 +10,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
 import { FetchWebPageTool, FetchWebPageToolData } from './tools/fetchPageTool.js';
+import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
 
 class NativeBuiltinToolsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -41,6 +42,8 @@ registerAction2(StopListeningAndSubmitAction);
 registerAction2(ReadChatResponseAloud);
 registerAction2(StopReadChatItemAloud);
 registerAction2(StopReadAloud);
+
+registerChatDeveloperActions();
 
 registerWorkbenchContribution2(KeywordActivationContribution.ID, KeywordActivationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(NativeBuiltinToolsContribution.ID, NativeBuiltinToolsContribution, WorkbenchPhase.AfterRestored);
