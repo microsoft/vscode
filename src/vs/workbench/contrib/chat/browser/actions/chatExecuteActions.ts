@@ -5,6 +5,7 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -16,9 +17,10 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../../common/chatEditingService.js';
-import { chatAgentLeader, extractAgentAndCommand } from '../../common/chatParserTypes.js';
+import { chatVariableLeader } from '../../common/chatParserTypes.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
+import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { EditsViewId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { discardAllEditsWithConfirmation, getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ChatViewPane } from '../chatViewPane.js';
@@ -75,7 +77,8 @@ export class ChatSubmitAction extends SubmitAction {
 				{
 					id: MenuId.ChatExecuteSecondary,
 					group: 'group_1',
-					order: 1
+					order: 1,
+					when: ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask)
 				},
 				{
 					id: MenuId.ChatExecute,
@@ -370,31 +373,26 @@ class SubmitWithoutDispatchingAction extends Action2 {
 	}
 }
 
-export class ChatSubmitSecondaryAgentAction extends Action2 {
-	static readonly ID = 'workbench.action.chat.submitSecondaryAgent';
+export class ChatSubmitWithCodebaseAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.submitWithCodebase';
 
 	constructor() {
 		const precondition = ContextKeyExpr.and(
 			// if the input has prompt instructions attached, allow submitting requests even
 			// without text present - having instructions is enough context for a request
 			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.instructionsAttached),
-			ChatContextKeys.inputHasAgent.negate(),
 			whenNotInProgressOrPaused,
-			ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask),
 		);
 
 		super({
-			id: ChatSubmitSecondaryAgentAction.ID,
-			title: localize2({ key: 'actions.chat.submitSecondaryAgent', comment: ['Send input from the chat input box to the secondary agent'] }, "Submit to Secondary Agent"),
+			id: ChatSubmitWithCodebaseAction.ID,
+			title: localize2('actions.chat.submitWithCodebase', "Send with {0}", `${chatVariableLeader}codebase`),
 			precondition,
 			menu: {
 				id: MenuId.ChatExecuteSecondary,
 				group: 'group_1',
 				order: 3,
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel),
-					ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask),
-				),
+				when: ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel),
 			},
 			keybinding: {
 				when: ChatContextKeys.inChatInput,
@@ -406,11 +404,6 @@ export class ChatSubmitSecondaryAgentAction extends Action2 {
 
 	run(accessor: ServicesAccessor, ...args: any[]) {
 		const context: IChatExecuteActionContext | undefined = args[0];
-		const agentService = accessor.get(IChatAgentService);
-		const secondaryAgent = agentService.getSecondaryAgent();
-		if (!secondaryAgent) {
-			return;
-		}
 
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
@@ -418,12 +411,21 @@ export class ChatSubmitSecondaryAgentAction extends Action2 {
 			return;
 		}
 
-		if (extractAgentAndCommand(widget.parsedInput).agentPart) {
-			widget.acceptInput();
-		} else {
-			widget.lastSelectedAgent = secondaryAgent;
-			widget.acceptInputWithPrefix(`${chatAgentLeader}${secondaryAgent.name}`);
+		const languageModelToolsService = accessor.get(ILanguageModelToolsService);
+		const codebaseTool = languageModelToolsService.getToolByName('codebase');
+		if (!codebaseTool) {
+			return;
 		}
+
+		widget.input.attachmentModel.addContext({
+			id: codebaseTool.id,
+			name: codebaseTool.displayName ?? '',
+			fullName: codebaseTool.displayName ?? '',
+			value: undefined,
+			icon: ThemeIcon.isThemeIcon(codebaseTool.icon) ? codebaseTool.icon : undefined,
+			isTool: true
+		});
+		widget.acceptInput();
 	}
 }
 
@@ -608,7 +610,7 @@ export function registerChatExecuteActions() {
 	registerAction2(SubmitWithoutDispatchingAction);
 	registerAction2(CancelAction);
 	registerAction2(SendToNewChatAction);
-	registerAction2(ChatSubmitSecondaryAgentAction);
+	registerAction2(ChatSubmitWithCodebaseAction);
 	registerAction2(SendToChatEditingAction);
 	registerAction2(ToggleChatModeAction);
 	registerAction2(ToggleRequestPausedAction);
