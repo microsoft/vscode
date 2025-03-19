@@ -220,6 +220,7 @@ class McpToolImplementation implements IToolImpl {
 			confirmationMessages: {
 				title: localize('msg.title', "Run `{0}`", tool.definition.name, server.definition.label),
 				message: new MarkdownString(localize('msg.msg', "{0}\n\n {1}", tool.definition.description, mcpToolWarning), { supportThemeIcons: true }),
+				allowAutoConfirm: true,
 			},
 			invocationMessage: new MarkdownString(localize('msg.run', "Running `{0}`", tool.definition.name, server.definition.label)),
 			pastTenseMessage: new MarkdownString(localize('msg.ran', "Ran `{0}` ", tool.definition.name, server.definition.label)),

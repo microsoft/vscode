@@ -233,6 +233,7 @@ export interface IChatToolInvocation {
 	invocationMessage: string | IMarkdownString;
 	pastTenseMessage: string | IMarkdownString | undefined;
 	resultDetails: IToolResult['toolResultDetails'];
+	readonly toolId: string;
 
 	isCompletePromise: Promise<void>;
 	isComplete: boolean;

@@ -29,6 +29,7 @@ import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contex
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import product from '../../../../../platform/product/common/product.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -696,6 +697,21 @@ registerAction2(class ToggleCopilotControl extends ToggleTitleBarConfigAction {
 			localize('toggle.chatControlsDescription', "Toggle visibility of the Copilot Controls in title bar"), 5, false,
 			ChatContextKeys.supported
 		);
+	}
+});
+
+registerAction2(class ResetTrustedToolsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.resetTrustedTools',
+			title: localize2('resetTrustedTools', "Reset Tool Confirmations"),
+			category: CHAT_CATEGORY,
+			f1: true,
+		});
+	}
+	override run(accessor: ServicesAccessor): void {
+		accessor.get(ILanguageModelToolsService).resetToolAutoConfirmation();
+		accessor.get(INotificationService).info(localize('resetTrustedToolsSuccess', "Tool confirmation preferences have been reset."));
 	}
 });
 
