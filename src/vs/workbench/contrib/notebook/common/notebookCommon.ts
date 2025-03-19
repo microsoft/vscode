@@ -626,7 +626,8 @@ export namespace CellUri {
 			scheme: Schemas.vscodeNotebookCellOutput,
 			query: new URLSearchParams({
 				openIn: 'editor',
-				outputId: outputId || '',
+				outputId: outputId ?? '',
+				notebookScheme: notebook.scheme !== Schemas.file ? notebook.scheme : '',
 			}).toString()
 		});
 	}
@@ -652,14 +653,15 @@ export namespace CellUri {
 
 		const params = new URLSearchParams(uri.query);
 		const outputId = params.get('outputId') || undefined;
+		const notebookScheme = params.get('notebookScheme');
 
 		return {
+			outputId,
 			notebook: uri.with({
-				scheme: uri.fragment || Schemas.file,
+				scheme: notebookScheme || Schemas.file,
 				fragment: null,
 				query: null
 			}),
-			outputId
 		};
 	}
 
