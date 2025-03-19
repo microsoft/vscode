@@ -20,6 +20,7 @@ import { DomReadingContext } from './domReadingContext.js';
 import type { ViewLineOptions } from './viewLineOptions.js';
 import { ViewGpuContext } from '../../gpu/viewGpuContext.js';
 import { ViewContext } from '../../../common/viewModel/viewContext.js';
+import { Range } from '../../../common/core/range.js';
 
 const canUseFastRenderedViewLine = (function () {
 	if (platform.isNative) {
@@ -188,8 +189,8 @@ export class ViewLine implements IVisibleLine {
 		sb.appendString('</div>');
 
 		let renderedViewLine: IRenderedViewLine | null = null;
-		const hasSpecialFont = viewContext.viewModel.hasSpecialFont(lineNumber);
-		if (!hasSpecialFont && monospaceAssumptionsAreValid && canUseFastRenderedViewLine && lineData.isBasicASCII && options.useMonospaceOptimizations && output.containsForeignElements === ForeignElementType.None) {
+		const fontDecorationsExistOnLine = viewContext.viewModel.getFontDecorationsInRange(new Range(lineNumber, 1, lineNumber, viewContext.viewModel.model.getLineMaxColumn(lineNumber))).length > 0;
+		if (!fontDecorationsExistOnLine && monospaceAssumptionsAreValid && canUseFastRenderedViewLine && lineData.isBasicASCII && options.useMonospaceOptimizations && output.containsForeignElements === ForeignElementType.None) {
 			renderedViewLine = new FastRenderedViewLine(
 				this._renderedViewLine ? this._renderedViewLine.domNode : null,
 				renderLineInput,

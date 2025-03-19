@@ -41,6 +41,8 @@ import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProject
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { GlyphMarginLanesModel } from './glyphLanesModel.js';
 import { BareFontInfo } from '../config/fontInfo.js';
+import { getActiveWindow } from '../../../base/browser/dom.js';
+import { PixelRatio } from '../../../base/browser/pixelRatio.js';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -746,11 +748,38 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	public getFontInfoForPosition(position: Position): BareFontInfo {
-		return this._decorations.getFontInfoForPosition(position);
+		const range = Range.fromPositions(position);
+		const fontDecorations = this.getFontDecorationsInRange(range);
+		const defaultFontInfo = this._configuration.options.get(EditorOption.fontInfo);
+		let fontFamily: string = defaultFontInfo.fontFamily;
+		let fontWeight: string = defaultFontInfo.fontWeight;
+		let fontSize: number = defaultFontInfo.fontSize;
+		for (let i = 0, len = fontDecorations.length; i < len; i++) {
+			const fontDecoration = fontDecorations[i];
+			const decorationOptions = fontDecoration.options;
+			if (decorationOptions.fontFamily) {
+				fontFamily = decorationOptions.fontFamily;
+			}
+			if (decorationOptions.fontWeight) {
+				fontWeight = decorationOptions.fontWeight;
+			}
+			if (decorationOptions.fontSize) {
+				fontSize = decorationOptions.fontSize;
+			}
+		}
+		// TODO: maybe we should also allow font-ligatures, font-variations and letter-spacing?
+		return BareFontInfo.createFromRawSettings({
+			fontFamily,
+			fontWeight,
+			fontSize,
+			fontLigatures: defaultFontInfo.fontFeatureSettings,
+			fontVariations: defaultFontInfo.fontVariationSettings,
+			letterSpacing: defaultFontInfo.letterSpacing
+		}, PixelRatio.getInstance(getActiveWindow()).value);
 	}
 
-	public hasSpecialFont(lineNumber: number): boolean {
-		return this._decorations.hasSpecialFont(lineNumber);
+	public getFontDecorationsInRange(range: Range): ViewModelDecoration[] {
+		return this._decorations.getFontDecorationsInRange(range);
 	}
 
 	public getInjectedTextAt(viewPosition: Position): InjectedText | null {

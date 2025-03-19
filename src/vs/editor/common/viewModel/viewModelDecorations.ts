@@ -10,11 +10,8 @@ import { IEditorConfiguration } from '../config/editorConfiguration.js';
 import { IModelDecoration, ITextModel, PositionAffinity } from '../model.js';
 import { IViewModelLines } from './viewModelLines.js';
 import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, ViewModelDecoration } from '../viewModel.js';
-import { EditorOption, filterValidationDecorations } from '../config/editorOptions.js';
+import { filterValidationDecorations } from '../config/editorOptions.js';
 import { StandardTokenType } from '../encodedTokenAttributes.js';
-import { BareFontInfo } from '../config/fontInfo.js';
-import { PixelRatio } from '../../../base/browser/pixelRatio.js';
-import { getActiveWindow } from '../../../base/browser/dom.js';
 
 export interface IDecorationsViewportData {
 	/**
@@ -113,47 +110,21 @@ export class ViewModelDecorations implements IDisposable {
 		return this._cachedModelDecorationsResolver!;
 	}
 
-	public getFontInfoForPosition(position: Position): BareFontInfo {
-		const range = Range.fromPositions(position);
+	public getFontDecorationsInRange(range: Range): ViewModelDecoration[] {
+		const viewModelDecorations: ViewModelDecoration[] = [];
 		const modelDecorations = this._linesCollection.getDecorationsInRange(range, this.editorId, filterValidationDecorations(this.configuration.options), false, false);
-		const defaultFontInfo = this.configuration.options.get(EditorOption.fontInfo);
-		let fontFamily: string = defaultFontInfo.fontFamily;
-		let fontWeight: string = defaultFontInfo.fontWeight;
-		let fontSize: number = defaultFontInfo.fontSize;
 		for (let i = 0, len = modelDecorations.length; i < len; i++) {
 			const modelDecoration = modelDecorations[i];
+			if (!isModelDecorationVisible(this.model, modelDecoration)) {
+				continue;
+			}
 			const decorationOptions = modelDecoration.options;
-			if (decorationOptions.fontFamily) {
-				fontFamily = decorationOptions.fontFamily;
+			if (!decorationOptions.fontFamily && !decorationOptions.fontWeight && !decorationOptions.fontSize) {
+				continue;
 			}
-			if (decorationOptions.fontWeight) {
-				fontWeight = decorationOptions.fontWeight;
-			}
-			if (decorationOptions.fontSize) {
-				fontSize = decorationOptions.fontSize;
-			}
+			viewModelDecorations.push(this._getOrCreateViewModelDecoration(modelDecoration));
 		}
-		// TODO: maybe we should also allow font-ligatures, font-variations and letter-spacing?
-		return BareFontInfo.createFromRawSettings({
-			fontFamily,
-			fontWeight,
-			fontSize,
-			fontLigatures: defaultFontInfo.fontFeatureSettings,
-			fontVariations: defaultFontInfo.fontVariationSettings,
-			letterSpacing: defaultFontInfo.letterSpacing
-		}, PixelRatio.getInstance(getActiveWindow()).value);
-	}
-
-	public hasSpecialFont(lineNumber: number): boolean {
-		const range = new Range(lineNumber, this._linesCollection.getViewLineMinColumn(lineNumber), lineNumber, this._linesCollection.getViewLineMaxColumn(lineNumber));
-		const modelDecorations = this._linesCollection.getDecorationsInRange(range, this.editorId, filterValidationDecorations(this.configuration.options), false, false);
-		for (let i = 0, len = modelDecorations.length; i < len; i++) {
-			const decorationOptions = modelDecorations[i].options;
-			if (decorationOptions.fontFamily || decorationOptions.fontWeight || decorationOptions.fontSize) {
-				return true;
-			}
-		}
-		return false;
+		return viewModelDecorations;
 	}
 
 	public getInlineDecorationsOnLine(lineNumber: number, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): InlineDecoration[] {
