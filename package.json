@@ -55,7 +55,7 @@
     "eslint": "node build/eslint",
     "stylelint": "node build/stylelint",
     "playwright-install": "npm exec playwright install",
-    "compile-build": "node ./node_modules/gulp/bin/gulp.js compile-build",
+    "compile-build": "node ./node_modules/gulp/bin/gulp.js compile-build-with-mangling",
     "compile-extensions-build": "node ./node_modules/gulp/bin/gulp.js compile-extensions-build",
     "minify-vscode": "node ./node_modules/gulp/bin/gulp.js minify-vscode",
     "minify-vscode-reh": "node ./node_modules/gulp/bin/gulp.js minify-vscode-reh",
