@@ -413,14 +413,14 @@ class ChatSetup {
 
 	private getDialogTitle(): string {
 		if (this.context.state.entitlement === ChatEntitlement.Unknown) {
-			return localize('signInTitle', "Sign in to use Copilot for free");
+			return this.context.state.registered ? localize('signUp', "Sign in to use Copilot") : localize('signUpFree', "Sign in to use Copilot for free");
 		}
 
 		if (this.context.state.entitlement === ChatEntitlement.Pro) {
 			return localize('copilotProTitle', "Start using Copilot Pro");
 		}
 
-		return localize('copilotFreeTitle', "Start using Copilot for free");
+		return this.context.state.registered ? localize('copilotTitle', "Start using Copilot") : localize('copilotFreeTitle', "Start using Copilot for free");
 	}
 
 	private createDialog(disposables: DisposableStore): HTMLElement {
