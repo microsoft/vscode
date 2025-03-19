@@ -40,7 +40,6 @@ export class CreatorOverlayPart extends Part {
 
 	private state: "loading" | "open" | "closed" = "loading";
 	private _isLocked: boolean = false;
-	private isExtensionReady: boolean = false;
 	private initializedWebview: boolean = false;
 
 	constructor(
@@ -396,9 +395,6 @@ export class CreatorOverlayPart extends Part {
 	}
 
 	hideLoadingOverlay(): void {
-		// Set the extension as ready so future opens won't show loading
-		this.isExtensionReady = true;
-
 		// If we're in open state, ensure the webview is visible
 		if (this.state === "open" && this.webviewView) {
 			const container = this.webviewView.webview.container;
