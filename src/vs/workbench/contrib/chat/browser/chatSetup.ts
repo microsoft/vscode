@@ -209,12 +209,12 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 			content: new MarkdownString(localize('waitingCopilot', "Waiting for Copilot.")),
 		});
 
-		await this.resendRequest(requestModel, chatService, languageModelsService);
+		await this.forwardRequestToCopilot(requestModel, chatService, languageModelsService);
 
 		return {};
 	}
 
-	private async resendRequest(requestModel: IChatRequestModel, chatService: IChatService, languageModelsService: ILanguageModelsService): Promise<void> {
+	private async forwardRequestToCopilot(requestModel: IChatRequestModel, chatService: IChatService, languageModelsService: ILanguageModelsService): Promise<void> {
 
 		// We need a signal to know when we can resend the request to
 		// Copilot. Waiting for the registration of the agent is not
@@ -271,7 +271,7 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 		if (typeof success === 'boolean') {
 			if (success) {
 				if (requestModel) {
-					await this.resendRequest(requestModel, chatService, languageModelsService);
+					await this.forwardRequestToCopilot(requestModel, chatService, languageModelsService);
 				}
 			} else {
 				progress({
