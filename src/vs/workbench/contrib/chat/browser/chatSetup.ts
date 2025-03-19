@@ -203,7 +203,7 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 	private async doInvokeWithoutSetup(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService): Promise<IChatAgentResult> {
 		const requestModel = chatWidgetService.getWidgetBySessionId(request.sessionId)?.viewModel?.model.getRequests().at(-1);
 		if (!requestModel) {
-			this.logService.error(localize('requestModelNotFound', "Setup: Request model not found, cannot redispatch request."));
+			this.logService.error('[chat setup] Request model not found, cannot redispatch request.');
 			return {}; // this should not happen
 		}
 
@@ -275,7 +275,7 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 		try {
 			success = await ChatSetup.getInstance(this.instantiationService, this.context, this.controller).run();
 		} catch (error) {
-			this.logService.error(localize('setupError', "Error during setup: {0}", toErrorMessage(error)));
+			this.logService.error(`[chat setup] Error during setup: ${toErrorMessage(error)}`);
 		} finally {
 			setupListener.dispose();
 		}
@@ -377,7 +377,7 @@ class ChatSetup {
 					break;
 			}
 		} catch (error) {
-			this.logService.error(localize('setupError', "Error during setup: {0}", toErrorMessage(error)));
+			this.logService.error(`[chat setup] Error during setup: ${toErrorMessage(error)}`);
 			success = false;
 		}
 
@@ -470,6 +470,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IChatEntitlementService chatEntitlementService: ChatEntitlementService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -506,6 +507,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						// to give Copilot a chance to show a custom message to the user
 						// from the views and stop pretending as if there was a functional
 						// agent.
+						this.logService.error('[chat setup] Unresolvable error from Copilot agent registration, clearing registration.');
 						registration.clear();
 					})
 				);
