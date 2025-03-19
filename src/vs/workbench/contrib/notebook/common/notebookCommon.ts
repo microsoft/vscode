@@ -617,10 +617,32 @@ export namespace CellUri {
 		return parseUri(cell);
 	}
 
-	export function generateCellOutputUri(notebook: URI, outputId?: string) {
+	/**
+	 * Generates a URI for a cell output in a notebook using the output ID.
+	 * Used when URI should be opened as text in the editor.
+	 */
+	export function generateCellOutputUriWithId(notebook: URI, outputId?: string) {
 		return notebook.with({
 			scheme: Schemas.vscodeNotebookCellOutput,
-			fragment: `op${outputId ?? ''},${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
+			query: new URLSearchParams({
+				openIn: 'editor',
+				outputId: outputId ?? '',
+				notebookScheme: notebook.scheme !== Schemas.file ? notebook.scheme : '',
+			}).toString()
+		});
+	}
+	/**
+	 * Generates a URI for a cell output in a notebook using the output index.
+	 * Used when URI should be opened in notebook editor.
+	 */
+	export function generateCellOutputUriWithIndex(notebook: URI, cellUri: URI, outputIndex: number): URI {
+		return notebook.with({
+			scheme: Schemas.vscodeNotebookCellOutput,
+			fragment: cellUri.fragment,
+			query: new URLSearchParams({
+				openIn: 'notebook',
+				outputIndex: String(outputIndex),
+			}).toString()
 		});
 	}
 
@@ -629,19 +651,17 @@ export namespace CellUri {
 			return;
 		}
 
-		const match = /^op([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?\,(.*)$/i.exec(uri.fragment);
-		if (!match) {
-			return undefined;
-		}
+		const params = new URLSearchParams(uri.query);
+		const outputId = params.get('outputId') || undefined;
+		const notebookScheme = params.get('notebookScheme');
 
-		const outputId = (match[1] && match[1] !== '') ? match[1] : undefined;
-		const scheme = match[2];
 		return {
 			outputId,
 			notebook: uri.with({
-				scheme: scheme || Schemas.file,
-				fragment: null
-			})
+				scheme: notebookScheme || Schemas.file,
+				fragment: null,
+				query: null
+			}),
 		};
 	}
 
