@@ -123,11 +123,7 @@ export interface NotebookCellInternalMetadata {
 	/**
 	 * Used only for diffing of Notebooks.
 	 * This is not persisted and generally useful only when diffing two notebooks.
-	 * Assume we reorder cells via an extension such as copilot,
-	 * if A and B are swapped, it happens as a delete and insert.
-	 * However the Uris are now different. If the internalId is retained
-	 * when inserting the new cell (which is a copy of the old cell), we can
-	 * match the old cell with the new cell.
+	 * Useful only after we've manually matched a few cells together so we know which cells are matching.
 	 */
 	internalId?: string;
 	executionId?: string;
