@@ -1133,7 +1133,7 @@ function parseGitBlame(data: string): BlameInformation[] {
 }
 
 const REFS_FORMAT = '%(refname)%00%(objectname)%00%(*objectname)';
-const REFS_WITH_DETAILS_FORMAT = `${REFS_FORMAT}%00%(parent)%00%(*parent)%00%(authorname)%00%(*authorname)%00%(authordate:unix)%00%(*authordate:unix)%00%(subject)%00%(*subject)`;
+const REFS_WITH_DETAILS_FORMAT = `${REFS_FORMAT}%00%(parent)%00%(*parent)%00%(authorname)%00%(*authorname)%00%(committerdate:unix)%00%(*committerdate:unix)%00%(subject)%00%(*subject)`;
 
 function parseRefs(data: string): Ref[] {
 	const refRegex = /^(.*)\0([0-9a-f]{40})\0([0-9a-f]{40})?(?:\0(.*)\0(.*)\0(.*)\0(.*)\0(.*)\0(.*)\0(.*)\0(.*))?$/gm;
@@ -1151,8 +1151,8 @@ function parseRefs(data: string): Ref[] {
 	let tagCommitSubject: string | undefined;
 	let authorName: string | undefined;
 	let tagAuthorName: string | undefined;
-	let authorDate: string | undefined;
-	let tagAuthorDate: string | undefined;
+	let committerDate: string | undefined;
+	let tagCommitterDate: string | undefined;
 
 	const refs: Ref[] = [];
 
@@ -1165,12 +1165,12 @@ function parseRefs(data: string): Ref[] {
 			break;
 		}
 
-		[, ref, commitHash, tagCommitHash, commitParents, tagCommitParents, authorName, tagAuthorName, authorDate, tagAuthorDate, commitSubject, tagCommitSubject] = match;
+		[, ref, commitHash, tagCommitHash, commitParents, tagCommitParents, authorName, tagAuthorName, committerDate, tagCommitterDate, commitSubject, tagCommitSubject] = match;
 
 		const parents = tagCommitParents || commitParents;
 		const subject = tagCommitSubject || commitSubject;
 		const author = tagAuthorName || authorName;
-		const date = tagAuthorDate || authorDate;
+		const date = tagCommitterDate || committerDate;
 
 		const commitDetails = parents && subject && author && date
 			? {
@@ -1178,7 +1178,7 @@ function parseRefs(data: string): Ref[] {
 				message: subject,
 				parents: parents.split(' '),
 				authorName: author,
-				authorDate: date ? new Date(Number(date) * 1000) : undefined,
+				commitDate: date ? new Date(Number(date) * 1000) : undefined,
 				refNames: []
 			} satisfies Commit : undefined;
 

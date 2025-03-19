@@ -73,8 +73,8 @@ class RefItem implements QuickPickItem {
 	}
 
 	get description(): string {
-		if (this.ref.commitDetails?.authorDate) {
-			return fromNow(this.ref.commitDetails.authorDate, true, true);
+		if (this.ref.commitDetails?.commitDate) {
+			return fromNow(this.ref.commitDetails.commitDate, true, true);
 		}
 
 		switch (this.ref.type) {
