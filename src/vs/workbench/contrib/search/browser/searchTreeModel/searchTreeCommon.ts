@@ -107,6 +107,7 @@ export interface ISearchModel {
 	};
 	cancelSearch(cancelledForNewSearch?: boolean): boolean;
 	cancelAISearch(cancelledForNewSearch?: boolean): boolean;
+	clearAiSearchResults(): void;
 	dispose(): void;
 }
 
@@ -168,7 +169,7 @@ export interface ITextSearchHeading {
 	rangeHighlightDecorations: RangeHighlightDecorations;
 	fileCount(): number;
 	count(): number;
-	clear(): void;
+	clear(clearAll: boolean): void;
 	dispose(): void;
 }
 
