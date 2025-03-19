@@ -577,6 +577,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				const instantiationService = accessor.get(IInstantiationService);
 				const dialogService = accessor.get(IDialogService);
 				const commandService = accessor.get(ICommandService);
+				const lifecycleService = accessor.get(ILifecycleService);
 
 				await context.update({ hidden: false });
 
@@ -592,7 +593,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				if (setupFromDialog) {
 					const setup = ChatSetup.getInstance(instantiationService, context, controller);
 					const result = await setup.run();
-					if (result === false) {
+					if (result === false && !lifecycleService.willShutdown) {
 						const { confirmed } = await dialogService.confirm({
 							type: Severity.Error,
 							message: localize('setupErrorDialog', "Copilot setup failed. Would you like to try again?"),
@@ -770,8 +771,6 @@ class ChatSetupController extends Disposable {
 	private _step = ChatSetupStep.Initial;
 	get step(): ChatSetupStep { return this._step; }
 
-	private willShutdown = false;
-
 	constructor(
 		private readonly context: ChatEntitlementContext,
 		private readonly requests: ChatEntitlementRequests,
@@ -799,7 +798,6 @@ class ChatSetupController extends Disposable {
 
 	private registerListeners(): void {
 		this._register(this.context.onDidChange(() => this._onDidChange.fire()));
-		this._register(this.lifecycleService.onWillShutdown(() => this.willShutdown = true));
 	}
 
 	private setStep(step: ChatSetupStep): void {
@@ -894,7 +892,7 @@ class ChatSetupController extends Disposable {
 			this.logService.error(`[chat setup] signIn: error ${e}`);
 		}
 
-		if (!session && !this.willShutdown) {
+		if (!session && !this.lifecycleService.willShutdown) {
 			const { confirmed } = await this.dialogService.confirm({
 				type: Severity.Error,
 				message: localize('unknownSignInError', "Failed to sign in to {0}. Would you like to try again?", ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.enterpriseProviderId ? defaultChat.enterpriseProviderName : defaultChat.providerName),
@@ -982,7 +980,7 @@ class ChatSetupController extends Disposable {
 		}
 
 		if (error) {
-			if (!this.willShutdown) {
+			if (!this.lifecycleService.willShutdown) {
 				const { confirmed } = await this.dialogService.confirm({
 					type: Severity.Error,
 					message: localize('unknownSetupError', "An error occurred while setting up Copilot. Would you like to try again?"),
