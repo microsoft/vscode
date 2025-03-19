@@ -99,10 +99,8 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 		return instantiationService.invokeFunction(accessor => {
 			const chatAgentService = accessor.get(IChatAgentService);
 
-			// TODO@bpasero: expand this to more cases (installed, not signed in / not signed up)
 			const setupChatAgentContext = ContextKeyExpr.and(
 				ChatContextKeys.Setup.hidden.negate(),
-				ChatContextKeys.Setup.installed.negate(),
 				ChatContextKeys.Setup.fromDialog
 			);
 
@@ -238,7 +236,7 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 				// Await a default model to be present before attempting
 				// to re-submit the request. Otherwise, the request will fail.
 				const hasDefaultModel = await Promise.race([
-					timeout(5000),
+					timeout(10000),
 					whenDefaultModel
 				]);
 
@@ -345,13 +343,11 @@ class ChatSetup {
 	}
 
 	private async showDialog(): Promise<ChatSetupStrategy> {
-		const buttons = [
-			this.getPrimaryButton(),
-			localize('maybeLater', "Maybe Later"),
-		];
 		const disposables = new DisposableStore();
 
 		let result: ChatSetupStrategy | undefined = undefined;
+
+		const buttons = [this.getPrimaryButton(), localize('maybeLater', "Maybe Later")];
 
 		const dialog = disposables.add(new Dialog(
 			this.layoutService.activeContainer,
@@ -453,7 +449,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		const registration = this._register(new MutableDisposable());
 
 		const updateRegistration = () => {
-			const disabled = context.state.installed || context.state.hidden || !this.configurationService.getValue('chat.experimental.setupFromDialog');
+			const disabled = context.state.hidden || !this.configurationService.getValue('chat.experimental.setupFromDialog');
 			if (!disabled && !registration.value) {
 				registration.value = combinedDisposable(
 					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel, false, context, controller),
