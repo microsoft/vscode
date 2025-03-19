@@ -13,7 +13,7 @@ import { EventEmitter } from 'events';
 import * as filetype from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals, isMacintosh, isDescendant, relativePath } from './util';
 import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
-import { Commit as ApiCommit, Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery, InitOptions } from './api/git';
+import { Ref as ApiRef, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery as ApiRefQuery, InitOptions } from './api/git';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
 
@@ -729,6 +729,14 @@ export interface Commit {
 	shortStat?: CommitShortStat;
 }
 
+export interface RefQuery extends ApiRefQuery {
+	readonly includeCommitDetails?: boolean;
+}
+
+export interface Ref extends ApiRef {
+	readonly commitDetails?: Commit;
+}
+
 interface GitConfigSection {
 	name: string;
 	subSectionName?: string;
@@ -1170,8 +1178,9 @@ function parseRefs(data: string): Ref[] {
 				message: subject,
 				parents: parents.split(' '),
 				authorName: author,
-				authorDate: date ? new Date(Number(date) * 1000) : undefined
-			} satisfies ApiCommit : undefined;
+				authorDate: date ? new Date(Number(date) * 1000) : undefined,
+				refNames: []
+			} satisfies Commit : undefined;
 
 		if (refMatch = headRegex.exec(ref)) {
 			refs.push({ name: refMatch[1], commit: commitHash, commitDetails, type: RefType.Head });

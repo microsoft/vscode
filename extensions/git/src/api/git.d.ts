@@ -30,7 +30,6 @@ export interface Ref {
 	readonly type: RefType;
 	readonly name?: string;
 	readonly commit?: string;
-	readonly commitDetails?: Commit;
 	readonly remote?: string;
 }
 
@@ -186,7 +185,6 @@ export interface RefQuery {
 	readonly contains?: string;
 	readonly count?: number;
 	readonly pattern?: string | string[];
-	readonly includeCommitDetails?: boolean;
 	readonly sort?: 'alphabetically' | 'committerdate';
 }
 
