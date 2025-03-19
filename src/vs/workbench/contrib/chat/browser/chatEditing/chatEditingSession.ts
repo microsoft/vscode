@@ -1016,8 +1016,14 @@ class ChatEditingSessionStorage {
 
 	public async restoreState(): Promise<StoredSessionState | undefined> {
 		const storageLocation = this._getStorageLocation();
+		const fileContents = new Map<string, Promise<string>>();
 		const getFileContent = (hash: string) => {
-			return this._fileService.readFile(joinPath(storageLocation, STORAGE_CONTENTS_FOLDER, hash)).then(content => content.value.toString());
+			let readPromise = fileContents.get(hash);
+			if (!readPromise) {
+				readPromise = this._fileService.readFile(joinPath(storageLocation, STORAGE_CONTENTS_FOLDER, hash)).then(content => content.value.toString());
+				fileContents.set(hash, readPromise);
+			}
+			return readPromise;
 		};
 		const deserializeResourceMap = <T>(resourceMap: ResourceMapDTO<T>, deserialize: (value: any) => T, result: ResourceMap<T>): ResourceMap<T> => {
 			resourceMap.forEach(([resourceURI, value]) => {
