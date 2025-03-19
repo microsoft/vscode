@@ -12,6 +12,8 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { autorun, observableValue } from '../../../../../base/common/observable.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 
 export interface IChatConfirmationButton {
 	label: string;
@@ -42,17 +44,36 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 	constructor(
 		title: string,
 		buttons: IChatConfirmationButton[],
+		expandableMessage: boolean,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
 		const elements = dom.h('.chat-confirmation-widget@root', [
+			dom.h('.chat-confirmation-widget-expando@expando'),
 			dom.h('.chat-confirmation-widget-title@title'),
 			dom.h('.chat-confirmation-widget-message@message'),
 			dom.h('.chat-confirmation-buttons-container@buttonsContainer'),
 		]);
 		this._domNode = elements.root;
 		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
+
+		if (expandableMessage) {
+			const expanded = observableValue(this, false);
+			const btn = new Button(elements.expando, {});
+
+			this._register(autorun(r => {
+				const value = expanded.read(r);
+				btn.icon = value ? Codicon.chevronDown : Codicon.chevronRight;
+				elements.message.classList.toggle('hidden', !value);
+				this._onDidChangeHeight.fire();
+			}));
+
+			this._register(btn.onDidClick(() => {
+				const value = expanded.get();
+				expanded.set(!value, undefined);
+			}));
+		}
 
 		const renderedTitle = this._register(this.markdownRenderer.render(new MarkdownString(title, { supportThemeIcons: true }), {
 			asyncRenderCallback: () => this._onDidChangeHeight.fire(),
@@ -78,7 +99,7 @@ export class ChatConfirmationWidget extends BaseChatConfirmationWidget {
 		buttons: IChatConfirmationButton[],
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		super(title, buttons, instantiationService);
+		super(title, buttons, false, instantiationService);
 
 		const renderedMessage = this._register(this.markdownRenderer.render(
 			typeof this.message === 'string' ? new MarkdownString(this.message) : this.message,
@@ -92,10 +113,11 @@ export class ChatCustomConfirmationWidget extends BaseChatConfirmationWidget {
 	constructor(
 		title: string,
 		messageElement: HTMLElement,
+		messageElementIsExpandable: boolean,
 		buttons: IChatConfirmationButton[],
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		super(title, buttons, instantiationService);
+		super(title, buttons, messageElementIsExpandable, instantiationService);
 		this.renderMessage(messageElement);
 	}
 }

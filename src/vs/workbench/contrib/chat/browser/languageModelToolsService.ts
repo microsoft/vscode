@@ -198,6 +198,11 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					}
 
 					dto.toolSpecificData = toolInvocation?.toolSpecificData;
+
+					if (dto.toolSpecificData?.kind === 'input') {
+						dto.parameters = dto.toolSpecificData.rawInput;
+						dto.toolSpecificData = undefined;
+					}
 				}
 			} else {
 				const prepared = tool.impl.prepareToolInvocation ?
