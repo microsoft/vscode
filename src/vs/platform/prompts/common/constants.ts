@@ -51,6 +51,5 @@ export const getCleanPromptName = (
 		? '.md'
 		: PROMPT_FILE_EXTENSION;
 
-	// otherwise, remove the prompt file extension
 	return basename(fileUri.path, fileExtension);
 };
