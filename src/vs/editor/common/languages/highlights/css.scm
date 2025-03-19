@@ -9,6 +9,10 @@
   "]"
 ] @punctuation.css
 
+[
+  "*="
+] @keyword.operator.css
+
 (comment) @comment.block.css
 
 ; Selectors
@@ -20,6 +24,27 @@
 (tag_name) @entity.name.tag.css
 
 (pseudo_class_selector) @entity.other.attribute-name.pseudo-class.css
+
+(attribute_name) @entity.other.attribute-name.css
+
+; @ Rules
+
+[
+  ("@import")
+  ("@charset")
+  ("@namespace")
+  ("@media")
+  ("@supports")
+  ("@keyframes")
+] @keyword.control.at-rule.css
+
+(keyword_query) @support.constant.media.css
+
+(keyframes_name) @variable.parameter.keyframe-list.css
+
+; Functions
+
+(function_name) @support.function.css
 
 ; Properties
 
@@ -56,15 +81,10 @@
 ((color_value) @constant.other.color.rgb-value.hex.css
   (#match? @constant.other.color.rgb-value.hex.css "^#.*"))
 
-; Functions
+; Special Functions
 
-("@import") @keyword.control.at-rule.import.css
-
-(keyword_query) @support.constant.media.css
-
-(function_name) @support.function.css
-
-(arguments
-  (plain_value) @variable.parameter.css)
-
-; Deprecated - TODO: Do we want to add these?
+(call_expression
+  ((function_name) @support.function.url.css
+    (#eq? @support.function.url.css "url"))
+  (arguments
+    (plain_value) @variable.parameter.url.css))
