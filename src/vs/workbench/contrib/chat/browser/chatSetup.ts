@@ -136,8 +136,6 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 				case ChatAgentLocation.Notebook:
 					id = 'setup.notebook';
 					break;
-				default:
-					throw new Error(`Unsupported location: ${location}`);
 			}
 
 			const disposable = new DisposableStore();
