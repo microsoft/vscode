@@ -69,7 +69,6 @@ import { Dialog } from '../../../../base/browser/ui/dialog/dialog.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { createWorkbenchDialogOptions } from '../../../../platform/dialogs/browser/dialog.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -353,7 +352,7 @@ class ChatSetup {
 
 		const dialog = disposables.add(new Dialog(
 			this.layoutService.activeContainer,
-			localize('copilotFree', "Set up Copilot for free"),
+			this.getDialogTitle(),
 			buttons,
 			createWorkbenchDialogOptions({
 				type: 'none',
@@ -369,7 +368,6 @@ class ChatSetup {
 				}
 			}, this.keybindingService, this.layoutService)
 		));
-		dialog.element.classList.add('chat-setup-dialog');
 
 		const { button } = await dialog.show();
 		disposables.dispose();
@@ -379,50 +377,41 @@ class ChatSetup {
 
 	private getPrimaryButton(): string {
 		if (this.context.state.entitlement === ChatEntitlement.Unknown) {
-			return localize('signIn', "Sign in");
+			return localize('signInButton', "Sign in");
 		}
 
-		return localize('useCopilot', "Use Copilot");
+		return localize('useCopilotButton', "Use Copilot");
+	}
+
+	private getDialogTitle(): string {
+		if (this.context.state.entitlement === ChatEntitlement.Unknown) {
+			return localize('signInTitle', "Sign in to use Copilot for free");
+		}
+
+		if (this.context.state.entitlement === ChatEntitlement.Pro) {
+			return localize('copilotProTitle', "Start using Copilot Pro");
+		}
+
+		return localize('copilotFreeTitle', "Start using Copilot for free");
 	}
 
 	private createDialog(disposables: DisposableStore): HTMLElement {
 		const element = $('.chat-setup-view');
 
-		// Icon background
-		element.appendChild($('.chat-setup-dialog-icon-background')).classList.add(...ThemeIcon.asClassNameArray(Codicon.copilotLarge));
-
 		const markdown = this.instantiationService.createInstance(MarkdownRenderer, {});
 
 		// Header
-		const header = localize({ key: 'header', comment: ['{Locked="[Copilot]({0})"}'] }, "[Copilot]({0}) is your AI pair programmer.", defaultChat.documentationUrl);
-		element.appendChild($('p', undefined, disposables.add(markdown.render(new MarkdownString(header, { isTrusted: true }))).element));
-		element.appendChild(
-			$('div.chat-features-container', undefined,
-				$('div', undefined,
-					$('div.chat-feature-container', undefined,
-						renderIcon(Codicon.code),
-						$('span', undefined, localize('featureChat', "Code faster with Completions"))
-					),
-					$('div.chat-feature-container', undefined,
-						renderIcon(Codicon.editSession),
-						$('span', undefined, localize('featureEdits', "Build features with Copilot Edits"))
-					),
-					$('div.chat-feature-container', undefined,
-						renderIcon(Codicon.commentDiscussion),
-						$('span', undefined, localize('featureExplore', "Explore your codebase with Chat"))
-					)
-				)
-			)
-		);
+		const header = localize({ key: 'headerDialog', comment: ['{Locked="[Copilot]({0})"}'] }, "[Copilot]({0}) is your AI pair programmer. It helps you code faster with Completions, build features with Copilot Edits, and explore your codebase with Chat.", defaultChat.documentationUrl);
+		element.appendChild($('p.setup-header', undefined, disposables.add(markdown.render(new MarkdownString(header, { isTrusted: true }))).element));
 
 		// Terms
 		const terms = localize({ key: 'terms', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "By continuing, you agree to the [Terms]({0}) and [Privacy Policy]({1}).", defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl);
-		element.appendChild($('p.legal', undefined, disposables.add(markdown.render(new MarkdownString(terms, { isTrusted: true }))).element));
+		element.appendChild($('p.setup-legal', undefined, disposables.add(markdown.render(new MarkdownString(terms, { isTrusted: true }))).element));
 
 		// SKU Settings
 		if (this.telemetryService.telemetryLevel !== TelemetryLevel.NONE) {
 			const settings = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "Copilot Free and Pro may show [public code]({0}) suggestions and we may use your data for product improvement. You can change these [settings]({1}) at any time.", defaultChat.publicCodeMatchesUrl, defaultChat.manageSettingsUrl);
-			element.appendChild($('p.legal', undefined, disposables.add(markdown.render(new MarkdownString(settings, { isTrusted: true }))).element));
+			element.appendChild($('p.setup-settings', undefined, disposables.add(markdown.render(new MarkdownString(settings, { isTrusted: true }))).element));
 		}
 
 		return element;
