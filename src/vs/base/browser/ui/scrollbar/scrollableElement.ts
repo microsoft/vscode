@@ -477,7 +477,7 @@ export abstract class AbstractScrollableElement extends Widget {
 			// Check that we are scrolling towards a location which is valid
 			desiredScrollPosition = this._scrollable.validateScrollPosition(desiredScrollPosition);
 
-			if (deltaX || deltaY) {
+			if (this._options.inertialScroll && (deltaX || deltaY)) {
 				let startPeriodic = false;
 				// Only start periodic if it's not running
 				if (this._inertialSpeed.X === 0 && this._inertialSpeed.Y === 0) {
@@ -723,6 +723,7 @@ function resolveOptions(opts: ScrollableElementCreationOptions): ScrollableEleme
 		fastScrollSensitivity: (typeof opts.fastScrollSensitivity !== 'undefined' ? opts.fastScrollSensitivity : 5),
 		scrollPredominantAxis: (typeof opts.scrollPredominantAxis !== 'undefined' ? opts.scrollPredominantAxis : true),
 		mouseWheelSmoothScroll: (typeof opts.mouseWheelSmoothScroll !== 'undefined' ? opts.mouseWheelSmoothScroll : true),
+		inertialScroll: (typeof opts.inertialScroll !== 'undefined' ? opts.inertialScroll : true),
 		arrowSize: (typeof opts.arrowSize !== 'undefined' ? opts.arrowSize : 11),
 
 		listenOnDomNode: (typeof opts.listenOnDomNode !== 'undefined' ? opts.listenOnDomNode : null),
