@@ -10,7 +10,7 @@ import type { ITerminalCommand } from '../capabilities.js';
 import { throttle } from '../../../../../base/common/decorators.js';
 
 import type { Terminal, IMarker, IBufferCell, IBufferLine, IBuffer } from '@xterm/headless';
-import { PosixShellType, TerminalShellType } from '../../terminal.js';
+import { GeneralShellType, PosixShellType, TerminalShellType } from '../../terminal.js';
 
 const enum PromptInputState {
 	Unknown = 0,
@@ -280,13 +280,17 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 		const buffer = this._xterm.buffer.active;
 		let line = buffer.getLine(commandStartY);
+		const absoluteCursorY = buffer.baseY + buffer.cursorY;
+		let cursorIndex: number | undefined;
+
 		let commandLine = line?.translateToString(true, this._commandStartX);
-		if (!line || commandLine === undefined) {
+		if (!line || !commandLine) {
 			if (this._shellType === PosixShellType.Fish) {
 				commandStartY += 1;
 				line = buffer.getLine(commandStartY);
 				if (line) {
 					commandLine = line.translateToString(true);
+					cursorIndex = absoluteCursorY === commandStartY ? buffer.cursorX : commandLine?.trimEnd().length;
 				}
 				if (!commandLine || !line) {
 					return;
@@ -297,19 +301,19 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			}
 		}
 
-		const absoluteCursorY = buffer.baseY + buffer.cursorY;
 		let value = commandLine;
 		let ghostTextIndex = -1;
-		let cursorIndex: number;
-		if (absoluteCursorY === commandStartY) {
-			cursorIndex = this._getRelativeCursorIndex(this._commandStartX, buffer, line);
-		} else {
-			cursorIndex = commandLine.trimEnd().length;
+		if (cursorIndex === undefined) {
+			if (absoluteCursorY === commandStartY) {
+				cursorIndex = this._getRelativeCursorIndex(this._commandStartX, buffer, line);
+			} else {
+				cursorIndex = commandLine.trimEnd().length;
+			}
 		}
 
 		// Detect ghost text by looking for italic or dim text in or after the cursor and
 		// non-italic/dim text in the cell closest non-whitespace cell before the cursor
-		if (absoluteCursorY === commandStartY && buffer.cursorX > 1) {
+		if (this._shellType !== GeneralShellType.PowerShell || absoluteCursorY === commandStartY && buffer.cursorX > 1) {
 			// Ghost text in pwsh only appears to happen on the cursor line
 			ghostTextIndex = this._scanForGhostText(buffer, line, cursorIndex);
 		}
@@ -555,7 +559,11 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 				}
 			}
 			// Calculate the ghost text start index
-			ghostTextIndex = positionsWithGhostStyle[0] - this._commandStartX;
+			if (buffer.cursorY === this._commandStartMarker?.line) {
+				ghostTextIndex = positionsWithGhostStyle[0] - this._commandStartX;
+			} else {
+				ghostTextIndex = positionsWithGhostStyle[0];
+			}
 		}
 
 		// Ensure no earlier cells in the line match `lastNonWhitespaceCell`'s style,
