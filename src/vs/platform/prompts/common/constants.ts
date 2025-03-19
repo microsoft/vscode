@@ -13,14 +13,22 @@ import { basename } from '../../../base/common/path.js';
 export const PROMPT_FILE_EXTENSION = '.prompt.md';
 
 /**
- * Check if provided path is a prompt file.
+ * Copilot custom instructions file name.
+ */
+const COPILOT_CUSTOM_INSTRUCTIONS_FILENAME = 'copilot-instructions.md';
+
+/**
+ * Check if provided path is a reusable prompt file.
  */
 export const isPromptFile = (
 	fileUri: URI,
 ): boolean => {
-	return fileUri
-		.path
-		.endsWith(PROMPT_FILE_EXTENSION);
+	const filename = basename(fileUri.path);
+
+	const hasPromptFileExtension = filename.endsWith(PROMPT_FILE_EXTENSION);
+	const isCustomInstructionsFile = (filename === COPILOT_CUSTOM_INSTRUCTIONS_FILENAME);
+
+	return hasPromptFileExtension || isCustomInstructionsFile;
 };
 
 /**
@@ -37,5 +45,12 @@ export const getCleanPromptName = (
 		`Provided path '${fileUri.fsPath}' is not a prompt file.`,
 	);
 
-	return basename(fileUri.path, PROMPT_FILE_EXTENSION);
+	// if a Copilot custom instructions file, remove `markdown` file extension
+	// otherwise, remove the `prompt` file extension
+	const fileExtension = (fileUri.path.endsWith(COPILOT_CUSTOM_INSTRUCTIONS_FILENAME))
+		? '.md'
+		: PROMPT_FILE_EXTENSION;
+
+	// otherwise, remove the prompt file extension
+	return basename(fileUri.path, fileExtension);
 };
