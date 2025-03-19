@@ -194,13 +194,13 @@ export abstract class AbstractScrollableElement extends Widget {
 
 	private _revealOnScroll: boolean;
 
+	private _inertialSpeed: { X: number; Y: number } = { X: 0, Y: 0 };
+
 	private readonly _onScroll = this._register(new Emitter<ScrollEvent>());
 	public readonly onScroll: Event<ScrollEvent> = this._onScroll.event;
 
 	private readonly _onWillScroll = this._register(new Emitter<ScrollEvent>());
 	public readonly onWillScroll: Event<ScrollEvent> = this._onWillScroll.event;
-
-	private inertialSpeed: { X: number; Y: number } = { X: 0, Y: 0 };
 
 	public get options(): Readonly<ScrollableElementResolvedOptions> {
 		return this._options;
@@ -366,17 +366,17 @@ export abstract class AbstractScrollableElement extends Widget {
 	}
 
 	private async _periodicSync(): Promise<void> {
-		if (this.inertialSpeed.X !== 0 || this.inertialSpeed.Y !== 0) {
-			this._scrollable.setScrollPositionNow({ scrollTop: this._scrollable.getCurrentScrollPosition().scrollTop - this.inertialSpeed.Y * 100, scrollLeft: this._scrollable.getCurrentScrollPosition().scrollLeft - this.inertialSpeed.X * 100 });
-			this.inertialSpeed.X *= 0.9;
-			this.inertialSpeed.Y *= 0.9;
-			if (Math.abs(this.inertialSpeed.X) < 0.01) {
-				this.inertialSpeed.X = 0;
+		if (this._inertialSpeed.X !== 0 || this._inertialSpeed.Y !== 0) {
+			this._scrollable.setScrollPositionNow({ scrollTop: this._scrollable.getCurrentScrollPosition().scrollTop - this._inertialSpeed.Y * 100, scrollLeft: this._scrollable.getCurrentScrollPosition().scrollLeft - this._inertialSpeed.X * 100 });
+			this._inertialSpeed.X *= 0.9;
+			this._inertialSpeed.Y *= 0.9;
+			if (Math.abs(this._inertialSpeed.X) < 0.01) {
+				this._inertialSpeed.X = 0;
 			}
-			if (Math.abs(this.inertialSpeed.Y) < 0.01) {
-				this.inertialSpeed.Y = 0;
+			if (Math.abs(this._inertialSpeed.Y) < 0.01) {
+				this._inertialSpeed.Y = 0;
 			}
-			if (this.inertialSpeed.X !== 0 || this.inertialSpeed.Y !== 0) {
+			if (this._inertialSpeed.X !== 0 || this._inertialSpeed.Y !== 0) {
 				setTimeout(() => {
 					this._periodicSync();
 				}, 1000 / 60);
@@ -480,11 +480,11 @@ export abstract class AbstractScrollableElement extends Widget {
 			if (deltaX || deltaY) {
 				let startPeriodic = false;
 				// Only start periodic if it's not running
-				if (this.inertialSpeed.X === 0 && this.inertialSpeed.Y === 0) {
+				if (this._inertialSpeed.X === 0 && this._inertialSpeed.Y === 0) {
 					startPeriodic = true;
 				}
-				this.inertialSpeed.Y = (deltaY < 0 ? -1 : 1) * (Math.abs(deltaY) ** 1.02);
-				this.inertialSpeed.X = (deltaX < 0 ? -1 : 1) * (Math.abs(deltaX) ** 1.02);
+				this._inertialSpeed.Y = (deltaY < 0 ? -1 : 1) * (Math.abs(deltaY) ** 1.02);
+				this._inertialSpeed.X = (deltaX < 0 ? -1 : 1) * (Math.abs(deltaX) ** 1.02);
 				if (startPeriodic) {
 					this._periodicSync();
 				}
