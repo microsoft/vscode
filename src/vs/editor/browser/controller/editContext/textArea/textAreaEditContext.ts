@@ -36,7 +36,7 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AbstractEditContext } from '../editContext.js';
 import { ICompositionData, IPasteData, ITextAreaInputHost, TextAreaInput, TextAreaWrapper } from './textAreaEditContextInput.js';
-import { ariaLabelForScreenReaderContent, getFontInfo, ISimpleModel, newlinecount, PagedScreenReaderStrategy } from '../screenReaderUtils.js';
+import { ariaLabelForScreenReaderContent, ISimpleModel, newlinecount, PagedScreenReaderStrategy } from '../screenReaderUtils.js';
 import { ClipboardDataToCopy, getDataToCopy } from '../clipboardUtils.js';
 import { _debugComposition, ITypeData, TextAreaState } from './textAreaEditContextState.js';
 import { getMapForWordSeparators, WordCharacterClass } from '../../../../common/core/wordCharacterClassifier.js';
@@ -844,7 +844,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 		const ta = this.textArea;
 		const tac = this.textAreaCover;
 
-		const fontInfo = getFontInfo(this._context.viewModel, this._primaryCursorPosition, renderData.height) ?? this._fontInfo;
+		const fontInfo = this._context.viewModel.getFontInfoForPosition(this._primaryCursorPosition);
 		applyFontInfo(ta, fontInfo);
 		ta.setTop(renderData.top);
 		ta.setLeft(renderData.left);

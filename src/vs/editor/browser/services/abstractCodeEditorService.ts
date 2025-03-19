@@ -132,7 +132,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		return new GlobalStyleSheet(domStylesheets.createStyleSheet());
 	}
 
-	public getOrCreateStyleSheet(editor: ICodeEditor | undefined): GlobalStyleSheet | RefCountedStyleSheet {
+	private _getOrCreateStyleSheet(editor: ICodeEditor | undefined): GlobalStyleSheet | RefCountedStyleSheet {
 		if (!editor) {
 			return this._getOrCreateGlobalStyleSheet();
 		}
@@ -155,7 +155,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 	public registerDecorationType(description: string, key: string, options: IDecorationRenderOptions, parentTypeKey?: string, editor?: ICodeEditor): IDisposable {
 		let provider = this._decorationOptionProviders.get(key);
 		if (!provider) {
-			const styleSheet = this.getOrCreateStyleSheet(editor);
+			const styleSheet = this._getOrCreateStyleSheet(editor);
 			const providerArgs: ProviderArguments = {
 				styleSheet: styleSheet,
 				key: key,
@@ -320,7 +320,7 @@ export class ModelTransientSettingWatcher extends Disposable {
 	}
 }
 
-export class RefCountedStyleSheet {
+class RefCountedStyleSheet {
 
 	private readonly _parent: AbstractCodeEditorService;
 	private readonly _editorId: string;

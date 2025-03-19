@@ -234,7 +234,6 @@ export class ModelRawLineChanged {
 	}
 }
 
-
 /**
  * An event describing that a line height has changed in the model.
  * @internal

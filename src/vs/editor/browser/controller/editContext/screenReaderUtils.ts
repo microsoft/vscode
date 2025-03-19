@@ -10,10 +10,6 @@ import { EditorOption, IComputedEditorOptions } from '../../../common/config/edi
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { AccessibilitySupport } from '../../../../platform/accessibility/common/accessibility.js';
 import * as nls from '../../../../nls.js';
-import { BareFontInfo } from '../../../common/config/fontInfo.js';
-import { getActiveWindow } from '../../../../base/browser/dom.js';
-import { PixelRatio } from '../../../../base/browser/pixelRatio.js';
-import { IViewModel } from '../../../common/viewModel.js';
 
 export interface ISimpleModel {
 	getLineCount(): number;
@@ -143,18 +139,4 @@ export function newlinecount(text: string): number {
 		result++;
 	} while (true);
 	return result;
-}
-
-export function getFontInfo(viewModel: IViewModel, position: Position, lineHeight: number): BareFontInfo | undefined {
-	const specialFontInfo = viewModel.getFontInfoForPosition(position);
-	const targetWindow = getActiveWindow();
-	if (!specialFontInfo) {
-		return undefined;
-	}
-	return BareFontInfo.createFromRawSettings({
-		fontFamily: specialFontInfo.fontFamily,
-		fontWeight: specialFontInfo.fontWeight,
-		fontSize: specialFontInfo.fontSize,
-		lineHeight
-	}, PixelRatio.getInstance(targetWindow).value);
 }

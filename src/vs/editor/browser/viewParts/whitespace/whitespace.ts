@@ -17,10 +17,8 @@ import { CharCode } from '../../../../base/common/charCode.js';
 import { LineRange } from '../../../common/viewLayout/viewLineRenderer.js';
 import { Position } from '../../../common/core/position.js';
 import { editorWhitespaces } from '../../../common/core/editorColorRegistry.js';
-import { BareFontInfo } from '../../../common/config/fontInfo.js';
-import { PixelRatio } from '../../../../base/browser/pixelRatio.js';
-import { getActiveWindow } from '../../../../base/browser/dom.js';
 import { CharWidthRequest, CharWidthRequestType, readCharWidths } from '../../config/charWidthReader.js';
+import { getActiveWindow } from '../../../../base/browser/dom.js';
 
 /**
  * The whitespace overlay will visual certain whitespace depending on the
@@ -150,7 +148,7 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 		const fauxIndentLength = lineData.minColumn - 1;
 		const onlyBoundary = (this._options.renderWhitespace === 'boundary');
 		const onlyTrailing = (this._options.renderWhitespace === 'trailing');
-		const lineHeight = ctx.getLineHeightForViewLineNumber(lineNumber);
+		const lineHeight = ctx.getLineHeightForLineNumber(lineNumber);
 		const canUseHalfwidthRightwardsArrow = this._options.canUseHalfwidthRightwardsArrow;
 
 		let result: string = '';
@@ -214,38 +212,7 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 			if (!visibleRange) {
 				continue;
 			}
-
-			let middotWidth: number;
-			let wsmiddotWidth: number;
-			let spaceWidth: number;
-
-			const specialFontInfo = ctx.getFontInfoForPosition(position);
-			const defaultFontInfo = this._context.configuration.options.get(EditorOption.fontInfo);
-
-			if (specialFontInfo && (
-				specialFontInfo.fontFamily !== defaultFontInfo.fontFamily
-				|| specialFontInfo.fontWeight !== defaultFontInfo.fontWeight
-				|| specialFontInfo.fontSize !== defaultFontInfo.fontSize
-			)) {
-				const targetWindow = getActiveWindow();
-				const bareFontInfo = BareFontInfo.createFromRawSettings({
-					fontFamily: specialFontInfo.fontFamily,
-					fontWeight: specialFontInfo.fontWeight,
-					fontSize: specialFontInfo.fontSize,
-					lineHeight
-				}, PixelRatio.getInstance(targetWindow).value);
-				const space = new CharWidthRequest(' ', CharWidthRequestType.Regular);
-				const middot = new CharWidthRequest('·', CharWidthRequestType.Regular);
-				const wsmiddot = new CharWidthRequest(String.fromCharCode(0x2E31), CharWidthRequestType.Regular);
-				readCharWidths(targetWindow, bareFontInfo, [space, middot, wsmiddot]);
-				middotWidth = middot.width;
-				wsmiddotWidth = wsmiddot.width;
-				spaceWidth = space.width;
-			} else {
-				middotWidth = this._options.middotWidth;
-				wsmiddotWidth = this._options.wsmiddotWidth;
-				spaceWidth = this._options.spaceWidth;
-			}
+			const { middotWidth, wsmiddotWidth, spaceWidth } = this._getRenderedCharacterWidths(ctx, position);
 			const wsmiddotDiff = Math.abs(wsmiddotWidth - spaceWidth);
 			const middotDiff = Math.abs(middotWidth - spaceWidth);
 			const renderSpaceCharCode = (wsmiddotDiff < middotDiff ? 0x2E31 : 0xB7);
@@ -277,6 +244,28 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 		}
 
 		return result;
+	}
+
+	private _getRenderedCharacterWidths(ctx: RenderingContext, position: Position): { middotWidth: number; wsmiddotWidth: number; spaceWidth: number } {
+		let middotWidth: number;
+		let wsmiddotWidth: number;
+		let spaceWidth: number;
+		const fontInfo = ctx.getFontInfoForPosition(position);
+		const defaultFontInfo = this._context.configuration.options.get(EditorOption.fontInfo);
+		if (!fontInfo.equals(defaultFontInfo)) {
+			const space = new CharWidthRequest(' ', CharWidthRequestType.Regular);
+			const middot = new CharWidthRequest('·', CharWidthRequestType.Regular);
+			const wsmiddot = new CharWidthRequest(String.fromCharCode(0x2E31), CharWidthRequestType.Regular);
+			readCharWidths(getActiveWindow(), fontInfo, [space, middot, wsmiddot]);
+			middotWidth = middot.width;
+			wsmiddotWidth = wsmiddot.width;
+			spaceWidth = space.width;
+		} else {
+			middotWidth = this._options.middotWidth;
+			wsmiddotWidth = this._options.wsmiddotWidth;
+			spaceWidth = this._options.spaceWidth;
+		}
+		return { middotWidth, wsmiddotWidth, spaceWidth };
 	}
 
 	private _renderArrow(lineHeight: number, spaceWidth: number, left: number): string {

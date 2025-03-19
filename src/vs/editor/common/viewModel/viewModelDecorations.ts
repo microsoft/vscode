@@ -10,8 +10,11 @@ import { IEditorConfiguration } from '../config/editorConfiguration.js';
 import { IModelDecoration, ITextModel, PositionAffinity } from '../model.js';
 import { IViewModelLines } from './viewModelLines.js';
 import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, ViewModelDecoration } from '../viewModel.js';
-import { filterValidationDecorations } from '../config/editorOptions.js';
+import { EditorOption, filterValidationDecorations } from '../config/editorOptions.js';
 import { StandardTokenType } from '../encodedTokenAttributes.js';
+import { BareFontInfo } from '../config/fontInfo.js';
+import { PixelRatio } from '../../../base/browser/pixelRatio.js';
+import { getActiveWindow } from '../../../base/browser/dom.js';
 
 export interface IDecorationsViewportData {
 	/**
@@ -110,22 +113,27 @@ export class ViewModelDecorations implements IDisposable {
 		return this._cachedModelDecorationsResolver!;
 	}
 
-	public getFontInfoForPosition(position: Position): { fontFamily?: string; fontWeight?: string; fontSize?: number } | null {
+	public getFontInfoForPosition(position: Position): BareFontInfo {
 		const range = Range.fromPositions(position);
 		const modelDecorations = this._linesCollection.getDecorationsInRange(range, this.editorId, filterValidationDecorations(this.configuration.options), false, false);
-		let result: { fontFamily?: string; fontWeight?: string; fontSize?: number } | null = null;
+		const defaultFontInfo = this.configuration.options.get(EditorOption.fontInfo);
+		let fontFamily: string = defaultFontInfo.fontFamily;
+		let fontWeight: string = defaultFontInfo.fontWeight;
+		let fontSize: number = defaultFontInfo.fontSize;
 		for (let i = 0, len = modelDecorations.length; i < len; i++) {
 			const modelDecoration = modelDecorations[i];
 			const decorationOptions = modelDecoration.options;
-			if (decorationOptions.fontFamily || decorationOptions.fontSize || decorationOptions.fontWeight) {
-				result = {
-					fontFamily: decorationOptions.fontFamily ?? undefined,
-					fontWeight: decorationOptions.fontWeight ?? undefined,
-					fontSize: decorationOptions.fontSize ?? undefined
-				};
+			if (decorationOptions.fontFamily) {
+				fontFamily = decorationOptions.fontFamily;
+			}
+			if (decorationOptions.fontWeight) {
+				fontWeight = decorationOptions.fontWeight;
+			}
+			if (decorationOptions.fontSize) {
+				fontSize = decorationOptions.fontSize;
 			}
 		}
-		return result;
+		return BareFontInfo.createFromRawSettings({ fontFamily, fontWeight, fontSize }, PixelRatio.getInstance(getActiveWindow()).value);
 	}
 
 	public getInlineDecorationsOnLine(lineNumber: number, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): InlineDecoration[] {

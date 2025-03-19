@@ -2142,7 +2142,6 @@ class DecorationsTrees {
 		const result = this._decorationsTree0.intervalSearch(start, end, filterOwnerId, false, versionId, false);
 		return this._ensureNodesHaveRanges(host, result).filter((i) => !!i.options.fontFamily || !!i.options.fontSize).length > 0;
 	}
-	*/
 
 	public getFontInfosInInterval(host: IDecorationsTreesHost, start: number, end: number, filterOwnerId: number): {
 		range: Range;
@@ -2164,6 +2163,7 @@ class DecorationsTrees {
 			};
 		});
 	}
+	*/
 
 	public getLineHeightInInterval(host: IDecorationsTreesHost, start: number, end: number, filterOwnerId: number): number | null {
 		const versionId = host.getVersionId();

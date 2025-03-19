@@ -19,7 +19,7 @@ import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 import { applyFontInfo } from '../../../config/domFontInfo.js';
 import { IEditorAriaOptions } from '../../../editorBrowser.js';
 import { RestrictedRenderingContext, RenderingContext, HorizontalPosition } from '../../../view/renderingContext.js';
-import { ariaLabelForScreenReaderContent, getFontInfo, ISimpleModel, PagedScreenReaderStrategy, ScreenReaderContentState } from '../screenReaderUtils.js';
+import { ariaLabelForScreenReaderContent, ISimpleModel, PagedScreenReaderStrategy, ScreenReaderContentState } from '../screenReaderUtils.js';
 
 export class ScreenReaderSupport {
 
@@ -143,8 +143,7 @@ export class ScreenReaderSupport {
 	}
 
 	private _doRender(scrollTop: number, top: number, left: number, width: number, height: number): void {
-		const fontInfo = getFontInfo(this._context.viewModel, this._primarySelection.getPosition(), height) ?? this._fontInfo;
-		// For correct alignment of the screen reader content, we need to apply the correct font
+		const fontInfo = this._context.viewModel.getFontInfoForPosition(this._primarySelection.getPosition()) ?? this._fontInfo;
 		applyFontInfo(this._domNode, fontInfo);
 
 		this._domNode.setTop(top);

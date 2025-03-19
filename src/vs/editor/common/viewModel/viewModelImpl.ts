@@ -40,6 +40,7 @@ import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, M
 import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from './viewModelLines.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { GlyphMarginLanesModel } from './glyphLanesModel.js';
+import { BareFontInfo } from '../config/fontInfo.js';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -744,7 +745,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this._decorations.getDecorationsViewportData(visibleRange).decorations;
 	}
 
-	public getFontInfoForPosition(position: Position): { fontFamily?: string; fontWeight?: string; fontSize?: number } | null {
+	public getFontInfoForPosition(position: Position): BareFontInfo {
 		return this._decorations.getFontInfoForPosition(position);
 	}
 
