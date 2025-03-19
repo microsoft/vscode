@@ -31,6 +31,7 @@ import { URI } from '../../../../base/common/uri.js';
 import Severity from '../../../../base/common/severity.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { isWeb } from '../../../../base/common/platform.js';
+import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 
 export const IChatEntitlementService = createDecorator<IChatEntitlementService>('chatEntitlementService');
 
@@ -375,6 +376,7 @@ export class ChatEntitlementRequests extends Disposable {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAuthenticationExtensionsService private readonly authenticationExtensionsService: IAuthenticationExtensionsService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
 		super();
 
@@ -692,34 +694,40 @@ export class ChatEntitlementRequests extends Disposable {
 	private async onUnknownSignUpError(detail: string, logMessage: string): Promise<boolean> {
 		this.logService.error(logMessage);
 
-		const { confirmed } = await this.dialogService.confirm({
-			type: Severity.Error,
-			message: localize('unknownSignUpError', "An error occurred while signing up for the Copilot Free plan. Would you like to try again?"),
-			detail,
-			primaryButton: localize('retry', "Retry")
-		});
+		if (!this.lifecycleService.willShutdown) {
+			const { confirmed } = await this.dialogService.confirm({
+				type: Severity.Error,
+				message: localize('unknownSignUpError', "An error occurred while signing up for the Copilot Free plan. Would you like to try again?"),
+				detail,
+				primaryButton: localize('retry', "Retry")
+			});
 
-		return confirmed;
+			return confirmed;
+		}
+
+		return false;
 	}
 
 	private onUnprocessableSignUpError(logMessage: string, logDetails: string): void {
 		this.logService.error(logMessage);
 
-		this.dialogService.prompt({
-			type: Severity.Error,
-			message: localize('unprocessableSignUpError', "An error occurred while signing up for the Copilot Free plan."),
-			detail: logDetails,
-			buttons: [
-				{
-					label: localize('ok', "OK"),
-					run: () => { /* noop */ }
-				},
-				{
-					label: localize('learnMore', "Learn More"),
-					run: () => this.openerService.open(URI.parse(defaultChat.upgradePlanUrl))
-				}
-			]
-		});
+		if (!this.lifecycleService.willShutdown) {
+			this.dialogService.prompt({
+				type: Severity.Error,
+				message: localize('unprocessableSignUpError', "An error occurred while signing up for the Copilot Free plan."),
+				detail: logDetails,
+				buttons: [
+					{
+						label: localize('ok', "OK"),
+						run: () => { /* noop */ }
+					},
+					{
+						label: localize('learnMore', "Learn More"),
+						run: () => this.openerService.open(URI.parse(defaultChat.upgradePlanUrl))
+					}
+				]
+			});
+		}
 	}
 
 	async signIn() {
