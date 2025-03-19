@@ -101,6 +101,9 @@ const vscodeResourceIncludes = [
 
 	// Tree Sitter highlights
 	'out-build/vs/editor/common/languages/highlights/*.scm',
+
+	// Tree Sitter injection queries
+	'out-build/vs/editor/common/languages/injections/*.scm',
 ];
 
 const vscodeResources = [
