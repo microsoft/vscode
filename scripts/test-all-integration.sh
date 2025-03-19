@@ -16,7 +16,7 @@ run_with_prefix() {
 	local prefix=$1
 	shift
 	# Export DISPLAY for the background process
-	DISPLAY=${DISPLAY:-"$DEFAULT_DISPLAY"} ("$@" 2>&1 | sed "s/^/[$prefix] /") || echo $? > "$tmpfile"
+	env DISPLAY=${DISPLAY:-"$DEFAULT_DISPLAY"} bash -c '"$@" 2>&1 | sed "s/^/[$prefix] /"' _ "$@" || echo $? > "$tmpfile"
 }
 
 # Run all in parallel
