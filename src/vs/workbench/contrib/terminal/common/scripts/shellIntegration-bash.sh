@@ -231,37 +231,35 @@ __vsc_update_cwd() {
 	builtin printf '\e]633;P;Cwd=%s\a' "$(__vsc_escape_value "$__vsc_cwd")"
 }
 
+# Filtered env output without exported functions
+__vsc_env() {
+	command env -0 | tr '\0\n' '\n\r' | sort | grep -Ev '^BASH_FUNC'
+}
+
 __updateEnvCacheAA() {
-	local key="$1"
-	local value="$2"
-	if [ "$use_associative_array" = 1 ]; then
-		if [[ "${vsc_aa_env[$key]}" != "$value" ]]; then
-			vsc_aa_env["$key"]="$value"
-			builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
-		fi
+	local key="$1" value="$2"
+	if [[ "${vsc_aa_env[$key]-}" != "$value" ]]; then
+		vsc_aa_env["$key"]="$value"
+		builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
 	fi
 }
 
 __trackMissingEnvVarsAA() {
-	if [ "$use_associative_array" = 1 ]; then
-		declare -A currentEnvMap
-		while IFS='=' read -r key value; do
-			currentEnvMap["$key"]="$value"
-		done < <(env)
+	declare -A currentEnvMap
+	while IFS='=' read -r key value; do
+		currentEnvMap["$key"]="$value"
+	done
 
-		for key in "${!vsc_aa_env[@]}"; do
-			if [ -z "${currentEnvMap[$key]}" ]; then
-				builtin printf '\e]633;EnvSingleDelete;%s;%s;%s\a' "$key" "$(__vsc_escape_value "${vsc_aa_env[$key]}")" "$__vsc_nonce"
-				builtin unset "vsc_aa_env[$key]"
-			fi
-		done
-	fi
+	for key in "${!vsc_aa_env[@]}"; do
+		if [ -z "${currentEnvMap[$key]-}" ]; then
+			builtin printf '\e]633;EnvSingleDelete;%s;%s;%s\a' "$key" "$(__vsc_escape_value "${vsc_aa_env[$key]}")" "$__vsc_nonce"
+			builtin unset "vsc_aa_env[$key]"
+		fi
+	done
 }
 
 __updateEnvCache() {
-	local key="$1"
-	local value="$2"
-
+	local key="$1" value="$2"
 	for i in "${!vsc_env_keys[@]}"; do
 		if [[ "${vsc_env_keys[$i]}" == "$key" ]]; then
 			if [[ "${vsc_env_values[$i]}" != "$value" ]]; then
@@ -279,10 +277,9 @@ __updateEnvCache() {
 
 __trackMissingEnvVars() {
 	local current_env_keys=()
-
 	while IFS='=' read -r key value; do
 		current_env_keys+=("$key")
-	done < <(env)
+	done
 
 	# Compare vsc_env_keys with user's current_env_keys
 	for key in "${vsc_env_keys[@]}"; do
@@ -306,6 +303,7 @@ __trackMissingEnvVars() {
 }
 
 __vsc_update_env() {
+	local VSC_ENV="$(__vsc_env)" key value
 	if [[ "$__vscode_shell_env_reporting" == "1" ]]; then
 		builtin printf '\e]633;EnvSingleStart;%s;%s\a' 0 $__vsc_nonce
 
@@ -315,29 +313,28 @@ __vsc_update_env() {
 				while IFS='=' read -r key value; do
 					vsc_aa_env["$key"]="$value"
 					builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
-				done < <(env)
+				done <<< "$VSC_ENV"
 			else
 				# Diff approach for associative array
 				while IFS='=' read -r key value; do
 					__updateEnvCacheAA "$key" "$value"
-				done < <(env)
-				__trackMissingEnvVarsAA
+				done <<< "$VSC_ENV"
+				__trackMissingEnvVarsAA <<< "$VSC_ENV"
 			fi
-
 		else
-			if [[ -z ${vsc_env_keys[@]} ]] && [[ -z ${vsc_env_values[@]} ]]; then
+			if [[ ${#vsc_env_keys[@]} -eq 0 ]] && [[ ${#vsc_env_values[@]} -eq 0 ]]; then
 			# Non associative arrays are both empty, do not diff, just add
 				while IFS='=' read -r key value; do
 					vsc_env_keys+=("$key")
 					vsc_env_values+=("$value")
 					builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
-				done < <(env)
+				done <<< "$VSC_ENV"
 			else
 				# Diff approach for non-associative arrays
 				while IFS='=' read -r key value; do
 					__updateEnvCache "$key" "$value"
-				done < <(env)
-				__trackMissingEnvVars
+				done <<< "$VSC_ENV"
+				__trackMissingEnvVars <<< "$VSC_ENV"
 			fi
 
 		fi
