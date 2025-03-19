@@ -22,10 +22,11 @@ import { TextEdit } from '../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IUndoRedoElement, IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
+import { IUndoRedoElement, IUndoRedoService, UndoRedoElementType } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { IEditorPane, SaveReason } from '../../../../common/editor.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { SnapshotContext } from '../../../../services/workingCopy/common/fileWorkingCopy.js';
@@ -35,7 +36,7 @@ import { CellDiffInfo } from '../../../notebook/browser/diff/notebookDiffViewMod
 import { getNotebookEditorFromEditorPane } from '../../../notebook/browser/notebookBrowser.js';
 import { NotebookCellTextModel } from '../../../notebook/common/model/notebookCellTextModel.js';
 import { NotebookTextModel } from '../../../notebook/common/model/notebookTextModel.js';
-import { CellEditType, ICellDto2, ICellEditOperation, ICellReplaceEdit, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookTextModelChangedEvent, TransientOptions } from '../../../notebook/common/notebookCommon.js';
+import { CellEditType, ICellDto2, ICellEditOperation, ICellReplaceEdit, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookSetting, NotebookTextModelChangedEvent, TransientOptions } from '../../../notebook/common/notebookCommon.js';
 import { computeDiff } from '../../../notebook/common/notebookDiff.js';
 import { INotebookEditorModelResolverService } from '../../../notebook/common/notebookEditorModelResolverService.js';
 import { INotebookLoggingService } from '../../../notebook/common/notebookLoggingService.js';
@@ -129,7 +130,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 						edits.push({ editType: CellEditType.PartialInternalMetadata, index, internalMetadata: { cellId } });
 					}
 				});
-				originalRef.object.notebook.applyEdits(edits, true, undefined, () => undefined, undefined, false);
+				originalRef.object.notebook.applyEdits(edits, true, undefined, () => undefined, undefined, true);
 			}
 			const instance = instantiationService.createInstance(ChatEditingModifiedNotebookEntry, resourceRef, originalRef, _multiDiffEntryDelegate, options.serializer.options, telemetryInfo, chatKind, initialContent);
 			instance._register(disposables);
@@ -433,9 +434,30 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		this.cellEntryMap.forEach(entry => !entry.disposed && entry.clearCurrentEditLineDecoration());
 	}
 
-	protected override _createUndoRedoElement(_response: IChatResponseModel): IUndoRedoElement | undefined {
-		// TODO@amunger
-		return undefined;
+	protected override _createUndoRedoElement(response: IChatResponseModel): IUndoRedoElement | undefined {
+		const request = response.session.getRequests().find(req => req.id === response.requestId);
+		const label = request?.message.text ? localize('chatNotebookEdit1', "Chat Edit: '{0}'", request.message.text) : localize('chatNotebookEdit2', "Chat Edit");
+		const transientOptions = this.transientOptions;
+		const outputSizeLimit = this.configurationService.getValue<number>(NotebookSetting.outputBackupSizeLimit) * 1024;
+
+		let initial = this.initialContent;
+		let last = '';
+
+		return {
+			type: UndoRedoElementType.Resource,
+			resource: this.modifiedURI,
+			label,
+			code: 'chat.edit',
+			confirmBeforeUndo: false,
+			undo: async () => {
+				last = createSnapshot(this.modifiedModel, transientOptions, outputSizeLimit);
+				restoreSnapshot(this.modifiedModel, initial);
+			},
+			redo: async () => {
+				initial = createSnapshot(this.modifiedModel, transientOptions, outputSizeLimit);
+				restoreSnapshot(this.modifiedModel, last);
+			}
+		};
 	}
 
 	protected override async _areOriginalAndModifiedIdentical(): Promise<boolean> {
@@ -544,7 +566,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 
 	acceptNotebookEdit(edit: ICellEditOperation): void {
 		// make the actual edit
-		this.modifiedModel.applyEdits([edit], true, undefined, () => undefined, undefined, true);
+		this.modifiedModel.applyEdits([edit], true, undefined, () => undefined, undefined, false);
 		this.disposeDeletedCellEntries();
 
 		if (edit.editType !== CellEditType.Replace) {
@@ -767,7 +789,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 	private keepPreviouslyDeletedCell(deletedOriginalIndex: number) {
 		// Delete this cell from original as well.
 		const edit: ICellReplaceEdit = { cells: [], count: 1, editType: CellEditType.Replace, index: deletedOriginalIndex, };
-		this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, true);
+		this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, false);
 		const diffs = sortCellChanges(this._cellsDiffInfo.get())
 			.filter(d => !(d.type === 'delete' && d.originalCellIndex === deletedOriginalIndex))
 			.map(diff => {
