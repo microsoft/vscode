@@ -507,7 +507,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.EditingSession, false, context, controller, disposables);
 				SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.EditingSession, true, context, controller, disposables);
 
-				panelRegistration.onUnresolvableError(() => {
+				disposables.add(panelRegistration.onUnresolvableError(() => {
 					// An unresolvable error from our agent registrations means that
 					// Copilot is unhealthy for some reason. We clear our panel
 					// registration to give Copilot a chance to show a custom message
@@ -515,7 +515,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					// a functional agent.
 					this.logService.error('[chat setup] Unresolvable error from Copilot agent registration, clearing registration.');
 					panelRegistration.dispose();
-				});
+				}));
 			} else if (disabled && registration.value) {
 				registration.clear();
 			}
