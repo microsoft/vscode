@@ -454,6 +454,38 @@ class RefItemsProcessor {
 	}
 }
 
+class MergeItemsProcessors extends RefItemsProcessor {
+	constructor(private readonly repository: Repository) {
+		super([
+			new RefProcessor(RefType.Head, MergeItem),
+			new RefProcessor(RefType.RemoteHead, MergeItem),
+			new RefProcessor(RefType.Tag, MergeItem)
+		]);
+	}
+
+	override processRefs(refs: Ref[]): QuickPickItem[] {
+		const result: QuickPickItem[] = [];
+
+		for (const ref of refs) {
+			if (ref.name === this.repository.HEAD?.name) {
+				continue;
+			}
+
+			for (const processor of this.processors) {
+				if (processor.processRef(ref)) {
+					break;
+				}
+			}
+		}
+
+		for (const processor of this.processors) {
+			result.push(...processor.items);
+		}
+
+		return result;
+	}
+}
+
 class RebaseItemsProcessors extends RefItemsProcessor {
 
 	private upstreamName: string | undefined;
@@ -3160,11 +3192,7 @@ export class CommandCenter {
 
 		const getQuickPickItems = async (): Promise<QuickPickItem[]> => {
 			const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
-			const itemsProcessor = new RefItemsProcessor([
-				new RefProcessor(RefType.Head, MergeItem),
-				new RefProcessor(RefType.RemoteHead, MergeItem),
-				new RefProcessor(RefType.Tag, MergeItem)
-			]);
+			const itemsProcessor = new MergeItemsProcessors(repository);
 
 			return itemsProcessor.processRefs(refs);
 		};
