@@ -108,6 +108,7 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 		}));
 
 		this._register(autorunWithStore((reader, store) => {
+			this._repositories.read(reader);
 			const repository = this.scmViewService.activeRepository.read(reader);
 			const commands = repository?.provider.statusBarCommands.read(reader);
 
@@ -174,6 +175,18 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 				this.statusbarService.addEntry(statusbarEntry, `status.scm.${index}`, MainThreadStatusBarAlignment.LEFT, 10000) :
 				this.statusbarService.addEntry(statusbarEntry, `status.scm.${index}`, MainThreadStatusBarAlignment.LEFT, { location: { id: `status.scm.${index - 1}`, priority: 10000 }, alignment: MainThreadStatusBarAlignment.RIGHT, compact: true })
 			);
+		}
+
+		if (this.scmService.repositoryCount > 1) {
+			const repositoryStatusbarEntry: IStatusbarEntry = {
+				name: localize('status.scm.provider', "Source Control Provider"),
+				text: `$(repo) ${repository.provider.name}`,
+				ariaLabel: label,
+				tooltip: label,
+				command: 'scm.setActiveProvider'
+			};
+
+			store.add(this.statusbarService.addEntry(repositoryStatusbarEntry, 'status.scm.provider', MainThreadStatusBarAlignment.LEFT, { location: { id: `status.scm.0`, priority: 10000 }, alignment: MainThreadStatusBarAlignment.LEFT, compact: true }));
 		}
 	}
 

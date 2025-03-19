@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ISCMViewService, ISCMRepository, ISCMService, ISCMViewVisibleRepositoryChangeEvent, ISCMMenus, ISCMProvider, ISCMRepositorySortKey } from '../common/scm.js';
 import { Iterable } from '../../../../base/common/iterator.js';
@@ -22,6 +22,10 @@ import { derivedObservableWithCache, derivedOpts, IObservable, latestChangedValu
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { EditorResourceAccessor } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { localize } from '../../../../nls.js';
 
 function getProviderStorageKey(provider: ISCMProvider): string {
 	return `${provider.contextValue}:${provider.label}${provider.rootUri ? `:${provider.rootUri.toString()}` : ''}`;
@@ -39,6 +43,43 @@ function getRepositoryName(workspaceContextService: IWorkspaceContextService, re
 export const RepositoryContextKeys = {
 	RepositorySortKey: new RawContextKey<ISCMRepositorySortKey>('scmRepositorySortKey', ISCMRepositorySortKey.DiscoveryTime),
 };
+
+export type RepositoryQuickPickItem = IQuickPickItem & { repository: 'auto' | ISCMRepository };
+
+export class RepositoryPicker extends Disposable {
+	private readonly _autoQuickPickItem: RepositoryQuickPickItem;
+
+	constructor(
+		private readonly _placeHolder: string,
+		private readonly _autoQuickItemDescription: string,
+		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@ISCMViewService private readonly _scmViewService: ISCMViewService
+	) {
+		super();
+
+		this._autoQuickPickItem = {
+			label: localize('auto', "Auto"),
+			description: this._autoQuickItemDescription,
+			repository: 'auto'
+		} satisfies RepositoryQuickPickItem;
+	}
+
+	async pickRepository(): Promise<RepositoryQuickPickItem | undefined> {
+		const picks: (RepositoryQuickPickItem | IQuickPickSeparator)[] = [
+			this._autoQuickPickItem,
+			{ type: 'separator' }
+		];
+
+		picks.push(...this._scmViewService.repositories.map(r => ({
+			label: r.provider.name,
+			description: r.provider.rootUri?.fsPath,
+			iconClass: ThemeIcon.asClassName(Codicon.repo),
+			repository: r
+		})));
+
+		return this._quickInputService.pick(picks, { placeHolder: this._placeHolder });
+	}
+}
 
 interface ISCMRepositoryView {
 	readonly repository: ISCMRepository;
