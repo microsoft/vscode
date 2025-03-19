@@ -58,7 +58,7 @@ export class FetchWebPageTool implements IToolImpl {
 		}
 
 		const contents = await this._readerModeService.extract(validUris);
-		// Make an array that conatains either the content or undefined for invalid URLs
+		// Make an array that contains either the content or undefined for invalid URLs
 		const contentsWithUndefined = new Map<string, string | undefined>();
 		let indexInContents = 0;
 		parsedUriResults.forEach((uri, url) => {
@@ -70,7 +70,6 @@ export class FetchWebPageTool implements IToolImpl {
 			}
 		});
 
-		// TODO: Should we return a content for invalid URLs so that the indexes are aligned?
 		return { content: this._getPromptPartsForResults(contentsWithUndefined) };
 	}
 
