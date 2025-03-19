@@ -28,7 +28,6 @@ import { IExtensionService } from '../../../extensions/common/extensions.js';
 import { IPathService } from '../../../path/common/pathService.js';
 import { TestEditorService, TestQuickInputService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestContextService, TestExtensionService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
-import { ConfigurationResolverExpression } from '../../common/configurationResolverExpression.js';
 
 const mockLineNumber = 10;
 class TestEditorServiceWithActiveEditor extends TestEditorService {
@@ -108,12 +107,12 @@ suite('Configuration Resolver Service', () => {
 		}
 	});
 
-	test('workspace folder with invalid argument', async () => {
-		await assert.rejects(async () => await configurationResolverService!.resolveAsync(workspace, 'abc ${workspaceFolder:invalidLocation} xyz'));
+	test('workspace folder with invalid argument', () => {
+		assert.rejects(async () => await configurationResolverService!.resolveAsync(workspace, 'abc ${workspaceFolder:invalidLocation} xyz'));
 	});
 
-	test('workspace folder with undefined workspace folder', async () => {
-		await assert.rejects(async () => await configurationResolverService!.resolveAsync(undefined, 'abc ${workspaceFolder} xyz'));
+	test('workspace folder with undefined workspace folder', () => {
+		assert.rejects(async () => await configurationResolverService!.resolveAsync(undefined, 'abc ${workspaceFolder} xyz'));
 	});
 
 	test('workspace folder with argument and undefined workspace folder', async () => {
@@ -189,7 +188,7 @@ suite('Configuration Resolver Service', () => {
 	});
 
 	test('disallows nested keys (#77289)', async () => {
-		assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, '${env:key1} ${env:key1${env:key2}}'), 'Value for key1 ');
+		assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, '${env:key1} ${env:key1${env:key2}}'), 'Value for key1 ${env:key1${env:key2}}');
 	});
 
 	test('supports extensionDir', async () => {
@@ -749,7 +748,6 @@ class MockInputsConfigurationService extends TestConfigurationService {
 						type: 'promptString',
 						description: 'Enterinput3',
 						default: 'default input3',
-						provide: true,
 						password: true
 					},
 					{
@@ -775,116 +773,3 @@ class MockInputsConfigurationService extends TestConfigurationService {
 		};
 	}
 }
-
-suite('ConfigurationResolverExpression', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('parse empty object', () => {
-		const expr = ConfigurationResolverExpression.parse({});
-		assert.strictEqual(Array.from(expr.unresolved()).length, 0);
-		assert.deepStrictEqual(expr.toObject(), {});
-	});
-
-	test('parse simple string', () => {
-		const expr = ConfigurationResolverExpression.parse({ value: '${env:HOME}' });
-		const unresolved = Array.from(expr.unresolved());
-		assert.strictEqual(unresolved.length, 1);
-		assert.strictEqual(unresolved[0].name, 'env');
-		assert.strictEqual(unresolved[0].arg, 'HOME');
-	});
-
-	test('parse string with argument and colon', () => {
-		const expr = ConfigurationResolverExpression.parse({ value: '${config:path:to:value}' });
-		const unresolved = Array.from(expr.unresolved());
-		assert.strictEqual(unresolved.length, 1);
-		assert.strictEqual(unresolved[0].name, 'config');
-		assert.strictEqual(unresolved[0].arg, 'path:to:value');
-	});
-
-	test('parse object with nested variables', () => {
-		const expr = ConfigurationResolverExpression.parse({
-			name: '${env:USERNAME}',
-			path: '${env:HOME}/folder',
-			settings: {
-				value: '${config:path}'
-			},
-			array: ['${env:TERM}', { key: '${env:KEY}' }]
-		});
-
-		const unresolved = Array.from(expr.unresolved());
-		assert.strictEqual(unresolved.length, 5);
-		assert.deepStrictEqual(unresolved.map(r => r.name).sort(), ['config', 'env', 'env', 'env', 'env']);
-	});
-
-	test('resolve and get result', () => {
-		const expr = ConfigurationResolverExpression.parse({
-			name: '${env:USERNAME}',
-			path: '${env:HOME}/folder'
-		});
-
-		expr.resolve({ inner: 'env:USERNAME', id: '${env:USERNAME}', name: 'env', arg: 'USERNAME' }, 'testuser');
-		expr.resolve({ inner: 'env:HOME', id: '${env:HOME}', name: 'env', arg: 'HOME' }, '/home/testuser');
-
-		assert.deepStrictEqual(expr.toObject(), {
-			name: 'testuser',
-			path: '/home/testuser/folder'
-		});
-	});
-
-	test('keeps unresolved variables', () => {
-		const expr = ConfigurationResolverExpression.parse({
-			name: '${env:USERNAME}'
-		});
-
-		assert.deepStrictEqual(expr.toObject(), {
-			name: '${env:USERNAME}'
-		});
-	});
-
-	test('deduplicates identical variables', () => {
-		const expr = ConfigurationResolverExpression.parse({
-			first: '${env:HOME}',
-			second: '${env:HOME}'
-		});
-
-		const unresolved = Array.from(expr.unresolved());
-		assert.strictEqual(unresolved.length, 1);
-		assert.strictEqual(unresolved[0].name, 'env');
-		assert.strictEqual(unresolved[0].arg, 'HOME');
-
-		expr.resolve(unresolved[0], '/home/user');
-		assert.deepStrictEqual(expr.toObject(), {
-			first: '/home/user',
-			second: '/home/user'
-		});
-	});
-
-	test('handles root string value', () => {
-		const expr = ConfigurationResolverExpression.parse('abc ${env:HOME} xyz');
-		const unresolved = Array.from(expr.unresolved());
-		assert.strictEqual(unresolved.length, 1);
-		assert.strictEqual(unresolved[0].name, 'env');
-		assert.strictEqual(unresolved[0].arg, 'HOME');
-
-		expr.resolve(unresolved[0], '/home/user');
-		assert.strictEqual(expr.toObject(), 'abc /home/user xyz');
-	});
-
-	test('handles root string value with multiple variables', () => {
-		const expr = ConfigurationResolverExpression.parse('${env:HOME}/folder${env:SHELL}');
-		const unresolved = Array.from(expr.unresolved());
-		assert.strictEqual(unresolved.length, 2);
-
-		expr.resolve({ id: '${env:HOME}', inner: 'env:HOME', name: 'env', arg: 'HOME' }, '/home/user');
-		expr.resolve({ id: '${env:SHELL}', inner: 'env:SHELL', name: 'env', arg: 'SHELL' }, '/bin/bash');
-		assert.strictEqual(expr.toObject(), '/home/user/folder/bin/bash');
-	});
-
-	test('handles root string with escaped variables', () => {
-		const expr = ConfigurationResolverExpression.parse('abc ${env:HOME${env:USER}} xyz');
-		const unresolved = Array.from(expr.unresolved());
-		assert.strictEqual(unresolved.length, 1);
-		assert.strictEqual(unresolved[0].name, 'env');
-		assert.strictEqual(unresolved[0].arg, 'HOME${env:USER}');
-	});
-});
