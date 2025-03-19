@@ -5,6 +5,7 @@
 
 import { streamToBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { StringSHA1 } from '../../../../../base/common/hash.js';
 import { DisposableStore, IReference } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -125,11 +126,10 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 				restoreSnapshot(originalRef.object.notebook, initialContent);
 				const edits: ICellEditOperation[] = [];
 				notebook.cells.forEach((cell, index) => {
-					const internalId = cell.internalMetadata?.internalId;
-					if (internalId) {
-						edits.push({ editType: CellEditType.PartialInternalMetadata, index, internalMetadata: { internalId } });
-					}
+					const internalId = generateCellHash(cell.uri);
+					edits.push({ editType: CellEditType.PartialInternalMetadata, index, internalMetadata: { internalId } });
 				});
+				resourceRef.object.notebook.applyEdits(edits, true, undefined, () => undefined, undefined, true);
 				originalRef.object.notebook.applyEdits(edits, true, undefined, () => undefined, undefined, true);
 			}
 			const instance = instantiationService.createInstance(ChatEditingModifiedNotebookEntry, resourceRef, originalRef, _multiDiffEntryDelegate, options.serializer.options, telemetryInfo, chatKind, initialContent);
@@ -943,4 +943,11 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 
 		return cellEntry;
 	}
+}
+
+
+function generateCellHash(cellUri: URI) {
+	const hash = new StringSHA1();
+	hash.update(cellUri.toString());
+	return hash.digest().substring(0, 8);
 }
