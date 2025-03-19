@@ -10,7 +10,7 @@ import { ObservableDisposable } from '../utils/vscode';
 import { IFileSystemService, FileChangeEvent } from './types';
 
 /**
- * TODO: @legomushroom
+ * File system service implementation based on VSCode file system API.
  */
 export class FileSystemService extends ObservableDisposable implements IFileSystemService {
 	public async stat(uri: URI): Promise<FileStat> {
@@ -27,6 +27,10 @@ export class FileSystemService extends ObservableDisposable implements IFileSyst
 
 	public async delete(uri: URI, options?: { recursive?: boolean; useTrash?: boolean }): Promise<void> {
 		return workspace.fs.delete(uri, options);
+	}
+
+	public async createDirectory(uri: URI): Promise<void> {
+		return workspace.fs.createDirectory(uri);
 	}
 
 	public onFileChange(uri: URI, callback: (event: FileChangeEvent) => void): Disposable {

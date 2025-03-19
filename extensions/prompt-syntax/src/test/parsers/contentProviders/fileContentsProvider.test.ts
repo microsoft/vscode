@@ -7,16 +7,16 @@ import assert from 'assert';
 import { workspace, Uri } from 'vscode';
 
 import { wait } from '../../../utils/wait';
+import { services } from '../../../services';
 import { assertDefined } from '../../../utils/asserts';
 import { Line } from '../../../codecs/linesCodec/tokens';
-import { FileSystemService } from '../../../services/vscodeFilesystem';
 import { VSBuffer, type ReadableStream } from '../../../utils/vscode';
 import { LinesDecoder } from '../../../codecs/linesCodec/linesDecoder';
 import { FileContentsProvider } from '../../../parsers/contentProviders/fileContentsProvider';
 
 suite('FileContentsProvider', function () {
 	test('provides contents of a file', async () => {
-		const filesystem = new FileSystemService();
+		const { filesystemService, logService } = services;
 
 		const { workspaceFolders } = workspace;
 		assertDefined(
@@ -34,16 +34,16 @@ suite('FileContentsProvider', function () {
 		const fileUri = Uri.joinPath(firstFolder.uri, fileName);
 
 		try {
-			if (await filesystem.stat(fileUri)) {
-				await filesystem.delete(fileUri);
+			if (await filesystemService.stat(fileUri)) {
+				await filesystemService.delete(fileUri);
 			}
 		} catch (error) {
 			// ignore the error - most likely, the file does not exist
 		}
 
-		await filesystem.writeFile(fileUri, VSBuffer.fromString('Hello, world!').buffer);
+		await filesystemService.writeFile(fileUri, VSBuffer.fromString('Hello, world!').buffer);
 
-		const contentsProvider = new FileContentsProvider(fileUri, filesystem);
+		const contentsProvider = new FileContentsProvider(fileUri, filesystemService, logService);
 
 		let streamOrError: ReadableStream<VSBuffer> | Error | undefined;
 		contentsProvider.onContentChanged((event) => {

@@ -9,13 +9,13 @@ import { services } from './services';
 
 /**
  * TODO: @legomushroom - list
- *  - move in `prompt parsers`
  *  - move in `prompt file reference`
  *  - create extension API
  *  - consume extension API
  *  - remove the old code in core
  *  - move in `language features` to the extension
  *  - test in-browser
+ *  - create index.ts for utils
  */
 
 export function activate(context: vscode.ExtensionContext): any {

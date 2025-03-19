@@ -6,11 +6,11 @@
 import assert from 'assert';
 import { ExtensionContext } from 'vscode';
 
-import { IFileSystemService, ILogService } from './types';
 import { LogService } from './logService';
 import { assertDefined } from '../utils/asserts';
 import { ObservableDisposable } from '../utils/vscode';
-import { FileSystemService } from './vscodeFilesystem';
+import { FileSystemService } from './filesystemService';
+import { IFileSystemService, ILogService } from './types';
 
 /**
  * TODO: @legomushroom

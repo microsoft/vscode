@@ -42,7 +42,7 @@ export const waitRandom = (maxMs: number, minMs: number = 0): Promise<void> => {
  *
  * ## Examples
  *
- * ```typsecript
+ * ```typescript
  * randomBoolean(); // generates either `true` or `false`
  * ```
  *

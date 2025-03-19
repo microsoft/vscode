@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 import assert from 'assert';
 import { URI } from 'vscode-uri';
 import { CancellationToken } from 'vscode-jsonrpc';
@@ -12,9 +11,10 @@ import { CancellationError, FileType } from 'vscode';
 import { IContentsProvider } from './types';
 import { ContentsProviderBase } from './contentsProviderBase';
 import { assertDefined, assertNever } from '../../utils/asserts';
-import { IFileSystemService, FileChangeEvent } from '../../services/types';
+import { DEFAULT_CONTENTS_STREAM_CHUNK_SIZE } from './constants';
 import { FolderReference, NotPromptFile, OpenFailed, ResolveError } from '../errors';
 import { newWriteableStream, type ReadableStream, VSBuffer } from '../../utils/vscode';
+import { IFileSystemService, FileChangeEvent, ILogService } from '../../services/types';
 
 /**
  * Prompt contents provider for a file on the disk referenced by the provided file {@link URI}.
@@ -22,13 +22,14 @@ import { newWriteableStream, type ReadableStream, VSBuffer } from '../../utils/v
 export class FileContentsProvider extends ContentsProviderBase<FileChangeEvent> implements IContentsProvider {
 	constructor(
 		public readonly uri: URI,
-		private readonly filesystem: IFileSystemService,
+		private readonly fileService: IFileSystemService,
+		private readonly logService: ILogService,
 	) {
 		super();
 
 		// make sure the object is updated on file changes
 		this._register(
-			this.filesystem.onFileChange(this.uri, (event) => {
+			this.fileService.onFileChange(this.uri, (event) => {
 				// if file was added or updated, forward the event to
 				// the `getContentsStream()` produce a new stream for file contents
 				if ((event === FileChangeEvent.ADDED) || (event === FileChangeEvent.UPDATED)) {
@@ -73,7 +74,7 @@ export class FileContentsProvider extends ContentsProviderBase<FileChangeEvent> 
 		try {
 			// ensure that the referenced URI points to a file before
 			// trying to get a stream for its contents
-			const info = await this.filesystem.stat(this.uri);
+			const info = await this.fileService.stat(this.uri);
 
 			// validate that the cancellation was not yet requested
 			assert(
@@ -86,7 +87,7 @@ export class FileContentsProvider extends ContentsProviderBase<FileChangeEvent> 
 				new FolderReference(this.uri),
 			);
 
-			fileContents = await this.filesystem.readFile(this.uri);
+			fileContents = await this.fileService.readFile(this.uri);
 		} catch (error) {
 			if (error instanceof ResolveError) {
 				throw error;
@@ -118,9 +119,6 @@ export class FileContentsProvider extends ContentsProviderBase<FileChangeEvent> 
 
 		let contentsBuffer = VSBuffer.fromByteArray([...fileContents]);
 
-		// TODO: @legomushroom
-		const CHUNK_SIZE = 4 * 1024;
-
 		const interval = setInterval(() => {
 			// if we have written all contents then end the stream
 			// and stop the interval timer
@@ -142,12 +140,11 @@ export class FileContentsProvider extends ContentsProviderBase<FileChangeEvent> 
 
 			try {
 				// write the current line to the stream
-				const chunk = contentsBuffer.slice(0, CHUNK_SIZE);
+				const chunk = contentsBuffer.slice(0, DEFAULT_CONTENTS_STREAM_CHUNK_SIZE);
 				stream.write(chunk);
-				contentsBuffer = contentsBuffer.slice(CHUNK_SIZE);
+				contentsBuffer = contentsBuffer.slice(DEFAULT_CONTENTS_STREAM_CHUNK_SIZE);
 			} catch (error) {
-				// TODO: @legomushroom - log the error
-				console.log(this.uri, error);
+				this.logService.warn(`[${this}] failed to write a chunk to the stream`, error);
 			}
 		}, 1);
 

@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 import { CancellationToken } from 'vscode-jsonrpc';
 import { CancellationError, TextDocument, TextDocumentChangeEvent, workspace } from 'vscode';
 
+import { ILogService } from '../../services/types';
 import { ContentsProviderBase } from './contentsProviderBase';
+import { DEFAULT_CONTENTS_STREAM_CHUNK_SIZE } from './constants';
 import { newWriteableStream, type ReadableStream, VSBuffer } from '../../utils/vscode';
 
 /**
@@ -22,6 +23,7 @@ export class TextDocumentContentsProvider extends ContentsProviderBase<TextDocum
 
 	constructor(
 		private readonly textDocument: TextDocument,
+		private readonly logService: ILogService,
 	) {
 		super();
 
@@ -65,9 +67,6 @@ export class TextDocumentContentsProvider extends ContentsProviderBase<TextDocum
 
 		let contentsBuffer = VSBuffer.fromString(text);
 
-		// TODO: @legomushroom
-		const CHUNK_SIZE = 4 * 1024;
-
 		const interval = setInterval(() => {
 			// if we have written all contents then end the stream
 			// and stop the interval timer
@@ -89,66 +88,15 @@ export class TextDocumentContentsProvider extends ContentsProviderBase<TextDocum
 
 			try {
 				// write the current line to the stream
-				const chunk = contentsBuffer.slice(0, CHUNK_SIZE);
+				const chunk = contentsBuffer.slice(0, DEFAULT_CONTENTS_STREAM_CHUNK_SIZE);
 				stream.write(chunk);
-				contentsBuffer = contentsBuffer.slice(CHUNK_SIZE);
+				contentsBuffer = contentsBuffer.slice(DEFAULT_CONTENTS_STREAM_CHUNK_SIZE);
 			} catch (error) {
-				// TODO: @legomushroom - log the error
-				console.log(this.uri, error);
+				this.logService.warn(`[${this}] failed to write a chunk to the stream`, error);
 			}
 		}, 1);
 
 		return stream;
-
-		// // provide the changed lines to the stream incrementally and asynchronously
-		// // to avoid blocking the main thread and save system resources used
-		// let i = 1;
-		// const interval = setInterval(() => {
-		// 	// if we have written all lines or lines count is zero,
-		// 	// end the stream and stop the interval timer
-		// 	if (i >= lineCount) {
-		// 		clearInterval(interval);
-		// 		stream.end();
-		// 		// stream.destroy(); TODO: @legomushroom - remove this?
-		// 		return;
-		// 	}
-
-		// 	// if model was disposed or cancellation was requested,
-		// 	// end the stream with an error and stop the interval timer
-		// 	if (this.textDocument.isClosed || cancellationToken?.isCancellationRequested) {
-		// 		clearInterval(interval);
-		// 		stream.error(new CancellationError());
-		// 		stream.destroy();
-		// 		return;
-		// 	}
-
-		// 	try {
-		// 		// write the current line to the stream
-		// 		stream.write(
-		// 			VSBuffer.fromString(this.textDocument.lineAt(i).text),
-		// 		);
-
-		// 		// for all lines except the last one, write the EOL character
-		// 		// to separate the lines in the stream
-		// 		if (i !== lineCount) {
-		// 			const eolString = (this.textDocument.eol === EndOfLine.LF)
-		// 				? '\n'
-		// 				: '\r\n';
-
-		// 			stream.write(
-		// 				VSBuffer.fromString(eolString),
-		// 			);
-		// 		}
-		// 	} catch (error) {
-		// 		// TODO: @legomushroom - trace the error instead
-		// 		console.log(this.uri, i, error);
-		// 	}
-
-		// 	// use the next line in the next iteration
-		// 	i++;
-		// }, 1);
-
-		// return stream;
 	}
 
 	/**

@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Uri } from 'vscode';
 import { basename } from 'path';
 import { Emitter } from 'vscode-jsonrpc';
-import { Uri, LogOutputChannel } from 'vscode';
 import { URI, Utils as extUri } from 'vscode-uri';
 
 import { TopError } from './topError';
 import { isPromptFile } from '../constants';
-import { IFileSystemService } from '../services/types';
 import { FileContentsProvider } from './contentProviders';
 import { IContentsProvider } from './contentProviders/types';
 import { MarkdownLink } from '../codecs/markdownCodec/tokens';
 import { assertDefined, assertNever } from '../utils/asserts';
 import { PromptCodec } from '../codecs/promptCodec/promptCodec';
 import { PromptDecoder } from '../codecs/promptCodec/promptDecoder';
+import { IFileSystemService, ILogService } from '../services/types';
 import { FileReference, PromptVariableWithData } from '../codecs/promptCodec/tokens';
 import { IPromptFileReference, IPromptReference, IResolveError, ITopError } from './types';
 import { ResolveError, OpenFailed, RecursiveReference, FolderReference, NotPromptFile } from './errors';
@@ -526,15 +526,11 @@ export abstract class PromptParserBase<T extends IContentsProvider> extends Obse
 }
 
 /**
- * TODO: @legomushroom
- */
-export interface ILogService extends LogOutputChannel { }
-
-/**
  * Prompt file reference object represents any file reference inside prompt
  * text contents. For instance the file variable(`#file:/path/to/file.md`)
  * or a markdown link(`[#file:file.md](/path/to/file.md)`).
  */
+// TODO: @legomushroom - add unit tests
 export class PromptFileReference extends PromptParserBase<FileContentsProvider> implements IPromptFileReference {
 	public readonly type = 'file';
 
@@ -550,7 +546,7 @@ export class PromptFileReference extends PromptParserBase<FileContentsProvider> 
 		logService: ILogService,
 	) {
 		const fileUri = extUri.resolvePath(dirname, token.path);
-		const provider = new FileContentsProvider(fileUri, filesystemService);
+		const provider = new FileContentsProvider(fileUri, filesystemService, logService);
 
 		super(provider, seenReferences, filesystemService, logService);
 	}
