@@ -12,6 +12,7 @@ import { LineRange } from '../../../../../../editor/common/core/lineRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { nullDocumentDiff } from '../../../../../../editor/common/diff/documentDiffProvider.js';
 import { localize } from '../../../../../../nls.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IEditorPane, IResourceDiffEditorInput } from '../../../../../common/editor.js';
@@ -103,6 +104,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 		@IEditorService private readonly _editorService: IEditorService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@INotebookEditorService notebookEditorService: INotebookEditorService,
+		@IAccessibilitySignalService accessibilitySignalService: IAccessibilitySignalService,
 	) {
 		super();
 
@@ -264,6 +266,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 							if (entry) {
 								return entry.keep(entry.diff.get().changes[0]);
 							}
+							accessibilitySignalService.playSignal(AccessibilitySignal.editsKept, { allowManyInParallel: true });
 							return Promise.resolve(true);
 						},
 						reject() {
@@ -271,6 +274,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 							if (entry) {
 								return entry.undo(entry.diff.get().changes[0]);
 							}
+							accessibilitySignalService.playSignal(AccessibilitySignal.editsUndone, { allowManyInParallel: true });
 							return Promise.resolve(true);
 						},
 					} satisfies IModifiedFileEntryChangeHunk;
