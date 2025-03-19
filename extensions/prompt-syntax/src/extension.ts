@@ -15,6 +15,7 @@ import { services } from './services';
  *  - move in `language features` to the extension
  *  - test in-browser
  *  - create index.ts for utils
+ *  - add `• ` to all test names
  */
 
 export function activate(context: vscode.ExtensionContext): any {

@@ -7,20 +7,40 @@ import assert from 'assert';
 import { ExtensionContext } from 'vscode';
 
 import { LogService } from './logService';
+import { PromptService } from './promptService';
 import { assertDefined } from '../utils/asserts';
 import { ObservableDisposable } from '../utils/vscode';
 import { FileSystemService } from './filesystemService';
-import { IFileSystemService, ILogService } from './types';
+import { IFileSystemService, ILogService, IPromptService } from './types';
 
 /**
- * TODO: @legomushroom
+ * Set of services used by the extension.
  */
 // TODO: @legomushroom - add real services infrastructure instead
 class Services extends ObservableDisposable {
+	/**
+	 * VSCode extension context.
+	 */
 	private _context: ExtensionContext | undefined;
-	private _logService: ILogService | undefined;
+
+	/**
+	 * Initialized file system service singleton instance.
+	 */
 	private _filesystemService: IFileSystemService | undefined;
 
+	/**
+	 * Initialized log service singleton instance.
+	 */
+	private _logService: ILogService | undefined;
+
+	/**
+	 * Initialized prompt service singleton instance.
+	 */
+	private _promptService: IPromptService | undefined;
+
+	/**
+	 * Safe getter for the current VSCode extension context.
+	 */
 	private get context(): ExtensionContext {
 		assertDefined(
 			this._context,
@@ -30,6 +50,11 @@ class Services extends ObservableDisposable {
 		return this._context;
 	}
 
+	/**
+	 * Initialize services with provided VSCode extension context.
+	 *
+	 * @throws if {@link initialize} method has been called before already.
+	 */
 	public initialize(context: ExtensionContext): this {
 		assert(
 			this._context === undefined,
@@ -41,6 +66,26 @@ class Services extends ObservableDisposable {
 		return this;
 	}
 
+	/**
+	 * Get singleton instance for the {@link IFileSystemService}.
+	 *
+	 * @throws if {@link initialize} method has not been called yet.
+	 */
+	public get filesystemService(): IFileSystemService {
+		if (this._filesystemService) {
+			return this._filesystemService;
+		}
+
+		this._filesystemService = this._register(new FileSystemService());
+
+		return this._filesystemService;
+	}
+
+	/**
+	 * Get singleton instance for the {@link ILogService}.
+	 *
+	 * @throws if {@link initialize} method has not been called yet.
+	 */
 	public get logService(): ILogService {
 		if (this._logService) {
 			return this._logService;
@@ -51,14 +96,22 @@ class Services extends ObservableDisposable {
 		return this._logService;
 	}
 
-	public get filesystemService(): IFileSystemService {
-		if (this._filesystemService) {
-			return this._filesystemService;
+	/**
+	 * Get singleton instance for the {@link IPromptService}.
+	 *
+	 * @throws if {@link initialize} method has not been called yet.
+	 */
+	public get promptService(): IPromptService {
+		if (this._promptService) {
+			return this._promptService;
 		}
 
-		this._filesystemService = this._register(new FileSystemService());
+		this._promptService = this._register(new PromptService(
+			this.filesystemService,
+			this.logService,
+		));
 
-		return this._filesystemService;
+		return this._promptService;
 	}
 }
 

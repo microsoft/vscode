@@ -154,12 +154,10 @@ suite('TextDocumentPromptParser', () => {
 	test('core logic #1', async () => {
 		const testFolder = Uri.joinPath(testsRootFolder, 'core-logic-1');
 
-		try {
-			await services.filesystemService.stat(testFolder);
-			await services.filesystemService.delete(testFolder);
-		} catch (error) {
-			// noop
-		}
+		assert(
+			(await services.filesystemService.exists(testFolder) === false),
+			`Test folder '${testFolder.path}' should not exist before test starts.`,
+		);
 
 		const test = await createTest(
 			Uri.joinPath(testFolder, `foo/bar-${randomInt(Number.MAX_SAFE_INTEGER)}.md`),
@@ -212,6 +210,11 @@ suite('TextDocumentPromptParser', () => {
 
 	test('core logic #2', async () => {
 		const testFolder = Uri.joinPath(testsRootFolder, 'core-logic-2');
+
+		assert(
+			(await services.filesystemService.exists(testFolder) === false),
+			`Test folder '${testFolder.path}' should not exist before test starts.`,
+		);
 
 		const test = await createTest(
 			Uri.joinPath(testFolder, `absolute/folder/and/a/filename-${randomInt(Number.MAX_SAFE_INTEGER)}.txt`),

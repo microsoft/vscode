@@ -5,7 +5,9 @@
 
 import { URI } from 'vscode-uri';
 import { Event } from 'vscode-jsonrpc';
-import { LogLevel, FileStat, Disposable } from 'vscode';
+import { LogLevel, FileStat, Disposable, TextDocument } from 'vscode';
+
+import { TextDocumentPromptParser } from '../parsers/textDocumentPromptParser';
 
 /**
  * Type for any function.
@@ -17,7 +19,7 @@ export type TAnyFunction = (...args: any[]) => unknown;
 /**
  * File system service interface.
  */
-export interface IFileSystemService {
+export interface IFileSystemService extends Disposable {
 	stat(uri: URI): Promise<FileStat>;
 	exists(uri: URI): Promise<boolean>;
 	readFile(uri: URI): Promise<Uint8Array>;
@@ -50,7 +52,7 @@ export enum FileChangeEvent {
 /**
  * Log service interface.
  */
-export interface ILogService {
+export interface ILogService extends Disposable {
 	onDidChangeLogLevel: Event<LogLevel>;
 
 	trace(message: string, ...args: any[]): void;
@@ -64,4 +66,17 @@ export interface ILogService {
 	// TODO: @lego
 	// setLevel(level: LogLevel): void;
 	// flush(): void;
+}
+
+/**
+ * Provides prompt syntax services.
+ */
+export interface IPromptService extends Disposable {
+	/**
+	 * Get a syntax tokens stream for the provided text document.
+	 * See {@link TextDocumentPromptParser} for more info on the parser API.
+	 */
+	getTokensStreamFor(
+		document: TextDocument,
+	): TextDocumentPromptParser & { disposed: false };
 }

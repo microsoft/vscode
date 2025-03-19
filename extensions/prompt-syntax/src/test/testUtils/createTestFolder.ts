@@ -34,7 +34,9 @@ export const createTestFolder = (folderName: string): URI => {
 	});
 
 	teardown(async () => {
-		await services.filesystemService.delete(testsRootFolder, { recursive: true, useTrash: false });
+		if (await services.filesystemService.exists(testsRootFolder)) {
+			await services.filesystemService.delete(testsRootFolder, { recursive: true, useTrash: false });
+		}
 	});
 
 	return testsRootFolder;
