@@ -8,8 +8,8 @@ import * as path from 'path';
 import { Command, commands, Disposable, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation, languages } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
-import { ForcePushMode, GitErrorCodes, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote } from './api/git';
-import { Git, Ref, Stash } from './git';
+import { ForcePushMode, GitErrorCodes, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
+import { Git, Stash } from './git';
 import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
 import { DiffEditorSelectionHunkToolbarContext, LineChange, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges } from './staging';
@@ -109,6 +109,22 @@ class RefItem implements QuickPickItem {
 }
 
 class CheckoutItem extends RefItem {
+	override get description(): string {
+		const description: string[] = [];
+
+		if (typeof this.ref.behind === 'number' && typeof this.ref.ahead === 'number') {
+			description.push(`${this.ref.behind}↓ ${this.ref.ahead}↑`);
+		}
+		if (this.ref.commitDetails?.commitDate) {
+			description.push(fromNow(this.ref.commitDetails.commitDate, true, true));
+		}
+
+		return description.length > 0 ? description.join('  |  ') : this.shortCommit;
+	}
+
+	constructor(override readonly ref: Branch) {
+		super(ref);
+	}
 
 	async run(repository: Repository, opts?: { detached?: boolean }): Promise<void> {
 		if (!this.ref.name) {
@@ -430,6 +446,38 @@ class RefItemsProcessor {
 		}
 
 		const result: QuickPickItem[] = [];
+		for (const processor of this.processors) {
+			result.push(...processor.items);
+		}
+
+		return result;
+	}
+}
+
+class MergeItemsProcessors extends RefItemsProcessor {
+	constructor(private readonly repository: Repository) {
+		super([
+			new RefProcessor(RefType.Head, MergeItem),
+			new RefProcessor(RefType.RemoteHead, MergeItem),
+			new RefProcessor(RefType.Tag, MergeItem)
+		]);
+	}
+
+	override processRefs(refs: Ref[]): QuickPickItem[] {
+		const result: QuickPickItem[] = [];
+
+		for (const ref of refs) {
+			if (ref.name === this.repository.HEAD?.name) {
+				continue;
+			}
+
+			for (const processor of this.processors) {
+				if (processor.processRef(ref)) {
+					break;
+				}
+			}
+		}
+
 		for (const processor of this.processors) {
 			result.push(...processor.items);
 		}
@@ -3144,11 +3192,7 @@ export class CommandCenter {
 
 		const getQuickPickItems = async (): Promise<QuickPickItem[]> => {
 			const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
-			const itemsProcessor = new RefItemsProcessor([
-				new RefProcessor(RefType.Head, MergeItem),
-				new RefProcessor(RefType.RemoteHead, MergeItem),
-				new RefProcessor(RefType.Tag, MergeItem)
-			]);
+			const itemsProcessor = new MergeItemsProcessors(repository);
 
 			return itemsProcessor.processRefs(refs);
 		};

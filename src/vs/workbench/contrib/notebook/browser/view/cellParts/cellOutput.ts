@@ -774,7 +774,7 @@ export class CellOutputContainer extends CellContentPart {
 			actionHandler: {
 				callback: (content) => {
 					if (content === 'command:workbench.action.openLargeOutput') {
-						this.openerService.open(CellUri.generateCellOutputUri(this.notebookEditor.textModel!.uri));
+						this.openerService.open(CellUri.generateCellOutputUriWithId(this.notebookEditor.textModel!.uri));
 					}
 
 					return;

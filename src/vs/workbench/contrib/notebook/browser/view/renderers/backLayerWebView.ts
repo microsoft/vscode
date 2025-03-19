@@ -762,7 +762,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 								}
 							}
 
-							this.openerService.open(CellUri.generateCellOutputUri(this.documentUri, outputId));
+							this.openerService.open(CellUri.generateCellOutputUriWithId(this.documentUri, outputId));
 							return;
 						}
 						if (uri.path === 'cellOutput.enableScrolling') {
