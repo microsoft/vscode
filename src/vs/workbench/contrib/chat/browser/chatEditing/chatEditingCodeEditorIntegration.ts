@@ -73,7 +73,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		@IChatEditingService chatEditingService: IChatEditingService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
+		@IAccessibilitySignalService private readonly _accessibilitySignalsService: IAccessibilitySignalService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		this._diffLineDecorations = _editor.createDecorationsCollection();
@@ -176,11 +176,11 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 			const diff = documentDiffInfo.read(r);
 			const mapping = diff.changes.find(m => m.modified.contains(position.lineNumber) || m.modified.isEmpty && m.modified.startLineNumber === position.lineNumber);
 			if (mapping?.modified.isEmpty) {
-				this._accessibilitySignalService.playSignal(AccessibilitySignal.diffLineDeleted, { source: 'chatEditingEditor.cursorPositionChanged' });
+				this._accessibilitySignalsService.playSignal(AccessibilitySignal.diffLineDeleted, { source: 'chatEditingEditor.cursorPositionChanged' });
 			} else if (mapping?.original.isEmpty) {
-				this._accessibilitySignalService.playSignal(AccessibilitySignal.diffLineInserted, { source: 'chatEditingEditor.cursorPositionChanged' });
+				this._accessibilitySignalsService.playSignal(AccessibilitySignal.diffLineInserted, { source: 'chatEditingEditor.cursorPositionChanged' });
 			} else if (mapping) {
-				this._accessibilitySignalService.playSignal(AccessibilitySignal.diffLineModified, { source: 'chatEditingEditor.cursorPositionChanged' });
+				this._accessibilitySignalsService.playSignal(AccessibilitySignal.diffLineModified, { source: 'chatEditingEditor.cursorPositionChanged' });
 			}
 		}));
 
