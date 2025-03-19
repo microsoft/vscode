@@ -16,7 +16,7 @@ import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../base/common/lazy.js';
-import { combinedDisposable, Disposable, DisposableStore, IDisposable, markAsSingleton, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import Severity from '../../../../base/common/severity.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { equalsIgnoreCase } from '../../../../base/common/strings.js';
@@ -96,10 +96,7 @@ const defaultChat = {
 
 class SetupChatAgentImplementation extends Disposable implements IChatAgentImplementation {
 
-	private static readonly _onUnresolvableError = markAsSingleton(new Emitter<void>());
-	static readonly onUnresolvableError = this._onUnresolvableError.event;
-
-	static register(instantiationService: IInstantiationService, location: ChatAgentLocation, isToolsAgent: boolean, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): IDisposable {
+	static register(instantiationService: IInstantiationService, location: ChatAgentLocation, isToolsAgent: boolean, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>, disposables: DisposableStore): SetupChatAgentImplementation {
 		return instantiationService.invokeFunction(accessor => {
 			const chatAgentService = accessor.get(IChatAgentService);
 
@@ -143,9 +140,7 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 					throw new Error(`Unsupported location: ${location}`);
 			}
 
-			const disposable = new DisposableStore();
-
-			disposable.add(chatAgentService.registerAgent(id, {
+			disposables.add(chatAgentService.registerAgent(id, {
 				id,
 				name: `${defaultChat.providerName} Copilot`,
 				isDefault: true,
@@ -163,13 +158,17 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 				extensionPublisherId: nullExtensionDescription.publisher
 			}));
 
-			disposable.add(chatAgentService.registerAgentImplementation(id, disposable.add(instantiationService.createInstance(SetupChatAgentImplementation, context, controller))));
+			const setupAgentImplementation = disposables.add(instantiationService.createInstance(SetupChatAgentImplementation, context, controller));
+			disposables.add(chatAgentService.registerAgentImplementation(id, setupAgentImplementation));
 
-			return disposable;
+			return setupAgentImplementation;
 		});
 	}
 
 	private static readonly SETUP_NEEDED_MESSAGE = new MarkdownString(localize('settingUpCopilotNeeded', "You need to set up Copilot to use Chat."));
+
+	private readonly _onUnresolvableError = this._register(new Emitter<void>());
+	readonly onUnresolvableError = this._onUnresolvableError.event;
 
 	constructor(
 		private readonly context: ChatEntitlementContext,
@@ -209,15 +208,15 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 
 		progress({
 			kind: 'progressMessage',
-			content: new MarkdownString(localize('waitingCopilot', "Waiting for Copilot.")),
+			content: new MarkdownString(localize('waitingCopilot', "Getting Copilot ready.")),
 		});
 
-		await this.forwardRequestToCopilot(requestModel, chatService, languageModelsService);
+		await this.forwardRequestToCopilot(requestModel, progress, chatService, languageModelsService);
 
 		return {};
 	}
 
-	private async forwardRequestToCopilot(requestModel: IChatRequestModel, chatService: IChatService, languageModelsService: ILanguageModelsService): Promise<void> {
+	private async forwardRequestToCopilot(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService): Promise<void> {
 
 		// We need a signal to know when we can resend the request to
 		// Copilot. Waiting for the registration of the agent is not
@@ -239,9 +238,14 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 			]);
 
 			if (!hasDefaultModel) {
+				progress({
+					kind: 'warning',
+					content: new MarkdownString(localize('copilotTookLongWarning', "Copilot took too long to get ready. Please try again later."))
+				});
+
 				// This means Copilot is unhealthy and we cannot retry the
 				// request. Signal this to the outside via an event.
-				SetupChatAgentImplementation._onUnresolvableError.fire();
+				this._onUnresolvableError.fire();
 				return;
 			}
 		}
@@ -284,7 +288,7 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 		if (typeof success === 'boolean') {
 			if (success) {
 				if (requestModel) {
-					await this.forwardRequestToCopilot(requestModel, chatService, languageModelsService);
+					await this.forwardRequestToCopilot(requestModel, progress, chatService, languageModelsService);
 				}
 			} else {
 				progress({
@@ -494,23 +498,24 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		const updateRegistration = () => {
 			const disabled = context.state.hidden || !this.configurationService.getValue('chat.experimental.setupFromDialog');
 			if (!disabled && !registration.value) {
-				registration.value = combinedDisposable(
-					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel, false, context, controller),
-					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Terminal, false, context, controller),
-					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Notebook, false, context, controller),
-					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Editor, false, context, controller),
-					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.EditingSession, false, context, controller),
-					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.EditingSession, true, context, controller),
-					SetupChatAgentImplementation.onUnresolvableError(() => {
-						// An unresolvable error from our agent registrations means that
-						// Copilot is unhealthy for some reason. We clear our registration
-						// to give Copilot a chance to show a custom message to the user
-						// from the views and stop pretending as if there was a functional
-						// agent.
-						this.logService.error('[chat setup] Unresolvable error from Copilot agent registration, clearing registration.');
-						registration.clear();
-					})
-				);
+				const disposables = registration.value = new DisposableStore();
+
+				const panelRegistration = SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel, false, context, controller, disposables);
+				SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Terminal, false, context, controller, disposables);
+				SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Notebook, false, context, controller, disposables);
+				SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Editor, false, context, controller, disposables);
+				SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.EditingSession, false, context, controller, disposables);
+				SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.EditingSession, true, context, controller, disposables);
+
+				panelRegistration.onUnresolvableError(() => {
+					// An unresolvable error from our agent registrations means that
+					// Copilot is unhealthy for some reason. We clear our panel
+					// registration to give Copilot a chance to show a custom message
+					// to the user from the views and stop pretending as if there was
+					// a functional agent.
+					this.logService.error('[chat setup] Unresolvable error from Copilot agent registration, clearing registration.');
+					panelRegistration.dispose();
+				});
 			} else if (disabled && registration.value) {
 				registration.clear();
 			}
