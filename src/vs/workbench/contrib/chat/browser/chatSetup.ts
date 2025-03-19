@@ -139,6 +139,9 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 				case ChatAgentLocation.Editor:
 					id = 'setup.editor';
 					break;
+				case ChatAgentLocation.Notebook:
+					id = 'setup.notebook';
+					break;
 				default:
 					throw new Error(`Unsupported location: ${location}`);
 			}
@@ -455,6 +458,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				registration.value = combinedDisposable(
 					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel, false, context, controller),
 					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Terminal, false, context, controller),
+					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Notebook, false, context, controller),
 					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Editor, false, context, controller),
 					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.EditingSession, false, context, controller),
 					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.EditingSession, true, context, controller)
