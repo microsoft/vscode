@@ -335,6 +335,15 @@ export class CodeApplication extends Disposable {
 			return callback({ cancel: false });
 		});
 
+		session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+			const responseHeaders = details.responseHeaders ?? Object.create(null);
+			if (responseHeaders['Access-Control-Allow-Origin'] === undefined) {
+				responseHeaders['Access-Control-Allow-Origin'] = ['*'];
+				return callback({ cancel: false, responseHeaders });
+			}
+			return callback({ cancel: false });
+		});
+
 		//#endregion
 
 		//#region Code Cache
