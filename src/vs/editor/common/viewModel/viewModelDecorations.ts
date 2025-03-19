@@ -110,6 +110,24 @@ export class ViewModelDecorations implements IDisposable {
 		return this._cachedModelDecorationsResolver!;
 	}
 
+	public getFontInfoForPosition(position: Position): { fontFamily?: string; fontWeight?: string; fontSize?: number } | null {
+		const range = Range.fromPositions(position);
+		const modelDecorations = this._linesCollection.getDecorationsInRange(range, this.editorId, filterValidationDecorations(this.configuration.options), false, false);
+		let result: { fontFamily?: string; fontWeight?: string; fontSize?: number } | null = null;
+		for (let i = 0, len = modelDecorations.length; i < len; i++) {
+			const modelDecoration = modelDecorations[i];
+			const decorationOptions = modelDecoration.options;
+			if (decorationOptions.fontFamily || decorationOptions.fontSize || decorationOptions.fontWeight) {
+				result = {
+					fontFamily: decorationOptions.fontFamily ?? undefined,
+					fontWeight: decorationOptions.fontWeight ?? undefined,
+					fontSize: decorationOptions.fontSize ?? undefined
+				};
+			}
+		}
+		return result;
+	}
+
 	public getInlineDecorationsOnLine(lineNumber: number, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): InlineDecoration[] {
 		const range = new Range(lineNumber, this._linesCollection.getViewLineMinColumn(lineNumber), lineNumber, this._linesCollection.getViewLineMaxColumn(lineNumber));
 		return this._getDecorationsInRange(range, onlyMinimapDecorations, onlyMarginDecorations).inlineDecorations[0];

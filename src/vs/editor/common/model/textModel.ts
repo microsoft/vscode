@@ -1576,6 +1576,18 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return this._undoRedoService.canRedo(this.uri);
 	}
 
+	/*
+	public getSpecialFontInfos(lineNumber: number): {
+		range: Range;
+		fontFamily: string | undefined;
+		fontSize: number | undefined;
+		fontWeight: string | undefined;
+		fontStyle: string | undefined;
+	}[] {
+		return this._decorationsTree.getSpecialFontInfos(this, this.getOffsetAt(new Position(lineNumber, 1)), this.getOffsetAt(new Position(lineNumber, this.getLineMaxColumn(lineNumber))), 0);
+	}
+	*/
+
 	//#endregion
 
 	//#region Decorations
@@ -2124,6 +2136,35 @@ class DecorationsTrees {
 		return this._ensureNodesHaveRanges(host, result).filter((i) => i.options.showIfCollapsed || !i.range.isEmpty());
 	}
 
+	/*
+	public hasSpecialFontInfo(host: IDecorationsTreesHost, start: number, end: number, filterOwnerId: number): boolean {
+		const versionId = host.getVersionId();
+		const result = this._decorationsTree0.intervalSearch(start, end, filterOwnerId, false, versionId, false);
+		return this._ensureNodesHaveRanges(host, result).filter((i) => !!i.options.fontFamily || !!i.options.fontSize).length > 0;
+	}
+	*/
+
+	public getFontInfosInInterval(host: IDecorationsTreesHost, start: number, end: number, filterOwnerId: number): {
+		range: Range;
+		fontFamily: string | undefined;
+		fontSize: number | undefined;
+		fontWeight: string | undefined;
+		fontStyle: string | undefined;
+	}[] {
+		const versionId = host.getVersionId();
+		const result = this._decorationsTree0.intervalSearch(start, end, filterOwnerId, false, versionId, false);
+		const decorations = this._ensureNodesHaveRanges(host, result).filter((i) => !!i.options.fontFamily || !!i.options.fontSize);
+		return decorations.map((decoration) => {
+			return {
+				range: decoration.range,
+				fontFamily: decoration.options.fontFamily ?? undefined,
+				fontSize: decoration.options.fontSize ?? undefined,
+				fontWeight: decoration.options.fontWeight ?? undefined,
+				fontStyle: decoration.options.fontStyle ?? undefined,
+			};
+		});
+	}
+
 	public getLineHeightInInterval(host: IDecorationsTreesHost, start: number, end: number, filterOwnerId: number): number | null {
 		const versionId = host.getVersionId();
 		const result = this._intervalSearch(start, end, filterOwnerId, false, versionId, false);
@@ -2377,6 +2418,10 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	readonly glyphMarginHoverMessage: IMarkdownString | IMarkdownString[] | null;
 	readonly isWholeLine: boolean;
 	readonly lineHeight: number | null;
+	readonly fontFamily: string | null;
+	readonly fontSize?: number | null;
+	readonly fontWeight?: string | null;
+	readonly fontStyle?: string | null;
 	readonly showIfCollapsed: boolean;
 	readonly collapseOnReplaceEdit: boolean;
 	readonly overviewRuler: ModelDecorationOverviewRulerOptions | null;
@@ -2413,6 +2458,10 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.lineNumberHoverMessage = options.lineNumberHoverMessage || null;
 		this.isWholeLine = options.isWholeLine || false;
 		this.lineHeight = options.lineHeight ?? null;
+		this.fontFamily = options.fontFamily ?? null;
+		this.fontSize = options.fontSize ?? null;
+		this.fontStyle = options.fontStyle ?? null;
+		this.fontWeight = options.fontWeight ?? null;
 		this.showIfCollapsed = options.showIfCollapsed || false;
 		this.collapseOnReplaceEdit = options.collapseOnReplaceEdit || false;
 		this.overviewRuler = options.overviewRuler ? new ModelDecorationOverviewRulerOptions(options.overviewRuler) : null;

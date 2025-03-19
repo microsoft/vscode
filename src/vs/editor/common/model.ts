@@ -223,6 +223,26 @@ export interface IModelDecorationOptions {
 	 */
 	lineHeight?: number | null;
 	/**
+	 * Font family
+	 * @internal
+	 */
+	fontFamily?: string | null;
+	/**
+	 * Font size
+	 * @internal
+	 */
+	fontSize?: number | null;
+	/**
+	 * Font weight
+	 * @internal
+	 */
+	fontWeight?: string | null;
+	/**
+	 * Font style
+	 * @internal
+	 */
+	fontStyle?: string | null;
+	/**
 	 * If set, the decoration will be rendered in the lines decorations with this CSS class name.
 	 */
 	linesDecorationsClassName?: string | null;
@@ -1248,6 +1268,16 @@ export interface ITextModel {
 	 * @event
 	 */
 	readonly onDidChangeLineHeight: Event<ModelLineHeightChangedEvent>;
+	// /**
+	//  * Get special font infos on line number
+	//  */
+	// getSpecialFontInfos(lineNumber: number): {
+	// 	range: Range;
+	// 	fontFamily: string | undefined;
+	// 	fontSize: number | undefined;
+	// 	fontWeight: string | undefined;
+	// 	fontStyle: string | undefined;
+	// }[];
 	/**
 	 * An event emitted when the model options have changed.
 	 * @event

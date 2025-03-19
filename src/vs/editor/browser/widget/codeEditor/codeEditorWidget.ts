@@ -597,6 +597,19 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.viewModel.viewLayout.getLineHeightForLineNumber(viewPosition.lineNumber);
 	}
 
+	/*
+	public getSpecialFontInfoForPosition(position: Position): {
+		fontFamily?: string;
+		fontWeight?: string;
+		fontSize?: number;
+	} | null {
+		if (!this._modelData) {
+			return null;
+		}
+		return this._modelData.viewModel.getFontInfoForPosition(position);
+	}
+	*/
+
 	public setHiddenAreas(ranges: IRange[], source?: unknown, forceUpdate?: boolean): void {
 		this._modelData?.viewModel.setHiddenAreas(ranges.map(r => Range.lift(r)), source, forceUpdate);
 	}

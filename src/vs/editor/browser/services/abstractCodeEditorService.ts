@@ -132,7 +132,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		return new GlobalStyleSheet(domStylesheets.createStyleSheet());
 	}
 
-	private _getOrCreateStyleSheet(editor: ICodeEditor | undefined): GlobalStyleSheet | RefCountedStyleSheet {
+	public getOrCreateStyleSheet(editor: ICodeEditor | undefined): GlobalStyleSheet | RefCountedStyleSheet {
 		if (!editor) {
 			return this._getOrCreateGlobalStyleSheet();
 		}
@@ -155,7 +155,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 	public registerDecorationType(description: string, key: string, options: IDecorationRenderOptions, parentTypeKey?: string, editor?: ICodeEditor): IDisposable {
 		let provider = this._decorationOptionProviders.get(key);
 		if (!provider) {
-			const styleSheet = this._getOrCreateStyleSheet(editor);
+			const styleSheet = this.getOrCreateStyleSheet(editor);
 			const providerArgs: ProviderArguments = {
 				styleSheet: styleSheet,
 				key: key,
@@ -320,7 +320,7 @@ export class ModelTransientSettingWatcher extends Disposable {
 	}
 }
 
-class RefCountedStyleSheet {
+export class RefCountedStyleSheet {
 
 	private readonly _parent: AbstractCodeEditorService;
 	private readonly _editorId: string;
@@ -461,6 +461,10 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 	public glyphMarginClassName: string | undefined;
 	public isWholeLine: boolean;
 	public lineHeight?: number;
+	public fontFamily?: string;
+	public fontSize?: number;
+	public fontWeight?: string;
+	public fontStyle?: string;
 	public overviewRuler: IModelDecorationOverviewRulerOptions | undefined;
 	public stickiness: TrackedRangeStickiness | undefined;
 	public beforeInjectedText: InjectedTextOptions | undefined;
@@ -522,6 +526,10 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 		const options = providerArgs.options;
 		this.isWholeLine = Boolean(options.isWholeLine);
 		this.lineHeight = options.lineHeight;
+		this.fontFamily = options.fontFamily;
+		this.fontSize = options.fontSize;
+		this.fontWeight = options.fontWeight;
+		this.fontStyle = options.fontStyle;
 		this.stickiness = options.rangeBehavior;
 
 		const lightOverviewRulerColor = options.light && options.light.overviewRulerColor || options.overviewRulerColor;
@@ -552,6 +560,10 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 			glyphMarginClassName: this.glyphMarginClassName,
 			isWholeLine: this.isWholeLine,
 			lineHeight: this.lineHeight,
+			fontFamily: this.fontFamily,
+			fontStyle: this.fontStyle,
+			fontSize: this.fontSize,
+			fontWeight: this.fontWeight,
 			overviewRuler: this.overviewRuler,
 			stickiness: this.stickiness,
 			before: this.beforeInjectedText,
@@ -589,6 +601,7 @@ export const _CSS_MAP: { [prop: string]: string } = {
 
 	fontStyle: 'font-style:{0};',
 	fontWeight: 'font-weight:{0};',
+	clippedFontSize: 'font-size:min({0}, var(--vscode-max-font-size, {0}));',
 	fontSize: 'font-size:{0};',
 	fontFamily: 'font-family:{0};',
 	textDecoration: 'text-decoration:{0};',
@@ -759,7 +772,10 @@ class DecorationCSSRules {
 			return '';
 		}
 		const cssTextArr: string[] = [];
-		this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'textDecoration', 'cursor', 'color', 'opacity', 'letterSpacing'], cssTextArr);
+		if (typeof opts.fontSize === 'number') {
+			cssTextArr.push(strings.format(_CSS_MAP.clippedFontSize, opts.fontSize + 'px'));
+		}
+		this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'fontFamily', 'textDecoration', 'cursor', 'color', 'opacity', 'letterSpacing'], cssTextArr);
 		if (opts.letterSpacing) {
 			this._hasLetterSpacing = true;
 		}
@@ -786,7 +802,10 @@ class DecorationCSSRules {
 
 				cssTextArr.push(strings.format(_CSS_MAP.contentText, escaped));
 			}
-			this.collectCSSText(opts, ['verticalAlign', 'fontStyle', 'fontWeight', 'fontSize', 'fontFamily', 'textDecoration', 'color', 'opacity', 'backgroundColor', 'margin', 'padding'], cssTextArr);
+			if (typeof opts.fontSize === 'number') {
+				cssTextArr.push(strings.format(_CSS_MAP.clippedFontSize, opts.fontSize + 'px'));
+			}
+			this.collectCSSText(opts, ['verticalAlign', 'fontStyle', 'fontWeight', 'fontFamily', 'textDecoration', 'color', 'opacity', 'backgroundColor', 'margin', 'padding'], cssTextArr);
 			if (this.collectCSSText(opts, ['width', 'height'], cssTextArr)) {
 				cssTextArr.push('display:inline-block;');
 			}

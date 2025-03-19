@@ -11,6 +11,7 @@ import { ITextResourceEditorInput } from '../../../platform/editor/common/editor
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { URI } from '../../../base/common/uri.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
+import { GlobalStyleSheet, RefCountedStyleSheet } from './abstractCodeEditorService.js';
 
 export const ICodeEditorService = createDecorator<ICodeEditorService>('codeEditorService');
 
@@ -42,6 +43,7 @@ export interface ICodeEditorService {
 	 * Returns the current focused code editor (if the focus is in the editor or in an editor widget) or null.
 	 */
 	getFocusedCodeEditor(): ICodeEditor | null;
+	getOrCreateStyleSheet(editor: ICodeEditor | undefined): GlobalStyleSheet | RefCountedStyleSheet;
 
 	registerDecorationType(description: string, key: string, options: IDecorationRenderOptions, parentTypeKey?: string, editor?: ICodeEditor): void;
 	listDecorationTypes(): string[];

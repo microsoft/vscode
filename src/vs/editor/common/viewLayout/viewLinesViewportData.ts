@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Position } from '../core/position.js';
 import { Range } from '../core/range.js';
 import { Selection } from '../core/selection.js';
 import { IPartialViewLinesViewportData, IViewModel, IViewWhitespaceViewportData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
@@ -78,5 +79,9 @@ export class ViewportData {
 
 	public getDecorationsInViewport(): ViewModelDecoration[] {
 		return this._model.getDecorationsInViewport(this.visibleRange);
+	}
+
+	public getFontInfoForPosition(position: Position): { fontFamily?: string; fontWeight?: string; fontSize?: number } | null {
+		return this._model.getFontInfoForPosition(position);
 	}
 }

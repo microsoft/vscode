@@ -1080,6 +1080,14 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	getLineHeightForLineNumber(lineNumber: number): number;
 
+	/*
+	getSpecialFontInfoForPosition(pos: Position): {
+		fontFamily?: string;
+		fontWeight?: string;
+		fontSize?: number;
+	} | null;
+	*/
+
 	/**
 	 * Set the model ranges that will be hidden in the view.
 	 * Hidden areas are stored per source.

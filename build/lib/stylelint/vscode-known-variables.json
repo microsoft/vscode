@@ -888,6 +888,7 @@
 		"--editor-group-tabs-height",
 		"--testMessageDecorationFontFamily",
 		"--testMessageDecorationFontSize",
+		"--vscode-max-font-size",
 		"--title-border-bottom-color",
 		"--title-wco-width",
 		"--vscode-chat-list-background",
