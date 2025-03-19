@@ -272,7 +272,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 		const buffer = this._xterm.buffer.active;
 		let line = buffer.getLine(commandStartY);
-		const commandLine = line?.translateToString(true, this._commandStartX);
+		let commandLine = line?.translateToString(true, this._commandStartX);
 		if (!line || commandLine === undefined) {
 			this._logService.trace(`PromptInputModel#_sync: no line`);
 			return;
@@ -332,6 +332,16 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 						cursorIndex += lineText.length;
 					}
 					break;
+				}
+			} else {
+				// Line wrapping is not detected properly for pwsh when the cells on the next line
+				// are ghost text, so this is a workaround to detect that case
+				let nextLine = buffer.getLine(buffer.cursorY + 1)?.translateToString(true);
+				let index = buffer.cursorY + 1;
+				while (nextLine?.trim() && index < buffer.length) {
+					commandLine += `${nextLine}`;
+					index++;
+					nextLine = buffer.getLine(index)?.translateToString(true);
 				}
 			}
 		}
