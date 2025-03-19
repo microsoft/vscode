@@ -448,7 +448,7 @@ registerAction2(class RemoveAction extends Action2 {
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 				},
-				when: ContextKeyExpr.and(ChatContextKeys.chatMode.notEqualsTo(ChatMode.Ask), ChatContextKeys.inChatSession, ChatContextKeys.inChatInput.negate()),
+				when: ContextKeyExpr.and(ChatContextKeys.chatMode.notEqualsTo(ChatMode.Ask), ChatContextKeys.inChatSession, EditorContextKeys.textInputFocus.negate()),
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
 			menu: [
