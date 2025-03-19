@@ -19,7 +19,7 @@ import { ICodeWindow, LoadReason, UnloadReason } from '../../window/electron-mai
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
-import { getAllWindowsExcludingOffscreen } from '../../windows/electron-main/windowUtils.js';
+import { getAllWindowsExcludingOffscreen } from '../../windows/electron-main/windows.js';
 
 export const ILifecycleMainService = createDecorator<ILifecycleMainService>('lifecycleMainService');
 

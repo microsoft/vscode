@@ -15,7 +15,7 @@ import { IColorScheme } from '../../window/common/window.js';
 import { ThemeTypeSelector } from '../common/theme.js';
 import { IBaseWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { coalesce } from '../../../base/common/arrays.js';
-import { getAllWindowsExcludingOffscreen } from '../../windows/electron-main/windowUtils.js';
+import { getAllWindowsExcludingOffscreen } from '../../windows/electron-main/windows.js';
 
 // These default colors match our default themes
 // editor background color ("Dark Modern", etc...)
