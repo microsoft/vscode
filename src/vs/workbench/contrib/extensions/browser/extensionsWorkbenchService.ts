@@ -2472,7 +2472,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return extension;
 	}
 
-	async installInServer(extension: IExtension, server: IExtensionManagementServer): Promise<void> {
+	async installInServer(extension: IExtension, server: IExtensionManagementServer, installOptions?: InstallOptions): Promise<void> {
 		await this.doInstall(extension, async () => {
 			const local = extension.local;
 			if (!local) {
@@ -2482,7 +2482,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				extension = (await this.getExtensions([{ ...extension.identifier, preRelease: local.preRelease }], CancellationToken.None))[0] ?? extension;
 			}
 			if (extension.gallery) {
-				return server.extensionManagementService.installFromGallery(extension.gallery, { installPreReleaseVersion: local.preRelease });
+				return server.extensionManagementService.installFromGallery(extension.gallery, { installPreReleaseVersion: local.preRelease, ...installOptions });
 			}
 
 			const targetPlatform = await server.extensionManagementService.getTargetPlatform();
