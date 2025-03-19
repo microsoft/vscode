@@ -241,7 +241,6 @@ export interface IChatWidget {
 	logInputHistory(): void;
 	acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined>;
 	rerunLastRequest(): Promise<void>;
-	acceptInputWithPrefix(prefix: string): void;
 	setInputPlaceholder(placeholder: string): void;
 	resetInputPlaceholder(): void;
 	focusLastMessage(): void;
