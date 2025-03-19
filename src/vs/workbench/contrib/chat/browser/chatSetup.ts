@@ -69,6 +69,7 @@ import { Dialog } from '../../../../base/browser/ui/dialog/dialog.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { createWorkbenchDialogOptions } from '../../../../platform/dialogs/browser/dialog.js';
+import { IChatRequestModel } from '../common/chatModel.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -203,21 +204,36 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 			return {}; // this should not happen
 		}
 
-		const whenDefaultModel = Event.toPromise(Event.filter(languageModelsService.onDidChangeLanguageModels, e => e.added?.some(added => added.metadata.isDefault) ?? false));
-
 		progress({
 			kind: 'progressMessage',
 			content: new MarkdownString(localize('waitingCopilot', "Waiting for Copilot.")),
 		});
 
-		// Await a default model to be present before attempting
-		// to re-submit the request. Otherwise, the request will fail.
-		await whenDefaultModel;
-
-		// Resend the request now that the setup is complete
-		chatService.resendRequest(requestModel);
+		await this.resendRequest(requestModel, chatService, languageModelsService);
 
 		return {};
+	}
+
+	private async resendRequest(requestModel: IChatRequestModel, chatService: IChatService, languageModelsService: ILanguageModelsService): Promise<void> {
+
+		// We need a signal to know when we can resend the request to
+		// Copilot. Waiting for the registration of the agent is not
+		// enough, we also need a language model to be available.
+
+		let isCopilotReady = false;
+		for (const id of languageModelsService.getLanguageModelIds()) {
+			const model = languageModelsService.lookupLanguageModel(id);
+			if (model && model.isDefault) {
+				isCopilotReady = true;
+				break;
+			}
+		}
+
+		if (!isCopilotReady) {
+			await Event.toPromise(Event.filter(languageModelsService.onDidChangeLanguageModels, e => e.added?.some(added => added.metadata.isDefault) ?? false));
+		}
+
+		chatService.resendRequest(requestModel);
 	}
 
 	private async doInvokeWithSetup(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService): Promise<IChatAgentResult> {
@@ -242,8 +258,6 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 			}
 		}));
 
-		const whenDefaultModel = Event.toPromise(Event.filter(languageModelsService.onDidChangeLanguageModels, e => e.added?.some(added => added.metadata.isDefault) ?? false));
-
 		let success = undefined;
 		try {
 			success = await ChatSetup.getInstance(this.instantiationService, this.context, this.controller).run();
@@ -256,17 +270,8 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 		// User has agreed to run the setup
 		if (typeof success === 'boolean') {
 			if (success) {
-
-				// Await a default model to be present before attempting
-				// to re-submit the request. Otherwise, the request will fail.
-				const hasDefaultModel = await Promise.race([
-					timeout(10000),
-					whenDefaultModel
-				]);
-
-				// Resend the request now that the setup is complete
-				if (hasDefaultModel && requestModel) {
-					chatService.resendRequest(requestModel);
+				if (requestModel) {
+					await this.resendRequest(requestModel, chatService, languageModelsService);
 				}
 			} else {
 				progress({
