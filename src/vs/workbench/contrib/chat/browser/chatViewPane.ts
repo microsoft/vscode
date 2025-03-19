@@ -36,6 +36,7 @@ import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/
 
 interface IViewPaneState extends IChatViewState {
 	sessionId?: string;
+	hasMigratedCurrentSession?: boolean;
 }
 
 export const CHAT_SIDEBAR_OLD_VIEW_PANEL_ID = 'workbench.panel.chatSidebar';
@@ -76,6 +77,23 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// View state for the ViewPane is currently global per-provider basically, but some other strictly per-model state will require a separate memento.
 		this.memento = new Memento('interactive-session-view-' + CHAT_PROVIDER_ID + (this.chatOptions.location === ChatAgentLocation.EditingSession ? `-edits` : ''), this.storageService);
 		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IViewPaneState;
+
+		if (this.chatService.unifiedViewEnabled && this.chatOptions.location === ChatAgentLocation.Panel && !this.viewState.hasMigratedCurrentSession) {
+			const editsMemento = new Memento('interactive-session-view-' + CHAT_PROVIDER_ID + `-edits`, this.storageService);
+			const lastEditsState = editsMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IViewPaneState;
+			if (lastEditsState.sessionId) {
+				if (this.chatService.getPersistedSessionRequestCount(lastEditsState.sessionId) > 0) {
+					this.viewState.sessionId = lastEditsState.sessionId;
+					this.viewState.inputValue = lastEditsState.inputValue;
+					this.viewState.inputState = {
+						...lastEditsState.inputState,
+						chatMode: lastEditsState.inputState?.chatMode ?? ChatMode.Agent
+					};
+					this.viewState.hasMigratedCurrentSession = true;
+				}
+			}
+		}
+
 		this._register(this.chatAgentService.onDidChangeAgents(() => {
 			if (this.chatAgentService.getDefaultAgent(this.chatOptions?.location)) {
 				if (!this._widget?.viewModel && !this._restoringSession) {
