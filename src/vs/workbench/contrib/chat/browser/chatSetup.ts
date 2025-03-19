@@ -222,6 +222,10 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 		// Copilot. Waiting for the registration of the agent is not
 		// enough, we also need a language model to be available.
 
+		// !!!!!!!!!!!!!!!!!!!
+		// TODO make sure we await an extension provided one here given new APIs in agent service!
+		// !!!!!!!!!!!!!!!!!!!
+
 		let isCopilotReady = false;
 		for (const id of languageModelsService.getLanguageModelIds()) {
 			const model = languageModelsService.lookupLanguageModel(id);
