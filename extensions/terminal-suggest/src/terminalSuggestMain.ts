@@ -26,22 +26,15 @@ import { createCompletionItem } from './helpers/completionItem';
 import { getFigSuggestions } from './fig/figInterface';
 import { executeCommand, executeCommandTimeout, IFigExecuteExternals } from './fig/execute';
 import { createTimeoutPromise } from './helpers/promise';
+import codeTunnelCompletionSpec from './completions/code-tunnel';
+import codeTunnelInsidersCompletionSpec from './completions/code-tunnel-insiders';
 
-// TODO: remove once API is finalized
 export const enum TerminalShellType {
-	Sh = 1,
-	Bash = 2,
-	Fish = 3,
-	Csh = 4,
-	Ksh = 5,
-	Zsh = 6,
-	CommandPrompt = 7,
-	GitBash = 8,
-	PowerShell = 9,
-	Python = 10,
-	Julia = 11,
-	NuShell = 12,
-	Node = 13
+	Bash = 'bash',
+	Fish = 'fish',
+	Zsh = 'zsh',
+	PowerShell = 'pwsh',
+	Python = 'python'
 }
 
 const isWindows = osIsWindows();
@@ -52,6 +45,8 @@ export const availableSpecs: Fig.Spec[] = [
 	cdSpec,
 	codeInsidersCompletionSpec,
 	codeCompletionSpec,
+	codeTunnelCompletionSpec,
+	codeTunnelInsidersCompletionSpec,
 	npxCompletionSpec,
 	setLocationSpec,
 ];
@@ -73,11 +68,10 @@ async function getShellGlobals(shellType: TerminalShellType, existingCommands?: 
 		if (cachedCommands) {
 			return cachedCommands;
 		}
-		const shell = getShell(shellType);
-		if (!shell) {
+		if (!shellType) {
 			return;
 		}
-		const options: ExecOptionsWithStringEncoding = { encoding: 'utf-8', shell };
+		const options: ExecOptionsWithStringEncoding = { encoding: 'utf-8', shell: shellType };
 		const mixedCommands: (string | ICompletionResource)[] | undefined = await getShellSpecificGlobals.get(shellType)?.(options, existingCommands);
 		const normalizedCommands = mixedCommands?.map(command => typeof command === 'string' ? ({ label: command }) : command);
 		cachedGlobals.set(shellType, normalizedCommands);
@@ -101,14 +95,15 @@ export async function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 
-			const shellType: TerminalShellType | undefined = 'shellType' in terminal.state ? terminal.state.shellType as TerminalShellType : undefined;
-			if (!shellType) {
+			const shellType: string | undefined = 'shell' in terminal.state ? terminal.state.shell as string : undefined;
+			const terminalShellType = getTerminalShellType(shellType);
+			if (!terminalShellType) {
 				console.debug('#terminalCompletions No shell type found for terminal');
 				return;
 			}
 
 			const commandsInPath = await pathExecutableCache.getExecutablesInPath(terminal.shellIntegration?.env?.value);
-			const shellGlobals = await getShellGlobals(shellType, commandsInPath?.labels) ?? [];
+			const shellGlobals = await getShellGlobals(terminalShellType, commandsInPath?.labels) ?? [];
 			if (!commandsInPath?.completionResources) {
 				console.debug('#terminalCompletions No commands found in path');
 				return;
@@ -117,7 +112,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			const commands = [...shellGlobals, ...commandsInPath.completionResources];
 			const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
 			const pathSeparator = isWindows ? '\\' : '/';
-			const tokenType = getTokenType(terminalContext, shellType);
+			const tokenType = getTokenType(terminalContext, terminalShellType);
 			const result = await Promise.race([
 				getCompletionItemsFromSpecs(
 					availableSpecs,
@@ -320,22 +315,6 @@ function compareItems(existingItem: vscode.TerminalCompletionItem, command: ICom
 	}
 }
 
-function getShell(shellType: TerminalShellType): string | undefined {
-	switch (shellType) {
-		case TerminalShellType.Bash:
-			return 'bash';
-		case TerminalShellType.Fish:
-			return 'fish';
-		case TerminalShellType.Zsh:
-			return 'zsh';
-		case TerminalShellType.PowerShell:
-			return 'pwsh';
-		default: {
-			return undefined;
-		}
-	}
-}
-
 function getEnvAsRecord(shellIntegrationEnv: { [key: string]: string | undefined } | undefined): Record<string, string> {
 	const env: Record<string, string> = {};
 	for (const [key, value] of Object.entries(shellIntegrationEnv ?? process.env)) {
@@ -347,6 +326,23 @@ function getEnvAsRecord(shellIntegrationEnv: { [key: string]: string | undefined
 		sanitizeProcessEnvironment(env);
 	}
 	return env;
+}
+
+function getTerminalShellType(shellType: string | undefined): TerminalShellType | undefined {
+	switch (shellType) {
+		case 'bash':
+			return TerminalShellType.Bash;
+		case 'zsh':
+			return TerminalShellType.Zsh;
+		case 'pwsh':
+			return TerminalShellType.PowerShell;
+		case 'fish':
+			return TerminalShellType.Fish;
+		case 'python':
+			return TerminalShellType.Python;
+		default:
+			return undefined;
+	}
 }
 
 export function sanitizeProcessEnvironment(env: Record<string, string>, ...preserve: string[]): void {

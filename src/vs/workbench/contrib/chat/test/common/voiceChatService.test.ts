@@ -13,10 +13,11 @@ import { ExtensionIdentifier } from '../../../../../platform/extensions/common/e
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
 import { ISpeechProvider, ISpeechService, ISpeechToTextEvent, ISpeechToTextSession, ITextToSpeechSession, KeywordRecognitionStatus, SpeechToTextStatus } from '../../../speech/common/speechService.js';
-import { ChatAgentLocation, IChatAgent, IChatAgentCommand, IChatAgentCompletionItem, IChatAgentData, IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentMetadata, IChatAgentRequest, IChatAgentResult, IChatAgentService, IChatParticipantDetectionProvider, IChatWelcomeMessageContent } from '../../common/chatAgents.js';
+import { IChatAgent, IChatAgentCommand, IChatAgentCompletionItem, IChatAgentData, IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentMetadata, IChatAgentRequest, IChatAgentResult, IChatAgentService, IChatParticipantDetectionProvider, IChatWelcomeMessageContent } from '../../common/chatAgents.js';
 import { IChatModel } from '../../common/chatModel.js';
 import { IChatFollowup, IChatProgress } from '../../common/chatService.js';
 import { IVoiceChatSessionOptions, IVoiceChatTextEvent, VoiceChatService } from '../../common/voiceChatService.js';
+import { ChatAgentLocation } from '../../common/constants.js';
 
 suite('VoiceChat', () => {
 
@@ -75,7 +76,6 @@ suite('VoiceChat', () => {
 		getAgents(): IChatAgent[] { return agents; }
 		getDefaultAgent(): IChatAgent | undefined { throw new Error(); }
 		getContributedDefaultAgent(): IChatAgentData | undefined { throw new Error(); }
-		getSecondaryAgent(): IChatAgent | undefined { throw new Error(); }
 		registerAgent(id: string, data: IChatAgentData): IDisposable { throw new Error('Method not implemented.'); }
 		getAgent(id: string): IChatAgentData | undefined { throw new Error('Method not implemented.'); }
 		getAgentsByName(name: string): IChatAgentData[] { throw new Error('Method not implemented.'); }

@@ -8,16 +8,15 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { ITrustedDomainService } from '../../../url/browser/trustedDomainService.js';
-import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../../common/languageModelToolsService.js';
+import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultTextPart } from '../../common/languageModelToolsService.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 
 export const InternalFetchWebPageToolId = 'vscode_fetchWebPage_internal';
 export const FetchWebPageToolData: IToolData = {
 	id: InternalFetchWebPageToolId,
 	displayName: 'Fetch Web Page',
-	tags: ['vscode_editing'],
+	canBeReferencedInPrompt: false,
 	modelDescription: localize('fetchWebPage.modelDescription', 'Fetches the main content from a web page. This tool is useful for summarizing or analyzing the content of a webpage.'),
-	userDescription: localize('fetchWebPage.userDescription', 'Fetch the main content from a web page. This tool is useful for summarizing or analyzing the content of a webpage.'),
 	inputSchema: {
 		type: 'object',
 		properties: {
@@ -55,16 +54,9 @@ export class FetchWebPageTool implements IToolImpl {
 			}
 		}
 
-		const result = await this._readerModeService.extract(valid);
-		// Right now there's a bug when returning multiple text content parts so we're merging into one.
-		// When that's fixed we can use the helper function _getPromptPartForWebPageContents.
-		const value = result.map((content, index) => localize(
-			'fetchWebPage.promptPart',
-			'Below is the main content extracted from the webpage ({0}). Please read and analyze this content to assist with any follow-up questions:\n\n{1}',
-			valid[index].toString(),
-			content
-		)).join('\n\n---\n\n');
-		return { content: [{ kind: 'text', value }] };
+		const contents = await this._readerModeService.extract(valid);
+		// TODO: Should we return a content for invalid URLs so that the indexes are aligned?
+		return { content: contents.map((content, index) => this._getPromptPartForWebPageContents(content, valid[index])) };
 	}
 
 	async prepareToolInvocation(parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
@@ -141,15 +133,10 @@ export class FetchWebPageTool implements IToolImpl {
 		return { invalid: invalidUrls, valid: validUrls };
 	}
 
-	// private _getPromptPartForWebPageContents(webPageContents: string, uri: URI): IToolResultTextPart {
-	// 	return {
-	// 		kind: 'text',
-	// 		value: localize(
-	// 			'fetchWebPage.promptPart',
-	// 			'Below is the main content extracted from the webpage ({0}). Please read and analyze this content to assist with any follow-up questions:\n\n{1}',
-	// 			uri.toString(),
-	// 			webPageContents
-	// 		)
-	// 	};
-	// }
+	private _getPromptPartForWebPageContents(webPageContents: string, uri: URI): IToolResultTextPart {
+		return {
+			kind: 'text',
+			value: `<!-- ${uri.toString(true)} -->\n\n` + webPageContents
+		};
+	}
 }

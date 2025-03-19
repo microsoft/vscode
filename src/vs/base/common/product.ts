@@ -99,6 +99,7 @@ export interface IProductConfiguration {
 		readonly extensionUrlTemplate: string;
 		readonly resourceUrlTemplate: string;
 		readonly nlsBaseUrl: string;
+		readonly accessSKUs?: string[];
 	};
 
 	readonly extensionPublisherOrgs?: readonly string[];
@@ -181,6 +182,14 @@ export interface IProductConfiguration {
 
 	readonly msftInternalDomains?: string[];
 	readonly linkProtectionTrustedDomains?: readonly string[];
+
+	readonly defaultAccount?: {
+		readonly authenticationProvider: {
+			readonly id: string;
+			readonly scopes: string[];
+		};
+		readonly entitlementUrl: string;
+	};
 
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
 

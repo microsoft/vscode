@@ -44,6 +44,7 @@ export const enum SearchCommandIds {
 	ViewAsListActionId = 'search.action.viewAsList',
 	ShowAIResultsActionId = 'search.action.showAIResults',
 	HideAIResultsActionId = 'search.action.hideAIResults',
+	SearchWithAIActionId = 'search.action.searchWithAI',
 	ToggleQueryDetailsActionId = 'workbench.action.search.toggleQueryDetails',
 	ExcludeFolderFromSearchId = 'search.action.excludeFromSearch',
 	FocusNextInputActionId = 'search.focus.nextInputBox',

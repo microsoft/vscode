@@ -116,7 +116,6 @@ export interface IChatAgentMetadata {
 	helpTextPrefix?: string | IMarkdownString;
 	helpTextVariablesPrefix?: string | IMarkdownString;
 	helpTextPostfix?: string | IMarkdownString;
-	isSecondary?: boolean; // Invoked by ctrl/cmd+enter
 	icon?: URI;
 	iconDark?: URI;
 	themeIcon?: ThemeIcon;
@@ -217,7 +216,6 @@ export interface IChatAgentService {
 	 * Get the default agent data that has been contributed (may not be activated yet)
 	 */
 	getContributedDefaultAgent(location: ChatAgentLocation): IChatAgentData | undefined;
-	getSecondaryAgent(): IChatAgentData | undefined;
 	updateAgent(id: string, updateMetadata: IChatAgentMetadata): void;
 }
 
@@ -400,11 +398,6 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 
 	getContributedDefaultAgent(location: ChatAgentLocation): IChatAgentData | undefined {
 		return this.getAgents().find(a => !!a.isDefault && a.locations.includes(location));
-	}
-
-	getSecondaryAgent(): IChatAgentData | undefined {
-		// TODO also static
-		return Iterable.find(this._agents.values(), a => !!a.data.metadata.isSecondary)?.data;
 	}
 
 	getAgent(id: string, includeDisabled = false): IChatAgentData | undefined {
@@ -750,4 +743,3 @@ export function reviveSerializedAgent(raw: ISerializableChatAgentData): IChatAge
 
 	return revive(agent);
 }
-export { ChatAgentLocation };

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, derivedWithStore, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { debouncedObservable } from '../../../../../../base/common/observableInternal/utils.js';
 import { basename } from '../../../../../../base/common/resources.js';
@@ -23,8 +23,9 @@ import { getNotebookEditorFromEditorPane, ICellViewModel, INotebookEditor } from
 import { INotebookEditorService } from '../../../../notebook/browser/services/notebookEditorService.js';
 import { NotebookCellTextModel } from '../../../../notebook/common/model/notebookCellTextModel.js';
 import { NotebookTextModel } from '../../../../notebook/common/model/notebookTextModel.js';
-import { ChatAgentLocation, IChatAgentService } from '../../../common/chatAgents.js';
+import { IChatAgentService } from '../../../common/chatAgents.js';
 import { IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration } from '../../../common/chatEditingService.js';
+import { ChatAgentLocation } from '../../../common/constants.js';
 import { ChatEditingCodeEditorIntegration, IDocumentDiff2 } from '../chatEditingCodeEditorIntegration.js';
 import { ChatEditingModifiedNotebookEntry } from '../chatEditingModifiedNotebookEntry.js';
 import { countChanges, ICellDiffInfo, sortCellChanges } from './notebookCellChanges.js';
@@ -118,13 +119,26 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			}
 			originalReadonly ??= notebookEditor.isReadOnly;
 			if (isReadOnly) {
-				if (!notebookEditor.isReadOnly) {
+				notebookEditor.setOptions({ isReadOnly: true });
+			} else if (originalReadonly === false) {
+				notebookEditor.setOptions({ isReadOnly: false });
+				// Ensure all cells area editable.
+				// We make use of chatEditingCodeEditorIntegration to handle cell diffing and navigation.
+				// However that also makes the cell read-only. We need to ensure that the cell is editable.
+				// E.g. first we make notebook readonly (in here), then cells end up being readonly because notebook is readonly.
+				// Then chatEditingCodeEditorIntegration makes cells readonly and keeps track of the original readonly state.
+				// However the cell is already readonly because the notebook is readonly.
+				// So when we restore the notebook to editable (in here), the cell is made editable again.
+				// But when chatEditingCodeEditorIntegration attempts to restore, it will restore the original readonly state.
+				// & from the perpspective of chatEditingCodeEditorIntegration, the cell was readonly & should continue to be readonly.
+				// To get around this, we wait for a few ms before restoring the original readonly state for each cell.
+				const timeout = setTimeout(() => {
 					notebookEditor.setOptions({ isReadOnly: true });
-				}
-			} else {
-				if (notebookEditor.isReadOnly && originalReadonly === false) {
 					notebookEditor.setOptions({ isReadOnly: false });
-				}
+					disposable.dispose();
+				}, 100);
+				const disposable = toDisposable(() => clearTimeout(timeout));
+				this._register(disposable);
 			}
 		}));
 

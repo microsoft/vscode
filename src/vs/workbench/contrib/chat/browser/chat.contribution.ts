@@ -31,7 +31,7 @@ import { IWorkbenchAssignmentService } from '../../../services/assignment/common
 import { mcpSchemaId } from '../../../services/configuration/common/configuration.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { mcpConfigurationSection, mcpDiscoverySection, mcpSchemaExampleServers } from '../../mcp/common/mcpConfiguration.js';
-import { ChatAgentLocation, ChatAgentNameService, ChatAgentService, IChatAgentNameService, IChatAgentService } from '../common/chatAgents.js';
+import { ChatAgentNameService, ChatAgentService, IChatAgentNameService, IChatAgentService } from '../common/chatAgents.js';
 import { CodeMapperService, ICodeMapperService } from '../common/chatCodeMapperService.js';
 import '../common/chatColors.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
@@ -44,6 +44,7 @@ import { ChatSlashCommandService, IChatSlashCommandService } from '../common/cha
 import { ChatTransferService, IChatTransferService } from '../common/chatTransferService.js';
 import { IChatVariablesService } from '../common/chatVariables.js';
 import { ChatWidgetHistoryService, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
+import { ChatAgentLocation, ChatConfiguration } from '../common/constants.js';
 import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } from '../common/ignoredFiles.js';
 import { ILanguageModelsService, LanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelStatsService, LanguageModelStatsService } from '../common/languageModelStats.js';
@@ -207,8 +208,7 @@ configurationRegistry.registerConfiguration({
 		'chat.experimental.setupFromDialog': { // TODO@bpasero remove this eventually
 			type: 'boolean',
 			description: nls.localize('chat.setupFromChat', "Controls whether Copilot setup starts from a dialog or from the welcome view."),
-			// default: product.quality !== 'stable',
-			default: false,
+			default: product.quality !== 'stable',
 			tags: ['experimental', 'onExp']
 		},
 		[mcpConfigurationSection]: {
@@ -226,6 +226,12 @@ configurationRegistry.registerConfiguration({
 		// 	default: false,
 		// 	tags: ['experimental'],
 		// },
+		[ChatConfiguration.UseFileStorage]: {
+			type: 'boolean',
+			description: nls.localize('chat.useFileStorage', "Enables storing chat sessions on disk instead of in the storage service. Enabling this does a one-time per-workspace migration of existing sessions to the new format."),
+			default: true,
+			tags: ['experimental'],
+		},
 		[mcpDiscoverySection]: {
 			type: 'boolean',
 			default: false,

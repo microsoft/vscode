@@ -35,10 +35,11 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { EditorsOrder, IEditorIdentifier, isDiffEditorInput } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { overviewRulerModifiedForeground, minimapGutterModifiedBackground, overviewRulerAddedForeground, minimapGutterAddedBackground, overviewRulerDeletedForeground, minimapGutterDeletedBackground } from '../../../scm/common/quickDiff.js';
-import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
+import { IChatAgentService } from '../../common/chatAgents.js';
 import { IChatEditingService, IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { isTextDiffEditorForEntry } from './chatEditing.js';
 import { IEditorDecorationsCollection } from '../../../../../editor/common/editorCommon.js';
+import { ChatAgentLocation } from '../../common/constants.js';
 
 export interface IDocumentDiff2 extends IDocumentDiff {
 

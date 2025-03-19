@@ -10,11 +10,9 @@ import * as cp from 'child_process';
 import { fileURLToPath } from 'url';
 import which from 'which';
 import { EventEmitter } from 'events';
-import * as iconv from '@vscode/iconv-lite-umd';
 import * as filetype from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals, isMacintosh, isDescendant, relativePath } from './util';
 import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
-import { detectEncoding } from './encoding';
 import { Commit as ApiCommit, Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery, InitOptions } from './api/git';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
@@ -194,7 +192,6 @@ function cpErrorHandler(cb: (reason?: any) => void): (reason?: any) => void {
 
 export interface SpawnOptions extends cp.SpawnOptions {
 	input?: string;
-	encoding?: string;
 	log?: boolean;
 	cancellationToken?: CancellationToken;
 	onSpawn?: (childProcess: cp.ChildProcess) => void;
@@ -621,12 +618,9 @@ export class Git {
 			}
 		}
 
-		let encoding = options.encoding || 'utf8';
-		encoding = iconv.encodingExists(encoding) ? encoding : 'utf8';
-
 		const result: IExecutionResult<string> = {
 			exitCode: bufferResult.exitCode,
-			stdout: iconv.decode(bufferResult.stdout, encoding),
+			stdout: bufferResult.stdout.toString('utf8'),
 			stderr: bufferResult.stderr
 		};
 
@@ -1133,15 +1127,12 @@ function parseGitBlame(data: string): BlameInformation[] {
 const REFS_FORMAT = '%(refname)%00%(objectname)%00%(*objectname)';
 const REFS_WITH_DETAILS_FORMAT = `${REFS_FORMAT}%00%(parent)%00%(*parent)%00%(authorname)%00%(*authorname)%00%(authordate:unix)%00%(*authordate:unix)%00%(subject)%00%(*subject)`;
 
-const headRegex = /^refs\/heads\/([^ ]+)$/;
-const remoteHeadRegex = /^refs\/remotes\/([^/]+)\/([^ ]+)$/;
-const tagRegex = /^refs\/tags\/([^ ]+)$/;
+function parseRefs(data: string): Ref[] {
+	const refRegex = /^(.*)\0([0-9a-f]{40})\0([0-9a-f]{40})?(?:\0(.*)\0(.*)\0(.*)\0(.*)\0(.*)\0(.*)\0(.*)\0(.*))?$/gm;
 
-function parseRefs(data: string, includeCommitDetails: boolean): Ref[] {
-	const refs: Ref[] = [];
-	const refRegex = !includeCommitDetails
-		? /^(.*)\0([0-9a-f]{40})\0([0-9a-f]{40})?$/gm
-		: /^(.*)\0([0-9a-f]{40})\0([0-9a-f]{40})?\0(.*)\0(.*)\0(.*)\0(.*)\0(.*)\0(.*)\0(.*)\0(.*)$/gm;
+	const headRegex = /^refs\/heads\/([^ ]+)$/;
+	const remoteHeadRegex = /^refs\/remotes\/([^/]+)\/([^ ]+)$/;
+	const tagRegex = /^refs\/tags\/([^ ]+)$/;
 
 	let ref: string | undefined;
 	let commitHash: string | undefined;
@@ -1155,6 +1146,8 @@ function parseRefs(data: string, includeCommitDetails: boolean): Ref[] {
 	let authorDate: string | undefined;
 	let tagAuthorDate: string | undefined;
 
+	const refs: Ref[] = [];
+
 	let match: RegExpExecArray | null;
 	let refMatch: RegExpExecArray | null;
 
@@ -1164,28 +1157,27 @@ function parseRefs(data: string, includeCommitDetails: boolean): Ref[] {
 			break;
 		}
 
-		let commitDetails: ApiCommit | undefined = undefined;
 		[, ref, commitHash, tagCommitHash, commitParents, tagCommitParents, authorName, tagAuthorName, authorDate, tagAuthorDate, commitSubject, tagCommitSubject] = match;
 
-		if (includeCommitDetails) {
-			const parents = tagCommitParents || commitParents;
-			const subject = tagCommitSubject || commitSubject;
-			const author = tagAuthorName || authorName;
-			const date = tagAuthorDate || authorDate;
+		const parents = tagCommitParents || commitParents;
+		const subject = tagCommitSubject || commitSubject;
+		const author = tagAuthorName || authorName;
+		const date = tagAuthorDate || authorDate;
 
-			commitDetails = {
+		const commitDetails = parents && subject && author && date
+			? {
 				hash: commitHash,
 				message: subject,
-				parents: parents ? parents.split(' ') : [],
+				parents: parents.split(' '),
 				authorName: author,
 				authorDate: date ? new Date(Number(date) * 1000) : undefined
-			} satisfies ApiCommit;
-		}
+			} satisfies ApiCommit : undefined;
 
 		if (refMatch = headRegex.exec(ref)) {
 			refs.push({ name: refMatch[1], commit: commitHash, commitDetails, type: RefType.Head });
 		} else if (refMatch = remoteHeadRegex.exec(ref)) {
-			refs.push({ name: `${refMatch[1]}/${refMatch[2]}`, remote: refMatch[1], commit: commitHash, commitDetails, type: RefType.RemoteHead });
+			const name = `${refMatch[1]}/${refMatch[2]}`;
+			refs.push({ name, remote: refMatch[1], commit: commitHash, commitDetails, type: RefType.RemoteHead });
 		} else if (refMatch = tagRegex.exec(ref)) {
 			refs.push({ name: refMatch[1], commit: tagCommitHash ?? commitHash, commitDetails, type: RefType.Tag });
 		}
@@ -1396,18 +1388,6 @@ export class Repository {
 
 		return result.stdout.split('\n')
 			.filter(entry => !!entry);
-	}
-
-	async bufferString(ref: string, filePath: string, encoding: string = 'utf8', autoGuessEncoding = false, candidateGuessEncodings: string[] = []): Promise<string> {
-		const stdout = await this.buffer(ref, filePath);
-
-		if (autoGuessEncoding) {
-			encoding = detectEncoding(stdout, candidateGuessEncodings) || encoding;
-		}
-
-		encoding = iconv.encodingExists(encoding) ? encoding : 'utf8';
-
-		return iconv.decode(stdout, encoding);
 	}
 
 	async buffer(ref: string, filePath: string): Promise<Buffer> {
@@ -1758,10 +1738,10 @@ export class Repository {
 		await this.exec(args);
 	}
 
-	async stage(path: string, data: string, encoding: string): Promise<void> {
+	async stage(path: string, data: Uint8Array): Promise<void> {
 		const relativePath = sanitizeRelativePath(this.repositoryRoot, path);
 		const child = this.stream(['hash-object', '--stdin', '-w', '--path', relativePath], { stdio: [null, null, null] });
-		child.stdin!.end(iconv.encode(data, encoding));
+		child.stdin!.end(data);
 
 		const { exitCode, stdout } = await exec(child);
 		const hash = stdout.toString('utf8');
@@ -2663,7 +2643,7 @@ export class Repository {
 		}
 
 		const result = await this.exec(args, { cancellationToken });
-		return parseRefs(result.stdout, query.includeCommitDetails === true);
+		return parseRefs(result.stdout);
 	}
 
 	async getRemoteRefs(remote: string, opts?: { heads?: boolean; tags?: boolean; cancellationToken?: CancellationToken }): Promise<Ref[]> {

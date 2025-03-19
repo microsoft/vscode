@@ -675,9 +675,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private renderSampleQuestions() {
-		if (this.viewModel) {
+		if (this.viewModel?.getItems().length === 0) {
 			// TODO@roblourens hack- only Chat mode supports sample questions
-			this.renderFollowups(this.input.currentMode === ChatMode.Chat ? this.viewModel.model.sampleQuestions : undefined);
+			this.renderFollowups(this.input.currentMode === ChatMode.Ask ? this.viewModel.model.sampleQuestions : undefined);
 		}
 	}
 
@@ -942,6 +942,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._register(this.input.onDidChangeCurrentChatMode(() => {
 			this.renderSampleQuestions();
 			this.renderWelcomeViewContentIfNeeded();
+			this.refreshParsedInput();
 		}));
 	}
 
@@ -1083,10 +1084,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return await this.chatService.resendRequest(lastRequest, options);
 	}
 
-	async acceptInputWithPrefix(prefix: string): Promise<void> {
-		this._acceptInput({ prefix });
-	}
-
 	private collectInputState(): IChatInputState {
 		const inputState: IChatInputState = {};
 		this.contribs.forEach(c => {
@@ -1097,7 +1094,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return inputState;
 	}
 
-	private async _acceptInput(query: { query: string } | { prefix: string } | undefined, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
+	private async _acceptInput(query: { query: string } | undefined, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
 		if (this.viewModel?.requestInProgress && this.viewModel.requestPausibility !== ChatPauseState.Paused) {
 			return;
 		}
@@ -1110,10 +1107,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			const editorValue = this.getInput();
 			const requestId = this.chatAccessibilityService.acceptRequest();
-			const input = !query ? editorValue :
-				'query' in query ? query.query :
-					`${query.prefix} ${editorValue}`;
-			const isUserQuery = !query || 'prefix' in query;
+			const input = !query ? editorValue : query.query;
+			const isUserQuery = !query;
 
 			const { promptInstructions } = this.inputPart.attachmentModel;
 			const instructionsEnabled = promptInstructions.featureEnabled;
@@ -1171,7 +1166,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				attachedContext,
 				noCommandDetection: options?.noCommandDetection,
 				hasInstructionAttachments: this.inputPart.hasInstructionAttachments,
-				userSelectedTools: ChatInputPart.selectedToolsModel.tools.get().map(tool => tool.id)
+				userSelectedTools: this.input.currentMode === ChatMode.Agent ? this.inputPart.selectedToolsModel.tools.get().map(tool => tool.id) : undefined
 			});
 
 			if (result) {
@@ -1401,6 +1396,10 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 
 	get lastFocusedWidget(): IChatWidget | undefined {
 		return this._lastFocusedWidget;
+	}
+
+	getAllWidgets(): ReadonlyArray<IChatWidget> {
+		return this._widgets;
 	}
 
 	getWidgetsByLocations(location: ChatAgentLocation): ReadonlyArray<IChatWidget> {

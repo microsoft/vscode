@@ -125,7 +125,7 @@ export interface NotebookCellInternalMetadata {
 	 * This is not persisted and generally useful only when diffing two notebooks.
 	 * Useful only after we've manually matched a few cells together so we know which cells are matching.
 	 */
-	cellId?: string;
+	internalId?: string;
 	executionId?: string;
 	executionOrder?: number;
 	lastRunSuccess?: boolean;
