@@ -141,6 +141,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	readonly onDidChangeZenMode: Event<boolean>;
 
 	/**
+	 * Pear AI Creator mode 🚀
+	 */
+	readonly onDidChangeCreatorMode: Event<boolean>;
+
+	/**
 	 * Emits when the target window is maximized or unmaximized.
 	 */
 	readonly onDidChangeWindowMaximized: Event<{ readonly windowId: number; readonly maximized: boolean }>;
@@ -283,6 +288,22 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Toggles the workbench in and out of zen mode - parts get hidden and window goes fullscreen.
 	 */
 	toggleZenMode(): void;
+
+	/**
+	 * Toggles the workbench in and out of creator mode.
+	 */
+	toggleCreatorMode(): void;
+
+
+	/**
+	 * Enters creator mode - similar to zen mode but with creator-specific settings.
+	 */
+	enterCreatorMode(): void;
+
+	/**
+	 * Exits creator mode and restores the previous layout.
+	 */
+	exitCreatorMode(): void;
 
 	/**
 	 * Returns whether the centered editor layout is active on the main editor part.

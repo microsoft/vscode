@@ -63,6 +63,9 @@ interface ILayoutRuntimeState {
 	readonly zenMode: {
 		readonly transitionDisposables: DisposableMap<string, IDisposable>;
 	};
+	readonly creatorMode: {
+		readonly transitionDisposables: DisposableMap<string, IDisposable>;
+	}
 }
 
 interface IEditorToOpen {
@@ -135,6 +138,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private readonly _onDidChangeZenMode = this._register(new Emitter<boolean>());
 	readonly onDidChangeZenMode = this._onDidChangeZenMode.event;
+
+	private readonly _onDidChangeCreatorMode = this._register(new Emitter<boolean>());
+	readonly onDidChangeCreatorMode = this._onDidChangeCreatorMode.event;
+
 
 	private readonly _onDidChangeMainEditorCenteredLayout = this._register(new Emitter<boolean>());
 	readonly onDidChangeMainEditorCenteredLayout = this._onDidChangeMainEditorCenteredLayout.event;
@@ -665,6 +672,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				toggled: false,
 			},
 			zenMode: {
+				transitionDisposables: new DisposableMap(),
+			},
+			creatorMode: {
 				transitionDisposables: new DisposableMap(),
 			}
 		};
@@ -1465,6 +1475,375 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Event
 		this._onDidChangeZenMode.fire(this.isZenModeActive());
 	}
+
+
+		// Helper methods to check and set Creator Mode state
+	private isCreatorModeActive(): boolean {
+		return this.stateModel.getRuntimeValue(LayoutStateKeys.CREATOR_MODE_ACTIVE);
+	}
+
+	private setCreatorModeActive(active: boolean) {
+		this.stateModel.setRuntimeValue(LayoutStateKeys.CREATOR_MODE_ACTIVE, active);
+	}
+
+	// Enter Creator Mode
+	enterCreatorMode(restoring = false): void {
+		console.log("Entering Creator Mode");
+		if (this.isCreatorModeActive()) {
+			console.warn('Creator Mode is already active');
+			return; // Already in Creator Mode
+		}
+
+		this.setCreatorModeActive(true);
+		this.state.runtime.creatorMode.transitionDisposables.clearAndDisposeAll();
+
+		const setLineNumbers = (lineNumbers?: LineNumbersType) => {
+			for (const editor of this.mainPartEditorService.visibleTextEditorControls) {
+				// To properly reset line numbers we need to read the configuration for each editor respecting it's uri.
+				if (!lineNumbers && isCodeEditor(editor) && editor.hasModel()) {
+					const model = editor.getModel();
+					lineNumbers = this.configurationService.getValue('editor.lineNumbers', { resource: model.uri, overrideIdentifier: model.getLanguageId() }) as LineNumbersType | undefined;
+				}
+				if (!lineNumbers) {
+					lineNumbers = this.configurationService.getValue('editor.lineNumbers') as LineNumbersType | undefined;
+				}
+
+				editor.updateOptions({ lineNumbers });
+			}
+		};
+
+		// Check if we need to go to full screen
+		let toggleMainWindowFullScreen = false;
+		const config = getCreatorModeConfiguration(this.configurationService);
+		const creatorModeExitInfo = this.stateModel.getRuntimeValue(LayoutStateKeys.CREATOR_MODE_EXIT_INFO);
+
+		if (!restoring) {
+			// Store current state to restore when exiting
+			toggleMainWindowFullScreen = !this.state.runtime.mainWindowFullscreen && config.fullScreen && !isIOS;
+
+			creatorModeExitInfo.transitionedToFullScreen = toggleMainWindowFullScreen;
+			creatorModeExitInfo.transitionedToCenteredEditorLayout = !this.isMainEditorLayoutCentered() && config.centerLayout;
+			creatorModeExitInfo.handleNotificationsDoNotDisturbMode = this.notificationService.getFilter() === NotificationsFilter.OFF;
+			creatorModeExitInfo.wasVisible.sideBar = this.isVisible(Parts.SIDEBAR_PART);
+			creatorModeExitInfo.wasVisible.panel = this.isVisible(Parts.PANEL_PART);
+			creatorModeExitInfo.wasVisible.auxiliaryBar = this.isVisible(Parts.AUXILIARYBAR_PART);
+
+			// Save the current sizes before modifying them
+			creatorModeExitInfo.sideBarSize = this.getSize(Parts.SIDEBAR_PART).width;
+			creatorModeExitInfo.panelSize = this.getSize(Parts.PANEL_PART).height;
+			creatorModeExitInfo.auxiliaryBarSize = this.getSize(Parts.AUXILIARYBAR_PART).width;
+			creatorModeExitInfo.panelPosition = this.getPanelPosition();
+
+			this.stateModel.setRuntimeValue(LayoutStateKeys.CREATOR_MODE_EXIT_INFO, creatorModeExitInfo);
+		}
+
+		// --- CREATOR MODE CUSTOM LAYOUT ---
+
+		// 1. Hide primary sidebar
+		this.setSideBarHidden(true, true);
+
+		// 2. Ensure auxiliary bar is visible and set to 40% of screen width
+		this.setAuxiliaryBarHidden(false, true);
+		const dimensions = this.mainContainer.getBoundingClientRect();
+
+		const auxiliaryBarWidth = Math.floor(dimensions.width * 0.4);
+		// Use setSize for direct sizing
+		this.setSize(Parts.AUXILIARYBAR_PART, {
+			width: auxiliaryBarWidth,
+			height: this.getSize(Parts.AUXILIARYBAR_PART).height
+		});
+
+		// 3. Show panel (for terminal) and make it 50% of the remaining height
+		this.setPanelHidden(false, true);
+		const panelHeight = Math.floor(dimensions.height * 0.5);
+		// Use setSize for direct sizing
+		this.setSize(Parts.PANEL_PART, {
+			width: this.getSize(Parts.PANEL_PART).width,
+			height: panelHeight
+		});
+		this.setPanelPosition(Position.BOTTOM);
+
+
+		// Make sure the editor takes up 100% of the available space
+		const editorPart = this.getPart(Parts.EDITOR_PART);
+		if (editorPart) {
+				this.centerMainEditorLayout(false, false);
+				this.editorPartView
+
+				// Get the current size and position
+				const size = this.getSize(Parts.EDITOR_PART);
+				const position = editorPart.element.getBoundingClientRect();
+
+				// Force editor width to fill available space by calculating the width
+				// based on container width minus auxiliary bar width (if visible)
+				const containerWidth = this.mainContainer.getBoundingClientRect().width;
+				const auxiliaryBarWidth = this.isVisible(Parts.AUXILIARYBAR_PART) ?
+						this.getSize(Parts.AUXILIARYBAR_PART).width : 0;
+
+				// Calculate the width the editor should have
+				const editorWidth = containerWidth - auxiliaryBarWidth;
+
+				// Update the editor part size
+				this.setSize(Parts.EDITOR_PART, {
+						width: editorWidth,
+						height: size.height
+				});
+
+				// Now layout the editor part with the new size
+				editorPart.layout(editorWidth, size.height, position.top, position.left);
+		}
+
+		// Use the editorPartView to ensure it takes full width
+		if (this.editorPartView && typeof this.editorPartView.layout === 'function') {
+			// Get container dimensions
+			const containerRect = this.mainContainer.getBoundingClientRect();
+
+			// Calculate the available width (container width minus auxiliary bar if visible)
+			const auxiliaryBarWidth = this.isVisible(Parts.AUXILIARYBAR_PART) ?
+					this.getSize(Parts.AUXILIARYBAR_PART).width : 0;
+
+			// Calculate the width the editor should have
+			const editorWidth = containerRect.width - auxiliaryBarWidth;
+
+			// Calculate the height (take into account panel if visible)
+			const panelHeight = this.isVisible(Parts.PANEL_PART) ?
+					this.getSize(Parts.PANEL_PART).height : 0;
+			const editorHeight = containerRect.height - panelHeight;
+
+			// Get the current position of the editor element
+			const editorRect = this.editorPartView.element.getBoundingClientRect();
+
+			// Call layout with all required parameters
+			this.editorPartView.layout(
+					editorWidth,         // width - ensure it takes full available width
+					editorHeight,        // height - based on container minus panel
+					editorRect.top,      // top - keep current top position
+					editorRect.left      // left - keep current left position
+			);
+		}
+
+
+		// Make sure we call the overall layout after all sizing changes
+		this.layout();
+
+		// NOTE: Views would need to be opened here if you had viewsService available
+		// For now, this would need to be done manually by the user
+
+		// Optional configuration options
+		if (config.hideActivityBar) {
+			this.setActivityBarHidden(true, true);
+		}
+
+		if (config.hideStatusBar) {
+			this.setStatusBarHidden(true, true);
+		}
+
+		if (config.hideLineNumbers) {
+			setLineNumbers('off');
+			this.state.runtime.creatorMode.transitionDisposables.set('hideLineNumbers', this.mainPartEditorService.onDidVisibleEditorsChange(() => setLineNumbers('off')));
+		}
+
+		if (config.showTabs !== this.editorGroupService.partOptions.showTabs) {
+			this.state.runtime.creatorMode.transitionDisposables.set('showTabs', this.editorGroupService.mainPart.enforcePartOptions({ showTabs: config.showTabs }));
+		}
+
+		if (config.silentNotifications && creatorModeExitInfo.handleNotificationsDoNotDisturbMode) {
+			this.notificationService.setFilter(NotificationsFilter.ERROR);
+		}
+
+
+		this.centerMainEditorLayout(false, true);
+
+		// Configuration change handlers
+		this.state.runtime.creatorMode.transitionDisposables.set('configurationChange', this.configurationService.onDidChangeConfiguration(e => {
+			// Handle configuration changes for Creator Mode
+			// Activity Bar
+			if (e.affectsConfiguration('creatorMode.hideActivityBar')) {
+				const creatorModeHideActivityBar = this.configurationService.getValue<boolean>('creatorMode.hideActivityBar');
+				this.setActivityBarHidden(creatorModeHideActivityBar, true);
+			}
+
+			// Status Bar
+			if (e.affectsConfiguration('creatorMode.hideStatusBar')) {
+				const creatorModeHideStatusBar = this.configurationService.getValue<boolean>('creatorMode.hideStatusBar');
+				this.setStatusBarHidden(creatorModeHideStatusBar, true);
+			}
+
+			// Center Layout
+			if (e.affectsConfiguration('creatorMode.centerLayout')) {
+				const creatorModeCenterLayout = this.configurationService.getValue<boolean>('creatorMode.centerLayout');
+				this.centerMainEditorLayout(creatorModeCenterLayout, true);
+			}
+
+			// Show Tabs
+			if (e.affectsConfiguration('creatorMode.showTabs')) {
+				const creatorModeShowTabs = this.configurationService.getValue<EditorTabsMode | undefined>('creatorMode.showTabs') ?? 'multiple';
+				this.state.runtime.creatorMode.transitionDisposables.set('showTabs', this.editorGroupService.mainPart.enforcePartOptions({ showTabs: creatorModeShowTabs }));
+			}
+
+			// Notifications
+			if (e.affectsConfiguration('creatorMode.silentNotifications')) {
+				const creatorModeSilentNotifications = !!this.configurationService.getValue('creatorMode.silentNotifications');
+				if (creatorModeExitInfo.handleNotificationsDoNotDisturbMode) {
+					this.notificationService.setFilter(creatorModeSilentNotifications ? NotificationsFilter.ERROR : NotificationsFilter.OFF);
+				}
+			}
+
+			// Line Numbers
+			if (e.affectsConfiguration('creatorMode.hideLineNumbers')) {
+				const lineNumbersType = this.configurationService.getValue<boolean>('creatorMode.hideLineNumbers') ? 'off' : undefined;
+				setLineNumbers(lineNumbersType);
+				this.state.runtime.creatorMode.transitionDisposables.set('hideLineNumbers', this.mainPartEditorService.onDidVisibleEditorsChange(() => setLineNumbers(lineNumbersType)));
+			}
+		}));
+
+		// Layout and toggle fullscreen if needed
+		this.layout();
+		if (toggleMainWindowFullScreen) {
+			this.hostService.toggleFullScreen(mainWindow);
+		}
+
+		// Fire event for Creator Mode activation
+		this._onDidChangeCreatorMode.fire(true);
+	}
+
+	// Exit Creator Mode
+	exitCreatorMode(): void {
+		console.log("Exiting Creator Mode");
+		if (!this.isCreatorModeActive()) {
+			console.warn('Creator Mode is not active');
+			return; // Not in Creator Mode
+		}
+
+		this.setCreatorModeActive(false);
+		this.state.runtime.creatorMode.transitionDisposables.clearAndDisposeAll();
+
+		// Reset line numbers
+		const setLineNumbers = () => {
+			for (const editor of this.mainPartEditorService.visibleTextEditorControls) {
+				if (isCodeEditor(editor) && editor.hasModel()) {
+					const model = editor.getModel();
+					const lineNumbers = this.configurationService.getValue('editor.lineNumbers', { resource: model.uri, overrideIdentifier: model.getLanguageId() }) as LineNumbersType | undefined;
+					editor.updateOptions({ lineNumbers });
+				} else {
+					const lineNumbers = this.configurationService.getValue('editor.lineNumbers') as LineNumbersType | undefined;
+					editor.updateOptions({ lineNumbers });
+				}
+			}
+		};
+
+		const creatorModeExitInfo = this.stateModel.getRuntimeValue(LayoutStateKeys.CREATOR_MODE_EXIT_INFO);
+		let toggleMainWindowFullScreen = false;
+
+		// Restore panel visibility
+		if (creatorModeExitInfo.wasVisible.panel) {
+			this.setPanelHidden(false, true);
+		} else {
+			this.setPanelHidden(true, true);
+		}
+
+		// Restore panel position
+		if (creatorModeExitInfo.panelPosition) {
+			this.setPanelPosition(creatorModeExitInfo.panelPosition);
+		}
+
+		// Restore panel size - use resizePart instead of directly setting state
+		if (creatorModeExitInfo.panelSize) {
+			// Current size might be different, calculate the delta
+			const currentSize = this.getSize(Parts.PANEL_PART).height;
+			const deltaSize = creatorModeExitInfo.panelSize - currentSize;
+			if (deltaSize !== 0) {
+				// Panel might be horizontal or vertical
+				const position = this.getPanelPosition();
+				if (position === Position.BOTTOM || position === Position.TOP) {
+					this.resizePart(Parts.PANEL_PART, 0, deltaSize);
+				} else {
+					this.resizePart(Parts.PANEL_PART, deltaSize, 0);
+				}
+			}
+		}
+
+		// Restore auxiliary bar visibility
+		if (creatorModeExitInfo.wasVisible.auxiliaryBar) {
+			this.setAuxiliaryBarHidden(false, true);
+		} else {
+			this.setAuxiliaryBarHidden(true, true);
+		}
+
+		// Restore auxiliary bar size
+		if (creatorModeExitInfo.auxiliaryBarSize) {
+			const currentSize = this.getSize(Parts.AUXILIARYBAR_PART).width;
+			const deltaSize = creatorModeExitInfo.auxiliaryBarSize - currentSize;
+			if (deltaSize !== 0) {
+				this.resizePart(Parts.AUXILIARYBAR_PART, deltaSize, 0);
+			}
+		}
+
+		// Restore sidebar visibility
+		if (creatorModeExitInfo.wasVisible.sideBar) {
+			this.setSideBarHidden(false, true);
+		} else {
+			this.setSideBarHidden(true, true);
+		}
+
+		// Restore sidebar size
+		if (creatorModeExitInfo.sideBarSize) {
+			const currentSize = this.getSize(Parts.SIDEBAR_PART).width;
+			const deltaSize = creatorModeExitInfo.sideBarSize - currentSize;
+			if (deltaSize !== 0) {
+				this.resizePart(Parts.SIDEBAR_PART, deltaSize, 0);
+			}
+		}
+
+		// Restore activity bar
+		if (!this.stateModel.getRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN, true)) {
+			this.setActivityBarHidden(false, true);
+		}
+
+		// Restore status bar
+		if (!this.stateModel.getRuntimeValue(LayoutStateKeys.STATUSBAR_HIDDEN, true)) {
+			this.setStatusBarHidden(false, true);
+		}
+
+		// Restore editor layout
+		if (creatorModeExitInfo.transitionedToCenteredEditorLayout) {
+			this.centerMainEditorLayout(false, true);
+		}
+
+		// Restore notifications
+		if (creatorModeExitInfo.handleNotificationsDoNotDisturbMode) {
+			this.notificationService.setFilter(NotificationsFilter.OFF);
+		}
+
+		// Reset editor options
+		setLineNumbers();
+		this.focus();
+
+		// Handle fullscreen
+		toggleMainWindowFullScreen = creatorModeExitInfo.transitionedToFullScreen && this.state.runtime.mainWindowFullscreen;
+
+		// Perform final layout and fullscreen changes
+		this.layout();
+		if (toggleMainWindowFullScreen) {
+			this.hostService.toggleFullScreen(mainWindow);
+		}
+
+		// Fire event for Creator Mode deactivation
+		this._onDidChangeCreatorMode.fire(false);
+	}
+
+	toggleCreatorMode(skipLayout?: boolean): void {
+		if (this.isCreatorModeActive()) {
+				this.exitCreatorMode();
+		} else {
+				this.enterCreatorMode();
+		}
+
+		if (!skipLayout) {
+				this.layout();
+		}
+	}
+
 
 	private setStatusBarHidden(hidden: boolean, skipLayout?: boolean): void {
 		this.stateModel.setRuntimeValue(LayoutStateKeys.STATUSBAR_HIDDEN, hidden);
@@ -2517,6 +2896,12 @@ function getZenModeConfiguration(configurationService: IConfigurationService): Z
 	return configurationService.getValue<ZenModeConfiguration>(WorkbenchLayoutSettings.ZEN_MODE_CONFIG);
 }
 
+type CreatorModeConfiguration = ZenModeConfiguration;
+
+function getCreatorModeConfiguration(configurationService: IConfigurationService): CreatorModeConfiguration {
+	return configurationService.getValue<CreatorModeConfiguration>(WorkbenchLayoutSettings.ZEN_MODE_CONFIG);
+}
+
 //#endregion
 
 //#region Layout State Model
@@ -2569,6 +2954,26 @@ const LayoutStateKeys = {
 			sideBar: false,
 		},
 	}),
+
+	// Creator Mode
+	CREATOR_MODE_ACTIVE: new RuntimeStateKey<boolean>('creatorMode.active', StorageScope.WORKSPACE, StorageTarget.MACHINE, false),
+
+	CREATOR_MODE_EXIT_INFO: new RuntimeStateKey('creatorMode.exitInfo', StorageScope.WORKSPACE, StorageTarget.MACHINE, {
+		transitionedToCenteredEditorLayout: false,
+		transitionedToFullScreen: false,
+		handleNotificationsDoNotDisturbMode: false,
+		wasVisible: {
+			auxiliaryBar: false,
+			panel: false,
+			sideBar: false,
+		},
+		// Additional properties for Creator Mode
+		sideBarSize: 200,
+		panelSize: 300,
+		auxiliaryBarSize: 200,
+		panelPosition: Position.BOTTOM
+	}),
+
 
 	// Part Sizing
 	GRID_SIZE: new InitializationStateKey('grid.size', StorageScope.PROFILE, StorageTarget.MACHINE, { width: 800, height: 600 }),

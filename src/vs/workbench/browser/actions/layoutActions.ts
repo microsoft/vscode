@@ -776,6 +776,53 @@ registerAction2(class extends Action2 {
 	}
 });
 
+// --- Enter Creator Mode
+
+registerAction2(class extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.enterCreatorMode',
+			title: {
+				original: 'Enter Creator Mode',
+				value: "Enter Creator Mode"
+			},
+			category: Categories.View,
+			f1: true // TODO: REMOVE THIS FROM THE F1 MENU BEFORE DEPLOYMENT
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		return accessor.get(IWorkbenchLayoutService).enterCreatorMode();
+	}
+});
+
+// --- Exit Creator Mode
+
+registerAction2(class extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.exitCreatorMode',
+			title: {
+				original: 'Exit Creator Mode',
+				value: "Exit Creator Mode"
+			},
+			category: Categories.View,
+			f1: true, // TODO: REMOVE THIS FROM THE F1 MENU BEFORE DEPLOYMENT
+			keybinding: {
+				weight: KeybindingWeight.EditorContrib - 1,
+				primary: KeyCode.Escape,
+				secondary: [KeyMod.Shift | KeyCode.Escape]
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		return accessor.get(IWorkbenchLayoutService).exitCreatorMode();
+	}
+});
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.action.exitZenMode',
 	weight: KeybindingWeight.EditorContrib - 1000,
