@@ -159,6 +159,9 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 
 		// Build cell integrations (responsible for navigating changes within a cell and decorating cell text changes)
 		this._register(autorun(r => {
+			if (this.notebookEditor.textModel !== this.notebookModel) {
+				return;
+			}
 			const sortedCellChanges = sortCellChanges(cellChanges.read(r));
 
 			const changes = sortedCellChanges.filter(c => c.type !== 'delete');
@@ -289,10 +292,10 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 
 		const cellsAreVisible = onDidChangeVisibleRanges.map(v => v.length > 0);
 		this._register(autorun(r => {
-			if (!cellsAreVisible.read(r)) {
+			if (this.notebookEditor.textModel !== this.notebookModel || !cellsAreVisible.read(r)) {
 				return;
 			}
-			// We can have inserted cells that have been accepted, in those cases we do not wany any decorators on them.
+			// We can have inserted cells that have been accepted, in those cases we do not want any decorators on them.
 			const changes = debouncedObservable(cellChanges, 10).read(r).filter(c => c.type === 'insert' ? !c.diff.read(r).identical : true);
 			const decorators = debouncedObservable(this.insertDeleteDecorators, 10).read(r);
 			if (decorators) {
