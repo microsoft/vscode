@@ -580,7 +580,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				}
 			}
 		});
-		this._accessibilitySignalService.playSignal(AccessibilitySignal.keepEdits, { allowManyInParallel: true });
+		this._accessibilitySignalService.playSignal(AccessibilitySignal.editsKept, { allowManyInParallel: true });
 		this._onDidChange.fire(ChatEditingSessionChangeType.Other);
 	}
 
@@ -599,7 +599,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				}
 			}
 		});
-		this._accessibilitySignalService.playSignal(AccessibilitySignal.undoEdits, { allowManyInParallel: true });
+		this._accessibilitySignalService.playSignal(AccessibilitySignal.editsUndone, { allowManyInParallel: true });
 		this._onDidChange.fire(ChatEditingSessionChangeType.Other);
 	}
 

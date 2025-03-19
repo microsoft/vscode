@@ -253,7 +253,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 							if (entry) {
 								return entry.keep(entry.diff.get().changes[0]);
 							}
-							accessibilitySignalService.playSignal(AccessibilitySignal.keepEdits, { allowManyInParallel: true });
+							accessibilitySignalService.playSignal(AccessibilitySignal.editsKept, { allowManyInParallel: true });
 							return Promise.resolve(true);
 						},
 						reject() {
@@ -261,7 +261,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 							if (entry) {
 								return entry.undo(entry.diff.get().changes[0]);
 							}
-							accessibilitySignalService.playSignal(AccessibilitySignal.undoEdits, { allowManyInParallel: true });
+							accessibilitySignalService.playSignal(AccessibilitySignal.editsUndone, { allowManyInParallel: true });
 							return Promise.resolve(true);
 						},
 					} satisfies IModifiedFileEntryChangeHunk;

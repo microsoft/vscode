@@ -345,7 +345,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		if (this._diffInfo.get().identical) {
 			this._stateObs.set(WorkingSetEntryState.Accepted, undefined);
 		}
-		this._accessibilitySignalService.playSignal(AccessibilitySignal.keepEdits, { allowManyInParallel: true });
+		this._accessibilitySignalService.playSignal(AccessibilitySignal.editsKept, { allowManyInParallel: true });
 		return true;
 	}
 
@@ -363,7 +363,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		if (this._diffInfo.get().identical) {
 			this._stateObs.set(WorkingSetEntryState.Rejected, undefined);
 		}
-		this._accessibilitySignalService.playSignal(AccessibilitySignal.undoEdits, { allowManyInParallel: true });
+		this._accessibilitySignalService.playSignal(AccessibilitySignal.editsUndone, { allowManyInParallel: true });
 		return true;
 	}
 

@@ -316,8 +316,8 @@ export class Sound {
 	public static readonly voiceRecordingStopped = Sound.register({ fileName: 'voiceRecordingStopped.mp3' });
 	public static readonly progress = Sound.register({ fileName: 'progress.mp3' });
 	public static readonly chatEditModifiedFile = Sound.register({ fileName: 'chatEditModifiedFile.mp3' });
-	public static readonly keepEdits = Sound.register({ fileName: 'keepEdits.mp3' });
-	public static readonly undoEdits = Sound.register({ fileName: 'undoEdits.mp3' });
+	public static readonly editsKept = Sound.register({ fileName: 'editsKept.mp3' });
+	public static readonly editsUndone = Sound.register({ fileName: 'editsUndone.mp3' });
 
 	private constructor(public readonly fileName: string) { }
 }
@@ -641,17 +641,17 @@ export class AccessibilitySignal {
 		settingsKey: 'accessibility.signals.voiceRecordingStopped'
 	});
 
-	public static readonly keepEdits = AccessibilitySignal.register({
-		name: localize('accessibilitySignals.keepEdits', 'Keep Edits'),
-		sound: Sound.keepEdits,
-		announcementMessage: localize('accessibility.signals.keepEdits', 'Keep Edits'),
-		settingsKey: 'accessibility.signals.keepEdits',
+	public static readonly editsKept = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.editsKept', 'Edits Kept'),
+		sound: Sound.editsKept,
+		announcementMessage: localize('accessibility.signals.editsKept', 'Edits Kept'),
+		settingsKey: 'accessibility.signals.editsKept',
 	});
 
-	public static readonly undoEdits = AccessibilitySignal.register({
-		name: localize('accessibilitySignals.undoEdits', 'Undo Edits'),
-		sound: Sound.undoEdits,
-		announcementMessage: localize('accessibility.signals.undoEdits', 'Undo Edits'),
-		settingsKey: 'accessibility.signals.undoEdits',
+	public static readonly editsUndone = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.editsUndone', 'Undo Edits'),
+		sound: Sound.editsUndone,
+		announcementMessage: localize('accessibility.signals.editsUndone', 'Edits Undone'),
+		settingsKey: 'accessibility.signals.editsUndone',
 	});
 }
