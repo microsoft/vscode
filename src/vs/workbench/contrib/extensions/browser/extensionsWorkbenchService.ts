@@ -66,6 +66,7 @@ import { ShowCurrentReleaseNotesActionId } from '../../update/common/update.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -196,11 +197,7 @@ export class Extension implements IExtension {
 	}
 
 	get publisherUrl(): URI | undefined {
-		if (!this.productService.extensionsGallery || !this.gallery) {
-			return undefined;
-		}
-
-		return resources.joinPath(URI.parse(this.productService.extensionsGallery.publisherUrl), this.publisher);
+		return this.gallery?.publisherLink ? URI.parse(this.gallery.publisherLink) : undefined;
 	}
 
 	get publisherDomain(): { link: string; verified: boolean } | undefined {
@@ -213,6 +210,10 @@ export class Extension implements IExtension {
 
 	get version(): string {
 		return this.local ? this.local.manifest.version : this.latestVersion;
+	}
+
+	get private(): boolean {
+		return this.local ? this.local.private : this.gallery ? this.gallery.private : false;
 	}
 
 	get pinned(): boolean {
@@ -228,11 +229,7 @@ export class Extension implements IExtension {
 	}
 
 	get url(): string | undefined {
-		if (!this.productService.extensionsGallery || !this.gallery) {
-			return undefined;
-		}
-
-		return `${this.productService.extensionsGallery.itemUrl}?itemName=${this.publisher}.${this.name}`;
+		return this.gallery?.detailsLink;
 	}
 
 	get iconUrl(): string {
@@ -295,7 +292,11 @@ export class Extension implements IExtension {
 		return this.stateProvider(this);
 	}
 
-	public isMalicious: boolean = false;
+	private malicious: boolean = false;
+	public get isMalicious(): boolean {
+		return this.malicious || this.enablementState === EnablementState.DisabledByMalicious;
+	}
+
 	public deprecationInfo: IDeprecationInfo | undefined;
 
 	get installCount(): number | undefined {
@@ -308,6 +309,10 @@ export class Extension implements IExtension {
 
 	get ratingCount(): number | undefined {
 		return this.gallery ? this.gallery.ratingCount : undefined;
+	}
+
+	get ratingUrl(): string | undefined {
+		return this.gallery?.ratingLink;
 	}
 
 	get outdated(): boolean {
@@ -549,7 +554,7 @@ ${this.description}
 	}
 
 	setExtensionsControlManifest(extensionsControlManifest: IExtensionsControlManifest): void {
-		this.isMalicious = isMalicious(this.identifier, extensionsControlManifest);
+		this.malicious = isMalicious(this.identifier, extensionsControlManifest.malicious);
 		this.deprecationInfo = extensionsControlManifest.deprecated ? extensionsControlManifest.deprecated[this.identifier.id.toLowerCase()] : undefined;
 		this._extensionEnabledWithPreRelease = extensionsControlManifest?.extensionsEnabledWithPreRelease?.includes(this.identifier.id.toLowerCase());
 	}
@@ -626,8 +631,8 @@ class Extensions extends Disposable {
 		}
 	}
 
-	private _local: IExtension[] | undefined;
-	get local(): IExtension[] {
+	private _local: Extension[] | undefined;
+	get local(): Extension[] {
 		if (!this._local) {
 			this._local = [];
 			for (const extension of this.installed) {
@@ -882,8 +887,8 @@ class Extensions extends Disposable {
 			if (extension.local) {
 				const enablementState = this.extensionEnablementService.getEnablementState(extension.local);
 				if (enablementState !== extension.enablementState) {
-					(extension as Extension).enablementState = enablementState;
-					this._onChange.fire({ extension: extension as Extension });
+					extension.enablementState = enablementState;
+					this._onChange.fire({ extension });
 				}
 			}
 		}
@@ -938,6 +943,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@IEditorService private readonly editorService: IEditorService,
 		@IWorkbenchExtensionManagementService private readonly extensionManagementService: IWorkbenchExtensionManagementService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
+		@IExtensionGalleryManifestService private readonly extensionGalleryManifestService: IExtensionGalleryManifestService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -2278,7 +2284,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		if (extension.gallery) {
-			if (!extension.gallery.isSigned) {
+			if (!extension.gallery.isSigned && (await this.extensionGalleryManifestService.getExtensionGalleryManifest())?.capabilities.signing?.allRepositorySigned) {
 				return new MarkdownString().appendText(nls.localize('not signed', "This extension is not signed."));
 			}
 

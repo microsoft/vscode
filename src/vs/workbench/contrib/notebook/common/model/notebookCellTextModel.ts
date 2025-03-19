@@ -209,6 +209,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		this._outputs = outputs.map(op => new NotebookCellOutputTextModel(op));
 		this._metadata = metadata ?? {};
 		this._internalMetadata = internalMetadata ?? {};
+		this._internalMetadata.internalId ??= generateCellHash(uri);
 	}
 
 	enableAutoLanguageDetection() {
@@ -568,4 +569,10 @@ export function sortObjectPropertiesRecursively(obj: any): any {
 		);
 	}
 	return obj;
+}
+
+function generateCellHash(cellUri: URI) {
+	const hash = new StringSHA1();
+	hash.update(cellUri.toString());
+	return hash.digest().substring(0, 8);
 }

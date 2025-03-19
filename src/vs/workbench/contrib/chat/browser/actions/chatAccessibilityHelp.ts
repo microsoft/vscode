@@ -12,18 +12,17 @@ import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType
 import { IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { ActiveAuxiliaryContext } from '../../../../common/contextkeys.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { INLINE_CHAT_ID } from '../../../inlineChat/common/inlineChat.js';
-import { ChatAgentLocation } from '../../common/chatAgents.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatContextKeyExprs, ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
 import { IChatWidgetService } from '../chat.js';
 
 export class PanelChatAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 107;
 	readonly name = 'panelChat';
 	readonly type = AccessibleViewType.Help;
-	readonly when = ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel), ChatContextKeys.inQuickChat.negate(), ActiveAuxiliaryContext.isEqualTo('workbench.panel.chat'), ContextKeyExpr.or(ChatContextKeys.inChatSession, ChatContextKeys.isResponse, ChatContextKeys.isRequest));
+	readonly when = ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel), ChatContextKeys.inQuickChat.negate(), ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask), ContextKeyExpr.or(ChatContextKeys.inChatSession, ChatContextKeys.isResponse, ChatContextKeys.isRequest));
 	getProvider(accessor: ServicesAccessor) {
 		const codeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor() || accessor.get(ICodeEditorService).getFocusedCodeEditor();
 		return getChatAccessibilityHelpProvider(accessor, codeEditor ?? undefined, 'panelChat');
@@ -45,7 +44,7 @@ export class EditsChatAccessibilityHelp implements IAccessibleViewImplementation
 	readonly priority = 119;
 	readonly name = 'editsView';
 	readonly type = AccessibleViewType.Help;
-	readonly when = ContextKeyExpr.and(ActiveAuxiliaryContext.isEqualTo('workbench.panel.chatEditing'), ChatContextKeys.inChatInput);
+	readonly when = ContextKeyExpr.and(ChatContextKeyExprs.inEditingMode, ChatContextKeys.inChatInput);
 	getProvider(accessor: ServicesAccessor) {
 		const codeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor() || accessor.get(ICodeEditorService).getFocusedCodeEditor();
 		return getChatAccessibilityHelpProvider(accessor, codeEditor ?? undefined, 'editsView');
@@ -89,7 +88,6 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		content.push(localize('chatEditing.acceptAllFiles', '- Accept All Edits{0}.', '<keybinding:chatEditing.acceptAllFiles>'));
 		content.push(localize('chatEditing.discardAllFiles', '- Discard All Edits{0}.', '<keybinding:chatEditing.discardAllFiles>'));
 		content.push(localize('chatEditing.openFileInDiff', '- Open File in Diff{0}.', '<keybinding:chatEditing.openFileInDiff>'));
-		content.push(localize('chatEditing.addFileToWorkingSet', '- Add File to Working Set{0}.', '<keybinding:chatEditing.addFileToWorkingSet>'));
 		content.push(localize('chatEditing.viewChanges', '- View Changes{0}.', '<keybinding:chatEditing.viewChanges>'));
 	}
 	else {

@@ -8,13 +8,13 @@ import * as path from 'path';
 import { Command, commands, Disposable, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation, languages } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
-import { ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote } from './api/git';
-import { Git, Stash } from './git';
+import { ForcePushMode, GitErrorCodes, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote } from './api/git';
+import { Git, Ref, Stash } from './git';
 import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
 import { DiffEditorSelectionHunkToolbarContext, LineChange, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri, toMergeUris, toMultiFileDiffEditorUris } from './uri';
-import { DiagnosticSeverityConfig, dispose, getCommitShortHash, grep, isDefined, isDescendant, isLinuxSnap, isRemote, isWindows, pathEquals, relativePath, toDiagnosticSeverity, truncate } from './util';
+import { DiagnosticSeverityConfig, dispose, fromNow, getCommitShortHash, grep, isDefined, isDescendant, isLinuxSnap, isRemote, isWindows, pathEquals, relativePath, toDiagnosticSeverity, truncate } from './util';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
 import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
@@ -73,6 +73,10 @@ class RefItem implements QuickPickItem {
 	}
 
 	get description(): string {
+		if (this.ref.commitDetails?.commitDate) {
+			return fromNow(this.ref.commitDetails.commitDate, true, true);
+		}
+
 		switch (this.ref.type) {
 			case RefType.Head:
 				return this.shortCommit;
@@ -83,6 +87,14 @@ class RefItem implements QuickPickItem {
 			default:
 				return '';
 		}
+	}
+
+	get detail(): string | undefined {
+		if (this.ref.commitDetails?.authorName && this.ref.commitDetails?.message) {
+			return `${this.ref.commitDetails?.authorName}  |  ${this.ref.commitDetails?.message}`;
+		}
+
+		return undefined;
 	}
 
 	get refName(): string | undefined { return this.ref.name; }
@@ -326,6 +338,8 @@ async function categorizeResourceByResolution(resources: Resource[]): Promise<{ 
 async function createCheckoutItems(repository: Repository, detached = false): Promise<QuickPickItem[]> {
 	const config = workspace.getConfiguration('git');
 	const checkoutTypeConfig = config.get<string | string[]>('checkoutType');
+	const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
+
 	let checkoutTypes: string[];
 
 	if (checkoutTypeConfig === 'all' || !checkoutTypeConfig || checkoutTypeConfig.length === 0) {
@@ -341,7 +355,7 @@ async function createCheckoutItems(repository: Repository, detached = false): Pr
 		checkoutTypes = checkoutTypes.filter(t => t !== 'tags');
 	}
 
-	const refs = await repository.getRefs();
+	const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
 	const refProcessors = checkoutTypes.map(type => getCheckoutRefProcessor(repository, type))
 		.filter(p => !!p) as RefProcessor[];
 
@@ -1622,19 +1636,28 @@ export class CommandCenter {
 		}
 
 		let modifiedUri = changes.modifiedUri;
+		let modifiedDocument: TextDocument | undefined;
+
 		if (!modifiedUri) {
 			const textEditor = window.activeTextEditor;
 			if (!textEditor) {
 				return;
 			}
-			const modifiedDocument = textEditor.document;
+			modifiedDocument = textEditor.document;
 			modifiedUri = modifiedDocument.uri;
 		}
+
 		if (modifiedUri.scheme !== 'file') {
 			return;
 		}
+
+		if (!modifiedDocument) {
+			modifiedDocument = await workspace.openTextDocument(modifiedUri);
+		}
+
 		const result = changes.originalWithModifiedChanges;
-		await this.runByRepository(modifiedUri, async (repository, resource) => await repository.stage(resource, result));
+		await this.runByRepository(modifiedUri, async (repository, resource) =>
+			await repository.stage(resource, result, modifiedDocument.encoding));
 	}
 
 	@command('git.stageSelectedRanges')
@@ -1810,7 +1833,8 @@ export class CommandCenter {
 		const originalDocument = await workspace.openTextDocument(originalUri);
 		const result = applyLineChanges(originalDocument, modifiedDocument, changes);
 
-		await this.runByRepository(modifiedUri, async (repository, resource) => await repository.stage(resource, result));
+		await this.runByRepository(modifiedUri, async (repository, resource) =>
+			await repository.stage(resource, result, modifiedDocument.encoding));
 	}
 
 	@command('git.revertChange')
@@ -1980,7 +2004,7 @@ export class CommandCenter {
 		this.logger.trace(`[CommandCenter][unstageSelectedRanges] invertedDiffs: ${JSON.stringify(invertedDiffs)}`);
 
 		const result = applyLineChanges(modifiedDocument, originalDocument, invertedDiffs);
-		await repository.stage(modifiedUri, result);
+		await repository.stage(modifiedUri, result, modifiedDocument.encoding);
 	}
 
 	@command('git.unstageFile')
@@ -2696,6 +2720,7 @@ export class CommandCenter {
 		const quickPick = window.createQuickPick();
 		quickPick.busy = true;
 		quickPick.sortByLabel = false;
+		quickPick.matchOnDetail = false;
 		quickPick.placeholder = opts?.detached
 			? l10n.t('Select a branch to checkout in detached mode')
 			: l10n.t('Select a branch or tag to checkout');
@@ -2916,9 +2941,12 @@ export class CommandCenter {
 	private async _branch(repository: Repository, defaultName?: string, from = false, target?: string): Promise<void> {
 		target = target ?? 'HEAD';
 
+		const config = workspace.getConfiguration('git');
+		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
+
 		if (from) {
 			const getRefPicks = async () => {
-				const refs = await repository.getRefs();
+				const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
 				const refProcessors = new RefItemsProcessor([
 					new RefProcessor(RefType.Head),
 					new RefProcessor(RefType.RemoteHead),
@@ -3021,6 +3049,9 @@ export class CommandCenter {
 	private async _deleteBranch(repository: Repository, remote: string | undefined, name: string | undefined, options: { remote: boolean; force?: boolean }): Promise<void> {
 		let run: (force?: boolean) => Promise<void>;
 
+		const config = workspace.getConfiguration('git');
+		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
+
 		if (!options.remote && typeof name === 'string') {
 			// Local branch
 			run = force => repository.deleteBranch(name!, force);
@@ -3030,7 +3061,7 @@ export class CommandCenter {
 		} else {
 			const getBranchPicks = async () => {
 				const pattern = options.remote ? 'refs/remotes' : 'refs/heads';
-				const refs = await repository.getRefs({ pattern });
+				const refs = await repository.getRefs({ pattern, includeCommitDetails: showRefDetails });
 
 				const refsToExclude: string[] = [];
 				if (options.remote) {
@@ -3108,8 +3139,11 @@ export class CommandCenter {
 
 	@command('git.merge', { repository: true })
 	async merge(repository: Repository): Promise<void> {
+		const config = workspace.getConfiguration('git');
+		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
+
 		const getQuickPickItems = async (): Promise<QuickPickItem[]> => {
-			const refs = await repository.getRefs();
+			const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
 			const itemsProcessor = new RefItemsProcessor([
 				new RefProcessor(RefType.Head, MergeItem),
 				new RefProcessor(RefType.RemoteHead, MergeItem),
@@ -3134,8 +3168,11 @@ export class CommandCenter {
 
 	@command('git.rebase', { repository: true })
 	async rebase(repository: Repository): Promise<void> {
+		const config = workspace.getConfiguration('git');
+		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
+
 		const getQuickPickItems = async (): Promise<QuickPickItem[]> => {
-			const refs = await repository.getRefs();
+			const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
 			const itemsProcessor = new RebaseItemsProcessors(repository);
 
 			return itemsProcessor.processRefs(refs);
@@ -3173,8 +3210,11 @@ export class CommandCenter {
 
 	@command('git.deleteTag', { repository: true })
 	async deleteTag(repository: Repository): Promise<void> {
+		const config = workspace.getConfiguration('git');
+		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
+
 		const tagPicks = async (): Promise<TagDeleteItem[] | QuickPickItem[]> => {
-			const remoteTags = await repository.getRefs({ pattern: 'refs/tags' });
+			const remoteTags = await repository.getRefs({ pattern: 'refs/tags', includeCommitDetails: showRefDetails });
 			return remoteTags.length === 0 ? [{ label: l10n.t('$(info) This repository has no tags.') }] : remoteTags.map(ref => new TagDeleteItem(ref));
 		};
 

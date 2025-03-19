@@ -175,7 +175,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		const extensionsControlManifest = await this.galleryService.getExtensionsControlManifest();
 		const result: ExtensionInfo[] = [];
 		for (const extension of extensions) {
-			if (isMalicious({ id: extension.id }, extensionsControlManifest)) {
+			if (isMalicious({ id: extension.id }, extensionsControlManifest.malicious)) {
 				this.logService.info(`Checking additional builtin extensions: Ignoring '${extension.id}' because it is reported to be malicious.`);
 				continue;
 			}

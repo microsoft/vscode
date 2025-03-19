@@ -133,7 +133,7 @@ async function getFigSpecSuggestions(
 		currentProcess: name,
 		// TODO: pass in aliases
 	};
-	const parsedArguments: ArgumentParserResult = await parseArguments(command, shellContext, spec);
+	const parsedArguments: ArgumentParserResult = await parseArguments(command, shellContext, spec, executeExternals);
 
 	const items: vscode.TerminalCompletionItem[] = [];
 	// TODO: Pass in and respect cancellation token
@@ -275,11 +275,30 @@ export async function collectCompletionItemResult(
 				itemKind = vscode.TerminalCompletionItemKind.OptionValue;
 			}
 
+			// Add <argName> for every argument
+			let detail: string | undefined;
+			if (typeof item === 'object' && 'args' in item) {
+				const args = asArray(item.args);
+				if (args.every(e => !!e?.name)) {
+					if (args.length > 0) {
+						detail = ' ' + args.map(e => {
+							let result = `<${e!.name}>`;
+							if (e?.isOptional) {
+								result = `[${result}]`;
+							}
+							return result;
+						}).join(' ');
+					}
+				}
+			}
+
 			items.push(
 				createCompletionItem(
 					terminalContext.cursorPosition,
 					prefix,
-					{ label },
+					{
+						label: detail ? { label, detail } : label
+					},
 					undefined,
 					typeof item === 'string' ? item : item.description,
 					itemKind,

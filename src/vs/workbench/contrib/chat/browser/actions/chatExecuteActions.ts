@@ -5,25 +5,27 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { URI } from '../../../../../base/common/uri.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { IChatAgentService } from '../../common/chatAgents.js';
+import { ChatContextKeyExprs, ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../../common/chatEditingService.js';
-import { chatAgentLeader, extractAgentAndCommand } from '../../common/chatParserTypes.js';
+import { chatVariableLeader } from '../../common/chatParserTypes.js';
 import { IChatService } from '../../common/chatService.js';
+import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
+import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { EditsViewId, IChatWidget, IChatWidgetService } from '../chat.js';
-import { discardAllEditsWithConfirmation, EditingSessionAction } from '../chatEditing/chatEditingActions.js';
+import { discardAllEditsWithConfirmation, getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { CHAT_CATEGORY } from './chatActions.js';
-import { ChatDoneActionId } from './chatClearActions.js';
+import { ACTION_ID_NEW_CHAT, ChatDoneActionId } from './chatClearActions.js';
 
 export interface IVoiceChatExecuteActionContext {
 	readonly disableTimeout?: boolean;
@@ -56,7 +58,7 @@ export class ChatSubmitAction extends SubmitAction {
 			// without text present - having instructions is enough context for a request
 			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.instructionsAttached),
 			whenNotInProgressOrPaused,
-			ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession),
+			ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask),
 		);
 
 		super({
@@ -75,14 +77,15 @@ export class ChatSubmitAction extends SubmitAction {
 				{
 					id: MenuId.ChatExecuteSecondary,
 					group: 'group_1',
-					order: 1
+					order: 1,
+					when: ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask)
 				},
 				{
 					id: MenuId.ChatExecute,
 					order: 4,
 					when: ContextKeyExpr.and(
 						whenNotInProgressOrPaused,
-						ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession),
+						ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask),
 					),
 					group: 'navigation',
 				},
@@ -93,32 +96,31 @@ export class ChatSubmitAction extends SubmitAction {
 
 export const ToggleAgentModeActionId = 'workbench.action.chat.toggleAgentMode';
 
-export interface IToggleAgentModeArgs {
-	agentMode: boolean;
+export interface IToggleChatModeArgs {
+	mode: ChatMode;
 }
 
-export class ToggleAgentModeAction extends EditingSessionAction {
+class ToggleChatModeAction extends Action2 {
 
 	static readonly ID = ToggleAgentModeActionId;
 
 	constructor() {
 		super({
-			id: ToggleAgentModeAction.ID,
-			title: localize2('interactive.toggleAgent.label', "Toggle Agent Mode (Experimental)"),
+			id: ToggleChatModeAction.ID,
+			title: localize2('interactive.toggleAgent.label', "Set Chat Mode (Experimental)"),
 			f1: true,
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(
-				ChatContextKeys.Editing.hasToolsAgent,
+				ChatContextKeys.enabled,
+				ContextKeyExpr.or(
+					ChatContextKeys.Editing.hasToolsAgent,
+					ChatContextKeyExprs.unifiedChatEnabled),
 				ChatContextKeys.requestInProgress.negate()),
-			toggled: {
-				condition: ChatContextKeys.Editing.agentMode,
-				tooltip: localize('agentEnabled', "Agent Mode Enabled (Experimental)"),
-			},
-			tooltip: localize('agentDisabled', "Agent Mode Disabled"),
+			tooltip: localize('setChatMode', "Set Mode (Experimental)"),
 			keybinding: {
 				when: ContextKeyExpr.and(
 					ChatContextKeys.inChatInput,
-					ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)),
+					ChatContextKeyExprs.inEditsOrUnified),
 				primary: KeyMod.CtrlCmd | KeyCode.Period,
 				weight: KeybindingWeight.EditorContrib
 			},
@@ -126,47 +128,77 @@ export class ToggleAgentModeAction extends EditingSessionAction {
 				{
 					id: MenuId.ChatExecute,
 					order: 1,
+					// Either in edits with agent mode available, or in unified chat view
 					when: ContextKeyExpr.and(
-						ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
-						ChatContextKeys.Editing.hasToolsAgent),
+						ChatContextKeys.enabled,
+						ContextKeyExpr.or(
+							ContextKeyExpr.and(
+								ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
+								ChatContextKeys.Editing.hasToolsAgent,
+							),
+							ChatContextKeys.inUnifiedChat)),
 					group: 'navigation',
 				},
 			]
 		});
 	}
 
-	override async runEditingSessionAction(accessor: ServicesAccessor, currentEditingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]) {
-
-		const agentService = accessor.get(IChatAgentService);
+	async run(accessor: ServicesAccessor, ...args: any[]) {
 		const chatService = accessor.get(IChatService);
 		const commandService = accessor.get(ICommandService);
 		const dialogService = accessor.get(IDialogService);
 
-		const entries = currentEditingSession.entries.get();
-		if (entries.length > 0 && entries.some(entry => entry.state.get() === WorkingSetEntryState.Modified)) {
-			if (!await discardAllEditsWithConfirmation(accessor, currentEditingSession)) {
-				// User cancelled
-				return;
-			}
-		} else {
-			const chatSession = chatService.getSession(currentEditingSession.chatSessionId);
-			if (chatSession?.getRequests().length) {
-				const confirmation = await dialogService.confirm({
-					title: localize('agent.newSession', "Start new session?"),
-					message: localize('agent.newSessionMessage', "Toggling agent mode will start a new session. Would you like to continue?"),
-					primaryButton: localize('agent.newSession.confirm', "Yes"),
-					type: 'info'
-				});
-				if (!confirmation.confirmed) {
+		const context = getEditingSessionContext(accessor, args);
+		if (!context?.chatWidget) {
+			return;
+		}
+
+		const arg = args.at(0) as IToggleChatModeArgs | undefined;
+		if (arg?.mode === context.chatWidget.input.currentMode) {
+			return;
+		}
+
+		if (!chatService.unifiedViewEnabled) {
+			// TODO will not require discarding the session when we are able to switch modes mid-session
+			const entries = context.editingSession?.entries.get();
+			if (context.editingSession && entries && entries.length > 0 && entries.some(entry => entry.state.get() === WorkingSetEntryState.Modified)) {
+				if (!await discardAllEditsWithConfirmation(accessor, context.editingSession)) {
+					// User cancelled
 					return;
+				}
+			} else {
+				const chatSession = context.chatWidget.viewModel?.model;
+				if (chatSession?.getRequests().length) {
+					const confirmation = await dialogService.confirm({
+						title: localize('agent.newSession', "Start new session?"),
+						message: localize('agent.newSessionMessage', "Changing the chat mode will start a new session. Would you like to continue?"),
+						primaryButton: localize('agent.newSession.confirm', "Yes"),
+						type: 'info'
+					});
+					if (!confirmation.confirmed) {
+						return;
+					}
 				}
 			}
 		}
 
-		const arg = args[0] as IToggleAgentModeArgs | undefined;
-		agentService.toggleToolsAgentMode(typeof arg?.agentMode === 'boolean' ? arg.agentMode : undefined);
+		if (arg?.mode) {
+			context.chatWidget.input.setChatMode(arg.mode);
+		} else {
+			const modes = [ChatMode.Agent, ChatMode.Edit];
+			if (context.chatWidget.location === ChatAgentLocation.Panel) {
+				modes.push(ChatMode.Ask);
+			}
 
-		await commandService.executeCommand(ChatDoneActionId);
+			const modeIndex = modes.indexOf(context.chatWidget.input.currentMode);
+			const newMode = modes[(modeIndex + 1) % modes.length];
+			context.chatWidget.input.setChatMode(newMode);
+		}
+
+		if (!chatService.unifiedViewEnabled && context.chatWidget.viewModel?.model.getRequests().length) {
+			const clearAction = chatService.unifiedViewEnabled ? ACTION_ID_NEW_CHAT : ChatDoneActionId;
+			await commandService.executeCommand(clearAction);
+		}
 	}
 }
 
@@ -192,8 +224,8 @@ export class ToggleRequestPausedAction extends Action2 {
 					order: 3.5,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.canRequestBePaused,
-						ChatContextKeys.Editing.agentMode,
-						ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
+						ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent),
+						ChatContextKeyExprs.inEditsOrUnified,
 						ContextKeyExpr.or(ChatContextKeys.isRequestPaused.negate(), ChatContextKeys.inputHasText.negate()),
 					),
 					group: 'navigation',
@@ -210,6 +242,47 @@ export class ToggleRequestPausedAction extends Action2 {
 	}
 }
 
+export const ChatSwitchToNextModelActionId = 'workbench.action.chat.switchToNextModel';
+export class SwitchToNextModelAction extends Action2 {
+	static readonly ID = ChatSwitchToNextModelActionId;
+
+	constructor() {
+		super({
+			id: SwitchToNextModelAction.ID,
+			title: localize2('interactive.switchToNextModel.label', "Switch to Next Model"),
+			category: CHAT_CATEGORY,
+			f1: true,
+			keybinding: {
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Period,
+				weight: KeybindingWeight.WorkbenchContrib,
+				when: ChatContextKeys.inChatInput
+			},
+			precondition: ChatContextKeys.enabled,
+			menu: {
+				id: MenuId.ChatExecute,
+				order: 3,
+				group: 'navigation',
+				when: ContextKeyExpr.and(
+					ChatContextKeys.languageModelsAreUserSelectable,
+					ContextKeyExpr.or(
+						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel),
+						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.EditingSession),
+						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Editor),
+						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Notebook),
+						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Terminal)
+					)
+				),
+			}
+		});
+	}
+
+	override run(accessor: ServicesAccessor, ...args: any[]): void {
+		const widgetService = accessor.get(IChatWidgetService);
+		const widget = widgetService.lastFocusedWidget;
+		widget?.input.switchToNextModel();
+	}
+}
+
 export class ChatEditingSessionSubmitAction extends SubmitAction {
 	static readonly ID = 'workbench.action.edits.submit';
 
@@ -219,7 +292,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 			// without text present - having instructions is enough context for a request
 			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.instructionsAttached),
 			whenNotInProgressOrPaused,
-			ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
+			ChatContextKeys.chatMode.notEqualsTo(ChatMode.Ask),
 		);
 
 		super({
@@ -238,7 +311,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 				{
 					id: MenuId.ChatExecuteSecondary,
 					group: 'group_1',
-					when: ContextKeyExpr.and(whenNotInProgressOrPaused, ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)),
+					when: ContextKeyExpr.and(whenNotInProgressOrPaused, ChatContextKeys.chatMode.notEqualsTo(ChatMode.Ask),),
 					order: 1
 				},
 				{
@@ -249,8 +322,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 							ContextKeyExpr.and(ChatContextKeys.isRequestPaused, ChatContextKeys.inputHasText),
 							ChatContextKeys.requestInProgress.negate(),
 						),
-						ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
-					),
+						ChatContextKeys.chatMode.notEqualsTo(ChatMode.Ask),),
 					group: 'navigation',
 				},
 			]
@@ -267,10 +339,7 @@ class SubmitWithoutDispatchingAction extends Action2 {
 			// without text present - having instructions is enough context for a request
 			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.instructionsAttached),
 			whenNotInProgressOrPaused,
-			ContextKeyExpr.and(ContextKeyExpr.or(
-				ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
-				ChatContextKeys.location.isEqualTo(ChatAgentLocation.Editor),
-			)),
+			ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask),
 		);
 
 		super({
@@ -288,8 +357,9 @@ class SubmitWithoutDispatchingAction extends Action2 {
 				{
 					id: MenuId.ChatExecuteSecondary,
 					group: 'group_1',
-					order: 2
-				} // need 'when'?
+					order: 2,
+					when: ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask),
+				}
 			]
 		});
 	}
@@ -303,47 +373,26 @@ class SubmitWithoutDispatchingAction extends Action2 {
 	}
 }
 
-export const ChatModelPickerActionId = 'workbench.action.chat.pickModel';
-MenuRegistry.appendMenuItem(MenuId.ChatExecute, {
-	command: {
-		id: ChatModelPickerActionId,
-		title: localize2('chat.pickModel.label', "Pick Model"),
-	},
-	order: 3,
-	group: 'navigation',
-	when: ContextKeyExpr.and(
-		ChatContextKeys.languageModelsAreUserSelectable,
-		ContextKeyExpr.or(
-			ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel),
-			ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.EditingSession),
-			ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Editor),
-			ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Notebook),
-			ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Terminal)
-		)
-	),
-});
-
-export class ChatSubmitSecondaryAgentAction extends Action2 {
-	static readonly ID = 'workbench.action.chat.submitSecondaryAgent';
+export class ChatSubmitWithCodebaseAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.submitWithCodebase';
 
 	constructor() {
 		const precondition = ContextKeyExpr.and(
 			// if the input has prompt instructions attached, allow submitting requests even
 			// without text present - having instructions is enough context for a request
 			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.instructionsAttached),
-			ChatContextKeys.inputHasAgent.negate(),
 			whenNotInProgressOrPaused,
 		);
 
 		super({
-			id: ChatSubmitSecondaryAgentAction.ID,
-			title: localize2({ key: 'actions.chat.submitSecondaryAgent', comment: ['Send input from the chat input box to the secondary agent'] }, "Submit to Secondary Agent"),
+			id: ChatSubmitWithCodebaseAction.ID,
+			title: localize2('actions.chat.submitWithCodebase', "Send with {0}", `${chatVariableLeader}codebase`),
 			precondition,
 			menu: {
 				id: MenuId.ChatExecuteSecondary,
 				group: 'group_1',
 				order: 3,
-				when: ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel)
+				when: ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel),
 			},
 			keybinding: {
 				when: ChatContextKeys.inChatInput,
@@ -355,11 +404,6 @@ export class ChatSubmitSecondaryAgentAction extends Action2 {
 
 	run(accessor: ServicesAccessor, ...args: any[]) {
 		const context: IChatExecuteActionContext | undefined = args[0];
-		const agentService = accessor.get(IChatAgentService);
-		const secondaryAgent = agentService.getSecondaryAgent();
-		if (!secondaryAgent) {
-			return;
-		}
 
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
@@ -367,16 +411,25 @@ export class ChatSubmitSecondaryAgentAction extends Action2 {
 			return;
 		}
 
-		if (extractAgentAndCommand(widget.parsedInput).agentPart) {
-			widget.acceptInput();
-		} else {
-			widget.lastSelectedAgent = secondaryAgent;
-			widget.acceptInputWithPrefix(`${chatAgentLeader}${secondaryAgent.name}`);
+		const languageModelToolsService = accessor.get(ILanguageModelToolsService);
+		const codebaseTool = languageModelToolsService.getToolByName('codebase');
+		if (!codebaseTool) {
+			return;
 		}
+
+		widget.input.attachmentModel.addContext({
+			id: codebaseTool.id,
+			name: codebaseTool.displayName ?? '',
+			fullName: codebaseTool.displayName ?? '',
+			value: undefined,
+			icon: ThemeIcon.isThemeIcon(codebaseTool.icon) ? codebaseTool.icon : undefined,
+			isTool: true
+		});
+		widget.acceptInput();
 	}
 }
 
-class SendToChatEditingAction extends EditingSessionAction {
+class SendToChatEditingAction extends Action2 {
 	constructor() {
 		const precondition = ContextKeyExpr.and(
 			// if the input has prompt instructions attached, allow submitting requests even
@@ -384,6 +437,7 @@ class SendToChatEditingAction extends EditingSessionAction {
 			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.instructionsAttached),
 			ChatContextKeys.inputHasAgent.negate(),
 			whenNotInProgressOrPaused,
+			ChatContextKeyExprs.inNonUnifiedPanel
 		);
 
 		super({
@@ -400,7 +454,8 @@ class SendToChatEditingAction extends EditingSessionAction {
 					ChatContextKeys.enabled,
 					ChatContextKeys.editingParticipantRegistered,
 					ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession),
-					ChatContextKeys.location.notEqualsTo(ChatAgentLocation.Editor)
+					ChatContextKeys.location.notEqualsTo(ChatAgentLocation.Editor),
+					ChatContextKeyExprs.inNonUnifiedPanel
 				)
 			},
 			keybinding: {
@@ -410,20 +465,23 @@ class SendToChatEditingAction extends EditingSessionAction {
 					ChatContextKeys.enabled,
 					ChatContextKeys.editingParticipantRegistered,
 					ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession),
-					ChatContextKeys.location.notEqualsTo(ChatAgentLocation.Editor),
+					ChatContextKeys.location.notEqualsTo(ChatAgentLocation.Editor)
 				)
 			}
 		});
 	}
 
-	async runEditingSessionAction(accessor: ServicesAccessor, currentEditingSession: IChatEditingSession, widget: IChatWidget, ...args: any[]) {
+	async run(accessor: ServicesAccessor, ...args: any[]) {
 		if (!accessor.get(IChatAgentService).getDefaultAgent(ChatAgentLocation.EditingSession)) {
 			return;
 		}
 
+		const widget = args.length > 0 && args[0].widget ? args[0].widget : accessor.get(IChatWidgetService).lastFocusedWidget;
+
 		const viewsService = accessor.get(IViewsService);
 		const dialogService = accessor.get(IDialogService);
 		const chatEditingService = accessor.get(IChatEditingService);
+		const currentEditingSession: IChatEditingSession | undefined = chatEditingService.editingSessionsObs.get().at(0);
 
 		const currentEditCount = currentEditingSession?.entries.get().length;
 		if (currentEditCount) {
@@ -440,23 +498,19 @@ class SendToChatEditingAction extends EditingSessionAction {
 				return;
 			}
 
-			await currentEditingSession?.stop(true);
+			await currentEditingSession?.stop();
 		}
 
 		const { widget: editingWidget } = await viewsService.openView(EditsViewId) as ChatViewPane;
 		if (!editingWidget.viewModel?.sessionId) {
 			return;
 		}
-		const chatEditingSession = chatEditingService.getEditingSession(editingWidget.viewModel.sessionId);
+		const chatEditingSession = await chatEditingService.startOrContinueGlobalEditingSession(editingWidget.viewModel.sessionId);
 		if (!chatEditingSession) {
 			return;
 		}
 		for (const attachment of widget.attachmentModel.attachments) {
-			if (attachment.isFile && URI.isUri(attachment.value)) {
-				chatEditingSession.addFileToWorkingSet(attachment.value);
-			} else {
-				editingWidget.attachmentModel.addContext(attachment);
-			}
+			editingWidget.attachmentModel.addContext(attachment);
 		}
 
 		editingWidget.setInput(widget.getInput());
@@ -556,8 +610,9 @@ export function registerChatExecuteActions() {
 	registerAction2(SubmitWithoutDispatchingAction);
 	registerAction2(CancelAction);
 	registerAction2(SendToNewChatAction);
-	registerAction2(ChatSubmitSecondaryAgentAction);
+	registerAction2(ChatSubmitWithCodebaseAction);
 	registerAction2(SendToChatEditingAction);
-	registerAction2(ToggleAgentModeAction);
+	registerAction2(ToggleChatModeAction);
 	registerAction2(ToggleRequestPausedAction);
+	registerAction2(SwitchToNextModelAction);
 }

@@ -36,7 +36,7 @@ import { AccessibilityVoiceSettingId, SpeechTimeoutDefault, accessibilityConfigu
 import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
 import { IChatExecuteActionContext } from '../../browser/actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../../browser/chat.js';
-import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
+import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { KEYWORD_ACTIVIATION_SETTING_ID } from '../../common/chatService.js';
 import { ChatResponseViewModel, IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
@@ -54,6 +54,8 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { renderStringAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
+import { ChatAgentLocation } from '../../common/constants.js';
+import { SearchContext } from '../../../search/common/constants.js';
 
 //#region Speech to Text
 
@@ -457,7 +459,8 @@ export class HoldToVoiceChatInChatViewAction extends Action2 {
 					ChatContextKeys.requestInProgress.negate(), 	// disable when a chat request is in progress
 					FocusInChatInput?.negate(),					// when already in chat input, disable this action and prefer to start voice chat directly
 					EditorContextKeys.focus.negate(), 			// do not steal the inline-chat keybinding
-					NOTEBOOK_EDITOR_FOCUSED.negate()			// do not steal the notebook keybinding
+					NOTEBOOK_EDITOR_FOCUSED.negate(),			// do not steal the notebook keybinding
+					SearchContext.SearchViewFocusedKey.negate()	// do not steal the search keybinding
 				),
 				primary: KeyMod.CtrlCmd | KeyCode.KeyI
 			}

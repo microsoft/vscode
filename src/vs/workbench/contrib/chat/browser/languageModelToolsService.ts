@@ -10,11 +10,12 @@ import { CancellationError, isCancellationError } from '../../../../base/common/
 import { Emitter } from '../../../../base/common/event.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatModel } from '../common/chatModel.js';
 import { ChatToolInvocation } from '../common/chatProgressTypes/chatToolInvocation.js';
 import { IChatService } from '../common/chatService.js';
@@ -36,7 +37,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	private _tools = new Map<string, IToolEntry>();
 	private _toolContextKeys = new Set<string>();
-
+	private readonly _ctxToolsCount: IContextKey<number>;
 
 	private _callsByRequestId = new Map<string, IDisposable[]>();
 
@@ -56,6 +57,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				this._onDidChangeToolsScheduler.schedule();
 			}
 		}));
+
+		this._ctxToolsCount = ChatContextKeys.Tools.toolsCount.bindTo(_contextKeyService);
 	}
 
 	registerToolData(toolData: IToolData): IDisposable {
@@ -64,12 +67,14 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 
 		this._tools.set(toolData.id, { data: toolData });
+		this._ctxToolsCount.set(this._tools.size);
 		this._onDidChangeToolsScheduler.schedule();
 
 		toolData.when?.keys().forEach(key => this._toolContextKeys.add(key));
 
 		return toDisposable(() => {
 			this._tools.delete(toolData.id);
+			this._ctxToolsCount.set(this._tools.size);
 			this._refreshAllToolContextKeys();
 			this._onDidChangeToolsScheduler.schedule();
 		});
@@ -267,6 +272,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		super.dispose();
 
 		this._callsByRequestId.forEach(calls => dispose(calls));
+		this._ctxToolsCount.reset();
 	}
 }
 
