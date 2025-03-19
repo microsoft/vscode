@@ -47,6 +47,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	private _workspaceToolConfirmStore: Lazy<ToolConfirmStore>;
 	private _profileToolConfirmStore: Lazy<ToolConfirmStore>;
+	private _memoryToolConfirmStore = new Set<string>();
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -59,8 +60,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	) {
 		super();
 
-		this._workspaceToolConfirmStore = new Lazy(() => this._instantiationService.createInstance(ToolConfirmStore, StorageScope.WORKSPACE));
-		this._profileToolConfirmStore = new Lazy(() => this._instantiationService.createInstance(ToolConfirmStore, StorageScope.PROFILE));
+		this._workspaceToolConfirmStore = new Lazy(() => this._register(this._instantiationService.createInstance(ToolConfirmStore, StorageScope.WORKSPACE)));
+		this._profileToolConfirmStore = new Lazy(() => this._register(this._instantiationService.createInstance(ToolConfirmStore, StorageScope.PROFILE)));
 
 		this._register(this._contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(this._toolContextKeys)) {
@@ -141,17 +142,20 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return undefined;
 	}
 
-	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile', autoConfirm = true): void {
+	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile' | 'memory', autoConfirm = true): void {
 		if (scope === 'workspace') {
 			this._workspaceToolConfirmStore.value.setAutoConfirm(toolId, autoConfirm);
-		} else {
+		} else if (scope === 'profile') {
 			this._profileToolConfirmStore.value.setAutoConfirm(toolId, autoConfirm);
+		} else {
+			this._memoryToolConfirmStore.add(toolId);
 		}
 	}
 
 	resetToolAutoConfirmation(): void {
 		this._workspaceToolConfirmStore.value.reset();
 		this._profileToolConfirmStore.value.reset();
+		this._memoryToolConfirmStore.clear();
 	}
 
 	async invokeTool(dto: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
