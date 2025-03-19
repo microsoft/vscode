@@ -52,6 +52,9 @@ const vscodeWebResourceIncludes = [
 	// Tree Sitter highlights
 	'out-build/vs/editor/common/languages/highlights/*.scm',
 
+	// Tree Sitter injections
+	'out-build/vs/editor/common/languages/injections/*.scm',
+
 	// Extension Host Worker
 	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
 ];
