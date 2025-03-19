@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { workspace, Uri } from 'vscode';
+import { Uri } from 'vscode';
 
 import { wait } from '../../../utils/wait';
 import { services } from '../../../services';
+import { createTestFolder } from '../../testUtils';
 import { assertDefined } from '../../../utils/asserts';
 import { Line } from '../../../codecs/linesCodec/tokens';
 import { VSBuffer, type ReadableStream } from '../../../utils/vscode';
@@ -16,31 +17,16 @@ import { FileContentsProvider } from '../../../parsers/contentProviders/fileCont
 
 suite('FileContentsProvider', function () {
 	test('provides contents of a file', async () => {
+		const testsRootFolder = createTestFolder('file-contents-provider-test');
 		const { filesystemService, logService } = services;
 
-		const { workspaceFolders } = workspace;
-		assertDefined(
-			workspaceFolders,
-			'No workspace folders found.',
-		);
+		// create a fresh test file
+		const fileName = 'file-contents-provider-unit-test.prompt.md';
+		const fileUri = Uri.joinPath(testsRootFolder, fileName);
 
-		const firstFolder = workspaceFolders[0];
-		assertDefined(
-			firstFolder,
-			'Workspace must have at least 1 folder.',
-		);
-
-		const fileName = `file-contents-provider-unit-test.prompt.md`;
-		const fileUri = Uri.joinPath(firstFolder.uri, fileName);
-
-		try {
-			if (await filesystemService.stat(fileUri)) {
-				await filesystemService.delete(fileUri);
-			}
-		} catch (error) {
-			// ignore the error - most likely, the file does not exist
+		if (await filesystemService.exists(fileUri)) {
+			await filesystemService.delete(fileUri);
 		}
-
 		await filesystemService.writeFile(fileUri, VSBuffer.fromString('Hello, world!').buffer);
 
 		const contentsProvider = new FileContentsProvider(fileUri, filesystemService, logService);

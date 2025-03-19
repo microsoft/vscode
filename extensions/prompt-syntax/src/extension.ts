@@ -9,7 +9,6 @@ import { services } from './services';
 
 /**
  * TODO: @legomushroom - list
- *  - move in `prompt file reference`
  *  - create extension API
  *  - consume extension API
  *  - remove the old code in core

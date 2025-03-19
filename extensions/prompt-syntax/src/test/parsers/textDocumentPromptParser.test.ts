@@ -5,14 +5,14 @@
 
 import assert from 'assert';
 import { URI } from 'vscode-uri';
-import { TextDocument, Uri, workspace, window } from 'vscode';
+import { TextDocument, Uri, window } from 'vscode';
 
 import { services } from '../../services';
-import { ExpectedReference } from '../testUtils';
 import { OpenFailed } from '../../parsers/errors';
 import { randomInt } from '../../utils/randomInt';
 import { assertDefined } from '../../utils/asserts';
 import { randomBoolean } from '../../utils/randomBoolean';
+import { createTestFolder, ExpectedReference } from '../testUtils';
 import { ObservableDisposable, VSBuffer } from '../../utils/vscode';
 import { IFileSystemService, ILogService } from '../../services/types';
 import { TextDocumentPromptParser } from '../../parsers/textDocumentPromptParser';
@@ -149,27 +149,7 @@ const createTest = (
 };
 
 suite('TextDocumentPromptParser', () => {
-	const { workspaceFolders } = workspace;
-	assertDefined(
-		workspaceFolders,
-		'No workspace folders found.',
-	);
-
-	const firstFolder = workspaceFolders[0];
-	assertDefined(
-		firstFolder,
-		'Workspace must have at least 1 folder.',
-	);
-
-	const testsRootFolder = Uri.joinPath(firstFolder.uri, 'text-model-prompt-parser-test');
-
-	setup(async () => {
-		await services.filesystemService.createDirectory(testsRootFolder);
-	});
-
-	teardown(async () => {
-		await services.filesystemService.delete(testsRootFolder, { recursive: true, useTrash: false });
-	});
+	const testsRootFolder = createTestFolder('text-document-prompt-parser-test');
 
 	test('core logic #1', async () => {
 		const testFolder = Uri.joinPath(testsRootFolder, 'core-logic-1');

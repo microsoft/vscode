@@ -19,6 +19,7 @@ export type TAnyFunction = (...args: any[]) => unknown;
  */
 export interface IFileSystemService {
 	stat(uri: URI): Promise<FileStat>;
+	exists(uri: URI): Promise<boolean>;
 	readFile(uri: URI): Promise<Uint8Array>;
 	writeFile(uri: URI, contents: Uint8Array): Promise<void>;
 	createDirectory(uri: URI): Promise<void>;

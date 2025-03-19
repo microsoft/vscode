@@ -17,6 +17,16 @@ export class FileSystemService extends ObservableDisposable implements IFileSyst
 		return workspace.fs.stat(uri);
 	}
 
+	public async exists(uri: URI): Promise<boolean> {
+		try {
+			await this.stat(uri);
+
+			return true;
+		} catch (error) {
+			return false;
+		}
+	}
+
 	public async readFile(uri: URI): Promise<Uint8Array> {
 		return workspace.fs.readFile(uri);
 	}
