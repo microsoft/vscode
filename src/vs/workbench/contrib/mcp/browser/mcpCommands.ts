@@ -8,10 +8,12 @@ import { assertNever } from '../../../../base/common/assert.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { groupBy } from '../../../../base/common/collections.js';
 import { Event } from '../../../../base/common/event.js';
+import { parse as jsoncParse } from '../../../../base/common/jsonc.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, derived } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
 import { ILocalizedString, localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -34,6 +36,7 @@ import { McpContextKeys } from '../common/mcpContextKeys.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
 import { IMcpServer, IMcpService, LazyCollectionState, McpConnectionState, McpServerToolsState } from '../common/mcpTypes.js';
 import { McpAddConfigurationCommand } from './mcpCommandsAddConfiguration.js';
+import { McpUrlHandler } from './mcpUrlHandler.js';
 
 // acroynms do not get localized
 const category: ILocalizedString = {
@@ -502,5 +505,29 @@ export class StopServer extends Action2 {
 	async run(accessor: ServicesAccessor, serverId: string) {
 		const s = accessor.get(IMcpService).servers.get().find(s => s.definition.id === serverId);
 		await s?.stop();
+	}
+}
+
+export class InstallFromActivation extends Action2 {
+	static readonly ID = 'workbench.mcp.installFromActivation';
+
+	constructor() {
+		super({
+			id: InstallFromActivation.ID,
+			title: localize2('mcp.command.installFromActivation', "Install..."),
+			category,
+			f1: false,
+			menu: {
+				id: MenuId.EditorContent,
+				when: ContextKeyExpr.equals('resourceScheme', McpUrlHandler.scheme)
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, uri: URI) {
+		const editorService = accessor.get(IModelService);
+		const addConfigHelper = accessor.get(IInstantiationService).createInstance(McpAddConfigurationCommand, undefined);
+
+		addConfigHelper.pickForUrlHandler(uri, jsoncParse(editorService.getModel(uri)!.getValue()));
 	}
 }
