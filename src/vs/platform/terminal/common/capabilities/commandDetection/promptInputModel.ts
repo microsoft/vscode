@@ -334,7 +334,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 					break;
 				}
 			} else {
-				// Line wrapping is not detected properly for pwsh when the cells on the next line
+				// Line wrapping is not detected properly for pwsh when just ghost text cells are on the next line
 				// are ghost text, so this is a workaround to detect that case
 				let nextLine = buffer.getLine(buffer.cursorY + 1)?.translateToString(true);
 				let index = buffer.cursorY + 1;
