@@ -37,11 +37,11 @@ export class CreatorOverlayPart extends Part {
 	private webviewView: WebviewView | undefined;
 	private _webviewService: WebviewService | undefined;
 	private closeHandler: ((event: MouseEvent) => void) | undefined;
-	private loadingText: HTMLElement | undefined;
 
 	private state: "loading" | "open" | "closed" = "loading";
 	private _isLocked: boolean = false;
 	private isExtensionReady: boolean = false;
+	private initializedWebview: boolean = false;
 
 	constructor(
 		@IThemeService themeService: IThemeService,
@@ -72,171 +72,185 @@ export class CreatorOverlayPart extends Part {
 		return this.state === "open";
 	}
 
+	private initializingPromise: Promise<void> | null = null;
+
 	private async initialize() {
-		this.state = "closed";
+		// If already initialized, don't do anything
+		if (this.initializedWebview) {
+			console.log("Webview already initialized, skipping initialization");
+			return;
+		}
 
-		const extensionDescription: WebviewExtensionDescription = {
-			id: new ExtensionIdentifier(CREATOR_VIEW_ID),
-			location: URI.parse(""),
-		};
+		// If we're already in the process of initializing, return the existing promise
+		if (this.initializingPromise) {
+			console.log("Initialization already in progress, waiting for it to complete");
+			return this.initializingPromise;
+		}
 
-		// Create the webview overlay
-		const webview = this._webviewService!.createWebviewOverlay({
-			title: CREATOR_OVERLAY_TITLE,
-			options: {
-				enableFindWidget: false,
-			},
-			contentOptions: {
-				allowScripts: true,
-				localResourceRoots: [],
-			},
-			extension: extensionDescription,
+		// Create a new initialization promise
+		this.initializingPromise = new Promise<void>(async (resolve) => {
+			try {
+				this.state = "loading";
+
+				const extensionDescription: WebviewExtensionDescription = {
+					id: new ExtensionIdentifier(CREATOR_VIEW_ID),
+					location: URI.parse(""),
+				};
+
+				// Create the webview overlay
+				const webview = this._webviewService!.createWebviewOverlay({
+					title: CREATOR_OVERLAY_TITLE,
+					options: {
+						enableFindWidget: false,
+					},
+					contentOptions: {
+						allowScripts: true,
+						localResourceRoots: [],
+					},
+					extension: extensionDescription,
+				});
+
+				// Set initial visibility - important for initial state
+				webview.container.style.display = "none";
+				webview.container.style.opacity = "0";
+				webview.container.style.transition = "opacity 0.3s ease-in";
+				webview.container.style.position = "absolute";
+				webview.container.style.zIndex = "-1"; // Using -1 instead of -9999 to maintain proper stacking
+				webview.container.setAttribute("id", "creator-overlay-webview");
+
+				// Claim the webview
+				webview.claim(this, getActiveWindow(), undefined);
+
+				// Initialize webviewView
+				this.webviewView = {
+					webview,
+					onDidChangeVisibility: () => {
+						return { dispose: () => {} };
+					},
+					onDispose: () => {
+						return { dispose: () => {} };
+					},
+
+					get title(): string | undefined {
+						return CREATOR_OVERLAY_TITLE;
+					},
+					set title(value: string | undefined) {},
+
+					get description(): string | undefined {
+						return undefined;
+					},
+					set description(value: string | undefined) {},
+
+					get badge() {
+						return undefined;
+					},
+					set badge(badge) {},
+
+					dispose: () => {},
+
+					show: (preserveFocus) => {},
+				} satisfies WebviewView;
+
+				// Connect webviewView to the provider - only try once
+				const source = new CancellationTokenSource();
+				try {
+					console.log("RESOLVING CreatorOverlayPart WEBVIEW SERVICE....");
+
+					await this._webviewViewService.resolve(
+						CREATOR_VIEW_ID,
+						this.webviewView!,
+						source.token,
+					);
+
+					console.log("WEBVIEW CreatorOverlayPart SERVICE RESOLVED!");
+				} catch (error) {
+					console.error("Failed to resolve creator view:", error);
+					// Continue despite error - we'll still mark as initialized
+				} finally {
+					// Always mark as initialized and closed when we're done trying
+					this.initializedWebview = true;
+					this.state = "closed";
+
+					// Set up layout if everything is ready
+					if (this.overlayContainer && this.webviewView) {
+						this.webviewView.webview.layoutWebviewOverElement(
+							this.overlayContainer,
+						);
+					}
+
+					resolve();
+				}
+			} catch (error) {
+				console.error("Critical error during initialization:", error);
+				this.state = "closed";
+				resolve();
+			} finally {
+				// Clear the promise once we're done
+				this.initializingPromise = null;
+			}
 		});
 
-		// Set initial visibility - important for initial state
-		webview.container.style.display = "none";
-		webview.container.style.opacity = "0";
-		webview.container.style.zIndex = "-9999";
-		webview.container.style.transition = "opacity 0.3s ease-in";
-		webview.container.style.position = "absolute";
-		webview.container.setAttribute("id", "creator-overlay-webview");
-
-		webview.claim(this, getActiveWindow(), undefined);
-
-		// Initialize webviewView
-		this.webviewView = {
-			webview,
-			onDidChangeVisibility: () => {
-				return { dispose: () => {} };
-			},
-			onDispose: () => {
-				return { dispose: () => {} };
-			},
-
-			get title(): string | undefined {
-				return CREATOR_OVERLAY_TITLE;
-			},
-			set title(value: string | undefined) {},
-
-			get description(): string | undefined {
-				return undefined;
-			},
-			set description(value: string | undefined) {},
-
-			get badge() {
-				return undefined;
-			},
-			set badge(badge) {},
-
-			dispose: () => {},
-
-			show: (preserveFocus) => {},
-		};
-
-		// Connect webviewView to the provider
-		const source = new CancellationTokenSource();
-		try {
-			console.dir(`RESOLVING CreatorOverlayPart WEBVIEW SERVICE....`);
-			await this._webviewViewService.resolve(
-				CREATOR_VIEW_ID,
-				this.webviewView!,
-				source.token,
-			);
-
-			console.dir(`WEBVIEW CreatorOverlayPart SERVICE RESOLVED!`);
-			console.dir(this.webviewView);
-
-			// Set up layout if everything is ready
-			if (this.overlayContainer && this.webviewView) {
-				this.webviewView.webview.layoutWebviewOverElement(
-					this.overlayContainer,
-				);
-			}
-		} catch (error) {
-			console.error("Failed to resolve creator view:", error);
-		}
+		return this.initializingPromise;
 	}
 
 	protected override createContentArea(element: HTMLElement): HTMLElement {
-		// Use a single container for both the overlay and loading state
 		this.element = element;
-		this.overlayContainer = $("div.pearcreatoroverlay-part-container-inner");
+		this.overlayContainer = $("div.pearcreatoroverlay-part-container");
 
-		if (this.overlayContainer) {
-			// Set up overlay container styles
-			this.overlayContainer.style.position = "fixed";
-			this.overlayContainer.style.top = "0";
-			this.overlayContainer.style.left = "0";
-			this.overlayContainer.style.right = "0";
-			this.overlayContainer.style.bottom = "0";
-			this.overlayContainer.style.zIndex = "-9999"; // Initially hidden
-			this.overlayContainer.style.display = "none"; // Start with display none
-			this.overlayContainer.style.alignItems = "center";
-			this.overlayContainer.style.justifyContent = "center";
-			this.overlayContainer.style.transition = "opacity 0.3s ease-in-out";
-			this.overlayContainer.style.opacity = "0";
-			this.overlayContainer.style.width = "100%";
-			this.overlayContainer.style.height = "100%";
-			this.overlayContainer.onclick = (event) => {
-				// close the overlay if clicked outside the webview
-				if (event.target === this.overlayContainer) {
-					this.close();
-				}
-			};
-
-			// Create container div for the gradient effect
-			const container = document.createElement("div");
-			container.style.position = "relative";
-
-			// Create the gradient background element
-			const gradientBg = document.createElement("div");
-			gradientBg.style.position = "absolute";
-			gradientBg.style.top = "-20px";
-			gradientBg.style.left = "-20px";
-			gradientBg.style.right = "-20px";
-			gradientBg.style.bottom = "-20px";
-			gradientBg.style.background =
-				"linear-gradient(45deg, #ff00cc, #3333ff, #00ccff, #33cc33)";
-			gradientBg.style.borderRadius = "40px";
-			gradientBg.style.zIndex = "-1";
-			gradientBg.style.filter = "blur(20px)";
-			gradientBg.style.opacity = "0.7";
-
-			// Create loading text
-			this.loadingText = $("div.loading-text");
-			this.loadingText.textContent = "Loading...";
-			this.loadingText.style.fontSize = "20px";
-			this.loadingText.style.backgroundColor =
-				"var(--vscode-editor-foreground)";
-			this.loadingText.style.color = "var(--vscode-editorGhostText-foreground)";
-			this.loadingText.style.color = "#333";
-			this.loadingText.style.width = "300px";
-			this.loadingText.style.textAlign = "center";
-			this.loadingText.style.padding = "12px 20px";
-			this.loadingText.style.borderRadius = "30px";
-			this.loadingText.style.position = "relative"; // Important for z-index to work
-			this.loadingText.style.zIndex = "1";
-
-			// First add the gradient background to the container
-			container.appendChild(gradientBg);
-			// Then add the loading text to the container
-			container.appendChild(this.loadingText);
-
-			// Add the container to the overlay container
-			this.overlayContainer.appendChild(container);
-
-			// Add the overlay container to the main element
-			this.element.appendChild(this.overlayContainer);
+		if (!this.overlayContainer) {
+			console.warn("Overlay container not found");
+			return element;
 		}
+
+		// Set up overlay container styles
+		this.overlayContainer.style.position = "fixed";
+		this.overlayContainer.style.top = "0";
+		this.overlayContainer.style.left = "0";
+		this.overlayContainer.style.right = "0";
+		this.overlayContainer.style.bottom = "0";
+		this.overlayContainer.style.zIndex = "-1"; // Using -1 instead of -9999
+		this.overlayContainer.style.display = "none";
+		this.overlayContainer.style.alignItems = "center";
+		this.overlayContainer.style.justifyContent = "center";
+		this.overlayContainer.style.backgroundColor = "#FFFFFF";
+		this.overlayContainer.style.opacity = "0";
+		this.overlayContainer.style.transition = "opacity 0.3s ease-in-out";
+		this.overlayContainer.style.width = "100%";
+		this.overlayContainer.style.height = "100%";
+
+		// Create container div for the gradient effect
+		const container = document.createElement("div");
+		container.style.position = "relative";
+
+		// Create the gradient background element
+		const gradientBg = document.createElement("div");
+		gradientBg.style.position = "absolute";
+		gradientBg.style.top = "-20px";
+		gradientBg.style.left = "-20px";
+		gradientBg.style.right = "-20px";
+		gradientBg.style.bottom = "-20px";
+		gradientBg.style.background =
+			"linear-gradient(45deg, #ff00cc, #3333ff, #00ccff, #33cc33)";
+		gradientBg.style.borderRadius = "40px";
+		gradientBg.style.zIndex = "-1";
+		gradientBg.style.filter = "blur(20px)";
+		gradientBg.style.opacity = "0.7";
+
+
+
+		// First add the gradient background to the container
+		container.appendChild(gradientBg);
+
+		// Add the container to the overlay container
+		this.overlayContainer.appendChild(container);
+
+		// Add the overlay container to the main element
+		this.element.appendChild(this.overlayContainer);
 
 		// Set up webview layout if both are ready
 		if (this.overlayContainer && this.webviewView) {
 			this.webviewView.webview.layoutWebviewOverElement(this.overlayContainer);
-			this.state = "closed"; // Ensure it starts closed
 		}
-
-		// Make sure the element has its initial z-index set properly
-		this.element.style.zIndex = "-9999";
 
 		return element;
 	}
@@ -254,95 +268,115 @@ export class CreatorOverlayPart extends Part {
 			this.overlayContainer.style.height = `${height}px`;
 		}
 
-		if (this.state === "open" && this.webviewView && this.overlayContainer) {
+		if (this.webviewView && this.overlayContainer) {
+			// Always layout the webview over the element
 			this.webviewView.webview.layoutWebviewOverElement(this.overlayContainer);
 		}
 	}
 
-	private open() {
-		if (this.state === "open" || !this.overlayContainer || !this.webviewView) {
+	private openInProgress = false;
+
+	private async open() {
+		// Prevent multiple simultaneous open attempts
+		if (this.openInProgress) {
+			console.log("Open already in progress, skipping");
 			return;
 		}
 
-		this.state = "open";
+		this.openInProgress = true;
 
-		// Shows the parent element
-		this.element.style.zIndex = "20";
-
-		// Show the overlay container
-		this.overlayContainer.style.display = "flex";
-		this.overlayContainer.style.opacity = "1";
-
-		// Show loading text if extension is not ready
-		if (!this.isExtensionReady && this.loadingText) {
-			this.loadingText.style.display = "block";
-		} else if (this.loadingText) {
-			this.loadingText.style.display = "none";
-		}
-
-		// Show the webview container
-		const container = this.webviewView.webview.container;
-		if (container) {
-			container.style.display = "flex";
-			container.style.zIndex = "1000";
-			container.style.opacity = "1";
-		}
-
-		// Remove previous click handler if exists
-		if (this.closeHandler) {
-			this.overlayContainer.removeEventListener("click", this.closeHandler);
-		}
-
-		// Create and store new click handler
-		this.closeHandler = (event) => {
-			// Only close if clicking directly on the overlay (not on the content)
-			if (!this.isLocked && event.target === this.overlayContainer) {
-				this.close();
+		try {
+			// Make sure webview is initialized before opening
+			if (!this.initializedWebview) {
+				console.log("Webview not initialized yet, initializing...");
+				await this.initialize();
+				// If we're already open after initialization somehow, don't continue
+				if (this.state === "open") {
+					this.openInProgress = false;
+					return;
+				}
 			}
-		};
 
-		this.overlayContainer.addEventListener("click", this.closeHandler);
+			await this.handleSlideAnimation("down");
 
-		if (this.webviewView && this.overlayContainer) {
-			this.webviewView.webview.layoutWebviewOverElement(this.overlayContainer);
+			if (this.state === "open" || !this.overlayContainer || !this.webviewView) {
+				this.openInProgress = false;
+				return;
+			}
+
+			console.log("Opening overlay view");
+			this.state = "open";
+
+			// Show the overlay container
+			this.overlayContainer.style.display = "flex";
+			this.overlayContainer.style.zIndex = "20";
+
+			// Force a layout reflow before setting opacity
+			void this.overlayContainer.offsetHeight;
+			this.overlayContainer.style.opacity = "1";
+
+			// Show the webview container
+			const container = this.webviewView.webview.container;
+			if (container) {
+				container.style.display = "flex";
+				container.style.zIndex = "1000";
+				// Force a layout reflow before setting opacity
+				void container.offsetHeight;
+				container.style.opacity = "1";
+			}
+
+			// Remove previous click handler if exists
+			if (this.closeHandler) {
+				this.overlayContainer.removeEventListener("click", this.closeHandler);
+			}
+
+			// Create and store new click handler
+			this.closeHandler = (event) => {
+				// Only close if clicking directly on the overlay (not on the content)
+				if (!this.isLocked && event.target === this.overlayContainer) {
+					this.close();
+				}
+			};
+
+			this.overlayContainer.addEventListener("click", this.closeHandler);
+
+			// Always update layout when opening
+			if (this.webviewView && this.overlayContainer) {
+				this.webviewView.webview.layoutWebviewOverElement(this.overlayContainer);
+			}
+
+			this.focus();
+		} finally {
+			this.openInProgress = false;
 		}
-
-		this.focus();
 	}
 
 	private close() {
-		if (
-			this.isLocked ||
-			this.state === "closed" ||
-			!this.overlayContainer ||
-			!this.webviewView
-		) {
+		if (this.isLocked || this.state === "closed" || !this.overlayContainer || !this.webviewView) {
 			return;
 		}
 
-		this.state = "closed";
+		console.log("Closing overlay view");
 
-		// Hide the parent element completely
-		this.element.style.zIndex = "-9999";
-
-		// Fade out overlay container
+		// Start the transition by setting opacity to 0
 		this.overlayContainer.style.opacity = "0";
 
 		const container = this.webviewView.webview.container;
 		if (container) {
-			// Apply fade-out transition
 			container.style.opacity = "0";
 		}
 
-		// Hide elements after transition completes
+		// Wait for the transition to complete before hiding elements
 		setTimeout(() => {
+			this.state = "closed";
+
 			if (this.overlayContainer) {
-				this.overlayContainer.style.zIndex = "-9999";
+				this.overlayContainer.style.zIndex = "-1";
 				this.overlayContainer.style.display = "none";
 			}
 
 			if (container) {
-				container.style.zIndex = "-9999";
+				container.style.zIndex = "-1";
 				container.style.display = "none";
 			}
 
@@ -362,15 +396,6 @@ export class CreatorOverlayPart extends Part {
 	}
 
 	hideLoadingOverlay(): void {
-		// Instantly hide the loading visualization without transitions
-		// This maintains the current open/closed state of the overlay
-
-		if (this.loadingText) {
-			// Immediately hide the loading text without transition
-			this.loadingText.style.display = "none";
-			this.loadingText.style.opacity = "0";
-		}
-
 		// Set the extension as ready so future opens won't show loading
 		this.isExtensionReady = true;
 
@@ -386,30 +411,22 @@ export class CreatorOverlayPart extends Part {
 	}
 
 	show(): void {
-		if (this.state === "loading") {
-			console.warn("Can't open Creator view while loading");
-			return;
-		}
-
-		// Add debug logging
 		console.log("CREATOR OVERLAY: show() called");
 
-		this.open();
+		// Prevent calling open() if we're already open to avoid duplicate animations
+		if (this.state !== "open") {
+			this.open();
+		}
 	}
 
 	hide(): void {
-		if (this.state === "loading") {
-			console.warn("Can't close Creator view while loading");
-			return;
+		// Prevent calling close() if we're already closed
+		if (this.state !== "closed") {
+			this.close();
 		}
-		this.close();
 	}
 
 	toggle(): void {
-		if (this.state === "loading") {
-			console.warn("Can't toggle Creator view while loading");
-			return;
-		}
 		this.toggleOpenClose();
 	}
 
@@ -426,38 +443,68 @@ export class CreatorOverlayPart extends Part {
 	}
 
 	public hideOverlayLoadingMessage(): void {
-		if (this.loadingText) {
-			// Hide the loading text
-			this.loadingText.style.transition = "opacity 0.3s ease-out";
-			this.loadingText.style.opacity = "0";
 
-			// Only show webview if we're in the "open" state
-			const container = this.webviewView!.webview.container;
-			if (this.state === "open" && container) {
-				// Ensure proper z-index stacking
-				container.style.zIndex = "1000";
+	}
 
-				container.style.display = "flex";
-				container.style.opacity = "0";
-				container.style.transition = "opacity 0.3s ease-in";
-
-				// Slight delay to ensure smooth transition
-				setTimeout(() => {
-					container.style.opacity = "1";
-				}, 50);
-			} else if (container) {
-				container.style.display = "none";
-				container.style.opacity = "0";
-			}
-
-			// Clean up after animations complete
-			setTimeout(() => {
-				if (this.loadingText) {
-					this.loadingText.style.display = "none";
-					this.isExtensionReady = true;
-				}
-			}, 300);
+	private getTopOfBodyElement(): HTMLElement {
+		const existingElement = document.getElementById("top-of-body-injected-container");
+		if (existingElement) {
+			return existingElement;
 		}
+			// Create the container element for slide-down animation
+			const topOfBodyElement = document.createElement("div");
+			topOfBodyElement.style.position = "relative"; // Changed back to relative as requested
+			topOfBodyElement.style.top = "0";
+			topOfBodyElement.style.left = "0";
+			topOfBodyElement.style.width = "100%";
+			topOfBodyElement.style.backgroundColor = "#FFFFFF";
+			topOfBodyElement.style.display = "block";
+			topOfBodyElement.style.overflow = "hidden";
+			topOfBodyElement.style.transition = "height 500ms ease-in-out";
+			topOfBodyElement.style.zIndex = "20";
+			topOfBodyElement.setAttribute("id", "top-of-body-injected-container");
+
+			// Add to body
+			document.body.insertBefore(topOfBodyElement, document.body.firstChild);
+
+			return topOfBodyElement;
+	}
+
+
+	private handleSlideAnimation(direction: "up" | "down"): Promise<void> {
+		return new Promise((resolve) => {
+
+			// Create the container element for slide-down animation
+			const topOfBodyElement = this.getTopOfBodyElement();
+
+			topOfBodyElement.style.height = direction === "up" ? "100vh" : "0";
+
+			// Force layout reflow before starting animation
+			void topOfBodyElement.offsetWidth;
+
+			// Start animation - expand to full height
+			requestAnimationFrame(() => {
+				if (!topOfBodyElement || !topOfBodyElement.parentNode) {
+					console.warn("topOfBodyElement not found in request animation frame");
+					return resolve();
+				}
+
+				topOfBodyElement.style.height = direction === "up" ? "0" : "100vh";
+				console.log("Animation started - height change to:", direction === "up" ? "0" : "100vh");
+
+				// Set a single timeout for animation completion
+				setTimeout(() => {
+					if (!topOfBodyElement || !topOfBodyElement.parentNode) {
+						console.warn("Animation element removed before animation completed");
+						return resolve();
+					}
+
+					// Remove the element after animation completes
+					topOfBodyElement.parentNode.removeChild(topOfBodyElement);
+					resolve();
+				}, 500); // Match the transition duration
+			});
+		});
 	}
 
 	toJSON(): object {
