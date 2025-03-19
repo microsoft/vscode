@@ -1104,7 +1104,6 @@ class ChatEditingSessionStorage {
 	public async storeState(state: StoredSessionState): Promise<void> {
 		const storageFolder = this._getStorageLocation();
 		const contentsFolder = URI.joinPath(storageFolder, STORAGE_CONTENTS_FOLDER);
-		console.log('Storing chat editing session to', storageFolder.toString());
 
 		// prepare the content folder
 		const existingContents = new Set<string>();
