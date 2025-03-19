@@ -99,11 +99,6 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 		return instantiationService.invokeFunction(accessor => {
 			const chatAgentService = accessor.get(IChatAgentService);
 
-			const setupChatAgentContext = ContextKeyExpr.and(
-				ChatContextKeys.Setup.hidden.negate(),
-				ChatContextKeys.Setup.fromDialog
-			);
-
 			let id: string;
 			let description = localize('chatDescription', "Ask Copilot");
 			let welcomeMessageContent: IChatWelcomeMessageContent | undefined;
@@ -151,7 +146,6 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 				name: `${defaultChat.providerName} Copilot`,
 				isDefault: true,
 				isToolsAgent,
-				when: setupChatAgentContext?.serialize(),
 				slashCommands: [],
 				disambiguation: [],
 				locations: [location],
