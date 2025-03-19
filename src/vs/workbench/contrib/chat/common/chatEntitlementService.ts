@@ -510,7 +510,7 @@ export class ChatEntitlementRequests extends Disposable {
 
 		if (response.res.statusCode && response.res.statusCode !== 200) {
 			this.logService.trace(`[chat entitlement]: unexpected status code ${response.res.statusCode}`);
-			return { entitlement: ChatEntitlement.Unresolved };
+			return response.res.statusCode === 404 ? { entitlement: ChatEntitlement.Unknown /* treat as signed out */ } : { entitlement: ChatEntitlement.Unresolved };
 		}
 
 		let responseText: string | null = null;
