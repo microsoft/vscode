@@ -234,7 +234,7 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 
 		if (!isCopilotReady) {
 			const hasDefaultModel = await Promise.race([
-				timeout(5000),
+				timeout(10000),
 				Event.toPromise(Event.filter(languageModelsService.onDidChangeLanguageModels, e => e.added?.some(added => added.metadata.isDefault) ?? false))
 			]);
 
