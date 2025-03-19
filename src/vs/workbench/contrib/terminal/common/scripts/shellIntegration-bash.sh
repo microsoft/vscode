@@ -316,31 +316,31 @@ __vsc_update_env() {
 		if [ "$use_associative_array" = 1 ]; then
 			if [ ${#vsc_aa_env[@]} -eq 0 ]; then
 				# Associative array is empty, do not diff, just add
-				while IFS= read -r line; do
+				# Use env followed by null bytes to properly handle multiline values
+				while IFS= read -r -d $'\0' line; do
 					if [[ "$line" == *"="* ]]; then
 						local key="${line%%=*}"
 						local value="${line#*=}"
-
 						vsc_aa_env["$key"]="$value"
 						builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
 					fi
-				done < <(env)
+				done < <(env -0)
 			else
 				# Diff approach for associative array
-				while IFS= read -r line; do
+				while IFS= read -r -d $'\0' line; do
 					if [[ "$line" == *"="* ]]; then
 						local key="${line%%=*}"
 						local value="${line#*=}"
 						__updateEnvCacheAA "$key" "$value"
 					fi
-				done < <(env)
+				done < <(env -0)
 				__trackMissingEnvVarsAA
 			fi
 
 		else
 			if [[ -z ${vsc_env_keys[@]} ]] && [[ -z ${vsc_env_values[@]} ]]; then
 				# Non associative arrays are both empty, do not diff, just add
-				while IFS= read -r line; do
+				while IFS= read -r -d $'\0' line; do
 					if [[ "$line" == *"="* ]]; then
 						local key="${line%%=*}"
 						local value="${line#*=}"
@@ -348,16 +348,16 @@ __vsc_update_env() {
 						vsc_env_values+=("$value")
 						builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
 					fi
-				done < <(env)
+				done < <(env -0)
 			else
 				# Diff approach for non-associative arrays
-				while IFS= read -r line; do
+				while IFS= read -r -d $'\0' line; do
 					if [[ "$line" == *"="* ]]; then
 						local key="${line%%=*}"
 						local value="${line#*=}"
 						__updateEnvCache "$key" "$value"
 					fi
-				done < <(env)
+				done < <(env -0)
 				__trackMissingEnvVars
 			fi
 		fi
