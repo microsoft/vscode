@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize2 } from '../../../../../nls.js';
@@ -336,15 +337,25 @@ export function registerNewChatActions() {
 			const chatView = await viewsService.openView<ChatViewPane>(EditsViewId)
 				?? await viewsService.openView<ChatViewPane>(ChatViewId);
 
+			if (!chatView?.widget) {
+				return;
+			}
+
+			if (!chatView.widget.viewModel) {
+				await Event.toPromise(
+					Event.filter(chatView.widget.onDidChangeViewModel, () => !!chatView.widget.viewModel)
+				);
+			}
+
 			if (opts?.query) {
 				if (opts.isPartialQuery) {
-					chatView?.widget.setInput(opts.query);
+					chatView.widget.setInput(opts.query);
 				} else {
-					chatView?.widget.acceptInput(opts.query);
+					chatView.widget.acceptInput(opts.query);
 				}
 			}
 
-			chatView?.widget.focusInput();
+			chatView.widget.focusInput();
 		}
 	});
 }

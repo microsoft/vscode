@@ -245,8 +245,12 @@ __updateEnvCacheAA() {
 __trackMissingEnvVarsAA() {
 	if [ "$use_associative_array" = 1 ]; then
 		declare -A currentEnvMap
-		while IFS='=' read -r key value; do
-			currentEnvMap["$key"]="$value"
+		while IFS= read -r line; do
+			if [[ "$line" == *"="* ]]; then
+				local key="${line%%=*}"
+				local value="${line#*=}"
+				currentEnvMap["$key"]="$value"
+			fi
 		done < <(env)
 
 		for key in "${!vsc_aa_env[@]}"; do
@@ -306,43 +310,72 @@ __trackMissingEnvVars() {
 }
 
 __vsc_update_env() {
+	local __vsc_start_time
+	local __vsc_end_time
+
+	# REMOVE AFTER DEMO: Get start time - use perl for cross-platform millisecond precision
+	__vsc_start_time=$(perl -MTime::HiRes -e 'printf("%.0f\n",Time::HiRes::time()*1000)')
+
 	if [[ "$__vscode_shell_env_reporting" == "1" ]]; then
 		builtin printf '\e]633;EnvSingleStart;%s;%s\a' 0 $__vsc_nonce
 
 		if [ "$use_associative_array" = 1 ]; then
 			if [ ${#vsc_aa_env[@]} -eq 0 ]; then
 				# Associative array is empty, do not diff, just add
-				while IFS='=' read -r key value; do
-					vsc_aa_env["$key"]="$value"
-					builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
-				done < <(env)
+				# Use null byte instead of a newline to support multi-line values (e.g. PS1 values)
+				while IFS= read -r -d $'\0' line; do
+					if [[ "$line" == *"="* ]]; then
+						# %% removes longest match of =* Ensure we get everything before first equal sign.
+						local key="${line%%=*}"
+						# # removes shortest match of *= Ensure we get everything after first equal sign. Preserving additional equal signs.
+						local value="${line#*=}"
+						vsc_aa_env["$key"]="$value"
+						builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+					fi
+				done < <(env -0) # env command with null bytes as separator instead of newlines
 			else
 				# Diff approach for associative array
-				while IFS='=' read -r key value; do
-					__updateEnvCacheAA "$key" "$value"
-				done < <(env)
+				while IFS= read -r -d $'\0' line; do
+					if [[ "$line" == *"="* ]]; then
+						local key="${line%%=*}"
+						local value="${line#*=}"
+						__updateEnvCacheAA "$key" "$value"
+					fi
+				done < <(env -0)
 				__trackMissingEnvVarsAA
 			fi
 
 		else
 			if [[ -z ${vsc_env_keys[@]} ]] && [[ -z ${vsc_env_values[@]} ]]; then
-			# Non associative arrays are both empty, do not diff, just add
-				while IFS='=' read -r key value; do
-					vsc_env_keys+=("$key")
-					vsc_env_values+=("$value")
-					builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
-				done < <(env)
+				# Non associative arrays are both empty, do not diff, just add
+				while IFS= read -r -d $'\0' line; do
+					if [[ "$line" == *"="* ]]; then
+						local key="${line%%=*}"
+						local value="${line#*=}"
+						vsc_env_keys+=("$key")
+						vsc_env_values+=("$value")
+						builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+					fi
+				done < <(env -0)
 			else
 				# Diff approach for non-associative arrays
-				while IFS='=' read -r key value; do
-					__updateEnvCache "$key" "$value"
-				done < <(env)
+				while IFS= read -r -d $'\0' line; do
+					if [[ "$line" == *"="* ]]; then
+						local key="${line%%=*}"
+						local value="${line#*=}"
+						__updateEnvCache "$key" "$value"
+					fi
+				done < <(env -0)
 				__trackMissingEnvVars
 			fi
-
 		fi
 		builtin printf '\e]633;EnvSingleEnd;%s;\a' $__vsc_nonce
 	fi
+
+	# Get end time and calculate difference in milliseconds
+	__vsc_end_time=$(perl -MTime::HiRes -e 'printf("%.0f\n",Time::HiRes::time()*1000)')
+	local __vsc_total_time=$(( __vsc_end_time - __vsc_start_time ))
+	builtin printf 'vsc_update_env execution time: %s ms\n' "$__vsc_total_time"
 }
 
 __vsc_command_output_start() {

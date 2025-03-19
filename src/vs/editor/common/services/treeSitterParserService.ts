@@ -12,7 +12,7 @@ import { importAMDNodeModule } from '../../../amdX.js';
 import { IModelContentChangedEvent } from '../textModelEvents.js';
 
 export const EDITOR_EXPERIMENTAL_PREFER_TREESITTER = 'editor.experimental.preferTreeSitter';
-export const TREESITTER_ALLOWED_SUPPORT = ['typescript', 'ini', 'regex'];
+export const TREESITTER_ALLOWED_SUPPORT = ['css', 'typescript', 'ini', 'regex'];
 
 export const ITreeSitterParserService = createDecorator<ITreeSitterParserService>('treeSitterParserService');
 

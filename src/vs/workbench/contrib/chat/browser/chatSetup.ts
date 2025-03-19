@@ -401,6 +401,7 @@ class ChatSetup {
 			buttons,
 			createWorkbenchDialogOptions({
 				type: 'none',
+				icon: Codicon.copilotLarge,
 				cancelId: buttons.length - 1,
 				renderBody: body => body.appendChild(this.createDialog(disposables)),
 				primaryButtonDropdown: {
