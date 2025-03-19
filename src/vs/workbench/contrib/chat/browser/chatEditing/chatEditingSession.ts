@@ -1016,8 +1016,14 @@ class ChatEditingSessionStorage {
 
 	public async restoreState(): Promise<StoredSessionState | undefined> {
 		const storageLocation = this._getStorageLocation();
+		const fileContents = new Map<string, Promise<string>>();
 		const getFileContent = (hash: string) => {
-			return this._fileService.readFile(joinPath(storageLocation, STORAGE_CONTENTS_FOLDER, hash)).then(content => content.value.toString());
+			let readPromise = fileContents.get(hash);
+			if (!readPromise) {
+				readPromise = this._fileService.readFile(joinPath(storageLocation, STORAGE_CONTENTS_FOLDER, hash)).then(content => content.value.toString());
+				fileContents.set(hash, readPromise);
+			}
+			return readPromise;
 		};
 		const deserializeResourceMap = <T>(resourceMap: ResourceMapDTO<T>, deserialize: (value: any) => T, result: ResourceMap<T>): ResourceMap<T> => {
 			resourceMap.forEach(([resourceURI, value]) => {
@@ -1110,7 +1116,7 @@ class ChatEditingSessionStorage {
 		try {
 			const stat = await this._fileService.resolve(contentsFolder);
 			stat.children?.forEach(child => {
-				if (child.isDirectory) {
+				if (child.isFile) {
 					existingContents.add(child.name);
 				}
 			});
@@ -1129,9 +1135,7 @@ class ChatEditingSessionStorage {
 			const shaComputer = new StringSHA1();
 			shaComputer.update(content);
 			const sha = shaComputer.digest().substring(0, 7);
-			if (!existingContents.has(sha)) {
-				fileContents.set(sha, content);
-			}
+			fileContents.set(sha, content);
 			return sha;
 		};
 		const serializeResourceMap = <T>(resourceMap: ResourceMap<T>, serialize: (value: T) => any): ResourceMapDTO<T> => {
@@ -1178,7 +1182,9 @@ class ChatEditingSessionStorage {
 			this._logService.debug(`chatEditingSession: Storing editing session at ${storageFolder.toString()}: ${fileContents.size} files`);
 
 			for (const [hash, content] of fileContents) {
-				await this._fileService.writeFile(joinPath(contentsFolder, hash), VSBuffer.fromString(content));
+				if (!existingContents.has(hash)) {
+					await this._fileService.writeFile(joinPath(contentsFolder, hash), VSBuffer.fromString(content));
+				}
 			}
 
 			await this._fileService.writeFile(joinPath(storageFolder, STORAGE_STATE_FILE), VSBuffer.fromString(JSON.stringify(data, undefined, 2)));
