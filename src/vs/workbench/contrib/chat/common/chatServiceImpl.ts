@@ -546,13 +546,13 @@ export class ChatService extends Disposable implements IChatService {
 	/**
 	 * This is really just for migrating data from the edit session location to the panel.
 	 */
-	getPersistedSessionRequestCount(sessionId: string): number {
+	isPersistedSessionEmpty(sessionId: string): boolean {
 		const session = this._persistedSessions[sessionId];
-		if (!session) {
-			return -1;
+		if (session) {
+			return session.requests.length === 0;
 		}
 
-		return session.requests.length;
+		return this._chatSessionStore.isSessionEmpty(sessionId);
 	}
 
 	loadSessionFromContent(data: IExportableChatData | ISerializableChatData): IChatModel | undefined {

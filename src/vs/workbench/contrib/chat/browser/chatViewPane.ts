@@ -82,7 +82,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const editsMemento = new Memento('interactive-session-view-' + CHAT_PROVIDER_ID + `-edits`, this.storageService);
 			const lastEditsState = editsMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IViewPaneState;
 			if (lastEditsState.sessionId) {
-				if (this.chatService.getPersistedSessionRequestCount(lastEditsState.sessionId) > 0) {
+				this.logService.trace(`ChatViewPane: last edits session was ${lastEditsState.sessionId}`);
+				if (!this.chatService.isPersistedSessionEmpty(lastEditsState.sessionId)) {
+					this.logService.info(`ChatViewPane: migrating ${lastEditsState.sessionId} to unified view`);
 					this.viewState.sessionId = lastEditsState.sessionId;
 					this.viewState.inputValue = lastEditsState.inputValue;
 					this.viewState.inputState = {
