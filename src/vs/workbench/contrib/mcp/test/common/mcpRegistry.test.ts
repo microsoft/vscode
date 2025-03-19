@@ -158,6 +158,7 @@ suite('Workbench - MCP - Registry', () => {
 				command: 'test-command',
 				args: [],
 				env: {},
+				envFile: undefined,
 				cwd: URI.parse('file:///test')
 			}
 		};
@@ -196,6 +197,7 @@ suite('Workbench - MCP - Registry', () => {
 				env: {
 					PATH: '${input:testInteractive}'
 				},
+				envFile: undefined,
 				cwd: URI.parse('file:///test')
 			},
 			variableReplacement: {

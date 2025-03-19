@@ -54,6 +54,11 @@ export const mcpStdioServerSchema: IJSONSchema = {
 				type: 'string'
 			},
 		},
+		envFile: {
+			type: 'string',
+			description: localize('app.mcp.envFile.command', "Path to a file containing environment variables for the server."),
+			examples: ['${workspaceFolder}/.env'],
+		},
 		env: {
 			description: localize('app.mcp.env.command', "Environment variables passed to the server."),
 			additionalProperties: {

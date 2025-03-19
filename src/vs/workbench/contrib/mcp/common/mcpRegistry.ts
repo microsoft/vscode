@@ -284,7 +284,6 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 			}
 		}
 
-
 		// resolve variables requiring user input
 		await this._configurationResolverService.resolveWithInteraction(folder, expr, section, undefined, target);
 

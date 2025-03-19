@@ -13,6 +13,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
+import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
@@ -28,6 +29,8 @@ export interface IMcpConfigPath {
 	scope: StorageScope;
 	/** Configuration target that correspond to this file */
 	target: ConfigurationTarget;
+	/** Associated workspace folder, for workspace folder values */
+	folder?: IWorkspaceFolder;
 	/** Order in which the configuration should be displayed */
 	order: number;
 	/** Config's remote authority */
