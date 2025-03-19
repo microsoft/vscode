@@ -178,6 +178,7 @@ class ChatToolInvocationSubPart extends Disposable {
 			Disallow,
 			AllowWorkspace,
 			AllowGlobally,
+			AllowSession,
 		}
 
 		const buttons: IChatConfirmationButton[] = [
@@ -186,7 +187,8 @@ class ChatToolInvocationSubPart extends Disposable {
 				data: ConfirmationOutcome.Allow,
 				tooltip: continueTooltip,
 				moreActions: !allowAutoConfirm ? undefined : [
-					{ label: localize('allowWorkspace', 'Always Allow in Workspace'), data: ConfirmationOutcome.AllowWorkspace, tooltip: localize('allowWorkspaceTooltip', 'Allow this tool to run in this workspace without confirmation.') },
+					{ label: localize('allowSession', 'Allow in this Session'), data: ConfirmationOutcome.AllowWorkspace, tooltip: localize('allowSesssionTooltip', 'Allow this tool to run in this session without confirmation.') },
+					{ label: localize('allowWorkspace', 'Allow in this Workspace'), data: ConfirmationOutcome.AllowWorkspace, tooltip: localize('allowWorkspaceTooltip', 'Allow this tool to run in this workspace without confirmation.') },
 					{ label: localize('allowGlobally', 'Always Allow'), data: ConfirmationOutcome.AllowGlobally, tooltip: localize('allowGloballTooltip', 'Always allow this tool to run without confirmation.') },
 				],
 			},
@@ -293,6 +295,10 @@ class ChatToolInvocationSubPart extends Disposable {
 					break;
 				case ConfirmationOutcome.AllowWorkspace:
 					this.languageModelToolsService.setToolAutoConfirmation(toolInvocation.toolId, 'workspace', true);
+					toolInvocation.confirmed.complete(true);
+					break;
+				case ConfirmationOutcome.AllowSession:
+					this.languageModelToolsService.setToolAutoConfirmation(toolInvocation.toolId, 'memory', true);
 					toolInvocation.confirmed.complete(true);
 					break;
 				case ConfirmationOutcome.Allow:
