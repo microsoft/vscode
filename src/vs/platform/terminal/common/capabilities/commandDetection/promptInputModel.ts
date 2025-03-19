@@ -319,9 +319,10 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			line = buffer.getLine(y);
 			const lineText = line?.translateToString(true);
 			if (lineText && line) {
-				// Check if the line wrapped without a new line (continuation)
-				if (line.isWrapped) {
-					value += `\n${lineText}`;
+				// Check if the line wrapped without a new line (continuation) or
+				// we're on the last line and the continuation prompt is not present, so we need to add the value
+				if (line.isWrapped || (absoluteCursorY === y && this._continuationPrompt && !this._lineContainsContinuationPrompt(lineText))) {
+					value += `${lineText}`;
 					const relativeCursorIndex = this._getRelativeCursorIndex(0, buffer, line);
 					if (absoluteCursorY === y) {
 						cursorIndex += relativeCursorIndex;
@@ -360,16 +361,6 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 					} else {
 						cursorIndex += trimmedLineText.length + 1;
 					}
-				} else if (absoluteCursorY === y && this._continuationPrompt && !this._lineContainsContinuationPrompt(lineText)) {
-					// We're on the last line and the continuation prompt is not present, so we need to add the value
-					value += `${lineText}`;
-					const relativeCursorIndex = this._getRelativeCursorIndex(0, buffer, line);
-					if (absoluteCursorY === y) {
-						cursorIndex += relativeCursorIndex;
-					} else {
-						cursorIndex += lineText.length;
-					}
-					break;
 				}
 			}
 		}
