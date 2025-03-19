@@ -214,7 +214,7 @@ export class LineHeightManager {
 		}
 
 		let numberOfDeletions = 0;
-		let previousSpecialLine: SpecialLine | undefined;
+		let previousSpecialLine: SpecialLine | undefined = (this._invalidIndex > 0) ? newOrderedSpecialLines[this._invalidIndex - 1] : undefined;
 		for (let i = this._invalidIndex; i < this._orderedSpecialLines.length; i++) {
 			const specialLine = this._orderedSpecialLines[i];
 			if (specialLine.deleted) {
