@@ -1477,6 +1477,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerRelatedFilesProvider(provider: vscode.ChatRelatedFilesProvider, metadata: vscode.ChatRelatedFilesProviderMetadata) {
 				checkProposedApiEnabled(extension, 'chatEditing');
 				return extHostChatAgents2.registerRelatedFilesProvider(extension, provider, metadata);
+			},
+			onDidDisposeChatSession: (listeners, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'chatParticipantPrivate');
+				return _asExtensionEvent(extHostChatAgents2.onDidDisposeChatSession)(listeners, thisArgs, disposables);
 			}
 		};
 
