@@ -74,7 +74,7 @@ export class ListMcpServerCommand extends Action2 {
 
 		const store = new DisposableStore();
 		const pick = quickInput.createQuickPick<ItemType>({ useSeparators: true });
-		pick.title = localize('mcp.selectServer', 'Select an MCP Server');
+		pick.placeholder = localize('mcp.selectServer', 'Select an MCP Server');
 
 		store.add(pick);
 		store.add(autorun(reader => {
