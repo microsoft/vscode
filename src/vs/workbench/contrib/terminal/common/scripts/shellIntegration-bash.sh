@@ -313,7 +313,7 @@ __vsc_update_env() {
 	local __vsc_start_time
 	local __vsc_end_time
 
-	# Get start time - use perl for cross-platform millisecond precision
+	# REMOVE AFTER DEMO: Get start time - use perl for cross-platform millisecond precision
 	__vsc_start_time=$(perl -MTime::HiRes -e 'printf("%.0f\n",Time::HiRes::time()*1000)')
 
 	if [[ "$__vscode_shell_env_reporting" == "1" ]]; then
@@ -322,15 +322,17 @@ __vsc_update_env() {
 		if [ "$use_associative_array" = 1 ]; then
 			if [ ${#vsc_aa_env[@]} -eq 0 ]; then
 				# Associative array is empty, do not diff, just add
-				# Use env followed by null bytes to properly handle multiline values
+				# Use null byte instead of a newline to support multi-line values (e.g. PS1 values)
 				while IFS= read -r -d $'\0' line; do
 					if [[ "$line" == *"="* ]]; then
+						# %% removes longest match of =* Ensure we get everything before first equal sign.
 						local key="${line%%=*}"
+						# # removes shortest match of *= Ensure we get everything after first equal sign. Preserving additional equal signs.
 						local value="${line#*=}"
 						vsc_aa_env["$key"]="$value"
 						builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
 					fi
-				done < <(env -0)
+				done < <(env -0) # env command with null bytes as separator instead of newlines
 			else
 				# Diff approach for associative array
 				while IFS= read -r -d $'\0' line; do
