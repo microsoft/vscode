@@ -1104,13 +1104,14 @@ class ChatEditingSessionStorage {
 	public async storeState(state: StoredSessionState): Promise<void> {
 		const storageFolder = this._getStorageLocation();
 		const contentsFolder = URI.joinPath(storageFolder, STORAGE_CONTENTS_FOLDER);
+		console.log('Storing chat editing session to', storageFolder.toString());
 
 		// prepare the content folder
 		const existingContents = new Set<string>();
 		try {
 			const stat = await this._fileService.resolve(contentsFolder);
 			stat.children?.forEach(child => {
-				if (child.isDirectory) {
+				if (child.isFile) {
 					existingContents.add(child.name);
 				}
 			});
@@ -1129,9 +1130,7 @@ class ChatEditingSessionStorage {
 			const shaComputer = new StringSHA1();
 			shaComputer.update(content);
 			const sha = shaComputer.digest().substring(0, 7);
-			if (!existingContents.has(sha)) {
-				fileContents.set(sha, content);
-			}
+			fileContents.set(sha, content);
 			return sha;
 		};
 		const serializeResourceMap = <T>(resourceMap: ResourceMap<T>, serialize: (value: T) => any): ResourceMapDTO<T> => {
@@ -1178,7 +1177,9 @@ class ChatEditingSessionStorage {
 			this._logService.debug(`chatEditingSession: Storing editing session at ${storageFolder.toString()}: ${fileContents.size} files`);
 
 			for (const [hash, content] of fileContents) {
-				await this._fileService.writeFile(joinPath(contentsFolder, hash), VSBuffer.fromString(content));
+				if (!existingContents.has(hash)) {
+					await this._fileService.writeFile(joinPath(contentsFolder, hash), VSBuffer.fromString(content));
+				}
 			}
 
 			await this._fileService.writeFile(joinPath(storageFolder, STORAGE_STATE_FILE), VSBuffer.fromString(JSON.stringify(data, undefined, 2)));
