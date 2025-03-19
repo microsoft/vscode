@@ -67,7 +67,7 @@ export function getEditingSessionContext(accessor: ServicesAccessor, args: any[]
 	if (!chatWidget) {
 		if (chatService.unifiedViewEnabled) {
 			// TODO ugly
-			chatWidget = chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel).find(w => w.isUnifiedPanelWidget);
+			chatWidget = chatWidgetService.lastFocusedWidget ?? chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel).find(w => w.isUnifiedPanelWidget);
 		} else {
 			chatWidget = chatWidgetService.getWidgetsByLocations(ChatAgentLocation.EditingSession).at(0);
 		}

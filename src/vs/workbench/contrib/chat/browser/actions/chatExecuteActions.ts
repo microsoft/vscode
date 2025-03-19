@@ -496,7 +496,7 @@ class SendToChatEditingAction extends Action2 {
 				return;
 			}
 
-			await currentEditingSession?.stop(true);
+			await currentEditingSession?.stop();
 		}
 
 		const { widget: editingWidget } = await viewsService.openView(EditsViewId) as ChatViewPane;
