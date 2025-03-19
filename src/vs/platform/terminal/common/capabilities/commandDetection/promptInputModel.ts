@@ -334,19 +334,16 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 						// Trim off the trailing backslash
 						value = value.substring(0, value.length - 1);
 						value += `${lineText.trim()}`;
+						cursorIndex += lineText.trim().length - 1;
 					} else {
 						if (/^ {6,}/.test(lineText)) {
 							// Was likely a new line
 							value += `\n${lineText.trim()}`;
+							cursorIndex += lineText.trim().length + 1;
 						} else {
 							value += lineText;
+							cursorIndex += lineText.length;
 						}
-					}
-					const relativeCursorIndex = this._getRelativeCursorIndex(0, buffer, line);
-					if (absoluteCursorY === y) {
-						cursorIndex += relativeCursorIndex;
-					} else {
-						cursorIndex += lineText.length;
 					}
 				}
 				// Verify continuation prompt if we have it, if this line doesn't have it then the
