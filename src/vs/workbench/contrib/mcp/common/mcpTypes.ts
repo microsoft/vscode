@@ -361,6 +361,9 @@ export namespace McpConnectionState {
 	/** Returns if the MCP state is one where starting a new server is valid */
 	export const canBeStarted = (s: Kind) => s === Kind.Error || s === Kind.Stopped;
 
+	/** Gets whether the state is a running state. */
+	export const isRunning = (s: McpConnectionState) => !canBeStarted(s.state);
+
 	export interface Stopped {
 		readonly state: Kind.Stopped;
 	}
