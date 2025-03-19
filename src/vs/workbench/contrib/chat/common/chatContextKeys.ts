@@ -91,7 +91,6 @@ export namespace ChatContextKeys {
 	};
 
 	export const Tools = {
-
 		toolsCount: new RawContextKey<number>('toolsCount', 0, { type: 'number', description: localize('toolsCount', "The count of tools available in the chat.") })
 	};
 }

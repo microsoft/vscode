@@ -682,7 +682,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 //#endregion
 
-//#region Setup Rendering
+//#region Setup Controller
 
 type InstallChatClassification = {
 	owner: 'bpasero';
@@ -1057,6 +1057,10 @@ class ChatSetupController extends Disposable {
 		return true;
 	}
 }
+
+//#endregion
+
+//#region Setup View Welcome
 
 class ChatSetupWelcomeContent extends Disposable {
 
