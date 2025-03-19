@@ -41,7 +41,6 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { EXTENSIONS_CATEGORY, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
-import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { ChatEntitlement, ChatSentiment, IChatEntitlementService } from '../../common/chatEntitlementService.js';
@@ -706,7 +705,6 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
-		@IChatAgentService agentService: IChatAgentService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@IConfigurationService configurationService: IConfigurationService,
