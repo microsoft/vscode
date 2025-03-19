@@ -189,11 +189,41 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 	}
 
 	private async doInvoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService): Promise<IChatAgentResult> {
+		if (this.context.state.installed && (this.context.state.entitlement === ChatEntitlement.Pro || this.context.state.entitlement === ChatEntitlement.Limited)) {
+			return this.doInvokeWithoutSetup(request, progress, chatService, languageModelsService, chatWidgetService);
+		}
+
+		return this.doInvokeWithSetup(request, progress, chatService, languageModelsService, chatWidgetService);
+	}
+
+	private async doInvokeWithoutSetup(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService): Promise<IChatAgentResult> {
+		const requestModel = chatWidgetService.getWidgetBySessionId(request.sessionId)?.viewModel?.model.getRequests().at(-1);
+		if (!requestModel) {
+			this.logService.error(localize('requestModelNotFound', "Setup: Request model not found, cannot redispatch request."));
+			return {}; // this should not happen
+		}
+
+		const whenDefaultModel = Event.toPromise(Event.filter(languageModelsService.onDidChangeLanguageModels, e => e.added?.some(added => added.metadata.isDefault) ?? false));
+
+		progress({
+			kind: 'progressMessage',
+			content: new MarkdownString(localize('waitingCopilot', "Waiting for Copilot.")),
+		});
+
+		// Await a default model to be present before attempting
+		// to re-submit the request. Otherwise, the request will fail.
+		await whenDefaultModel;
+
+		// Resend the request now that the setup is complete
+		chatService.resendRequest(requestModel);
+
+		return {};
+	}
+
+	private async doInvokeWithSetup(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService): Promise<IChatAgentResult> {
 		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'chat' });
 
 		const requestModel = chatWidgetService.getWidgetBySessionId(request.sessionId)?.viewModel?.model.getRequests().at(-1);
-
-		const setup = ChatSetup.getInstance(this.instantiationService, this.context, this.controller);
 
 		const setupListener = Event.runAndSubscribe(this.controller.value.onDidChange, (() => {
 			switch (this.controller.value.step) {
@@ -216,7 +246,7 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 
 		let success = undefined;
 		try {
-			success = await setup.run();
+			success = await ChatSetup.getInstance(this.instantiationService, this.context, this.controller).run();
 		} catch (error) {
 			this.logService.error(localize('setupError', "Error during setup: {0}", toErrorMessage(error)));
 		} finally {
