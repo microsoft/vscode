@@ -83,7 +83,6 @@ export class McpAddConfigurationCommand {
 		}
 
 		const result = await this._quickInputService.pick<{ kind: AddConfigurationType } & IQuickPickItem>(items, {
-			title: localize('mcp.serverType.title', "Select Server Type"),
 			placeHolder: localize('mcp.serverType.placeholder', "Choose the type of MCP server to add"),
 		});
 
