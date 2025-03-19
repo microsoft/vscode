@@ -129,7 +129,30 @@ export class InlineCompletionsModel extends Disposable {
 				this._editor.pushUndoStop();
 			}
 		}));
+
+		this._didUndoInlineEdits.recomputeInitiallyAndOnChange(this._store);
 	}
+
+	private _lastAcceptedInlineCompletionInfo: { textModelVersionIdAfter: number; /* already freed! */ inlineCompletion: InlineCompletionItem } | undefined = undefined;
+	private readonly _didUndoInlineEdits = derivedHandleChanges({
+		owner: this,
+		createEmptyChangeSummary: () => ({ didUndo: false }),
+		handleChange: (ctx, changeSummary) => {
+			changeSummary.didUndo = ctx.didChange(this._textModelVersionId) && !!ctx.change?.isUndoing;
+			return true;
+		}
+	}, reader => {
+		const versionId = this._textModelVersionId.read(reader);
+		if (versionId !== null
+			&& this._lastAcceptedInlineCompletionInfo
+			&& this._lastAcceptedInlineCompletionInfo.textModelVersionIdAfter === versionId - 1
+			&& this._lastAcceptedInlineCompletionInfo.inlineCompletion.isInlineEdit
+		) {
+			this._lastAcceptedInlineCompletionInfo = undefined;
+			return true;
+		}
+		return false;
+	});
 
 	public debugGetSelectedSuggestItem(): IObservable<SuggestItemInfo | undefined> {
 		return this._selectedSuggestItem;
@@ -234,6 +257,13 @@ export class InlineCompletionsModel extends Disposable {
 		const cursorPosition = this.primaryPosition.get();
 		if (changeSummary.dontRefetch) {
 			return Promise.resolve(true);
+		}
+
+		if (this._didUndoInlineEdits.read(reader)) {
+			transaction(tx => {
+				this._source.clear(tx);
+			});
+			return undefined;
 		}
 
 		const context: InlineCompletionContext = {
@@ -688,6 +718,7 @@ export class InlineCompletionsModel extends Disposable {
 		}
 
 		this._inAcceptFlow.set(true, undefined);
+		this._lastAcceptedInlineCompletionInfo = { textModelVersionIdAfter: this.textModel.getVersionId(), inlineCompletion: completion };
 	}
 
 	public async acceptNextWord(editor: ICodeEditor): Promise<void> {
