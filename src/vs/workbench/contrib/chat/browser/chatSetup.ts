@@ -16,7 +16,7 @@ import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../base/common/lazy.js';
-import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableStore, IDisposable, markAsSingleton, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import Severity from '../../../../base/common/severity.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { equalsIgnoreCase } from '../../../../base/common/strings.js';
@@ -95,6 +95,9 @@ const defaultChat = {
 //#region Contribution
 
 class SetupChatAgentImplementation extends Disposable implements IChatAgentImplementation {
+
+	private static readonly _onUnresolvableError = markAsSingleton(new Emitter<void>());
+	static readonly onUnresolvableError = this._onUnresolvableError.event;
 
 	static register(instantiationService: IInstantiationService, location: ChatAgentLocation, isToolsAgent: boolean, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): IDisposable {
 		return instantiationService.invokeFunction(accessor => {
@@ -200,7 +203,7 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 	private async doInvokeWithoutSetup(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService): Promise<IChatAgentResult> {
 		const requestModel = chatWidgetService.getWidgetBySessionId(request.sessionId)?.viewModel?.model.getRequests().at(-1);
 		if (!requestModel) {
-			this.logService.error(localize('requestModelNotFound', "Setup: Request model not found, cannot redispatch request."));
+			this.logService.error('[chat setup] Request model not found, cannot redispatch request.');
 			return {}; // this should not happen
 		}
 
@@ -230,7 +233,17 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 		}
 
 		if (!isCopilotReady) {
-			await Event.toPromise(Event.filter(languageModelsService.onDidChangeLanguageModels, e => e.added?.some(added => added.metadata.isDefault) ?? false));
+			const hasDefaultModel = await Promise.race([
+				timeout(5000),
+				Event.toPromise(Event.filter(languageModelsService.onDidChangeLanguageModels, e => e.added?.some(added => added.metadata.isDefault) ?? false))
+			]);
+
+			if (!hasDefaultModel) {
+				// This means Copilot is unhealthy and we cannot retry the
+				// request. Signal this to the outside via an event.
+				SetupChatAgentImplementation._onUnresolvableError.fire();
+				return;
+			}
 		}
 
 		chatService.resendRequest(requestModel);
@@ -262,7 +275,7 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 		try {
 			success = await ChatSetup.getInstance(this.instantiationService, this.context, this.controller).run();
 		} catch (error) {
-			this.logService.error(localize('setupError', "Error during setup: {0}", toErrorMessage(error)));
+			this.logService.error(`[chat setup] Error during setup: ${toErrorMessage(error)}`);
 		} finally {
 			setupListener.dispose();
 		}
@@ -364,7 +377,7 @@ class ChatSetup {
 					break;
 			}
 		} catch (error) {
-			this.logService.error(localize('setupError', "Error during setup: {0}", toErrorMessage(error)));
+			this.logService.error(`[chat setup] Error during setup: ${toErrorMessage(error)}`);
 			success = false;
 		}
 
@@ -457,6 +470,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IChatEntitlementService chatEntitlementService: ChatEntitlementService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -486,7 +500,16 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Notebook, false, context, controller),
 					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Editor, false, context, controller),
 					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.EditingSession, false, context, controller),
-					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.EditingSession, true, context, controller)
+					SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.EditingSession, true, context, controller),
+					SetupChatAgentImplementation.onUnresolvableError(() => {
+						// An unresolvable error from our agent registrations means that
+						// Copilot is unhealthy for some reason. We clear our registration
+						// to give Copilot a chance to show a custom message to the user
+						// from the views and stop pretending as if there was a functional
+						// agent.
+						this.logService.error('[chat setup] Unresolvable error from Copilot agent registration, clearing registration.');
+						registration.clear();
+					})
 				);
 			} else if (disabled && registration.value) {
 				registration.clear();
