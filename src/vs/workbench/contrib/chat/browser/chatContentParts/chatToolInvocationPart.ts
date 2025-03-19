@@ -24,7 +24,7 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatMarkdownContent, IChatProgressMessage, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized } from '../../common/chatService.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../common/codeBlockModelCollection.js';
-import { isToolResultInputOutputDetails, IToolResultInputOutputDetails } from '../../common/languageModelToolsService.js';
+import { ILanguageModelToolsService, isToolResultInputOutputDetails, IToolResultInputOutputDetails } from '../../common/languageModelToolsService.js';
 import { CancelChatActionId } from '../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../actions/chatToolActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../chat.js';
@@ -134,6 +134,7 @@ class ChatToolInvocationSubPart extends Disposable {
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 	) {
 		super();
 
@@ -164,6 +165,7 @@ class ChatToolInvocationSubPart extends Disposable {
 		}
 		const title = toolInvocation.confirmationMessages.title;
 		const message = toolInvocation.confirmationMessages.message;
+		const allowAutoConfirm = toolInvocation.confirmationMessages.allowAutoConfirm;
 		const continueLabel = localize('continue', "Continue");
 		const continueKeybinding = this.keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
 		const continueTooltip = continueKeybinding ? `${continueLabel} (${continueKeybinding})` : continueLabel;
@@ -171,15 +173,26 @@ class ChatToolInvocationSubPart extends Disposable {
 		const cancelKeybinding = this.keybindingService.lookupKeybinding(CancelChatActionId)?.getLabel();
 		const cancelTooltip = cancelKeybinding ? `${cancelLabel} (${cancelKeybinding})` : cancelLabel;
 
+		const enum ConfirmationOutcome {
+			Allow,
+			Disallow,
+			AllowWorkspace,
+			AllowGlobally,
+		}
+
 		const buttons: IChatConfirmationButton[] = [
 			{
 				label: continueLabel,
-				data: true,
-				tooltip: continueTooltip
+				data: ConfirmationOutcome.Allow,
+				tooltip: continueTooltip,
+				moreActions: !allowAutoConfirm ? undefined : [
+					{ label: localize('allowWorkspace', 'Always Allow in Workspace'), data: ConfirmationOutcome.AllowWorkspace, tooltip: localize('allowWorkspaceTooltip', 'Allow this tool to run in this workspace without confirmation.') },
+					{ label: localize('allowGlobally', 'Always Allow'), data: ConfirmationOutcome.AllowGlobally, tooltip: localize('allowGloballTooltip', 'Always allow this tool to run without confirmation.') },
+				],
 			},
 			{
-				label: cancelLabel,
-				data: false,
+				label: localize('cancel', "Cancel"),
+				data: ConfirmationOutcome.Disallow,
 				isSecondary: true,
 				tooltip: cancelTooltip
 			}];
@@ -273,7 +286,22 @@ class ChatToolInvocationSubPart extends Disposable {
 		}
 
 		this._register(confirmWidget.onDidClick(button => {
-			toolInvocation.confirmed.complete(button.data);
+			switch (button.data as ConfirmationOutcome) {
+				case ConfirmationOutcome.AllowGlobally:
+					this.languageModelToolsService.setToolAutoConfirmation(toolInvocation.toolId, 'profile', true);
+					toolInvocation.confirmed.complete(true);
+					break;
+				case ConfirmationOutcome.AllowWorkspace:
+					this.languageModelToolsService.setToolAutoConfirmation(toolInvocation.toolId, 'workspace', true);
+					toolInvocation.confirmed.complete(true);
+					break;
+				case ConfirmationOutcome.Allow:
+					toolInvocation.confirmed.complete(true);
+					break;
+				case ConfirmationOutcome.Disallow:
+					toolInvocation.confirmed.complete(false);
+					break;
+			}
 		}));
 		this._register(confirmWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		toolInvocation.confirmed.p.then(() => {
