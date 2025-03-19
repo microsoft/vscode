@@ -184,5 +184,18 @@ suite('MarkdownString', () => {
 
 		});
 
+		test('lift', () => {
+			const dto = { value: 'test', isTrusted: true, supportThemeIcons: true, supportHtml: true };
+			const mds = MarkdownString.lift(dto);
+			assert.strictEqual(mds.value, dto.value);
+			assert.strictEqual(mds.isTrusted, dto.isTrusted);
+			assert.strictEqual(mds.supportThemeIcons, dto.supportThemeIcons);
+			assert.strictEqual(mds.supportHtml, dto.supportHtml);
+
+			const instance = new MarkdownString('hello');
+			const mds2 = MarkdownString.lift(instance).appendText('world');
+			assert.strictEqual(mds2.value, 'helloworld');
+			assert.strictEqual(instance.value, 'hello');
+		});
 	});
 });
