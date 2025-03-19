@@ -221,7 +221,7 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 
 		let success = undefined;
 		try {
-			success = await setup.run({ disableCopilotViewReveal: true /* preserve the context we are currently in */ });
+			success = await setup.run();
 		} catch (error) {
 			this.logService.error(localize('setupError', "Error during setup: {0}", toErrorMessage(error)));
 		} finally {
@@ -298,12 +298,12 @@ class ChatSetup {
 		@ILogService private readonly logService: ILogService,
 	) { }
 
-	async run(options?: { disableCopilotViewReveal?: boolean }): Promise<boolean | undefined> {
+	async run(): Promise<boolean | undefined> {
 		if (this.pendingRun) {
 			return this.pendingRun;
 		}
 
-		this.pendingRun = this.doRun(options);
+		this.pendingRun = this.doRun();
 
 		try {
 			return await this.pendingRun;
@@ -312,7 +312,7 @@ class ChatSetup {
 		}
 	}
 
-	private async doRun(options?: { disableCopilotViewReveal?: boolean }): Promise<boolean | undefined> {
+	private async doRun(): Promise<boolean | undefined> {
 		let setupStrategy: ChatSetupStrategy;
 		if (this.chatEntitlementService.entitlement === ChatEntitlement.Pro || this.chatEntitlementService.entitlement === ChatEntitlement.Limited) {
 			setupStrategy = ChatSetupStrategy.DefaultSetup; // existing pro/free users setup without a dialog
@@ -324,13 +324,13 @@ class ChatSetup {
 		try {
 			switch (setupStrategy) {
 				case ChatSetupStrategy.SetupWithEnterpriseProvider:
-					success = await this.controller.value.setupWithProvider({ ...options, useEnterpriseProvider: true });
+					success = await this.controller.value.setupWithProvider({ disableCopilotViewReveal: true, useEnterpriseProvider: true });
 					break;
 				case ChatSetupStrategy.SetupWithoutEnterpriseProvider:
-					success = await this.controller.value.setupWithProvider({ ...options, useEnterpriseProvider: false });
+					success = await this.controller.value.setupWithProvider({ disableCopilotViewReveal: true, useEnterpriseProvider: false });
 					break;
 				case ChatSetupStrategy.DefaultSetup:
-					success = await this.controller.value.setup(options);
+					success = await this.controller.value.setup({ disableCopilotViewReveal: true });
 					break;
 			}
 		} catch (error) {
