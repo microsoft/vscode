@@ -144,6 +144,18 @@ export class ViewModelDecorations implements IDisposable {
 		}, PixelRatio.getInstance(getActiveWindow()).value);
 	}
 
+	public hasSpecialFont(lineNumber: number): boolean {
+		const range = new Range(lineNumber, this._linesCollection.getViewLineMinColumn(lineNumber), lineNumber, this._linesCollection.getViewLineMaxColumn(lineNumber));
+		const modelDecorations = this._linesCollection.getDecorationsInRange(range, this.editorId, filterValidationDecorations(this.configuration.options), false, false);
+		for (let i = 0, len = modelDecorations.length; i < len; i++) {
+			const decorationOptions = modelDecorations[i].options;
+			if (decorationOptions.fontFamily || decorationOptions.fontWeight || decorationOptions.fontSize) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	public getInlineDecorationsOnLine(lineNumber: number, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): InlineDecoration[] {
 		const range = new Range(lineNumber, this._linesCollection.getViewLineMinColumn(lineNumber), lineNumber, this._linesCollection.getViewLineMaxColumn(lineNumber));
 		return this._getDecorationsInRange(range, onlyMinimapDecorations, onlyMarginDecorations).inlineDecorations[0];

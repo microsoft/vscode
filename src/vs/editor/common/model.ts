@@ -1268,16 +1268,7 @@ export interface ITextModel {
 	 * @event
 	 */
 	readonly onDidChangeLineHeight: Event<ModelLineHeightChangedEvent>;
-	// /**
-	//  * Get special font infos on line number
-	//  */
-	// getSpecialFontInfos(lineNumber: number): {
-	// 	range: Range;
-	// 	fontFamily: string | undefined;
-	// 	fontSize: number | undefined;
-	// 	fontWeight: string | undefined;
-	// 	fontStyle: string | undefined;
-	// }[];
+
 	/**
 	 * An event emitted when the model options have changed.
 	 * @event

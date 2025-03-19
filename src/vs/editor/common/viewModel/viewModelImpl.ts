@@ -749,6 +749,10 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this._decorations.getFontInfoForPosition(position);
 	}
 
+	public hasSpecialFont(lineNumber: number): boolean {
+		return this._decorations.hasSpecialFont(lineNumber);
+	}
+
 	public getInjectedTextAt(viewPosition: Position): InjectedText | null {
 		return this._lines.getInjectedTextAt(viewPosition);
 	}

@@ -19,6 +19,7 @@ import { EditorFontLigatures } from '../../../common/config/editorOptions.js';
 import { DomReadingContext } from './domReadingContext.js';
 import type { ViewLineOptions } from './viewLineOptions.js';
 import { ViewGpuContext } from '../../gpu/viewGpuContext.js';
+import { ViewContext } from '../../../common/viewModel/viewContext.js';
 
 const canUseFastRenderedViewLine = (function () {
 	if (platform.isNative) {
@@ -97,7 +98,7 @@ export class ViewLine implements IVisibleLine {
 		return false;
 	}
 
-	public renderLine(lineNumber: number, deltaTop: number, lineHeight: number, viewportData: ViewportData, sb: StringBuilder): boolean {
+	public renderLine(viewContext: ViewContext, lineNumber: number, deltaTop: number, viewportData: ViewportData, sb: StringBuilder): boolean {
 		if (this._options.useGpu && this._viewGpuContext?.canRender(this._options, viewportData, lineNumber)) {
 			this._renderedViewLine?.domNode?.domNode.remove();
 			this._renderedViewLine = null;
@@ -171,6 +172,7 @@ export class ViewLine implements IVisibleLine {
 			return false;
 		}
 
+		const lineHeight = viewContext.viewLayout.getLineHeightForLineNumber(lineNumber);
 		sb.appendString('<div style="top:');
 		sb.appendString(String(deltaTop));
 		sb.appendString('px;height:');
@@ -186,7 +188,8 @@ export class ViewLine implements IVisibleLine {
 		sb.appendString('</div>');
 
 		let renderedViewLine: IRenderedViewLine | null = null;
-		if (monospaceAssumptionsAreValid && canUseFastRenderedViewLine && lineData.isBasicASCII && options.useMonospaceOptimizations && output.containsForeignElements === ForeignElementType.None) {
+		const hasSpecialFont = viewContext.viewModel.hasSpecialFont(lineNumber);
+		if (!hasSpecialFont && monospaceAssumptionsAreValid && canUseFastRenderedViewLine && lineData.isBasicASCII && options.useMonospaceOptimizations && output.containsForeignElements === ForeignElementType.None) {
 			renderedViewLine = new FastRenderedViewLine(
 				this._renderedViewLine ? this._renderedViewLine.domNode : null,
 				renderLineInput,

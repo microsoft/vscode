@@ -160,7 +160,7 @@ export class ViewOverlayLine implements IVisibleLine {
 		// Nothing
 	}
 
-	public renderLine(lineNumber: number, deltaTop: number, lineHeight: number, viewportData: ViewportData, sb: StringBuilder): boolean {
+	public renderLine(viewContext: ViewContext, lineNumber: number, deltaTop: number, viewportData: ViewportData, sb: StringBuilder): boolean {
 		let result = '';
 		for (let i = 0, len = this._dynamicOverlays.length; i < len; i++) {
 			const dynamicOverlay = this._dynamicOverlays[i];
@@ -174,6 +174,7 @@ export class ViewOverlayLine implements IVisibleLine {
 
 		this._renderedContent = result;
 
+		const lineHeight = viewContext.viewLayout.getLineHeightForLineNumber(lineNumber);
 		sb.appendString('<div style="top:');
 		sb.appendString(String(deltaTop));
 		sb.appendString('px;height:');

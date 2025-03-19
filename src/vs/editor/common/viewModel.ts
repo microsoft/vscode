@@ -77,6 +77,7 @@ export interface IViewModel extends ICursorSimpleModel {
 	getPlainTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): string | string[];
 	getRichTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean): { html: string; mode: string } | null;
 	getFontInfoForPosition(position: Position): BareFontInfo;
+	hasSpecialFont(lineNumber: number): boolean;
 
 	createLineBreaksComputer(): ILineBreaksComputer;
 
