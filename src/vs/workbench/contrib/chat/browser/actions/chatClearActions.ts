@@ -11,7 +11,6 @@ import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../..
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
@@ -79,7 +78,7 @@ export function registerNewChatActions() {
 				title: localize2('chat.newChat.label', "New Chat"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.plus,
-				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession)),
+				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession), ChatContextKeyExprs.unifiedChatEnabled.negate()),
 				f1: true,
 				keybinding: {
 					weight: KeybindingWeight.WorkbenchContrib,
@@ -128,7 +127,7 @@ export function registerNewChatActions() {
 		constructor() {
 			super({
 				id: ACTION_ID_NEW_EDIT_SESSION,
-				title: localize2('chat.newEdits.label', "New Edit Session"),
+				title: localize2('chat.newEdits.label', "New Chat"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.plus,
 				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered),
@@ -149,41 +148,22 @@ export function registerNewChatActions() {
 					mac: {
 						primary: KeyMod.WinCtrl | KeyCode.KeyL
 					},
-					when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeyExprs.inEditingMode)
+					when: ChatContextKeys.inChatSession
 				}
 			});
 		}
 
-		async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]) {
+
+		async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, widget: IChatWidget, ...args: any[]) {
 			const context: INewEditSessionActionContext | undefined = args[0];
 			const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
-			const widgetService = accessor.get(IChatWidgetService);
 			const dialogService = accessor.get(IDialogService);
-			const viewsService = accessor.get(IViewsService);
-			const instaSevice = accessor.get(IInstantiationService);
 
 			if (!(await handleCurrentEditingSession(editingSession, undefined, dialogService))) {
 				return;
 			}
 
-			const isChatViewTitleAction = isChatViewTitleActionContext(context);
-
-			let widget: IChatWidget | undefined;
-			if (isChatViewTitleAction) {
-				// Is running in the Chat view title
-				widget = widgetService.getWidgetBySessionId(context.sessionId);
-			} else {
-				// Is running from f1 or keybinding
-				const view = instaSevice.invokeFunction(getEditsViewId);
-				const chatView = await viewsService.openView<ChatViewPane>(view);
-				widget = chatView?.widget;
-			}
-
 			announceChatCleared(accessibilitySignalService);
-
-			if (!widget) {
-				return;
-			}
 
 			await editingSession.stop();
 			widget.clear();
@@ -195,7 +175,7 @@ export function registerNewChatActions() {
 				return;
 			}
 
-			if (!isChatViewTitleAction && typeof context.agentMode === 'boolean') {
+			if (typeof context.agentMode === 'boolean') {
 				widget.input.setChatMode(context.agentMode ? ChatMode.Agent : ChatMode.Edit);
 			}
 
