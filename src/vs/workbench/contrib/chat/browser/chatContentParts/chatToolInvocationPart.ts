@@ -204,12 +204,70 @@ class ChatToolInvocationSubPart extends Disposable {
 					wordWrap: 'on'
 				}
 			};
+
+			const elements = dom.h('div', [
+				dom.h('.message@message'),
+				dom.h('.editor@editor'),
+			]);
+
+			if (toolInvocation.toolSpecificData?.kind === 'input') {
+
+				const inputData = toolInvocation.toolSpecificData;
+
+				const codeBlockRenderOptions: ICodeBlockRenderOptions = {
+					hideToolbar: true,
+					reserveWidth: 19,
+					verticalPadding: 5,
+					editorOptions: {
+						wordWrap: 'on',
+						readOnly: false
+					}
+				};
+				const langId = this.languageService.getLanguageIdByLanguageName('json');
+				const model = this.modelService.createModel(JSON.stringify(inputData.rawInput, undefined, 2), this.languageService.createById(langId));
+				const editor = this._register(this.editorPool.get());
+				editor.object.render({
+					codeBlockIndex: this.codeBlockStartIndex,
+					codeBlockPartIndex: 0,
+					element: this.context.element,
+					languageId: langId ?? 'json',
+					renderOptions: codeBlockRenderOptions,
+					textModel: Promise.resolve(model)
+				}, this.currentWidthDelegate());
+				this._codeblocks.push({
+					codeBlockIndex: this.codeBlockStartIndex,
+					codemapperUri: undefined,
+					elementId: this.context.element.id,
+					focus: () => editor.object.focus(),
+					isStreaming: false,
+					ownerMarkdownPartId: this.codeblocksPartId,
+					uri: model.uri,
+					uriPromise: Promise.resolve(model.uri)
+				});
+				this._register(editor.object.onDidChangeContentHeight(() => {
+					editor.object.layout(this.currentWidthDelegate());
+					this._onDidChangeHeight.fire();
+				}));
+				this._register(model.onDidChangeContent(e => {
+					try {
+						inputData.rawInput = JSON.parse(model.getValue());
+					} catch {
+						// ignore
+					}
+				}));
+
+				elements.editor.append(editor.object.element);
+			}
+
 			this.markdownPart = this._register(this.instantiationService.createInstance(ChatMarkdownContentPart, chatMarkdownContent, this.context, this.editorPool, false, this.codeBlockStartIndex, this.renderer, this.currentWidthDelegate(), this.codeBlockModelCollection, { codeBlockRenderOptions }));
+			elements.message.append(this.markdownPart.domNode);
+
 			this._register(this.markdownPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 			confirmWidget = this._register(this.instantiationService.createInstance(
 				ChatCustomConfirmationWidget,
 				title,
-				this.markdownPart.domNode,
+				elements.root,
+				toolInvocation.toolSpecificData?.kind === 'input',
 				buttons
 			));
 		}
@@ -297,6 +355,7 @@ class ChatToolInvocationSubPart extends Disposable {
 			ChatCustomConfirmationWidget,
 			title,
 			element,
+			false,
 			buttons
 		));
 
