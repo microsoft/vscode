@@ -223,7 +223,7 @@ suite('Workbench - MCP - Registry', () => {
 		assert.strictEqual((connection2.launchDefinition as any).env.PATH, 'interactiveValue0');
 		connection2.dispose();
 
-		registry.clearSavedInputs(StorageScope.APPLICATION);
+		registry.clearSavedInputs(StorageScope.WORKSPACE);
 
 		const connection3 = await registry.resolveConnection({ collectionRef: testCollection, definitionRef: definition }) as McpServerConnection;
 
