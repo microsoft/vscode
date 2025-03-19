@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { app, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { hostname, release } from 'os';
@@ -122,6 +122,7 @@ import { INativeMcpDiscoveryHelperService, NativeMcpDiscoveryHelperChannelName }
 import { NativeMcpDiscoveryHelperService } from '../../platform/mcp/node/nativeMcpDiscoveryHelperService.js';
 import { IWebContentExtractorService } from '../../platform/webContentExtractor/common/webContentExtractor.js';
 import { NativeWebContentExtractorService } from '../../platform/webContentExtractor/electron-main/webContentExtractorService.js';
+import { getAllWindowsExcludingOffscreen } from '../../platform/windows/electron-main/windowUtils.js';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -232,7 +233,7 @@ export class CodeApplication extends Disposable {
 			}
 
 			// Check to see if the request comes from one of the main windows (or shared process) and not from embedded content
-			const windows = BrowserWindow.getAllWindows();
+			const windows = getAllWindowsExcludingOffscreen();
 			for (const window of windows) {
 				if (frame.processId === window.webContents.mainFrame.processId) {
 					return true;

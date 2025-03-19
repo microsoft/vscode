@@ -80,7 +80,7 @@ import { IConfigurationMigrationRegistry, Extensions as ConfigurationMigrationEx
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import product from '../../../../platform/product/common/product.js';
-import { IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { ExtensionGalleryServiceUrlConfigKey, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService, InstantiationType.Eager /* Auto updates extensions */);
@@ -279,6 +279,18 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
 				tags: ['onExp', 'usesOnlineServices']
+			},
+			[ExtensionGalleryServiceUrlConfigKey]: {
+				type: 'string',
+				description: localize('extensions.gallery.serviceUrl', "Configure the Marketplace service URL to connect to"),
+				default: '',
+				scope: ConfigurationScope.APPLICATION,
+				tags: ['usesOnlineServices'],
+				included: false,
+				policy: {
+					name: 'ExtensionGalleryServiceUrl',
+					minimumVersion: '1.99',
+				},
 			},
 			[AllowedExtensionsConfigKey]: {
 				// Note: Type is set only to object because to support policies generation during build time, where single type is expected.

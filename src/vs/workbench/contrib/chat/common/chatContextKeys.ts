@@ -64,21 +64,22 @@ export namespace ChatContextKeys {
 	};
 
 	export const SetupViewKeys = new Set([ChatContextKeys.Setup.hidden.key, ChatContextKeys.Setup.installed.key, ChatContextKeys.Entitlement.signedOut.key, ChatContextKeys.Entitlement.canSignUp.key, ...Setup.fromDialog.keys()]);
-	export const SetupViewCondition = ContextKeyExpr.or(
-		ContextKeyExpr.and(
-			ChatContextKeys.Setup.hidden.negate(),
-			ChatContextKeys.Setup.installed.negate(),
-			Setup.fromDialog.negate()
-		),
-		ContextKeyExpr.and(
-			ChatContextKeys.Entitlement.canSignUp,
-			ChatContextKeys.Setup.installed
-		),
-		ContextKeyExpr.and(
-			ChatContextKeys.Entitlement.signedOut,
-			ChatContextKeys.Setup.installed
-		)
-	)!;
+	export const SetupViewCondition = ContextKeyExpr.and(
+		Setup.fromDialog.negate(),
+		ContextKeyExpr.or(
+			ContextKeyExpr.and(
+				ChatContextKeys.Setup.hidden.negate(),
+				ChatContextKeys.Setup.installed.negate()
+			),
+			ContextKeyExpr.and(
+				ChatContextKeys.Entitlement.canSignUp,
+				ChatContextKeys.Setup.installed
+			),
+			ContextKeyExpr.and(
+				ChatContextKeys.Entitlement.signedOut,
+				ChatContextKeys.Setup.installed
+			)
+		))!;
 
 	export const chatQuotaExceeded = new RawContextKey<boolean>('chatQuotaExceeded', false, true);
 	export const completionsQuotaExceeded = new RawContextKey<boolean>('completionsQuotaExceeded', false, true);
@@ -90,7 +91,6 @@ export namespace ChatContextKeys {
 	};
 
 	export const Tools = {
-
 		toolsCount: new RawContextKey<number>('toolsCount', 0, { type: 'number', description: localize('toolsCount', "The count of tools available in the chat.") })
 	};
 }

@@ -80,18 +80,19 @@ __vsc_escape_value() {
 	builtin emulate -L zsh
 
 	# Process text byte by byte, not by codepoint.
-	builtin local LC_ALL=C str="$1" i byte token out=''
+	builtin local LC_ALL=C str="$1" i byte token out='' val
 
 	for (( i = 0; i < ${#str}; ++i )); do
+	# Escape backslashes, semi-colons specially, then special ASCII chars below space (0x20).
 		byte="${str:$i:1}"
-
-		# Escape backslashes, semi-colons and newlines
-		if [ "$byte" = "\\" ]; then
+		val=$(printf "%d" "'$byte")
+		if (( val < 31 )); then
+			# For control characters, use hex encoding
+			token=$(printf "\\\\x%02x" "'$byte")
+		elif [ "$byte" = "\\" ]; then
 			token="\\\\"
 		elif [ "$byte" = ";" ]; then
 			token="\\x3b"
-		elif [ "$byte" = $'\n' ]; then
-			token="\x0a"
 		else
 			token="$byte"
 		fi

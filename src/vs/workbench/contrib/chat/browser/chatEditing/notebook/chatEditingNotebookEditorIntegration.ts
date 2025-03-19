@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, derivedWithStore, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { debouncedObservable } from '../../../../../../base/common/observableInternal/utils.js';
 import { basename } from '../../../../../../base/common/resources.js';
@@ -12,6 +12,7 @@ import { LineRange } from '../../../../../../editor/common/core/lineRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { nullDocumentDiff } from '../../../../../../editor/common/diff/documentDiffProvider.js';
 import { localize } from '../../../../../../nls.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IEditorPane, IResourceDiffEditorInput } from '../../../../../common/editor.js';
@@ -103,6 +104,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 		@IEditorService private readonly _editorService: IEditorService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@INotebookEditorService notebookEditorService: INotebookEditorService,
+		@IAccessibilitySignalService accessibilitySignalService: IAccessibilitySignalService,
 	) {
 		super();
 
@@ -119,13 +121,26 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			}
 			originalReadonly ??= notebookEditor.isReadOnly;
 			if (isReadOnly) {
-				if (!notebookEditor.isReadOnly) {
+				notebookEditor.setOptions({ isReadOnly: true });
+			} else if (originalReadonly === false) {
+				notebookEditor.setOptions({ isReadOnly: false });
+				// Ensure all cells area editable.
+				// We make use of chatEditingCodeEditorIntegration to handle cell diffing and navigation.
+				// However that also makes the cell read-only. We need to ensure that the cell is editable.
+				// E.g. first we make notebook readonly (in here), then cells end up being readonly because notebook is readonly.
+				// Then chatEditingCodeEditorIntegration makes cells readonly and keeps track of the original readonly state.
+				// However the cell is already readonly because the notebook is readonly.
+				// So when we restore the notebook to editable (in here), the cell is made editable again.
+				// But when chatEditingCodeEditorIntegration attempts to restore, it will restore the original readonly state.
+				// & from the perpspective of chatEditingCodeEditorIntegration, the cell was readonly & should continue to be readonly.
+				// To get around this, we wait for a few ms before restoring the original readonly state for each cell.
+				const timeout = setTimeout(() => {
 					notebookEditor.setOptions({ isReadOnly: true });
-				}
-			} else {
-				if (notebookEditor.isReadOnly && originalReadonly === false) {
 					notebookEditor.setOptions({ isReadOnly: false });
-				}
+					disposable.dispose();
+				}, 100);
+				const disposable = toDisposable(() => clearTimeout(timeout));
+				this._register(disposable);
 			}
 		}));
 
@@ -251,6 +266,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 							if (entry) {
 								return entry.keep(entry.diff.get().changes[0]);
 							}
+							accessibilitySignalService.playSignal(AccessibilitySignal.editsKept, { allowManyInParallel: true });
 							return Promise.resolve(true);
 						},
 						reject() {
@@ -258,6 +274,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 							if (entry) {
 								return entry.undo(entry.diff.get().changes[0]);
 							}
+							accessibilitySignalService.playSignal(AccessibilitySignal.editsUndone, { allowManyInParallel: true });
 							return Promise.resolve(true);
 						},
 					} satisfies IModifiedFileEntryChangeHunk;
@@ -363,7 +380,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 	}
 
 	private async revealChangeInView(cell: ICellViewModel, lines: LineRange): Promise<void> {
-		await this.notebookEditor.focusNotebookCell(cell, 'editor', { focusEditorLine: lines.startLineNumber });
+		await this.notebookEditor.focusNotebookCell(cell, 'container', { focusEditorLine: lines.startLineNumber });
 		await this.notebookEditor.revealRangeInCenterAsync(cell, new Range(lines.startLineNumber, 0, lines.endLineNumberExclusive, 0));
 	}
 

@@ -29,6 +29,7 @@ import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contex
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import product from '../../../../../platform/product/common/product.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -41,8 +42,8 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { EXTENSIONS_CATEGORY, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
-import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { ChatEntitlement, ChatSentiment, IChatEntitlementService } from '../../common/chatEntitlementService.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
@@ -239,8 +240,26 @@ export function registerChatActions() {
 			const quickInputService = accessor.get(IQuickInputService);
 			const viewsService = accessor.get(IViewsService);
 			const editorService = accessor.get(IEditorService);
+			const dialogService = accessor.get(IDialogService);
+			const chatEditingService = accessor.get(IChatEditingService);
 
-			const showPicker = () => {
+			const view = await viewsService.openView<ChatViewPane>(ChatViewId);
+			if (!view) {
+				return;
+			}
+
+			const chatSessionId = view.widget.viewModel?.model.sessionId;
+			if (!chatSessionId) {
+				return;
+			}
+
+			const editingSession = chatEditingService.getEditingSession(chatSessionId);
+			if (editingSession) {
+				const phrase = localize('switchChat.confirmPhrase', "Switching chats will end your current edit session.");
+				await handleCurrentEditingSession(editingSession, phrase, dialogService);
+			}
+
+			const showPicker = async () => {
 				const openInEditorButton: IQuickInputButton = {
 					iconClass: ThemeIcon.asClassName(Codicon.file),
 					tooltip: localize('interactiveSession.history.editor', "Open in Editor"),
@@ -258,8 +277,8 @@ export function registerChatActions() {
 					chat: IChatDetail;
 				}
 
-				const getPicks = () => {
-					const items = chatService.getHistory();
+				const getPicks = async () => {
+					const items = await chatService.getHistory();
 					items.sort((a, b) => (b.lastMessageDate ?? 0) - (a.lastMessageDate ?? 0));
 
 					let lastDate: string | undefined = undefined;
@@ -290,7 +309,7 @@ export function registerChatActions() {
 				const store = new DisposableStore();
 				const picker = store.add(quickInputService.createQuickPick<IChatPickerItem>({ useSeparators: true }));
 				picker.placeholder = localize('interactiveSession.history.pick', "Switch to chat");
-				const picks = getPicks();
+				const picks = await getPicks();
 				picker.items = picks;
 				store.add(picker.onDidTriggerItemButton(async context => {
 					if (context.button === openInEditorButton) {
@@ -299,7 +318,7 @@ export function registerChatActions() {
 						picker.hide();
 					} else if (context.button === deleteButton) {
 						chatService.removeHistoryEntry(context.item.chat.sessionId);
-						picker.items = getPicks();
+						picker.items = await getPicks();
 					} else if (context.button === renameButton) {
 						const title = await quickInputService.input({ title: localize('newChatTitle', "New chat title"), value: context.item.chat.title });
 						if (title) {
@@ -307,15 +326,14 @@ export function registerChatActions() {
 						}
 
 						// The quick input hides the picker, it gets disposed, so we kick it off from scratch
-						showPicker();
+						await showPicker();
 					}
 				}));
 				store.add(picker.onDidAccept(async () => {
 					try {
 						const item = picker.selectedItems[0];
 						const sessionId = item.chat.sessionId;
-						const view = await viewsService.openView(ChatViewId) as ChatViewPane;
-						view.loadSession(sessionId);
+						await view.loadSession(sessionId);
 					} finally {
 						picker.hide();
 					}
@@ -324,7 +342,7 @@ export function registerChatActions() {
 
 				picker.show();
 			};
-			showPicker();
+			await showPicker();
 		}
 	});
 
@@ -418,15 +436,14 @@ export function registerChatActions() {
 		}
 		async run(accessor: ServicesAccessor, ...args: any[]) {
 			const editorGroupsService = accessor.get(IEditorGroupsService);
-			const viewsService = accessor.get(IViewsService);
 
 			const chatService = accessor.get(IChatService);
-			chatService.clearAllHistoryEntries();
+			await chatService.clearAllHistoryEntries();
 
-			const chatView = viewsService.getViewWithId(ChatViewId) as ChatViewPane | undefined;
-			if (chatView) {
-				chatView.widget.clear();
-			}
+			const widgetService = accessor.get(IChatWidgetService);
+			widgetService.getAllWidgets().forEach(widget => {
+				widget.clear();
+			});
 
 			// Clear all chat editors. Have to go this route because the chat editor may be in the background and
 			// not have a ChatEditorInput.
@@ -683,13 +700,27 @@ registerAction2(class ToggleCopilotControl extends ToggleTitleBarConfigAction {
 	}
 });
 
+registerAction2(class ResetTrustedToolsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.resetTrustedTools',
+			title: localize2('resetTrustedTools', "Reset Tool Confirmations"),
+			category: CHAT_CATEGORY,
+			f1: true,
+		});
+	}
+	override run(accessor: ServicesAccessor): void {
+		accessor.get(ILanguageModelToolsService).resetToolAutoConfirmation();
+		accessor.get(INotificationService).info(localize('resetTrustedToolsSuccess', "Tool confirmation preferences have been reset."));
+	}
+});
+
 export class CopilotTitleBarMenuRendering extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'copilot.titleBarMenuRendering';
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
-		@IChatAgentService agentService: IChatAgentService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -708,6 +739,7 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 			});
 
 			const chatExtensionInstalled = chatEntitlementService.sentiment === ChatSentiment.Installed;
+			const chatHidden = chatEntitlementService.sentiment === ChatSentiment.Disabled;
 			const { chatQuotaExceeded, completionsQuotaExceeded } = chatEntitlementService.quotas;
 			const signedOut = chatEntitlementService.entitlement === ChatEntitlement.Unknown;
 			const setupFromDialog = configurationService.getValue('chat.experimental.setupFromDialog');
@@ -715,9 +747,9 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 			let primaryActionId: string;
 			let primaryActionTitle: string;
 			let primaryActionIcon: ThemeIcon;
-			if (!chatExtensionInstalled && !setupFromDialog) {
+			if (!chatExtensionInstalled && (!setupFromDialog || chatHidden)) {
 				primaryActionId = CHAT_SETUP_ACTION_ID;
-				primaryActionTitle = localize('triggerChatSetup', "Use AI Features with Copilot Free...");
+				primaryActionTitle = localize('triggerChatSetup', "Use AI Features with Copilot for free...");
 				primaryActionIcon = Codicon.copilot;
 			} else if (chatExtensionInstalled && signedOut) {
 				primaryActionId = TOGGLE_CHAT_ACTION_ID;
@@ -758,4 +790,46 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 export function getEditsViewId(accessor: ServicesAccessor): string {
 	const chatService = accessor.get(IChatService);
 	return chatService.unifiedViewEnabled ? ChatViewId : EditsViewId;
+}
+
+/**
+ * Returns whether we can continue clearing/switching chat sessions, false to cancel.
+ */
+export async function handleCurrentEditingSession(currentEditingSession: IChatEditingSession, phrase: string | undefined, dialogService: IDialogService): Promise<boolean> {
+	const currentEdits = currentEditingSession.entries.get();
+	const currentEditCount = currentEdits.length;
+
+	if (currentEditCount) {
+		const undecidedEdits = currentEdits.filter((edit) => edit.state.get() === WorkingSetEntryState.Modified);
+		if (undecidedEdits.length) {
+			const defaultPhrase = localize('chat.startEditing.confirmation.pending.message.default', "Starting a new chat will end your current edit session.");
+			phrase = phrase ?? defaultPhrase;
+			const { result } = await dialogService.prompt({
+				title: localize('chat.startEditing.confirmation.title', "Start new chat?"),
+				message: phrase + ' ' + localize('chat.startEditing.confirmation.pending.message.2', "Do you want to accept pending edits to {0} files?", undecidedEdits.length),
+				type: 'info',
+				cancelButton: true,
+				buttons: [
+					{
+						label: localize('chat.startEditing.confirmation.acceptEdits', "Accept & Continue"),
+						run: async () => {
+							await currentEditingSession.accept();
+							return true;
+						}
+					},
+					{
+						label: localize('chat.startEditing.confirmation.discardEdits', "Discard & Continue"),
+						run: async () => {
+							await currentEditingSession.reject();
+							return true;
+						}
+					}
+				],
+			});
+
+			return Boolean(result);
+		}
+	}
+
+	return true;
 }

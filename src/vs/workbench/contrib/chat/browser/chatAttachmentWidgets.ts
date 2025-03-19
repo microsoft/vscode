@@ -25,7 +25,7 @@ import { IOpenerService, OpenInternalOptions } from '../../../../platform/opener
 import { IThemeService, FolderThemeIcon } from '../../../../platform/theme/common/themeService.js';
 import { IResourceLabel, ResourceLabels, IFileLabelOptions } from '../../../browser/labels.js';
 import { revealInSideBarCommand } from '../../files/browser/fileActions.contribution.js';
-import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, ILinkVariableEntry } from '../common/chatModel.js';
+import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, isImageVariableEntry } from '../common/chatModel.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { hookUpResourceAttachmentDragAndContextMenu, hookUpSymbolAttachmentDragAndContextMenu } from './chatContentParts/chatAttachmentsContentPart.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -347,25 +347,6 @@ export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
 			this.addResourceOpenHandlers(copiedFromResource, range);
 		}
 
-		this.attachClearButton();
-	}
-}
-
-export class LinkAttachmentWidget extends AbstractChatAttachmentWidget {
-	constructor(
-		attachment: ILinkVariableEntry,
-		currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
-		shouldFocusClearButton: boolean,
-		container: HTMLElement,
-		contextResourceLabels: ResourceLabels,
-		hoverDelegate: IHoverDelegate,
-		@ICommandService commandService: ICommandService,
-		@IOpenerService openerService: IOpenerService,
-	) {
-		super(attachment, shouldFocusClearButton, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
-
-		this.element.ariaLabel = localize('chat.attachment.link', "Attached link, {0}", attachment.name);
-		this.label.setResource({ resource: attachment.value, name: attachment.name }, { icon: Codicon.link, title: attachment.value.toString() });
 		this.attachClearButton();
 	}
 }

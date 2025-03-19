@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { cloneAndChange } from '../../../../../base/common/objects.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { upcast } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -15,6 +15,7 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILoggerService } from '../../../../../platform/log/common/log.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ISecretStorageService } from '../../../../../platform/secrets/common/secrets.js';
 import { TestSecretStorageService } from '../../../../../platform/secrets/test/common/testSecretStorageService.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
@@ -26,8 +27,7 @@ import { IMcpHostDelegate, IMcpMessageTransport } from '../../common/mcpRegistry
 import { McpServerConnection } from '../../common/mcpServerConnection.js';
 import { LazyCollectionState, McpCollectionDefinition, McpCollectionReference, McpServerDefinition, McpServerTransportType } from '../../common/mcpTypes.js';
 import { TestMcpMessageTransport } from './mcpRegistryTypes.js';
-import { timeout } from '../../../../../base/common/async.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { ConfigurationResolverExpression } from '../../../../services/configurationResolver/common/configurationResolverExpression.js';
 
 class TestConfigurationResolverService implements Partial<IConfigurationResolverService> {
 	declare readonly _serviceBrand: undefined;
@@ -44,67 +44,27 @@ class TestConfigurationResolverService implements Partial<IConfigurationResolver
 	}
 
 	resolveAsync(folder: any, value: any): Promise<any> {
-		if (typeof value === 'string') {
-			return Promise.resolve(this.replaceVariables(value));
-		} else if (Array.isArray(value)) {
-			return Promise.resolve(value.map(v => typeof v === 'string' ? this.replaceVariables(v) : v));
-		} else {
-			const result: Record<string, any> = {};
-			for (const key in value) {
-				if (typeof value[key] === 'string') {
-					result[key] = this.replaceVariables(value[key]);
-				} else {
-					result[key] = value[key];
-				}
+		const parsed = ConfigurationResolverExpression.parse(value);
+		for (const variable of parsed.unresolved()) {
+			const resolved = this.resolvedVariables.get(variable.inner);
+			if (resolved) {
+				parsed.resolve(variable, resolved);
 			}
-			return Promise.resolve(result);
 		}
-	}
 
-	private replaceVariables(value: string): string {
-		let result = value;
-		for (const [key, val] of this.resolvedVariables.entries()) {
-			result = result.replace(`\${${key}}`, val);
-		}
-		return result;
-	}
-
-	resolveAnyAsync(folder: any, config: any, commandValueMapping?: Record<string, string>): Promise<any> {
-		// Use cloneAndChange to recursively replace variables in the config
-		const newConfig = cloneAndChange(config, (value) => {
-			if (typeof value === 'string') {
-				// Replace any ${variable} with its value
-				let result = value;
-				for (const [key, val] of this.resolvedVariables.entries()) {
-					result = result.replace(`\${${key}}`, val);
-				}
-
-				// If a commandValueMapping is provided, use it for additional replacements
-				if (commandValueMapping) {
-					for (const [key, val] of Object.entries(commandValueMapping)) {
-						result = result.replace(`\${${key}}`, val);
-					}
-				}
-
-				return result === value ? undefined : result;
-			}
-			return undefined;
-		});
-
-		return Promise.resolve(newConfig);
+		return Promise.resolve(parsed.toObject());
 	}
 
 	resolveWithInteraction(folder: any, config: any, section?: string, variables?: Record<string, string>, target?: ConfigurationTarget): Promise<Map<string, string> | undefined> {
+		const parsed = ConfigurationResolverExpression.parse(config);
 		// For testing, we simulate interaction by returning a map with some variables
 		const result = new Map<string, string>();
 		result.set('input:testInteractive', `interactiveValue${this.interactiveCounter++}`);
 		result.set('command:testCommand', `commandOutput${this.interactiveCounter++}}`);
 
 		// If variables are provided, include those too
-		if (variables) {
-			Object.entries(variables).forEach(([key, value]) => {
-				result.set(key, value);
-			});
+		for (const [k, v] of result.entries()) {
+			parsed.resolve({ id: '${' + k + '}' } as any, v);
 		}
 
 		return Promise.resolve(result);
@@ -239,7 +199,8 @@ suite('Workbench - MCP - Registry', () => {
 				cwd: URI.parse('file:///test')
 			},
 			variableReplacement: {
-				section: 'mcp'
+				section: 'mcp',
+				target: ConfigurationTarget.WORKSPACE,
 			}
 		};
 
@@ -262,7 +223,7 @@ suite('Workbench - MCP - Registry', () => {
 		assert.strictEqual((connection2.launchDefinition as any).env.PATH, 'interactiveValue0');
 		connection2.dispose();
 
-		registry.clearSavedInputs();
+		registry.clearSavedInputs(StorageScope.WORKSPACE);
 
 		const connection3 = await registry.resolveConnection({ collectionRef: testCollection, definitionRef: definition }) as McpServerConnection;
 

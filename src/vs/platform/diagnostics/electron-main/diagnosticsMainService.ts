@@ -16,6 +16,7 @@ import { IWorkspacesManagementMainService } from '../../workspaces/electron-main
 import { assertIsDefined } from '../../../base/common/types.js';
 import { ILogService } from '../../log/common/log.js';
 import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProcess.js';
+import { getAllWindowsExcludingOffscreen } from '../../windows/electron-main/windowUtils.js';
 
 export const ID = 'diagnosticsMainService';
 export const IDiagnosticsMainService = createDecorator<IDiagnosticsMainService>(ID);
@@ -80,7 +81,7 @@ export class DiagnosticsMainService implements IDiagnosticsMainService {
 		this.logService.trace('Received request for main process info from other instance.');
 
 		const windows: IWindowDiagnostics[] = [];
-		for (const window of BrowserWindow.getAllWindows()) {
+		for (const window of getAllWindowsExcludingOffscreen()) {
 			const codeWindow = this.windowsMainService.getWindowById(window.id);
 			if (codeWindow) {
 				windows.push(await this.codeWindowToInfo(codeWindow));

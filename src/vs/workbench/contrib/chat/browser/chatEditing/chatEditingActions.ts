@@ -67,7 +67,7 @@ export function getEditingSessionContext(accessor: ServicesAccessor, args: any[]
 	if (!chatWidget) {
 		if (chatService.unifiedViewEnabled) {
 			// TODO ugly
-			chatWidget = chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel).find(w => w.isUnifiedPanelWidget);
+			chatWidget = chatWidgetService.lastFocusedWidget ?? chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel).find(w => w.isUnifiedPanelWidget);
 		} else {
 			chatWidget = chatWidgetService.getWidgetsByLocations(ChatAgentLocation.EditingSession).at(0);
 		}
@@ -448,7 +448,7 @@ registerAction2(class RemoveAction extends Action2 {
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 				},
-				when: ContextKeyExpr.and(ChatContextKeys.chatMode.notEqualsTo(ChatMode.Ask), ChatContextKeys.inChatSession, ChatContextKeys.inChatInput.negate()),
+				when: ContextKeyExpr.and(ChatContextKeys.chatMode.notEqualsTo(ChatMode.Ask), ChatContextKeys.inChatSession, EditorContextKeys.textInputFocus.negate()),
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
 			menu: [

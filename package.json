@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.99.0",
-  "distro": "c3ec5ba4852b5682b94358c92bf31484d2739db9",
+  "distro": "f3960cabd77440aab984a96449bb60ebbf5ecea0",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -55,7 +55,7 @@
     "eslint": "node build/eslint",
     "stylelint": "node build/stylelint",
     "playwright-install": "npm exec playwright install",
-    "compile-build": "node ./node_modules/gulp/bin/gulp.js compile-build",
+    "compile-build": "node ./node_modules/gulp/bin/gulp.js compile-build-with-mangling",
     "compile-extensions-build": "node ./node_modules/gulp/bin/gulp.js compile-extensions-build",
     "minify-vscode": "node ./node_modules/gulp/bin/gulp.js minify-vscode",
     "minify-vscode-reh": "node ./node_modules/gulp/bin/gulp.js minify-vscode-reh",
@@ -82,7 +82,7 @@
     "@vscode/spdlog": "^0.15.0",
     "@vscode/sqlite3": "5.1.8-vscode",
     "@vscode/sudo-prompt": "9.3.1",
-    "@vscode/tree-sitter-wasm": "^0.1.3",
+    "@vscode/tree-sitter-wasm": "^0.1.4",
     "@vscode/vscode-languagedetection": "1.0.21",
     "@vscode/windows-mutex": "^0.5.0",
     "@vscode/windows-process-tree": "^0.6.0",

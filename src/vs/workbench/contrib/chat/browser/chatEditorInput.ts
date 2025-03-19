@@ -93,7 +93,7 @@ export class ChatEditorInput extends EditorInput {
 
 	override async resolve(): Promise<ChatEditorModel | null> {
 		if (typeof this.sessionId === 'string') {
-			this.model = this.chatService.getOrRestoreSession(this.sessionId);
+			this.model = await this.chatService.getOrRestoreSession(this.sessionId);
 		} else if (!this.options.target) {
 			this.model = this.chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None);
 		} else if ('data' in this.options.target) {

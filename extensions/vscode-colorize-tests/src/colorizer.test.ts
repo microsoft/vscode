@@ -70,14 +70,20 @@ suite('colorization', () => {
 	suiteSetup(async function () {
 		originalSettingValues = [
 			workspace.getConfiguration('editor.experimental').get('preferTreeSitter.typescript'),
-			workspace.getConfiguration('editor.experimental').get('preferTreeSitter.ini')
+			workspace.getConfiguration('editor.experimental').get('preferTreeSitter.ini'),
+			workspace.getConfiguration('editor.experimental').get('preferTreeSitter.regex'),
+			workspace.getConfiguration('editor.experimental').get('preferTreeSitter.css')
 		];
 		await workspace.getConfiguration('editor.experimental').update('preferTreeSitter.typescript', true, ConfigurationTarget.Global);
 		await workspace.getConfiguration('editor.experimental').update('preferTreeSitter.ini', true, ConfigurationTarget.Global);
+		await workspace.getConfiguration('editor.experimental').update('preferTreeSitter.regex', true, ConfigurationTarget.Global);
+		await workspace.getConfiguration('editor.experimental').update('preferTreeSitter.css', true, ConfigurationTarget.Global);
 	});
 	suiteTeardown(async function () {
 		await workspace.getConfiguration('editor.experimental').update('preferTreeSitter.typescript', originalSettingValues[0], ConfigurationTarget.Global);
 		await workspace.getConfiguration('editor.experimental').update('preferTreeSitter.ini', originalSettingValues[1], ConfigurationTarget.Global);
+		await workspace.getConfiguration('editor.experimental').update('preferTreeSitter.regex', originalSettingValues[2], ConfigurationTarget.Global);
+		await workspace.getConfiguration('editor.experimental').update('preferTreeSitter.css', originalSettingValues[3], ConfigurationTarget.Global);
 	});
 
 	for (const fixture of fs.readdirSync(fixturesPath)) {

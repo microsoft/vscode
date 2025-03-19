@@ -1664,8 +1664,9 @@ export class SearchView extends ViewPane {
 		}
 
 		// Special case for when we have an AI provider registered
+		Constants.SearchContext.AIResultsRequested.bindTo(this.contextKeyService).set(this.shouldShowAIResults() && !!aiResults);
+
 		if (this.shouldShowAIResults() && !allResults) {
-			Constants.SearchContext.AIResultsRequested.bindTo(this.contextKeyService).set(!!aiResults);
 			const messageEl = this.clearMessage();
 			const noResultsMessage = nls.localize('noResultsFallback', "No results found. ");
 			dom.append(messageEl, noResultsMessage);
@@ -1673,18 +1674,17 @@ export class SearchView extends ViewPane {
 			const aiName = await this.searchService.getAIName();
 
 			if (aiName) {
-				const kb = this.keybindingService.lookupKeybinding(Constants.SearchCommandIds.SearchWithAIActionId);
-				const searchWithAIButtonTooltip = kb ? nls.localize('searchWithAIButtonTooltipWithKB', "{0} to search", kb.getLabel())
-					: nls.localize('searchWithAIButtonTooltip', "Search");
+				const searchWithAIButtonTooltip = appendKeyBindingLabel(
+					nls.localize('triggerAISearch.tooltip', "Search with {0}", aiName),
+					this.keybindingService.lookupKeybinding(Constants.SearchCommandIds.SearchWithAIActionId)
+				);
+				const searchWithAIButtonText = nls.localize('searchWithAIButtonTooltip', "Search with {0}.", aiName);
 				const searchWithAIButton = this.messageDisposables.add(new SearchLinkButton(
-					searchWithAIButtonTooltip,
+					searchWithAIButtonText,
 					() => {
 						this.commandService.executeCommand(Constants.SearchCommandIds.SearchWithAIActionId);
-					}, this.hoverService));
+					}, this.hoverService, searchWithAIButtonTooltip));
 				dom.append(messageEl, searchWithAIButton.element);
-
-				const message = nls.localize('triggerAISearch', " with {0}.", aiName);
-				dom.append(messageEl, message);
 			}
 
 			if (!aiResults) {
@@ -1811,6 +1811,7 @@ export class SearchView extends ViewPane {
 		const result = this.viewModel.addAIResults();
 		return result.then((complete) => {
 			clearTimeout(slowTimer);
+			this.updateSearchResultCount(this.viewModel.searchResult.query?.userDisabledExcludesAndIgnoreFiles, this.viewModel.searchResult.query?.onlyOpenEditors, false);
 			return this.onSearchComplete(progressComplete, excludePatternText, includePatternText, complete, false);
 		}, (e) => {
 			clearTimeout(slowTimer);
@@ -1827,6 +1828,7 @@ export class SearchView extends ViewPane {
 		this.searchWidget.searchInput?.clearMessage();
 		this.state = SearchUIState.Searching;
 		this.showEmptyStage();
+		this.model.searchResult.aiTextSearchResult.hidden = true;
 
 		const slowTimer = setTimeout(() => {
 			this.state = SearchUIState.SlowSearch;
@@ -2362,6 +2364,11 @@ class SearchViewDataSource implements IAsyncDataSource<ISearchResult, Renderable
 
 		const ret: ITextSearchHeading[] = [];
 
+		if (this.searchView.shouldShowAIResults() && searchResult.searchModel.hasPlainResults && !searchResult.aiTextSearchResult.hidden) {
+			// as long as there is a query present, we can load AI results
+			ret.push(searchResult.aiTextSearchResult);
+		}
+
 		if (!searchResult.plainTextSearchResult.isEmpty()) {
 			if (!this.searchView.shouldShowAIResults()) {
 				// only one root, so just return the children
@@ -2369,11 +2376,6 @@ class SearchViewDataSource implements IAsyncDataSource<ISearchResult, Renderable
 			}
 			ret.push(searchResult.plainTextSearchResult);
 
-		}
-
-		if (this.searchView.shouldShowAIResults() && searchResult.searchModel.hasPlainResults && !searchResult.aiTextSearchResult.hidden) {
-			// as long as there is a query present, we can load AI results
-			ret.push(searchResult.aiTextSearchResult);
 		}
 
 		return ret;
