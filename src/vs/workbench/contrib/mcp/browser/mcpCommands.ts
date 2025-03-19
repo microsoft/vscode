@@ -17,10 +17,13 @@ import { IActionViewItemService } from '../../../../platform/actions/browser/act
 import { MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Action2, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { spinningLoading } from '../../../../platform/theme/common/iconRegistry.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { ActiveEditorContext, ResourceContextKey } from '../../../common/contextkeys.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -204,7 +207,6 @@ export class McpServerOptionsCommand extends Action2 {
 		}
 	}
 }
-
 
 export class MCPServerActionRendering extends Disposable implements IWorkbenchContribution {
 	public static readonly ID = 'workbench.contrib.mcp.discovery';
@@ -410,5 +412,95 @@ export class AddConfigurationAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, configUri?: string): Promise<void> {
 		return accessor.get(IInstantiationService).createInstance(McpAddConfigurationCommand, configUri).run();
+	}
+}
+
+
+export class RemoveStoredInput extends Action2 {
+	static readonly ID = 'workbench.mcp.removeStoredInput';
+
+	constructor() {
+		super({
+			id: RemoveStoredInput.ID,
+			title: localize2('mcp.resetCachedTools', "Reset Cached Tools"),
+			category,
+			f1: false,
+		});
+	}
+
+	run(accessor: ServicesAccessor, scope: StorageScope, id?: string): void {
+		accessor.get(IMcpRegistry).clearSavedInputs(scope, id);
+	}
+}
+
+export class EditStoredInput extends Action2 {
+	static readonly ID = 'workbench.mcp.editStoredInput';
+
+	constructor() {
+		super({
+			id: EditStoredInput.ID,
+			title: localize2('mcp.editStoredInput', "Edit Stored Input"),
+			category,
+			f1: false,
+		});
+	}
+
+	run(accessor: ServicesAccessor, inputId: string, uri: URI | undefined, configSection: string, target: ConfigurationTarget): void {
+		const workspaceFolder = uri && accessor.get(IWorkspaceContextService).getWorkspaceFolder(uri);
+		accessor.get(IMcpRegistry).editSavedInput(inputId, workspaceFolder || undefined, configSection, target);
+	}
+}
+
+export class ShowOutput extends Action2 {
+	static readonly ID = 'workbench.mcp.showOutput';
+
+	constructor() {
+		super({
+			id: ShowOutput.ID,
+			title: localize2('mcp.command.showOutput', "Show Output"),
+			category,
+			f1: false,
+		});
+	}
+
+	run(accessor: ServicesAccessor, serverId: string): void {
+		accessor.get(IMcpService).servers.get().find(s => s.definition.id === serverId)?.showOutput();
+	}
+}
+
+export class StartServer extends Action2 {
+	static readonly ID = 'workbench.mcp.startServer';
+
+	constructor() {
+		super({
+			id: StartServer.ID,
+			title: localize2('mcp.command.startServer', "Start Server"),
+			category,
+			f1: false,
+		});
+	}
+
+	async run(accessor: ServicesAccessor, serverId: string) {
+		const s = accessor.get(IMcpService).servers.get().find(s => s.definition.id === serverId);
+		await s?.stop();
+		await s?.start();
+	}
+}
+
+export class StopServer extends Action2 {
+	static readonly ID = 'workbench.mcp.stopServer';
+
+	constructor() {
+		super({
+			id: StopServer.ID,
+			title: localize2('mcp.command.stopServer', "Stop Server"),
+			category,
+			f1: false,
+		});
+	}
+
+	async run(accessor: ServicesAccessor, serverId: string) {
+		const s = accessor.get(IMcpService).servers.get().find(s => s.definition.id === serverId);
+		await s?.stop();
 	}
 }

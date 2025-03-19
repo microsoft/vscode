@@ -27,6 +27,7 @@ import { IMcpHostDelegate, IMcpMessageTransport } from '../../common/mcpRegistry
 import { McpServerConnection } from '../../common/mcpServerConnection.js';
 import { LazyCollectionState, McpCollectionDefinition, McpCollectionReference, McpServerDefinition, McpServerTransportType } from '../../common/mcpTypes.js';
 import { TestMcpMessageTransport } from './mcpRegistryTypes.js';
+import { ConfigurationResolverExpression } from '../../../../services/configurationResolver/common/configurationResolverExpression.js';
 
 class TestConfigurationResolverService implements Partial<IConfigurationResolverService> {
 	declare readonly _serviceBrand: undefined;
@@ -43,42 +44,27 @@ class TestConfigurationResolverService implements Partial<IConfigurationResolver
 	}
 
 	resolveAsync(folder: any, value: any): Promise<any> {
-		if (typeof value === 'string') {
-			return Promise.resolve(this.replaceVariables(value));
-		} else if (Array.isArray(value)) {
-			return Promise.resolve(value.map(v => typeof v === 'string' ? this.replaceVariables(v) : v));
-		} else {
-			const result: Record<string, any> = {};
-			for (const key in value) {
-				if (typeof value[key] === 'string') {
-					result[key] = this.replaceVariables(value[key]);
-				} else {
-					result[key] = value[key];
-				}
+		const parsed = ConfigurationResolverExpression.parse(value);
+		for (const variable of parsed.unresolved()) {
+			const resolved = this.resolvedVariables.get(variable.inner);
+			if (resolved) {
+				parsed.resolve(variable, resolved);
 			}
-			return Promise.resolve(result);
 		}
-	}
 
-	private replaceVariables(value: string): string {
-		let result = value;
-		for (const [key, val] of this.resolvedVariables.entries()) {
-			result = result.replace(`\${${key}}`, val);
-		}
-		return result;
+		return Promise.resolve(parsed.toObject());
 	}
 
 	resolveWithInteraction(folder: any, config: any, section?: string, variables?: Record<string, string>, target?: ConfigurationTarget): Promise<Map<string, string> | undefined> {
+		const parsed = ConfigurationResolverExpression.parse(config);
 		// For testing, we simulate interaction by returning a map with some variables
 		const result = new Map<string, string>();
 		result.set('input:testInteractive', `interactiveValue${this.interactiveCounter++}`);
 		result.set('command:testCommand', `commandOutput${this.interactiveCounter++}}`);
 
 		// If variables are provided, include those too
-		if (variables) {
-			Object.entries(variables).forEach(([key, value]) => {
-				result.set(key, value);
-			});
+		for (const [k, v] of result.entries()) {
+			parsed.resolve({ id: '${' + k + '}' } as any, v);
 		}
 
 		return Promise.resolve(result);
@@ -200,7 +186,7 @@ suite('Workbench - MCP - Registry', () => {
 		assert.strictEqual(registry.delegates.length, 0);
 	});
 
-	test.skip('resolveConnection creates connection with resolved variables and memorizes them until cleared', async () => {
+	test('resolveConnection creates connection with resolved variables and memorizes them until cleared', async () => {
 		const definition: McpServerDefinition = {
 			...baseDefinition,
 			launch: {
@@ -213,7 +199,8 @@ suite('Workbench - MCP - Registry', () => {
 				cwd: URI.parse('file:///test')
 			},
 			variableReplacement: {
-				section: 'mcp'
+				section: 'mcp',
+				target: ConfigurationTarget.WORKSPACE,
 			}
 		};
 
@@ -236,7 +223,7 @@ suite('Workbench - MCP - Registry', () => {
 		assert.strictEqual((connection2.launchDefinition as any).env.PATH, 'interactiveValue0');
 		connection2.dispose();
 
-		registry.clearSavedInputs();
+		registry.clearSavedInputs(StorageScope.APPLICATION);
 
 		const connection3 = await registry.resolveConnection({ collectionRef: testCollection, definitionRef: definition }) as McpServerConnection;
 

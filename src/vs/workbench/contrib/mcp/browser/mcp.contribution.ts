@@ -14,17 +14,20 @@ import { ConfigMcpDiscovery } from '../common/discovery/configMcpDiscovery.js';
 import { ExtensionMcpDiscovery } from '../common/discovery/extensionMcpDiscovery.js';
 import { mcpDiscoveryRegistry } from '../common/discovery/mcpDiscovery.js';
 import { RemoteNativeMpcDiscovery } from '../common/discovery/nativeMcpRemoteDiscovery.js';
+import { IMcpConfigPathsService, McpConfigPathsService } from '../common/mcpConfigPathsService.js';
 import { mcpServerSchema } from '../common/mcpConfiguration.js';
 import { McpContextKeysController } from '../common/mcpContextKeys.js';
 import { McpRegistry } from '../common/mcpRegistry.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
 import { McpService } from '../common/mcpService.js';
 import { IMcpService } from '../common/mcpTypes.js';
-import { AddConfigurationAction, ListMcpServerCommand, MCPServerActionRendering, McpServerOptionsCommand, ResetMcpCachedTools, ResetMcpTrustCommand } from './mcpCommands.js';
+import { AddConfigurationAction, EditStoredInput, ListMcpServerCommand, MCPServerActionRendering, McpServerOptionsCommand, RemoveStoredInput, ResetMcpCachedTools, ResetMcpTrustCommand, ShowOutput, StartServer, StopServer } from './mcpCommands.js';
 import { McpDiscovery } from './mcpDiscovery.js';
+import { McpLanguageFeatures } from './mcpLanguageFeatures.js';
 
 registerSingleton(IMcpRegistry, McpRegistry, InstantiationType.Delayed);
 registerSingleton(IMcpService, McpService, InstantiationType.Delayed);
+registerSingleton(IMcpConfigPathsService, McpConfigPathsService, InstantiationType.Delayed);
 
 mcpDiscoveryRegistry.register(new SyncDescriptor(RemoteNativeMpcDiscovery));
 mcpDiscoveryRegistry.register(new SyncDescriptor(ConfigMcpDiscovery));
@@ -32,12 +35,18 @@ mcpDiscoveryRegistry.register(new SyncDescriptor(ExtensionMcpDiscovery));
 
 registerWorkbenchContribution2('mcpDiscovery', McpDiscovery, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2('mcpContextKeys', McpContextKeysController, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2('mcpLanguageFeatures', McpLanguageFeatures, WorkbenchPhase.Eventually);
 
 registerAction2(ListMcpServerCommand);
 registerAction2(McpServerOptionsCommand);
 registerAction2(ResetMcpTrustCommand);
 registerAction2(ResetMcpCachedTools);
 registerAction2(AddConfigurationAction);
+registerAction2(RemoveStoredInput);
+registerAction2(EditStoredInput);
+registerAction2(StartServer);
+registerAction2(StopServer);
+registerAction2(ShowOutput);
 
 registerWorkbenchContribution2('mcpActionRendering', MCPServerActionRendering, WorkbenchPhase.BlockRestore);
 

@@ -137,14 +137,14 @@ export namespace McpServerDefinition {
 export interface McpServerDefinitionVariableReplacement {
 	section?: string; // e.g. 'mcp'
 	folder?: IWorkspaceFolderData;
-	target?: ConfigurationTarget;
+	target: ConfigurationTarget;
 }
 
 export namespace McpServerDefinitionVariableReplacement {
 	export interface Serialized {
+		target: ConfigurationTarget;
 		section?: string;
 		folder?: { name: string; index: number; uri: UriComponents };
-		target?: ConfigurationTarget;
 	}
 
 	export function toSerialized(def: McpServerDefinitionVariableReplacement): McpServerDefinitionVariableReplacement.Serialized {
