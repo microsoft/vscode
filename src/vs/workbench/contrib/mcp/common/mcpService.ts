@@ -175,7 +175,7 @@ export class McpService extends Disposable implements IMcpService {
 		// Create any new servers that are needed.
 		for (const def of nextDefinitions) {
 			const store = new DisposableStore();
-			const object = this._instantiationService.createInstance(McpServer, def.collectionDefinition, def.serverDefinition, false, def.collectionDefinition.scope === StorageScope.WORKSPACE ? this.workspaceCache : this.userCache);
+			const object = this._instantiationService.createInstance(McpServer, def.collectionDefinition, def.serverDefinition, !!def.collectionDefinition.lazy, def.collectionDefinition.scope === StorageScope.WORKSPACE ? this.workspaceCache : this.userCache);
 			store.add(object);
 			this._syncTools(object, store);
 
@@ -230,6 +230,8 @@ class McpToolImplementation implements IToolImpl {
 			content: []
 		};
 
+		const outputParts: string[] = [];
+
 		const callResult = await this._tool.call(invocation.parameters as Record<string, any>, token);
 		for (const item of callResult.content) {
 			if (item.type === 'text') {
@@ -237,12 +239,17 @@ class McpToolImplementation implements IToolImpl {
 					kind: 'text',
 					value: item.text
 				});
+
+				outputParts.push(item.text);
 			} else {
 				// TODO@jrieken handle different item types
 			}
 		}
 
-		// result.toolResultMessage = new MarkdownString(localize('reuslt.pattern', "```json\n{0}\n```", JSON.stringify(callResult, undefined, 2)));
+		result.toolResultDetails = {
+			input: JSON.stringify(invocation.parameters, undefined, 2),
+			output: outputParts.join('\n')
+		};
 
 		return result;
 	}

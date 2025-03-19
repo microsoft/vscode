@@ -79,6 +79,11 @@ function __vsc_esc -d "Emit escape sequences for VS Code shell integration"
 	builtin printf "\e]633;%s\a" (string join ";" -- $argv)
 end
 
+function __vsc_ctrl_c --on-event fish_cancel
+	__vsc_esc C
+	set --global _vsc_has_cmd
+end
+
 # Sent right before executing an interactive command.
 # Marks the beginning of command output.
 function __vsc_cmd_executed --on-event fish_preexec

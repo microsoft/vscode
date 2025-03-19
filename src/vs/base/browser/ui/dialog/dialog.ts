@@ -70,7 +70,7 @@ interface ButtonMapEntry {
 
 export class Dialog extends Disposable {
 
-	readonly element: HTMLElement;
+	private readonly element: HTMLElement;
 
 	private readonly shadowElement: HTMLElement;
 	private modalElement: HTMLElement | undefined;

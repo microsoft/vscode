@@ -30,8 +30,8 @@ export function parseNotebookSnapshotFileURI(resource: URI): ChatEditingSnapshot
 	return { sessionId: data.sessionId ?? '', requestId: data.requestId ?? '', undoStop: data.undoStop ?? '', viewType: data.viewType };
 }
 
-export function createSnapshot(notebook: NotebookTextModel, transientOptions: TransientOptions | undefined, configurationService: IConfigurationService): string {
-	const outputSizeLimit = configurationService.getValue<number>(NotebookSetting.outputBackupSizeLimit) * 1024;
+export function createSnapshot(notebook: NotebookTextModel, transientOptions: TransientOptions | undefined, outputSizeConfig: IConfigurationService | number): string {
+	const outputSizeLimit = (typeof outputSizeConfig === 'number' ? outputSizeConfig : outputSizeConfig.getValue<number>(NotebookSetting.outputBackupSizeLimit)) * 1024;
 	return serializeSnapshot(notebook.createSnapshot({ context: SnapshotContext.Backup, outputSizeLimit, transientOptions }), transientOptions);
 }
 

@@ -49,10 +49,19 @@ export function isToolInvocationContext(obj: any): obj is IToolInvocationContext
 	return typeof obj === 'object' && typeof obj.sessionId === 'string';
 }
 
+export interface IToolResultInputOutputDetails {
+	readonly input: string;
+	readonly output: string;
+}
+
+export function isToolResultInputOutputDetails(obj: any): obj is IToolResultInputOutputDetails {
+	return typeof obj === 'object' && typeof obj?.input === 'string' && typeof obj?.output === 'string';
+}
+
 export interface IToolResult {
 	content: (IToolResultPromptTsxPart | IToolResultTextPart)[];
 	toolResultMessage?: string | IMarkdownString;
-	toolResultDetails?: Array<URI | Location>;
+	toolResultDetails?: Array<URI | Location> | IToolResultInputOutputDetails;
 }
 
 export interface IToolResultPromptTsxPart {
