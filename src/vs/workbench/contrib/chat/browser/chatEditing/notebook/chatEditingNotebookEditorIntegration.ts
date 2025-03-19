@@ -380,7 +380,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 	}
 
 	private async revealChangeInView(cell: ICellViewModel, lines: LineRange): Promise<void> {
-		await this.notebookEditor.focusNotebookCell(cell, 'editor', { focusEditorLine: lines.startLineNumber });
+		await this.notebookEditor.focusNotebookCell(cell, 'container', { focusEditorLine: lines.startLineNumber });
 		await this.notebookEditor.revealRangeInCenterAsync(cell, new Range(lines.startLineNumber, 0, lines.endLineNumberExclusive, 0));
 	}
 
