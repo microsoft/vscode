@@ -40,11 +40,11 @@ export class InstallRemoteExtensionsContribution implements IWorkbenchContributi
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
-		this.installDefaultRemoteExtensions();
+		this.installExtensionsIfInstalledLocallyInRemote();
 		this.installFailedRemoteExtensions();
 	}
 
-	private async installDefaultRemoteExtensions(): Promise<void> {
+	private async installExtensionsIfInstalledLocallyInRemote(): Promise<void> {
 		if (!this.remoteAgentService.getConnection()) {
 			return;
 		}
