@@ -1664,8 +1664,9 @@ export class SearchView extends ViewPane {
 		}
 
 		// Special case for when we have an AI provider registered
+		Constants.SearchContext.AIResultsRequested.bindTo(this.contextKeyService).set(this.shouldShowAIResults() && !!aiResults);
+
 		if (this.shouldShowAIResults() && !allResults) {
-			Constants.SearchContext.AIResultsRequested.bindTo(this.contextKeyService).set(!!aiResults);
 			const messageEl = this.clearMessage();
 			const noResultsMessage = nls.localize('noResultsFallback', "No results found. ");
 			dom.append(messageEl, noResultsMessage);
