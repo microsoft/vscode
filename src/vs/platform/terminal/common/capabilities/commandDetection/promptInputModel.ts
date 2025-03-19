@@ -367,10 +367,10 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			line = buffer.getLine(y);
 			const lineText = line?.translateToString(true);
 			if (lineText && line) {
-				if (this._continuationPrompt === undefined || this._lineContainsContinuationPrompt(lineText)) {
+				if (this._continuationPrompt === undefined && this._shellType !== PosixShellType.Fish || this._lineContainsContinuationPrompt(lineText)) {
 					value += `\n${this._trimContinuationPrompt(lineText)}`;
 				} else {
-					break;
+					value += `${lineText}`;
 				}
 			} else {
 				break;
