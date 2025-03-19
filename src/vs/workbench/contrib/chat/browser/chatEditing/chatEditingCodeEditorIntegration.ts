@@ -582,7 +582,6 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		closestWidget = closestWidget ?? this._findClosestWidget();
 		if (closestWidget instanceof DiffHunkWidget) {
 			closestWidget.reject();
-			this._accessibilitySignalService.playSignal(AccessibilitySignal.undoEdits, { allowManyInParallel: true });
 			this.next(true);
 		}
 	}
@@ -591,7 +590,6 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		closestWidget = closestWidget ?? this._findClosestWidget();
 		if (closestWidget instanceof DiffHunkWidget) {
 			closestWidget.accept();
-			this._accessibilitySignalService.playSignal(AccessibilitySignal.keepEdits, { allowManyInParallel: true });
 			this.next(true);
 		}
 	}

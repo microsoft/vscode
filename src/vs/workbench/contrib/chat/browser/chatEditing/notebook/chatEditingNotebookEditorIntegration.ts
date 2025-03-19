@@ -41,7 +41,6 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 		originalModel: NotebookTextModel,
 		cellChanges: IObservable<ICellDiffInfo[]>,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 	) {
 		super();
 
@@ -74,11 +73,9 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 		this.integration.enableAccessibleDiffView();
 	}
 	acceptNearestChange(change: IModifiedFileEntryChangeHunk): void {
-		this._accessibilitySignalService.playSignal(AccessibilitySignal.keepEdits, { allowManyInParallel: true });
 		this.integration.acceptNearestChange(change);
 	}
 	rejectNearestChange(change: IModifiedFileEntryChangeHunk): void {
-		this._accessibilitySignalService.playSignal(AccessibilitySignal.undoEdits, { allowManyInParallel: true });
 		this.integration.rejectNearestChange(change);
 	}
 	toggleDiff(change: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
@@ -107,6 +104,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 		@IEditorService private readonly _editorService: IEditorService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@INotebookEditorService notebookEditorService: INotebookEditorService,
+		@IAccessibilitySignalService accessibilitySignalService: IAccessibilitySignalService,
 	) {
 		super();
 
@@ -255,6 +253,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 							if (entry) {
 								return entry.keep(entry.diff.get().changes[0]);
 							}
+							accessibilitySignalService.playSignal(AccessibilitySignal.keepEdits, { allowManyInParallel: true });
 							return Promise.resolve(true);
 						},
 						reject() {
@@ -262,6 +261,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 							if (entry) {
 								return entry.undo(entry.diff.get().changes[0]);
 							}
+							accessibilitySignalService.playSignal(AccessibilitySignal.undoEdits, { allowManyInParallel: true });
 							return Promise.resolve(true);
 						},
 					} satisfies IModifiedFileEntryChangeHunk;
