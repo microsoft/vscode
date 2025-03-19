@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Iterable } from '../../../../base/common/iterator.js';
+import { isLinux, isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { ConfiguredInput } from './configurationResolver.js';
 
 /** A replacement found in the object, as ${name} or ${name:arg} */
@@ -78,14 +79,34 @@ export class ConfigurationResolverExpression<T> implements IConfigurationResolve
 		}
 	}
 
+	/**
+	 * Creates a new {@link ConfigurationResolverExpression} from an object.
+	 * Note that platform-specific keys (i.e. `windows`, `osx`, `linux`) are
+	 * applied during parsing.
+	 */
 	public static parse<T>(object: T): ConfigurationResolverExpression<T> {
 		if (object instanceof ConfigurationResolverExpression) {
 			return object;
 		}
 
 		const expr = new ConfigurationResolverExpression<T>(object);
+		expr.applyPlatformSpecificKeys();
 		expr.parseObject(expr.root);
 		return expr;
+	}
+
+	private applyPlatformSpecificKeys() {
+		const config = this.root as any; // already cloned by ctor, safe to change
+		const key = isWindows ? 'windows' : isMacintosh ? 'osx' : isLinux ? 'linux' : undefined;
+		if (key === undefined || !config || typeof config !== 'object' || !config.hasOwnProperty(key)) {
+			return;
+		}
+
+		Object.keys(config[key]).forEach(k => config[k] = config[key][k]);
+
+		delete config.windows;
+		delete config.osx;
+		delete config.linux;
 	}
 
 	private parseVariable(str: string, start: number): { replacement: Replacement; end: number } | undefined {
