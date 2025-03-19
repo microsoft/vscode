@@ -1132,7 +1132,7 @@ const REFS_FORMAT = '%(refname)%00%(objectname)%00%(*objectname)';
 const REFS_WITH_DETAILS_FORMAT = `${REFS_FORMAT}%00%(parent)%00%(*parent)%00%(authorname)%00%(*authorname)%00%(committerdate:unix)%00%(*committerdate:unix)%00%(subject)%00%(*subject)`;
 
 function parseRefs(data: string): (Ref | Branch)[] {
-	const refRegex = /^(.*)\0([0-9a-f]{40})\0([0-9a-f]{40})?(?:\0(.*)\0(.*)\0(.*)\0(.*)\0(.*)\0(.*)\0(.*)\0(.*)\0(.*))?$/gm;
+	const refRegex = /^(refs\/[^\0]+)\0([0-9a-f]{40})\0([0-9a-f]{40})?(?:\0(.*))?$/gm;
 
 	const headRegex = /^refs\/heads\/([^ ]+)$/;
 	const remoteHeadRegex = /^refs\/remotes\/([^/]+)\/([^ ]+)$/;
@@ -1142,6 +1142,7 @@ function parseRefs(data: string): (Ref | Branch)[] {
 	let ref: string | undefined;
 	let commitHash: string | undefined;
 	let tagCommitHash: string | undefined;
+	let details: string | undefined;
 	let commitParents: string | undefined;
 	let tagCommitParents: string | undefined;
 	let commitSubject: string | undefined;
@@ -1163,7 +1164,8 @@ function parseRefs(data: string): (Ref | Branch)[] {
 			break;
 		}
 
-		[, ref, commitHash, tagCommitHash, commitParents, tagCommitParents, authorName, tagAuthorName, committerDate, tagCommitterDate, commitSubject, tagCommitSubject, status] = match;
+		[, ref, commitHash, tagCommitHash, details] = match;
+		[commitParents, tagCommitParents, authorName, tagAuthorName, committerDate, tagCommitterDate, commitSubject, tagCommitSubject, status] = details?.split('\0') ?? [];
 
 		const parents = tagCommitParents || commitParents;
 		const subject = tagCommitSubject || commitSubject;
