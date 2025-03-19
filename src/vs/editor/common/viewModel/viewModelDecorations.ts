@@ -133,7 +133,15 @@ export class ViewModelDecorations implements IDisposable {
 				fontSize = decorationOptions.fontSize;
 			}
 		}
-		return BareFontInfo.createFromRawSettings({ fontFamily, fontWeight, fontSize }, PixelRatio.getInstance(getActiveWindow()).value);
+		// TODO: maybe we should also allow font-ligatures, font-variations and letter-spacing?
+		return BareFontInfo.createFromRawSettings({
+			fontFamily,
+			fontWeight,
+			fontSize,
+			fontLigatures: defaultFontInfo.fontFeatureSettings,
+			fontVariations: defaultFontInfo.fontVariationSettings,
+			letterSpacing: defaultFontInfo.letterSpacing
+		}, PixelRatio.getInstance(getActiveWindow()).value);
 	}
 
 	public getInlineDecorationsOnLine(lineNumber: number, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): InlineDecoration[] {
