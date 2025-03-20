@@ -454,7 +454,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 	/**
 	 * Detect ghost text by looking for italic or dim text in or after the cursor and
-	 * non-italic/dim text in the cell before the cursor after command start.
+	 * non-italic/dim text in the first non-whitespace cell following command start.
 	 */
 	private _scanForGhostText(buffer: IBuffer, line: IBufferLine, cursorIndex: number): number {
 		if (!this.value.trim().length) {
