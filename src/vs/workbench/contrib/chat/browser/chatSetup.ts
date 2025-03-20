@@ -142,7 +142,7 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 
 			disposable.add(chatAgentService.registerAgent(id, {
 				id,
-				name: 'Copilot',
+				name: 'Copilot', // intentionally not using exact same name as extension to avoid conflict with IChatAgentService.getAgentsByName()
 				isDefault: true,
 				isCore: true,
 				isToolsAgent,
