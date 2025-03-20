@@ -1210,11 +1210,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
-.quick-input-list .quick-input-list-rows > .quick-input-list-row .monaco-icon-label.tool-pick .codicon[class*='codicon-'] {
-	font-size: 14px;
-}
-
-
 .action-item.chat-attached-context-attachment.chat-add-files .action-label.codicon::before {
 	font: normal normal normal 16px/1 codicon;
 }
