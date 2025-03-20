@@ -161,7 +161,7 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 		this.setDefaultAccount(await this.getDefaultAccountFromAuthenticatedSessions(authenticationProvider.id, authenticationProvider.enterpriseProviderId, authenticationProvider.enterpriseProviderConfig, authenticationProvider.scopes, entitlementUrl));
 
 		this.authenticationService.onDidChangeSessions(async e => {
-			if (e.providerId !== authenticationProvider.id) {
+			if (e.providerId !== authenticationProvider.id && e.providerId !== authenticationProvider.enterpriseProviderId) {
 				return;
 			}
 
