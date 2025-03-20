@@ -376,14 +376,11 @@ class Snapper {
 				return [];
 			}
 			if (!tree) {
-				console.log(`TreeSitter: waiting for tree update`);
 				let e = await Event.toPromise(this.treeSitterParserService.onDidUpdateTree);
 				// Once more for injections
-				console.log(`TreeSitter: has injections ${e.hasInjections}`);
 				if (e.hasInjections) {
 					e = await Event.toPromise(this.treeSitterParserService.onDidUpdateTree);
 				}
-				console.log('TreeSitter: done waiting for injections');
 				textModelTreeSitter = e.tree;
 				tree = textModelTreeSitter.parseResult?.tree;
 			}
