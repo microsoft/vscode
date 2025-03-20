@@ -24,7 +24,7 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatMarkdownContent, IChatProgressMessage, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized } from '../../common/chatService.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../common/codeBlockModelCollection.js';
-import { ILanguageModelToolsService, isToolResultInputOutputDetails, IToolResultInputOutputDetails } from '../../common/languageModelToolsService.js';
+import { createToolInputUri, ILanguageModelToolsService, isToolResultInputOutputDetails, IToolResultInputOutputDetails } from '../../common/languageModelToolsService.js';
 import { CancelChatActionId } from '../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../actions/chatToolActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../chat.js';
@@ -238,8 +238,13 @@ class ChatToolInvocationSubPart extends Disposable {
 						readOnly: false
 					}
 				};
+
 				const langId = this.languageService.getLanguageIdByLanguageName('json');
-				const model = this.modelService.createModel(JSON.stringify(inputData.rawInput, undefined, 2), this.languageService.createById(langId));
+				const model = this._register(this.modelService.createModel(
+					JSON.stringify(inputData.rawInput, undefined, 2),
+					this.languageService.createById(langId),
+					createToolInputUri(toolInvocation.toolId)
+				));
 				const editor = this._register(this.editorPool.get());
 				editor.object.render({
 					codeBlockIndex: this.codeBlockStartIndex,

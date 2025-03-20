@@ -1671,7 +1671,12 @@ export class SearchView extends ViewPane {
 			const noResultsMessage = nls.localize('noResultsFallback', "No results found. ");
 			dom.append(messageEl, noResultsMessage);
 
-			const aiName = await this.searchService.getAIName();
+			let aiName = 'Copilot';
+			try {
+				aiName = (await this.searchService.getAIName()) || aiName;
+			} catch (e) {
+				// ignore
+			}
 
 			if (aiName) {
 				const searchWithAIButtonTooltip = appendKeyBindingLabel(

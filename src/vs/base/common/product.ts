@@ -186,6 +186,8 @@ export interface IProductConfiguration {
 	readonly defaultAccount?: {
 		readonly authenticationProvider: {
 			readonly id: string;
+			readonly enterpriseProviderId: string;
+			readonly enterpriseProviderConfig: string;
 			readonly scopes: string[];
 		};
 		readonly entitlementUrl: string;

@@ -12,12 +12,12 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INativeMcpDiscoveryHelperService, NativeMcpDiscoveryHelperChannelName } from '../../../../../platform/mcp/common/nativeMcpDiscoveryHelper.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { IMcpRegistry } from '../mcpRegistryTypes.js';
-import { FilesystemMpcDiscovery } from './nativeMcpDiscoveryAbstract.js';
+import { NativeFilesystemMcpDiscovery } from './nativeMcpDiscoveryAbstract.js';
 
 /**
  * Discovers MCP servers on the remote filesystem, if any.
  */
-export class RemoteNativeMpcDiscovery extends FilesystemMpcDiscovery {
+export class RemoteNativeMpcDiscovery extends NativeFilesystemMcpDiscovery {
 	constructor(
 		@IRemoteAgentService private readonly remoteAgent: IRemoteAgentService,
 		@ILogService private readonly logService: ILogService,

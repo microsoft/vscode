@@ -16,7 +16,7 @@ import { TextModelText } from '../../../../../common/model/textModelText.js';
 import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
 import { InlineEdit } from '../../model/inlineEdit.js';
 import { InlineEditWithChanges } from './inlineEditWithChanges.js';
-import { GhostTextIndicator, InlineEditModel } from './inlineEditsModel.js';
+import { GhostTextIndicator, InlineEditHost, InlineEditModel } from './inlineEditsModel.js';
 import { InlineEditsView } from './inlineEditsView.js';
 import { InlineEditTabAction } from './inlineEditsViewInterface.js';
 
@@ -68,6 +68,12 @@ export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This c
 		return new InlineEditModel(model, edit, tabAction);
 	});
 
+	private readonly _inlineEditHost = derived<InlineEditHost | undefined>(this, reader => {
+		const model = this._model.read(reader);
+		if (!model) { return undefined; }
+		return new InlineEditHost(model);
+	});
+
 	private readonly _ghostTextIndicator = derived<GhostTextIndicator | undefined>(this, reader => {
 		const model = this._model.read(reader);
 		if (!model) { return undefined; }
@@ -96,6 +102,6 @@ export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This c
 
 		this._editorObs = observableCodeEditor(this._editor);
 
-		this._register(instantiationService.createInstance(InlineEditsView, this._editor, this._inlineEditModel, this._ghostTextIndicator, this._focusIsInMenu));
+		this._register(instantiationService.createInstance(InlineEditsView, this._editor, this._inlineEditHost, this._inlineEditModel, this._ghostTextIndicator, this._focusIsInMenu));
 	}
 }
