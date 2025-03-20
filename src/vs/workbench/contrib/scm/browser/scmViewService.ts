@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ISCMViewService, ISCMRepository, ISCMService, ISCMViewVisibleRepositoryChangeEvent, ISCMMenus, ISCMProvider, ISCMRepositorySortKey } from '../common/scm.js';
 import { Iterable } from '../../../../base/common/iterator.js';
@@ -46,7 +46,7 @@ export const RepositoryContextKeys = {
 
 export type RepositoryQuickPickItem = IQuickPickItem & { repository: 'auto' | ISCMRepository };
 
-export class RepositoryPicker extends Disposable {
+export class RepositoryPicker {
 	private readonly _autoQuickPickItem: RepositoryQuickPickItem;
 
 	constructor(
@@ -55,8 +55,6 @@ export class RepositoryPicker extends Disposable {
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@ISCMViewService private readonly _scmViewService: ISCMViewService
 	) {
-		super();
-
 		this._autoQuickPickItem = {
 			label: localize('auto', "Auto"),
 			description: this._autoQuickItemDescription,
