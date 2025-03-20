@@ -7,10 +7,11 @@ import { createTrustedTypesPolicy } from './trustedTypes.js';
 import { onUnexpectedError } from '../common/errors.js';
 import { AppResourcePath, COI, FileAccess } from '../common/network.js';
 import { URI } from '../common/uri.js';
-import { IWorker, IWorkerCallback, IWorkerClient, IWorkerDescriptor, IWorkerFactory, logOnceWebWorkerWarning, SimpleWorkerClient } from '../common/worker/simpleWorker.js';
+import { IWorker, IWorkerClient, IWorkerDescriptor, Message, SimpleWorkerClient } from '../common/worker/simpleWorker.js';
 import { Disposable, toDisposable } from '../common/lifecycle.js';
 import { coalesce } from '../common/arrays.js';
 import { getNLSLanguage, getNLSMessages } from '../../nls.js';
+import { Emitter } from '../common/event.js';
 
 // Reuse the trusted types policy defined from worker bootstrap
 // when available.
@@ -118,7 +119,13 @@ class WebWorker extends Disposable implements IWorker {
 	private readonly id: number;
 	private worker: Promise<Worker> | null;
 
-	constructor(descriptorOrWorker: IWorkerDescriptor | Worker, id: number, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void) {
+	private readonly _onMessage = this._register(new Emitter<Message>());
+	public readonly onMessage = this._onMessage.event;
+
+	private readonly _onError = this._register(new Emitter<any>());
+	public readonly onError = this._onError.event;
+
+	constructor(descriptorOrWorker: IWorkerDescriptor | Worker, id: number) {
 		super();
 		this.id = id;
 		const workerOrPromise = (
@@ -132,20 +139,25 @@ class WebWorker extends Disposable implements IWorker {
 			this.worker = Promise.resolve(workerOrPromise);
 		}
 		this.postMessage(descriptorOrWorker instanceof Worker ? '-please-ignore-' : descriptorOrWorker.moduleId, []);
+		const errorHandler = (ev: ErrorEvent) => {
+			this._onError.fire(ev);
+		};
 		this.worker.then((w) => {
-			w.onmessage = function (ev) {
-				onMessageCallback(ev.data);
+			w.onmessage = (ev) => {
+				this._onMessage.fire(ev.data);
 			};
-			w.onmessageerror = onErrorCallback;
+			w.onmessageerror = (ev) => {
+				this._onError.fire(ev);
+			};
 			if (typeof w.addEventListener === 'function') {
-				w.addEventListener('error', onErrorCallback);
+				w.addEventListener('error', errorHandler);
 			}
 		});
 		this._register(toDisposable(() => {
 			this.worker?.then(w => {
 				w.onmessage = null;
 				w.onmessageerror = null;
-				w.removeEventListener('error', onErrorCallback);
+				w.removeEventListener('error', errorHandler);
 				w.terminate();
 			});
 			this.worker = null;
@@ -180,33 +192,18 @@ export class WorkerDescriptor implements IWorkerDescriptor {
 	}
 }
 
-class DefaultWorkerFactory implements IWorkerFactory {
-
-	private static LAST_WORKER_ID = 0;
-	private _webWorkerFailedBeforeError: any;
-
-	constructor() {
-		this._webWorkerFailedBeforeError = false;
-	}
-
-	public create(descOrWorker: IWorkerDescriptor | Worker, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void): IWorker {
-		const workerId = (++DefaultWorkerFactory.LAST_WORKER_ID);
-
-		if (this._webWorkerFailedBeforeError) {
-			throw this._webWorkerFailedBeforeError;
-		}
-
-		return new WebWorker(descOrWorker, workerId, onMessageCallback, (err) => {
-			logOnceWebWorkerWarning(err);
-			this._webWorkerFailedBeforeError = err;
-			onErrorCallback(err);
-		});
-	}
-}
+let LAST_WORKER_ID = 0;
 
 export function createWebWorker<T extends object>(moduleId: string, label: string | undefined): IWorkerClient<T>;
 export function createWebWorker<T extends object>(workerDescriptor: IWorkerDescriptor | Worker): IWorkerClient<T>;
 export function createWebWorker<T extends object>(arg0: string | IWorkerDescriptor | Worker, arg1?: string | undefined): IWorkerClient<T> {
-	const workerDescriptorOrWorker = (typeof arg0 === 'string' ? new WorkerDescriptor(arg0, arg1) : arg0);
-	return new SimpleWorkerClient<T>(new DefaultWorkerFactory(), workerDescriptorOrWorker);
+	const workerDescriptorOrWorker1 = (typeof arg0 === 'string' ? new WorkerDescriptor(arg0, arg1) : arg0);
+	const workerDescriptorOrWorker2 = workerDescriptorOrWorker1 instanceof Worker ? workerDescriptorOrWorker1 : {
+		moduleId: 'vs/base/common/worker/simpleWorker',
+		esmModuleLocation: workerDescriptorOrWorker1.esmModuleLocation,
+		label: workerDescriptorOrWorker1.label
+	};
+	const workerId = (++LAST_WORKER_ID);
+	const worker = new WebWorker(workerDescriptorOrWorker2, workerId);
+	return new SimpleWorkerClient<T>(worker);
 }

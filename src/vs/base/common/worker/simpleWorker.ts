@@ -16,15 +16,9 @@ const INITIALIZE = '$initialize';
 
 export interface IWorker extends IDisposable {
 	getId(): number;
+	onMessage: Event<Message>;
+	onError: Event<any>;
 	postMessage(message: Message, transfer: ArrayBuffer[]): void;
-}
-
-export interface IWorkerCallback {
-	(message: Message): void;
-}
-
-export interface IWorkerFactory {
-	create(modules: IWorkerDescriptor | Worker, callback: IWorkerCallback, onErrorCallback: (err: any) => void): IWorker;
 }
 
 export interface IWorkerDescriptor {
@@ -97,7 +91,7 @@ class UnsubscribeEventMessage {
 		public readonly req: string
 	) { }
 }
-type Message = RequestMessage | ReplyMessage | SubscribeEventMessage | EventMessage | UnsubscribeEventMessage;
+export type Message = RequestMessage | ReplyMessage | SubscribeEventMessage | EventMessage | UnsubscribeEventMessage;
 
 interface IMessageReply {
 	resolve: (value?: any) => void;
@@ -324,26 +318,18 @@ export class SimpleWorkerClient<W extends object> extends Disposable implements 
 	private readonly _remoteChannels: Map<string, object> = new Map();
 
 	constructor(
-		workerFactory: IWorkerFactory,
-		workerDescriptorOrWorker: IWorkerDescriptor | Worker,
+		worker: IWorker
 	) {
 		super();
 
-		this._worker = this._register(workerFactory.create(
-			workerDescriptorOrWorker instanceof Worker ? workerDescriptorOrWorker : {
-				moduleId: 'vs/base/common/worker/simpleWorker',
-				esmModuleLocation: workerDescriptorOrWorker.esmModuleLocation,
-				label: workerDescriptorOrWorker.label
-			},
-			(msg: Message) => {
-				this._protocol.handleMessage(msg);
-			},
-			(err: any) => {
-				// in Firefox, web workers fail lazily :(
-				// we will reject the proxy
-				onUnexpectedError(err);
-			}
-		));
+		this._worker = worker;
+		this._register(this._worker.onMessage((msg) => {
+			this._protocol.handleMessage(msg);
+		}));
+		this._register(this._worker.onError((err) => {
+			logOnceWebWorkerWarning(err);
+			onUnexpectedError(err);
+		}));
 
 		this._protocol = new SimpleWorkerProtocol({
 			sendMessage: (msg: any, transfer: ArrayBuffer[]): void => {
