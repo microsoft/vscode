@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from '../../../base/common/buffer.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
@@ -17,7 +18,7 @@ export interface IWebContentExtractorService {
 
 export interface ISharedWebContentExtractorService {
 	_serviceBrand: undefined;
-	extractUrls(uri: URI): Promise<Uint8Array>;
+	readImage(uri: URI): Promise<VSBuffer | undefined>;
 }
 
 /**
@@ -35,7 +36,7 @@ export class NullWebContentExtractorService implements IWebContentExtractorServi
 
 export class NullSharedWebContentExtractorService implements ISharedWebContentExtractorService {
 	_serviceBrand: undefined;
-	extractUrls(_uri: URI): Promise<Uint8Array> {
+	readImage(_uri: URI): Promise<VSBuffer | undefined> {
 		throw new Error('Not implemented');
 	}
 }

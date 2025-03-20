@@ -244,7 +244,7 @@ export class ChatDragAndDrop extends Themable {
 			return this.resolveSymbolsAttachContext(data);
 		}
 
-		if (containsDragType(e, 'text/uri-list') && ((containsDragType(e, 'text/html') || containsDragType(e, 'text/plain')))) {
+		if (!containsDragType(e, DataTransfers.INTERNAL_URI_LIST) && containsDragType(e, 'text/uri-list') && ((containsDragType(e, 'text/html') || containsDragType(e, 'text/plain')))) {
 			return this.resolveHTMLAttachContext(e);
 		}
 
@@ -325,9 +325,9 @@ export class ChatDragAndDrop extends Themable {
 
 	private async downloadImageAsUint8Array(url: string): Promise<Uint8Array | undefined> {
 		try {
-			const extractedImages = await this.webContentExtractorService.extractUrls(URI.parse(url));
-			if (extractedImages.length > 0) {
-				return extractedImages;
+			const extractedImages = await this.webContentExtractorService.readImage(URI.parse(url));
+			if (extractedImages) {
+				return extractedImages.buffer;
 			}
 		} catch (error) {
 			console.warn('Fetch failed:', error);
