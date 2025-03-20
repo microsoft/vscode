@@ -23,7 +23,7 @@ import { FoldingRegions } from '../../../../../editor/contrib/folding/browser/fo
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { CellFindMatchModel } from '../contrib/find/findModel.js';
-import { CellEditState, CellFindMatchWithIndex, CellFoldingState, EditorFoldingStateDelegate, ICellModelDecorations, ICellModelDeltaDecorations, ICellViewModel, IModelDecorationsChangeAccessor, INotebookDeltaCellStatusBarItems, INotebookDeltaDecoration, INotebookEditorViewState, INotebookViewCellsUpdateEvent, INotebookViewModel } from '../notebookBrowser.js';
+import { CellEditState, CellFindMatchWithIndex, CellFoldingState, EditorFoldingStateDelegate, ICellModelDecorations, ICellModelDeltaDecorations, ICellViewModel, IModelDecorationsChangeAccessor, INotebookDeltaCellStatusBarItems, INotebookEditorViewState, INotebookViewCellsUpdateEvent, INotebookViewModel, INotebookDeltaDecoration, isNotebookCellDecoration } from '../notebookBrowser.js';
 import { NotebookLayoutInfo, NotebookMetadataChangedEvent } from '../notebookViewEvents.js';
 import { NotebookCellSelectionCollection } from './cellSelectionCollection.js';
 import { CodeCellViewModel } from './codeCellViewModel.js';
@@ -723,18 +723,24 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				cell?.deltaCellDecorations([id], []);
 				this._decorationIdToCellMap.delete(id);
 			}
+
+			// TODO@rebornix: trigger view zone decorations removal
 		});
 
 		const result: string[] = [];
 
 		newDecorations.forEach(decoration => {
-			const cell = this.getCellByHandle(decoration.handle);
-			const ret = cell?.deltaCellDecorations([], [decoration.options]) || [];
-			ret.forEach(id => {
-				this._decorationIdToCellMap.set(id, decoration.handle);
-			});
+			if (isNotebookCellDecoration(decoration)) {
+				const cell = this.getCellByHandle(decoration.handle);
+				const ret = cell?.deltaCellDecorations([], [decoration.options]) || [];
+				ret.forEach(id => {
+					this._decorationIdToCellMap.set(id, decoration.handle);
+				});
+				result.push(...ret);
+			} else {
+				// TODO@rebornix trigger view zone decorations
+			}
 
-			result.push(...ret);
 		});
 
 		return result;

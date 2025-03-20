@@ -332,10 +332,32 @@ export interface INotebookCellDecorationOptions {
 	};
 }
 
-export interface INotebookDeltaDecoration {
+export interface INotebookViewZoneDecorationOptions {
+	overviewRuler?: {
+		color: string;
+		position: NotebookOverviewRulerLane;
+	};
+}
+
+export interface INotebookDeltaCellDecoration {
 	readonly handle: number;
 	readonly options: INotebookCellDecorationOptions;
 }
+
+export interface INotebookDeltaViewZoneDecoration {
+	readonly viewZoneId: string;
+	readonly options: INotebookViewZoneDecorationOptions;
+}
+
+export function isNotebookCellDecoration(obj: unknown): obj is INotebookDeltaCellDecoration {
+	return !!obj && typeof (obj as INotebookDeltaCellDecoration).handle === 'number';
+}
+
+export function isNotebookViewZoneDecoration(obj: unknown): obj is INotebookDeltaViewZoneDecoration {
+	return !!obj && typeof (obj as INotebookDeltaViewZoneDecoration).viewZoneId === 'string';
+}
+
+export type INotebookDeltaDecoration = INotebookDeltaCellDecoration | INotebookDeltaViewZoneDecoration;
 
 export interface INotebookDeltaCellStatusBarItems {
 	readonly handle: number;
