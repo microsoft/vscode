@@ -153,7 +153,7 @@ export default class LanguageProvider extends Disposable {
 	}
 
 	private _getRanges(activeTextEditor: vscode.TextEditor, symbols: vscode.DocumentSymbol[], kind: vscode.SymbolKind, rangesForLineHeight: vscode.Range[], rangesForFontSize1: vscode.Range[], rangesForFontSize2: vscode.Range[]) {
-		const border = Infinity; // Infinity in production
+		const border = 10; // Infinity in production
 		for (const symbol of symbols) {
 			if (symbol.kind === kind) {
 				const line = symbol.range.start.line;
