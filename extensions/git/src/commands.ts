@@ -108,7 +108,7 @@ class RefItem implements QuickPickItem {
 	constructor(protected readonly ref: Ref) { }
 }
 
-class CheckoutItem extends RefItem {
+class BranchItem extends RefItem {
 	override get description(): string {
 		const description: string[] = [];
 
@@ -125,7 +125,9 @@ class CheckoutItem extends RefItem {
 	constructor(override readonly ref: Branch) {
 		super(ref);
 	}
+}
 
+class CheckoutItem extends BranchItem {
 	async run(repository: Repository, opts?: { detached?: boolean }): Promise<void> {
 		if (!this.ref.name) {
 			return;
@@ -144,7 +146,6 @@ class CheckoutProtectedItem extends CheckoutItem {
 	override get label(): string {
 		return `$(lock) ${this.ref.name ?? this.shortCommit}`;
 	}
-
 }
 
 class CheckoutRemoteHeadItem extends RefItem {
@@ -180,7 +181,7 @@ class CheckoutTagItem extends RefItem {
 	}
 }
 
-class BranchDeleteItem extends RefItem {
+class BranchDeleteItem extends BranchItem {
 
 	async run(repository: Repository, force?: boolean): Promise<void> {
 		if (this.ref.type === RefType.Head && this.refName) {
@@ -214,7 +215,7 @@ class RemoteTagDeleteItem extends RefItem {
 	}
 }
 
-class MergeItem extends RefItem {
+class MergeItem extends BranchItem {
 
 	async run(repository: Repository): Promise<void> {
 		if (this.ref.name || this.ref.commit) {
@@ -223,7 +224,7 @@ class MergeItem extends RefItem {
 	}
 }
 
-class RebaseItem extends RefItem {
+class RebaseItem extends BranchItem {
 
 	async run(repository: Repository): Promise<void> {
 		if (this.ref?.name) {
@@ -376,7 +377,7 @@ async function createCheckoutItems(repository: Repository, detached = false): Pr
 		.filter(p => !!p) as RefProcessor[];
 
 	const buttons = await getRemoteRefItemButtons(repository);
-	const itemsProcessor = new CheckoutItemsProcessor(refProcessors, repository, buttons, detached);
+	const itemsProcessor = new CheckoutItemsProcessor(repository, refProcessors, buttons, detached);
 
 	return itemsProcessor.processRefs(refs);
 }
@@ -434,10 +435,22 @@ class RefProcessor {
 
 class RefItemsProcessor {
 
-	constructor(protected readonly processors: RefProcessor[]) { }
+	constructor(
+		protected readonly repository: Repository,
+		protected readonly processors: RefProcessor[],
+		protected readonly options: {
+			skipCurrentBranch?: boolean;
+			skipCurrentBranchRemote?: boolean;
+		} = {}
+	) { }
 
 	processRefs(refs: Ref[]): QuickPickItem[] {
+		const refsToSkip = this.getRefsToSkip();
+
 		for (const ref of refs) {
+			if (ref.name && refsToSkip.includes(ref.name)) {
+				continue;
+			}
 			for (const processor of this.processors) {
 				if (processor.processRef(ref)) {
 					break;
@@ -452,80 +465,19 @@ class RefItemsProcessor {
 
 		return result;
 	}
-}
 
-class MergeItemsProcessors extends RefItemsProcessor {
-	constructor(private readonly repository: Repository) {
-		super([
-			new RefProcessor(RefType.Head, MergeItem),
-			new RefProcessor(RefType.RemoteHead, MergeItem),
-			new RefProcessor(RefType.Tag, MergeItem)
-		]);
-	}
+	protected getRefsToSkip(): string[] {
+		const refsToSkip = ['origin/HEAD'];
 
-	override processRefs(refs: Ref[]): QuickPickItem[] {
-		const result: QuickPickItem[] = [];
-
-		for (const ref of refs) {
-			if (ref.name === this.repository.HEAD?.name) {
-				continue;
-			}
-
-			for (const processor of this.processors) {
-				if (processor.processRef(ref)) {
-					break;
-				}
-			}
+		if (this.options.skipCurrentBranch && this.repository.HEAD?.name) {
+			refsToSkip.push(this.repository.HEAD.name);
 		}
 
-		for (const processor of this.processors) {
-			result.push(...processor.items);
+		if (this.options.skipCurrentBranchRemote && this.repository.HEAD?.upstream) {
+			refsToSkip.push(`${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`);
 		}
 
-		return result;
-	}
-}
-
-class RebaseItemsProcessors extends RefItemsProcessor {
-
-	private upstreamName: string | undefined;
-
-	constructor(private readonly repository: Repository) {
-		super([
-			new RefProcessor(RefType.Head, RebaseItem),
-			new RefProcessor(RefType.RemoteHead, RebaseItem)
-		]);
-
-		if (this.repository.HEAD?.upstream) {
-			this.upstreamName = `${this.repository.HEAD?.upstream.remote}/${this.repository.HEAD?.upstream.name}`;
-		}
-	}
-
-	override processRefs(refs: Ref[]): QuickPickItem[] {
-		const result: QuickPickItem[] = [];
-
-		for (const ref of refs) {
-			if (ref.name === this.repository.HEAD?.name) {
-				continue;
-			}
-
-			if (ref.name === this.upstreamName) {
-				result.push(new RebaseUpstreamItem(ref));
-				continue;
-			}
-
-			for (const processor of this.processors) {
-				if (processor.processRef(ref)) {
-					break;
-				}
-			}
-		}
-
-		for (const processor of this.processors) {
-			result.push(...processor.items);
-		}
-
-		return result;
+		return refsToSkip;
 	}
 }
 
@@ -551,11 +503,11 @@ class CheckoutItemsProcessor extends RefItemsProcessor {
 	private defaultButtons: RemoteSourceActionButton[] | undefined;
 
 	constructor(
+		repository: Repository,
 		processors: RefProcessor[],
-		private readonly repository: Repository,
 		private readonly buttons: Map<string, RemoteSourceActionButton[]>,
 		private readonly detached = false) {
-		super(processors);
+		super(repository, processors);
 
 		// Default button(s)
 		const remote = repository.remotes.find(r => r.pushUrl === repository.HEAD?.remote || r.fetchUrl === repository.HEAD?.remote) ?? repository.remotes[0];
@@ -2995,7 +2947,7 @@ export class CommandCenter {
 		if (from) {
 			const getRefPicks = async () => {
 				const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
-				const refProcessors = new RefItemsProcessor([
+				const refProcessors = new RefItemsProcessor(repository, [
 					new RefProcessor(RefType.Head),
 					new RefProcessor(RefType.RemoteHead),
 					new RefProcessor(RefType.Tag)
@@ -3110,33 +3062,25 @@ export class CommandCenter {
 			const getBranchPicks = async () => {
 				const pattern = options.remote ? 'refs/remotes' : 'refs/heads';
 				const refs = await repository.getRefs({ pattern, includeCommitDetails: showRefDetails });
+				const processors = options.remote
+					? [new RefProcessor(RefType.RemoteHead, BranchDeleteItem)]
+					: [new RefProcessor(RefType.Head, BranchDeleteItem)];
 
-				const refsToExclude: string[] = [];
-				if (options.remote) {
-					refsToExclude.push('origin/HEAD');
+				const itemsProcessor = new RefItemsProcessor(repository, processors, {
+					skipCurrentBranch: true,
+					skipCurrentBranchRemote: true
+				});
 
-					if (repository.HEAD?.upstream) {
-						// Current branch's upstream
-						refsToExclude.push(`${repository.HEAD.upstream.remote}/${repository.HEAD.upstream.name}`);
-					}
-				} else {
-					if (repository.HEAD?.name) {
-						// Current branch
-						refsToExclude.push(repository.HEAD.name);
-					}
-				}
-
-				return refs.filter(ref => ref.name && !refsToExclude.includes(ref.name))
-					.map(ref => new BranchDeleteItem(ref));
+				return itemsProcessor.processRefs(refs);
 			};
 
 			const placeHolder = !options.remote
 				? l10n.t('Select a branch to delete')
 				: l10n.t('Select a remote branch to delete');
 
-			const choice = await this.pickRef<BranchDeleteItem>(getBranchPicks(), placeHolder);
+			const choice = await this.pickRef(getBranchPicks(), placeHolder);
 
-			if (!choice || !choice.refName) {
+			if (!(choice instanceof BranchDeleteItem) || !choice.refName) {
 				return;
 			}
 			name = choice.refName;
@@ -3192,7 +3136,14 @@ export class CommandCenter {
 
 		const getQuickPickItems = async (): Promise<QuickPickItem[]> => {
 			const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
-			const itemsProcessor = new MergeItemsProcessors(repository);
+			const itemsProcessor = new RefItemsProcessor(repository, [
+				new RefProcessor(RefType.Head, MergeItem),
+				new RefProcessor(RefType.RemoteHead, MergeItem),
+				new RefProcessor(RefType.Tag, MergeItem)
+			], {
+				skipCurrentBranch: true,
+				skipCurrentBranchRemote: true
+			});
 
 			return itemsProcessor.processRefs(refs);
 		};
@@ -3217,9 +3168,26 @@ export class CommandCenter {
 
 		const getQuickPickItems = async (): Promise<QuickPickItem[]> => {
 			const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
-			const itemsProcessor = new RebaseItemsProcessors(repository);
+			const itemsProcessor = new RefItemsProcessor(repository, [
+				new RefProcessor(RefType.Head, RebaseItem),
+				new RefProcessor(RefType.RemoteHead, RebaseItem)
+			], {
+				skipCurrentBranch: true,
+				skipCurrentBranchRemote: true
+			});
 
-			return itemsProcessor.processRefs(refs);
+			const quickPickItems = itemsProcessor.processRefs(refs);
+
+			if (repository.HEAD?.upstream) {
+				const upstreamRef = refs.find(ref => ref.type === RefType.RemoteHead &&
+					ref.name === `${repository.HEAD!.upstream!.remote}/${repository.HEAD!.upstream!.name}`);
+
+				if (upstreamRef) {
+					quickPickItems.splice(0, 0, new RebaseUpstreamItem(upstreamRef));
+				}
+			}
+
+			return quickPickItems;
 		};
 
 		const placeHolder = l10n.t('Select a branch to rebase onto');

@@ -5,6 +5,7 @@
 
 import { streamToBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { StringSHA1 } from '../../../../../base/common/hash.js';
 import { DisposableStore, IReference } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -36,7 +37,7 @@ import { CellDiffInfo } from '../../../notebook/browser/diff/notebookDiffViewMod
 import { getNotebookEditorFromEditorPane } from '../../../notebook/browser/notebookBrowser.js';
 import { NotebookCellTextModel } from '../../../notebook/common/model/notebookCellTextModel.js';
 import { NotebookTextModel } from '../../../notebook/common/model/notebookTextModel.js';
-import { CellEditType, ICellDto2, ICellEditOperation, ICellReplaceEdit, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookSetting, NotebookTextModelChangedEvent, TransientOptions } from '../../../notebook/common/notebookCommon.js';
+import { CellEditType, ICellDto2, ICellEditOperation, ICellReplaceEdit, IDocumentMetadataEdit, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookSetting, NotebookTextModelChangedEvent, TransientOptions } from '../../../notebook/common/notebookCommon.js';
 import { computeDiff } from '../../../notebook/common/notebookDiff.js';
 import { INotebookEditorModelResolverService } from '../../../notebook/common/notebookEditorModelResolverService.js';
 import { INotebookLoggingService } from '../../../notebook/common/notebookLoggingService.js';
@@ -125,12 +126,17 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 				restoreSnapshot(originalRef.object.notebook, initialContent);
 				const edits: ICellEditOperation[] = [];
 				notebook.cells.forEach((cell, index) => {
-					const internalId = cell.internalMetadata?.internalId;
-					if (internalId) {
-						edits.push({ editType: CellEditType.PartialInternalMetadata, index, internalMetadata: { internalId } });
-					}
+					const internalId = generateCellHash(cell.uri);
+					edits.push({ editType: CellEditType.PartialInternalMetadata, index, internalMetadata: { internalId } });
 				});
+				resourceRef.object.notebook.applyEdits(edits, true, undefined, () => undefined, undefined, true);
 				originalRef.object.notebook.applyEdits(edits, true, undefined, () => undefined, undefined, true);
+
+				// If this is an empty copilot notebook, clear all of the original cells.
+				if (notebook.metadata.new_copilot_notebook === true) {
+					const edits = notebook.cells.map((_, index) => ({ editType: CellEditType.Replace, index, count: 1, cells: [] } satisfies ICellEditOperation));
+					originalRef.object.notebook.applyEdits(edits, true, undefined, () => undefined, undefined, true);
+				}
 			}
 			const instance = instantiationService.createInstance(ChatEditingModifiedNotebookEntry, resourceRef, originalRef, _multiDiffEntryDelegate, options.serializer.options, telemetryInfo, chatKind, initialContent);
 			instance._register(disposables);
@@ -160,7 +166,9 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 	}
 
 	private readonly initialContentComparer: SnapshotComparer;
-
+	private get isNewCopilotNotebook() {
+		return this.modifiedModel.metadata.new_copilot_notebook === true;
+	}
 	constructor(
 		private readonly modifiedResourceRef: IReference<IResolvedNotebookEditorModel>,
 		originalResourceRef: IReference<IResolvedNotebookEditorModel>,
@@ -209,6 +217,13 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 
 	private computeRequestId: number = 0;
 	async initializeModelsFromDiff() {
+		if (this.isNewCopilotNotebook) {
+			const cellsDiffInfo: CellDiffInfo[] = this.modifiedModel.cells.map((_, index) => {
+				return { type: 'insert', modifiedCellIndex: index } satisfies CellDiffInfo;
+			});
+			this.initializeModelsFromDiffImpl(cellsDiffInfo);
+			return;
+		}
 		const id = ++this.computeRequestId;
 		if (this._areOriginalAndModifiedIdenticalImpl()) {
 			const cellsDiffInfo: CellDiffInfo[] = this.modifiedModel.cells.map((_, index) => {
@@ -474,7 +489,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		const isCellUri = resource.scheme === Schemas.vscodeNotebookCell;
 		const cell = isCellUri && this.modifiedModel.cells.find(cell => isEqual(cell.uri, resource));
 		let cellEntry: ChatEditingNotebookCellEntry | undefined;
-		if (cell) {
+		if (cell && !this.isNewCopilotNotebook) {
 			const index = this.modifiedModel.cells.indexOf(cell);
 			const entry = this._cellsDiffInfo.get().slice().find(entry => entry.modifiedCellIndex === index);
 			if (!entry) {
@@ -498,7 +513,9 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 
 		this._applyEditsSync(async () => {
 			edits.map(edit => {
-				if (TextEdit.isTextEdit(edit)) {
+				if (this.isNewCopilotNotebook) {
+					// Swallow all edits.
+				} else if (TextEdit.isTextEdit(edit)) {
 					// Possible we're getting the raw content for the notebook.
 					if (isEqual(resource, this.modifiedModel.uri)) {
 						this.newNotebookEditGenerator ??= this._instantiationService.createInstance(ChatEditingNewNotebookContentEdits, this.modifiedModel);
@@ -535,6 +552,16 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			const notebookEdits = await this.newNotebookEditGenerator.generateEdits();
 			this.newNotebookEditGenerator = undefined;
 			notebookEdits.forEach(edit => this.acceptNotebookEdit(edit));
+
+			if (this.isNewCopilotNotebook) {
+				const removeMetadata = { ...this.modifiedModel.metadata };
+				delete removeMetadata.new_copilot_notebook;
+				const edit: IDocumentMetadataEdit = {
+					editType: CellEditType.DocumentMetadata,
+					metadata: removeMetadata
+				};
+				this.modifiedModel.applyEdits([edit], true, undefined, () => undefined, undefined, false);
+			}
 		}
 
 		transaction((tx) => {
@@ -943,4 +970,11 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 
 		return cellEntry;
 	}
+}
+
+
+function generateCellHash(cellUri: URI) {
+	const hash = new StringSHA1();
+	hash.update(cellUri.toString());
+	return hash.digest().substring(0, 8);
 }

@@ -108,7 +108,8 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 							cwd: item.cwd,
 							args: item.args,
 							command: item.command,
-							env: item.env
+							env: item.env,
+							envFile: undefined,
 						}
 				});
 			}

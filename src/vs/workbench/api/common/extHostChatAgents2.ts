@@ -321,6 +321,9 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 	private readonly _inFlightRequests = new Set<InFlightChatRequest>();
 
+	private readonly _onDidDisposeChatSession = this._register(new Emitter<string>());
+	readonly onDidDisposeChatSession = this._onDidDisposeChatSession.event;
+
 	constructor(
 		mainContext: IMainContext,
 		private readonly _logService: ILogService,
@@ -594,6 +597,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 	$releaseSession(sessionId: string): void {
 		this._sessionDisposables.deleteAndDispose(sessionId);
+		this._onDidDisposeChatSession.fire(sessionId);
 	}
 
 	async $provideFollowups(requestDto: Dto<IChatAgentRequest>, handle: number, result: IChatAgentResult, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatFollowup[]> {

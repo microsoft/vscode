@@ -284,7 +284,6 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 			}
 		}
 
-
 		// resolve variables requiring user input
 		await this._configurationResolverService.resolveWithInteraction(folder, expr, section, undefined, target);
 
@@ -294,7 +293,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		return await this._configurationResolverService.resolveAsync(folder, expr);
 	}
 
-	public async resolveConnection({ collectionRef, definitionRef, forceTrust }: IMcpResolveConnectionOptions): Promise<IMcpServerConnection | undefined> {
+	public async resolveConnection({ collectionRef, definitionRef, forceTrust, logger }: IMcpResolveConnectionOptions): Promise<IMcpServerConnection | undefined> {
 		const collection = this._collections.get().find(c => c.id === collectionRef.id);
 		const definition = collection?.serverDefinitions.get().find(s => s.id === definitionRef.id);
 		if (!collection || !definition) {
@@ -357,6 +356,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 			definition,
 			delegate,
 			launch,
+			logger,
 		);
 	}
 }

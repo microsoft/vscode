@@ -19,6 +19,7 @@ import { IEditorPane, IResourceDiffEditorInput } from '../../../../../common/edi
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { NotebookDeletedCellDecorator } from '../../../../notebook/browser/diff/inlineDiff/notebookDeletedCellDecorator.js';
 import { NotebookInsertedCellDecorator } from '../../../../notebook/browser/diff/inlineDiff/notebookInsertedCellDecorator.js';
+import { NotebookModifiedCellDecorator } from '../../../../notebook/browser/diff/inlineDiff/notebookModifiedCellDecorator.js';
 import { INotebookTextDiffEditor } from '../../../../notebook/browser/diff/notebookDiffEditorBrowser.js';
 import { getNotebookEditorFromEditorPane, ICellViewModel, INotebookEditor } from '../../../../notebook/browser/notebookBrowser.js';
 import { INotebookEditorService } from '../../../../notebook/browser/services/notebookEditorService.js';
@@ -92,7 +93,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 
 	private readonly cellEditorIntegrations = new Map<NotebookCellTextModel, { integration: ChatEditingCodeEditorIntegration; diff: ISettableObservable<IDocumentDiff2> }>();
 
-	private readonly insertDeleteDecorators: IObservable<{ insertedCellDecorator: NotebookInsertedCellDecorator; deletedCellDecorator: NotebookDeletedCellDecorator } | undefined>;
+	private readonly insertDeleteDecorators: IObservable<{ insertedCellDecorator: NotebookInsertedCellDecorator; modifiedCellDecorator: NotebookModifiedCellDecorator; deletedCellDecorator: NotebookDeletedCellDecorator } | undefined>;
 
 	constructor(
 		private readonly _entry: ChatEditingModifiedNotebookEntry,
@@ -159,6 +160,9 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 
 		// Build cell integrations (responsible for navigating changes within a cell and decorating cell text changes)
 		this._register(autorun(r => {
+			if (this.notebookEditor.textModel !== this.notebookModel) {
+				return;
+			}
 			const sortedCellChanges = sortCellChanges(cellChanges.read(r));
 
 			const changes = sortedCellChanges.filter(c => c.type !== 'delete');
@@ -255,6 +259,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			}
 
 			const insertedCellDecorator = store.add(this.instantiationService.createInstance(NotebookInsertedCellDecorator, this.notebookEditor));
+			const modifiedCellDecorator = store.add(this.instantiationService.createInstance(NotebookModifiedCellDecorator, this.notebookEditor));
 			const deletedCellDecorator = store.add(this.instantiationService.createInstance(NotebookDeletedCellDecorator, this.notebookEditor, {
 				className: 'chat-diff-change-content-widget',
 				telemetrySource: 'chatEditingNotebookHunk',
@@ -283,20 +288,23 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 
 			return {
 				insertedCellDecorator,
+				modifiedCellDecorator,
 				deletedCellDecorator
 			};
 		});
 
 		const cellsAreVisible = onDidChangeVisibleRanges.map(v => v.length > 0);
 		this._register(autorun(r => {
-			if (!cellsAreVisible.read(r)) {
+			if (this.notebookEditor.textModel !== this.notebookModel || !cellsAreVisible.read(r)) {
 				return;
 			}
-			// We can have inserted cells that have been accepted, in those cases we do not wany any decorators on them.
+			// We can have inserted cells that have been accepted, in those cases we do not want any decorators on them.
 			const changes = debouncedObservable(cellChanges, 10).read(r).filter(c => c.type === 'insert' ? !c.diff.read(r).identical : true);
+			const modifiedChanges = changes.filter(c => c.type === 'modified');
 			const decorators = debouncedObservable(this.insertDeleteDecorators, 10).read(r);
 			if (decorators) {
 				decorators.insertedCellDecorator.apply(changes);
+				decorators.modifiedCellDecorator.apply(modifiedChanges);
 				decorators.deletedCellDecorator.apply(changes, originalModel);
 			}
 		}));

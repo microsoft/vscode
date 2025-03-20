@@ -10,7 +10,6 @@ import { assert } from '../../../../../../base/common/assert.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { isPromptFile } from '../../../../../../platform/prompts/common/constants.js';
 import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
 import { FailedToResolveContentsStream, ResolveError } from '../../promptFileReferenceErrors.js';
 import { cancelPreviousCalls } from '../../../../../../base/common/decorators/cancelPreviousCalls.js';
@@ -139,12 +138,5 @@ export abstract class PromptContentsProviderBase<
 		this.onContentsChanged('full');
 
 		return this;
-	}
-
-	/**
-	 * Check if the current URI points to a prompt snippet.
-	 */
-	public isPromptSnippet(): boolean {
-		return isPromptFile(this.uri);
 	}
 }

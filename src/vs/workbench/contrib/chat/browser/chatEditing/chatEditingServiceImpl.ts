@@ -33,6 +33,7 @@ import { IExtensionService } from '../../../../services/extensions/common/extens
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { CellUri } from '../../../notebook/common/notebookCommon.js';
+import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
 import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingResourceContextKey, ChatEditingSessionState, chatEditingSnapshotScheme, IChatEditingService, IChatEditingSession, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, IStreamingEdits, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel, isCellTextEditOperation } from '../../common/chatModel.js';
@@ -75,6 +76,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		@ILogService logService: ILogService,
 		@IExtensionService extensionService: IExtensionService,
 		@IProductService productService: IProductService,
+		@INotebookService private readonly notebookService: INotebookService
 	) {
 		super();
 		this._register(decorationsService.registerDecorationsProvider(_instantiationService.createInstance(ChatDecorationsProvider, this.editingSessionsObs)));
@@ -254,7 +256,8 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 				return;
 			}
 
-			editedFilesExist.set(uri, this._fileService.exists(uri).then((e) => {
+			const fileExists = this.notebookService.getNotebookTextModel(uri) ? Promise.resolve(true) : this._fileService.exists(uri);
+			editedFilesExist.set(uri, fileExists.then((e) => {
 				if (!e) {
 					return;
 				}

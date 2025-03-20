@@ -186,6 +186,8 @@ export interface IProductConfiguration {
 	readonly defaultAccount?: {
 		readonly authenticationProvider: {
 			readonly id: string;
+			readonly enterpriseProviderId: string;
+			readonly enterpriseProviderConfig: string;
 			readonly scopes: string[];
 		};
 		readonly entitlementUrl: string;
@@ -205,6 +207,8 @@ export interface IProductConfiguration {
 	readonly chatParticipantRegistry?: string;
 
 	readonly emergencyAlertUrl?: string;
+
+	readonly remoteDefaultExtensionsIfInstalledLocally?: string[];
 }
 
 export interface ITunnelApplicationConfig {
