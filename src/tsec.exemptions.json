@@ -4,12 +4,10 @@
 		"vs/editor/contrib/clipboard/browser/clipboard.ts"
 	],
 	"ban-eval-calls": [
-		"vs/workbench/api/worker/extHostExtensionService.ts",
-		"vs/base/worker/workerMain.ts"
+		"vs/workbench/api/worker/extHostExtensionService.ts"
 	],
 	"ban-function-calls": [
 		"vs/workbench/api/worker/extHostExtensionService.ts",
-		"vs/base/worker/workerMain.ts",
 		"vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts",
 		"vs/workbench/services/keybinding/test/node/keyboardMapperTestUtils.ts"
 	],
@@ -17,7 +15,6 @@
 		"bootstrap-window.ts",
 		"vs/amdX.ts",
 		"vs/base/browser/trustedTypes.ts",
-		"vs/base/worker/workerMain.ts",
 		"vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts"
 	],
 	"ban-worker-calls": [
@@ -27,8 +24,7 @@
 	"ban-worker-importscripts": [
 		"vs/amdX.ts",
 		"vs/workbench/services/extensions/worker/polyfillNestedWorker.ts",
-		"vs/workbench/api/worker/extensionHostWorker.ts",
-		"vs/base/worker/workerMain.ts"
+		"vs/workbench/api/worker/extensionHostWorker.ts"
 	],
 	"ban-domparser-parsefromstring": [
 		"vs/base/browser/markdownRenderer.ts",
