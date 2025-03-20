@@ -31,7 +31,10 @@ export class NullWebContentExtractorService implements IWebContentExtractorServi
 	extract(_uri: URI[]): Promise<string[]> {
 		throw new Error('Not implemented');
 	}
+}
 
+export class NullSharedWebContentExtractorService implements ISharedWebContentExtractorService {
+	_serviceBrand: undefined;
 	extractUrls(_uri: URI): Promise<Uint8Array> {
 		throw new Error('Not implemented');
 	}
