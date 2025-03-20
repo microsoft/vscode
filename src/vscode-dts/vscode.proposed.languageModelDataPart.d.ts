@@ -6,8 +6,8 @@
 declare module 'vscode' {
 
 	export interface LanguageModelChat {
-		sendRequest(messages: LanguageModelChatMessage2[], options?: LanguageModelChatRequestOptions, token?: CancellationToken): Thenable<LanguageModelChatResponse>;
-		countTokens(text: string | LanguageModelChatMessage2, token?: CancellationToken): Thenable<number>;
+		sendRequest(messages: Array<LanguageModelChatMessage | LanguageModelChatMessage2>, options?: LanguageModelChatRequestOptions, token?: CancellationToken): Thenable<LanguageModelChatResponse>;
+		countTokens(text: string | LanguageModelChatMessage | LanguageModelChatMessage2, token?: CancellationToken): Thenable<number>;
 	}
 
 	/**
