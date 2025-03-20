@@ -284,21 +284,19 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		let cursorIndex: number | undefined;
 
 		let commandLine = line?.translateToString(true, this._commandStartX);
-		if (!line || !commandLine) {
-			if (this._shellType === PosixShellType.Fish) {
-				commandStartY += 1;
-				line = buffer.getLine(commandStartY);
-				if (line) {
-					commandLine = line.translateToString(true);
-					cursorIndex = absoluteCursorY === commandStartY ? buffer.cursorX : commandLine?.trimEnd().length;
-				}
-				if (!commandLine || !line) {
-					return;
-				}
-			} else {
-				this._logService.trace(`PromptInputModel#_sync: no line`);
+		if (this._shellType === PosixShellType.Fish && (!line || !commandLine)) {
+			commandStartY += 1;
+			line = buffer.getLine(commandStartY);
+			if (line) {
+				commandLine = line.translateToString(true);
+				cursorIndex = absoluteCursorY === commandStartY ? buffer.cursorX : commandLine?.trimEnd().length;
+			}
+			if (commandLine === undefined || !line) {
 				return;
 			}
+		} else if (line === undefined || commandLine === undefined) {
+			this._logService.trace(`PromptInputModel#_sync: no line`);
+			return;
 		}
 
 		let value = commandLine;
@@ -311,23 +309,16 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			}
 		}
 
-		// Detect ghost text by looking for italic or dim text in or after the cursor and
-		// non-italic/dim text in the cell closest non-whitespace cell before the cursor
-		if (this._shellType !== GeneralShellType.PowerShell || absoluteCursorY === commandStartY && buffer.cursorX > 1) {
-			// Ghost text in pwsh only appears to happen on the cursor line
-			ghostTextIndex = this._scanForGhostText(buffer, line, cursorIndex);
-		}
-
 		// From command start line to cursor line
 		for (let y = commandStartY + 1; y <= absoluteCursorY; y++) {
-			line = buffer.getLine(y);
-			const lineText = line?.translateToString(true);
-			if (lineText && line) {
+			const nextLine = buffer.getLine(y);
+			const lineText = nextLine?.translateToString(true);
+			if (lineText && nextLine) {
 				// Check if the line wrapped without a new line (continuation) or
 				// we're on the last line and the continuation prompt is not present, so we need to add the value
-				if (line.isWrapped || (absoluteCursorY === y && this._continuationPrompt && !this._lineContainsContinuationPrompt(lineText))) {
+				if (nextLine.isWrapped || (absoluteCursorY === y && this._continuationPrompt && !this._lineContainsContinuationPrompt(lineText))) {
 					value += `${lineText}`;
-					const relativeCursorIndex = this._getRelativeCursorIndex(0, buffer, line);
+					const relativeCursorIndex = this._getRelativeCursorIndex(0, buffer, nextLine);
 					if (absoluteCursorY === y) {
 						cursorIndex += relativeCursorIndex;
 					} else {
@@ -356,8 +347,8 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 					const trimmedLineText = this._trimContinuationPrompt(lineText);
 					value += `\n${trimmedLineText}`;
 					if (absoluteCursorY === y) {
-						const continuationCellWidth = this._getContinuationPromptCellWidth(line, lineText);
-						const relativeCursorIndex = this._getRelativeCursorIndex(continuationCellWidth, buffer, line);
+						const continuationCellWidth = this._getContinuationPromptCellWidth(nextLine, lineText);
+						const relativeCursorIndex = this._getRelativeCursorIndex(continuationCellWidth, buffer, nextLine);
 						cursorIndex += relativeCursorIndex + 1;
 					} else {
 						cursorIndex += trimmedLineText.length + 1;
@@ -368,9 +359,9 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 		// Below cursor line
 		for (let y = absoluteCursorY + 1; y < buffer.baseY + this._xterm.rows; y++) {
-			line = buffer.getLine(y);
-			const lineText = line?.translateToString(true);
-			if (lineText && line) {
+			const belowCursorLine = buffer.getLine(y);
+			const lineText = belowCursorLine?.translateToString(true);
+			if (lineText && belowCursorLine) {
 				if (this._continuationPrompt === undefined && this._shellType !== PosixShellType.Fish || this._lineContainsContinuationPrompt(lineText)) {
 					value += `\n${this._trimContinuationPrompt(lineText)}`;
 				} else {
@@ -443,6 +434,13 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			}
 
 			value = valueLines.map(e => e.trimEnd()).join('\n') + ' '.repeat(trailingWhitespace);
+		}
+
+		// Detect ghost text by looking for italic or dim text in or after the cursor and
+		// non-italic/dim text in the cell closest non-whitespace cell before the cursor
+		if (line && this._shellType !== GeneralShellType.PowerShell || absoluteCursorY === commandStartY && buffer.cursorX > 1) {
+			// Ghost text in pwsh only appears to happen on the cursor line
+			ghostTextIndex = this._scanForGhostText(buffer, line, cursorIndex);
 		}
 
 		if (this._value !== value || this._cursorIndex !== cursorIndex || this._ghostTextIndex !== ghostTextIndex) {
