@@ -66,6 +66,16 @@ export class NotebookViewZones extends Disposable {
 		return zonesHaveChanged;
 	}
 
+	getViewZoneLayoutInfo(viewZoneId: string): { height: number; top: number } | null {
+		const zoneWidget = this._zones[viewZoneId];
+		if (!zoneWidget) {
+			return null;
+		}
+		const top = this.listView.getWhitespacePosition(zoneWidget.whitespaceId);
+		const height = zoneWidget.zone.heightInPx;
+		return { height: height, top: top };
+	}
+
 	onCellsChanged(e: INotebookViewCellsUpdateEvent): void {
 		const splices = e.splices.slice().reverse();
 		splices.forEach(splice => {
