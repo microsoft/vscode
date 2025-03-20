@@ -267,6 +267,7 @@ export interface McpServerTransportStdio {
 	readonly command: string;
 	readonly args: readonly string[];
 	readonly env: Record<string, string | number | null>;
+	readonly envFile: string | undefined;
 }
 
 /**
@@ -286,7 +287,7 @@ export type McpServerLaunch =
 export namespace McpServerLaunch {
 	export type Serialized =
 		| { type: McpServerTransportType.SSE; uri: UriComponents; headers: [string, string][] }
-		| { type: McpServerTransportType.Stdio; cwd: UriComponents | undefined; command: string; args: readonly string[]; env: Record<string, string | number | null> };
+		| { type: McpServerTransportType.Stdio; cwd: UriComponents | undefined; command: string; args: readonly string[]; env: Record<string, string | number | null>; envFile: string | undefined };
 
 	export function toSerialized(launch: McpServerLaunch): McpServerLaunch.Serialized {
 		return launch;
@@ -303,6 +304,7 @@ export namespace McpServerLaunch {
 					command: launch.command,
 					args: launch.args,
 					env: launch.env,
+					envFile: launch.envFile,
 				};
 		}
 	}
@@ -364,6 +366,9 @@ export namespace McpConnectionState {
 
 	/** Returns if the MCP state is one where starting a new server is valid */
 	export const canBeStarted = (s: Kind) => s === Kind.Error || s === Kind.Stopped;
+
+	/** Gets whether the state is a running state. */
+	export const isRunning = (s: McpConnectionState) => !canBeStarted(s.state);
 
 	export interface Stopped {
 		readonly state: Kind.Stopped;

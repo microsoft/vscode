@@ -127,6 +127,7 @@ export class ConfigMcpDiscovery extends Disposable implements IMcpDiscovery {
 					args: value.args || [],
 					command: value.command,
 					env: value.env || {},
+					envFile: value.envFile,
 					cwd: undefined,
 				},
 				roots: src.path.workspaceFolder ? [src.path.workspaceFolder.uri] : [],

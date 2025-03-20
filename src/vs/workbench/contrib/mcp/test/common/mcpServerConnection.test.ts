@@ -97,6 +97,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 				command: 'test-command',
 				args: [],
 				env: {},
+				envFile: undefined,
 				cwd: URI.parse('file:///test')
 			}
 		};
