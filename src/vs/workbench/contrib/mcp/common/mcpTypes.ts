@@ -315,11 +315,6 @@ export interface IMcpServerConnection extends IDisposable {
 	readonly handler: IObservable<McpServerRequestHandler | undefined>;
 
 	/**
-	 * Shows the current server output.
-	 */
-	showOutput(): void;
-
-	/**
 	 * Starts the server if it's stopped. Returns a promise that resolves once
 	 * server exits a 'starting' state.
 	 */
