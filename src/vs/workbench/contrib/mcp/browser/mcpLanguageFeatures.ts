@@ -17,6 +17,7 @@ import { localize } from '../../../../nls.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ConfigurationResolverExpression, IResolvedValue } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { IMcpConfigPathsService } from '../common/mcpConfigPathsService.js';
+import { mcpConfigurationSection } from '../common/mcpConfiguration.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
 import { IMcpService, McpConnectionState } from '../common/mcpTypes.js';
 import { EditStoredInput, RemoveStoredInput, RestartServer, ShowOutput, StartServer, StopServer } from './mcpCommands.js';
@@ -64,7 +65,7 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 		return tree;
 	}
 
-	private async _provideCodeLenses(model: ITextModel, onDidChangeCodeLens: () => void): Promise<CodeLensList | undefined> {
+	private _provideCodeLenses(model: ITextModel, onDidChangeCodeLens: () => void): CodeLensList | undefined {
 		const inConfig = this._mcpConfigPathsService.paths.get().find(u => isEqual(u.uri, model.uri));
 		if (!inConfig) {
 			return undefined;
@@ -219,7 +220,7 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 				for (const { id } of expr.unresolved()) {
 					const saved = inputs[id];
 					if (saved) {
-						pushAnnotation(id, node.offset + node.value.indexOf(id) + id.length, '', saved);
+						pushAnnotation(id, node.offset + node.value.indexOf(id) + id.length, saved);
 					}
 				}
 
@@ -254,23 +255,23 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 				const savedId = '${input:' + id.value + '}';
 				const saved = inputs[savedId];
 				if (saved) {
-					const hint = pushAnnotation(savedId, id.offset + 1 + id.length, localize('input', 'Value'), saved);
-					hint.paddingLeft = true;
+					pushAnnotation(savedId, id.offset + 1 + id.length, saved);
 				}
 			}
 		}
 
-		function pushAnnotation(savedId: string, offset: number, prefix: string, saved: IResolvedValue): InlayHint {
+		function pushAnnotation(savedId: string, offset: number, saved: IResolvedValue): InlayHint {
 			const tooltip = new MarkdownString([
-				markdownCommandLink({ id: EditStoredInput.ID, title: localize('edit', 'Edit'), arguments: [savedId, model.uri, inConfig!.section, inConfig!.target] }),
+				markdownCommandLink({ id: EditStoredInput.ID, title: localize('edit', 'Edit'), arguments: [savedId, model.uri, mcpConfigurationSection, inConfig!.target] }),
 				markdownCommandLink({ id: RemoveStoredInput.ID, title: localize('clear', 'Clear'), arguments: [inConfig!.scope, savedId] }),
 				markdownCommandLink({ id: RemoveStoredInput.ID, title: localize('clearAll', 'Clear All'), arguments: [inConfig!.scope] }),
 			].join(' | '), { isTrusted: true });
 
 			const hint: InlayHint = {
-				label: prefix + ': ' + (saved.input?.type === 'promptString' && saved.input.password ? '*'.repeat(10) : (saved.value || '')),
+				label: '= ' + (saved.input?.type === 'promptString' && saved.input.password ? '*'.repeat(10) : (saved.value || '')),
 				position: model.getPositionAt(offset),
 				tooltip,
+				paddingLeft: true,
 			};
 
 			hints.push(hint);
