@@ -1077,7 +1077,7 @@ class StandaloneContextMenuService extends ContextMenuService {
 	}
 }
 
-export const standaloneEditorWorkerDescriptor: IWorkerDescriptor = {
+const standaloneEditorWorkerDescriptor: IWorkerDescriptor = {
 	moduleId: 'vs/editor/common/services/editorSimpleWorker',
 	esmModuleLocation: undefined,
 	label: 'editorWorkerService'

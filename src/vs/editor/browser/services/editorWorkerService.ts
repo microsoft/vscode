@@ -410,7 +410,7 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 	private _disposed = false;
 
 	constructor(
-		private readonly _workerDescriptor: IWorkerDescriptor,
+		private readonly _workerDescriptorOrWorker: IWorkerDescriptor | Worker,
 		keepIdleModels: boolean,
 		@IModelService modelService: IModelService,
 	) {
@@ -429,7 +429,7 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 	private _getOrCreateWorker(): IWorkerClient<EditorSimpleWorker> {
 		if (!this._worker) {
 			try {
-				this._worker = this._register(createWebWorker<EditorSimpleWorker>(this._workerDescriptor));
+				this._worker = this._register(createWebWorker<EditorSimpleWorker>(this._workerDescriptorOrWorker));
 				EditorWorkerHost.setChannel(this._worker, this._createEditorWorkerHost());
 			} catch (err) {
 				logOnceWebWorkerWarning(err);
@@ -452,7 +452,7 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 	}
 
 	private _createFallbackLocalWorker(): SynchronousWorkerClient<EditorSimpleWorker> {
-		return new SynchronousWorkerClient(new EditorSimpleWorker(this._createEditorWorkerHost(), null));
+		return new SynchronousWorkerClient(new EditorSimpleWorker(null));
 	}
 
 	private _createEditorWorkerHost(): EditorWorkerHost {

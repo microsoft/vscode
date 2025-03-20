@@ -7,7 +7,6 @@ import { CharCode } from '../charCode.js';
 import { onUnexpectedError, transformErrorForSerialization } from '../errors.js';
 import { Emitter, Event } from '../event.js';
 import { Disposable, IDisposable } from '../lifecycle.js';
-import { AppResourcePath, FileAccess } from '../network.js';
 import { isWeb } from '../platform.js';
 import * as strings from '../strings.js';
 import { URI } from '../uri.js';
@@ -25,7 +24,7 @@ export interface IWorkerCallback {
 }
 
 export interface IWorkerFactory {
-	create(modules: IWorkerDescriptor, callback: IWorkerCallback, onErrorCallback: (err: any) => void): IWorker;
+	create(modules: IWorkerDescriptor | Worker, callback: IWorkerCallback, onErrorCallback: (err: any) => void): IWorker;
 }
 
 export interface IWorkerDescriptor {
@@ -326,15 +325,15 @@ export class SimpleWorkerClient<W extends object> extends Disposable implements 
 
 	constructor(
 		workerFactory: IWorkerFactory,
-		workerDescriptor: IWorkerDescriptor,
+		workerDescriptorOrWorker: IWorkerDescriptor | Worker,
 	) {
 		super();
 
 		this._worker = this._register(workerFactory.create(
-			{
+			workerDescriptorOrWorker instanceof Worker ? workerDescriptorOrWorker : {
 				moduleId: 'vs/base/common/worker/simpleWorker',
-				esmModuleLocation: workerDescriptor.esmModuleLocation,
-				label: workerDescriptor.label
+				esmModuleLocation: workerDescriptorOrWorker.esmModuleLocation,
+				label: workerDescriptorOrWorker.label
 			},
 			(msg: Message) => {
 				this._protocol.handleMessage(msg);
@@ -359,28 +358,14 @@ export class SimpleWorkerClient<W extends object> extends Disposable implements 
 		});
 		this._protocol.setWorkerId(this._worker.getId());
 
-		// Gather loader configuration
-		let loaderConfiguration: any = null;
-
-		const globalRequire: { getConfig?(): object } | undefined = (globalThis as any).require;
-		if (typeof globalRequire !== 'undefined' && typeof globalRequire.getConfig === 'function') {
-			// Get the configuration from the Monaco AMD Loader
-			loaderConfiguration = globalRequire.getConfig();
-		} else if (typeof (globalThis as any).requirejs !== 'undefined') {
-			// Get the configuration from requirejs
-			loaderConfiguration = (globalThis as any).requirejs.s.contexts._.config;
-		}
-
 		// Send initialize message
 		this._onModuleLoaded = this._protocol.sendMessage(DEFAULT_CHANNEL, INITIALIZE, [
 			this._worker.getId(),
-			JSON.parse(JSON.stringify(loaderConfiguration)),
-			workerDescriptor.moduleId,
 		]);
 
 		this.proxy = this._protocol.createProxyToRemoteChannel(DEFAULT_CHANNEL, async () => { await this._onModuleLoaded; });
 		this._onModuleLoaded.catch((e) => {
-			this._onError('Worker failed to load ' + workerDescriptor.moduleId, e);
+			this._onError('Worker failed to load ', e);
 		});
 	}
 
@@ -455,24 +440,21 @@ export interface IRequestHandler {
 	[prop: string]: any;
 }
 
-export interface IRequestHandlerFactory {
-	(workerServer: IWorkerServer): IRequestHandler;
+export interface IRequestHandlerFactory<T extends IRequestHandler> {
+	(workerServer: IWorkerServer): T;
 }
 
 /**
  * Worker side
  */
-export class SimpleWorkerServer implements IWorkerServer {
+export class SimpleWorkerServer<T extends IRequestHandler> implements IWorkerServer {
 
-	private _requestHandlerFactory: IRequestHandlerFactory | null;
-	private _requestHandler: IRequestHandler | null;
+	public readonly requestHandler: T;
 	private _protocol: SimpleWorkerProtocol;
 	private readonly _localChannels: Map<string, object> = new Map();
 	private readonly _remoteChannels: Map<string, object> = new Map();
 
-	constructor(postMessage: (msg: Message, transfer?: ArrayBuffer[]) => void, requestHandlerFactory: IRequestHandlerFactory | null) {
-		this._requestHandlerFactory = requestHandlerFactory;
-		this._requestHandler = null;
+	constructor(postMessage: (msg: Message, transfer?: ArrayBuffer[]) => void, requestHandlerFactory: IRequestHandlerFactory<T>) {
 		this._protocol = new SimpleWorkerProtocol({
 			sendMessage: (msg: any, transfer: ArrayBuffer[]): void => {
 				postMessage(msg, transfer);
@@ -480,6 +462,7 @@ export class SimpleWorkerServer implements IWorkerServer {
 			handleMessage: (channel: string, method: string, args: any[]): Promise<any> => this._handleMessage(channel, method, args),
 			handleEvent: (channel: string, eventName: string, arg: any): Event<any> => this._handleEvent(channel, eventName, arg)
 		});
+		this.requestHandler = requestHandlerFactory(this);
 	}
 
 	public onmessage(msg: any): void {
@@ -488,10 +471,10 @@ export class SimpleWorkerServer implements IWorkerServer {
 
 	private _handleMessage(channel: string, method: string, args: any[]): Promise<any> {
 		if (channel === DEFAULT_CHANNEL && method === INITIALIZE) {
-			return this.initialize(<number>args[0], <any>args[1], <string>args[2]);
+			return this.initialize(<number>args[0]);
 		}
 
-		const requestHandler: object | null | undefined = (channel === DEFAULT_CHANNEL ? this._requestHandler : this._localChannels.get(channel));
+		const requestHandler: object | null | undefined = (channel === DEFAULT_CHANNEL ? this.requestHandler : this._localChannels.get(channel));
 		if (!requestHandler) {
 			return Promise.reject(new Error(`Missing channel ${channel} on worker thread`));
 		}
@@ -507,7 +490,7 @@ export class SimpleWorkerServer implements IWorkerServer {
 	}
 
 	private _handleEvent(channel: string, eventName: string, arg: any): Event<any> {
-		const requestHandler: object | null | undefined = (channel === DEFAULT_CHANNEL ? this._requestHandler : this._localChannels.get(channel));
+		const requestHandler: object | null | undefined = (channel === DEFAULT_CHANNEL ? this.requestHandler : this._localChannels.get(channel));
 		if (!requestHandler) {
 			throw new Error(`Missing channel ${channel} on worker thread`);
 		}
@@ -540,50 +523,7 @@ export class SimpleWorkerServer implements IWorkerServer {
 		return this._remoteChannels.get(channel) as Proxied<T>;
 	}
 
-	private async initialize(workerId: number, loaderConfig: any, moduleId: string): Promise<void> {
+	private async initialize(workerId: number): Promise<void> {
 		this._protocol.setWorkerId(workerId);
-
-		if (this._requestHandlerFactory) {
-			// static request handler
-			this._requestHandler = this._requestHandlerFactory(this);
-			return;
-		}
-
-		if (loaderConfig) {
-			// Remove 'baseUrl', handling it is beyond scope for now
-			if (typeof loaderConfig.baseUrl !== 'undefined') {
-				delete loaderConfig['baseUrl'];
-			}
-			if (typeof loaderConfig.paths !== 'undefined') {
-				if (typeof loaderConfig.paths.vs !== 'undefined') {
-					delete loaderConfig.paths['vs'];
-				}
-			}
-			if (typeof loaderConfig.trustedTypesPolicy !== 'undefined') {
-				// don't use, it has been destroyed during serialize
-				delete loaderConfig['trustedTypesPolicy'];
-			}
-
-			// Since this is in a web worker, enable catching errors
-			loaderConfig.catchError = true;
-			(globalThis as any).require.config(loaderConfig);
-		}
-
-		const url = FileAccess.asBrowserUri(`${moduleId}.js` as AppResourcePath).toString(true);
-		return import(`${url}`).then((module: { create: IRequestHandlerFactory }) => {
-			this._requestHandler = module.create(this);
-
-			if (!this._requestHandler) {
-				throw new Error(`No RequestHandler!`);
-			}
-		});
 	}
-}
-
-/**
- * Defines the worker entry point. Must be exported and named `create`.
- * @skipMangle
- */
-export function create(postMessage: (msg: Message, transfer?: ArrayBuffer[]) => void): SimpleWorkerServer {
-	return new SimpleWorkerServer(postMessage, null);
 }

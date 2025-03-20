@@ -116,20 +116,22 @@ function isPromiseLike<T>(obj: any): obj is PromiseLike<T> {
 class WebWorker extends Disposable implements IWorker {
 
 	private readonly id: number;
-	private readonly label: string;
 	private worker: Promise<Worker> | null;
 
-	constructor(esmWorkerLocation: URI | undefined, moduleId: string, id: number, label: string, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void) {
+	constructor(descriptorOrWorker: IWorkerDescriptor | Worker, id: number, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void) {
 		super();
 		this.id = id;
-		this.label = label;
-		const workerOrPromise = getWorker(esmWorkerLocation, label);
+		const workerOrPromise = (
+			descriptorOrWorker instanceof Worker
+				? descriptorOrWorker
+				: getWorker(descriptorOrWorker.esmModuleLocation, descriptorOrWorker.label || 'anonymous' + id)
+		);
 		if (isPromiseLike(workerOrPromise)) {
 			this.worker = workerOrPromise;
 		} else {
 			this.worker = Promise.resolve(workerOrPromise);
 		}
-		this.postMessage(moduleId, []);
+		this.postMessage(descriptorOrWorker instanceof Worker ? '-please-ignore-' : descriptorOrWorker.moduleId, []);
 		this.worker.then((w) => {
 			w.onmessage = function (ev) {
 				onMessageCallback(ev.data);
@@ -160,7 +162,7 @@ class WebWorker extends Disposable implements IWorker {
 				w.postMessage(message, transfer);
 			} catch (err) {
 				onUnexpectedError(err);
-				onUnexpectedError(new Error(`FAILED to post message to '${this.label}'-worker`, { cause: err }));
+				onUnexpectedError(new Error(`FAILED to post message to worker`, { cause: err }));
 			}
 		});
 	}
@@ -187,14 +189,14 @@ class DefaultWorkerFactory implements IWorkerFactory {
 		this._webWorkerFailedBeforeError = false;
 	}
 
-	public create(desc: IWorkerDescriptor, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void): IWorker {
+	public create(descOrWorker: IWorkerDescriptor | Worker, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void): IWorker {
 		const workerId = (++DefaultWorkerFactory.LAST_WORKER_ID);
 
 		if (this._webWorkerFailedBeforeError) {
 			throw this._webWorkerFailedBeforeError;
 		}
 
-		return new WebWorker(desc.esmModuleLocation, desc.moduleId, workerId, desc.label || 'anonymous' + workerId, onMessageCallback, (err) => {
+		return new WebWorker(descOrWorker, workerId, onMessageCallback, (err) => {
 			logOnceWebWorkerWarning(err);
 			this._webWorkerFailedBeforeError = err;
 			onErrorCallback(err);
@@ -203,8 +205,8 @@ class DefaultWorkerFactory implements IWorkerFactory {
 }
 
 export function createWebWorker<T extends object>(moduleId: string, label: string | undefined): IWorkerClient<T>;
-export function createWebWorker<T extends object>(workerDescriptor: IWorkerDescriptor): IWorkerClient<T>;
-export function createWebWorker<T extends object>(arg0: string | IWorkerDescriptor, arg1?: string | undefined): IWorkerClient<T> {
-	const workerDescriptor = (typeof arg0 === 'string' ? new WorkerDescriptor(arg0, arg1) : arg0);
-	return new SimpleWorkerClient<T>(new DefaultWorkerFactory(), workerDescriptor);
+export function createWebWorker<T extends object>(workerDescriptor: IWorkerDescriptor | Worker): IWorkerClient<T>;
+export function createWebWorker<T extends object>(arg0: string | IWorkerDescriptor | Worker, arg1?: string | undefined): IWorkerClient<T> {
+	const workerDescriptorOrWorker = (typeof arg0 === 'string' ? new WorkerDescriptor(arg0, arg1) : arg0);
+	return new SimpleWorkerClient<T>(new DefaultWorkerFactory(), workerDescriptorOrWorker);
 }
