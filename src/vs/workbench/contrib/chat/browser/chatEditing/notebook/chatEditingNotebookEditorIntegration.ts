@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Emitter } from '../../../../../../base/common/event.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { debouncedObservable } from '../../../../../../base/common/observableInternal/utils.js';
 import { basename } from '../../../../../../base/common/resources.js';
@@ -25,6 +26,7 @@ import { getNotebookEditorFromEditorPane, ICellViewModel, INotebookEditor } from
 import { INotebookEditorService } from '../../../../notebook/browser/services/notebookEditorService.js';
 import { NotebookCellTextModel } from '../../../../notebook/common/model/notebookCellTextModel.js';
 import { NotebookTextModel } from '../../../../notebook/common/model/notebookTextModel.js';
+import { CellKind } from '../../../../notebook/common/notebookCommon.js';
 import { IChatAgentService } from '../../../common/chatAgents.js';
 import { IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration } from '../../../common/chatEditingService.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
@@ -82,6 +84,11 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 	toggleDiff(change: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
 		return this.integration.toggleDiff(change);
 	}
+
+	public override dispose(): void {
+		this.integration.dispose();
+		super.dispose();
+	}
 }
 
 class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements IModifiedFileEntryEditorIntegration {
@@ -96,6 +103,11 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 	private modifiedCellDecorator: NotebookModifiedCellDecorator | undefined;
 
 	private readonly cellEditorIntegrations = new Map<NotebookCellTextModel, { integration: ChatEditingCodeEditorIntegration; diff: ISettableObservable<IDocumentDiff2> }>();
+
+	private readonly cellEditorAttached = this._register(new Emitter<number>());
+	private readonly cellEditorAttachObs = observableFromEvent(this.cellEditorAttached.event, (cellHandle) => cellHandle);
+
+	private markupCellListeners = new Map<number, IDisposable>();
 
 	constructor(
 		private readonly _entry: ChatEditingModifiedNotebookEntry,
@@ -112,6 +124,10 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 		super();
 
 		const onDidChangeVisibleRanges = debouncedObservable(observableFromEvent(notebookEditor.onDidChangeVisibleRanges, () => notebookEditor.visibleRanges), 50);
+
+		this._register(toDisposable(() => {
+			this.markupCellListeners.forEach((v) => v.dispose());
+		}));
 
 		let originalReadonly: boolean | undefined = undefined;
 		const shouldBeReadonly = _entry.isCurrentlyBeingModifiedBy.map(value => !!value);
@@ -175,6 +191,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 				});
 				return;
 			}
+			this.cellEditorAttachObs.read(r);
 
 			const validCells = new Set<NotebookCellTextModel>();
 			changes.forEach((change) => {
@@ -185,7 +202,23 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 				const editor = notebookEditor.codeEditors.find(([vm,]) => vm.handle === notebookModel.cells[change.modifiedCellIndex].handle)?.[1];
 				const modifiedModel = change.modifiedModel.promiseResult.read(r)?.data;
 				const originalModel = change.originalModel.promiseResult.read(r)?.data;
-				if (!editor || !cell || !originalModel || !modifiedModel) {
+				if (!cell || !originalModel || !modifiedModel) {
+					return;
+				}
+				if (!editor) {
+					if (!this.markupCellListeners.has(cell.handle) && cell.cellKind === CellKind.Markup) {
+						const cellModel = this.notebookEditor.getViewModel()?.viewCells.find(c => c.handle === cell.handle);
+						if (cellModel) {
+							const listener = cellModel.onDidChangeEditorAttachState(() => {
+								if (cellModel.editorAttached) {
+									this.cellEditorAttached.fire(cell.handle);
+									listener.dispose();
+									this.markupCellListeners.delete(cell.handle);
+								}
+							});
+							this.markupCellListeners.set(cell.handle, listener);
+						}
+					}
 					return;
 				}
 				const diff = {
