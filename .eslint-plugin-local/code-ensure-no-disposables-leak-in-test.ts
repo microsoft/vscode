@@ -27,7 +27,7 @@ export = new class EnsureNoDisposablesAreLeakedInTestSuite implements eslint.Rul
 
 		return {
 			[`Program > ExpressionStatement > CallExpression[callee.name='suite']`]: (node: Node) => {
-				const src = context.getSourceCode().getText(node)
+				const src = context.getSourceCode().getText(node);
 				if (!src.includes('ensureNoDisposablesAreLeakedInTestSuite(')) {
 					context.report({
 						node,
