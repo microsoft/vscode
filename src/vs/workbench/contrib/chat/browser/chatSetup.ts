@@ -159,7 +159,7 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 				extensionPublisherId: nullExtensionDescription.publisher
 			}));
 
-			const agent = disposable.add(instantiationService.createInstance(SetupChatAgentImplementation, context, controller));
+			const agent = disposable.add(instantiationService.createInstance(SetupChatAgentImplementation, context, controller, location));
 			disposable.add(chatAgentService.registerAgentImplementation(id, agent));
 
 			return { agent, disposable };
@@ -174,6 +174,7 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 	constructor(
 		private readonly context: ChatEntitlementContext,
 		private readonly controller: Lazy<ChatSetupController>,
+		private readonly location: ChatAgentLocation,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -187,20 +188,21 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 			const chatService = accessor.get(IChatService);						// use accessor for lazy loading
 			const languageModelsService = accessor.get(ILanguageModelsService);	// of chat related services
 			const chatWidgetService = accessor.get(IChatWidgetService);
+			const chatAgentService = accessor.get(IChatAgentService);
 
-			return this.doInvoke(request, progress, chatService, languageModelsService, chatWidgetService);
+			return this.doInvoke(request, progress, chatService, languageModelsService, chatWidgetService, chatAgentService);
 		});
 	}
 
-	private async doInvoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService): Promise<IChatAgentResult> {
+	private async doInvoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService, chatAgentService: IChatAgentService): Promise<IChatAgentResult> {
 		if (this.context.state.installed && (this.context.state.entitlement === ChatEntitlement.Pro || this.context.state.entitlement === ChatEntitlement.Limited)) {
-			return this.doInvokeWithoutSetup(request, progress, chatService, languageModelsService, chatWidgetService);
+			return this.doInvokeWithoutSetup(request, progress, chatService, languageModelsService, chatWidgetService, chatAgentService);
 		}
 
-		return this.doInvokeWithSetup(request, progress, chatService, languageModelsService, chatWidgetService);
+		return this.doInvokeWithSetup(request, progress, chatService, languageModelsService, chatWidgetService, chatAgentService);
 	}
 
-	private async doInvokeWithoutSetup(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService): Promise<IChatAgentResult> {
+	private async doInvokeWithoutSetup(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService, chatAgentService: IChatAgentService): Promise<IChatAgentResult> {
 		const requestModel = chatWidgetService.getWidgetBySessionId(request.sessionId)?.viewModel?.model.getRequests().at(-1);
 		if (!requestModel) {
 			this.logService.error('[chat setup] Request model not found, cannot redispatch request.');
@@ -212,34 +214,24 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 			content: new MarkdownString(localize('waitingCopilot', "Getting Copilot ready.")),
 		});
 
-		await this.forwardRequestToCopilot(requestModel, progress, chatService, languageModelsService);
+		await this.forwardRequestToCopilot(requestModel, progress, chatService, languageModelsService, chatAgentService);
 
 		return {};
 	}
 
-	private async forwardRequestToCopilot(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService): Promise<void> {
+	private async forwardRequestToCopilot(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService): Promise<void> {
 
 		// We need a signal to know when we can resend the request to
 		// Copilot. Waiting for the registration of the agent is not
 		// enough, we also need a language model to be available.
 
-		// !!!!!!!!!!!!!!!!!!!
-		// TODO make sure we await an extension provided one here given new APIs in agent service!
-		// !!!!!!!!!!!!!!!!!!!
+		const whenLanguageModelReady = this.whenLanguageModelReady(languageModelsService);
+		const whenAgentReady = this.whenAgentReady(chatAgentService);
 
-		let isCopilotReady = false;
-		for (const id of languageModelsService.getLanguageModelIds()) {
-			const model = languageModelsService.lookupLanguageModel(id);
-			if (model && model.isDefault) {
-				isCopilotReady = true;
-				break;
-			}
-		}
-
-		if (!isCopilotReady) {
+		if (whenLanguageModelReady instanceof Promise || whenAgentReady instanceof Promise) {
 			const hasDefaultModel = await Promise.race([
 				timeout(10000),
-				Event.toPromise(Event.filter(languageModelsService.onDidChangeLanguageModels, e => e.added?.some(added => added.metadata.isDefault) ?? false))
+				Promise.allSettled([whenLanguageModelReady, whenAgentReady])
 			]);
 
 			if (!hasDefaultModel) {
@@ -258,7 +250,30 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 		chatService.resendRequest(requestModel);
 	}
 
-	private async doInvokeWithSetup(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService): Promise<IChatAgentResult> {
+	private whenLanguageModelReady(languageModelsService: ILanguageModelsService): Promise<unknown> | void {
+		for (const id of languageModelsService.getLanguageModelIds()) {
+			const model = languageModelsService.lookupLanguageModel(id);
+			if (model && model.isDefault) {
+				return; // we have language models!
+			}
+		}
+
+		return Event.toPromise(Event.filter(languageModelsService.onDidChangeLanguageModels, e => e.added?.some(added => added.metadata.isDefault) ?? false));
+	}
+
+	private whenAgentReady(chatAgentService: IChatAgentService): Promise<unknown> | void {
+		const defaultAgent = chatAgentService.getDefaultAgent(this.location);
+		if (defaultAgent && !defaultAgent.isCore) {
+			return; // we have a default agent from an extension!
+		}
+
+		return Event.toPromise(Event.filter(chatAgentService.onDidChangeAgents, () => {
+			const defaultAgent = chatAgentService.getDefaultAgent(this.location);
+			return Boolean(defaultAgent && !defaultAgent.isCore);
+		}));
+	}
+
+	private async doInvokeWithSetup(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService, chatAgentService: IChatAgentService): Promise<IChatAgentResult> {
 		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'chat' });
 
 		const requestModel = chatWidgetService.getWidgetBySessionId(request.sessionId)?.viewModel?.model.getRequests().at(-1);
@@ -293,7 +308,7 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 		if (typeof success === 'boolean') {
 			if (success) {
 				if (requestModel) {
-					await this.forwardRequestToCopilot(requestModel, progress, chatService, languageModelsService);
+					await this.forwardRequestToCopilot(requestModel, progress, chatService, languageModelsService, chatAgentService);
 				}
 			} else {
 				progress({
