@@ -16,9 +16,9 @@ declare const globalThis: {
 
 let initialized = false;
 
-function initialize<T extends IRequestHandler>(factory: IRequestHandlerFactory<T>) {
+export function initialize<T extends IRequestHandler>(factory: IRequestHandlerFactory<T>) {
 	if (initialized) {
-		return;
+		throw new Error('SimpleWorker already initialized!');
 	}
 	initialized = true;
 
@@ -30,6 +30,8 @@ function initialize<T extends IRequestHandler>(factory: IRequestHandlerFactory<T
 	globalThis.onmessage = (e: MessageEvent) => {
 		simpleWorker.onmessage(e.data);
 	};
+
+	return simpleWorker;
 }
 
 export function bootstrapSimpleWorker(factory: IRequestHandlerFactory<any>) {
