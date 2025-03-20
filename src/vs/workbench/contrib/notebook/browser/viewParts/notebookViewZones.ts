@@ -236,7 +236,8 @@ class ToggleNotebookViewZoneDeveloperAction extends Action2 {
 		if (ToggleNotebookViewZoneDeveloperAction.viewZoneIds.length > 0) {
 			// remove all view zones
 			editor.changeViewZones(accessor => {
-				ToggleNotebookViewZoneDeveloperAction.viewZoneIds.forEach(id => {
+				// remove all view zones in reverse order, to follow how we handle this in the prod code
+				ToggleNotebookViewZoneDeveloperAction.viewZoneIds.reverse().forEach(id => {
 					accessor.removeZone(id);
 				});
 				ToggleNotebookViewZoneDeveloperAction.viewZoneIds = [];
@@ -255,7 +256,7 @@ class ToggleNotebookViewZoneDeveloperAction extends Action2 {
 					domNode.style.backgroundColor = 'rgba(0, 255, 0, 0.5)';
 					const viewZoneId = accessor.addZone({
 						afterModelPosition: i,
-						heightInPx: 100,
+						heightInPx: 200,
 						domNode: domNode,
 					});
 					viewZoneIds.push(viewZoneId);
