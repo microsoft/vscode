@@ -75,6 +75,10 @@ export class BaseEditorSimpleWorker implements IDisposable, IWorkerTextModelSync
 	dispose(): void {
 	}
 
+	public async $ping() {
+		return 'pong';
+	}
+
 	protected _getModel(uri: string): ICommonModel | undefined {
 		return this._workerTextModelSyncServer.getModel(uri);
 	}
@@ -508,10 +512,6 @@ export class EditorSimpleWorker extends BaseEditorSimpleWorker {
 		private readonly _foreignModule: any | null
 	) {
 		super();
-	}
-
-	public async $ping() {
-		return 'pong';
 	}
 
 	// foreign method request
