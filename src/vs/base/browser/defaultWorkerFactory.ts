@@ -116,6 +116,8 @@ function isPromiseLike<T>(obj: any): obj is PromiseLike<T> {
  */
 class WebWorker extends Disposable implements IWorker {
 
+	private static LAST_WORKER_ID = 0;
+
 	private readonly id: number;
 	private worker: Promise<Worker> | null;
 
@@ -125,20 +127,20 @@ class WebWorker extends Disposable implements IWorker {
 	private readonly _onError = this._register(new Emitter<any>());
 	public readonly onError = this._onError.event;
 
-	constructor(descriptorOrWorker: IWorkerDescriptor | Worker, id: number) {
+	constructor(descriptorOrWorker: IWorkerDescriptor | Worker) {
 		super();
-		this.id = id;
+		this.id = ++WebWorker.LAST_WORKER_ID;
 		const workerOrPromise = (
 			descriptorOrWorker instanceof Worker
 				? descriptorOrWorker
-				: getWorker(descriptorOrWorker.esmModuleLocation, descriptorOrWorker.label || 'anonymous' + id)
+				: getWorker(descriptorOrWorker.esmModuleLocation, descriptorOrWorker.label || 'anonymous' + this.id)
 		);
 		if (isPromiseLike(workerOrPromise)) {
 			this.worker = workerOrPromise;
 		} else {
 			this.worker = Promise.resolve(workerOrPromise);
 		}
-		this.postMessage(descriptorOrWorker instanceof Worker ? '-please-ignore-' : descriptorOrWorker.moduleId, []);
+		this.postMessage('-please-ignore-', []); // TODO: Eliminate this extra message
 		const errorHandler = (ev: ErrorEvent) => {
 			this._onError.fire(ev);
 		};
@@ -192,18 +194,9 @@ export class WorkerDescriptor implements IWorkerDescriptor {
 	}
 }
 
-let LAST_WORKER_ID = 0;
-
 export function createWebWorker<T extends object>(moduleId: string, label: string | undefined): IWorkerClient<T>;
 export function createWebWorker<T extends object>(workerDescriptor: IWorkerDescriptor | Worker): IWorkerClient<T>;
 export function createWebWorker<T extends object>(arg0: string | IWorkerDescriptor | Worker, arg1?: string | undefined): IWorkerClient<T> {
-	const workerDescriptorOrWorker1 = (typeof arg0 === 'string' ? new WorkerDescriptor(arg0, arg1) : arg0);
-	const workerDescriptorOrWorker2 = workerDescriptorOrWorker1 instanceof Worker ? workerDescriptorOrWorker1 : {
-		moduleId: 'vs/base/common/worker/simpleWorker',
-		esmModuleLocation: workerDescriptorOrWorker1.esmModuleLocation,
-		label: workerDescriptorOrWorker1.label
-	};
-	const workerId = (++LAST_WORKER_ID);
-	const worker = new WebWorker(workerDescriptorOrWorker2, workerId);
-	return new SimpleWorkerClient<T>(worker);
+	const workerDescriptorOrWorker = (typeof arg0 === 'string' ? new WorkerDescriptor(arg0, arg1) : arg0);
+	return new SimpleWorkerClient<T>(new WebWorker(workerDescriptorOrWorker));
 }

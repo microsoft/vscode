@@ -22,7 +22,6 @@ export interface IWorker extends IDisposable {
 }
 
 export interface IWorkerDescriptor {
-	readonly moduleId: string;
 	readonly esmModuleLocation: URI | undefined;
 	readonly label: string | undefined;
 }
