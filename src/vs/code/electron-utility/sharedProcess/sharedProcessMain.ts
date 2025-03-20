@@ -376,7 +376,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		// Remote Tunnel
 		services.set(IRemoteTunnelService, new SyncDescriptor(RemoteTunnelService));
 
-		// Web Extract
+		// Web Content Extractor
 		services.set(ISharedWebContentExtractorService, new SyncDescriptor(SharedWebContentExtractorService));
 
 		return new InstantiationService(services);
