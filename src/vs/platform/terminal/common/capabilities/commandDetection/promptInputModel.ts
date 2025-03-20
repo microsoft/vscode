@@ -291,9 +291,6 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 				commandLine = line.translateToString(true);
 				cursorIndex = absoluteCursorY === commandStartY ? buffer.cursorX : commandLine?.trimEnd().length;
 			}
-			if (commandLine === undefined || !line) {
-				return;
-			}
 		}
 		if (line === undefined || commandLine === undefined) {
 			this._logService.trace(`PromptInputModel#_sync: no line`);
