@@ -15,6 +15,8 @@ import { HTMLDocumentRegions } from './embeddedSupport';
 
 import * as ts from 'typescript';
 import { getSemanticTokens, getSemanticTokenLegend } from './javascriptSemanticTokens';
+import path from 'path';
+import fs from 'fs';
 
 const JS_WORD_REGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;
 
@@ -302,11 +304,19 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			const jsLanguageService = await host.getLanguageService(jsDocument);
 			const definition = jsLanguageService.getDefinitionAtPosition(jsDocument.uri, jsDocument.offsetAt(position));
 			if (definition) {
-				return definition.filter(d => d.fileName === jsDocument.uri).map(d => {
-					return {
-						uri: document.uri,
-						range: convertRange(jsDocument, d.textSpan)
-					};
+				return definition.filter(d => d.fileName === jsDocument.uri || d.fileName === 'lib.dom.d.ts').map(d => {
+					if (d.fileName === jsDocument.uri) {
+						return {
+							uri: document.uri,
+							range: convertRange(jsDocument, d.textSpan)
+						};
+					} else {
+						const [libDomUri, libDomDocument] = getLibDomUriAndDocument();
+						return {
+							uri: libDomUri,
+							range: convertRange(libDomDocument, d.textSpan)
+						};
+					}
 				});
 			}
 			return null;
@@ -600,4 +610,12 @@ function generateIndent(level: number, options: FormattingOptions) {
 	} else {
 		return repeat('\t', level);
 	}
+}
+
+function getLibDomUriAndDocument(): [string, TextDocument] {
+	const folderName = path.dirname(path.dirname(path.dirname(path.dirname(__dirname))));
+	const filepath = path.resolve(folderName, 'node_modules', 'typescript', 'lib', 'lib.dom.d.ts');
+	const fileUri = `file:///${filepath}`;
+	const content = fs.readFileSync(filepath, 'utf8');
+	return [fileUri, TextDocument.create(fileUri, 'typescript', 1, content)];
 }
