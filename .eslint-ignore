@@ -14,6 +14,7 @@
 **/extensions/simple-browser/media/index.js
 **/extensions/terminal-suggest/src/completions/upstream/**
 **/extensions/terminal-suggest/src/shell/zshBuiltinsCache.ts
+**/extensions/terminal-suggest/src/shell/fishBuiltinsCache.ts
 **/extensions/terminal-suggest/third_party/**
 **/extensions/typescript-language-features/test-workspace/**
 **/extensions/typescript-language-features/extension.webpack.config.js
@@ -36,4 +37,5 @@
 **/test/unit/assert.js
 **/test/automation/out/**
 **/typings/**
+**/.build/**
 !.vscode

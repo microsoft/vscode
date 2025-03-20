@@ -109,6 +109,8 @@ end
 # Sent when a command line is cleared or reset, but no command was run.
 # Marks the cleared line with neither success nor failure.
 function __vsc_cmd_clear --on-event fish_cancel
+	__vsc_esc E "" $__vsc_nonce
+	__vsc_esc C
 	__vsc_esc D
 end
 
@@ -207,4 +209,8 @@ function __init_vscode_shell_integration
 		end
 	end
 end
+
+# Report this shell supports rich command detection
+__vsc_esc P HasRichCommandDetection=True
+
 __preserve_fish_prompt

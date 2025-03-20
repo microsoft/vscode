@@ -192,21 +192,23 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		}
 
 		if (useWindowControlsOverlay(configurationService)) {
+			if (isMacintosh) {
+				options.titleBarOverlay = true;
+			} else {
 
-			// This logic will not perfectly guess the right colors
-			// to use on initialization, but prefer to keep things
-			// simple as it is temporary and not noticeable
-			// On macOS, only the presence of `titleBarOverlay` is
-			// considered, the properties are ignored.
+				// This logic will not perfectly guess the right colors
+				// to use on initialization, but prefer to keep things
+				// simple as it is temporary and not noticeable
 
-			const titleBarColor = themeMainService.getWindowSplash(undefined)?.colorInfo.titleBarBackground ?? themeMainService.getBackgroundColor();
-			const symbolColor = Color.fromHex(titleBarColor).isDarker() ? '#FFFFFF' : '#000000';
+				const titleBarColor = themeMainService.getWindowSplash(undefined)?.colorInfo.titleBarBackground ?? themeMainService.getBackgroundColor();
+				const symbolColor = Color.fromHex(titleBarColor).isDarker() ? '#FFFFFF' : '#000000';
 
-			options.titleBarOverlay = {
-				height: 29, // the smallest size of the title bar on windows accounting for the border on windows 11
-				color: titleBarColor,
-				symbolColor
-			};
+				options.titleBarOverlay = {
+					height: 29, // the smallest size of the title bar on windows accounting for the border on windows 11
+					color: titleBarColor,
+					symbolColor
+				};
+			}
 		}
 	}
 
@@ -376,4 +378,15 @@ export namespace WindowStateValidator {
 
 		return undefined;
 	}
+}
+
+/**
+ * We have some components like `NativeWebContentExtractorService` that create offscreen windows
+ * to extract content from web pages. These windows are not visible to the user and are not
+ * considered part of the main application window. This function filters out those offscreen
+ * windows from the list of all windows.
+ * @returns An array of all BrowserWindow instances that are not offscreen.
+ */
+export function getAllWindowsExcludingOffscreen() {
+	return electron.BrowserWindow.getAllWindows().filter(win => !win.webContents.isOffscreen());
 }

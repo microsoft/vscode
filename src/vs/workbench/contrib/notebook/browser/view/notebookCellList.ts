@@ -1036,7 +1036,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			}
 
 			const editorAttachedPromise = new Promise<void>((resolve, reject) => {
-				element.onDidChangeEditorAttachState(() => {
+				Event.once(element.onDidChangeEditorAttachState)(() => {
 					element.editorAttached ? resolve() : reject();
 				});
 			});
@@ -1168,7 +1168,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const wrapperBottom = this.getViewScrollBottom();
 
 		if (offset < scrollTop || offset > wrapperBottom) {
-			this.view.setScrollTop(offset - this.view.renderHeight / 2);
+			const newTop = Math.max(0, offset - this.view.renderHeight / 2);
+			this.view.setScrollTop(newTop);
 		}
 	}
 
@@ -1265,6 +1266,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 	}
 
+	getViewZoneLayoutInfo(viewZoneId: string): { height: number; top: number } | null {
+		return this.viewZones.getViewZoneLayoutInfo(viewZoneId);
+	}
+
 	// override
 	override domFocus() {
 		const focused = this.getFocusedElements()[0];
@@ -1346,14 +1351,14 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		if (styles.listFocusAndSelectionBackground) {
 			content.push(`
-				.monaco-drag-image,
+				.monaco-drag-image${suffix},
 				.monaco-list${suffix}:focus > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected.focused { background-color: ${styles.listFocusAndSelectionBackground}; }
 			`);
 		}
 
 		if (styles.listFocusAndSelectionForeground) {
 			content.push(`
-				.monaco-drag-image,
+				.monaco-drag-image${suffix},
 				.monaco-list${suffix}:focus > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected.focused { color: ${styles.listFocusAndSelectionForeground}; }
 			`);
 		}
@@ -1386,7 +1391,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		if (styles.listFocusOutline) {
 			content.push(`
-				.monaco-drag-image,
+				.monaco-drag-image${suffix},
 				.monaco-list${suffix}:focus > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }
 			`);
 		}

@@ -82,7 +82,7 @@ const getGlobalPackagesGenerator: Fig.Generator = {
 				name: dependencyName,
 				icon: "📦",
 			}));
-		} catch (e) { }
+		} catch (e) {}
 
 		return [];
 	},
@@ -101,7 +101,7 @@ const allDependenciesGenerator: Fig.Generator = {
 				name: dependency.name.split("@")[0],
 				icon: "📦",
 			}));
-		} catch (e) { }
+		} catch (e) {}
 		return [];
 	},
 };
@@ -127,7 +127,7 @@ const configList: Fig.Generator = {
 			if (configObject) {
 				return Object.keys(configObject).map((key) => ({ name: key }));
 			}
-		} catch (e) { }
+		} catch (e) {}
 
 		return [];
 	},
@@ -367,7 +367,7 @@ export const createCLIsGenerator: Fig.Generator = {
 	postProcess: function (out) {
 		try {
 			return JSON.parse(out).results.map(
-				(item: any) =>
+				(item: { package: { name: string; description: string } }) =>
 					({
 						name: item.package.name.substring(7),
 						description: item.package.description,
@@ -1550,9 +1550,9 @@ const completionSpec: Fig.Spec = {
 				try {
 					const workspacesDefinitions = isYarnV1
 						? // transform Yarn V1 output to array of workspaces like Yarn V2
-						await getWorkspacesDefinitionsV1()
+							await getWorkspacesDefinitionsV1()
 						: // in yarn v>=2.0.0, workspaces definitions are a list of JSON lines
-						await getWorkspacesDefinitionsVOther();
+							await getWorkspacesDefinitionsVOther();
 
 					const subcommands: Fig.Subcommand[] = workspacesDefinitions.map(
 						({ name, location }: { name: string; location: string }) => ({
@@ -1578,7 +1578,7 @@ const completionSpec: Fig.Spec = {
 													name: script,
 												}));
 											}
-										} catch (e) { }
+										} catch (e) {}
 										return [];
 									},
 								},

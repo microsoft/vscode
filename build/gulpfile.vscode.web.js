@@ -19,7 +19,7 @@ const filter = require('gulp-filter');
 const { getProductionDependencies } = require('./lib/dependencies');
 const vfs = require('vinyl-fs');
 const packageJson = require('../package.json');
-const { compileBuildTask } = require('./gulpfile.compile');
+const { compileBuildWithManglingTask } = require('./gulpfile.compile');
 const extensions = require('./lib/extensions');
 const VinylFile = require('vinyl');
 
@@ -51,6 +51,9 @@ const vscodeWebResourceIncludes = [
 
 	// Tree Sitter highlights
 	'out-build/vs/editor/common/languages/highlights/*.scm',
+
+	// Tree Sitter injections
+	'out-build/vs/editor/common/languages/injections/*.scm',
 
 	// Extension Host Worker
 	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
@@ -223,7 +226,7 @@ const dashed = (/** @type {string} */ str) => (str ? `-${str}` : ``);
 	gulp.task(vscodeWebTaskCI);
 
 	const vscodeWebTask = task.define(`vscode-web${dashed(minified)}`, task.series(
-		compileBuildTask,
+		compileBuildWithManglingTask,
 		vscodeWebTaskCI
 	));
 	gulp.task(vscodeWebTask);
