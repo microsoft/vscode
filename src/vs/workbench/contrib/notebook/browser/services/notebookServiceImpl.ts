@@ -48,6 +48,7 @@ import { NotebookMultiDiffEditorInput } from '../diff/notebookMultiDiffEditorInp
 import { SnapshotContext } from '../../../../services/workingCopy/common/fileWorkingCopy.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
+import { ICellRange } from '../../common/notebookRange.js';
 
 export class NotebookProviderInfoStore extends Disposable {
 
@@ -188,9 +189,8 @@ export class NotebookProviderInfoStore extends Disposable {
 					return resource.scheme === Schemas.untitled || resource.scheme === Schemas.vscodeNotebookCell || this._fileService.hasProvider(resource);
 				}
 			};
-			const notebookEditorInputFactory: EditorInputFactoryFunction = ({ resource, options }) => {
+			const notebookEditorInputFactory: EditorInputFactoryFunction = async ({ resource, options }) => {
 				let data;
-				let highlightOptions: number | undefined;
 				if (resource.scheme === Schemas.vscodeNotebookCellOutput) {
 					const outputUriData = CellUri.parseCellOutputUri(resource);
 					if (!outputUriData || !outputUriData.notebook || !outputUriData.cellFragment) {
@@ -200,7 +200,6 @@ export class NotebookProviderInfoStore extends Disposable {
 						notebook: outputUriData.notebook,
 						handle: outputUriData.cellFragment
 					};
-					highlightOptions = outputUriData.outputIndex;
 
 				} else {
 					data = CellUri.parse(resource);
@@ -209,12 +208,10 @@ export class NotebookProviderInfoStore extends Disposable {
 				let notebookUri: URI;
 
 				let cellOptions: IResourceEditorInput | undefined;
-				let preferredResource = resource;
 
 				if (data) {
 					// resource is a notebook cell
 					notebookUri = this.uriIdentService.asCanonicalUri(data.notebook);
-					preferredResource = data.notebook;
 					cellOptions = { resource, options };
 				} else {
 					notebookUri = this.uriIdentService.asCanonicalUri(resource);
@@ -224,13 +221,36 @@ export class NotebookProviderInfoStore extends Disposable {
 					cellOptions = (options as INotebookEditorOptions | undefined)?.cellOptions;
 				}
 
-				const notebookOptions: INotebookEditorOptions = {
-					...options,
-					cellOptions,
-					viewState: undefined,
-				};
-				// TODO: unsure how to focus on an output cell- I can do a regular cell but the output one doesn't seem like there is a specific answer?
-				const editor = NotebookEditorInput.getOrCreate(this._instantiationService, notebookUri, preferredResource, notebookProviderInfo.id);
+				let notebookOptions: INotebookEditorOptions;
+
+				if (resource.scheme === Schemas.vscodeNotebookCellOutput) {
+					if (!data?.handle) {
+						throw new Error('Invalid cell handle');
+					}
+					const cellUri = data?.notebook.with({ fragment: (data.handle).toString() });
+
+					cellOptions = { resource: cellUri, options };
+
+					const cellIndex = await this._notebookEditorModelResolverService.resolve(notebookUri)
+						.then(model => model.object.notebook.cells.findIndex(cell => cell.uri.fragment === cellUri.fragment))
+						.then(index => index >= 0 ? index : 0);
+
+					const cellIndexesToRanges: ICellRange[] = [{ start: cellIndex, end: cellIndex + 1 }];
+
+					notebookOptions = {
+						...options,
+						cellOptions,
+						viewState: undefined,
+						cellSelections: cellIndexesToRanges
+					};
+				} else {
+					notebookOptions = {
+						...options,
+						cellOptions,
+						viewState: undefined,
+					};
+				}
+				const editor = NotebookEditorInput.getOrCreate(this._instantiationService, notebookUri, undefined, notebookProviderInfo.id);
 				return { editor, options: notebookOptions };
 			};
 
@@ -488,6 +508,7 @@ class ModelData implements IDisposable, INotebookDocument {
 	getCellIndex(cellUri: URI): number | undefined {
 		return this.model.cells.findIndex(cell => isEqual(cell.uri, cellUri));
 	}
+
 
 	dispose(): void {
 		this._modelEventListeners.dispose();

@@ -25,7 +25,7 @@ import { IInstantiationService } from '../../platform/instantiation/common/insta
 import { normalizeDriveLetter } from '../../base/common/labels.js';
 import { IRange } from '../../editor/common/core/range.js';
 import { ThemeIcon } from '../../base/common/themables.js';
-import { INotebookDocumentService } from '../services/notebook/common/notebookDocumentService.js';
+import { INotebookDocumentService, parseCellOutputUri } from '../services/notebook/common/notebookDocumentService.js';
 
 export interface IResourceLabelProps {
 	resource?: URI | { primary?: URI; secondary?: URI };
@@ -489,29 +489,37 @@ class ResourceLabelWidget extends IconLabel {
 			}
 		}
 
-		// if (!options.forceLabel && !isSideBySideEditor && resource?.scheme === Schemas.vscodeNotebookCellOutput) {
-		// 	const outputUriData = CellUri.parseCellOutputUri(resource);
-		// 	if (!outputUriData?.notebook || !outputUriData.cellFragment) {
-		// 		return;
-		// 	}
-		// 	const notebookDocument = this.notebookDocumentService.getNotebook(outputUriData.notebook);
-		// 	const cellUri = outputUriData.notebook.with({
-		// 		scheme: Schemas.vscodeNotebookCell,
-		// 		fragment: outputUriData.cellFragment
-		// 	});
-		// 	const cellIndex = notebookDocument?.getCellIndex(cellUri);
-		// 	const outputIndex = outputUriData.outputIndex;
+		if (!options.forceLabel && !isSideBySideEditor && resource?.scheme === Schemas.vscodeNotebookCellOutput) {
+			const notebookDocument = this.notebookDocumentService.getNotebook(resource);
+			const outputUriData = parseCellOutputUri(resource);
+			if (!outputUriData?.notebook || !outputUriData.cellFragment) {
+				return;
+			}
+			const cellUri = outputUriData.notebook.with({
+				scheme: Schemas.vscodeNotebookCell,
+				fragment: outputUriData.cellFragment
+			});
+			const cellIndex = notebookDocument?.getCellIndex(cellUri);
+			const outputIndex = outputUriData.outputIndex;
 
-		// 	if (cellIndex !== undefined && outputIndex !== undefined && typeof label.name === 'string') {
-		// 		label.name = localize(
-		// 			'notebookCellOutputLabel',
-		// 			"{0} • Cell {1} • Output {2}",
-		// 			label.name,
-		// 			`${cellIndex + 1}`,
-		// 			`${outputIndex + 1}`
-		// 		);
-		// 	}
-		// }
+			if (cellIndex !== undefined && outputIndex !== undefined && typeof label.name === 'string') {
+				label.name = localize(
+					'notebookCellOutputLabel',
+					"{0} • Cell {1} • Output {2}",
+					label.name,
+					`${cellIndex + 1}`,
+					`${outputIndex + 1}`
+				);
+			}
+			if (cellIndex !== undefined && typeof label.name === 'string') {
+				label.name = localize(
+					'notebookCellOutputLabelSimple',
+					"{0} • Cell {1} • Output",
+					label.name,
+					`${cellIndex + 1}`
+				);
+			}
+		}
 
 		const hasResourceChanged = this.hasResourceChanged(label);
 		const hasPathLabelChanged = hasResourceChanged || this.hasPathLabelChanged(label);

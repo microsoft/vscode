@@ -39,6 +39,14 @@ import './cellChatActions.js';
 import { CTX_NOTEBOOK_CHAT_HAS_AGENT } from './notebookChatContext.js';
 
 const NotebookKernelVariableKey = 'kernelVariable';
+const NOTEBOOK_TEXT_ATTACH_LIST_FOR_CHAT = ['text/plain', 'text/html',
+	'application/vnd.code.notebook.error',
+	'application/vnd.code.notebook.stdout',
+	'application/x.notebook.stdout',
+	'application/x.notebook.stream',
+	'application/vnd.code.notebook.stderr',
+	'application/x.notebook.stderr',
+];
 
 class NotebookChatContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.notebookChatContribution';
@@ -104,8 +112,7 @@ class NotebookChatContribution extends Disposable implements IWorkbenchContribut
 		}));
 
 		// output context
-		NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT.bindTo(contextKeyService).set(['image/png', 'text/plain',
-			'application/vnd.code.notebook.stdout', 'application/vnd.code.notebook.stderr', 'application/vnd.code.notebook.error']);
+		NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT.bindTo(contextKeyService).set(['image/png'].concat(NOTEBOOK_TEXT_ATTACH_LIST_FOR_CHAT));
 	}
 
 	private async addKernelVariableCompletion(widget: IChatWidget, result: CompletionList, info: { insert: Range; replace: Range; varWord: IWordAtPosition | null }, token: CancellationToken) {
@@ -336,14 +343,12 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 			};
 
 			widget.attachmentModel.addContext(variableEntry);
-		} else {
-			// TODO: do I need to consider; // not able to find the output from the provided context, use the active cell
+		} else if (mimeType && NOTEBOOK_TEXT_ATTACH_LIST_FOR_CHAT.includes(mimeType)) {
 			const chatWidgetService = accessor.get(IChatWidgetService);
 			let widget = chatWidgetService.lastFocusedWidget;
 			if (!widget) {
 				const widgets = chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel);
 				if (widgets.length === 0) {
-					//console.log("no widget");
 					return;
 				}
 				widget = widgets[0];
@@ -374,9 +379,14 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 
 			}
 			// get URI of notebook
-			const notebookUri = notebookEditor.textModel?.uri;
+			let notebookUri = notebookEditor.textModel?.uri;
 			if (!notebookUri) {
-				return;
+				// if the notebook is not found, try to parse the cell uri
+				const parsedCellUri = CellUri.parse(cellUri);
+				notebookUri = parsedCellUri?.notebook;
+				if (!notebookUri) {
+					return;
+				}
 			}
 			// construct the URI using the cell uri and output index
 			const outputCellUri = CellUri.generateCellOutputUriWithIndex(notebookUri, cellUri, outputIndex);
