@@ -178,7 +178,7 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 	}
@@ -214,12 +214,12 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 			content: new MarkdownString(localize('waitingCopilot', "Getting Copilot ready.")),
 		});
 
-		await this.forwardRequestToCopilot(requestModel, progress, chatService, languageModelsService, chatAgentService);
+		await this.forwardRequestToCopilot(requestModel, progress, chatService, languageModelsService, chatAgentService, chatWidgetService);
 
 		return {};
 	}
 
-	private async forwardRequestToCopilot(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService): Promise<void> {
+	private async forwardRequestToCopilot(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService): Promise<void> {
 
 		// We need a signal to know when we can resend the request to
 		// Copilot. Waiting for the registration of the agent is not
@@ -247,7 +247,11 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 			}
 		}
 
-		chatService.resendRequest(requestModel);
+		const widget = chatWidgetService.getWidgetBySessionId(requestModel.session.sessionId);
+		chatService.resendRequest(requestModel, {
+			mode: widget?.input.currentMode,
+			userSelectedModelId: widget?.input.currentLanguageModel,
+		});
 	}
 
 	private whenLanguageModelReady(languageModelsService: ILanguageModelsService): Promise<unknown> | void {
@@ -308,7 +312,7 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 		if (typeof success === 'boolean') {
 			if (success) {
 				if (requestModel) {
-					await this.forwardRequestToCopilot(requestModel, progress, chatService, languageModelsService, chatAgentService);
+					await this.forwardRequestToCopilot(requestModel, progress, chatService, languageModelsService, chatAgentService, chatWidgetService);
 				}
 			} else {
 				progress({
