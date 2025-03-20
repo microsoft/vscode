@@ -11,6 +11,7 @@ export const IWebContentExtractorService = createDecorator<IWebContentExtractorS
 export interface IWebContentExtractorService {
 	_serviceBrand: undefined;
 	extract(uri: URI[]): Promise<string[]>;
+	extractUrls(uri: URI): Promise<Uint8Array>;
 }
 
 /**
@@ -22,6 +23,10 @@ export class NullWebContentExtractorService implements IWebContentExtractorServi
 	_serviceBrand: undefined;
 
 	extract(_uri: URI[]): Promise<string[]> {
+		throw new Error('Not implemented');
+	}
+
+	extractUrls(_uri: URI): Promise<Uint8Array> {
 		throw new Error('Not implemented');
 	}
 }

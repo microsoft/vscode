@@ -22,6 +22,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
+import { IWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { isUntitledResourceEditorInput } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -59,6 +60,7 @@ export class ChatDragAndDrop extends Themable {
 		@IDialogService private readonly dialogService: IDialogService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IWebContentExtractorService private readonly webContentExtractorService: IWebContentExtractorService,
 	) {
 		super(themeService);
 
@@ -323,66 +325,16 @@ export class ChatDragAndDrop extends Themable {
 
 	private async downloadImageAsUint8Array(url: string): Promise<Uint8Array | undefined> {
 		try {
-			const response = await fetch(url, {
-				method: 'GET',
-				mode: 'cors',
-				credentials: 'omit',
-				headers: {
-					'User-Agent': 'Mozilla/5.0'
-				}
-			});
-
-			if (!response.ok) {
-				throw new Error('Fetch failed');
+			const extractedImages = await this.webContentExtractorService.extractUrls(URI.parse(url));
+			if (extractedImages.length > 0) {
+				return extractedImages;
 			}
-
-			const contentType = response.headers.get('content-type');
-			const contentLength = parseInt(response.headers.get('content-length') || '0', 10);
-
-			if (!contentType?.startsWith('image/') || contentLength > 50 * 1024 * 1024) {
-				return undefined;
-			}
-
-			const blob = await response.blob();
-			return new Uint8Array(await blob.arrayBuffer());
-		} catch (fetchError) {
-			console.warn('Fetch failed attempting canvas:', fetchError);
-			return this.downloadImageViaCanvas(url);
+		} catch (error) {
+			console.warn('Fetch failed:', error);
 		}
-	}
 
-	private downloadImageViaCanvas(url: string): Promise<Uint8Array | undefined> {
-		return new Promise((resolve) => {
-			const img = new Image();
-			img.crossOrigin = 'anonymous';
-
-			img.onload = () => {
-				const canvas = document.createElement('canvas');
-				const ctx = canvas.getContext('2d');
-				if (!ctx) {
-					return resolve(undefined);
-				}
-
-				canvas.width = img.width;
-				canvas.height = img.height;
-				ctx.drawImage(img, 0, 0);
-
-				canvas.toBlob(async (blob) => {
-					if (blob) {
-						return resolve(new Uint8Array(await blob.arrayBuffer()));
-					} else {
-						return resolve(undefined);
-					}
-				}, 'image/png');
-			};
-
-			img.onerror = () => {
-				this.notificationService.warn(localize('failedToLoadImage', 'The image could not be loaded. Please check the URL and try again.'));
-				resolve(undefined);
-			};
-
-			img.src = url;
-		});
+		this.notificationService.error(localize('fetchFailed', 'Failed to fetch image from URL: {0}', url));
+		return undefined;
 	}
 
 	private async resolveHTMLAttachContext(e: DragEvent): Promise<IChatRequestVariableEntry[]> {

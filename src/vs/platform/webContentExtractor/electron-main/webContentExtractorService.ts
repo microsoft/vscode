@@ -9,6 +9,7 @@ import { URI } from '../../../base/common/uri.js';
 import { AXNode, convertToReadibleFormat } from './cdpAccessibilityDomain.js';
 import { Limiter } from '../../../base/common/async.js';
 import { ResourceMap } from '../../../base/common/map.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
 
 interface CacheEntry {
 	content: string;
@@ -33,6 +34,24 @@ export class NativeWebContentExtractorService implements IWebContentExtractorSer
 			return Promise.resolve([]);
 		}
 		return Promise.all(uris.map((uri) => this._limiter.queue(() => this.doExtract(uri))));
+	}
+
+	extractUrls(uris: URI): Promise<Uint8Array> {
+		return this.doExtractImage(uris);
+	}
+
+	private async doExtractImage(uri: URI): Promise<Uint8Array> {
+		try {
+			const response = await fetch(uri.toString());
+			if (!response.ok || !response.headers.get('content-type')?.startsWith('image/')) {
+				return new Uint8Array();
+			}
+			const blob = await response.blob();
+			return VSBuffer.wrap(await blob.bytes()).buffer;
+		} catch (err) {
+			console.log(err);
+			return new Uint8Array();
+		}
 	}
 
 	async doExtract(uri: URI): Promise<string> {
