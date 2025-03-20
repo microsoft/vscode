@@ -455,7 +455,8 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		const transientOptions = this.transientOptions;
 		const outputSizeLimit = this.configurationService.getValue<number>(NotebookSetting.outputBackupSizeLimit) * 1024;
 
-		let initial = this.initialContent;
+		// create a snapshot of the current state of the model, before the next set of edits
+		let initial = createSnapshot(this.modifiedModel, transientOptions, outputSizeLimit);
 		let last = '';
 
 		return {
