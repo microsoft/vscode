@@ -44,7 +44,7 @@ import { ChatSlashCommandService, IChatSlashCommandService } from '../common/cha
 import { ChatTransferService, IChatTransferService } from '../common/chatTransferService.js';
 import { IChatVariablesService } from '../common/chatVariables.js';
 import { ChatWidgetHistoryService, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
-import { ChatAgentLocation } from '../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration } from '../common/constants.js';
 import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } from '../common/ignoredFiles.js';
 import { ILanguageModelsService, LanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelStatsService, LanguageModelStatsService } from '../common/languageModelStats.js';
@@ -211,6 +211,19 @@ configurationRegistry.registerConfiguration({
 			default: product.quality !== 'stable',
 			tags: ['experimental', 'onExp']
 		},
+		'chat.focusWindowOnConfirmation': {
+			type: 'boolean',
+			description: nls.localize('chat.focusWindowOnConfirmation', "Controls whether the Copilot window should be focused when a confirmation is needed."),
+			default: true,
+		},
+		'chat.tools.autoApprove': {
+			default: false,
+			description: nls.localize('chat.tools.autoApprove', "Controls whether tool use should be automatically approved ('YOLO mode'). Can be set to `true`, or an array of tool names to automatically approve."),
+			oneOf: [
+				{ type: 'boolean' },
+				{ type: 'array', items: { type: 'string' } }
+			],
+		},
 		[mcpConfigurationSection]: {
 			type: 'object',
 			default: {
@@ -226,6 +239,12 @@ configurationRegistry.registerConfiguration({
 		// 	default: false,
 		// 	tags: ['experimental'],
 		// },
+		[ChatConfiguration.UseFileStorage]: {
+			type: 'boolean',
+			description: nls.localize('chat.useFileStorage', "Enables storing chat sessions on disk instead of in the storage service. Enabling this does a one-time per-workspace migration of existing sessions to the new format."),
+			default: true,
+			tags: ['experimental'],
+		},
 		[mcpDiscoverySection]: {
 			type: 'boolean',
 			default: false,

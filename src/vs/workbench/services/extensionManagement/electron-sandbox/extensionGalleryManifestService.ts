@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { IHeaders } from '../../../../base/parts/request/common/request.js';
+import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
-import { IExtensionGalleryManifestService, IExtensionGalleryManifest } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { IExtensionGalleryManifestService, IExtensionGalleryManifest, ExtensionGalleryServiceUrlConfigKey } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { ExtensionGalleryManifestService as ExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifestService.js';
 import { resolveMarketplaceHeaders } from '../../../../platform/externalServices/common/marketplace.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -18,11 +21,17 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { asJson, IRequestService } from '../../../../platform/request/common/request.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IDefaultAccount, IDefaultAccountService } from '../../accounts/common/defaultAccount.js';
+import { IHostService } from '../../host/browser/host.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 
 export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryManifestService implements IExtensionGalleryManifestService {
 
 	private readonly commonHeadersPromise: Promise<IHeaders>;
+	private extensionGalleryManifest: [string, IExtensionGalleryManifest] | null = null;
+
+	private _onDidChangeExtensionGalleryManifest = this._register(new Emitter<IExtensionGalleryManifest | null>());
+	override readonly onDidChangeExtensionGalleryManifest = this._onDidChangeExtensionGalleryManifest.event;
 
 	constructor(
 		@IProductService productService: IProductService,
@@ -34,6 +43,9 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IRequestService private readonly requestService: IRequestService,
+		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IHostService private readonly hostService: IHostService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super(productService);
@@ -57,20 +69,81 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		});
 	}
 
-	private extensionGalleryManifestPromise: Promise<IExtensionGalleryManifest | null> | undefined;
-	override getExtensionGalleryManifest(): Promise<IExtensionGalleryManifest | null> {
+	private extensionGalleryManifestPromise: Promise<void> | undefined;
+	override async getExtensionGalleryManifest(): Promise<IExtensionGalleryManifest | null> {
 		if (!this.extensionGalleryManifestPromise) {
-			if (this.productService.quality !== 'stable') {
-				const configuredServiceUrl = this.configurationService.inspect<string>('extensions.gallery.serviceUrl').userLocalValue;
-				if (configuredServiceUrl) {
-					this.extensionGalleryManifestPromise = this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl);
-				}
+			this.extensionGalleryManifestPromise = this.doGetExtensionGalleryManifest();
+		}
+		await this.extensionGalleryManifestPromise;
+		return this.extensionGalleryManifest ? this.extensionGalleryManifest[1] : null;
+	}
+
+	private async doGetExtensionGalleryManifest(): Promise<void> {
+		const defaultServiceUrl = this.productService.extensionsGallery?.serviceUrl;
+		if (!defaultServiceUrl) {
+			this.extensionGalleryManifest = null;
+			return;
+		}
+
+		const configuredServiceUrl = this.configurationService.getValue<string>(ExtensionGalleryServiceUrlConfigKey);
+		if (configuredServiceUrl && this.checkAccess(await this.defaultAccountService.getDefaultAccount())) {
+			this.extensionGalleryManifest = [configuredServiceUrl, await this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl)];
+		}
+
+		if (!this.extensionGalleryManifest) {
+			const defaultExtensionGalleryManifest = await super.getExtensionGalleryManifest();
+			if (defaultExtensionGalleryManifest) {
+				this.extensionGalleryManifest = [defaultServiceUrl, defaultExtensionGalleryManifest];
 			}
 		}
-		if (!this.extensionGalleryManifestPromise) {
-			this.extensionGalleryManifestPromise = super.getExtensionGalleryManifest();
+
+		this._register(this.defaultAccountService.onDidChangeDefaultAccount(account => {
+			if (!configuredServiceUrl) {
+				return;
+			}
+			const canAccess = this.checkAccess(account);
+			if (canAccess && this.extensionGalleryManifest?.[0] === configuredServiceUrl) {
+				return;
+			}
+			if (!canAccess && this.extensionGalleryManifest?.[0] === defaultServiceUrl) {
+				return;
+			}
+			this.requestRestart();
+		}));
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (!e.affectsConfiguration(ExtensionGalleryServiceUrlConfigKey)) {
+				return;
+			}
+			const configuredServiceUrl = this.configurationService.getValue<string>(ExtensionGalleryServiceUrlConfigKey);
+			if (!configuredServiceUrl && this.extensionGalleryManifest?.[0] === defaultServiceUrl) {
+				return;
+			}
+			if (configuredServiceUrl && this.extensionGalleryManifest?.[0] === configuredServiceUrl) {
+				return;
+			}
+			this.requestRestart();
+		}));
+	}
+
+	private checkAccess(account: IDefaultAccount | null): boolean {
+		if (!account) {
+			return false;
 		}
-		return this.extensionGalleryManifestPromise;
+		if (account.access_type_sku && this.productService.extensionsGallery?.accessSKUs?.includes(account.access_type_sku)) {
+			return true;
+		}
+		return account.enterprise;
+	}
+
+	private async requestRestart(): Promise<void> {
+		const confirmation = await this.dialogService.confirm({
+			message: localize('extensionGalleryManifestService.accountChange', "{0} is now configured to a different Marketplace. Please restart to apply the changes.", this.productService.nameLong),
+			primaryButton: localize({ key: 'restart', comment: ['&& denotes a mnemonic'] }, "&&Restart")
+		});
+		if (confirmation.confirmed) {
+			return this.hostService.restart();
+		}
 	}
 
 	private async getExtensionGalleryManifestFromServiceUrl(url: string): Promise<IExtensionGalleryManifest> {

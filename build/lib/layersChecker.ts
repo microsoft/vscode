@@ -77,6 +77,7 @@ const CORE_TYPES = [
 	'PerformanceMark',
 	'PerformanceObserver',
 	'ImportMeta',
+	'structuredClone',
 
 	// webcrypto has been available since Node.js 19, but still live in dom.d.ts
 	'Crypto',

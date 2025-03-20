@@ -273,7 +273,12 @@ export function registerChatTitleActions() {
 			const request = chatModel?.getRequests().find(candidate => candidate.id === item.requestId);
 			const languageModelId = widget?.input.currentLanguageModel;
 			const userSelectedTools = widget?.input.currentMode === ChatMode.Agent ? widget.input.selectedToolsModel.tools.get().map(tool => tool.id) : undefined;
-			chatService.resendRequest(request!, { userSelectedModelId: languageModelId, userSelectedTools, attempt: (request?.attempt ?? -1) + 1 });
+			chatService.resendRequest(request!, {
+				userSelectedModelId: languageModelId,
+				userSelectedTools,
+				attempt: (request?.attempt ?? -1) + 1,
+				mode: widget?.input.currentMode,
+			});
 		}
 	});
 
@@ -358,7 +363,7 @@ export function registerChatTitleActions() {
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.x,
-				precondition: ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask),
+				precondition: ContextKeyExpr.and(ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask), ChatContextKeyExprs.unifiedChatEnabled.negate()),
 				keybinding: {
 					primary: KeyCode.Delete,
 					mac: {
@@ -371,7 +376,7 @@ export function registerChatTitleActions() {
 					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask), ChatContextKeys.isRequest)
+					when: ContextKeyExpr.and(ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask), ChatContextKeys.isRequest, ChatContextKeyExprs.unifiedChatEnabled.negate())
 				}
 			});
 		}

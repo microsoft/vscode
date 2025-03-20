@@ -123,13 +123,20 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 		});
 	}
 
-	private _handleTreeUpdate(e: TreeParseUpdateEvent, parentTreeResult?: ITreeSitterParseResult, parentLanguage?: string) {
+	private async _handleTreeUpdate(e: TreeParseUpdateEvent, parentTreeResult?: ITreeSitterParseResult, parentLanguage?: string) {
 		if (e.ranges && (e.versionId >= this._versionId)) {
 			this._versionId = e.versionId;
-			// kick off check for injected languages
-			this._parseInjected(parentTreeResult ?? this._rootTreeSitterTree!, parentLanguage ?? this.textModel.getLanguageId(), e.includedModelChanges);
+			const tree = parentTreeResult ?? this._rootTreeSitterTree!;
+			let injections: Map<string, Parser.Range[]> | undefined;
+			if (tree.tree) {
+				injections = await this._collectInjections(tree.tree);
+				// kick off check for injected languages
+				if (injections) {
+					this._processInjections(injections, tree, parentLanguage ?? this.textModel.getLanguageId(), e.includedModelChanges);
+				}
+			}
 
-			this._onDidChangeParseResult.fire({ ranges: e.ranges, versionId: e.versionId, tree: this, languageId: this.textModel.getLanguageId() });
+			this._onDidChangeParseResult.fire({ ranges: e.ranges, versionId: e.versionId, tree: this, languageId: this.textModel.getLanguageId(), hasInjections: !!injections && injections.size > 0 });
 		}
 	}
 
@@ -166,22 +173,17 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 		return this._query;
 	}
 
-	private async _parseInjected(parentTree: ITreeSitterParseResult, parentLanguage: string, modelChanges: IModelContentChangedEvent[] | undefined): Promise<void> {
+	private async _collectInjections(tree: Parser.Tree): Promise<Map<string, Parser.Range[]> | undefined> {
 		const query = await this._getQuery();
 		if (!query) {
 			return;
 		}
 
-		const tree = this._rootTreeSitterTree?.tree;
 		if (!tree?.rootNode) {
 			// need to check the root node here as `walk` will throw if not defined.
 			return;
 		}
-		const injections = await this._collectInjections(tree, query);
-		await this._processInjections(injections, parentTree, parentLanguage, modelChanges);
-	}
 
-	private async _collectInjections(tree: Parser.Tree, query: Parser.Query): Promise<Map<string, Parser.Range[]>> {
 		const cursor = tree.walk();
 		const injections: Map<string, Parser.Range[]> = new Map();
 		let hasNext = true;
@@ -384,23 +386,25 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 				const newChildren = newCursor.currentNode.children;
 				const indexChangedChildren: number[] = [];
 				const changedChildren = newChildren.filter((c, index) => {
-					if (c?.hasChanges) {
+					if (c?.hasChanges || (oldCursor.currentNode.children.length <= index)) {
 						indexChangedChildren.push(index);
+						return true;
 					}
-					return c?.hasChanges;
+					return false;
 				});
 				// If we have changes and we *had* an error, the whole node should be refreshed.
-				if ((changedChildren.length === 0)) {
+				if ((changedChildren.length === 0) || (newCursor.currentNode.hasError !== oldCursor.currentNode.hasError)) {
 					// walk up again until we get to the first one that's named as unnamed nodes can be too granular
-					while (newCursor.currentNode.parent && !newCursor.currentNode.isNamed && next) {
+					while (newCursor.currentNode.parent && next && !newCursor.currentNode.isNamed) {
 						next = gotoParent(newCursor, oldCursor);
 					}
-
+					// Use the end position of the previous node and the start position of the current node
 					const newNode = newCursor.currentNode;
+					const closestPreviousNode = getClosestPreviousNodes(newCursor, newTree) ?? newNode;
 					nodes.push({
-						startIndex: newNode.startIndex,
+						startIndex: closestPreviousNode.startIndex,
 						endIndex: newNode.endIndex,
-						startPosition: newNode.startPosition,
+						startPosition: closestPreviousNode.startPosition,
 						endPosition: newNode.endPosition
 					});
 					next = nextSiblingOrParentSibling(newCursor, oldCursor);
@@ -431,14 +435,14 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 			}
 
 			const cursor = newTree.walk();
-			const cursorContainersNode = () => cursor.startIndex <= node.startIndex && cursor.endIndex >= node.endIndex;
+			const cursorContainersNode = () => cursor.startIndex < node.startIndex && cursor.endIndex > node.endIndex;
 
 			while (cursorContainersNode()) {
 				// See if we can go to a child
 				let child = cursor.gotoFirstChild();
 				let foundChild = false;
 				while (child) {
-					if (cursorContainersNode()) {
+					if (cursorContainersNode() && cursor.currentNode.isNamed) {
 						foundChild = true;
 						break;
 					} else {

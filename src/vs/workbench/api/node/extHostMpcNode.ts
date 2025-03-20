@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ChildProcessWithoutNullStreams, spawn } from 'child_process';
-import { mapValues } from '../../../base/common/objects.js';
+import { readFile } from 'fs/promises';
+import { homedir } from 'os';
+import { PassThrough } from 'stream';
+import { parseEnvFile } from '../../../base/common/envfile.js';
 import { URI } from '../../../base/common/uri.js';
 import { StreamSplitter } from '../../../base/node/nodeStreams.js';
 import { McpConnectionState, McpServerLaunch, McpServerTransportStdio, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
 import { ExtHostMcpService } from '../common/extHostMcp.js';
 import { IExtHostRpcService } from '../common/extHostRpcService.js';
-import { homedir } from 'os';
-import { PassThrough } from 'stream';
 
 export class NodeExtHostMpcService extends ExtHostMcpService {
 	constructor(
@@ -47,18 +48,34 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 		const nodeServer = this.nodeServers.get(id);
 		if (nodeServer) {
 			this._proxy.$onDidPublishLog(id, '[Client Says] ' + message.toString());
-
 			nodeServer.child.stdin.write(message + '\n');
 		} else {
 			super.$sendMessage(id, message);
 		}
 	}
 
-	private startNodeMpc(id: number, launch: McpServerTransportStdio): void {
-		const onError = (err: Error) => this._proxy.$onDidChangeState(id, {
+	private async startNodeMpc(id: number, launch: McpServerTransportStdio) {
+		const onError = (err: Error | string) => this._proxy.$onDidChangeState(id, {
 			state: McpConnectionState.Kind.Error,
-			message: err.message,
+			message: typeof err === 'string' ? err : err.message,
 		});
+
+		// MCP servers are run on the same authority where they are defined, so
+		// reading the envfile based on its path off the filesystem here is fine.
+		const env = { ...process.env };
+		if (launch.envFile) {
+			try {
+				for (const [key, value] of parseEnvFile(await readFile(launch.envFile, 'utf-8'))) {
+					env[key] = value;
+				}
+			} catch (e) {
+				onError(`Failed to read envFile '${launch.envFile}': ${e.message}`);
+				return;
+			}
+		}
+		for (const [key, value] of Object.entries(launch.env)) {
+			env[key] = value === null ? undefined : String(value);
+		}
 
 		const abortCtrl = new AbortController();
 		let child: ChildProcessWithoutNullStreams;
@@ -67,10 +84,7 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 				stdio: 'pipe',
 				cwd: launch.cwd ? URI.revive(launch.cwd).fsPath : homedir(),
 				signal: abortCtrl.signal,
-				env: {
-					...process.env,
-					...mapValues(launch.env, v => typeof v === 'number' ? String(v) : (v === null ? undefined : v)),
-				},
+				env,
 			});
 		} catch (e) {
 			onError(e);
@@ -96,9 +110,15 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 
 		child.on('spawn', () => this._proxy.$onDidChangeState(id, { state: McpConnectionState.Kind.Running }));
 
-		child.on('error', onError);
+		child.on('error', e => {
+			if (abortCtrl.signal.aborted) {
+				this._proxy.$onDidChangeState(id, { state: McpConnectionState.Kind.Stopped });
+			} else {
+				onError(e);
+			}
+		});
 		child.on('exit', code =>
-			code === 0
+			code === 0 || abortCtrl.signal.aborted
 				? this._proxy.$onDidChangeState(id, { state: McpConnectionState.Kind.Stopped })
 				: this._proxy.$onDidChangeState(id, {
 					state: McpConnectionState.Kind.Error,

@@ -23,7 +23,7 @@ import { FoldingRegions } from '../../../../../editor/contrib/folding/browser/fo
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { CellFindMatchModel } from '../contrib/find/findModel.js';
-import { CellEditState, CellFindMatchWithIndex, CellFoldingState, EditorFoldingStateDelegate, ICellModelDecorations, ICellModelDeltaDecorations, ICellViewModel, IModelDecorationsChangeAccessor, INotebookDeltaCellStatusBarItems, INotebookDeltaDecoration, INotebookEditorViewState, INotebookViewCellsUpdateEvent, INotebookViewModel } from '../notebookBrowser.js';
+import { CellEditState, CellFindMatchWithIndex, CellFoldingState, EditorFoldingStateDelegate, ICellModelDecorations, ICellModelDeltaDecorations, ICellViewModel, IModelDecorationsChangeAccessor, INotebookDeltaCellStatusBarItems, INotebookEditorViewState, INotebookViewCellsUpdateEvent, INotebookViewModel, INotebookDeltaDecoration, isNotebookCellDecoration, INotebookDeltaViewZoneDecoration } from '../notebookBrowser.js';
 import { NotebookLayoutInfo, NotebookMetadataChangedEvent } from '../notebookViewEvents.js';
 import { NotebookCellSelectionCollection } from './cellSelectionCollection.js';
 import { CodeCellViewModel } from './codeCellViewModel.js';
@@ -188,6 +188,9 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 	private _decorationIdToCellMap = new Map<string, number>();
 	private _statusBarItemIdToCellMap = new Map<string, number>();
+
+	private _lastOverviewRulerDecorationId: number = 0;
+	private _overviewRulerDecorations = new Map<string, INotebookDeltaViewZoneDecoration>();
 
 	constructor(
 		public viewType: string,
@@ -495,6 +498,10 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return this._hiddenRanges;
 	}
 
+	getOverviewRulerDecorations(): INotebookDeltaViewZoneDecoration[] {
+		return Array.from(this._overviewRulerDecorations.values());
+	}
+
 	getCellByHandle(handle: number) {
 		return this._handleToViewCellMapping.get(handle);
 	}
@@ -723,18 +730,29 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				cell?.deltaCellDecorations([id], []);
 				this._decorationIdToCellMap.delete(id);
 			}
+
+			if (this._overviewRulerDecorations.has(id)) {
+				this._overviewRulerDecorations.delete(id);
+			}
 		});
 
 		const result: string[] = [];
 
 		newDecorations.forEach(decoration => {
-			const cell = this.getCellByHandle(decoration.handle);
-			const ret = cell?.deltaCellDecorations([], [decoration.options]) || [];
-			ret.forEach(id => {
-				this._decorationIdToCellMap.set(id, decoration.handle);
-			});
+			if (isNotebookCellDecoration(decoration)) {
+				const cell = this.getCellByHandle(decoration.handle);
+				const ret = cell?.deltaCellDecorations([], [decoration.options]) || [];
+				ret.forEach(id => {
+					this._decorationIdToCellMap.set(id, decoration.handle);
+				});
+				result.push(...ret);
+			} else {
+				const id = ++this._lastOverviewRulerDecorationId;
+				const decorationId = `_overview_${this.id};${id}`;
+				this._overviewRulerDecorations.set(decorationId, decoration);
+				result.push(decorationId);
+			}
 
-			result.push(...ret);
 		});
 
 		return result;

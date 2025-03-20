@@ -9,6 +9,7 @@ import { IProcessEnvironment } from '../../../../base/common/platform.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
+import { ConfigurationResolverExpression } from './configurationResolverExpression.js';
 
 export const IConfigurationResolverService = createDecorator<IConfigurationResolverService>('configurationResolverService');
 
@@ -17,22 +18,11 @@ export interface IConfigurationResolverService {
 
 	resolveWithEnvironment(environment: IProcessEnvironment, folder: IWorkspaceFolderData | undefined, value: string): Promise<string>;
 
-	resolveAsync(folder: IWorkspaceFolderData | undefined, value: string): Promise<string>;
-	resolveAsync(folder: IWorkspaceFolderData | undefined, value: string[]): Promise<string[]>;
-	resolveAsync(folder: IWorkspaceFolderData | undefined, value: IStringDictionary<string>): Promise<IStringDictionary<string>>;
-
 	/**
 	 * Recursively resolves all variables in the given config and returns a copy of it with substituted values.
 	 * Command variables are only substituted if a "commandValueMapping" dictionary is given and if it contains an entry for the command.
 	 */
-	resolveAnyAsync(folder: IWorkspaceFolderData | undefined, config: any, commandValueMapping?: IStringDictionary<string>): Promise<any>;
-
-	/**
-	 * Recursively resolves all variables in the given config.
-	 * Returns a copy of it with substituted values and a map of variables and their resolution.
-	 * Keys in the map will be of the format input:variableName or command:variableName.
-	 */
-	resolveAnyMap(folder: IWorkspaceFolderData | undefined, config: any, commandValueMapping?: IStringDictionary<string>): Promise<{ newConfig: any; resolvedVariables: Map<string, string> }>;
+	resolveAsync<T>(folder: IWorkspaceFolderData | undefined, config: T): Promise<T extends ConfigurationResolverExpression<infer R> ? R : T>;
 
 	/**
 	 * Recursively resolves all variables (including commands and user input) in the given config and returns a copy of it with substituted values.

@@ -58,7 +58,7 @@ export class TreeSitterTokens extends AbstractTokens {
 		const content = this._textModel.getLineContent(lineNumber);
 		if (this._tokenizationSupport && content.length > 0) {
 			const rawTokens = this._tokenStore.getTokens(this._textModel, lineNumber);
-			if (rawTokens) {
+			if (rawTokens && rawTokens.length > 0) {
 				return new LineTokens(rawTokens, content, this._languageIdCodec);
 			}
 		}
@@ -112,10 +112,21 @@ export class TreeSitterTokens extends AbstractTokens {
 		// TODO @alexr00 implement once we have custom parsing and don't just feed in the whole text model value
 		return StandardTokenType.Other;
 	}
+
 	public override tokenizeLinesAt(lineNumber: number, lines: string[]): LineTokens[] | null {
-		// TODO @alexr00 understand what this is for and implement
+		if (this._tokenizationSupport) {
+			const rawLineTokens = this._tokenizationSupport.guessTokensForLinesContent(lineNumber, this._textModel, lines);
+			const lineTokens: LineTokens[] = [];
+			if (rawLineTokens) {
+				for (let i = 0; i < rawLineTokens.length; i++) {
+					lineTokens.push(new LineTokens(rawLineTokens[i], lines[i], this._languageIdCodec));
+				}
+				return lineTokens;
+			}
+		}
 		return null;
 	}
+
 	public override get hasTokens(): boolean {
 		return this._tokenStore.hasTokens(this._textModel);
 	}
