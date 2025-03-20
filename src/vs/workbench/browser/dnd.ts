@@ -222,8 +222,8 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 	const fileSystemResources = resources.filter(({ resource }) => fileService.hasProvider(resource));
 
 	// Separate directories from files
-	const draggedDirectories: IResourceStat[] = fileSystemResources.filter(({ isDirectory }) => isDirectory); // New variable to store directories
-	const draggedFiles: IResourceStat[] = fileSystemResources.filter(({ isDirectory }) => !isDirectory); // Updated to store only files
+	const draggedDirectories: IResourceStat[] = fileSystemResources.filter(({ isDirectory }) => isDirectory);
+	const draggedFiles: IResourceStat[] = fileSystemResources.filter(({ isDirectory }) => !isDirectory);
 
 	if (!options?.disableStandardTransfer) {
 
