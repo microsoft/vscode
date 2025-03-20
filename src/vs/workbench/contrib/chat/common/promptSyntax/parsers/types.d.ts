@@ -93,7 +93,7 @@ interface IPromptReferenceBase extends IDisposable {
 	/**
 	 * Whether the current reference points to a prompt snippet file.
 	 */
-	readonly isPromptSnippet: boolean;
+	readonly isPromptFile: boolean;
 
 	/**
 	 * Flag that indicates if resolving this reference failed.
