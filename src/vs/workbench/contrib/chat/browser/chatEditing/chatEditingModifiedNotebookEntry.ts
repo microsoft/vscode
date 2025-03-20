@@ -129,13 +129,13 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 					const internalId = generateCellHash(cell.uri);
 					edits.push({ editType: CellEditType.PartialInternalMetadata, index, internalMetadata: { internalId } });
 				});
-				resourceRef.object.notebook.applyEdits(edits, true, undefined, () => undefined, undefined, true);
-				originalRef.object.notebook.applyEdits(edits, true, undefined, () => undefined, undefined, true);
+				resourceRef.object.notebook.applyEdits(edits, true, undefined, () => undefined, undefined, false);
+				originalRef.object.notebook.applyEdits(edits, true, undefined, () => undefined, undefined, false);
 
 				// If this is an empty copilot notebook, clear all of the original cells.
 				if (notebook.metadata.new_copilot_notebook === true) {
 					const edits = notebook.cells.map((_, index) => ({ editType: CellEditType.Replace, index, count: 1, cells: [] } satisfies ICellEditOperation));
-					originalRef.object.notebook.applyEdits(edits, true, undefined, () => undefined, undefined, true);
+					originalRef.object.notebook.applyEdits(edits, true, undefined, () => undefined, undefined, false);
 				}
 			}
 			const instance = instantiationService.createInstance(ChatEditingModifiedNotebookEntry, resourceRef, originalRef, _multiDiffEntryDelegate, options.serializer.options, telemetryInfo, chatKind, initialContent);
@@ -294,7 +294,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 						editType: CellEditType.DocumentMetadata,
 						metadata: this.modifiedModel.metadata
 					};
-					this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, true);
+					this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, false);
 					break;
 				}
 				case NotebookCellsChangeType.ModelChange: {
@@ -319,7 +319,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 							index,
 							language: event.language
 						};
-						this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, true);
+						this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, false);
 					}
 					break;
 				}
@@ -332,7 +332,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 							index,
 							metadata: event.metadata
 						};
-						this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, true);
+						this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, false);
 					}
 					break;
 				}
@@ -346,7 +346,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 							index,
 							internalMetadata: event.internalMetadata
 						};
-						this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, true);
+						this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, false);
 					}
 					break;
 				}
@@ -360,7 +360,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 							append: event.append,
 							outputs: event.outputs
 						};
-						this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, true);
+						this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, false);
 					}
 					break;
 				}
@@ -373,14 +373,14 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 							append: event.append,
 							items: event.outputItems
 						};
-						this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, true);
+						this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, false);
 					}
 					break;
 				}
 				case NotebookCellsChangeType.Move: {
 					const result = adjustCellDiffAndOriginalModelBasedOnCellMovements(event, this._cellsDiffInfo.get().slice());
 					if (result) {
-						this.originalModel.applyEdits(result[1], true, undefined, () => undefined, undefined, true);
+						this.originalModel.applyEdits(result[1], true, undefined, () => undefined, undefined, false);
 						this._cellsDiffInfo.set(result[0], undefined);
 					}
 					break;

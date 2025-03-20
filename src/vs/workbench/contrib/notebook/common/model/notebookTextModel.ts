@@ -121,7 +121,6 @@ class StackOperation implements IWorkspaceUndoRedoElement {
 
 class NotebookOperationManager {
 	private _pendingStackOperation: StackOperation | null = null;
-	private _isAppending: boolean = false;
 	constructor(
 		private readonly _textModel: NotebookTextModel,
 		private _undoService: IUndoRedoService,
@@ -137,24 +136,13 @@ class NotebookOperationManager {
 	pushStackElement(alternativeVersionId: string, selectionState: ISelectionState | undefined) {
 		if (this._pendingStackOperation && !this._pendingStackOperation.isEmpty) {
 			this._pendingStackOperation.pushEndState(alternativeVersionId, selectionState);
-			if (!this._isAppending) {
-				this._undoService.pushElement(this._pendingStackOperation, this._pendingStackOperation.undoRedoGroup);
-			}
+			this._undoService.pushElement(this._pendingStackOperation, this._pendingStackOperation.undoRedoGroup);
 		}
-		this._isAppending = false;
 		this._pendingStackOperation = null;
 	}
 
 	private _getOrCreateEditStackElement(beginSelectionState: ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined, alternativeVersionId: string) {
 		return this._pendingStackOperation ??= new StackOperation(this._textModel, undoRedoGroup, this._pauseableEmitter, this._postUndoRedo, beginSelectionState, alternativeVersionId || '');
-	}
-
-	appendPreviousOperation() {
-		const previous = this._undoService.getLastElement(this._textModel.uri) as StackOperation;
-		if (previous) {
-			this._pendingStackOperation = previous;
-			this._isAppending = true;
-		}
 	}
 
 	pushEditOperation(element: IUndoRedoElement, beginSelectionState: ISelectionState | undefined, resultSelectionState: ISelectionState | undefined, alternativeVersionId: string, undoRedoGroup: UndoRedoGroup | undefined) {
@@ -621,8 +609,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._operationManager.pushStackElement(this._alternativeVersionId, undefined);
 
 		if (computeUndoRedo && this.isOnlyEditingMetadataOnNewCells(rawEdits)) {
-			this._operationManager.appendPreviousOperation();
-		} else {
+			computeUndoRedo = false;
+		} else if (computeUndoRedo) {
 			this.newCellsFromLastEdit.clear();
 		}
 
@@ -857,10 +845,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				this._bindCellContentHandler(cell, e);
 			});
 
-			if (computeUndoRedo) {
-				this.newCellsFromLastEdit.add(cell.handle);
-			}
-
+			this.newCellsFromLastEdit.add(cell.handle);
 			this._cellListeners.set(cell.handle, dirtyStateListener);
 			this._register(cell);
 			return cell;
