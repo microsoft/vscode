@@ -1043,6 +1043,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				this._onDidScroll.fire();
 				this.clearActiveCellWidgets();
 			}
+
+			if (e.scrollTop === e.oldScrollTop && e.scrollHeightChanged) {
+				this._onDidChangeLayout.fire();
+			}
 		}));
 
 		this._focusTracker = this._register(DOM.trackFocus(this.getDomNode()));
@@ -2302,6 +2306,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	//#region View Zones
 	changeViewZones(callback: (accessor: INotebookViewZoneChangeAccessor) => void): void {
 		this._list.changeViewZones(callback);
+		this._onDidChangeLayout.fire();
 	}
 
 	getViewZoneLayoutInfo(id: string): { top: number; height: number } | null {
