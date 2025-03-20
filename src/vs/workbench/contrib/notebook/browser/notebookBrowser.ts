@@ -486,6 +486,7 @@ export interface INotebookViewModel {
 	getNearestVisibleCellIndexUpwards(index: number): number;
 	getTrackedRange(id: string): ICellRange | null;
 	setTrackedRange(id: string | null, newRange: ICellRange | null, newStickiness: TrackedRangeStickiness): string | null;
+	getOverviewRulerDecorations(): INotebookDeltaViewZoneDecoration[];
 	getSelections(): ICellRange[];
 	getCellIndex(cell: ICellViewModel): number;
 	getMostRecentlyExecutedCell(): ICellViewModel | undefined;
@@ -758,6 +759,8 @@ export interface INotebookEditor {
 	changeModelDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null;
 
 	changeViewZones(callback: (accessor: INotebookViewZoneChangeAccessor) => void): void;
+
+	getViewZoneLayoutInfo(id: string): { top: number; height: number } | null;
 
 	/**
 	 * Get a contribution of this editor.

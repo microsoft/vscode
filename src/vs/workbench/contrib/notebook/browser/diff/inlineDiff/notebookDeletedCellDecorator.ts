@@ -13,13 +13,14 @@ import { NotebookCellTextModel } from '../../../common/model/notebookCellTextMod
 import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
 import { DefaultLineHeight } from '../diffElementViewModel.js';
 import { CellDiffInfo } from '../notebookDiffViewModel.js';
-import { INotebookEditor } from '../../notebookBrowser.js';
+import { INotebookEditor, NotebookOverviewRulerLane } from '../../notebookBrowser.js';
 import * as DOM from '../../../../../../base/browser/dom.js';
 import { MenuWorkbenchToolBar, HiddenItemStrategy } from '../../../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { overviewRulerDeletedForeground } from '../../../../scm/common/quickDiff.js';
 
 const ttPolicy = createTrustedTypesPolicy('notebookRenderer', { createHTML: value => value });
 
@@ -143,6 +144,16 @@ export class NotebookDeletedCellDecorator extends Disposable implements INoteboo
 			const id = accessor.addZone(notebookViewZone);
 			accessor.layoutZone(id);
 			this.createdViewZones.set(index, id);
+
+			const deletedCellOverviewRulereDecorationIds = this._notebookEditor.deltaCellDecorations([], [{
+				viewZoneId: id,
+				options: {
+					overviewRuler: {
+						color: overviewRulerDeletedForeground,
+						position: NotebookOverviewRulerLane.Center,
+					}
+				}
+			}]);
 			this.zoneRemover.add(toDisposable(() => {
 				if (this.createdViewZones.get(index) === id) {
 					this.createdViewZones.delete(index);
@@ -152,6 +163,8 @@ export class NotebookDeletedCellDecorator extends Disposable implements INoteboo
 						accessor.removeZone(id);
 						dispose(widgets);
 					});
+
+					this._notebookEditor.deltaCellDecorations(deletedCellOverviewRulereDecorationIds, []);
 				}
 			}));
 		});

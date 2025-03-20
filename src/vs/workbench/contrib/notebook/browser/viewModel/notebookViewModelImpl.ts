@@ -23,7 +23,7 @@ import { FoldingRegions } from '../../../../../editor/contrib/folding/browser/fo
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { CellFindMatchModel } from '../contrib/find/findModel.js';
-import { CellEditState, CellFindMatchWithIndex, CellFoldingState, EditorFoldingStateDelegate, ICellModelDecorations, ICellModelDeltaDecorations, ICellViewModel, IModelDecorationsChangeAccessor, INotebookDeltaCellStatusBarItems, INotebookEditorViewState, INotebookViewCellsUpdateEvent, INotebookViewModel, INotebookDeltaDecoration, isNotebookCellDecoration } from '../notebookBrowser.js';
+import { CellEditState, CellFindMatchWithIndex, CellFoldingState, EditorFoldingStateDelegate, ICellModelDecorations, ICellModelDeltaDecorations, ICellViewModel, IModelDecorationsChangeAccessor, INotebookDeltaCellStatusBarItems, INotebookEditorViewState, INotebookViewCellsUpdateEvent, INotebookViewModel, INotebookDeltaDecoration, isNotebookCellDecoration, INotebookDeltaViewZoneDecoration } from '../notebookBrowser.js';
 import { NotebookLayoutInfo, NotebookMetadataChangedEvent } from '../notebookViewEvents.js';
 import { NotebookCellSelectionCollection } from './cellSelectionCollection.js';
 import { CodeCellViewModel } from './codeCellViewModel.js';
@@ -188,6 +188,9 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 	private _decorationIdToCellMap = new Map<string, number>();
 	private _statusBarItemIdToCellMap = new Map<string, number>();
+
+	private _lastOverviewRulerDecorationId: number = 0;
+	private _overviewRulerDecorations = new Map<string, INotebookDeltaViewZoneDecoration>();
 
 	constructor(
 		public viewType: string,
@@ -495,6 +498,10 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return this._hiddenRanges;
 	}
 
+	getOverviewRulerDecorations(): INotebookDeltaViewZoneDecoration[] {
+		return Array.from(this._overviewRulerDecorations.values());
+	}
+
 	getCellByHandle(handle: number) {
 		return this._handleToViewCellMapping.get(handle);
 	}
@@ -724,7 +731,9 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				this._decorationIdToCellMap.delete(id);
 			}
 
-			// TODO@rebornix: trigger view zone decorations removal
+			if (this._overviewRulerDecorations.has(id)) {
+				this._overviewRulerDecorations.delete(id);
+			}
 		});
 
 		const result: string[] = [];
@@ -738,7 +747,10 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				});
 				result.push(...ret);
 			} else {
-				// TODO@rebornix trigger view zone decorations
+				const id = ++this._lastOverviewRulerDecorationId;
+				const decorationId = `_overview_${this.id};${id}`;
+				this._overviewRulerDecorations.set(decorationId, decoration);
+				result.push(decorationId);
 			}
 
 		});

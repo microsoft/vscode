@@ -1266,6 +1266,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 	}
 
+	getViewZoneLayoutInfo(viewZoneId: string): { height: number; top: number } | null {
+		return this.viewZones.getViewZoneLayoutInfo(viewZoneId);
+	}
+
 	// override
 	override domFocus() {
 		const focused = this.getFocusedElements()[0];
