@@ -29,6 +29,11 @@ export interface IToolData {
 	modelDescription: string;
 	inputSchema?: IJSONSchema;
 	canBeReferencedInPrompt?: boolean;
+	/**
+	 * True if the tool runs in the (possibly remote) workspace, false if it runs
+	 * on the host, undefined if known.
+	 */
+	runsInWorkspace?: boolean;
 }
 
 export interface IToolInvocation {

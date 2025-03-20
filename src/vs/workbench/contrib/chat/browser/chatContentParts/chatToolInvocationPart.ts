@@ -240,11 +240,11 @@ class ChatToolInvocationSubPart extends Disposable {
 				};
 
 				const langId = this.languageService.getLanguageIdByLanguageName('json');
-				const model = this.modelService.createModel(
+				const model = this._register(this.modelService.createModel(
 					JSON.stringify(inputData.rawInput, undefined, 2),
 					this.languageService.createById(langId),
 					createToolInputUri(toolInvocation.toolId)
-				);
+				));
 				const editor = this._register(this.editorPool.get());
 				editor.object.render({
 					codeBlockIndex: this.codeBlockStartIndex,

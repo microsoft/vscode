@@ -1637,8 +1637,7 @@ export class SettingsEditor2 extends EditorPane {
 
 			this.searchDelayer.cancel();
 			if (this.searchInProgress) {
-				this.searchInProgress.cancel();
-				this.searchInProgress.dispose();
+				this.searchInProgress.dispose(true);
 				this.searchInProgress = null;
 			}
 
@@ -1689,23 +1688,24 @@ export class SettingsEditor2 extends EditorPane {
 
 	private async triggerFilterPreferences(query: string): Promise<void> {
 		if (this.searchInProgress) {
-			this.searchInProgress.cancel();
+			this.searchInProgress.dispose(true);
 			this.searchInProgress = null;
 		}
 
 		// Trigger the local search. If it didn't find an exact match, trigger the remote search.
 		const searchInProgress = this.searchInProgress = new CancellationTokenSource();
 		return this.searchDelayer.trigger(async () => {
-			if (!searchInProgress.token.isCancellationRequested) {
-				const localResults = await this.localFilterPreferences(query, searchInProgress.token);
-				if (localResults && !localResults.exactMatch && !searchInProgress.token.isCancellationRequested) {
-					await this.remoteSearchPreferences(query, searchInProgress.token);
-				}
-
-				// Update UI only after all the search results are in
-				// ref https://github.com/microsoft/vscode/issues/224946
-				this.onDidFinishSearch();
+			if (searchInProgress.token.isCancellationRequested) {
+				return;
 			}
+			const localResults = await this.localFilterPreferences(query, searchInProgress.token);
+			if (localResults && !localResults.exactMatch && !searchInProgress.token.isCancellationRequested) {
+				await this.remoteSearchPreferences(query, searchInProgress.token);
+			}
+
+			// Update UI only after all the search results are in
+			// ref https://github.com/microsoft/vscode/issues/224946
+			this.onDidFinishSearch();
 		});
 	}
 

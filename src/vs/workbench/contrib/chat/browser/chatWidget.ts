@@ -750,6 +750,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					location: this.location,
 					userSelectedModelId: this.input.currentLanguageModel,
 					hasInstructionAttachments: this.input.hasInstructionAttachments,
+					mode: this.input.currentMode,
 				};
 				this.chatService.resendRequest(request, options).catch(e => this.logService.error('FAILED to rerun request', e));
 			}

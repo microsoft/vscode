@@ -6,6 +6,7 @@
 import { mapFindFirst } from '../../../../base/common/arraysFind.js';
 import { assertNever } from '../../../../base/common/assert.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
+import { parse as parseJsonc } from '../../../../base/common/jsonc.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
@@ -14,7 +15,9 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, getConfigValueInTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { IMcpConfiguration, IMcpConfigurationSSE, McpConfigurationServer } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { EditorsOrder } from '../../../common/editor.js';
@@ -58,6 +61,8 @@ export class McpAddConfigurationCommand {
 		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
 		@IEditorService private readonly _openerService: IEditorService,
 		@IEditorService private readonly _editorService: IEditorService,
+		@IFileService private readonly _fileService: IFileService,
+		@INotificationService private readonly _notificationService: INotificationService,
 	) { }
 
 	private async getServerType(): Promise<AddConfigurationType | undefined> {
@@ -355,32 +360,48 @@ export class McpAddConfigurationCommand {
 		this.showOnceDiscovered(serverId);
 	}
 
-	public async pickForUrlHandler(resource: URI, config: McpConfigurationServer): Promise<void> {
+	public async pickForUrlHandler(resource: URI, showIsPrimary = false): Promise<void> {
 		const name = decodeURIComponent(basename(resource)).replace(/\.json$/, '');
-		const title = localize('install.title', 'Install MCP server {0}', name);
-		const pick = await this._quickInputService.pick([
-			{ id: 'show', label: localize('install.show', 'Show Configuration', name) },
+		const placeHolder = localize('install.title', 'Install MCP server {0}', name);
+
+		const items: IQuickPickItem[] = [
 			{ id: 'install', label: localize('install.start', 'Install Server'), description: localize('install.description', 'Install in your user settings') },
+			{ id: 'show', label: localize('install.show', 'Show Configuration', name) },
 			{ id: 'rename', label: localize('install.rename', 'Rename "{0}"', name) },
 			{ id: 'cancel', label: localize('cancel', 'Cancel') },
-		], { title, ignoreFocusLost: true });
+		];
+		if (showIsPrimary) {
+			[items[0], items[1]] = [items[1], items[0]];
+		}
+
+		const pick = await this._quickInputService.pick(items, { placeHolder, ignoreFocusLost: true });
+		const getEditors = () => this._editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)
+			.filter(e => e.editor.resource?.toString() === resource.toString());
+
 		switch (pick?.id) {
-			case 'show': {
+			case 'show':
 				await this._editorService.openEditor({ resource });
 				break;
-			}
-			case 'install': {
-				await this.writeToUserSetting(name, config, ConfigurationTarget.USER_LOCAL);
-				this._editorService.closeEditors(
-					this._editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).filter(e => e.editor.resource?.toString() === resource.toString())
-				);
-				this.showOnceDiscovered(name);
+			case 'install':
+				await this._editorService.save(getEditors());
+				try {
+					const contents = await this._fileService.readFile(resource);
+					const config: McpConfigurationServer = parseJsonc(contents.value.toString());
+					await this.writeToUserSetting(name, config, ConfigurationTarget.USER_LOCAL);
+					this._editorService.closeEditors(getEditors());
+					this.showOnceDiscovered(name);
+				} catch (e) {
+					this._notificationService.error(localize('install.error', 'Error installing MCP server {0}: {1}', name, e.message));
+					await this._editorService.openEditor({ resource });
+				}
 				break;
-			}
 			case 'rename': {
-				const newName = await this._quickInputService.input({ title, placeHolder: localize('install.newName', 'Enter new name'), value: name });
+				const newName = await this._quickInputService.input({ placeHolder: localize('install.newName', 'Enter new name'), value: name });
 				if (newName) {
-					return this.pickForUrlHandler(resource.with({ path: `/${encodeURIComponent(newName)}.json` }), config);
+					const newURI = resource.with({ path: `/${encodeURIComponent(newName)}.json` });
+					await this._editorService.save(getEditors());
+					await this._fileService.move(resource, newURI);
+					return this.pickForUrlHandler(newURI, showIsPrimary);
 				}
 				break;
 			}
