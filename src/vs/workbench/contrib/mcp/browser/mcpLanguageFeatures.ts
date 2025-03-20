@@ -19,7 +19,7 @@ import { ConfigurationResolverExpression, IResolvedValue } from '../../../servic
 import { IMcpConfigPathsService } from '../common/mcpConfigPathsService.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
 import { IMcpService, McpConnectionState } from '../common/mcpTypes.js';
-import { EditStoredInput, RemoveStoredInput, ShowOutput, StartServer, StopServer } from './mcpCommands.js';
+import { EditStoredInput, RemoveStoredInput, RestartServer, ShowOutput, StartServer, StopServer } from './mcpCommands.js';
 
 export class McpLanguageFeatures extends Disposable implements IWorkbenchContribution {
 	private readonly _cachedMcpSection = this._register(new MutableDisposable<{ model: ITextModel; node: Node } & IDisposable>());
@@ -109,7 +109,7 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 					}, {
 						range,
 						command: {
-							id: StartServer.ID,
+							id: RestartServer.ID,
 							title: localize('mcp.restart', "Restart"),
 							arguments: [server.definition.id],
 						},
@@ -143,19 +143,19 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 					}, {
 						range,
 						command: {
-							id: StartServer.ID,
+							id: RestartServer.ID,
 							title: localize('mcp.restart', "Restart"),
 							arguments: [server.definition.id],
 						},
 					}, {
 						range,
 						command: {
-							id: 'workbench.action.chat.attachTools',
+							id: '',
 							title: localize('server.toolCount', '{0} tools', read(server.tools).length),
 						},
 					});
 					break;
-				case McpConnectionState.Kind.Stopped:
+				case McpConnectionState.Kind.Stopped: {
 					lenses.lenses.push({
 						range,
 						command: {
@@ -164,6 +164,17 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 							arguments: [server.definition.id],
 						},
 					});
+					const toolCount = read(server.tools).length;
+					if (toolCount) {
+						lenses.lenses.push({
+							range,
+							command: {
+								id: '',
+								title: localize('server.toolCountCached', '{0} cached tools', toolCount),
+							}
+						});
+					}
+				}
 			}
 		}
 
