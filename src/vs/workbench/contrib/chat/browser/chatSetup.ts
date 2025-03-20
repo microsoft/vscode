@@ -229,12 +229,12 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 		const whenAgentReady = this.whenAgentReady(chatAgentService);
 
 		if (whenLanguageModelReady instanceof Promise || whenAgentReady instanceof Promise) {
-			const hasDefaultModel = await Promise.race([
+			const ready = await Promise.race([
 				timeout(10000),
 				Promise.allSettled([whenLanguageModelReady, whenAgentReady])
 			]);
 
-			if (!hasDefaultModel) {
+			if (!ready) {
 				progress({
 					kind: 'warning',
 					content: new MarkdownString(localize('copilotTookLongWarning', "Copilot took too long to get ready. Please try again later."))
