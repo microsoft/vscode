@@ -201,7 +201,6 @@ export interface ISettingsEditorModel extends IPreferencesEditorModel<ISetting> 
 	readonly onDidChangeGroups: Event<void>;
 	settingsGroups: ISettingsGroup[];
 	filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher): ISettingMatch[];
-	findValueMatches(filter: string, setting: ISetting): IRange[];
 	updateResultGroup(id: string, resultGroup: ISearchResultGroup | undefined): IFilterResult | undefined;
 }
 
