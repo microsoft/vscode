@@ -32,6 +32,7 @@ import { waitForState } from '../../../../../base/common/observable.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ChatAgentLocation } from '../../common/constants.js';
+import { NotebookTextModel } from '../../../notebook/common/model/notebookTextModel.js';
 
 function getAgentData(id: string) {
 	return {
@@ -66,6 +67,11 @@ suite('ChatEditingService', function () {
 		collection.set(IMultiDiffSourceResolverService, new class extends mock<IMultiDiffSourceResolverService>() {
 			override registerResolver(_resolver: IMultiDiffSourceResolver): IDisposable {
 				return Disposable.None;
+			}
+		});
+		collection.set(INotebookService, new class extends mock<INotebookService>() {
+			override getNotebookTextModel(_uri: URI): NotebookTextModel | undefined {
+				return undefined;
 			}
 		});
 		collection.set(INotebookService, new class extends mock<INotebookService>() {

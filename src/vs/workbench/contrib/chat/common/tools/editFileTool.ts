@@ -93,7 +93,7 @@ export class EditTool implements IToolImpl {
 		const fileUri = URI.revive(parameters.file); // TODO@roblourens do revive in MainThreadLanguageModelTools
 		const uri = CellUri.parse(fileUri)?.notebook || fileUri;
 
-		if (!this.workspaceContextService.isInsideWorkspace(uri)) {
+		if (!this.workspaceContextService.isInsideWorkspace(uri) && !this.notebookService.getNotebookTextModel(uri)) {
 			const groupsByLastActive = this.editorGroupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 			const uriIsOpenInSomeEditor = groupsByLastActive.some((group) => {
 				return group.editors.some((editor) => {
