@@ -8,7 +8,6 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT, IExtensionGalleryService, IExtensionManagementService, InstallExtensionInfo } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
-import { ExtensionType } from '../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
@@ -64,20 +63,18 @@ export class InstallRemoteExtensionsContribution implements IWorkbenchContributi
 			return;
 		}
 
-		const alreadyInstalledLocally = await this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.getInstalled(ExtensionType.User);
-		const alreadyInstalledRemotely = await this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.getInstalled(ExtensionType.User);
-		const extensionsToInstall = settingValue
-			.filter(id =>
-				alreadyInstalledLocally.some(ext => areSameExtensions(ext.identifier, { id }))
-				&& !alreadyInstalledRemotely.some(ext => areSameExtensions(ext.identifier, { id }))
-			);
+		const alreadyInstalledLocally = await this.extensionsWorkbenchService.queryLocal(this.extensionManagementServerService.localExtensionManagementServer);
+		const alreadyInstalledRemotely = await this.extensionsWorkbenchService.queryLocal(this.extensionManagementServerService.remoteExtensionManagementServer);
+		const extensionsToInstall = alreadyInstalledLocally
+			.filter(ext => settingValue.some(id => areSameExtensions(ext.identifier, { id })))
+			.filter(ext => !alreadyInstalledRemotely.some(e => areSameExtensions(e.identifier, ext.identifier)));
+
 
 		if (!extensionsToInstall.length) {
 			return;
 		}
 
-		const galleryExtensions = await this.extensionsWorkbenchService.getExtensions(extensionsToInstall.map(id => ({ id })), CancellationToken.None);
-		await Promise.allSettled(galleryExtensions.map(ext => {
+		await Promise.allSettled(extensionsToInstall.map(ext => {
 			this.extensionsWorkbenchService.installInServer(ext, this.extensionManagementServerService.remoteExtensionManagementServer!, { donotIncludePackAndDependencies: true });
 		}));
 	}
