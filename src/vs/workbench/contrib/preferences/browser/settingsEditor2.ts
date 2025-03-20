@@ -1700,13 +1700,21 @@ export class SettingsEditor2 extends EditorPane {
 				return;
 			}
 			const localResults = await this.localFilterPreferences(query, searchInProgress.token);
+			let remoteResults = null;
 			if (localResults && !localResults.exactMatch && !searchInProgress.token.isCancellationRequested) {
-				await this.remoteSearchPreferences(query, searchInProgress.token);
+				remoteResults = await this.remoteSearchPreferences(query, searchInProgress.token);
 			}
 
 			// Update UI only after all the search results are in
 			// ref https://github.com/microsoft/vscode/issues/224946
 			this.onDidFinishSearch();
+
+			if (remoteResults) {
+				// const querySuggestions = await this.getQuerySuggestions(query, searchInProgress.token);
+				// if (querySuggestions && !searchInProgress.token.isCancellationRequested) {
+				//	this.searchWidget.setQuerySuggestions(querySuggestions);
+				// }
+			}
 		});
 	}
 

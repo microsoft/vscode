@@ -86,6 +86,7 @@ import { CandidatePort } from '../../services/remote/common/tunnelModel.js';
 import { IFileQueryBuilderOptions, ITextQueryBuilderOptions } from '../../services/search/common/queryBuilder.js';
 import * as search from '../../services/search/common/search.js';
 import { AISearchKeyword, TextSearchCompleteMessage } from '../../services/search/common/searchExtTypes.js';
+import { AiSettingsSearchProviderOptions, AiSettingsSearchResult } from '../../services/aiSettingsSearch/common/aiSettingsSearch.js';
 import { ISaveProfileResult } from '../../services/userDataProfile/common/userDataProfile.js';
 import { TerminalShellExecutionCommandLineConfidence } from './extHostTypes.js';
 import * as tasks from './shared/tasks.js';
@@ -1985,6 +1986,16 @@ export interface MainThreadAiRelatedInformationShape {
 	$unregisterAiRelatedInformationProvider(handle: number): void;
 }
 
+export interface ExtHostAiSettingsSearchShape {
+	$provideEmbeddingsSearchResults(handle: number, query: string, option: AiSettingsSearchProviderOptions, token: CancellationToken): Promise<AiSettingsSearchResult[]>;
+	$provideLLMRankedSearchResults(handle: number, query: string, option: AiSettingsSearchProviderOptions, token: CancellationToken): Promise<AiSettingsSearchResult[]>;
+}
+
+export interface MainThreadAiSettingsSearchShape {
+	$registerAiSettingsSearchProvider(handle: number): void;
+	$unregisterAiSettingsSearchProvider(handle: number): void;
+}
+
 export interface ExtHostAiEmbeddingVectorShape {
 	$provideAiEmbeddingVector(handle: number, strings: string[], token: CancellationToken): Promise<number[][]>;
 }
@@ -3153,7 +3164,8 @@ export const MainContext = {
 	MainThreadMcp: createProxyIdentifier<MainThreadMcpShape>('MainThreadMcpShape'),
 	MainThreadAiRelatedInformation: createProxyIdentifier<MainThreadAiRelatedInformationShape>('MainThreadAiRelatedInformation'),
 	MainThreadAiEmbeddingVector: createProxyIdentifier<MainThreadAiEmbeddingVectorShape>('MainThreadAiEmbeddingVector'),
-	MainThreadChatStatus: createProxyIdentifier<MainThreadChatStatusShape>('MainThreadChatStatus'),
+	MainThreadChatStatus: createProxyIdentifier<MainThreadChatStatusShape>('MainThreadChatStatus'),,
+	MainThreadAiSettingsSearch: createProxyIdentifier<MainThreadAiSettingsSearchShape>('MainThreadAiSettingsSearch'),
 };
 
 export const ExtHostContext = {
@@ -3216,6 +3228,7 @@ export const ExtHostContext = {
 	ExtHostEmbeddings: createProxyIdentifier<ExtHostEmbeddingsShape>('ExtHostEmbeddings'),
 	ExtHostAiRelatedInformation: createProxyIdentifier<ExtHostAiRelatedInformationShape>('ExtHostAiRelatedInformation'),
 	ExtHostAiEmbeddingVector: createProxyIdentifier<ExtHostAiEmbeddingVectorShape>('ExtHostAiEmbeddingVector'),
+	ExtHostAiSettingsSearch: createProxyIdentifier<ExtHostAiSettingsSearchShape>('ExtHostAiSettingsSearch'),
 	ExtHostTheming: createProxyIdentifier<ExtHostThemingShape>('ExtHostTheming'),
 	ExtHostTunnelService: createProxyIdentifier<ExtHostTunnelServiceShape>('ExtHostTunnelService'),
 	ExtHostManagedSockets: createProxyIdentifier<ExtHostManagedSocketsShape>('ExtHostManagedSockets'),
