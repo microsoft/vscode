@@ -8,7 +8,7 @@ import { localize } from '../../../../nls.js';
 import { $, addDisposableListener, clearNode, EventHelper, EventType, getWindow, hide, isActiveElement, isAncestor, show } from '../../dom.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { ActionBar } from '../actionbar/actionbar.js';
-import { ButtonBar, ButtonWithDescription, IButton, IButtonStyles, IButtonWithDropdownOptions } from '../button/button.js';
+import { ButtonBar, ButtonWithDescription, ButtonWithDropdown, IButton, IButtonStyles, IButtonWithDropdownOptions } from '../button/button.js';
 import { ICheckboxStyles, Checkbox } from '../toggle/toggle.js';
 import { IInputBoxStyles, InputBox } from '../inputbox/inputBox.js';
 import { Action, toAction } from '../../../common/actions.js';
@@ -346,9 +346,20 @@ export class Dialog extends Disposable {
 
 					if (this.buttonBar) {
 						for (const button of this.buttonBar.buttons) {
-							focusableElements.push(button);
-							if (button.hasFocus()) {
-								focusedIndex = focusableElements.length - 1;
+							if (button instanceof ButtonWithDropdown) {
+								focusableElements.push(button.primaryButton);
+								if (button.primaryButton.hasFocus()) {
+									focusedIndex = focusableElements.length - 1;
+								}
+								focusableElements.push(button.dropdownButton);
+								if (button.dropdownButton.hasFocus()) {
+									focusedIndex = focusableElements.length - 1;
+								}
+							} else {
+								focusableElements.push(button);
+								if (button.hasFocus()) {
+									focusedIndex = focusableElements.length - 1;
+								}
 							}
 						}
 					}
