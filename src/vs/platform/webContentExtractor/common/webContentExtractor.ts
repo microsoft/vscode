@@ -7,10 +7,16 @@ import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const IWebContentExtractorService = createDecorator<IWebContentExtractorService>('IWebContentExtractorService');
+export const ISharedWebContentExtractorService = createDecorator<ISharedWebContentExtractorService>('ISharedWebContentExtractorService');
+
 
 export interface IWebContentExtractorService {
 	_serviceBrand: undefined;
 	extract(uri: URI[]): Promise<string[]>;
+}
+
+export interface ISharedWebContentExtractorService {
+	_serviceBrand: undefined;
 	extractUrls(uri: URI): Promise<Uint8Array>;
 }
 

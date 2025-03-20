@@ -122,6 +122,8 @@ import { DefaultExtensionsInitializer } from './contrib/defaultExtensionsInitial
 import { AllowedExtensionsService } from '../../../platform/extensionManagement/common/allowedExtensionsService.js';
 import { IExtensionGalleryManifestService } from '../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { ExtensionGalleryManifestIPCService } from '../../../platform/extensionManagement/common/extensionGalleryManifestServiceIpc.js';
+import { IWebContentExtractorService } from '../../../platform/webContentExtractor/common/webContentExtractor.js';
+import { SharedWebContentExtractorService } from '../../../platform/webContentExtractor/node/sharedWebContentExtractorService.js';
 
 class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
@@ -374,6 +376,9 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		// Remote Tunnel
 		services.set(IRemoteTunnelService, new SyncDescriptor(RemoteTunnelService));
 
+		// Web Extract
+		services.set(IWebContentExtractorService, new SyncDescriptor(SharedWebContentExtractorService));
+
 		return new InstantiationService(services);
 	}
 
@@ -432,6 +437,10 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		// Remote Tunnel
 		const remoteTunnelChannel = ProxyChannel.fromService(accessor.get(IRemoteTunnelService), this._store);
 		this.server.registerChannel('remoteTunnel', remoteTunnelChannel);
+
+		// Web Content Extractor
+		const webContentExtractorChannel = ProxyChannel.fromService(accessor.get(IWebContentExtractorService), this._store);
+		this.server.registerChannel('webContentExtractor', webContentExtractorChannel);
 	}
 
 	private registerErrorHandler(logService: ILogService): void {

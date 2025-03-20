@@ -22,7 +22,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
-import { IWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
+import { ISharedWebContentExtractorService, IWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { isUntitledResourceEditorInput } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -60,7 +60,7 @@ export class ChatDragAndDrop extends Themable {
 		@IDialogService private readonly dialogService: IDialogService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IWebContentExtractorService private readonly webContentExtractorService: IWebContentExtractorService,
+		@IWebContentExtractorService private readonly webContentExtractorService: ISharedWebContentExtractorService,
 	) {
 		super(themeService);
 
