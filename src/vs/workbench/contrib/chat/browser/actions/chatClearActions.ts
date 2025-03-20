@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize2 } from '../../../../../nls.js';
@@ -90,7 +91,10 @@ export function registerNewChatActions() {
 				},
 				menu: [{
 					id: MenuId.ChatContext,
-					group: 'z_clear'
+					group: 'z_clear',
+					when: ContextKeyExpr.and(
+						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
+						ChatContextKeys.inUnifiedChat.negate()),
 				},
 				{
 					id: MenuId.ViewTitle,
@@ -243,14 +247,14 @@ export function registerNewChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.undoEdit',
-				title: localize2('chat.undoEdit.label', "Undo Last Edit"),
+				title: localize2('chat.undoEdit.label', "Undo Last Request"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.discard,
 				precondition: ContextKeyExpr.and(ChatContextKeys.chatEditingCanUndo, ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered),
 				f1: true,
 				menu: [{
 					id: MenuId.ViewTitle,
-					when: ChatContextKeyExprs.inEditingMode,
+					when: ChatContextKeyExprs.inEditsOrUnified,
 					group: 'navigation',
 					order: -3
 				}]
@@ -266,14 +270,14 @@ export function registerNewChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.redoEdit',
-				title: localize2('chat.redoEdit.label', "Redo Last Edit"),
+				title: localize2('chat.redoEdit.label', "Redo Last Request"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.redo,
 				precondition: ContextKeyExpr.and(ChatContextKeys.chatEditingCanRedo, ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered),
 				f1: true,
 				menu: [{
 					id: MenuId.ViewTitle,
-					when: ChatContextKeyExprs.inEditingMode,
+					when: ChatContextKeyExprs.inEditsOrUnified,
 					group: 'navigation',
 					order: -2
 				}]
@@ -336,15 +340,25 @@ export function registerNewChatActions() {
 			const chatView = await viewsService.openView<ChatViewPane>(EditsViewId)
 				?? await viewsService.openView<ChatViewPane>(ChatViewId);
 
+			if (!chatView?.widget) {
+				return;
+			}
+
+			if (!chatView.widget.viewModel) {
+				await Event.toPromise(
+					Event.filter(chatView.widget.onDidChangeViewModel, () => !!chatView.widget.viewModel)
+				);
+			}
+
 			if (opts?.query) {
 				if (opts.isPartialQuery) {
-					chatView?.widget.setInput(opts.query);
+					chatView.widget.setInput(opts.query);
 				} else {
-					chatView?.widget.acceptInput(opts.query);
+					chatView.widget.acceptInput(opts.query);
 				}
 			}
 
-			chatView?.widget.focusInput();
+			chatView.widget.focusInput();
 		}
 	});
 }

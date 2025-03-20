@@ -6,6 +6,7 @@
 import { mapFindFirst } from '../../../../../base/common/arraysFind.js';
 import { itemsEquals } from '../../../../../base/common/equals.js';
 import { BugIndicatingError, onUnexpectedError, onUnexpectedExternalError } from '../../../../../base/common/errors.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, IObservableWithChange, IReader, ITransaction, autorun, constObservable, derived, derivedHandleChanges, derivedOpts, observableSignal, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from '../../../../../base/common/observable.js';
 import { commonPrefixLength, firstNonWhitespaceIndex } from '../../../../../base/common/strings.js';
@@ -55,6 +56,9 @@ export class InlineCompletionsModel extends Disposable {
 
 	private _isAcceptingPartially = false;
 	public get isAcceptingPartially() { return this._isAcceptingPartially; }
+
+	private readonly _onDidAccept = new Emitter<void>();
+	public readonly onDidAccept = this._onDidAccept.event;
 
 	private readonly _editorObs = observableCodeEditor(this._editor);
 
@@ -129,7 +133,30 @@ export class InlineCompletionsModel extends Disposable {
 				this._editor.pushUndoStop();
 			}
 		}));
+
+		this._didUndoInlineEdits.recomputeInitiallyAndOnChange(this._store);
 	}
+
+	private _lastAcceptedInlineCompletionInfo: { textModelVersionIdAfter: number; /* already freed! */ inlineCompletion: InlineCompletionItem } | undefined = undefined;
+	private readonly _didUndoInlineEdits = derivedHandleChanges({
+		owner: this,
+		createEmptyChangeSummary: () => ({ didUndo: false }),
+		handleChange: (ctx, changeSummary) => {
+			changeSummary.didUndo = ctx.didChange(this._textModelVersionId) && !!ctx.change?.isUndoing;
+			return true;
+		}
+	}, reader => {
+		const versionId = this._textModelVersionId.read(reader);
+		if (versionId !== null
+			&& this._lastAcceptedInlineCompletionInfo
+			&& this._lastAcceptedInlineCompletionInfo.textModelVersionIdAfter === versionId - 1
+			&& this._lastAcceptedInlineCompletionInfo.inlineCompletion.isInlineEdit
+		) {
+			this._lastAcceptedInlineCompletionInfo = undefined;
+			return true;
+		}
+		return false;
+	});
 
 	public debugGetSelectedSuggestItem(): IObservable<SuggestItemInfo | undefined> {
 		return this._selectedSuggestItem;
@@ -234,6 +261,13 @@ export class InlineCompletionsModel extends Disposable {
 		const cursorPosition = this.primaryPosition.get();
 		if (changeSummary.dontRefetch) {
 			return Promise.resolve(true);
+		}
+
+		if (this._didUndoInlineEdits.read(reader)) {
+			transaction(tx => {
+				this._source.clear(tx);
+			});
+			return undefined;
 		}
 
 		const context: InlineCompletionContext = {
@@ -677,6 +711,8 @@ export class InlineCompletionsModel extends Disposable {
 			}
 		}
 
+		this._onDidAccept.fire();
+
 		// Reset before invoking the command, as the command might cause a follow up trigger (which we don't want to reset).
 		this.stop();
 
@@ -688,6 +724,7 @@ export class InlineCompletionsModel extends Disposable {
 		}
 
 		this._inAcceptFlow.set(true, undefined);
+		this._lastAcceptedInlineCompletionInfo = { textModelVersionIdAfter: this.textModel.getVersionId(), inlineCompletion: completion };
 	}
 
 	public async acceptNextWord(editor: ICodeEditor): Promise<void> {

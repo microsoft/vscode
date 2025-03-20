@@ -18,7 +18,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 
 	private _serverIdCounter = 0;
 
-	private readonly _servers: Map<number, ExtHostMcpServerLaunch> = new Map();
+	private readonly _servers = this._register(new DisposableMap<number, ExtHostMcpServerLaunch>());
 	private readonly _collectionDefinitions = this._register(new DisposableMap<string, {
 		fromExtHost: McpCollectionDefinition.FromExtHost;
 		servers: ISettableObservable<readonly McpServerDefinition[]>;
@@ -88,8 +88,8 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 	$onDidChangeState(id: number, update: McpConnectionState): void {
 		this._servers.get(id)?.state.set(update, undefined);
 
-		if (update.state === McpConnectionState.Kind.Stopped || update.state === McpConnectionState.Kind.Error) {
-			this._servers.delete(id);
+		if (!McpConnectionState.isRunning(update)) {
+			this._servers.deleteAndDispose(id);
 		}
 	}
 
@@ -136,4 +136,12 @@ class ExtHostMcpServerLaunch extends Disposable implements IMcpMessageTransport 
 		super();
 	}
 
+	public override dispose(): void {
+		if (McpConnectionState.isRunning(this.state.get())) {
+			this.pushLog('Extension host shut down, server will stop.');
+			this.state.set({ state: McpConnectionState.Kind.Stopped }, undefined);
+		}
+
+		super.dispose();
+	}
 }

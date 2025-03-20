@@ -10,6 +10,7 @@ import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js
 import { Schemas } from '../../../../../base/common/network.js';
 import { IPath, normalize } from '../../../../../base/common/path.js';
 import * as platform from '../../../../../base/common/platform.js';
+import { isLinux, isMacintosh, isWindows } from '../../../../../base/common/platform.js';
 import { isObject } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -22,12 +23,12 @@ import { IExtensionDescription } from '../../../../../platform/extensions/common
 import { IFormatterChangeEvent, ILabelService, ResourceLabelFormatter, Verbosity } from '../../../../../platform/label/common/label.js';
 import { IWorkspace, IWorkspaceFolder, IWorkspaceIdentifier, Workspace } from '../../../../../platform/workspace/common/workspace.js';
 import { testWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
-import { BaseConfigurationResolverService } from '../../browser/baseConfigurationResolverService.js';
-import { IConfigurationResolverService } from '../../common/configurationResolver.js';
-import { IExtensionService } from '../../../extensions/common/extensions.js';
-import { IPathService } from '../../../path/common/pathService.js';
 import { TestEditorService, TestQuickInputService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestContextService, TestExtensionService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { IExtensionService } from '../../../extensions/common/extensions.js';
+import { IPathService } from '../../../path/common/pathService.js';
+import { BaseConfigurationResolverService } from '../../browser/baseConfigurationResolverService.js';
+import { IConfigurationResolverService } from '../../common/configurationResolver.js';
 import { ConfigurationResolverExpression } from '../../common/configurationResolverExpression.js';
 
 const mockLineNumber = 10;
@@ -98,6 +99,29 @@ suite('Configuration Resolver Service', () => {
 		} else {
 			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, 'abc ${workspaceFolder} xyz'), 'abc /VSCode/workspaceLocation xyz');
 		}
+	});
+
+	test('apples platform specific config', async () => {
+		const expected = isWindows ? 'windows.exe' : isMacintosh ? 'osx.sh' : isLinux ? 'linux.sh' : undefined;
+		const obj = {
+			windows: {
+				program: 'windows.exe'
+			},
+			osx: {
+				program: 'osx.sh'
+			},
+			linux: {
+				program: 'linux.sh'
+			}
+		};
+		const originalObj = JSON.stringify(obj);
+		const config: any = await configurationResolverService!.resolveAsync(workspace, obj);
+
+		assert.strictEqual(config.program, expected);
+		assert.strictEqual(config.windows, undefined);
+		assert.strictEqual(config.osx, undefined);
+		assert.strictEqual(config.linux, undefined);
+		assert.strictEqual(JSON.stringify(obj), originalObj); // did not mutate original
 	});
 
 	test('workspace folder with argument', async () => {

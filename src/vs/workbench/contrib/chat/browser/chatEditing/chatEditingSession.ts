@@ -51,6 +51,7 @@ import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCo
 import { ChatEditingModifiedNotebookEntry } from './chatEditingModifiedNotebookEntry.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ChatEditingModifiedNotebookDiff } from './notebook/chatEditingModifiedNotebookDiff.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 
 const STORAGE_CONTENTS_FOLDER = 'contents';
 const STORAGE_STATE_FILE = 'state.json';
@@ -198,6 +199,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 	) {
 		super();
 	}
@@ -578,7 +580,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				}
 			}
 		});
-
+		this._accessibilitySignalService.playSignal(AccessibilitySignal.editsKept, { allowManyInParallel: true });
 		this._onDidChange.fire(ChatEditingSessionChangeType.Other);
 	}
 
@@ -597,7 +599,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				}
 			}
 		});
-
+		this._accessibilitySignalService.playSignal(AccessibilitySignal.editsUndone, { allowManyInParallel: true });
 		this._onDidChange.fire(ChatEditingSessionChangeType.Other);
 	}
 

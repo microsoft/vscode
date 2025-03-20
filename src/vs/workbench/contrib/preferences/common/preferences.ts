@@ -43,7 +43,7 @@ export interface IPreferencesSearchService {
 }
 
 export interface ISearchProvider {
-	searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken): Promise<ISearchResult | null>;
+	searchModel(preferencesModel: ISettingsEditorModel, token: CancellationToken): Promise<ISearchResult | null>;
 }
 
 export interface IRemoteSearchProvider extends ISearchProvider {

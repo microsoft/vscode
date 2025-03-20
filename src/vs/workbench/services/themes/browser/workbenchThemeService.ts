@@ -6,7 +6,7 @@
 import * as nls from '../../../../nls.js';
 import * as types from '../../../../base/common/types.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
-import { IWorkbenchThemeService, IWorkbenchColorTheme, IWorkbenchFileIconTheme, ExtensionData, ThemeSettings, IWorkbenchProductIconTheme, ThemeSettingTarget, ThemeSettingDefaults, COLOR_THEME_DARK_INITIAL_COLORS, COLOR_THEME_LIGHT_INITIAL_COLORS, IWorkbenchThemeChangeEvent } from '../common/workbenchThemeService.js';
+import { IWorkbenchThemeService, IWorkbenchColorTheme, IWorkbenchFileIconTheme, ExtensionData, ThemeSettings, IWorkbenchProductIconTheme, ThemeSettingTarget, ThemeSettingDefaults, COLOR_THEME_DARK_INITIAL_COLORS, COLOR_THEME_LIGHT_INITIAL_COLORS } from '../common/workbenchThemeService.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -79,7 +79,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 
 	private readonly colorThemeRegistry: ThemeRegistry<ColorThemeData>;
 	private currentColorTheme: ColorThemeData;
-	private readonly onColorThemeChange: Emitter<IWorkbenchThemeChangeEvent>;
+	private readonly onColorThemeChange: Emitter<IWorkbenchColorTheme>;
 	private readonly colorThemeWatcher: ThemeFileWatcher;
 	private colorThemingParticipantChangeListener: IDisposable | undefined;
 	private readonly colorThemeSequencer: Sequencer;
@@ -117,7 +117,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 
 		this.colorThemeRegistry = this._register(new ThemeRegistry(colorThemesExtPoint, ColorThemeData.fromExtensionTheme));
 		this.colorThemeWatcher = this._register(new ThemeFileWatcher(fileService, environmentService, this.reloadCurrentColorTheme.bind(this)));
-		this.onColorThemeChange = new Emitter<IWorkbenchThemeChangeEvent>({ leakWarningThreshold: 400 });
+		this.onColorThemeChange = new Emitter<IWorkbenchColorTheme>({ leakWarningThreshold: 400 });
 		this.currentColorTheme = ColorThemeData.createUnloadedTheme('');
 		this.colorThemeSequencer = new Sequencer();
 
@@ -134,7 +134,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		this.currentProductIconTheme = ProductIconThemeData.createUnloadedTheme('');
 		this.productIconThemeSequencer = new Sequencer();
 
-		this._register(this.onDidColorThemeChange(e => getColorRegistry().notifyThemeUpdate(e.theme)));
+		this._register(this.onDidColorThemeChange(theme => getColorRegistry().notifyThemeUpdate(theme)));
 
 		// In order to avoid paint flashing for tokens, because
 		// themes are loaded asynchronously, we need to initialize
@@ -277,7 +277,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 				}
 				if (hasColorChanges) {
 					this.updateDynamicCSSRules(this.currentColorTheme);
-					this.onColorThemeChange.fire({ theme: this.currentColorTheme, target: 'auto' });
+					this.onColorThemeChange.fire(this.currentColorTheme);
 				}
 			}
 		}));
@@ -375,7 +375,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 	}
 
 	public async getMarketplaceColorThemes(publisher: string, name: string, version: string): Promise<IWorkbenchColorTheme[]> {
-		const extensionLocation = this.extensionResourceLoaderService.getExtensionGalleryResourceURL({ publisher, name, version }, 'extension');
+		const extensionLocation = await this.extensionResourceLoaderService.getExtensionGalleryResourceURL({ publisher, name, version }, 'extension');
 		if (extensionLocation) {
 			try {
 				const manifestContent = await this.extensionResourceLoaderService.readExtensionResource(resources.joinPath(extensionLocation, 'package.json'));
@@ -387,7 +387,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		return [];
 	}
 
-	public get onDidColorThemeChange(): Event<IWorkbenchThemeChangeEvent> {
+	public get onDidColorThemeChange(): Event<IWorkbenchColorTheme> {
 		return this.onColorThemeChange.event;
 	}
 
@@ -506,7 +506,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 			return Promise.resolve(null);
 		}
 
-		this.onColorThemeChange.fire({ theme: this.currentColorTheme, target: settingsTarget });
+		this.onColorThemeChange.fire(this.currentColorTheme);
 
 		// remember theme data for a quick restore
 		if (newTheme.isLoaded && settingsTarget !== 'preview') {
@@ -599,7 +599,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 	}
 
 	public async getMarketplaceFileIconThemes(publisher: string, name: string, version: string): Promise<IWorkbenchFileIconTheme[]> {
-		const extensionLocation = this.extensionResourceLoaderService.getExtensionGalleryResourceURL({ publisher, name, version }, 'extension');
+		const extensionLocation = await this.extensionResourceLoaderService.getExtensionGalleryResourceURL({ publisher, name, version }, 'extension');
 		if (extensionLocation) {
 			try {
 				const manifestContent = await this.extensionResourceLoaderService.readExtensionResource(resources.joinPath(extensionLocation, 'package.json'));
@@ -705,7 +705,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 	}
 
 	public async getMarketplaceProductIconThemes(publisher: string, name: string, version: string): Promise<IWorkbenchProductIconTheme[]> {
-		const extensionLocation = this.extensionResourceLoaderService.getExtensionGalleryResourceURL({ publisher, name, version }, 'extension');
+		const extensionLocation = await this.extensionResourceLoaderService.getExtensionGalleryResourceURL({ publisher, name, version }, 'extension');
 		if (extensionLocation) {
 			try {
 				const manifestContent = await this.extensionResourceLoaderService.readExtensionResource(resources.joinPath(extensionLocation, 'package.json'));
