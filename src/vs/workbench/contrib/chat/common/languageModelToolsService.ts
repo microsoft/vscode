@@ -15,6 +15,7 @@ import { ExtensionIdentifier } from '../../../../platform/extensions/common/exte
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { Location } from '../../../../editor/common/languages.js';
 import { IChatTerminalToolInvocationData, IChatToolInputInvocationData } from './chatService.js';
+import { Schemas } from '../../../../base/common/network.js';
 
 export interface IToolData {
 	id: string;
@@ -109,4 +110,11 @@ export interface ILanguageModelToolsService {
 	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile' | 'memory', autoConfirm?: boolean): void;
 	resetToolAutoConfirmation(): void;
 	cancelToolCallsForRequest(requestId: string): void;
+}
+
+export function createToolInputUri(toolOrId: IToolData | string): URI {
+	if (typeof toolOrId !== 'string') {
+		toolOrId = toolOrId.id;
+	}
+	return URI.from({ scheme: Schemas.inMemory, path: `/lm/tool/${toolOrId}/tool_input.json` });
 }
