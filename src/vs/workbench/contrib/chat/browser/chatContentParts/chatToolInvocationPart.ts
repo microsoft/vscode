@@ -8,7 +8,7 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -292,6 +292,9 @@ class ChatToolInvocationSubPart extends Disposable {
 			));
 		}
 
+		const hasToolConfirmation = ChatContextKeys.Editing.hasToolConfirmation.bindTo(this.contextKeyService);
+		hasToolConfirmation.set(true);
+
 		this._register(confirmWidget.onDidClick(button => {
 			switch (button.data as ConfirmationOutcome) {
 				case ConfirmationOutcome.AllowGlobally:
@@ -315,7 +318,9 @@ class ChatToolInvocationSubPart extends Disposable {
 			}
 		}));
 		this._register(confirmWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+		this._register(toDisposable(() => hasToolConfirmation.reset()));
 		toolInvocation.confirmed.p.then(() => {
+			hasToolConfirmation.reset();
 			this._onNeedsRerender.fire();
 		});
 		return confirmWidget.domNode;
