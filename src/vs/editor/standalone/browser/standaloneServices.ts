@@ -98,7 +98,7 @@ import { mainWindow } from '../../../base/browser/window.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { ITreeSitterParserService } from '../../common/services/treeSitterParserService.js';
 import { StandaloneTreeSitterParserService } from './standaloneTreeSitterService.js';
-import { IWorkerDescriptor } from '../../../base/common/worker/simpleWorker.js';
+import { IWorkerDescriptor } from '../../../base/browser/defaultWorkerFactory.js';
 
 class SimpleModel implements IResolvedTextEditorModel {
 

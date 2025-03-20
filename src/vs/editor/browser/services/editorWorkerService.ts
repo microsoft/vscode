@@ -6,8 +6,8 @@
 import { timeout } from '../../../base/common/async.js';
 import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
-import { logOnceWebWorkerWarning, IWorkerClient, Proxied, IWorkerDescriptor } from '../../../base/common/worker/simpleWorker.js';
-import { createWebWorker } from '../../../base/browser/defaultWorkerFactory.js';
+import { logOnceWebWorkerWarning, IWorkerClient, Proxied } from '../../../base/common/worker/simpleWorker.js';
+import { createWebWorker, IWorkerDescriptor } from '../../../base/browser/defaultWorkerFactory.js';
 import { Position } from '../../common/core/position.js';
 import { IRange, Range } from '../../common/core/range.js';
 import { ITextModel } from '../../common/model.js';

@@ -7,7 +7,7 @@ import { createTrustedTypesPolicy } from './trustedTypes.js';
 import { onUnexpectedError } from '../common/errors.js';
 import { AppResourcePath, COI, FileAccess } from '../common/network.js';
 import { URI } from '../common/uri.js';
-import { IWorker, IWorkerClient, IWorkerDescriptor, Message, SimpleWorkerClient } from '../common/worker/simpleWorker.js';
+import { IWorker, IWorkerClient, Message, SimpleWorkerClient } from '../common/worker/simpleWorker.js';
 import { Disposable, toDisposable } from '../common/lifecycle.js';
 import { coalesce } from '../common/arrays.js';
 import { getNLSLanguage, getNLSMessages } from '../../nls.js';
@@ -30,7 +30,9 @@ export function createBlobWorker(blobUrl: string, options?: WorkerOptions): Work
 	return new Worker(ttPolicy ? ttPolicy.createScriptURL(blobUrl) as unknown as string : blobUrl, { ...options, type: 'module' });
 }
 
-function getWorker(esmWorkerLocation: URI | undefined, label: string): Worker | Promise<Worker> {
+function getWorker(descriptor: IWorkerDescriptor, id: number): Worker | Promise<Worker> {
+	const label = descriptor.label || 'anonymous' + id;
+
 	// Option for hosts to overwrite the worker script (used in the standalone editor)
 	interface IMonacoEnvironment {
 		getWorker?(moduleId: string, label: string): Worker | Promise<Worker>;
@@ -46,11 +48,14 @@ function getWorker(esmWorkerLocation: URI | undefined, label: string): Worker | 
 			return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label, type: 'module' });
 		}
 	}
+
+	const esmWorkerLocation = descriptor.esmModuleLocation;
 	if (esmWorkerLocation) {
 		const workerUrl = getWorkerBootstrapUrl(label, esmWorkerLocation.toString(true));
 		const worker = new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label, type: 'module' });
 		return whenESMWorkerReady(worker);
 	}
+
 	throw new Error(`You must define a function MonacoEnvironment.getWorkerUrl or MonacoEnvironment.getWorker`);
 }
 
@@ -133,7 +138,7 @@ class WebWorker extends Disposable implements IWorker {
 		const workerOrPromise = (
 			descriptorOrWorker instanceof Worker
 				? descriptorOrWorker
-				: getWorker(descriptorOrWorker.esmModuleLocation, descriptorOrWorker.label || 'anonymous' + this.id)
+				: getWorker(descriptorOrWorker, this.id)
 		);
 		if (isPromiseLike(workerOrPromise)) {
 			this.worker = workerOrPromise;
@@ -182,15 +187,25 @@ class WebWorker extends Disposable implements IWorker {
 	}
 }
 
+export interface IWorkerDescriptor {
+	readonly esmModuleLocation: URI | undefined;
+	readonly label: string | undefined;
+}
+
 export class WorkerDescriptor implements IWorkerDescriptor {
 
-	public readonly esmModuleLocation: URI | undefined;
+	public get esmModuleLocation(): URI | undefined {
+		try {
+			return FileAccess.asBrowserUri(`${this.moduleId}Main.js` as AppResourcePath);
+		} catch (e) {
+			return undefined;
+		}
+	}
 
 	constructor(
-		public readonly moduleId: string,
+		private readonly moduleId: string,
 		public readonly label: string | undefined,
 	) {
-		this.esmModuleLocation = FileAccess.asBrowserUri(`${moduleId}Main.js` as AppResourcePath);
 	}
 }
 

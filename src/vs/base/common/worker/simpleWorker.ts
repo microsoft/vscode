@@ -9,7 +9,6 @@ import { Emitter, Event } from '../event.js';
 import { Disposable, IDisposable } from '../lifecycle.js';
 import { isWeb } from '../platform.js';
 import * as strings from '../strings.js';
-import { URI } from '../uri.js';
 
 const DEFAULT_CHANNEL = 'default';
 const INITIALIZE = '$initialize';
@@ -19,11 +18,6 @@ export interface IWorker extends IDisposable {
 	onMessage: Event<Message>;
 	onError: Event<any>;
 	postMessage(message: Message, transfer: ArrayBuffer[]): void;
-}
-
-export interface IWorkerDescriptor {
-	readonly esmModuleLocation: URI | undefined;
-	readonly label: string | undefined;
 }
 
 let webWorkerWarningLogged = false;
