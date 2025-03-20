@@ -555,6 +555,11 @@ export class PromptReference extends ObservableDisposable implements IPromptRefe
 	) {
 		super();
 
+		/**
+		 * TODO: @legomushroom - remove?
+		 */
+		this._register(promptContentsProvider);
+
 		this.parser = this._register(initService.createInstance(
 			BasePromptParser,
 			this.promptContentsProvider,

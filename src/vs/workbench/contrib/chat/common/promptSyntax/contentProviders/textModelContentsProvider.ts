@@ -13,7 +13,7 @@ import { newWriteableStream, ReadableStream } from '../../../../../../base/commo
 import { IModelContentChangedEvent } from '../../../../../../editor/common/textModelEvents.js';
 
 /**
- * Prompt contents provider for a {@linkcode ITextModel} instance.
+ * Prompt contents provider for a {@link ITextModel} instance.
  */
 export class TextModelContentsProvider extends PromptContentsProviderBase<IModelContentChangedEvent> {
 	/**
@@ -75,7 +75,7 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 					VSBuffer.fromString(this.model.getLineContent(i)),
 				);
 
-				// for all lines exept the last one, write the EOL character
+				// for all lines except the last one, write the EOL character
 				// to separate the lines in the stream
 				if (i !== linesCount) {
 					stream.write(
