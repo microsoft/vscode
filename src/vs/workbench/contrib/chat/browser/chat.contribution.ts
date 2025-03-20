@@ -233,12 +233,12 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('workspaceConfig.mcp.description', "Model Context Protocol server configurations"),
 			$ref: mcpSchemaId
 		},
-		// [ChatConfiguration.UnifiedChatView]: {
-		// 	type: 'boolean',
-		// 	description: nls.localize('chat.experimental.unifiedChatView', "Enables the unified view with Chat, Edit, and Agent in one place."),
-		// 	default: false,
-		// 	tags: ['experimental'],
-		// },
+		[ChatConfiguration.UnifiedChatView]: {
+			type: 'boolean',
+			description: nls.localize('chat.unifiedChatView', "Enables the unified view with Ask, Edit, and Agent modes in one view."),
+			default: true,
+			tags: ['preview'],
+		},
 		[ChatConfiguration.UseFileStorage]: {
 			type: 'boolean',
 			description: nls.localize('chat.useFileStorage', "Enables storing chat sessions on disk instead of in the storage service. Enabling this does a one-time per-workspace migration of existing sessions to the new format."),
