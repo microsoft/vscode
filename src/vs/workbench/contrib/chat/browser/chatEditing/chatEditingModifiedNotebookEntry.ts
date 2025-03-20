@@ -222,6 +222,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 				return { type: 'insert', modifiedCellIndex: index } satisfies CellDiffInfo;
 			});
 			this.initializeModelsFromDiffImpl(cellsDiffInfo);
+			return;
 		}
 		const id = ++this.computeRequestId;
 		if (this._areOriginalAndModifiedIdenticalImpl()) {
