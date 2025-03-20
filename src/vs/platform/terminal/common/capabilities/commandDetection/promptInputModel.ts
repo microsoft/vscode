@@ -294,7 +294,8 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			if (commandLine === undefined || !line) {
 				return;
 			}
-		} else if (line === undefined || commandLine === undefined) {
+		}
+		if (line === undefined || commandLine === undefined) {
 			this._logService.trace(`PromptInputModel#_sync: no line`);
 			return;
 		}
