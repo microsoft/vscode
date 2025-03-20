@@ -91,7 +91,10 @@ export function registerNewChatActions() {
 				},
 				menu: [{
 					id: MenuId.ChatContext,
-					group: 'z_clear'
+					group: 'z_clear',
+					when: ContextKeyExpr.and(
+						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
+						ChatContextKeys.inUnifiedChat.negate()),
 				},
 				{
 					id: MenuId.ViewTitle,
@@ -244,14 +247,14 @@ export function registerNewChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.undoEdit',
-				title: localize2('chat.undoEdit.label', "Undo Last Edit"),
+				title: localize2('chat.undoEdit.label', "Undo Last Request"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.discard,
 				precondition: ContextKeyExpr.and(ChatContextKeys.chatEditingCanUndo, ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered),
 				f1: true,
 				menu: [{
 					id: MenuId.ViewTitle,
-					when: ChatContextKeyExprs.inEditingMode,
+					when: ChatContextKeyExprs.inEditsOrUnified,
 					group: 'navigation',
 					order: -3
 				}]
@@ -267,14 +270,14 @@ export function registerNewChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.redoEdit',
-				title: localize2('chat.redoEdit.label', "Redo Last Edit"),
+				title: localize2('chat.redoEdit.label', "Redo Last Request"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.redo,
 				precondition: ContextKeyExpr.and(ChatContextKeys.chatEditingCanRedo, ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered),
 				f1: true,
 				menu: [{
 					id: MenuId.ViewTitle,
-					when: ChatContextKeyExprs.inEditingMode,
+					when: ChatContextKeyExprs.inEditsOrUnified,
 					group: 'navigation',
 					order: -2
 				}]
