@@ -27,6 +27,7 @@ import { IDownloadService } from '../../../../platform/download/common/download.
 import { DownloadServiceChannel } from '../../../../platform/download/common/downloadIpc.js';
 import { RemoteLoggerChannelClient } from '../../../../platform/log/common/logIpc.js';
 import { REMOTE_DEFAULT_IF_LOCAL_EXTENSIONS } from '../../../../platform/remote/common/remote.js';
+import product from '../../../../platform/product/common/product.js';
 
 
 const EXTENSION_IDENTIFIER_PATTERN = '([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$';
@@ -363,10 +364,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			[REMOTE_DEFAULT_IF_LOCAL_EXTENSIONS]: {
 				type: 'array',
 				markdownDescription: localize('remote.defaultExtensionsIfInstalledLocally.markdownDescription', 'List of extensions to install automatically on all remotes if already installed locally.'),
-				default: [
-					'GitHub.copilot',
-					'GitHub.copilot-chat'
-				],
+				default: product?.remoteDefaultExtensionsIfInstalledLocally || [],
 				items: {
 					type: 'string',
 					pattern: EXTENSION_IDENTIFIER_PATTERN,

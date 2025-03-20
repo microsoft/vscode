@@ -14,6 +14,7 @@ export const enum ExtensionGalleryResourceType {
 	PublisherViewUri = 'PublisherViewUriTemplate',
 	ExtensionDetailsViewUri = 'ExtensionDetailsViewUriTemplate',
 	ExtensionRatingViewUri = 'ExtensionRatingViewUriTemplate',
+	ExtensionResourceUri = 'ExtensionResourceUriTemplate',
 }
 
 export const enum Flag {
@@ -66,6 +67,20 @@ export interface IExtensionGalleryManifestService {
 	readonly onDidChangeExtensionGalleryManifest: Event<IExtensionGalleryManifest | null>;
 	isEnabled(): boolean;
 	getExtensionGalleryManifest(): Promise<IExtensionGalleryManifest | null>;
+}
+
+export function getExtensionGalleryManifestResourceUri(manifest: IExtensionGalleryManifest, type: ExtensionGalleryResourceType, version?: string): string | undefined {
+	for (const resource of manifest.resources) {
+		const [r, v] = resource.type.split('/');
+		if (r !== type) {
+			continue;
+		}
+		if (!version || v === version) {
+			return resource.id;
+		}
+		break;
+	}
+	return undefined;
 }
 
 export const ExtensionGalleryServiceUrlConfigKey = 'extensions.gallery.serviceUrl';

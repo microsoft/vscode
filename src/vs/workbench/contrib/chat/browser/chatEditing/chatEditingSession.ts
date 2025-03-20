@@ -51,6 +51,7 @@ import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCo
 import { ChatEditingModifiedNotebookEntry } from './chatEditingModifiedNotebookEntry.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ChatEditingModifiedNotebookDiff } from './notebook/chatEditingModifiedNotebookDiff.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 
 const STORAGE_CONTENTS_FOLDER = 'contents';
 const STORAGE_STATE_FILE = 'state.json';
@@ -198,6 +199,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 	) {
 		super();
 	}
@@ -578,7 +580,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				}
 			}
 		});
-
+		this._accessibilitySignalService.playSignal(AccessibilitySignal.editsKept, { allowManyInParallel: true });
 		this._onDidChange.fire(ChatEditingSessionChangeType.Other);
 	}
 
@@ -597,7 +599,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				}
 			}
 		});
-
+		this._accessibilitySignalService.playSignal(AccessibilitySignal.editsUndone, { allowManyInParallel: true });
 		this._onDidChange.fire(ChatEditingSessionChangeType.Other);
 	}
 
@@ -1016,8 +1018,14 @@ class ChatEditingSessionStorage {
 
 	public async restoreState(): Promise<StoredSessionState | undefined> {
 		const storageLocation = this._getStorageLocation();
+		const fileContents = new Map<string, Promise<string>>();
 		const getFileContent = (hash: string) => {
-			return this._fileService.readFile(joinPath(storageLocation, STORAGE_CONTENTS_FOLDER, hash)).then(content => content.value.toString());
+			let readPromise = fileContents.get(hash);
+			if (!readPromise) {
+				readPromise = this._fileService.readFile(joinPath(storageLocation, STORAGE_CONTENTS_FOLDER, hash)).then(content => content.value.toString());
+				fileContents.set(hash, readPromise);
+			}
+			return readPromise;
 		};
 		const deserializeResourceMap = <T>(resourceMap: ResourceMapDTO<T>, deserialize: (value: any) => T, result: ResourceMap<T>): ResourceMap<T> => {
 			resourceMap.forEach(([resourceURI, value]) => {
@@ -1110,7 +1118,7 @@ class ChatEditingSessionStorage {
 		try {
 			const stat = await this._fileService.resolve(contentsFolder);
 			stat.children?.forEach(child => {
-				if (child.isDirectory) {
+				if (child.isFile) {
 					existingContents.add(child.name);
 				}
 			});
@@ -1129,9 +1137,7 @@ class ChatEditingSessionStorage {
 			const shaComputer = new StringSHA1();
 			shaComputer.update(content);
 			const sha = shaComputer.digest().substring(0, 7);
-			if (!existingContents.has(sha)) {
-				fileContents.set(sha, content);
-			}
+			fileContents.set(sha, content);
 			return sha;
 		};
 		const serializeResourceMap = <T>(resourceMap: ResourceMap<T>, serialize: (value: T) => any): ResourceMapDTO<T> => {
@@ -1178,7 +1184,9 @@ class ChatEditingSessionStorage {
 			this._logService.debug(`chatEditingSession: Storing editing session at ${storageFolder.toString()}: ${fileContents.size} files`);
 
 			for (const [hash, content] of fileContents) {
-				await this._fileService.writeFile(joinPath(contentsFolder, hash), VSBuffer.fromString(content));
+				if (!existingContents.has(hash)) {
+					await this._fileService.writeFile(joinPath(contentsFolder, hash), VSBuffer.fromString(content));
+				}
 			}
 
 			await this._fileService.writeFile(joinPath(storageFolder, STORAGE_STATE_FILE), VSBuffer.fromString(JSON.stringify(data, undefined, 2)));

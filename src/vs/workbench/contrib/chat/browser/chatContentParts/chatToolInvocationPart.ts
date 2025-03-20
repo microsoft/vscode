@@ -24,7 +24,7 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatMarkdownContent, IChatProgressMessage, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized } from '../../common/chatService.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../common/codeBlockModelCollection.js';
-import { isToolResultInputOutputDetails, IToolResultInputOutputDetails } from '../../common/languageModelToolsService.js';
+import { ILanguageModelToolsService, isToolResultInputOutputDetails, IToolResultInputOutputDetails } from '../../common/languageModelToolsService.js';
 import { CancelChatActionId } from '../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../actions/chatToolActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../chat.js';
@@ -134,6 +134,7 @@ class ChatToolInvocationSubPart extends Disposable {
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 	) {
 		super();
 
@@ -164,6 +165,7 @@ class ChatToolInvocationSubPart extends Disposable {
 		}
 		const title = toolInvocation.confirmationMessages.title;
 		const message = toolInvocation.confirmationMessages.message;
+		const allowAutoConfirm = toolInvocation.confirmationMessages.allowAutoConfirm;
 		const continueLabel = localize('continue', "Continue");
 		const continueKeybinding = this.keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
 		const continueTooltip = continueKeybinding ? `${continueLabel} (${continueKeybinding})` : continueLabel;
@@ -171,15 +173,28 @@ class ChatToolInvocationSubPart extends Disposable {
 		const cancelKeybinding = this.keybindingService.lookupKeybinding(CancelChatActionId)?.getLabel();
 		const cancelTooltip = cancelKeybinding ? `${cancelLabel} (${cancelKeybinding})` : cancelLabel;
 
+		const enum ConfirmationOutcome {
+			Allow,
+			Disallow,
+			AllowWorkspace,
+			AllowGlobally,
+			AllowSession,
+		}
+
 		const buttons: IChatConfirmationButton[] = [
 			{
 				label: continueLabel,
-				data: true,
-				tooltip: continueTooltip
+				data: ConfirmationOutcome.Allow,
+				tooltip: continueTooltip,
+				moreActions: !allowAutoConfirm ? undefined : [
+					{ label: localize('allowSession', 'Allow in this Session'), data: ConfirmationOutcome.AllowWorkspace, tooltip: localize('allowSesssionTooltip', 'Allow this tool to run in this session without confirmation.') },
+					{ label: localize('allowWorkspace', 'Allow in this Workspace'), data: ConfirmationOutcome.AllowWorkspace, tooltip: localize('allowWorkspaceTooltip', 'Allow this tool to run in this workspace without confirmation.') },
+					{ label: localize('allowGlobally', 'Always Allow'), data: ConfirmationOutcome.AllowGlobally, tooltip: localize('allowGloballTooltip', 'Always allow this tool to run without confirmation.') },
+				],
 			},
 			{
-				label: cancelLabel,
-				data: false,
+				label: localize('cancel', "Cancel"),
+				data: ConfirmationOutcome.Disallow,
 				isSecondary: true,
 				tooltip: cancelTooltip
 			}];
@@ -204,18 +219,95 @@ class ChatToolInvocationSubPart extends Disposable {
 					wordWrap: 'on'
 				}
 			};
+
+			const elements = dom.h('div', [
+				dom.h('.message@message'),
+				dom.h('.editor@editor'),
+			]);
+
+			if (toolInvocation.toolSpecificData?.kind === 'input') {
+
+				const inputData = toolInvocation.toolSpecificData;
+
+				const codeBlockRenderOptions: ICodeBlockRenderOptions = {
+					hideToolbar: true,
+					reserveWidth: 19,
+					verticalPadding: 5,
+					editorOptions: {
+						wordWrap: 'on',
+						readOnly: false
+					}
+				};
+				const langId = this.languageService.getLanguageIdByLanguageName('json');
+				const model = this.modelService.createModel(JSON.stringify(inputData.rawInput, undefined, 2), this.languageService.createById(langId));
+				const editor = this._register(this.editorPool.get());
+				editor.object.render({
+					codeBlockIndex: this.codeBlockStartIndex,
+					codeBlockPartIndex: 0,
+					element: this.context.element,
+					languageId: langId ?? 'json',
+					renderOptions: codeBlockRenderOptions,
+					textModel: Promise.resolve(model)
+				}, this.currentWidthDelegate());
+				this._codeblocks.push({
+					codeBlockIndex: this.codeBlockStartIndex,
+					codemapperUri: undefined,
+					elementId: this.context.element.id,
+					focus: () => editor.object.focus(),
+					isStreaming: false,
+					ownerMarkdownPartId: this.codeblocksPartId,
+					uri: model.uri,
+					uriPromise: Promise.resolve(model.uri)
+				});
+				this._register(editor.object.onDidChangeContentHeight(() => {
+					editor.object.layout(this.currentWidthDelegate());
+					this._onDidChangeHeight.fire();
+				}));
+				this._register(model.onDidChangeContent(e => {
+					try {
+						inputData.rawInput = JSON.parse(model.getValue());
+					} catch {
+						// ignore
+					}
+				}));
+
+				elements.editor.append(editor.object.element);
+			}
+
 			this.markdownPart = this._register(this.instantiationService.createInstance(ChatMarkdownContentPart, chatMarkdownContent, this.context, this.editorPool, false, this.codeBlockStartIndex, this.renderer, this.currentWidthDelegate(), this.codeBlockModelCollection, { codeBlockRenderOptions }));
+			elements.message.append(this.markdownPart.domNode);
+
 			this._register(this.markdownPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 			confirmWidget = this._register(this.instantiationService.createInstance(
 				ChatCustomConfirmationWidget,
 				title,
-				this.markdownPart.domNode,
+				elements.root,
+				toolInvocation.toolSpecificData?.kind === 'input',
 				buttons
 			));
 		}
 
 		this._register(confirmWidget.onDidClick(button => {
-			toolInvocation.confirmed.complete(button.data);
+			switch (button.data as ConfirmationOutcome) {
+				case ConfirmationOutcome.AllowGlobally:
+					this.languageModelToolsService.setToolAutoConfirmation(toolInvocation.toolId, 'profile', true);
+					toolInvocation.confirmed.complete(true);
+					break;
+				case ConfirmationOutcome.AllowWorkspace:
+					this.languageModelToolsService.setToolAutoConfirmation(toolInvocation.toolId, 'workspace', true);
+					toolInvocation.confirmed.complete(true);
+					break;
+				case ConfirmationOutcome.AllowSession:
+					this.languageModelToolsService.setToolAutoConfirmation(toolInvocation.toolId, 'memory', true);
+					toolInvocation.confirmed.complete(true);
+					break;
+				case ConfirmationOutcome.Allow:
+					toolInvocation.confirmed.complete(true);
+					break;
+				case ConfirmationOutcome.Disallow:
+					toolInvocation.confirmed.complete(false);
+					break;
+			}
 		}));
 		this._register(confirmWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		toolInvocation.confirmed.p.then(() => {
@@ -297,6 +389,7 @@ class ChatToolInvocationSubPart extends Disposable {
 			ChatCustomConfirmationWidget,
 			title,
 			element,
+			false,
 			buttons
 		));
 

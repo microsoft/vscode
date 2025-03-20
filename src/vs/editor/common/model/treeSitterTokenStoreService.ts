@@ -70,6 +70,8 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 				if (oldToken) {
 					// Insert. Just grow the token at this position to include the insert.
 					newToken = { startOffsetInclusive: oldToken.startOffsetInclusive, length: oldToken.length + change.text.length - change.rangeLength, token: oldToken.token };
+					// Also mark tokens that are in the range of the change as needing a refresh.
+					storeInfo.store.markForRefresh(offset, change.rangeOffset + (change.text.length > change.rangeLength ? change.text.length : change.rangeLength));
 				} else {
 					// The document got larger and the change is at the end of the document.
 					newToken = { startOffsetInclusive: offset, length: change.text.length, token: 0 };

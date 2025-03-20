@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.99.0",
-  "distro": "f3960cabd77440aab984a96449bb60ebbf5ecea0",
+  "distro": "49462d855946fb8ed4466998e24eb33ee0e2bf05",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -55,7 +55,7 @@
     "eslint": "node build/eslint",
     "stylelint": "node build/stylelint",
     "playwright-install": "npm exec playwright install",
-    "compile-build": "node ./node_modules/gulp/bin/gulp.js compile-build",
+    "compile-build": "node ./node_modules/gulp/bin/gulp.js compile-build-with-mangling",
     "compile-extensions-build": "node ./node_modules/gulp/bin/gulp.js compile-extensions-build",
     "minify-vscode": "node ./node_modules/gulp/bin/gulp.js minify-vscode",
     "minify-vscode-reh": "node ./node_modules/gulp/bin/gulp.js minify-vscode-reh",

@@ -21,7 +21,6 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { asText, IRequestService } from '../../../../platform/request/common/request.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { AuthenticationSession, IAuthenticationExtensionsService, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtension, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
@@ -31,6 +30,7 @@ import { URI } from '../../../../base/common/uri.js';
 import Severity from '../../../../base/common/severity.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { isWeb } from '../../../../base/common/platform.js';
+import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 
 export const IChatEntitlementService = createDecorator<IChatEntitlementService>('chatEntitlementService');
 
@@ -375,6 +375,7 @@ export class ChatEntitlementRequests extends Disposable {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAuthenticationExtensionsService private readonly authenticationExtensionsService: IAuthenticationExtensionsService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
 		super();
 
@@ -510,7 +511,11 @@ export class ChatEntitlementRequests extends Disposable {
 
 		if (response.res.statusCode && response.res.statusCode !== 200) {
 			this.logService.trace(`[chat entitlement]: unexpected status code ${response.res.statusCode}`);
-			return { entitlement: ChatEntitlement.Unresolved };
+			return (
+				response.res.statusCode === 401 ||
+				response.res.statusCode === 403 ||
+				response.res.statusCode === 404
+			) ? { entitlement: ChatEntitlement.Unknown /* treat as signed out */ } : { entitlement: ChatEntitlement.Unresolved };
 		}
 
 		let responseText: string | null = null;
@@ -688,34 +693,40 @@ export class ChatEntitlementRequests extends Disposable {
 	private async onUnknownSignUpError(detail: string, logMessage: string): Promise<boolean> {
 		this.logService.error(logMessage);
 
-		const { confirmed } = await this.dialogService.confirm({
-			type: Severity.Error,
-			message: localize('unknownSignUpError', "An error occurred while signing up for the Copilot Free plan. Would you like to try again?"),
-			detail,
-			primaryButton: localize('retry', "Retry")
-		});
+		if (!this.lifecycleService.willShutdown) {
+			const { confirmed } = await this.dialogService.confirm({
+				type: Severity.Error,
+				message: localize('unknownSignUpError', "An error occurred while signing up for the Copilot Free plan. Would you like to try again?"),
+				detail,
+				primaryButton: localize('retry', "Retry")
+			});
 
-		return confirmed;
+			return confirmed;
+		}
+
+		return false;
 	}
 
 	private onUnprocessableSignUpError(logMessage: string, logDetails: string): void {
 		this.logService.error(logMessage);
 
-		this.dialogService.prompt({
-			type: Severity.Error,
-			message: localize('unprocessableSignUpError', "An error occurred while signing up for the Copilot Free plan."),
-			detail: logDetails,
-			buttons: [
-				{
-					label: localize('ok', "OK"),
-					run: () => { /* noop */ }
-				},
-				{
-					label: localize('learnMore', "Learn More"),
-					run: () => this.openerService.open(URI.parse(defaultChat.upgradePlanUrl))
-				}
-			]
-		});
+		if (!this.lifecycleService.willShutdown) {
+			this.dialogService.prompt({
+				type: Severity.Error,
+				message: localize('unprocessableSignUpError', "An error occurred while signing up for the Copilot Free plan."),
+				detail: logDetails,
+				buttons: [
+					{
+						label: localize('ok', "OK"),
+						run: () => { /* noop */ }
+					},
+					{
+						label: localize('learnMore', "Learn More"),
+						run: () => this.openerService.open(URI.parse(defaultChat.upgradePlanUrl))
+					}
+				]
+			});
+		}
 	}
 
 	async signIn() {
@@ -773,7 +784,6 @@ export class ChatEntitlementContext extends Disposable {
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@ILogService private readonly logService: ILogService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
@@ -850,12 +860,6 @@ export class ChatEntitlementContext extends Disposable {
 
 	private updateContextSync(): void {
 		this.logService.trace(`[chat entitlement context] updateContext(): ${JSON.stringify(this._state)}`);
-
-		if (!this._state.hidden && !this._state.installed) {
-			// this is ugly but fixes flicker from a previous chat install
-			this.storageService.remove('chat.welcomeMessageContent.panel', StorageScope.APPLICATION);
-			this.storageService.remove('interactive.sessions', this.workspaceContextService.getWorkspace().folders.length ? StorageScope.WORKSPACE : StorageScope.APPLICATION);
-		}
 
 		this.signedOutContextKey.set(this._state.entitlement === ChatEntitlement.Unknown);
 		this.canSignUpContextKey.set(this._state.entitlement === ChatEntitlement.Available);

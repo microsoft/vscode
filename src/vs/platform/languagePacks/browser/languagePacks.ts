@@ -56,7 +56,7 @@ export class WebLanguagePacksService extends LanguagePackBaseService {
 		}
 
 		// get the resource uri and return it
-		const uri = this.extensionResourceLoaderService.getExtensionGalleryResourceURL({
+		const uri = await this.extensionResourceLoaderService.getExtensionGalleryResourceURL({
 			// If translation is defined then manifest should have been defined.
 			name: manifest!.name,
 			publisher: manifest!.publisher,

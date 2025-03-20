@@ -206,6 +206,7 @@ module.exports.eslintFilter = [
 	'**/*.cjs',
 	'**/*.mjs',
 	'**/*.ts',
+	'.eslint-plugin-local/**/*.ts',
 	...readFileSync(join(__dirname, '..', '.eslint-ignore'))
 		.toString()
 		.split(/\r\n|\n/)

@@ -14,7 +14,7 @@ import { ContextKeyExpression } from '../../../../platform/contextkey/common/con
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { Location } from '../../../../editor/common/languages.js';
-import { IChatTerminalToolInvocationData } from './chatService.js';
+import { IChatTerminalToolInvocationData, IChatToolInputInvocationData } from './chatService.js';
 
 export interface IToolData {
 	id: string;
@@ -38,7 +38,7 @@ export interface IToolInvocation {
 	context: IToolInvocationContext | undefined;
 	chatRequestId?: string;
 	chatInteractionId?: string;
-	toolSpecificData?: IChatTerminalToolInvocationData;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData;
 }
 
 export interface IToolInvocationContext {
@@ -77,6 +77,7 @@ export interface IToolResultTextPart {
 export interface IToolConfirmationMessages {
 	title: string;
 	message: string | IMarkdownString;
+	allowAutoConfirm?: boolean;
 }
 
 export interface IPreparedToolInvocation {
@@ -84,7 +85,7 @@ export interface IPreparedToolInvocation {
 	pastTenseMessage?: string | IMarkdownString;
 	confirmationMessages?: IToolConfirmationMessages;
 	presentation?: 'hidden' | undefined;
-	toolSpecificData?: IChatTerminalToolInvocationData;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData;
 }
 
 export interface IToolImpl {
@@ -105,5 +106,7 @@ export interface ILanguageModelToolsService {
 	getTool(id: string): IToolData | undefined;
 	getToolByName(name: string): IToolData | undefined;
 	invokeTool(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
+	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile' | 'memory', autoConfirm?: boolean): void;
+	resetToolAutoConfirmation(): void;
 	cancelToolCallsForRequest(requestId: string): void;
 }

@@ -186,5 +186,22 @@ suite('Lifecycleservice', function () {
 		});
 	});
 
+	test('willShutdown is set when shutting down', async function () {
+		let willShutdownSet = false;
+
+		disposables.add(lifecycleService.onWillShutdown(e => {
+			e.join(new Promise(resolve => {
+				if (lifecycleService.willShutdown) {
+					willShutdownSet = true;
+					resolve();
+				}
+			}), { id: 'test', label: 'test' });
+		}));
+
+		await lifecycleService.testHandleWillShutdown(ShutdownReason.QUIT);
+
+		assert.strictEqual(willShutdownSet, true);
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });

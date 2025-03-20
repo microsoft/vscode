@@ -2610,11 +2610,13 @@ export class ExtensionStatusAction extends ExtensionAction {
 			return;
 		}
 
-		// Extension is disabled by its dependency
-		const result = this.allowedExtensionsService.isAllowed(this.extension.local);
-		if (result !== true) {
-			this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('disabled - not allowed', "This extension is disabled because {0}", result.value)) }, true);
-			return;
+		// Extension is disabled by allowed list
+		if (this.extension.enablementState === EnablementState.DisabledByAllowlist) {
+			const result = this.allowedExtensionsService.isAllowed(this.extension.local);
+			if (result !== true) {
+				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('disabled - not allowed', "This extension is disabled because {0}", result.value)) }, true);
+				return;
+			}
 		}
 
 		// Extension is disabled by environment
