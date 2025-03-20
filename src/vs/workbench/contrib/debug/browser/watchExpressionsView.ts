@@ -15,8 +15,8 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { localize } from '../../../../nls.js';
-import { getContextMenuActions, /*getFlatContextMenuActions*/ } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { Action2, /*IMenu, */IMenuService, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { getContextMenuActions, } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { Action2, IMenuService, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -32,7 +32,7 @@ import { ViewAction, ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
 import { FocusedViewContext } from '../../../common/contextkeys.js';
 import { IViewDescriptorService } from '../../../common/views.js';
-import { CONTEXT_CAN_VIEW_MEMORY, CONTEXT_EXPRESSION_SELECTED, CONTEXT_VARIABLE_IS_READONLY, CONTEXT_WATCH_EXPRESSIONS_EXIST, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_WATCH_ITEM_TYPE, IDebugConfiguration, IDebugService, IDebugViewWithVariables, IExpression, CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED, WATCH_VIEW_ID, CONTEXT_DEBUG_TYPE } from '../common/debug.js';
+import { CONTEXT_CAN_VIEW_MEMORY, CONTEXT_EXPRESSION_SELECTED, CONTEXT_VARIABLE_IS_READONLY, CONTEXT_WATCH_EXPRESSIONS_EXIST, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_WATCH_ITEM_TYPE, IDebugConfiguration, IDebugService, IDebugViewWithVariables, IExpression, CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED, CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT, WATCH_VIEW_ID, CONTEXT_DEBUG_TYPE } from '../common/debug.js';
 import { Expression, Variable, VisualizedExpression } from '../common/debugModel.js';
 import { AbstractExpressionDataSource, AbstractExpressionsRenderer, expressionAndScopeLabelProvider, IExpressionTemplateData, IInputBoxOptions, renderViewTree } from './baseDebugView.js';
 import { COPY_WATCH_EXPRESSION_COMMAND_ID, setDataBreakpointInfoResponse } from './debugCommands.js';
@@ -50,8 +50,6 @@ export class WatchExpressionsView extends ViewPane implements IDebugViewWithVari
 	private needsRefresh = false;
 	private tree!: WorkbenchAsyncDataTree<IDebugService | IExpression, IExpression, FuzzyScore>;
 	private watchExpressionsExist: IContextKey<boolean>;
-	private watchItemType: IContextKey<string | undefined>;
-	private variableReadonly: IContextKey<boolean>;
 	private expressionRenderer: DebugExpressionRenderer;
 
 	public get treeSelection() {
@@ -79,9 +77,7 @@ export class WatchExpressionsView extends ViewPane implements IDebugViewWithVari
 			this.tree.updateChildren();
 		}, 50);
 		this.watchExpressionsExist = CONTEXT_WATCH_EXPRESSIONS_EXIST.bindTo(contextKeyService);
-		this.variableReadonly = CONTEXT_VARIABLE_IS_READONLY.bindTo(contextKeyService);
 		this.watchExpressionsExist.set(this.debugService.getModel().getWatchExpressions().length > 0);
-		this.watchItemType = CONTEXT_WATCH_ITEM_TYPE.bindTo(contextKeyService);
 		this.expressionRenderer = instantiationService.createInstance(DebugExpressionRenderer);
 	}
 
@@ -224,10 +220,6 @@ export class WatchExpressionsView extends ViewPane implements IDebugViewWithVari
 		}
 
 		const selection = this.tree.getSelection();
-
-		this.watchItemType.set(element instanceof Expression ? 'expression' : element instanceof Variable ? 'variable' : undefined);
-		const attributes = element instanceof Variable ? element.presentationHint?.attributes : undefined;
-		this.variableReadonly.set(!!attributes && attributes.indexOf('readOnly') >= 0 || !!element?.presentationHint?.lazy);
 
 		const contextKeyService = element && await getContextForWatchExpressionMenuWithDataAccess(this.contextKeyService, element);
 		const menu = this.menuService.getMenuActions(MenuId.DebugWatchContext, contextKeyService, { arg: element, shouldForwardArgs: false });
@@ -404,8 +396,8 @@ export class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 function getContextForWatchExpressionMenu(parentContext: IContextKeyService, expression: IExpression, additionalContext: [string, unknown][] = []) {
 	const session = expression.getSession();
 	return parentContext.createOverlay([
-		//[CONTEXT_DEBUG_PROTOCOL_VARIABLE_MENU_CONTEXT.key, expression.variableMenuContext || ''],
-		//[CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT.key, !!expression.evaluateName],
+		[CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT.key, 'evaluateName' in expression],
+		[CONTEXT_WATCH_ITEM_TYPE.key, expression instanceof Expression ? 'expression' : expression instanceof Variable ? 'variable' : undefined],
 		[CONTEXT_CAN_VIEW_MEMORY.key, !!session?.capabilities.supportsReadMemoryRequest && expression.memoryReference !== undefined],
 		[CONTEXT_VARIABLE_IS_READONLY.key, !!expression.presentationHint?.attributes?.includes('readOnly') || expression.presentationHint?.lazy],
 		[CONTEXT_DEBUG_TYPE.key, session?.configuration.type],
@@ -423,7 +415,7 @@ async function getContextForWatchExpressionMenuWithDataAccess(parentContext: ICo
 	}
 
 	const contextKeys: [string, unknown][] = [];
-	const dataBreakpointInfoResponse = await session.dataBreakpointInfo(expression.name);
+	const dataBreakpointInfoResponse = await session.dataBreakpointInfo('evaluateName' in expression ? expression.evaluateName as string : expression.name);
 	const dataBreakpointId = dataBreakpointInfoResponse?.dataId;
 	const dataBreakpointAccessTypes = dataBreakpointInfoResponse?.accessTypes;
 	setDataBreakpointInfoResponse(dataBreakpointInfoResponse);
@@ -469,6 +461,11 @@ class WatchExpressionsAccessibilityProvider implements IListAccessibilityProvide
 class WatchExpressionsDragAndDrop implements ITreeDragAndDrop<IExpression> {
 
 	constructor(private debugService: IDebugService) { }
+	onDragStart?(data: IDragAndDropData, originalEvent: DragEvent): void {
+		if (data instanceof ElementsDragAndDropData) {
+			originalEvent.dataTransfer!.setData('text/plain', data.elements[0].name);
+		}
+	}
 
 	onDragOver(data: IDragAndDropData, targetElement: IExpression | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
 		if (!(data instanceof ElementsDragAndDropData)) {
