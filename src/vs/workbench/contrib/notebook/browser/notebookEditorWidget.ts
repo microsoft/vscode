@@ -1043,6 +1043,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				this._onDidScroll.fire();
 				this.clearActiveCellWidgets();
 			}
+
+			if (e.scrollTop === e.oldScrollTop && e.scrollHeightChanged) {
+				this._onDidChangeLayout.fire();
+			}
 		}));
 
 		this._focusTracker = this._register(DOM.trackFocus(this.getDomNode()));
@@ -1617,21 +1621,21 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		store.add(cell.onCellDecorationsChanged(e => {
 			e.added.forEach(options => {
 				if (options.className) {
-					this.deltaCellContainerClassNames(cell.id, [options.className], []);
+					this.deltaCellContainerClassNames(cell.id, [options.className], [], cell.cellKind);
 				}
 
 				if (options.outputClassName) {
-					this.deltaCellContainerClassNames(cell.id, [options.outputClassName], []);
+					this.deltaCellContainerClassNames(cell.id, [options.outputClassName], [], cell.cellKind);
 				}
 			});
 
 			e.removed.forEach(options => {
 				if (options.className) {
-					this.deltaCellContainerClassNames(cell.id, [], [options.className]);
+					this.deltaCellContainerClassNames(cell.id, [], [options.className], cell.cellKind);
 				}
 
 				if (options.outputClassName) {
-					this.deltaCellContainerClassNames(cell.id, [], [options.outputClassName]);
+					this.deltaCellContainerClassNames(cell.id, [], [options.outputClassName], cell.cellKind);
 				}
 			});
 		}));
@@ -2285,8 +2289,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return ret;
 	}
 
-	deltaCellContainerClassNames(cellId: string, added: string[], removed: string[]) {
-		this._webview?.deltaCellContainerClassNames(cellId, added, removed);
+	deltaCellContainerClassNames(cellId: string, added: string[], removed: string[], cellkind: CellKind): void {
+		if (cellkind === CellKind.Markup) {
+			this._webview?.deltaMarkupPreviewClassNames(cellId, added, removed);
+		} else {
+			this._webview?.deltaCellOutputContainerClassNames(cellId, added, removed);
+		}
 	}
 
 	changeModelDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null {
@@ -2298,6 +2306,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	//#region View Zones
 	changeViewZones(callback: (accessor: INotebookViewZoneChangeAccessor) => void): void {
 		this._list.changeViewZones(callback);
+		this._onDidChangeLayout.fire();
+	}
+
+	getViewZoneLayoutInfo(id: string): { top: number; height: number } | null {
+		return this._list.getViewZoneLayoutInfo(id);
 	}
 	//#endregion
 

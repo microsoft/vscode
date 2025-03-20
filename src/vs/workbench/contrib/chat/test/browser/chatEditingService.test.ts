@@ -32,6 +32,7 @@ import { waitForState } from '../../../../../base/common/observable.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ChatAgentLocation } from '../../common/constants.js';
+import { NotebookTextModel } from '../../../notebook/common/model/notebookTextModel.js';
 
 function getAgentData(id: string) {
 	return {
@@ -69,7 +70,10 @@ suite('ChatEditingService', function () {
 			}
 		});
 		collection.set(INotebookService, new class extends mock<INotebookService>() {
-			override hasSupportedNotebooks(resource: URI): boolean {
+			override getNotebookTextModel(_uri: URI): NotebookTextModel | undefined {
+				return undefined;
+			}
+			override hasSupportedNotebooks(_resource: URI): boolean {
 				return false;
 			}
 		});

@@ -59,6 +59,7 @@ fsevents/test/**
 !@vscode/tree-sitter-wasm/wasm/tree-sitter-typescript.wasm
 !@vscode/tree-sitter-wasm/wasm/tree-sitter-regex.wasm
 !@vscode/tree-sitter-wasm/wasm/tree-sitter-ini.wasm
+!@vscode/tree-sitter-wasm/wasm/tree-sitter-css.wasm
 
 native-keymap/binding.gyp
 native-keymap/build/**

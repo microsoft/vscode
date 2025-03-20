@@ -177,6 +177,7 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 			);
 		}
 
+		// Ssource control provider status bar entry
 		if (this.scmService.repositoryCount > 1) {
 			const repositoryStatusbarEntry: IStatusbarEntry = {
 				name: localize('status.scm.provider', "Source Control Provider"),

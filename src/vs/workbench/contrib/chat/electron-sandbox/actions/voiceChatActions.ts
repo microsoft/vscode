@@ -56,6 +56,10 @@ import { IAccessibilityService } from '../../../../../platform/accessibility/com
 import { renderStringAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { SearchContext } from '../../../search/common/constants.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import Severity from '../../../../../base/common/severity.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
+import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 
 //#region Speech to Text
 
@@ -1262,14 +1266,31 @@ abstract class BaseInstallSpeechProviderAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+		const dialogService = accessor.get(IDialogService);
 		try {
 			InstallingSpeechProvider.bindTo(contextKeyService).set(true);
+			await this.installExtension(extensionsWorkbenchService, dialogService);
+		} finally {
+			InstallingSpeechProvider.bindTo(contextKeyService).reset();
+		}
+	}
+
+	private async installExtension(extensionsWorkbenchService: IExtensionsWorkbenchService, dialogService: IDialogService): Promise<void> {
+		try {
 			await extensionsWorkbenchService.install(BaseInstallSpeechProviderAction.SPEECH_EXTENSION_ID, {
 				justification: this.getJustification(),
 				enable: true
 			}, ProgressLocation.Notification);
-		} finally {
-			InstallingSpeechProvider.bindTo(contextKeyService).reset();
+		} catch (error) {
+			const { confirmed } = await dialogService.confirm({
+				type: Severity.Error,
+				message: localize('unknownSetupError', "An error occurred while setting up voice chat. Would you like to try again?"),
+				detail: error && !isCancellationError(error) ? toErrorMessage(error) : undefined,
+				primaryButton: localize('retry', "Retry")
+			});
+			if (confirmed) {
+				return this.installExtension(extensionsWorkbenchService, dialogService);
+			}
 		}
 	}
 

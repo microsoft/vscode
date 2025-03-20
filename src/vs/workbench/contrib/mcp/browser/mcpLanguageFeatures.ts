@@ -19,7 +19,7 @@ import { ConfigurationResolverExpression, IResolvedValue } from '../../../servic
 import { IMcpConfigPathsService } from '../common/mcpConfigPathsService.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
 import { IMcpService, McpConnectionState } from '../common/mcpTypes.js';
-import { EditStoredInput, RemoveStoredInput, ShowOutput, StartServer, StopServer } from './mcpCommands.js';
+import { EditStoredInput, RemoveStoredInput, RestartServer, ShowOutput, StartServer, StopServer } from './mcpCommands.js';
 
 export class McpLanguageFeatures extends Disposable implements IWorkbenchContribution {
 	private readonly _cachedMcpSection = this._register(new MutableDisposable<{ model: ITextModel; node: Node } & IDisposable>());
@@ -32,7 +32,11 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 	) {
 		super();
 
-		const patterns = [{ pattern: '**/.vscode/mcp.json' }, { pattern: '**/settings.json' }];
+		const patterns = [
+			{ pattern: '**/.vscode/mcp.json' },
+			{ pattern: '**/settings.json' },
+			{ pattern: '**/workspace.json' },
+		];
 
 		const onDidChangeCodeLens = this._register(new Emitter<CodeLensProvider>());
 		const codeLensProvider: CodeLensProvider = {
@@ -61,13 +65,13 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 	}
 
 	private async _provideCodeLenses(model: ITextModel, onDidChangeCodeLens: () => void): Promise<CodeLensList | undefined> {
-		const inConfig = this._mcpConfigPathsService.paths.find(u => isEqual(u.uri, model.uri));
+		const inConfig = this._mcpConfigPathsService.paths.get().find(u => isEqual(u.uri, model.uri));
 		if (!inConfig) {
 			return undefined;
 		}
 
 		const tree = this._parseModel(model);
-		const serversNode = findNodeAtLocation(tree, inConfig.section ? [inConfig.section, 'servers'] : ['servers']);
+		const serversNode = findNodeAtLocation(tree, inConfig.section ? [...inConfig.section, 'servers'] : ['servers']);
 		if (!serversNode) {
 			return undefined;
 		}
@@ -109,7 +113,7 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 					}, {
 						range,
 						command: {
-							id: StartServer.ID,
+							id: RestartServer.ID,
 							title: localize('mcp.restart', "Restart"),
 							arguments: [server.definition.id],
 						},
@@ -143,19 +147,19 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 					}, {
 						range,
 						command: {
-							id: StartServer.ID,
+							id: RestartServer.ID,
 							title: localize('mcp.restart', "Restart"),
 							arguments: [server.definition.id],
 						},
 					}, {
 						range,
 						command: {
-							id: 'workbench.action.chat.attachTools',
+							id: '',
 							title: localize('server.toolCount', '{0} tools', read(server.tools).length),
 						},
 					});
 					break;
-				case McpConnectionState.Kind.Stopped:
+				case McpConnectionState.Kind.Stopped: {
 					lenses.lenses.push({
 						range,
 						command: {
@@ -164,6 +168,17 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 							arguments: [server.definition.id],
 						},
 					});
+					const toolCount = read(server.tools).length;
+					if (toolCount) {
+						lenses.lenses.push({
+							range,
+							command: {
+								id: '',
+								title: localize('server.toolCountCached', '{0} cached tools', toolCount),
+							}
+						});
+					}
+				}
 			}
 		}
 
@@ -171,13 +186,13 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 	}
 
 	private async _provideInlayHints(model: ITextModel, range: Range): Promise<InlayHintList | undefined> {
-		const inConfig = this._mcpConfigPathsService.paths.find(u => isEqual(u.uri, model.uri));
+		const inConfig = this._mcpConfigPathsService.paths.get().find(u => isEqual(u.uri, model.uri));
 		if (!inConfig) {
 			return undefined;
 		}
 
 		const tree = this._parseModel(model);
-		const mcpSection = inConfig.section ? findNodeAtLocation(tree, [inConfig.section]) : tree;
+		const mcpSection = inConfig.section ? findNodeAtLocation(tree, [...inConfig.section]) : tree;
 		if (!mcpSection) {
 			return undefined;
 		}

@@ -175,7 +175,14 @@ export class McpService extends Disposable implements IMcpService {
 		// Create any new servers that are needed.
 		for (const def of nextDefinitions) {
 			const store = new DisposableStore();
-			const object = this._instantiationService.createInstance(McpServer, def.collectionDefinition, def.serverDefinition, !!def.collectionDefinition.lazy, def.collectionDefinition.scope === StorageScope.WORKSPACE ? this.workspaceCache : this.userCache);
+			const object = this._instantiationService.createInstance(
+				McpServer,
+				def.collectionDefinition,
+				def.serverDefinition,
+				def.serverDefinition.roots,
+				!!def.collectionDefinition.lazy,
+				def.collectionDefinition.scope === StorageScope.WORKSPACE ? this.workspaceCache : this.userCache,
+			);
 			store.add(object);
 			this._syncTools(object, store);
 

@@ -6,7 +6,6 @@
 import './media/window.css';
 import { localize } from '../../nls.js';
 import { URI } from '../../base/common/uri.js';
-import { onUnexpectedError } from '../../base/common/errors.js';
 import { equals } from '../../base/common/objects.js';
 import { EventType, EventHelper, addDisposableListener, ModifierKeyEmitter, getActiveElement, hasWindow, getWindowById, getWindows, $ } from '../../base/browser/dom.js';
 import { Action, Separator, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../base/common/actions.js';
@@ -184,13 +183,6 @@ export class NativeWindow extends BaseWindow {
 			const activeElement = getActiveElement();
 			if (activeElement) {
 				this.keybindingService.dispatchByUserSettingsLabel(request.userSettingsLabel, activeElement);
-			}
-		});
-
-		// Error reporting from main
-		ipcRenderer.on('vscode:reportError', (event: unknown, error: string) => {
-			if (error) {
-				onUnexpectedError(JSON.parse(error));
 			}
 		});
 
