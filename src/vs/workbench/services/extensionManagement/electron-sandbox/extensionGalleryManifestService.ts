@@ -130,11 +130,10 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		if (!account) {
 			return false;
 		}
-		if (this.productService.extensionsGallery?.accessSKUs?.includes(account.access_type_sku)) {
+		if (account.access_type_sku && this.productService.extensionsGallery?.accessSKUs?.includes(account.access_type_sku)) {
 			return true;
 		}
-		this.logService.debug('Default account label:', account.sessionAccountLabel);
-		return account.sessionAccountLabel.includes('_');
+		return account.enterprise;
 	}
 
 	private async requestRestart(): Promise<void> {
