@@ -41,6 +41,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	public pastTenseMessage: string | IMarkdownString | undefined;
 	private _confirmationMessages: IToolConfirmationMessages | undefined;
 	public readonly presentation: IPreparedToolInvocation['presentation'];
+	public readonly toolId: string;
 
 	public readonly toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData;
 
@@ -52,6 +53,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		this._confirmationMessages = preparedInvocation?.confirmationMessages;
 		this.presentation = preparedInvocation?.presentation;
 		this.toolSpecificData = preparedInvocation?.toolSpecificData;
+		this.toolId = toolData.id;
 
 		if (!this._confirmationMessages) {
 			// No confirmation needed

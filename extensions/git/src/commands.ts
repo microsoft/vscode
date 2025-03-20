@@ -108,7 +108,7 @@ class RefItem implements QuickPickItem {
 	constructor(protected readonly ref: Ref) { }
 }
 
-class CheckoutItem extends RefItem {
+class BranchItem extends RefItem {
 	override get description(): string {
 		const description: string[] = [];
 
@@ -125,7 +125,9 @@ class CheckoutItem extends RefItem {
 	constructor(override readonly ref: Branch) {
 		super(ref);
 	}
+}
 
+class CheckoutItem extends BranchItem {
 	async run(repository: Repository, opts?: { detached?: boolean }): Promise<void> {
 		if (!this.ref.name) {
 			return;
@@ -144,7 +146,6 @@ class CheckoutProtectedItem extends CheckoutItem {
 	override get label(): string {
 		return `$(lock) ${this.ref.name ?? this.shortCommit}`;
 	}
-
 }
 
 class CheckoutRemoteHeadItem extends RefItem {
@@ -180,7 +181,7 @@ class CheckoutTagItem extends RefItem {
 	}
 }
 
-class BranchDeleteItem extends RefItem {
+class BranchDeleteItem extends BranchItem {
 
 	async run(repository: Repository, force?: boolean): Promise<void> {
 		if (this.ref.type === RefType.Head && this.refName) {
@@ -214,7 +215,7 @@ class RemoteTagDeleteItem extends RefItem {
 	}
 }
 
-class MergeItem extends RefItem {
+class MergeItem extends BranchItem {
 
 	async run(repository: Repository): Promise<void> {
 		if (this.ref.name || this.ref.commit) {
@@ -223,7 +224,7 @@ class MergeItem extends RefItem {
 	}
 }
 
-class RebaseItem extends RefItem {
+class RebaseItem extends BranchItem {
 
 	async run(repository: Repository): Promise<void> {
 		if (this.ref?.name) {

@@ -8,6 +8,7 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogger } from '../../../../platform/log/common/log.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { IResolvedValue } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
@@ -32,6 +33,7 @@ export interface IMcpHostDelegate {
 }
 
 export interface IMcpResolveConnectionOptions {
+	logger: ILogger;
 	collectionRef: McpCollectionReference;
 	definitionRef: McpDefinitionReference;
 	/** If set, the user will be asked to trust the collection even if they untrusted it previously */

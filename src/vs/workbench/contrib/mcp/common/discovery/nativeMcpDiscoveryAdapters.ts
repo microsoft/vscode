@@ -63,6 +63,7 @@ export class ClaudeDesktopMpcDiscoveryAdapter implements NativeMpcDiscoveryAdapt
 					args: server.args || [],
 					command: server.command,
 					env: server.env || {},
+					envFile: undefined,
 					cwd: homedir,
 				}
 			};

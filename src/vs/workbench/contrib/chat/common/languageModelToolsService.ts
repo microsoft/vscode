@@ -77,6 +77,7 @@ export interface IToolResultTextPart {
 export interface IToolConfirmationMessages {
 	title: string;
 	message: string | IMarkdownString;
+	allowAutoConfirm?: boolean;
 }
 
 export interface IPreparedToolInvocation {
@@ -105,5 +106,7 @@ export interface ILanguageModelToolsService {
 	getTool(id: string): IToolData | undefined;
 	getToolByName(name: string): IToolData | undefined;
 	invokeTool(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
+	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile' | 'memory', autoConfirm?: boolean): void;
+	resetToolAutoConfirmation(): void;
 	cancelToolCallsForRequest(requestId: string): void;
 }

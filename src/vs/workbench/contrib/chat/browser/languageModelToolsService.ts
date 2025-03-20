@@ -9,10 +9,14 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Iterable } from '../../../../base/common/iterator.js';
+import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { LRUCache } from '../../../../base/common/map.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
@@ -41,7 +45,12 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	private _callsByRequestId = new Map<string, IDisposable[]>();
 
+	private _workspaceToolConfirmStore: Lazy<ToolConfirmStore>;
+	private _profileToolConfirmStore: Lazy<ToolConfirmStore>;
+	private _memoryToolConfirmStore = new Set<string>();
+
 	constructor(
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IChatService private readonly _chatService: IChatService,
@@ -50,6 +59,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
+
+		this._workspaceToolConfirmStore = new Lazy(() => this._register(this._instantiationService.createInstance(ToolConfirmStore, StorageScope.WORKSPACE)));
+		this._profileToolConfirmStore = new Lazy(() => this._register(this._instantiationService.createInstance(ToolConfirmStore, StorageScope.PROFILE)));
 
 		this._register(this._contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(this._toolContextKeys)) {
@@ -130,6 +142,22 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return undefined;
 	}
 
+	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile' | 'memory', autoConfirm = true): void {
+		if (scope === 'workspace') {
+			this._workspaceToolConfirmStore.value.setAutoConfirm(toolId, autoConfirm);
+		} else if (scope === 'profile') {
+			this._profileToolConfirmStore.value.setAutoConfirm(toolId, autoConfirm);
+		} else {
+			this._memoryToolConfirmStore.add(toolId);
+		}
+	}
+
+	resetToolAutoConfirmation(): void {
+		this._workspaceToolConfirmStore.value.reset();
+		this._profileToolConfirmStore.value.reset();
+		this._memoryToolConfirmStore.clear();
+	}
+
 	async invokeTool(dto: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
 		this._logService.trace(`[LanguageModelToolsService#invokeTool] Invoking tool ${dto.toolId} with parameters ${JSON.stringify(dto.parameters)}`);
 
@@ -190,6 +218,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					: undefined;
 
 				toolInvocation = new ChatToolInvocation(prepared, tool.data);
+				if (this._workspaceToolConfirmStore.value.getAutoConfirm(tool.data.id) || this._profileToolConfirmStore.value.getAutoConfirm(tool.data.id)) {
+					toolInvocation.confirmed.complete(true);
+				}
+
 				model.acceptResponseProgress(request, toolInvocation);
 				if (prepared?.confirmationMessages) {
 					const userConfirmed = await toolInvocation.confirmed.p;
@@ -296,3 +328,54 @@ type LanguageModelToolInvokedClassification = {
 	owner: 'roblourens';
 	comment: 'Provides insight into the usage of language model tools.';
 };
+
+class ToolConfirmStore extends Disposable {
+	private static readonly STORED_KEY = 'chat/autoconfirm';
+
+	private _autoConfirmTools: LRUCache<string, boolean> = new LRUCache<string, boolean>(100);
+	private _didChange = false;
+
+	constructor(
+		private readonly _scope: StorageScope,
+		@IStorageService private readonly storageService: IStorageService,
+	) {
+		super();
+
+		const stored = storageService.getObject<string[]>(ToolConfirmStore.STORED_KEY, this._scope);
+		if (stored) {
+			for (const key of stored) {
+				this._autoConfirmTools.set(key, true);
+			}
+		}
+
+		this._register(storageService.onWillSaveState(() => {
+			if (this._didChange) {
+				this.storageService.store(ToolConfirmStore.STORED_KEY, [...this._autoConfirmTools.keys()], this._scope, StorageTarget.MACHINE);
+				this._didChange = false;
+			}
+		}));
+	}
+
+	public reset() {
+		this._autoConfirmTools.clear();
+		this._didChange = true;
+	}
+
+	public getAutoConfirm(toolId: string): boolean {
+		if (this._autoConfirmTools.get(toolId)) {
+			this._didChange = true;
+			return true;
+		}
+
+		return false;
+	}
+
+	public setAutoConfirm(toolId: string, autoConfirm: boolean): void {
+		if (autoConfirm) {
+			this._autoConfirmTools.set(toolId, true);
+		} else {
+			this._autoConfirmTools.delete(toolId);
+		}
+		this._didChange = true;
+	}
+}
