@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../../../../base/common/event.js';
 import { derived, IObservable } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
@@ -54,14 +55,14 @@ export class InlineEditModel implements IInlineEditModel {
 }
 
 export class InlineEditHost implements IInlineEditHost {
+	readonly onDidAccept: Event<void>;
 	readonly inAcceptFlow: IObservable<boolean>;
 	readonly inPartialAcceptFlow: IObservable<boolean>;
-
-	readonly onDidAccept = this._model.onDidAccept;
 
 	constructor(
 		private readonly _model: InlineCompletionsModel,
 	) {
+		this.onDidAccept = this._model.onDidAccept;
 		this.inAcceptFlow = this._model.inAcceptFlow;
 		this.inPartialAcceptFlow = this._model.inPartialAcceptFlow;
 	}
