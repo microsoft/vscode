@@ -352,6 +352,10 @@ export interface IButtonWithDropdownOptions extends IButtonOptions {
 	readonly actions: readonly IAction[] | IActionProvider;
 	readonly actionRunner?: IActionRunner;
 	readonly addPrimaryActionToDropdown?: boolean;
+	/**
+	 * dropdown menus with higher layers are rendered higher in z-index order
+	 */
+	readonly dropdownLayer?: number;
 }
 
 export class ButtonWithDropdown extends Disposable implements IButton {
@@ -410,7 +414,8 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 				getAnchor: () => this.dropdownButton.element,
 				getActions: () => options.addPrimaryActionToDropdown === false ? [...actions] : [this.action, ...actions],
 				actionRunner: options.actionRunner,
-				onHide: () => this.dropdownButton.element.setAttribute('aria-expanded', 'false')
+				onHide: () => this.dropdownButton.element.setAttribute('aria-expanded', 'false'),
+				layer: options.dropdownLayer
 			});
 			this.dropdownButton.element.setAttribute('aria-expanded', 'true');
 		}));

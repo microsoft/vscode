@@ -237,6 +237,7 @@ export class Dialog extends Disposable {
 					button = this._register(buttonBar.addButtonWithDropdown({
 						...this.options.primaryButtonDropdown,
 						...this.buttonStyles,
+						dropdownLayer: 2600, // ensure the dropdown is above the dialog
 						actions: actions.map(action => toAction({
 							...action,
 							run: async () => {
