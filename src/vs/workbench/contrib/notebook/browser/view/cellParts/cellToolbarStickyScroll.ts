@@ -27,5 +27,11 @@ export function registerCellToolbarStickyScroll(notebookEditor: INotebookEditor,
 	};
 
 	updateForScroll();
+	const disposables: IDisposable[] = [];
+	disposables.push(
+		notebookEditor.onDidScroll(() => updateForScroll()),
+		notebookEditor.onDidChangeLayout(() => updateForScroll())
+	);
+
 	return notebookEditor.onDidScroll(() => updateForScroll());
 }
