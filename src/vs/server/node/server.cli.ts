@@ -70,6 +70,7 @@ const isSupportedForPipe = (optionId: keyof RemoteParsedArgs) => {
 		case 'uninstall-extension':
 		case 'update-extensions':
 		case 'list-extensions':
+		case 'download-extensions-locally':
 		case 'force':
 		case 'do-not-include-pack-dependencies':
 		case 'show-versions':
@@ -228,7 +229,7 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 	}
 
 	if (cliCommand) {
-		if (parsedArgs['install-extension'] !== undefined || parsedArgs['uninstall-extension'] !== undefined || parsedArgs['list-extensions'] || parsedArgs['update-extensions']) {
+		if (parsedArgs['install-extension'] !== undefined || parsedArgs['uninstall-extension'] !== undefined || parsedArgs['list-extensions'] || parsedArgs['update-extensions'] || parsedArgs['download-extensions-locally']) {
 			const cmdLine: string[] = [];
 			parsedArgs['install-extension']?.forEach(id => cmdLine.push('--install-extension', id));
 			parsedArgs['uninstall-extension']?.forEach(id => cmdLine.push('--uninstall-extension', id));
@@ -240,6 +241,10 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 			});
 			if (parsedArgs['update-extensions']) {
 				cmdLine.push('--update-extensions');
+			}
+
+			if (parsedArgs['download-extensions-locally']) {
+				cmdLine.push('--download-extensions-locally');
 			}
 
 			const childProcess = cp.fork(FileAccess.asFileUri('server-main').fsPath, cmdLine, { stdio: 'inherit' });
