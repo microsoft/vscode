@@ -6,7 +6,7 @@
 import { equals as arrayEquals } from '../../../../../base/common/arrays.js';
 import { Throttler } from '../../../../../base/common/async.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorunDelta, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Location } from '../../../../../editor/common/languages.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
@@ -29,7 +29,7 @@ interface ConfigSource {
  * Discovers MCP servers based on various config sources.
  */
 export class ConfigMcpDiscovery extends Disposable implements IMcpDiscovery {
-	private readonly configSources: ConfigSource[] = [];
+	private configSources: ConfigSource[] = [];
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -48,20 +48,34 @@ export class ConfigMcpDiscovery extends Disposable implements IMcpDiscovery {
 				path,
 				serverDefinitions: observableValue(this, []),
 				disposable: this._register(new MutableDisposable()),
-				getServerToLocationMapping: (uri) => this._getServerIdMapping(uri, path.section ? [path.section, 'servers'] : ['servers']),
+				getServerToLocationMapping: (uri) => this._getServerIdMapping(uri, path.section ? [...path.section, 'servers'] : ['servers']),
 			});
 		};
-
-		this._mcpConfigPathsService.paths.forEach(addPath);
-		this._register(this._mcpConfigPathsService.onDidAddPath(path => {
-			addPath(path);
-			this.sync();
-		}));
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(mcpConfigurationSection)) {
 				throttler.queue(() => this.sync());
 			}
+		}));
+
+		this._register(autorunDelta(this._mcpConfigPathsService.paths, ({ lastValue, newValue }) => {
+			for (const last of lastValue || []) {
+				if (!newValue.includes(last)) {
+					const idx = this.configSources.findIndex(src => src.path.id === last.id);
+					if (idx !== -1) {
+						this.configSources[idx].disposable.dispose();
+						this.configSources.splice(idx, 1);
+					}
+				}
+			}
+
+			for (const next of newValue) {
+				if (!lastValue || !lastValue.includes(next)) {
+					addPath(next);
+				}
+			}
+
+			this.sync();
 		}));
 	}
 
@@ -87,8 +101,12 @@ export class ConfigMcpDiscovery extends Disposable implements IMcpDiscovery {
 		}));
 
 		for (const [index, src] of this.configSources.entries()) {
-			const collectionId = `mcp.config.${src.path.key}`;
-			let value = configurationKey[src.path.key];
+			const collectionId = `mcp.config.${src.path.id}`;
+			// inspect() will give the first workspace folder, and must be
+			// asked for explicitly for other folders.
+			let value = src.path.workspaceFolder
+				? this._configurationService.inspect<IMcpConfiguration>(mcpConfigurationSection, { resource: src.path.workspaceFolder.uri })[src.path.key]
+				: configurationKey[src.path.key];
 
 			// If we see there are MCP servers, migrate them automatically
 			if (value?.mcpServers) {
@@ -111,7 +129,9 @@ export class ConfigMcpDiscovery extends Disposable implements IMcpDiscovery {
 					env: value.env || {},
 					cwd: undefined,
 				},
+				roots: src.path.workspaceFolder ? [src.path.workspaceFolder.uri] : [],
 				variableReplacement: {
+					folder: src.path.workspaceFolder,
 					section: mcpConfigurationSection,
 					target: src.path.target,
 				},

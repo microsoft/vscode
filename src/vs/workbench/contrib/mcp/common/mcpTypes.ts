@@ -7,6 +7,7 @@ import { assertNever } from '../../../../base/common/assert.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
+import { equals as arraysEqual } from '../../../../base/common/arrays.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { Location } from '../../../../editor/common/languages.js';
@@ -62,12 +63,13 @@ export interface McpCollectionDefinition {
 }
 
 export const enum McpCollectionSortOrder {
-	Workspace = 0,
-	User = 100,
-	Extension = 200,
-	Filesystem = 300,
+	WorkspaceFolder = 0,
+	Workspace = 100,
+	User = 200,
+	Extension = 300,
+	Filesystem = 400,
 
-	RemotePenalty = 50,
+	RemoteBoost = -50,
 }
 
 export namespace McpCollectionDefinition {
@@ -93,6 +95,8 @@ export interface McpServerDefinition {
 	readonly label: string;
 	/** Descriptor defining how the configuration should be launched. */
 	readonly launch: McpServerLaunch;
+	/** Explicit roots. If undefined, all workspace folders. */
+	readonly roots?: URI[] | undefined;
 	/** If set, allows configuration variables to be resolved in the {@link launch} with the given context */
 	readonly variableReplacement?: McpServerDefinitionVariableReplacement;
 
@@ -128,7 +132,9 @@ export namespace McpServerDefinition {
 	export function equals(a: McpServerDefinition, b: McpServerDefinition): boolean {
 		return a.id === b.id
 			&& a.label === b.label
+			&& arraysEqual(a.roots, b.roots, (a, b) => a.toString() === b.toString())
 			&& objectsEqual(a.launch, b.launch)
+			&& objectsEqual(a.presentation, b.presentation)
 			&& objectsEqual(a.variableReplacement, b.variableReplacement);
 	}
 }
