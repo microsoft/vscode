@@ -15,6 +15,7 @@ export const enum ExtensionGalleryResourceType {
 	ExtensionDetailsViewUri = 'ExtensionDetailsViewUriTemplate',
 	ExtensionRatingViewUri = 'ExtensionRatingViewUriTemplate',
 	ExtensionResourceUri = 'ExtensionResourceUriTemplate',
+	ReportIssueUri = 'ReportIssueUri',
 }
 
 export const enum Flag {
