@@ -139,7 +139,7 @@ export class McpConfigPathsService extends Disposable implements IMcpConfigPaths
 			id: `wf${workspaceFolder.index}`,
 			key: 'workspaceFolderValue',
 			target: ConfigurationTarget.WORKSPACE_FOLDER,
-			label: localize('mcp.configuration.workspaceFolter', 'From folder {0}', workspaceFolder.name),
+			label: workspaceFolder.name,
 			scope: StorageScope.WORKSPACE,
 			order: McpCollectionSortOrder.WorkspaceFolder,
 			uri: URI.joinPath(workspaceFolder.uri, FOLDER_SETTINGS_PATH, '../mcp.json'),
