@@ -656,9 +656,6 @@ export class PromptReference extends ObservableDisposable implements IPromptRefe
 		return this.parser.isPromptFile;
 	}
 
-	/**
-	 * TODO: @legomushroom - change to IResolveError?
-	 */
 	public get errors(): readonly ResolveError[] {
 		return this.parser.errors;
 	}
