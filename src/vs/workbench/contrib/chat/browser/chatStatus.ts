@@ -252,7 +252,7 @@ class ChatStatusDashboard extends Disposable {
 		if (this.chatEntitlementService.entitlement === ChatEntitlement.Limited) {
 			const { chatTotal, chatRemaining, completionsTotal, completionsRemaining, quotaResetDate, chatQuotaExceeded, completionsQuotaExceeded } = this.chatEntitlementService.quotas;
 
-			addSeparator(localize('usageTitle', "Copilot Free Usage"));
+			addSeparator(localize('usageTitle', "Copilot Free Plan Usage"));
 
 			const chatQuotaIndicator = this.createQuotaIndicator(this.element, chatTotal, chatRemaining, localize('chatsLabel', "Chat messages"));
 			const completionsQuotaIndicator = this.createQuotaIndicator(this.element, completionsTotal, completionsRemaining, localize('completionsLabel', "Code completions"));
@@ -292,10 +292,10 @@ class ChatStatusDashboard extends Disposable {
 			if (newUser || signedOut) {
 				addSeparator(undefined);
 
-				this.element.appendChild($('div.description', undefined, newUser ? localize('activateDescription', "You need to set up Copilot.") : localize('signInDescription', "You need to sign in to use Copilot.")));
+				this.element.appendChild($('div.description', undefined, newUser ? localize('activateDescription', "Set up Copilot to use AI features.") : localize('signInDescription', "Sign in to use Copilot AI features.")));
 
 				const button = disposables.add(new Button(this.element, { ...defaultButtonStyles }));
-				button.label = newUser ? localize('activateCopilotButton', "Set Up Copilot") : localize('signInToUseCopilotButton', "Sign In");
+				button.label = newUser ? localize('activateCopilotButton', "Set up Copilot") : localize('signInToUseCopilotButton', "Sign in to use Copilot");
 				disposables.add(button.onDidClick(() => this.runCommandAndClose(newUser ? { id: 'workbench.action.chat.triggerSetup' } : () => this.chatEntitlementService.requests?.value.signIn())));
 			}
 		}

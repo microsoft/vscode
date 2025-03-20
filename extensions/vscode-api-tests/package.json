@@ -17,6 +17,7 @@
     "documentFiltersExclusive",
     "editorInsets",
     "embeddings",
+    "envExtractUri",
     "extensionRuntime",
     "extensionsAny",
     "externalUriOpener",

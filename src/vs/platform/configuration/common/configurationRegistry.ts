@@ -671,25 +671,28 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 					property.restricted = types.isUndefinedOrNull(property.restricted) ? !!restrictedProperties?.includes(key) : property.restricted;
 				}
 
-				// Add to properties maps
-				// Property is included by default if 'included' is unspecified
-				if (properties[key].hasOwnProperty('included') && !properties[key].included) {
+				const excluded = properties[key].hasOwnProperty('included') && !properties[key].included;
+				const policyName = properties[key].policy?.name;
+
+				if (excluded) {
 					this.excludedConfigurationProperties[key] = properties[key];
+					if (policyName) {
+						this.policyConfigurations.set(policyName, key);
+						bucket.add(key);
+					}
 					delete properties[key];
-					continue;
 				} else {
+					bucket.add(key);
+					if (policyName) {
+						this.policyConfigurations.set(policyName, key);
+					}
 					this.configurationProperties[key] = properties[key];
-					if (properties[key].policy?.name) {
-						this.policyConfigurations.set(properties[key].policy!.name, key);
+					if (!properties[key].deprecationMessage && properties[key].markdownDeprecationMessage) {
+						// If not set, default deprecationMessage to the markdown source
+						properties[key].deprecationMessage = properties[key].markdownDeprecationMessage;
 					}
 				}
 
-				if (!properties[key].deprecationMessage && properties[key].markdownDeprecationMessage) {
-					// If not set, default deprecationMessage to the markdown source
-					properties[key].deprecationMessage = properties[key].markdownDeprecationMessage;
-				}
-
-				bucket.add(key);
 			}
 		}
 		const subNodes = configuration.allOf;

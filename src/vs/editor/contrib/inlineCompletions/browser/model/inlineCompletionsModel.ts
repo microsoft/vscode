@@ -114,8 +114,45 @@ export class InlineCompletionsModel extends Disposable {
 			this._inAcceptFlow.set(false, undefined);
 		}));
 
+		this._register(autorun(reader => {
+			const jumpToReset = this.state.map(s => !s || s.kind === 'inlineEdit' && !s.cursorAtInlineEdit).read(reader);
+			if (jumpToReset) {
+				this._jumpedToId.set(undefined, undefined);
+			}
+		}));
 
+		const inlineEditSemanticId = this.inlineEditState.map(s => s?.inlineCompletion.semanticId);
+
+		this._register(autorun(reader => {
+			const id = inlineEditSemanticId.read(reader);
+			if (id) {
+				this._editor.pushUndoStop();
+			}
+		}));
+
+		this._didUndoInlineEdits.recomputeInitiallyAndOnChange(this._store);
 	}
+
+	private _lastAcceptedInlineCompletionInfo: { textModelVersionIdAfter: number; /* already freed! */ inlineCompletion: InlineCompletionItem } | undefined = undefined;
+	private readonly _didUndoInlineEdits = derivedHandleChanges({
+		owner: this,
+		createEmptyChangeSummary: () => ({ didUndo: false }),
+		handleChange: (ctx, changeSummary) => {
+			changeSummary.didUndo = ctx.didChange(this._textModelVersionId) && !!ctx.change?.isUndoing;
+			return true;
+		}
+	}, reader => {
+		const versionId = this._textModelVersionId.read(reader);
+		if (versionId !== null
+			&& this._lastAcceptedInlineCompletionInfo
+			&& this._lastAcceptedInlineCompletionInfo.textModelVersionIdAfter === versionId - 1
+			&& this._lastAcceptedInlineCompletionInfo.inlineCompletion.isInlineEdit
+		) {
+			this._lastAcceptedInlineCompletionInfo = undefined;
+			return true;
+		}
+		return false;
+	});
 
 	public debugGetSelectedSuggestItem(): IObservable<SuggestItemInfo | undefined> {
 		return this._selectedSuggestItem;
@@ -191,6 +228,7 @@ export class InlineCompletionsModel extends Disposable {
 			return true;
 		},
 	}, (reader, changeSummary) => {
+		this._source.clearOperationOnTextModelChange.read(reader); // Make sure the clear operation runs before the fetch operation
 		this._noDelaySignal.read(reader);
 		this.dontRefetchSignal.read(reader);
 		this._onlyRequestInlineEditsSignal.read(reader);
@@ -221,6 +259,13 @@ export class InlineCompletionsModel extends Disposable {
 			return Promise.resolve(true);
 		}
 
+		if (this._didUndoInlineEdits.read(reader)) {
+			transaction(tx => {
+				this._source.clear(tx);
+			});
+			return undefined;
+		}
+
 		const context: InlineCompletionContext = {
 			triggerKind: changeSummary.inlineCompletionTriggerKind,
 			selectedSuggestionInfo: suggestItem?.toSelectedSuggestionInfo(),
@@ -230,7 +275,9 @@ export class InlineCompletionsModel extends Disposable {
 		const itemToPreserveCandidate = this.selectedInlineCompletion.get() ?? this._inlineCompletionItems.get()?.inlineEdit;
 		const itemToPreserve = changeSummary.preserveCurrentCompletion || itemToPreserveCandidate?.forwardStable
 			? itemToPreserveCandidate : undefined;
-		return this._source.fetch(cursorPosition, context, itemToPreserve, changeSummary.shouldDebounce);
+		const userJumpedToActiveCompletion = this._jumpedToId.map(jumpedTo => !!jumpedTo && jumpedTo === this._inlineCompletionItems.get()?.inlineEdit?.semanticId);
+
+		return this._source.fetch(cursorPosition, context, itemToPreserve, changeSummary.shouldDebounce, userJumpedToActiveCompletion);
 	});
 
 	public async trigger(tx?: ITransaction, options?: { onlyFetchInlineEdits?: boolean; noDelay?: boolean }): Promise<void> {
@@ -399,8 +446,6 @@ export class InlineCompletionsModel extends Disposable {
 			return { kind: 'inlineEdit', inlineEdit, inlineCompletion: inlineEditResult, edits: e, cursorAtInlineEdit };
 		}
 
-		this._jumpedTo.set(false, undefined);
-
 		const suggestItem = this._selectedSuggestItem.read(reader);
 		if (suggestItem) {
 			const suggestCompletionEdit = singleTextRemoveCommonPrefix(suggestItem.toSingleTextEdit(), model);
@@ -515,9 +560,9 @@ export class InlineCompletionsModel extends Disposable {
 			return false;
 		}
 
-		const isCurrentModelVersion = state.inlineCompletion.updatedEditModelVersion === this._textModelVersionId.read(reader); // TODO: this is a hack
+		const isCurrentModelVersion = state.inlineCompletion.updatedEditModelVersion === this._textModelVersionId.read(reader);
 		return (this._inlineEditsShowCollapsedEnabled.read(reader) || !isCurrentModelVersion)
-			&& !this._jumpedTo.read(reader)
+			&& this._jumpedToId.read(reader) !== state.inlineCompletion.semanticId
 			&& !this._inAcceptFlow.read(reader);
 	});
 
@@ -575,7 +620,7 @@ export class InlineCompletionsModel extends Disposable {
 		if (s.inlineEdit.range.startLineNumber === this._editorObs.cursorLineNumber.read(reader)) {
 			return true;
 		}
-		if (this._jumpedTo.read(reader)) {
+		if (this._jumpedToId.read(reader) === s.inlineCompletion.semanticId) {
 			return true;
 		}
 		if (this._tabShouldIndent.read(reader)) {
@@ -673,6 +718,7 @@ export class InlineCompletionsModel extends Disposable {
 		}
 
 		this._inAcceptFlow.set(true, undefined);
+		this._lastAcceptedInlineCompletionInfo = { textModelVersionIdAfter: this.textModel.getVersionId(), inlineCompletion: completion };
 	}
 
 	public async acceptNextWord(editor: ICodeEditor): Promise<void> {
@@ -875,7 +921,7 @@ export class InlineCompletionsModel extends Disposable {
 		};
 	}
 
-	private readonly _jumpedTo = observableValue(this, false);
+	private readonly _jumpedToId = observableValue<undefined | string>(this, undefined);
 	private readonly _inAcceptFlow = observableValue(this, false);
 	public readonly inAcceptFlow: IObservable<boolean> = this._inAcceptFlow;
 
@@ -884,7 +930,7 @@ export class InlineCompletionsModel extends Disposable {
 		if (!s) { return; }
 
 		transaction(tx => {
-			this._jumpedTo.set(true, tx);
+			this._jumpedToId.set(s.inlineCompletion.semanticId, tx);
 			this.dontRefetchSignal.trigger(tx);
 			const edit = s.inlineCompletion.toSingleTextEdit(undefined);
 			this._editor.setPosition(edit.range.getStartPosition(), 'inlineCompletions.jump');

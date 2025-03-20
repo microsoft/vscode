@@ -9,6 +9,7 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { Location } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
@@ -55,7 +56,7 @@ export interface McpCollectionDefinition {
 	readonly presentation?: {
 		/** Sort order of the collection. */
 		readonly order?: number;
-		/** Place where this server is configured, used in workspac trust prompts */
+		/** Place where this collection is configured, used in workspace trust prompts and "show config" */
 		readonly origin?: URI;
 	};
 }
@@ -94,6 +95,13 @@ export interface McpServerDefinition {
 	readonly launch: McpServerLaunch;
 	/** If set, allows configuration variables to be resolved in the {@link launch} with the given context */
 	readonly variableReplacement?: McpServerDefinitionVariableReplacement;
+
+	readonly presentation?: {
+		/** Sort order of the definition. */
+		readonly order?: number;
+		/** Place where this server is configured, used in workspace trust prompts and "show config" */
+		readonly origin?: Location;
+	};
 }
 
 export namespace McpServerDefinition {
@@ -129,14 +137,14 @@ export namespace McpServerDefinition {
 export interface McpServerDefinitionVariableReplacement {
 	section?: string; // e.g. 'mcp'
 	folder?: IWorkspaceFolderData;
-	target?: ConfigurationTarget;
+	target: ConfigurationTarget;
 }
 
 export namespace McpServerDefinitionVariableReplacement {
 	export interface Serialized {
+		target: ConfigurationTarget;
 		section?: string;
 		folder?: { name: string; index: number; uri: UriComponents };
-		target?: ConfigurationTarget;
 	}
 
 	export function toSerialized(def: McpServerDefinitionVariableReplacement): McpServerDefinitionVariableReplacement.Serialized {
@@ -253,6 +261,7 @@ export interface McpServerTransportStdio {
 	readonly command: string;
 	readonly args: readonly string[];
 	readonly env: Record<string, string | number | null>;
+	readonly envFile: string | undefined;
 }
 
 /**
@@ -272,7 +281,7 @@ export type McpServerLaunch =
 export namespace McpServerLaunch {
 	export type Serialized =
 		| { type: McpServerTransportType.SSE; uri: UriComponents; headers: [string, string][] }
-		| { type: McpServerTransportType.Stdio; cwd: UriComponents | undefined; command: string; args: readonly string[]; env: Record<string, string | number | null> };
+		| { type: McpServerTransportType.Stdio; cwd: UriComponents | undefined; command: string; args: readonly string[]; env: Record<string, string | number | null>; envFile: string | undefined };
 
 	export function toSerialized(launch: McpServerLaunch): McpServerLaunch.Serialized {
 		return launch;
@@ -289,6 +298,7 @@ export namespace McpServerLaunch {
 					command: launch.command,
 					args: launch.args,
 					env: launch.env,
+					envFile: launch.envFile,
 				};
 		}
 	}
@@ -303,11 +313,6 @@ export interface IMcpServerConnection extends IDisposable {
 	readonly definition: McpServerDefinition;
 	readonly state: IObservable<McpConnectionState>;
 	readonly handler: IObservable<McpServerRequestHandler | undefined>;
-
-	/**
-	 * Shows the current server output.
-	 */
-	showOutput(): void;
 
 	/**
 	 * Starts the server if it's stopped. Returns a promise that resolves once
@@ -350,6 +355,9 @@ export namespace McpConnectionState {
 
 	/** Returns if the MCP state is one where starting a new server is valid */
 	export const canBeStarted = (s: Kind) => s === Kind.Error || s === Kind.Stopped;
+
+	/** Gets whether the state is a running state. */
+	export const isRunning = (s: McpConnectionState) => !canBeStarted(s.state);
 
 	export interface Stopped {
 		readonly state: Kind.Stopped;

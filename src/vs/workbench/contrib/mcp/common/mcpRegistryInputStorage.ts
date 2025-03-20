@@ -11,6 +11,7 @@ import { isEmptyObject } from '../../../../base/common/types.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IResolvedValue } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
 
 const MCP_ENCRYPTION_KEY_NAME = 'mcpEncryptionKey';
 const MCP_ENCRYPTION_KEY_ALGORITHM = 'AES-GCM';
@@ -21,12 +22,12 @@ const MCP_DATA_STORED_KEY = 'mcpInputs';
 
 interface IStoredData {
 	version: number;
-	values: Record<string, string>;
+	values: Record<string, IResolvedValue>;
 	secrets?: { value: string; iv: string }; // base64, encrypted
 }
 
 interface IHydratedData extends IStoredData {
-	unsealedSecrets?: Record<string, string>;
+	unsealedSecrets?: Record<string, IResolvedValue>;
 }
 
 export class McpRegistryInputStorage extends Disposable {
@@ -113,13 +114,13 @@ export class McpRegistryInputStorage extends Disposable {
 	}
 
 	/** Updates the input data mapping. */
-	public async setPlainText(values: Record<string, string>) {
+	public async setPlainText(values: Record<string, IResolvedValue>) {
 		Object.assign(this._record.value.values, values);
 		this._didChange = true;
 	}
 
 	/** Updates the input secrets mapping. */
-	public async setSecrets(values: Record<string, string>) {
+	public async setSecrets(values: Record<string, IResolvedValue>) {
 		const unsealed = await this._unsealSecrets();
 		Object.assign(unsealed, values);
 		await this._sealSecrets();
@@ -159,7 +160,7 @@ export class McpRegistryInputStorage extends Disposable {
 		});
 	}
 
-	private async _unsealSecrets(): Promise<Record<string, string>> {
+	private async _unsealSecrets(): Promise<Record<string, IResolvedValue>> {
 		if (!this._record.value.secrets) {
 			return this._record.value.unsealedSecrets ??= {};
 		}

@@ -32,7 +32,7 @@ export namespace ChatContextKeys {
 	export const inChatSession = new RawContextKey<boolean>('inChat', false, { type: 'boolean', description: localize('inChat', "True when focus is in the chat widget, false otherwise.") });
 	export const inUnifiedChat = new RawContextKey<boolean>('inUnifiedChat', false, { type: 'boolean', description: localize('inUnifiedChat', "True when focus is in the unified chat widget, false otherwise.") });
 	export const instructionsAttached = new RawContextKey<boolean>('chatInstructionsAttached', false, { type: 'boolean', description: localize('chatInstructionsAttachedContextDescription', "True when the chat has a prompt instructions attached.") });
-	export const chatMode = new RawContextKey<ChatMode>('chatMode', ChatMode.Chat, { type: 'string', description: localize('chatMode', "The current chat mode.") });
+	export const chatMode = new RawContextKey<ChatMode>('chatMode', ChatMode.Ask, { type: 'string', description: localize('chatMode', "The current chat mode.") });
 
 	export const supported = ContextKeyExpr.or(IsWebContext.toNegated(), RemoteNameContext.notEqualsTo('')); // supported on desktop and in web only with a remote connection
 	export const enabled = new RawContextKey<boolean>('chatIsEnabled', false, { type: 'boolean', description: localize('chatIsEnabled', "True when chat is enabled because a default chat participant is activated with an implementation.") });
@@ -64,21 +64,22 @@ export namespace ChatContextKeys {
 	};
 
 	export const SetupViewKeys = new Set([ChatContextKeys.Setup.hidden.key, ChatContextKeys.Setup.installed.key, ChatContextKeys.Entitlement.signedOut.key, ChatContextKeys.Entitlement.canSignUp.key, ...Setup.fromDialog.keys()]);
-	export const SetupViewCondition = ContextKeyExpr.or(
-		ContextKeyExpr.and(
-			ChatContextKeys.Setup.hidden.negate(),
-			ChatContextKeys.Setup.installed.negate(),
-			Setup.fromDialog.negate()
-		),
-		ContextKeyExpr.and(
-			ChatContextKeys.Entitlement.canSignUp,
-			ChatContextKeys.Setup.installed
-		),
-		ContextKeyExpr.and(
-			ChatContextKeys.Entitlement.signedOut,
-			ChatContextKeys.Setup.installed
-		)
-	)!;
+	export const SetupViewCondition = ContextKeyExpr.and(
+		Setup.fromDialog.negate(),
+		ContextKeyExpr.or(
+			ContextKeyExpr.and(
+				ChatContextKeys.Setup.hidden.negate(),
+				ChatContextKeys.Setup.installed.negate()
+			),
+			ContextKeyExpr.and(
+				ChatContextKeys.Entitlement.canSignUp,
+				ChatContextKeys.Setup.installed
+			),
+			ContextKeyExpr.and(
+				ChatContextKeys.Entitlement.signedOut,
+				ChatContextKeys.Setup.installed
+			)
+		))!;
 
 	export const chatQuotaExceeded = new RawContextKey<boolean>('chatQuotaExceeded', false, true);
 	export const completionsQuotaExceeded = new RawContextKey<boolean>('completionsQuotaExceeded', false, true);
@@ -90,7 +91,6 @@ export namespace ChatContextKeys {
 	};
 
 	export const Tools = {
-
 		toolsCount: new RawContextKey<number>('toolsCount', 0, { type: 'number', description: localize('toolsCount', "The count of tools available in the chat.") })
 	};
 }

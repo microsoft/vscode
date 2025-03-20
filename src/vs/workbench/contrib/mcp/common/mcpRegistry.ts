@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter } from '../../../../base/common/event.js';
 import { StringSHA1 } from '../../../../base/common/hash.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../base/common/lazy.js';
@@ -10,16 +11,21 @@ import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
+import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { observableMemento } from '../../../../platform/observable/common/observableMemento.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
+import { ConfigurationResolverExpression, IResolvedValue } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { McpRegistryInputStorage } from './mcpRegistryInputStorage.js';
 import { IMcpHostDelegate, IMcpRegistry, IMcpResolveConnectionOptions } from './mcpRegistryTypes.js';
 import { McpServerConnection } from './mcpServerConnection.js';
-import { IMcpServerConnection, LazyCollectionState, McpCollectionDefinition, McpCollectionReference } from './mcpTypes.js';
+import { IMcpServerConnection, LazyCollectionState, McpCollectionDefinition, McpCollectionReference, McpServerDefinition, McpServerLaunch } from './mcpTypes.js';
 
 const createTrustMemento = observableMemento<Readonly<Record<string, boolean>>>({
 	defaultValue: {},
@@ -89,12 +95,17 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		return this._delegates;
 	}
 
+	private readonly _onDidChangeInputs = this._register(new Emitter<void>());
+	public readonly onDidChangeInputs = this._onDidChangeInputs.event;
+
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IProductService private readonly _productService: IProductService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IEditorService private readonly _editorService: IEditorService,
 	) {
 		super();
 	}
@@ -160,9 +171,33 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		return found;
 	}
 
-	public clearSavedInputs() {
-		this._profileStorage.value.clearAll();
-		this._workspaceStorage.value.clearAll();
+	private _getInputStorage(scope: StorageScope): McpRegistryInputStorage {
+		return scope === StorageScope.WORKSPACE ? this._workspaceStorage.value : this._profileStorage.value;
+	}
+
+	public async clearSavedInputs(scope: StorageScope, inputId?: string) {
+		const storage = this._getInputStorage(scope);
+		if (inputId) {
+			await storage.clear(inputId);
+		} else {
+			storage.clearAll();
+		}
+
+		this._onDidChangeInputs.fire();
+	}
+
+	public async editSavedInput(inputId: string, folderData: IWorkspaceFolderData | undefined, configSection: string, target: ConfigurationTarget): Promise<void> {
+		const storage = this._getInputStorage(target === ConfigurationTarget.WORKSPACE || target === ConfigurationTarget.WORKSPACE_FOLDER ? StorageScope.WORKSPACE : StorageScope.PROFILE);
+		const expr = ConfigurationResolverExpression.parse(inputId);
+
+		const stored = await storage.getMap();
+		const previous = stored[inputId].value;
+		await this._configurationResolverService.resolveWithInteraction(folderData, expr, configSection, previous ? { [inputId]: previous } : {}, target);
+		await this._updateStorageWithExpressionInputs(storage, expr);
+	}
+
+	public getSavedInputs(scope: StorageScope): Promise<{ [id: string]: IResolvedValue }> {
+		return this._getInputStorage(scope).getMap();
 	}
 
 	public resetTrust(): void {
@@ -194,9 +229,9 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 	}
 
 	private async _promptForTrustOpenDialog(collection: McpCollectionDefinition): Promise<boolean | undefined> {
-		const labelWithOrigin = collection.presentation?.origin
-			? `[\`${basename(collection.presentation.origin)}\`](${collection.presentation.origin})`
-			: collection.label;
+		const originURI = collection.presentation?.origin;
+		const labelWithOrigin = originURI ? `[\`${basename(originURI)}\`](${originURI})` : collection.label;
+
 		const result = await this._dialogService.prompt(
 			{
 				message: localize('trustTitleWithOrigin', 'Trust MCP servers from {0}?', collection.label),
@@ -216,7 +251,49 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		return result.result;
 	}
 
-	public async resolveConnection({ collectionRef, definitionRef, forceTrust }: IMcpResolveConnectionOptions): Promise<IMcpServerConnection | undefined> {
+	private async _updateStorageWithExpressionInputs(inputStorage: McpRegistryInputStorage, expr: ConfigurationResolverExpression<unknown>): Promise<void> {
+		const secrets: Record<string, IResolvedValue> = {};
+		const inputs: Record<string, IResolvedValue> = {};
+		for (const [replacement, resolved] of expr.resolved()) {
+			if (resolved.input?.type === 'promptString' && resolved.input.password) {
+				secrets[replacement.id] = resolved;
+			} else {
+				inputs[replacement.id] = resolved;
+			}
+		}
+
+		inputStorage.setPlainText(inputs);
+		await inputStorage.setSecrets(secrets);
+		this._onDidChangeInputs.fire();
+	}
+
+	private async _replaceVariablesInLaunch(definition: McpServerDefinition, launch: McpServerLaunch) {
+		if (!definition.variableReplacement) {
+			return launch;
+		}
+
+		const { section, target, folder } = definition.variableReplacement;
+		const inputStorage = target === ConfigurationTarget.WORKSPACE ? this._workspaceStorage.value : this._profileStorage.value;
+		const previouslyStored = await inputStorage.getMap();
+
+		// pre-fill the variables we already resolved to avoid extra prompting
+		const expr = ConfigurationResolverExpression.parse(launch);
+		for (const replacement of expr.unresolved()) {
+			if (previouslyStored.hasOwnProperty(replacement.id)) {
+				expr.resolve(replacement, previouslyStored[replacement.id]);
+			}
+		}
+
+		// resolve variables requiring user input
+		await this._configurationResolverService.resolveWithInteraction(folder, expr, section, undefined, target);
+
+		await this._updateStorageWithExpressionInputs(inputStorage, expr);
+
+		// resolve other non-interactive variables, returning the final object
+		return await this._configurationResolverService.resolveAsync(folder, expr);
+	}
+
+	public async resolveConnection({ collectionRef, definitionRef, forceTrust, logger }: IMcpResolveConnectionOptions): Promise<IMcpServerConnection | undefined> {
 		const collection = this._collections.get().find(c => c.id === collectionRef.id);
 		const definition = collection?.serverDefinitions.get().find(s => s.id === definitionRef.id);
 		if (!collection || !definition) {
@@ -247,24 +324,30 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 			}
 		}
 
-		let launch = definition.launch;
-
-		if (definition.variableReplacement) {
-			const inputStorage = definition.variableReplacement.folder ? this._workspaceStorage.value : this._profileStorage.value;
-			const previouslyStored = await inputStorage.getMap();
-
-			const { folder, section, target } = definition.variableReplacement;
-
-			// based on _configurationResolverService.resolveWithInteractionReplace
-			launch = await this._configurationResolverService.resolveAnyAsync(folder, launch);
-
-			const newVariables = await this._configurationResolverService.resolveWithInteraction(folder, launch, section, previouslyStored, target);
-
-			if (newVariables?.size) {
-				const completeVariables = { ...previouslyStored, ...Object.fromEntries(newVariables) };
-				launch = await this._configurationResolverService.resolveAnyAsync(folder, launch, completeVariables);
-				await inputStorage.setSecrets(completeVariables);
-			}
+		let launch: McpServerLaunch | undefined;
+		try {
+			launch = await this._replaceVariablesInLaunch(definition, definition.launch);
+		} catch (e) {
+			this._notificationService.notify({
+				severity: Severity.Error,
+				message: localize('mcp.launchError', 'Error starting {0}: {1}', definition.label, String(e)),
+				actions: {
+					primary: collection.presentation?.origin && [
+						{
+							id: 'mcp.launchError.openConfig',
+							class: undefined,
+							enabled: true,
+							tooltip: '',
+							label: localize('mcp.launchError.openConfig', 'Open Configuration'),
+							run: () => this._editorService.openEditor({
+								resource: collection.presentation!.origin,
+								options: { selection: definition.presentation?.origin?.range }
+							}),
+						}
+					]
+				}
+			});
+			return;
 		}
 
 		return this._instantiationService.createInstance(
@@ -273,6 +356,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 			definition,
 			delegate,
 			launch,
+			logger,
 		);
 	}
 }

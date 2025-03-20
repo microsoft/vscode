@@ -50,9 +50,6 @@
 .monaco-editor .sticky-line-number-inner {
 	display: inline-block;
 	text-align: right;
-	line-height: normal;
-	position: absolute;
-	bottom: 0;
 }
 
 .monaco-editor .sticky-widget {

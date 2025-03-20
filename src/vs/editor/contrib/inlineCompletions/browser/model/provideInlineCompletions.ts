@@ -228,6 +228,12 @@ export class InlineCompletionProviderResult implements IDisposable {
 		return this.hashs.has(item.hash());
 	}
 
+	// TODO: This is not complete as it does not take the textmodel into account
+	isEmpty(): boolean {
+		return this.completions.length === 0
+			|| this.completions.every(c => c.range.isEmpty() && c.insertText.length === 0);
+	}
+
 	dispose(): void {
 		for (const result of this.providerResults) {
 			result.removeRef();

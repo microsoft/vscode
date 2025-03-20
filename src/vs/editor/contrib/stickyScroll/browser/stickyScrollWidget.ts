@@ -230,7 +230,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}
 		// For existing sticky lines update the top and z-index
 		for (const stickyLine of this._renderedStickyLines) {
-			this._updateTopAndZIndexOfStickyLine(stickyLine);
+			this._updatePosition(stickyLine);
 		}
 		// For new sticky lines
 		const layoutInfo = this._editor.getLayoutInfo();
@@ -371,24 +371,29 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		lineHTMLNode.style.height = `${lineHeight}px`;
 
 		const renderedLine = new RenderedStickyLine(index, line, lineHTMLNode, lineNumberHTMLNode, foldingIcon, renderOutput.characterMapping, lineHTMLNode.scrollWidth, lineHeight);
-		return this._updateTopAndZIndexOfStickyLine(renderedLine);
+		return this._updatePosition(renderedLine);
 	}
 
-	private _updateTopAndZIndexOfStickyLine(stickyLine: RenderedStickyLine): RenderedStickyLine {
+	private _updatePosition(stickyLine: RenderedStickyLine): RenderedStickyLine {
 		const index = stickyLine.index;
 		const lineHTMLNode = stickyLine.lineDomNode;
 		const lineNumberHTMLNode = stickyLine.lineNumberDomNode;
 		const isLastLine = index === this._lineNumbers.length - 1;
-
-		const lastLineZIndex = '0';
-		const intermediateLineZIndex = '1';
-		lineHTMLNode.style.zIndex = isLastLine ? lastLineZIndex : intermediateLineZIndex;
-		lineNumberHTMLNode.style.zIndex = isLastLine ? lastLineZIndex : intermediateLineZIndex;
-
-		const lastLineTop = `${index * this._lineHeight + this._lastLineRelativePosition + (stickyLine.foldingIcon?.isCollapsed ? 1 : 0)}px`;
-		const intermediateLineTop = `${index * this._lineHeight}px`;
-		lineHTMLNode.style.top = isLastLine ? lastLineTop : intermediateLineTop;
-		lineNumberHTMLNode.style.top = isLastLine ? lastLineTop : intermediateLineTop;
+		if (isLastLine) {
+			const zIndex = '0';
+			lineHTMLNode.style.zIndex = zIndex;
+			lineNumberHTMLNode.style.zIndex = zIndex;
+			const top = `${index * this._lineHeight + this._lastLineRelativePosition + (stickyLine.foldingIcon?.isCollapsed ? 1 : 0)}px`;
+			lineHTMLNode.style.top = top;
+			lineNumberHTMLNode.style.top = top;
+		} else {
+			const zIndex = '1';
+			lineHTMLNode.style.zIndex = zIndex;
+			lineNumberHTMLNode.style.zIndex = zIndex;
+			const top = `${index * this._lineHeight}px`;
+			lineHTMLNode.style.top = top;
+			lineNumberHTMLNode.style.top = top;
+		}
 		return stickyLine;
 	}
 
