@@ -215,6 +215,8 @@ export class AttachToolsAction extends Action2 {
 
 		picker.placeholder = localize('placeholder', "Select tools that are available to chat");
 		picker.canSelectMany = true;
+		picker.keepScrollPosition = true;
+		picker.matchOnDescription = true;
 
 		let lastSelectedItems = new Set<MyPick>();
 		let ignoreEvent = false;
@@ -224,7 +226,6 @@ export class AttachToolsAction extends Action2 {
 			try {
 				const items = picks.filter((p): p is MyPick => p.type === 'item' && Boolean(p.picked));
 				lastSelectedItems = new Set(items);
-				picker.items = picks;
 				picker.selectedItems = items;
 
 				widget.input.selectedToolsModel.update(items.filter(isToolPick).map(tool => tool.tool));
@@ -235,6 +236,7 @@ export class AttachToolsAction extends Action2 {
 		};
 
 		_update();
+		picker.items = picks;
 		picker.show();
 
 		store.add(picker.onDidChangeSelection(selectedPicks => {
