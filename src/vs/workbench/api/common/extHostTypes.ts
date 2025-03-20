@@ -4647,9 +4647,11 @@ export class ChatResponseReferencePart {
 }
 
 export class ChatResponseCodeblockUriPart {
+	isEdit?: boolean;
 	value: vscode.Uri;
-	constructor(value: vscode.Uri) {
+	constructor(value: vscode.Uri, isEdit?: boolean) {
 		this.value = value;
+		this.isEdit = isEdit;
 	}
 }
 

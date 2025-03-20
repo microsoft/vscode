@@ -169,6 +169,7 @@ export interface IChatAgentVulnerabilityDetails {
 export interface IChatResponseCodeblockUriPart {
 	kind: 'codeblockUri';
 	uri: URI;
+	isEdit?: boolean;
 }
 
 export interface IChatAgentMarkdownContentWithVulnerability {
