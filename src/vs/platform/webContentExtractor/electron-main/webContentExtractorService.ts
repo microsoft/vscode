@@ -43,7 +43,8 @@ export class NativeWebContentExtractorService implements IWebContentExtractorSer
 	private async doExtractImage(uri: URI): Promise<Uint8Array> {
 		try {
 			const response = await fetch(uri.toString());
-			if (!response.ok || !response.headers.get('content-type')?.startsWith('image/')) {
+			const contentType = response.headers.get('content-type');
+			if (!response.ok || !contentType?.startsWith('image/') || !/(webp|jpg|jpeg|gif|png|bmp)$/i.test(contentType)) {
 				return new Uint8Array();
 			}
 			const blob = await response.blob();
