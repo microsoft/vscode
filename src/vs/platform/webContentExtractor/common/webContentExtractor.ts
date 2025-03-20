@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
@@ -16,9 +17,12 @@ export interface IWebContentExtractorService {
 	extract(uri: URI[]): Promise<string[]>;
 }
 
+/*
+ * A service that extracts image content from a given arbitrary URI. This is done in the shared process to avoid running non trusted application code in the main process.
+ */
 export interface ISharedWebContentExtractorService {
 	_serviceBrand: undefined;
-	readImage(uri: URI): Promise<VSBuffer | undefined>;
+	readImage(uri: URI, token?: CancellationToken): Promise<VSBuffer | undefined>;
 }
 
 /**

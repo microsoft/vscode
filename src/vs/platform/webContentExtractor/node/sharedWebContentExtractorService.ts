@@ -4,17 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
 import { URI } from '../../../base/common/uri.js';
 import { ISharedWebContentExtractorService } from '../common/webContentExtractor.js';
 
 export class SharedWebContentExtractorService implements ISharedWebContentExtractorService {
 	_serviceBrand: undefined;
 
-	readImage(uris: URI): Promise<VSBuffer | undefined> {
-		return this.doExtractImage(uris);
-	}
+	async readImage(uri: URI, token?: CancellationToken): Promise<VSBuffer | undefined> {
+		if (token?.isCancellationRequested) {
+			return undefined;
+		}
 
-	private async doExtractImage(uri: URI): Promise<VSBuffer | undefined> {
 		try {
 			const response = await fetch(uri.toString(), {
 				headers: {
