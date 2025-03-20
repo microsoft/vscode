@@ -19,6 +19,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IMcpConfiguration, IMcpConfigurationSSE, McpConfigurationServer } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { EditorsOrder } from '../../../common/editor.js';
 import { IJSONEditingService } from '../../../services/configuration/common/jsonEditing.js';
@@ -50,6 +51,27 @@ const enum AddConfigurationCopilotCommand {
 
 type ValidatePackageResult = { state: 'ok'; publisher: string } | { state: 'error'; error: string };
 
+type AddServerData = {
+	packageType: string;
+};
+type AddServerClassification = {
+	owner: 'digitarald';
+	comment: 'Generic details for adding a new MCP server';
+	packageType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of MCP server package' };
+};
+type AddServerCompletedData = {
+	packageType: string;
+	serverType: string | undefined;
+	target: string;
+};
+type AddServerCompletedClassification = {
+	owner: 'digitarald';
+	comment: 'Generic details for successfully adding model-assisted MCP server';
+	packageType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of MCP server package' };
+	serverType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of MCP server' };
+	target: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The target of the MCP server configuration' };
+};
+
 export class McpAddConfigurationCommand {
 	constructor(
 		private readonly _explicitConfigUri: string | undefined,
@@ -64,6 +86,7 @@ export class McpAddConfigurationCommand {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IFileService private readonly _fileService: IFileService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) { }
 
 	private async getServerType(): Promise<AddConfigurationType | undefined> {
@@ -107,6 +130,10 @@ export class McpAddConfigurationCommand {
 			return undefined;
 		}
 
+		this._telemetryService.publicLog2<AddServerData, AddServerClassification>('mcp.addserver', {
+			packageType: 'stdio'
+		});
+
 		// Split command into command and args, handling quotes
 		const parts = command.match(/(?:[^\s"]+|"[^"]*")+/g)!;
 		return {
@@ -127,6 +154,10 @@ export class McpAddConfigurationCommand {
 		if (!url) {
 			return undefined;
 		}
+
+		this._telemetryService.publicLog2<AddServerData, AddServerClassification>('mcp.addserver', {
+			packageType: 'sse'
+		});
 
 		return {
 			type: 'sse',
@@ -201,11 +232,11 @@ export class McpAddConfigurationCommand {
 		loadingQuickPick.busy = true;
 		loadingQuickPick.ignoreFocusOut = true;
 
-		const packageType = type === AddConfigurationType.NpmPackage
-			? 'npm'
-			: type === AddConfigurationType.PipPackage
-				? 'pip'
-				: 'docker';
+		const packageType = this.getPackageType(type);
+
+		this._telemetryService.publicLog2<AddServerData, AddServerClassification>('mcp.addserver', {
+			packageType: packageType!
+		});
 
 		this._commandService.executeCommand<ValidatePackageResult>(
 			AddConfigurationCopilotCommand.ValidatePackage,
@@ -270,7 +301,7 @@ export class McpAddConfigurationCommand {
 		return { name, config };
 	}
 
-	/** Shows the location of a server config once it's disocovered. */
+	/** Shows the location of a server config once it's discovered. */
 	private showOnceDiscovered(name: string) {
 		const store = new DisposableStore();
 		store.add(autorun(reader => {
@@ -378,6 +409,15 @@ export class McpAddConfigurationCommand {
 			await this.writeToUserSetting(serverId, serverConfig, target!);
 		}
 
+		const packageType = this.getPackageType(serverType);
+		if (packageType) {
+			this._telemetryService.publicLog2<AddServerCompletedData, AddServerCompletedClassification>('mcp.addserver.completed', {
+				packageType,
+				serverType: serverConfig.type,
+				target: target === ConfigurationTarget.WORKSPACE ? 'workspace' : 'user'
+			});
+		}
+
 		this.showOnceDiscovered(serverId);
 	}
 
@@ -426,6 +466,23 @@ export class McpAddConfigurationCommand {
 				}
 				break;
 			}
+		}
+	}
+
+	private getPackageType(serverType: AddConfigurationType): string | undefined {
+		switch (serverType) {
+			case AddConfigurationType.NpmPackage:
+				return 'npm';
+			case AddConfigurationType.PipPackage:
+				return 'pip';
+			case AddConfigurationType.DockerImage:
+				return 'docker';
+			case AddConfigurationType.Stdio:
+				return 'stdio';
+			case AddConfigurationType.SSE:
+				return 'sse';
+			default:
+				return undefined;
 		}
 	}
 }
