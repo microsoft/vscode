@@ -129,7 +129,8 @@ export class EditTool implements IToolImpl {
 		});
 		model.acceptResponseProgress(request, {
 			kind: 'codeblockUri',
-			uri
+			uri,
+			isEdit: true
 		});
 		model.acceptResponseProgress(request, {
 			kind: 'markdownContent',
