@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IPromptContentsProvider } from './types.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
@@ -90,6 +91,12 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 		}, 1);
 
 		return stream;
+	}
+
+	public override createNew(
+		model: ITextModel,
+	): IPromptContentsProvider {
+		return new TextModelContentsProvider(model);
 	}
 
 	/**

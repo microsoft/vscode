@@ -32,4 +32,11 @@ export interface IPromptContentsProvider extends IDisposable {
 	onContentChanged(
 		callback: (streamOrError: VSBufferReadableStream | ResolveError) => void,
 	): IDisposable;
+
+	/**
+	 * Create a new instance of prompt contents provider of the same type.
+	 */
+	createNew(
+		promptContentsSource: { uri: URI },
+	): IPromptContentsProvider;
 }

@@ -32,6 +32,11 @@ export abstract class PromptContentsProviderBase<
 	TChangeEvent extends NonNullable<unknown>,
 > extends ObservableDisposable implements IPromptContentsProvider {
 	/**
+	 * TODO: @legomushroom
+	 */
+	public abstract createNew(promptContentsSource: { uri: URI }): IPromptContentsProvider;
+
+	/**
 	 * Internal event emitter for the prompt contents change event. Classes that extend
 	 * this abstract class are responsible to use this emitter to fire the contents change
 	 * event when the prompt contents get modified.
