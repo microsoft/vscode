@@ -73,9 +73,7 @@ suite('ChatEditingService', function () {
 			override getNotebookTextModel(_uri: URI): NotebookTextModel | undefined {
 				return undefined;
 			}
-		});
-		collection.set(INotebookService, new class extends mock<INotebookService>() {
-			override hasSupportedNotebooks(resource: URI): boolean {
+			override hasSupportedNotebooks(_resource: URI): boolean {
 				return false;
 			}
 		});
