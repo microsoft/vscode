@@ -117,12 +117,6 @@ const editorConfiguration: IConfigurationNode = {
 			markdownDescription: nls.localize('editor.experimental.treeSitterTelemetry', "Controls whether tree sitter parsing should be turned on and telemetry collected. Setting `editor.experimental.preferTreeSitter` for specific languages will take precedence."),
 			tags: ['experimental', 'onExP']
 		},
-		'editor.experimental.preferTreeSitter.css': {
-			type: 'boolean',
-			default: false,
-			markdownDescription: nls.localize('editor.experimental.preferTreeSitter.css', "Controls whether tree sitter parsing should be turned on for css. This will take precedence over `editor.experimental.treeSitterTelemetry` for css."),
-			tags: ['experimental', 'onExP']
-		},
 		'editor.experimental.preferTreeSitter.typescript': {
 			type: 'boolean',
 			default: false,

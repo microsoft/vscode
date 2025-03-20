@@ -53,13 +53,6 @@ interface EndOffsetWithMeta extends EndOffsetAndScopes {
 	metadata?: number;
 }
 
-export const TREESITTER_BASE_SCOPES: Record<string, string> = {
-	'css': 'source.css',
-	'typescript': 'source.ts',
-	'ini': 'source.ini',
-	'regex': 'source.regex',
-};
-
 const BRACKETS = /[\{\}\[\]\<\>\(\)]/g;
 
 export class TreeSitterTokenizationFeature extends Disposable implements ITreeSitterTokenizationFeature {
@@ -641,7 +634,6 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		const stopwatch = StopWatch.create();
 		const rangeLength = rangeEndOffset - rangeStartOffset;
 		const encodedLanguageId = this._languageIdCodec.encodeLanguageId(this._languageId);
-		const baseScope: string = TREESITTER_BASE_SCOPES[this._languageId] || 'source';
 
 		if (captures.length === 0) {
 			if (tree) {
@@ -653,11 +645,11 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		}
 
 		const endOffsetsAndScopes: EndOffsetAndScopes[] = Array(captures.length);
-		endOffsetsAndScopes.fill({ endOffset: 0, scopes: [baseScope], encodedLanguageId });
+		endOffsetsAndScopes.fill({ endOffset: 0, scopes: [], encodedLanguageId });
 		let tokenIndex = 0;
 
 		const increaseSizeOfTokensByOneToken = () => {
-			endOffsetsAndScopes.push({ endOffset: 0, scopes: [baseScope], encodedLanguageId });
+			endOffsetsAndScopes.push({ endOffset: 0, scopes: [], encodedLanguageId });
 		};
 
 		const brackets = (capture: QueryCapture, startOffset: number): number[] | undefined => {
@@ -702,7 +694,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 				endOffsetsAndScopes.splice(position, 0, { endOffset: endOffset, scopes: [...oldScopes, capture.name], bracket: brackets(capture, startOffset), encodedLanguageId: capture.encodedLanguageId });
 				endOffsetsAndScopes[tokenIndex].bracket = oldBracket;
 			} else {
-				endOffsetsAndScopes[tokenIndex] = { endOffset: endOffset, scopes: [baseScope, capture.name], bracket: brackets(capture, startOffset), encodedLanguageId: capture.encodedLanguageId };
+				endOffsetsAndScopes[tokenIndex] = { endOffset: endOffset, scopes: [capture.name], bracket: brackets(capture, startOffset), encodedLanguageId: capture.encodedLanguageId };
 			}
 			tokenIndex++;
 		};
@@ -726,7 +718,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 			const startOffset = endOffset - currentTokenLength;
 			if ((previousEndOffset >= 0) && (previousEndOffset < startOffset)) {
 				// Add en empty token to cover the space where there were no captures
-				endOffsetsAndScopes[tokenIndex] = { endOffset: startOffset, scopes: [baseScope], encodedLanguageId: this._encodedLanguageId };
+				endOffsetsAndScopes[tokenIndex] = { endOffset: startOffset, scopes: [], encodedLanguageId: this._encodedLanguageId };
 				tokenIndex++;
 
 				increaseSizeOfTokensByOneToken();
