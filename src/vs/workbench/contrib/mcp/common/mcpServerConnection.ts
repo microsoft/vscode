@@ -8,11 +8,10 @@ import { Disposable, DisposableStore, IReference, MutableDisposable, toDisposabl
 import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ILogger, ILoggerService } from '../../../../platform/log/common/log.js';
-import { IOutputService } from '../../../services/output/common/output.js';
+import { ILogger } from '../../../../platform/log/common/log.js';
 import { IMcpHostDelegate, IMcpMessageTransport } from './mcpRegistryTypes.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
-import { McpCollectionDefinition, IMcpServerConnection, McpServerDefinition, McpConnectionState, McpServerLaunch } from './mcpTypes.js';
+import { IMcpServerConnection, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch } from './mcpTypes.js';
 
 export class McpServerConnection extends Disposable implements IMcpServerConnection {
 	private readonly _launch = this._register(new MutableDisposable<IReference<IMcpMessageTransport>>());
@@ -22,8 +21,6 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 	public readonly state: IObservable<McpConnectionState> = this._state;
 	public readonly handler: IObservable<McpServerRequestHandler | undefined> = this._requestHandler;
 
-	private readonly _loggerId: string;
-	private readonly _logger: ILogger;
 	private _launchId = 0;
 
 	constructor(
@@ -31,22 +28,10 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 		public readonly definition: McpServerDefinition,
 		private readonly _delegate: IMcpHostDelegate,
 		public readonly launchDefinition: McpServerLaunch,
-		@ILoggerService private readonly _loggerService: ILoggerService,
-		@IOutputService private readonly _outputService: IOutputService,
+		private readonly _logger: ILogger,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
-		this._loggerId = `mcpServer/${definition.id}`;
-		this._logger = this._register(_loggerService.createLogger(this._loggerId, { hidden: true, name: `MCP: ${definition.label}` }));
-		// If the logger is disposed but not deregistered, then the disposed instance
-		// is reused and no-ops. todo@sandy081 this seems like a bug.
-		this._register(toDisposable(() => _loggerService.deregisterLogger(this._loggerId)));
-	}
-
-	/** @inheritdoc */
-	public showOutput(): void {
-		this._loggerService.setVisibility(this._loggerId, true);
-		this._outputService.showChannel(this._loggerId);
 	}
 
 	/** @inheritdoc */

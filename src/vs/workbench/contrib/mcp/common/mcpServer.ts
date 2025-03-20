@@ -10,9 +10,11 @@ import { LRUCache } from '../../../../base/common/map.js';
 import { autorun, autorunWithStore, derived, disposableObservableValue, IObservable, ITransaction, observableFromEvent, ObservablePromise, observableValue, transaction } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { ILogger, ILoggerService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IOutputService } from '../../../services/output/common/output.js';
 import { mcpActivationEvent } from './mcpConfiguration.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
@@ -130,6 +132,9 @@ export class McpServer extends Disposable implements IMcpServer {
 		return fromServerResult.error ? (this.toolsFromCache ? McpServerToolsState.Cached : McpServerToolsState.Unknown) : McpServerToolsState.Live;
 	});
 
+	private readonly _loggerId: string;
+	private readonly _logger: ILogger;
+
 	public get trusted() {
 		return this._mcpRegistry.getTrust(this.collection);
 	}
@@ -143,8 +148,16 @@ export class McpServer extends Disposable implements IMcpServer {
 		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
 		@IWorkspaceContextService workspacesService: IWorkspaceContextService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
+		@ILoggerService private readonly _loggerService: ILoggerService,
+		@IOutputService private readonly _outputService: IOutputService,
 	) {
 		super();
+
+		this._loggerId = `mcpServer/${definition.id}`;
+		this._logger = this._register(_loggerService.createLogger(this._loggerId, { hidden: true, name: `MCP: ${definition.label}` }));
+		// If the logger is disposed but not deregistered, then the disposed instance
+		// is reused and no-ops. todo@sandy081 this seems like a bug.
+		this._register(toDisposable(() => _loggerService.deregisterLogger(this._loggerId)));
 
 		// 1. Reflect workspaces into the MCP roots
 		const workspaces = explicitRoots
@@ -196,7 +209,8 @@ export class McpServer extends Disposable implements IMcpServer {
 	}
 
 	public showOutput(): void {
-		this._connection.get()?.showOutput();
+		this._loggerService.setVisibility(this._loggerId, true);
+		this._outputService.showChannel(this._loggerId);
 	}
 
 	public start(isFromInteraction?: boolean): Promise<McpConnectionState> {
@@ -222,6 +236,7 @@ export class McpServer extends Disposable implements IMcpServer {
 
 			if (!connection) {
 				connection = await this._mcpRegistry.resolveConnection({
+					logger: this._logger,
 					collectionRef: this.collection,
 					definitionRef: this.definition,
 					forceTrust: isFromInteraction,
