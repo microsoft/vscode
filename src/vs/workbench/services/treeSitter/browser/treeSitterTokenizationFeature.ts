@@ -128,7 +128,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 	private _colorThemeData!: ColorThemeData;
 	private _languageAddedListener: IDisposable | undefined;
 	private _codeEditors: TreeSitterCodeEditors;
-	private _encodedLanguageId: LanguageId;
+	private _encodedLanguage: LanguageId | undefined;
 
 	constructor(
 		private readonly _queries: TreeSitterQueries,
@@ -142,7 +142,6 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
-		this._encodedLanguageId = this._languageIdCodec.encodeLanguageId(this._languageId);
 		this._codeEditors = this._instantiationService.createInstance(TreeSitterCodeEditors, this._languageId);
 		this._register(this._codeEditors.onDidChangeViewport(e => {
 			this._parseAndTokenizeViewPort(e.model, e.ranges);
@@ -178,6 +177,13 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 				this._handleTreeUpdate(e.ranges, e.textModel, e.versionId, e.tree);
 			}
 		}));
+	}
+
+	private get _encodedLanguageId(): LanguageId {
+		if (!this._encodedLanguage) {
+			this._encodedLanguage = this._languageIdCodec.encodeLanguageId(this._languageId);
+		}
+		return this._encodedLanguage;
 	}
 
 	private _setInitialTokens(textModel: ITextModel) {

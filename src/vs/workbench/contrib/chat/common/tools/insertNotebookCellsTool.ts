@@ -7,50 +7,32 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
-import { isEqual } from '../../../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { SaveReason } from '../../../../common/editor.js';
-import { GroupsOrder, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { CellUri } from '../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
-import { ICodeMapperService } from '../../common/chatCodeMapperService.js';
-import { IChatEditingService } from '../../common/chatEditingService.js';
-import { ChatModel } from '../../common/chatModel.js';
-import { IChatService } from '../../common/chatService.js';
-import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
-import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../../common/languageModelToolsService.js';
+import { ICodeMapperService } from '../chatCodeMapperService.js';
+import { IChatEditingService } from '../chatEditingService.js';
+import { ChatModel } from '../chatModel.js';
+import { IChatService } from '../chatService.js';
+import { ILanguageModelIgnoredFilesService } from '../ignoredFiles.js';
+import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../languageModelToolsService.js';
 import { IToolInputProcessor } from './tools.js';
 
 const codeInstructions = `
-The user is very smart and can understand how to apply your edits to their files, you just need to provide minimal hints.
-Avoid repeating existing code, instead use comments to represent regions of unchanged code. The user prefers that you are as concise as possible. For example:
-// ...existing code...
-{ changed code }
-// ...existing code...
-{ changed code }
-// ...existing code...
-
-Here is an example of how you should use format an edit to an existing Person class:
-class Person {
-	// ...existing code...
-	age: number;
-	// ...existing code...
-	getAge() {
-		return this.age;
-	}
-}
+The user is very smart and can understand how to insert cells to their new Notebook files
 `;
 
-export const ExtensionEditToolId = 'vscode_editFile';
-export const InternalEditToolId = 'vscode_editFile_internal';
+export const ExtensionEditToolId = 'vscode_insert_notebook_cells';
+export const InternalEditToolId = 'vscode_insert_notebook_cells_internal';
 export const EditToolData: IToolData = {
 	id: InternalEditToolId,
 	displayName: localize('chat.tools.editFile', "Edit File"),
-	modelDescription: `Edit a file in the workspace. Use this tool once per file that needs to be modified, even if there are multiple changes for a file. Generate the "explanation" property first. ${codeInstructions}`,
+	modelDescription: `Insert cells into a new notebook n the workspace. Use this tool once per file that needs to be modified, even if there are multiple changes for a file. Generate the "explanation" property first. ${codeInstructions}`,
 	inputSchema: {
 		type: 'object',
 		properties: {
@@ -62,9 +44,9 @@ export const EditToolData: IToolData = {
 				type: 'string',
 				description: 'An absolute path to the file to edit, or the URI of a untitled, not yet named, file, such as `untitled:Untitled-1.',
 			},
-			code: {
-				type: 'string',
-				description: 'The code change to apply to the file. ' + codeInstructions
+			cells: {
+				type: 'array',
+				description: 'The cells to insert to apply to the file. ' + codeInstructions
 			}
 		},
 		required: ['explanation', 'filePath', 'code']
@@ -81,7 +63,6 @@ export class EditTool implements IToolImpl {
 		@ILanguageModelIgnoredFilesService private readonly ignoredFilesService: ILanguageModelIgnoredFilesService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@INotebookService private readonly notebookService: INotebookService,
-		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 	) { }
 
 	async invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
@@ -90,20 +71,9 @@ export class EditTool implements IToolImpl {
 		}
 
 		const parameters = invocation.parameters as EditToolParams;
-		const fileUri = URI.revive(parameters.file); // TODO@roblourens do revive in MainThreadLanguageModelTools
-		const uri = CellUri.parse(fileUri)?.notebook || fileUri;
-
-		if (!this.workspaceContextService.isInsideWorkspace(uri) && !this.notebookService.getNotebookTextModel(uri)) {
-			const groupsByLastActive = this.editorGroupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
-			const uriIsOpenInSomeEditor = groupsByLastActive.some((group) => {
-				return group.editors.some((editor) => {
-					return isEqual(editor.resource, uri);
-				});
-			});
-
-			if (!uriIsOpenInSomeEditor) {
-				throw new Error(`File ${uri.fsPath} can't be edited because it's not inside the current workspace`);
-			}
+		const uri = URI.revive(parameters.file); // TODO@roblourens do revive in MainThreadLanguageModelTools
+		if (!this.workspaceContextService.isInsideWorkspace(uri)) {
+			throw new Error(`File ${uri.fsPath} can't be edited because it's not inside the current workspace`);
 		}
 
 		if (await this.ignoredFilesService.fileIsIgnored(uri, token)) {
@@ -135,12 +105,13 @@ export class EditTool implements IToolImpl {
 			kind: 'markdownContent',
 			content: new MarkdownString(parameters.code + '\n````\n')
 		});
+		const notebookUri = CellUri.parse(uri)?.notebook || uri;
 		// Signal start.
-		if (this.notebookService.hasSupportedNotebooks(uri) && (this.notebookService.getNotebookTextModel(uri))) {
+		if (this.notebookService.hasSupportedNotebooks(notebookUri) && (this.notebookService.getNotebookTextModel(notebookUri))) {
 			model.acceptResponseProgress(request, {
 				kind: 'notebookEdit',
 				edits: [],
-				uri
+				uri: notebookUri
 			});
 		} else {
 			model.acceptResponseProgress(request, {
@@ -169,8 +140,8 @@ export class EditTool implements IToolImpl {
 		}, token);
 
 		// Signal end.
-		if (this.notebookService.hasSupportedNotebooks(uri) && (this.notebookService.getNotebookTextModel(uri))) {
-			model.acceptResponseProgress(request, { kind: 'notebookEdit', uri, edits: [], done: true });
+		if (this.notebookService.hasSupportedNotebooks(notebookUri) && (this.notebookService.getNotebookTextModel(notebookUri))) {
+			model.acceptResponseProgress(request, { kind: 'notebookEdit', uri: notebookUri, edits: [], done: true });
 		} else {
 			model.acceptResponseProgress(request, { kind: 'textEdit', uri, edits: [], done: true });
 		}

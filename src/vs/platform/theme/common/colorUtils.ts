@@ -150,7 +150,7 @@ class ColorRegistry implements IColorRegistry {
 		for (const key of Object.keys(this.colorsById)) {
 			const color = colorThemeData.getColor(key);
 			if (color) {
-				this.colorSchema.properties[key].oneOf[0].defaultSnippets[0].body = `\${1:${color.toString()}}`;
+				this.colorSchema.properties[key].oneOf[0].defaultSnippets[0].body = `\${1:${Color.Format.CSS.formatHexA(color, true)}}`;
 			}
 		}
 		this._onDidChangeSchema.fire();
