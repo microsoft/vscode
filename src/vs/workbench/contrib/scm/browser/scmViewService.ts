@@ -18,7 +18,7 @@ import { binarySearch } from '../../../../base/common/arrays.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { derivedObservableWithCache, derivedOpts, IObservable, latestChangedValue, observableFromEventOpts } from '../../../../base/common/observable.js';
+import { derivedObservableWithCache, derivedOpts, IObservable, ISettableObservable, latestChangedValue, observableFromEventOpts, observableValue } from '../../../../base/common/observable.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { EditorResourceAccessor } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -208,6 +208,7 @@ export class SCMViewService implements ISCMViewService {
 	 * values are updated in the same transaction (or during the initial read of the observable value).
 	*/
 	private readonly _activeRepositoryObs: IObservable<ISCMRepository | undefined>;
+	private readonly _activeRepositoryPinnedObs: ISettableObservable<ISCMRepository | undefined>;
 	private readonly _focusedRepositoryObs: IObservable<ISCMRepository | undefined>;
 
 	private _repositoriesSortKey: ISCMRepositorySortKey;
@@ -255,12 +256,18 @@ export class SCMViewService implements ISCMViewService {
 				return Object.create(repository);
 			});
 
+		this._activeRepositoryPinnedObs = observableValue<ISCMRepository | undefined>(this, undefined);
 		this._activeRepositoryObs = latestChangedValue(this, [this._activeEditorRepositoryObs, this._focusedRepositoryObs]);
 
 		this.activeRepository = derivedOpts<ISCMRepository | undefined>({
 			owner: this,
 			equalsFn: (r1, r2) => r1?.id === r2?.id
-		}, reader => this._activeRepositoryObs.read(reader));
+		}, reader => {
+			const activeRepository = this._activeRepositoryObs.read(reader);
+			const activeRepositoryPinned = this._activeRepositoryPinnedObs.read(reader);
+
+			return activeRepositoryPinned ?? activeRepository;
+		});
 
 		try {
 			this.previousState = JSON.parse(storageService.get('scm:view:visibleRepositories', StorageScope.WORKSPACE, ''));
@@ -423,6 +430,10 @@ export class SCMViewService implements ISCMViewService {
 		if (this._repositories.find(r => r.focused)) {
 			this._onDidFocusRepository.fire(repository);
 		}
+	}
+
+	pinActiveRepository(repository: ISCMRepository | undefined): void {
+		this._activeRepositoryPinnedObs.set(repository, undefined);
 	}
 
 	private compareRepositories(op1: ISCMRepositoryView, op2: ISCMRepositoryView): number {

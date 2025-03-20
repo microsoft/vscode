@@ -536,14 +536,16 @@ CommandsRegistry.registerCommand('scm.openInTerminal', async (accessor, provider
 
 CommandsRegistry.registerCommand('scm.setActiveProvider', async (accessor) => {
 	const instantiationService = accessor.get(IInstantiationService);
+	const scmViewService = accessor.get(ISCMViewService);
 
 	const placeHolder = localize('scmActiveRepositoryPlaceHolder', "Select the active repository, type to filter all repositories");
 	const autoQuickItemDescription = localize('scmActiveRepositoryAutoDescription', "The active repository is updated based on focused repository/active editor");
 	const repositoryPicker = instantiationService.createInstance(RepositoryPicker, placeHolder, autoQuickItemDescription);
 
 	const result = await repositoryPicker.pickRepository();
-	if (!result) {
-		return;
+	if (result?.repository) {
+		const repository = result.repository !== 'auto' ? result.repository : undefined;
+		scmViewService.pinActiveRepository(repository);
 	}
 });
 
