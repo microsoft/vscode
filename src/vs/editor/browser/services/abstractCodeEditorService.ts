@@ -601,8 +601,7 @@ export const _CSS_MAP: { [prop: string]: string } = {
 
 	fontStyle: 'font-style:{0};',
 	fontWeight: 'font-weight:{0};',
-	clippedFontSize: 'font-size:min({0}, var(--vscode-max-font-size, {0}));',
-	fontSize: 'font-size:{0};',
+	fontSize: 'font-size:min({0}px, var(--vscode-max-font-size, {0}px));',
 	fontFamily: 'font-family:{0};',
 	textDecoration: 'text-decoration:{0};',
 	cursor: 'cursor:{0};',
@@ -772,10 +771,7 @@ class DecorationCSSRules {
 			return '';
 		}
 		const cssTextArr: string[] = [];
-		if (typeof opts.fontSize === 'number') {
-			cssTextArr.push(strings.format(_CSS_MAP.clippedFontSize, opts.fontSize + 'px'));
-		}
-		this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'fontFamily', 'textDecoration', 'cursor', 'color', 'opacity', 'letterSpacing'], cssTextArr);
+		this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'fontFamily', 'fontSize', 'textDecoration', 'cursor', 'color', 'opacity', 'letterSpacing'], cssTextArr);
 		if (opts.letterSpacing) {
 			this._hasLetterSpacing = true;
 		}
@@ -802,10 +798,7 @@ class DecorationCSSRules {
 
 				cssTextArr.push(strings.format(_CSS_MAP.contentText, escaped));
 			}
-			if (typeof opts.fontSize === 'number') {
-				cssTextArr.push(strings.format(_CSS_MAP.clippedFontSize, opts.fontSize + 'px'));
-			}
-			this.collectCSSText(opts, ['verticalAlign', 'fontStyle', 'fontWeight', 'fontFamily', 'textDecoration', 'color', 'opacity', 'backgroundColor', 'margin', 'padding'], cssTextArr);
+			this.collectCSSText(opts, ['verticalAlign', 'fontStyle', 'fontWeight', 'fontSize', 'fontFamily', 'textDecoration', 'color', 'opacity', 'backgroundColor', 'margin', 'padding'], cssTextArr);
 			if (this.collectCSSText(opts, ['width', 'height'], cssTextArr)) {
 				cssTextArr.push('display:inline-block;');
 			}
@@ -852,7 +845,7 @@ class DecorationCSSRules {
 		return cssTextArr.length !== lenBefore;
 	}
 
-	private resolveValue(value: string | ThemeColor): string {
+	private resolveValue(value: string | number | ThemeColor | undefined): string | undefined {
 		if (isThemeColor(value)) {
 			this._usesThemeColors = true;
 			const color = this._theme.getColor(value.id);
@@ -861,7 +854,7 @@ class DecorationCSSRules {
 			}
 			return 'transparent';
 		}
-		return value;
+		return value ? value.toString() : undefined;
 	}
 }
 
