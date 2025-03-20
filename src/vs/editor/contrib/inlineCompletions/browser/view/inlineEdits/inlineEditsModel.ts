@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../../../../base/common/event.js';
 import { derived, IObservable } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
@@ -12,7 +13,7 @@ import { StringText, TextEdit } from '../../../../../common/core/textEdit.js';
 import { Command } from '../../../../../common/languages.js';
 import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
 import { InlineCompletionWithUpdatedRange } from '../../model/inlineCompletionsSource.js';
-import { IInlineEditModel, InlineEditTabAction } from './inlineEditsViewInterface.js';
+import { IInlineEditHost, IInlineEditModel, InlineEditTabAction } from './inlineEditsViewInterface.js';
 import { InlineEditWithChanges } from './inlineEditWithChanges.js';
 
 export class InlineEditModel implements IInlineEditModel {
@@ -22,8 +23,6 @@ export class InlineEditModel implements IInlineEditModel {
 	readonly extensionCommands: Command[];
 
 	readonly showCollapsed: IObservable<boolean>;
-	readonly inAcceptFlow: IObservable<boolean>;
-	readonly inPartialAcceptFlow: IObservable<boolean>;
 
 	constructor(
 		private readonly _model: InlineCompletionsModel,
@@ -34,8 +33,6 @@ export class InlineEditModel implements IInlineEditModel {
 		this.displayName = this.inlineEdit.inlineCompletion.source.provider.displayName ?? localize('inlineEdit', "Inline Edit");
 		this.extensionCommands = this.inlineEdit.inlineCompletion.source.inlineCompletions.commands ?? [];
 
-		this.inAcceptFlow = this._model.inAcceptFlow;
-		this.inPartialAcceptFlow = this._model.inPartialAcceptFlow;
 		this.showCollapsed = this._model.showCollapsed;
 	}
 
@@ -57,6 +54,19 @@ export class InlineEditModel implements IInlineEditModel {
 	}
 }
 
+export class InlineEditHost implements IInlineEditHost {
+	readonly onDidAccept: Event<void>;
+	readonly inAcceptFlow: IObservable<boolean>;
+	readonly inPartialAcceptFlow: IObservable<boolean>;
+
+	constructor(
+		private readonly _model: InlineCompletionsModel,
+	) {
+		this.onDidAccept = this._model.onDidAccept;
+		this.inAcceptFlow = this._model.inAcceptFlow;
+		this.inPartialAcceptFlow = this._model.inPartialAcceptFlow;
+	}
+}
 
 export class GhostTextIndicator {
 
