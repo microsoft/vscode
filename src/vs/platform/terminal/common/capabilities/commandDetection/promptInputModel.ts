@@ -10,7 +10,7 @@ import type { ITerminalCommand } from '../capabilities.js';
 import { throttle } from '../../../../../base/common/decorators.js';
 
 import type { Terminal, IMarker, IBufferCell, IBufferLine, IBuffer } from '@xterm/headless';
-import { GeneralShellType, PosixShellType, TerminalShellType } from '../../terminal.js';
+import { PosixShellType, TerminalShellType } from '../../terminal.js';
 
 const enum PromptInputState {
 	Unknown = 0,
@@ -362,7 +362,9 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			const belowCursorLine = buffer.getLine(y);
 			const lineText = belowCursorLine?.translateToString(true);
 			if (lineText && belowCursorLine) {
-				if (this._continuationPrompt === undefined && this._shellType !== PosixShellType.Fish || this._lineContainsContinuationPrompt(lineText)) {
+				if (this._shellType === PosixShellType.Fish) {
+					value += `${lineText}`;
+				} else if (this._continuationPrompt === undefined || this._lineContainsContinuationPrompt(lineText)) {
 					value += `\n${this._trimContinuationPrompt(lineText)}`;
 				} else {
 					value += `${lineText}`;
@@ -436,12 +438,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			value = valueLines.map(e => e.trimEnd()).join('\n') + ' '.repeat(trailingWhitespace);
 		}
 
-		// Detect ghost text by looking for italic or dim text in or after the cursor and
-		// non-italic/dim text in the cell closest non-whitespace cell before the cursor
-		if (line && this._shellType !== GeneralShellType.PowerShell || absoluteCursorY === commandStartY && buffer.cursorX > 1) {
-			// Ghost text in pwsh only appears to happen on the cursor line
-			ghostTextIndex = this._scanForGhostText(buffer, line, cursorIndex);
-		}
+		ghostTextIndex = this._scanForGhostText(buffer, line, cursorIndex);
 
 		if (this._value !== value || this._cursorIndex !== cursorIndex || this._ghostTextIndex !== ghostTextIndex) {
 			this._value = value;
@@ -457,7 +454,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 	/**
 	 * Detect ghost text by looking for italic or dim text in or after the cursor and
-	 * non-italic/dim text in the cell closest non-whitespace cell before the cursor.
+	 * non-italic/dim text in the cell before the cursor after command start.
 	 */
 	private _scanForGhostText(buffer: IBuffer, line: IBufferLine, cursorIndex: number): number {
 		if (!this.value.trim().length) {
@@ -557,7 +554,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 				}
 			}
 			// Calculate the ghost text start index
-			if (buffer.cursorY === this._commandStartMarker?.line) {
+			if (buffer.baseY + buffer.cursorY === this._commandStartMarker?.line) {
 				ghostTextIndex = positionsWithGhostStyle[0] - this._commandStartX;
 			} else {
 				ghostTextIndex = positionsWithGhostStyle[0];
