@@ -24,7 +24,10 @@ const ignores = fs.readFileSync(path.join(__dirname, '.eslint-ignore'), 'utf8')
 export default tseslint.config(
 	// Global ignores
 	{
-		ignores,
+		ignores: [
+			...ignores,
+			'!**/.eslint-plugin-local/**/*'
+		],
 	},
 	// All files (JS and TS)
 	{
@@ -997,6 +1000,7 @@ export default tseslint.config(
 				{
 					'target': 'src/vs/workbench/api/~',
 					'restrictions': [
+						'@c4312/eventsource-umd',
 						'vscode',
 						'vs/base/~',
 						'vs/base/parts/*/~',

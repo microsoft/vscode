@@ -822,7 +822,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		const untrustedExtensionManifests: IExtensionManifest[] = [];
 		const manifestsToGetOtherUntrustedPublishers: IExtensionManifest[] = [];
 		for (const { extension, manifest, checkForPackAndDependencies } of extensions) {
-			if (!this.isPublisherTrusted(extension)) {
+			if (!extension.private && !this.isPublisherTrusted(extension)) {
 				untrustedExtensions.push(extension);
 				untrustedExtensionManifests.push(manifest);
 				if (checkForPackAndDependencies) {
@@ -963,7 +963,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		await this.getDependenciesAndPackedExtensionsRecursively([...extensionIds], extensions, CancellationToken.None);
 		const publishers = new Map<string, IGalleryExtension>();
 		for (const [, extension] of extensions) {
-			if (this.isPublisherTrusted(extension)) {
+			if (extension.private || this.isPublisherTrusted(extension)) {
 				continue;
 			}
 			publishers.set(extension.publisherDisplayName, extension);
@@ -1409,6 +1409,7 @@ class WorkspaceExtensionsManagementService extends Disposable {
 			updated: !!extension.metadata?.updated,
 			pinned: !!extension.metadata?.pinned,
 			isWorkspaceScoped: true,
+			private: false,
 			source: 'resource',
 			size: extension.metadata?.size ?? 0,
 		};

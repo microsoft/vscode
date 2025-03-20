@@ -4,114 +4,141 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals as arrayEquals } from '../../../../../base/common/arrays.js';
-import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../../base/common/network.js';
-import { ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
-import { localize } from '../../../../../nls.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { StorageScope } from '../../../../../platform/storage/common/storage.js';
-import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { Throttler } from '../../../../../base/common/async.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorunDelta, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { Location } from '../../../../../editor/common/languages.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { getMcpServerMapping } from '../mcpConfigFileUtils.js';
+import { IMcpConfigPath, IMcpConfigPathsService } from '../mcpConfigPathsService.js';
 import { IMcpConfiguration, mcpConfigurationSection } from '../mcpConfiguration.js';
 import { IMcpRegistry } from '../mcpRegistryTypes.js';
-import { McpCollectionSortOrder, McpServerDefinition, McpServerTransportType } from '../mcpTypes.js';
+import { McpServerDefinition, McpServerTransportType } from '../mcpTypes.js';
 import { IMcpDiscovery } from './mcpDiscovery.js';
 
+interface ConfigSource {
+	path: IMcpConfigPath;
+	serverDefinitions: ISettableObservable<readonly McpServerDefinition[]>;
+	disposable: MutableDisposable<IDisposable>;
+	getServerToLocationMapping(uri: URI): Promise<Map<string, Location>>;
+}
 
 /**
  * Discovers MCP servers based on various config sources.
  */
 export class ConfigMcpDiscovery extends Disposable implements IMcpDiscovery {
-	private readonly configSources: {
-		key: 'userLocalValue' | 'userRemoteValue' | 'workspaceValue';
-		label: string;
-		serverDefinitions: ISettableObservable<readonly McpServerDefinition[]>;
-		scope: StorageScope;
-		target: ConfigurationTarget;
-		disposable: MutableDisposable<IDisposable>;
-		order: number;
-		remoteAuthority?: string;
-	}[];
+	private configSources: ConfigSource[] = [];
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
-		@IProductService productService: IProductService,
-		@ILabelService labelService: ILabelService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@ITextModelService private readonly _textModelService: ITextModelService,
+		@IMcpConfigPathsService private readonly _mcpConfigPathsService: IMcpConfigPathsService,
 	) {
 		super();
-		const remoteLabel = environmentService.remoteAuthority ? labelService.getHostLabel(Schemas.vscodeRemote, environmentService.remoteAuthority) : 'Remote';
-		this.configSources = [
-			{
-				key: 'userLocalValue',
-				target: ConfigurationTarget.USER_LOCAL,
-				label: localize('mcp.configuration.userLocalValue', 'Global in {0}', productService.nameShort),
-				serverDefinitions: observableValue(this, []),
-				scope: StorageScope.PROFILE,
-				disposable: this._register(new MutableDisposable()),
-				order: McpCollectionSortOrder.User,
-			},
-			{
-				key: 'userRemoteValue',
-				target: ConfigurationTarget.USER_REMOTE,
-				label: localize('mcp.configuration.userRemoteValue', 'From {0}', remoteLabel),
-				serverDefinitions: observableValue(this, []),
-				scope: StorageScope.PROFILE,
-				disposable: this._register(new MutableDisposable()),
-				remoteAuthority: environmentService.remoteAuthority,
-				order: McpCollectionSortOrder.User + McpCollectionSortOrder.RemotePenalty,
-			},
-			{
-				key: 'workspaceValue',
-				target: ConfigurationTarget.WORKSPACE,
-				label: localize('mcp.configuration.workspaceValue', 'From your workspace'),
-				serverDefinitions: observableValue(this, []),
-				scope: StorageScope.WORKSPACE,
-				disposable: this._register(new MutableDisposable()),
-				order: McpCollectionSortOrder.Workspace,
-
-			},
-		];
 	}
 
 	public start() {
+		const throttler = this._register(new Throttler());
+
+		const addPath = (path: IMcpConfigPath) => {
+			this.configSources.push({
+				path,
+				serverDefinitions: observableValue(this, []),
+				disposable: this._register(new MutableDisposable()),
+				getServerToLocationMapping: (uri) => this._getServerIdMapping(uri, path.section ? [...path.section, 'servers'] : ['servers']),
+			});
+		};
+
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(mcpConfigurationSection)) {
-				this.sync();
+				throttler.queue(() => this.sync());
 			}
 		}));
 
-		this.sync();
+		this._register(autorunDelta(this._mcpConfigPathsService.paths, ({ lastValue, newValue }) => {
+			for (const last of lastValue || []) {
+				if (!newValue.includes(last)) {
+					const idx = this.configSources.findIndex(src => src.path.id === last.id);
+					if (idx !== -1) {
+						this.configSources[idx].disposable.dispose();
+						this.configSources.splice(idx, 1);
+					}
+				}
+			}
+
+			for (const next of newValue) {
+				if (!lastValue || !lastValue.includes(next)) {
+					addPath(next);
+				}
+			}
+
+			this.sync();
+		}));
 	}
 
-	private sync() {
-		const configurationKey = this._configurationService.inspect<IMcpConfiguration>(mcpConfigurationSection);
+	private async _getServerIdMapping(resource: URI, pathToServers: string[]): Promise<Map<string, Location>> {
+		const store = new DisposableStore();
+		try {
+			const ref = await this._textModelService.createModelReference(resource);
+			store.add(ref);
+			const serverIdMapping = getMcpServerMapping({ model: ref.object.textEditorModel, pathToServers });
+			return serverIdMapping;
+		} catch {
+			return new Map();
+		} finally {
+			store.dispose();
+		}
+	}
 
-		for (const src of this.configSources) {
-			const collectionId = `mcp.config.${src.key}`;
-			let value = configurationKey[src.key];
+	private async sync() {
+		const configurationKey = this._configurationService.inspect<IMcpConfiguration>(mcpConfigurationSection);
+		const configMappings = await Promise.all(this.configSources.map(src => {
+			const uri = src.path.uri;
+			return uri && src.getServerToLocationMapping(uri);
+		}));
+
+		for (const [index, src] of this.configSources.entries()) {
+			const collectionId = `mcp.config.${src.path.id}`;
+			// inspect() will give the first workspace folder, and must be
+			// asked for explicitly for other folders.
+			let value = src.path.workspaceFolder
+				? this._configurationService.inspect<IMcpConfiguration>(mcpConfigurationSection, { resource: src.path.workspaceFolder.uri })[src.path.key]
+				: configurationKey[src.path.key];
 
 			// If we see there are MCP servers, migrate them automatically
 			if (value?.mcpServers) {
 				value = { ...value, servers: { ...value.servers, ...value.mcpServers }, mcpServers: undefined };
-				this._configurationService.updateValue(mcpConfigurationSection, value, {}, src.target, { donotNotifyError: true });
+				this._configurationService.updateValue(mcpConfigurationSection, value, {}, src.path.target, { donotNotifyError: true });
 			}
 
+			const configMapping = configMappings[index];
 			const nextDefinitions = Object.entries(value?.servers || {}).map(([name, value]): McpServerDefinition => ({
 				id: `${collectionId}.${name}`,
 				label: name,
-				launch: {
+				launch: 'type' in value && value.type === 'sse' ? {
+					type: McpServerTransportType.SSE,
+					uri: URI.parse(value.url),
+					headers: Object.entries(value.headers || {}),
+				} : {
 					type: McpServerTransportType.Stdio,
 					args: value.args || [],
 					command: value.command,
 					env: value.env || {},
+					envFile: value.envFile,
 					cwd: undefined,
 				},
+				roots: src.path.workspaceFolder ? [src.path.workspaceFolder.uri] : [],
 				variableReplacement: {
+					folder: src.path.workspaceFolder,
 					section: mcpConfigurationSection,
-					target: src.target,
+					target: src.path.target,
+				},
+				presentation: {
+					order: src.path.order,
+					origin: configMapping?.get(name),
 				}
 			}));
 
@@ -121,16 +148,17 @@ export class ConfigMcpDiscovery extends Disposable implements IMcpDiscovery {
 
 			if (!nextDefinitions.length) {
 				src.disposable.clear();
+				src.serverDefinitions.set(nextDefinitions, undefined);
 			} else {
 				src.serverDefinitions.set(nextDefinitions, undefined);
 				src.disposable.value ??= this._mcpRegistry.registerCollection({
 					id: collectionId,
-					label: src.label,
-					order: src.order,
-					remoteAuthority: src.remoteAuthority || null,
+					label: src.path.label,
+					presentation: { order: src.path.order, origin: src.path.uri },
+					remoteAuthority: src.path.remoteAuthority || null,
 					serverDefinitions: src.serverDefinitions,
 					isTrustedByDefault: true,
-					scope: src.scope,
+					scope: src.path.scope,
 				});
 			}
 		}

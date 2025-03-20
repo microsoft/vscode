@@ -38,7 +38,6 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 			const cmdDetection = terminal.capabilities.get(TerminalCapability.CommandDetection);
 			if (cmdDetection) {
 				this._proxy.$shellIntegrationChange(terminal.instanceId);
-				this._proxy.$setHasRichCommandDetection(terminal.instanceId, !!cmdDetection?.hasRichCommandDetection);
 			}
 			const cwdDetection = terminal.capabilities.get(TerminalCapability.CwdDetection);
 			if (cwdDetection) {
@@ -56,12 +55,6 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 			);
 		})).event;
 		this._store.add(onDidAddCommandDetection(e => this._proxy.$shellIntegrationChange(e.instanceId)));
-
-		// onDidChangeTerminalShellIntegration via rich command detection
-		const onDidSetRichCommandDetection = this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, e => e.onSetRichCommandDetection));
-		onDidSetRichCommandDetection.event(e => {
-			this._proxy.$setHasRichCommandDetection(e.instance.instanceId, e.data);
-		});
 
 		// onDidChangeTerminalShellIntegration via cwd
 		const cwdChangeEvent = this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CwdDetection, e => e.onDidChangeCwd));

@@ -1,5 +1,4 @@
 ; Order matters! Place lower precedence first.
-; Adapted from https://github.com/zed-industries/zed/blob/main/crates/languages/src/typescript/highlights.scm
 
 ; Variables
 
@@ -19,10 +18,10 @@
 (escape_sequence) @constant.character.escape.ts
 
 ((string) @string.quoted.single.ts
-  (#match? @string.quoted.single.ts "^'[^']*'$"))
+  (#match? @string.quoted.single.ts "^'.*'$"))
 
 ((string) @string.quoted.double.ts
-  (#match? @string.quoted.double.ts "^\"[^\"]*\"$"))
+  (#match? @string.quoted.double.ts "^\".*\"$"))
 
 ([
   (template_string)

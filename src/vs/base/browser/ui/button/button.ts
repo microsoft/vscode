@@ -295,6 +295,9 @@ export class Button extends Disposable implements IButton {
 
 	set icon(icon: ThemeIcon) {
 		this._setAriaLabel();
+
+		const oldIcons = Array.from(this._element.classList).filter(item => item.startsWith('codicon-'));
+		this._element.classList.remove(...oldIcons);
 		this._element.classList.add(...ThemeIcon.asClassNameArray(icon));
 	}
 

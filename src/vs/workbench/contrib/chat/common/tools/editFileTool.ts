@@ -7,11 +7,13 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { SaveReason } from '../../../../common/editor.js';
+import { GroupsOrder, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { CellUri } from '../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
@@ -79,6 +81,7 @@ export class EditTool implements IToolImpl {
 		@ILanguageModelIgnoredFilesService private readonly ignoredFilesService: ILanguageModelIgnoredFilesService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@INotebookService private readonly notebookService: INotebookService,
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 	) { }
 
 	async invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
@@ -87,9 +90,20 @@ export class EditTool implements IToolImpl {
 		}
 
 		const parameters = invocation.parameters as EditToolParams;
-		const uri = URI.revive(parameters.file); // TODO@roblourens do revive in MainThreadLanguageModelTools
-		if (!this.workspaceContextService.isInsideWorkspace(uri)) {
-			throw new Error(`File ${uri.fsPath} can't be edited because it's not inside the current workspace`);
+		const fileUri = URI.revive(parameters.file); // TODO@roblourens do revive in MainThreadLanguageModelTools
+		const uri = CellUri.parse(fileUri)?.notebook || fileUri;
+
+		if (!this.workspaceContextService.isInsideWorkspace(uri) && !this.notebookService.getNotebookTextModel(uri)) {
+			const groupsByLastActive = this.editorGroupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
+			const uriIsOpenInSomeEditor = groupsByLastActive.some((group) => {
+				return group.editors.some((editor) => {
+					return isEqual(editor.resource, uri);
+				});
+			});
+
+			if (!uriIsOpenInSomeEditor) {
+				throw new Error(`File ${uri.fsPath} can't be edited because it's not inside the current workspace`);
+			}
 		}
 
 		if (await this.ignoredFilesService.fileIsIgnored(uri, token)) {
@@ -121,13 +135,12 @@ export class EditTool implements IToolImpl {
 			kind: 'markdownContent',
 			content: new MarkdownString(parameters.code + '\n````\n')
 		});
-		const notebookUri = CellUri.parse(uri)?.notebook || uri;
 		// Signal start.
-		if (this.notebookService.hasSupportedNotebooks(notebookUri) && (this.notebookService.getNotebookTextModel(notebookUri))) {
+		if (this.notebookService.hasSupportedNotebooks(uri) && (this.notebookService.getNotebookTextModel(uri))) {
 			model.acceptResponseProgress(request, {
 				kind: 'notebookEdit',
 				edits: [],
-				uri: notebookUri
+				uri
 			});
 		} else {
 			model.acceptResponseProgress(request, {
@@ -156,8 +169,8 @@ export class EditTool implements IToolImpl {
 		}, token);
 
 		// Signal end.
-		if (this.notebookService.hasSupportedNotebooks(notebookUri) && (this.notebookService.getNotebookTextModel(notebookUri))) {
-			model.acceptResponseProgress(request, { kind: 'notebookEdit', uri: notebookUri, edits: [], done: true });
+		if (this.notebookService.hasSupportedNotebooks(uri) && (this.notebookService.getNotebookTextModel(uri))) {
+			model.acceptResponseProgress(request, { kind: 'notebookEdit', uri, edits: [], done: true });
 		} else {
 			model.acceptResponseProgress(request, { kind: 'textEdit', uri, edits: [], done: true });
 		}

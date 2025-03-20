@@ -25,9 +25,9 @@ import { asJson, IRequestService } from '../../../../platform/request/common/req
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ChatContextKeys } from './chatContextKeys.js';
 import { IChatProgressHistoryResponseContent, IChatRequestVariableData, ISerializableChatAgentData } from './chatModel.js';
-import { IRawChatCommandContribution, RawChatParticipantLocation } from './chatParticipantContribTypes.js';
+import { IRawChatCommandContribution } from './chatParticipantContribTypes.js';
 import { IChatFollowup, IChatLocationData, IChatProgress, IChatResponseErrorDetails, IChatTaskDto } from './chatService.js';
-import { ChatMode } from './constants.js';
+import { ChatAgentLocation, ChatMode } from './constants.js';
 
 //#region agent service, commands etc
 
@@ -35,27 +35,6 @@ export interface IChatAgentHistoryEntry {
 	request: IChatAgentRequest;
 	response: ReadonlyArray<IChatProgressHistoryResponseContent | IChatTaskDto>;
 	result: IChatAgentResult;
-}
-
-export enum ChatAgentLocation {
-	Panel = 'panel',
-	Terminal = 'terminal',
-	Notebook = 'notebook',
-	Editor = 'editor',
-	EditingSession = 'editing-session',
-}
-
-export namespace ChatAgentLocation {
-	export function fromRaw(value: RawChatParticipantLocation | string): ChatAgentLocation {
-		switch (value) {
-			case 'panel': return ChatAgentLocation.Panel;
-			case 'terminal': return ChatAgentLocation.Terminal;
-			case 'notebook': return ChatAgentLocation.Notebook;
-			case 'editor': return ChatAgentLocation.Editor;
-			case 'editing-session': return ChatAgentLocation.EditingSession;
-		}
-		return ChatAgentLocation.Panel;
-	}
 }
 
 export interface IChatAgentData {
@@ -75,6 +54,8 @@ export interface IChatAgentData {
 	isToolsAgent?: boolean;
 	/** This agent is not contributed in package.json, but is registered dynamically */
 	isDynamic?: boolean;
+	/** This agent is contributed from core and not from an extension */
+	isCore?: boolean;
 	metadata: IChatAgentMetadata;
 	slashCommands: IChatAgentCommand[];
 	locations: ChatAgentLocation[];
@@ -137,7 +118,6 @@ export interface IChatAgentMetadata {
 	helpTextPrefix?: string | IMarkdownString;
 	helpTextVariablesPrefix?: string | IMarkdownString;
 	helpTextPostfix?: string | IMarkdownString;
-	isSecondary?: boolean; // Invoked by ctrl/cmd+enter
 	icon?: URI;
 	iconDark?: URI;
 	themeIcon?: ThemeIcon;
@@ -146,6 +126,7 @@ export interface IChatAgentMetadata {
 	followupPlaceholder?: string;
 	isSticky?: boolean;
 	requester?: IChatRequesterInformation;
+	welcomeMessageContent?: IChatWelcomeMessageContent;
 }
 
 
@@ -164,6 +145,7 @@ export interface IChatAgentRequest {
 	acceptedConfirmationData?: any[];
 	rejectedConfirmationData?: any[];
 	userSelectedModelId?: string;
+	userSelectedTools?: string[];
 }
 
 export interface IChatQuestion {
@@ -236,7 +218,6 @@ export interface IChatAgentService {
 	 * Get the default agent data that has been contributed (may not be activated yet)
 	 */
 	getContributedDefaultAgent(location: ChatAgentLocation): IChatAgentData | undefined;
-	getSecondaryAgent(): IChatAgentData | undefined;
 	updateAgent(id: string, updateMetadata: IChatAgentMetadata): void;
 }
 
@@ -400,13 +381,17 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 	}
 
 	getDefaultAgent(location: ChatAgentLocation, mode?: ChatMode): IChatAgent | undefined {
-		return findLast(this.getActivatedAgents(), a => {
-			if (location === ChatAgentLocation.EditingSession && ((mode === ChatMode.Agent) !== !!a.isToolsAgent)) {
+		if (mode === ChatMode.Edit || mode === ChatMode.Agent) {
+			location = ChatAgentLocation.EditingSession;
+		}
+
+		return this._preferExtensionAgent(this.getActivatedAgents().filter(a => {
+			if ((mode === ChatMode.Agent) !== !!a.isToolsAgent) {
 				return false;
 			}
 
 			return !!a.isDefault && a.locations.includes(location);
-		});
+		}));
 	}
 
 	public get hasToolsAgent(): boolean {
@@ -414,12 +399,15 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 	}
 
 	getContributedDefaultAgent(location: ChatAgentLocation): IChatAgentData | undefined {
-		return this.getAgents().find(a => !!a.isDefault && a.locations.includes(location));
+		return this._preferExtensionAgent(this.getAgents().filter(a => !!a.isDefault && a.locations.includes(location)));
 	}
 
-	getSecondaryAgent(): IChatAgentData | undefined {
-		// TODO also static
-		return Iterable.find(this._agents.values(), a => !!a.data.metadata.isSecondary)?.data;
+	private _preferExtensionAgent<T extends IChatAgentData>(agents: T[]): T | undefined {
+		// We potentially have multiple agents on the same location,
+		// contributed from core and from extensions.
+		// This method will prefer the last extensions provided agent
+		// falling back to the last core agent if no extension agent is found.
+		return findLast(agents, agent => !agent.isCore) ?? agents.at(-1);
 	}
 
 	getAgent(id: string, includeDisabled = false): IChatAgentData | undefined {
@@ -590,6 +578,7 @@ export class MergedChatAgent implements IChatAgent {
 	get extensionDisplayName(): string { return this.data.extensionDisplayName; }
 	get isDefault(): boolean | undefined { return this.data.isDefault; }
 	get isToolsAgent(): boolean | undefined { return this.data.isToolsAgent; }
+	get isCore(): boolean | undefined { return this.data.isCore; }
 	get metadata(): IChatAgentMetadata { return this.data.metadata; }
 	get slashCommands(): IChatAgentCommand[] { return this.data.slashCommands; }
 	get locations(): ChatAgentLocation[] { return this.data.locations; }
@@ -714,6 +703,10 @@ export class ChatAgentNameService implements IChatAgentNameService {
 	 * Returns true if the agent is allowed to use this name
 	 */
 	getAgentNameRestriction(chatAgentData: IChatAgentData): boolean {
+		if (chatAgentData.isCore) {
+			return true; // core agents are always allowed to use any name
+		}
+
 		// TODO would like to use observables here but nothing uses it downstream and I'm not sure how to combine these two
 		const nameAllowed = this.checkAgentNameRestriction(chatAgentData.name, chatAgentData).get();
 		const fullNameAllowed = !chatAgentData.fullName || this.checkAgentNameRestriction(chatAgentData.fullName.replace(/\s/g, ''), chatAgentData).get();

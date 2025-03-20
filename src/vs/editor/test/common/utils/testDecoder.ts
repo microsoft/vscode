@@ -200,16 +200,16 @@ export class TestDecoder<T extends BaseToken, D extends BaseDecoder<T>> extends 
 	) {
 		for (let i = 0; i < expectedTokens.length; i++) {
 			const expectedToken = expectedTokens[i];
-			const receivedtoken = receivedTokens[i];
+			const receivedToken = receivedTokens[i];
 
 			assertDefined(
-				receivedtoken,
+				receivedToken,
 				`Expected token '${i}' to be '${expectedToken}', got 'undefined'.`,
 			);
 
 			assert(
-				receivedtoken.equals(expectedToken),
-				`Expected token '${i}' to be '${expectedToken}', got '${receivedtoken}'.`,
+				receivedToken.equals(expectedToken),
+				`Expected token '${i}' to be '${expectedToken}', got '${receivedToken}'.`,
 			);
 		}
 

@@ -6,11 +6,11 @@
 import { OffsetRange } from '../../../../editor/common/core/offsetRange.js';
 import { IPosition, Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
-import { ChatAgentLocation, IChatAgentData, IChatAgentService } from './chatAgents.js';
+import { IChatAgentData, IChatAgentService } from './chatAgents.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestToolPart, IParsedChatRequest, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from './chatParserTypes.js';
 import { IChatSlashCommandService } from './chatSlashCommands.js';
 import { IChatVariablesService, IDynamicVariable } from './chatVariables.js';
-import { ChatMode } from './constants.js';
+import { ChatAgentLocation, ChatMode } from './constants.js';
 import { ILanguageModelToolsService } from './languageModelToolsService.js';
 
 const agentReg = /^@([\w_\-\.]+)(?=(\s|$|\b))/i; // An @-agent
@@ -96,7 +96,7 @@ export class ChatRequestParser {
 
 	private tryToParseAgent(message: string, fullMessage: string, offset: number, position: IPosition, parts: Array<IParsedChatRequestPart>, location: ChatAgentLocation, context: IChatParserContext | undefined): ChatRequestAgentPart | undefined {
 		const nextAgentMatch = message.match(agentReg);
-		if (!nextAgentMatch) {
+		if (!nextAgentMatch || context?.mode !== undefined && context.mode !== ChatMode.Ask) {
 			return;
 		}
 

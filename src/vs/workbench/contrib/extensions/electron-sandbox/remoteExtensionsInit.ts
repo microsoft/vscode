@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT, IExtensionGalleryService, IExtensionManagementService, InstallExtensionInfo } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { ExtensionType } from '../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { REMOTE_DEFAULT_IF_LOCAL_EXTENSIONS } from '../../../../platform/remote/common/remote.js';
 import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { IRemoteExtensionsScannerService } from '../../../../platform/remote/common/remoteExtensionsScanner.js';
 import { IStorageService, IS_NEW_KEY, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -26,15 +29,82 @@ import { IExtensionManagementServerService } from '../../../services/extensionMa
 import { IExtensionManifestPropertiesService } from '../../../services/extensions/common/extensionManifestPropertiesService.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 
-export class InstallFailedRemoteExtensionsContribution implements IWorkbenchContribution {
+export class InstallRemoteExtensionsContribution implements IWorkbenchContribution {
 	constructor(
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@IRemoteExtensionsScannerService private readonly remoteExtensionsScannerService: IRemoteExtensionsScannerService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
+		this.installDefaultRemoteExtensions();
 		this.installFailedRemoteExtensions();
+	}
+
+	private async installDefaultRemoteExtensions(): Promise<void> {
+		if (!this.remoteAgentService.getConnection()) {
+			return;
+		}
+
+		if (!this.extensionManagementServerService.remoteExtensionManagementServer) {
+			this.logService.error('No remote extension management server available');
+			return;
+		}
+
+		if (!this.extensionManagementServerService.localExtensionManagementServer) {
+			this.logService.error('No local extension management server available');
+			return;
+		}
+
+		const settingValue = this.configurationService.getValue<string[]>(REMOTE_DEFAULT_IF_LOCAL_EXTENSIONS);
+		if (!settingValue?.length) {
+			return;
+		}
+
+		this.logService.info(`Evaluating '${settingValue.length}' default remote extensions`);
+
+		const galleryExtensions = await this.extensionGalleryService.getExtensions(settingValue.map((id) => ({ id })), CancellationToken.None);
+		const alreadyInstalledInRemote = await this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.getInstalled(ExtensionType.User);
+		const alreadyInstalledLocally = await this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.getInstalled(ExtensionType.User);
+
+		const prereleaseExtensionInfo: InstallExtensionInfo[] = [];
+		const extensionInfo: InstallExtensionInfo[] = [];
+		for (const id of settingValue) {
+			const alreadyInstalled = alreadyInstalledInRemote.some(e => areSameExtensions(e.identifier, { id }));
+			if (alreadyInstalled) {
+				this.logService.trace(`Default remote extension '${id}' is already installed`);
+				continue;
+			}
+
+			const installedLocally = alreadyInstalledLocally.find(e => areSameExtensions(e.identifier, { id }));
+			if (!installedLocally) {
+				this.logService.trace(`Default remote extension '${id}' is not installed locally`);
+				continue;
+			}
+
+			const extension = galleryExtensions.find(e => areSameExtensions(e.identifier, { id }));
+			if (!extension) {
+				this.logService.warn(`Default remote extension '${id}' is not found`);
+				continue;
+			}
+
+			const installPreReleaseVersion = installedLocally.isPreReleaseVersion;
+			this.logService.trace(`Default remote extension '${id}' queued for install (pre-release=${installPreReleaseVersion})`);
+			(installPreReleaseVersion ? prereleaseExtensionInfo : extensionInfo).push({
+				extension, options: { installPreReleaseVersion },
+			});
+		}
+
+		// Install pre-release extensions first to avoid a situation where:
+		// An extension without a pre-release (A) is installed first and depends on an extension that has a pre-release version (B)
+		// If this happens, the extension A may result in the installation of the stable version of B
+		if (prereleaseExtensionInfo.length) {
+			await Promise.allSettled(prereleaseExtensionInfo.map(e => this.extensionManagementServerService.remoteExtensionManagementServer!.extensionManagementService.installFromGallery(e.extension, e.options)));
+		}
+		if (extensionInfo.length) {
+			await Promise.allSettled(extensionInfo.map(e => this.extensionManagementServerService.remoteExtensionManagementServer!.extensionManagementService.installFromGallery(e.extension, e.options)));
+		}
 	}
 
 	private async installFailedRemoteExtensions(): Promise<void> {

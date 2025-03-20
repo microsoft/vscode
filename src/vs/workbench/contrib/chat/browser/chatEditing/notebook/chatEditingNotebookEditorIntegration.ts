@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, derivedWithStore, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { debouncedObservable } from '../../../../../../base/common/observableInternal/utils.js';
 import { basename } from '../../../../../../base/common/resources.js';
@@ -11,29 +11,32 @@ import { assertType } from '../../../../../../base/common/types.js';
 import { LineRange } from '../../../../../../editor/common/core/lineRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { nullDocumentDiff } from '../../../../../../editor/common/diff/documentDiffProvider.js';
-import { PrefixSumComputer } from '../../../../../../editor/common/model/prefixSumComputer.js';
 import { localize } from '../../../../../../nls.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IEditorPane, IResourceDiffEditorInput } from '../../../../../common/editor.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { NotebookDeletedCellDecorator } from '../../../../notebook/browser/diff/inlineDiff/notebookDeletedCellDecorator.js';
 import { NotebookInsertedCellDecorator } from '../../../../notebook/browser/diff/inlineDiff/notebookInsertedCellDecorator.js';
+import { NotebookModifiedCellDecorator } from '../../../../notebook/browser/diff/inlineDiff/notebookModifiedCellDecorator.js';
 import { INotebookTextDiffEditor } from '../../../../notebook/browser/diff/notebookDiffEditorBrowser.js';
 import { getNotebookEditorFromEditorPane, ICellViewModel, INotebookEditor } from '../../../../notebook/browser/notebookBrowser.js';
 import { INotebookEditorService } from '../../../../notebook/browser/services/notebookEditorService.js';
 import { NotebookCellTextModel } from '../../../../notebook/common/model/notebookCellTextModel.js';
 import { NotebookTextModel } from '../../../../notebook/common/model/notebookTextModel.js';
-import { ChatAgentLocation, IChatAgentService } from '../../../common/chatAgents.js';
-import { IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration } from '../../../common/chatEditingService.js';
+import { IChatAgentService } from '../../../common/chatAgents.js';
+import { IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration } from '../../../common/chatEditingService.js';
+import { ChatAgentLocation } from '../../../common/constants.js';
 import { ChatEditingCodeEditorIntegration, IDocumentDiff2 } from '../chatEditingCodeEditorIntegration.js';
+import { ChatEditingModifiedNotebookEntry } from '../chatEditingModifiedNotebookEntry.js';
 import { countChanges, ICellDiffInfo, sortCellChanges } from './notebookCellChanges.js';
 
 export class ChatEditingNotebookEditorIntegration extends Disposable implements IModifiedFileEntryEditorIntegration {
 	private integration: ChatEditingNotebookEditorWidgetIntegration;
 	private notebookEditor: INotebookEditor;
 	constructor(
-		_entry: IModifiedFileEntry,
+		_entry: ChatEditingModifiedNotebookEntry,
 		editor: IEditorPane,
 		notebookModel: NotebookTextModel,
 		originalModel: NotebookTextModel,
@@ -88,14 +91,12 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 	private readonly _currentChange = observableValue<{ change: ICellDiffInfo; index: number } | undefined>(this, undefined);
 	readonly currentChange: IObservable<{ change: ICellDiffInfo; index: number } | undefined> = this._currentChange;
 
-	private diffIndexPrefixSum: PrefixSumComputer = new PrefixSumComputer(new Uint32Array());
-
 	private readonly cellEditorIntegrations = new Map<NotebookCellTextModel, { integration: ChatEditingCodeEditorIntegration; diff: ISettableObservable<IDocumentDiff2> }>();
 
-	private readonly insertDeleteDecorators: IObservable<{ insertedCellDecorator: NotebookInsertedCellDecorator; deletedCellDecorator: NotebookDeletedCellDecorator } | undefined>;
+	private readonly insertDeleteDecorators: IObservable<{ insertedCellDecorator: NotebookInsertedCellDecorator; modifiedCellDecorator: NotebookModifiedCellDecorator; deletedCellDecorator: NotebookDeletedCellDecorator } | undefined>;
 
 	constructor(
-		private readonly _entry: IModifiedFileEntry,
+		private readonly _entry: ChatEditingModifiedNotebookEntry,
 		private readonly notebookEditor: INotebookEditor,
 		private readonly notebookModel: NotebookTextModel,
 		originalModel: NotebookTextModel,
@@ -104,6 +105,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 		@IEditorService private readonly _editorService: IEditorService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@INotebookEditorService notebookEditorService: INotebookEditorService,
+		@IAccessibilitySignalService accessibilitySignalService: IAccessibilitySignalService,
 	) {
 		super();
 
@@ -120,44 +122,47 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			}
 			originalReadonly ??= notebookEditor.isReadOnly;
 			if (isReadOnly) {
-				if (!notebookEditor.isReadOnly) {
+				notebookEditor.setOptions({ isReadOnly: true });
+			} else if (originalReadonly === false) {
+				notebookEditor.setOptions({ isReadOnly: false });
+				// Ensure all cells area editable.
+				// We make use of chatEditingCodeEditorIntegration to handle cell diffing and navigation.
+				// However that also makes the cell read-only. We need to ensure that the cell is editable.
+				// E.g. first we make notebook readonly (in here), then cells end up being readonly because notebook is readonly.
+				// Then chatEditingCodeEditorIntegration makes cells readonly and keeps track of the original readonly state.
+				// However the cell is already readonly because the notebook is readonly.
+				// So when we restore the notebook to editable (in here), the cell is made editable again.
+				// But when chatEditingCodeEditorIntegration attempts to restore, it will restore the original readonly state.
+				// & from the perpspective of chatEditingCodeEditorIntegration, the cell was readonly & should continue to be readonly.
+				// To get around this, we wait for a few ms before restoring the original readonly state for each cell.
+				const timeout = setTimeout(() => {
 					notebookEditor.setOptions({ isReadOnly: true });
-				}
-			} else {
-				if (notebookEditor.isReadOnly && originalReadonly === false) {
 					notebookEditor.setOptions({ isReadOnly: false });
-				}
+					disposable.dispose();
+				}, 100);
+				const disposable = toDisposable(() => clearTimeout(timeout));
+				this._register(disposable);
 			}
 		}));
 
-		// INIT when not streaming anymore, once per request, and when having changes
+		// INIT when not streaming nor diffing the response anymore, once per request, and when having changes
 		let lastModifyingRequestId: string | undefined;
 		this._store.add(autorun(r => {
 
 			if (!_entry.isCurrentlyBeingModifiedBy.read(r)
+				&& !_entry.isProcessingResponse.read(r)
 				&& lastModifyingRequestId !== _entry.lastModifyingRequestId
 				&& cellChanges.read(r).some(c => c.type !== 'unchanged' && !c.diff.read(r).identical)
 			) {
-				lastModifyingRequestId = _entry.lastModifyingRequestId;
-
-				const sortedCellChanges = sortCellChanges(cellChanges.read(r));
-				const values = new Uint32Array(sortedCellChanges.length);
-				for (let i = 0; i < sortedCellChanges.length; i++) {
-					const change = sortedCellChanges[i];
-					values[i] = change.type === 'insert' ? 1
-						: change.type === 'delete' ? 1
-							: change.type === 'modified' ? change.diff.read(r).changes.length
-								: 0;
-				}
-
-				this.diffIndexPrefixSum = new PrefixSumComputer(values);
-
 				this.reveal(true);
 			}
 		}));
 
 		// Build cell integrations (responsible for navigating changes within a cell and decorating cell text changes)
 		this._register(autorun(r => {
+			if (this.notebookEditor.textModel !== this.notebookModel) {
+				return;
+			}
 			const sortedCellChanges = sortCellChanges(cellChanges.read(r));
 
 			const changes = sortedCellChanges.filter(c => c.type !== 'delete');
@@ -224,17 +229,28 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 
 		this._register(autorun(r => {
 			const currentChange = this.currentChange.read(r);
-			if (currentChange) {
-				const indexInChange = currentChange.index;
-				const cellIndex = currentChange.change.modifiedCellIndex ?? currentChange.change.originalCellIndex;
-
-				const changesBeforeCell = cellIndex !== undefined && cellIndex > 0 ?
-					this.diffIndexPrefixSum.getPrefixSum(cellIndex - 1) : 0;
-
-				this._currentIndex.set(changesBeforeCell + indexInChange, undefined);
-			} else {
+			if (!currentChange) {
 				this._currentIndex.set(-1, undefined);
+				return;
 			}
+
+			let index = 0;
+			const sortedCellChanges = sortCellChanges(cellChanges.read(r));
+			for (const change of sortedCellChanges) {
+				if (currentChange && currentChange.change === change) {
+					if (change.type === 'modified') {
+						index += currentChange.index;
+					}
+					break;
+				}
+				if (change.type === 'insert' || change.type === 'delete') {
+					index++;
+				} else if (change.type === 'modified') {
+					index += change.diff.read(r).changes.length;
+				}
+			}
+
+			this._currentIndex.set(index, undefined);
 		}));
 
 		this.insertDeleteDecorators = derivedWithStore((r, store) => {
@@ -243,6 +259,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			}
 
 			const insertedCellDecorator = store.add(this.instantiationService.createInstance(NotebookInsertedCellDecorator, this.notebookEditor));
+			const modifiedCellDecorator = store.add(this.instantiationService.createInstance(NotebookModifiedCellDecorator, this.notebookEditor));
 			const deletedCellDecorator = store.add(this.instantiationService.createInstance(NotebookDeletedCellDecorator, this.notebookEditor, {
 				className: 'chat-diff-change-content-widget',
 				telemetrySource: 'chatEditingNotebookHunk',
@@ -254,6 +271,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 							if (entry) {
 								return entry.keep(entry.diff.get().changes[0]);
 							}
+							accessibilitySignalService.playSignal(AccessibilitySignal.editsKept, { allowManyInParallel: true });
 							return Promise.resolve(true);
 						},
 						reject() {
@@ -261,6 +279,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 							if (entry) {
 								return entry.undo(entry.diff.get().changes[0]);
 							}
+							accessibilitySignalService.playSignal(AccessibilitySignal.editsUndone, { allowManyInParallel: true });
 							return Promise.resolve(true);
 						},
 					} satisfies IModifiedFileEntryChangeHunk;
@@ -269,20 +288,23 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 
 			return {
 				insertedCellDecorator,
+				modifiedCellDecorator,
 				deletedCellDecorator
 			};
 		});
 
 		const cellsAreVisible = onDidChangeVisibleRanges.map(v => v.length > 0);
 		this._register(autorun(r => {
-			if (!cellsAreVisible.read(r)) {
+			if (this.notebookEditor.textModel !== this.notebookModel || !cellsAreVisible.read(r)) {
 				return;
 			}
-			// We can have inserted cells that have been accepted, in those cases we do not wany any decorators on them.
+			// We can have inserted cells that have been accepted, in those cases we do not want any decorators on them.
 			const changes = debouncedObservable(cellChanges, 10).read(r).filter(c => c.type === 'insert' ? !c.diff.read(r).identical : true);
+			const modifiedChanges = changes.filter(c => c.type === 'modified');
 			const decorators = debouncedObservable(this.insertDeleteDecorators, 10).read(r);
 			if (decorators) {
 				decorators.insertedCellDecorator.apply(changes);
+				decorators.modifiedCellDecorator.apply(modifiedChanges);
 				decorators.deletedCellDecorator.apply(changes, originalModel);
 			}
 		}));
@@ -300,27 +322,46 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			return undefined;
 		}
 		const change = firstOrLast ? changes[0] : changes[changes.length - 1];
-		this._revealChange(change, firstOrLast);
+		this._revealFirstOrLast(change, firstOrLast);
 	}
 
-	private _revealChange(change: ICellDiffInfo, firstOrLast: boolean = true) {
+	private _revealFirstOrLast(change: ICellDiffInfo, firstOrLast: boolean = true) {
 		switch (change.type) {
 			case 'insert':
 			case 'modified':
 				{
 					const index = firstOrLast || change.type === 'insert' ? 0 : change.diff.get().changes.length - 1;
-					// TODO: check if this breaks for inserted cells
-					const textChange = change.diff.get().changes[index];
 					const cellIntegration = this.getCell(change.modifiedCellIndex);
 					if (cellIntegration) {
 						cellIntegration.reveal(firstOrLast);
 						this._currentChange.set({ change: change, index }, undefined);
+						return true;
 					} else {
-						const cellViewModel = this.getCellViewModel(change);
-						if (cellViewModel) {
-							this.revealChangeInView(cellViewModel, textChange.modified);
-							this._currentChange.set({ change: change, index }, undefined);
-						}
+						return this._revealChange(change, index);
+					}
+				}
+			case 'delete':
+				// reveal the deleted cell decorator
+				this.insertDeleteDecorators.get()?.deletedCellDecorator.reveal(change.originalCellIndex);
+				this._currentChange.set({ change: change, index: 0 }, undefined);
+				return true;
+			default:
+				break;
+		}
+
+		return false;
+	}
+
+	private _revealChange(change: ICellDiffInfo, indexInCell: number) {
+		switch (change.type) {
+			case 'insert':
+			case 'modified':
+				{
+					const textChange = change.diff.get().changes[indexInCell];
+					const cellViewModel = this.getCellViewModel(change);
+					if (cellViewModel) {
+						this.revealChangeInView(cellViewModel, textChange.modified);
+						this._currentChange.set({ change: change, index: indexInCell }, undefined);
 					}
 
 					return true;
@@ -347,7 +388,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 	}
 
 	private async revealChangeInView(cell: ICellViewModel, lines: LineRange): Promise<void> {
-		await this.notebookEditor.focusNotebookCell(cell, 'editor', { focusEditorLine: lines.startLineNumber });
+		await this.notebookEditor.focusNotebookCell(cell, 'container', { focusEditorLine: lines.startLineNumber });
 		await this.notebookEditor.revealRangeInCenterAsync(cell, new Range(lines.startLineNumber, 0, lines.endLineNumberExclusive, 0));
 	}
 
@@ -358,7 +399,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			const firstChange = changes[0];
 
 			if (firstChange) {
-				return this._revealChange(firstChange);
+				return this._revealFirstOrLast(firstChange);
 			}
 
 			return false;
@@ -377,9 +418,12 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 						}
 					}
 
-					const nextChange = changes[changes.indexOf(currentChange.change) + 1];
-					if (nextChange) {
-						return this._revealChange(nextChange, true);
+					const isLastChangeInCell = currentChange.index === lastChangeIndex(currentChange.change);
+					const index = isLastChangeInCell ? 0 : currentChange.index + 1;
+					const change = isLastChangeInCell ? changes[changes.indexOf(currentChange.change) + 1] : currentChange.change;
+
+					if (change) {
+						return this._revealChange(change, index);
 					}
 				}
 				break;
@@ -389,7 +433,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 					// go to next change directly
 					const nextChange = changes[changes.indexOf(currentChange.change) + 1];
 					if (nextChange) {
-						return this._revealChange(nextChange, true);
+						return this._revealFirstOrLast(nextChange, true);
 					}
 				}
 				break;
@@ -410,7 +454,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 		if (!currentChange) {
 			const lastChange = changes[changes.length - 1];
 			if (lastChange) {
-				return this._revealChange(lastChange, false);
+				return this._revealFirstOrLast(lastChange, false);
 			}
 
 			return false;
@@ -429,9 +473,12 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 						}
 					}
 
-					const nextChange = changes[changes.indexOf(currentChange.change) - 1];
-					if (nextChange) {
-						return this._revealChange(nextChange, false);
+					const isFirstChangeInCell = currentChange.index === 0;
+					const index = isFirstChangeInCell ? 0 : currentChange.index - 1;
+					const change = isFirstChangeInCell ? changes[changes.indexOf(currentChange.change) - 1] : currentChange.change;
+
+					if (change) {
+						return this._revealChange(change, index);
 					}
 				}
 				break;
@@ -441,7 +488,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 					// go to previous change directly
 					const prevChange = changes[changes.indexOf(currentChange.change) - 1];
 					if (prevChange) {
-						return this._revealChange(prevChange, false);
+						return this._revealFirstOrLast(prevChange, false);
 					}
 				}
 				break;
@@ -452,7 +499,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 		if (wrap) {
 			const lastChange = changes[changes.length - 1];
 			if (lastChange) {
-				return this._revealChange(lastChange, false);
+				return this._revealFirstOrLast(lastChange, false);
 			}
 		}
 
@@ -585,4 +632,11 @@ function areDocumentDiff2Equal(diff1: IDocumentDiff2, diff2: IDocumentDiff2): bo
 		return false;
 	}
 	return true;
+}
+
+function lastChangeIndex(change: ICellDiffInfo): number {
+	if (change.type === 'modified') {
+		return change.diff.get().changes.length - 1;
+	}
+	return 0;
 }
