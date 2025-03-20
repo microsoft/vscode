@@ -18,6 +18,8 @@ const searchParams = new URL(location.toString()).searchParams;
 
 const remoteAuthority = searchParams.get('remoteAuthority');
 
+const ID = searchParams.get('id');
+
 /**
  * Origin used for resources
  */
@@ -233,12 +235,19 @@ sw.addEventListener('activate', (event) => {
  */
 async function processResourceRequest(event, requestUrlComponents) {
 	const client = await sw.clients.get(event.clientId);
+	let webviewId;
 	if (!client) {
-		console.error('Could not find inner client for request');
-		return notFound();
+		const workerClient = getWorkerClientForId(event.clientId);
+		if (!workerClient) {
+			console.error('Could not find inner client for request');
+			return notFound();
+		} else {
+			webviewId = ID;
+		}
+	} else {
+		webviewId = getWebviewIdForClient(client);
 	}
 
-	const webviewId = getWebviewIdForClient(client);
 	if (!webviewId) {
 		console.error('Could not resolve webview id');
 		return notFound();
@@ -453,5 +462,18 @@ async function getOuterIframeClient(webviewId) {
 		const clientUrl = new URL(client.url);
 		const hasExpectedPathName = (clientUrl.pathname === `${rootPath}/` || clientUrl.pathname === `${rootPath}/index.html` || clientUrl.pathname === `${rootPath}/index-no-csp.html`);
 		return hasExpectedPathName && clientUrl.searchParams.get('id') === webviewId;
+	});
+}
+
+/**
+ * @param {string} clientId
+ * @returns {Promise<Client|undefined>}
+ */
+async function getWorkerClientForId(clientId) {
+	const allDedicatedWorkerClients = await sw.clients.matchAll({ type: 'worker' });
+	const allSharedWorkerClients = await sw.clients.matchAll({ type: 'sharedworker' });
+	const allWorkerClients = [...allDedicatedWorkerClients, ...allSharedWorkerClients];
+	return allWorkerClients.find(client => {
+		return client.id === clientId;
 	});
 }
