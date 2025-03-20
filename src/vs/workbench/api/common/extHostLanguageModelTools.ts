@@ -15,7 +15,7 @@ import { IPreparedToolInvocation, isToolInvocationContext, IToolInvocation, IToo
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { ExtHostLanguageModelToolsShape, IMainContext, IToolDataDto, MainContext, MainThreadLanguageModelToolsShape } from './extHost.protocol.js';
 import * as typeConvert from './extHostTypeConverters.js';
-import { IToolInputProcessor } from '../../contrib/chat/common/tools/tools.js';
+import { InternalFetchWebPageToolId, IToolInputProcessor } from '../../contrib/chat/common/tools/tools.js';
 import { EditToolData, InternalEditToolId, EditToolInputProcessor, ExtensionEditToolId } from '../../contrib/chat/common/tools/editFileTool.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
 
@@ -94,11 +94,14 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		return Array.from(this._allTools.values())
 			.map(tool => typeConvert.LanguageModelToolDescription.to(tool))
 			.filter(tool => {
-				if (tool.name === InternalEditToolId || tool.name === ExtensionEditToolId) {
-					return isProposedApiEnabled(extension, 'chatParticipantPrivate');
+				switch (tool.name) {
+					case InternalEditToolId:
+					case ExtensionEditToolId:
+					case InternalFetchWebPageToolId:
+						return isProposedApiEnabled(extension, 'chatParticipantPrivate');
+					default:
+						return true;
 				}
-
-				return true;
 			});
 	}
 
