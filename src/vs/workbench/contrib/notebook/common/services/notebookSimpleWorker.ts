@@ -6,7 +6,7 @@ import { IDiffChange, ISequence, LcsDiff } from '../../../../../base/common/diff
 import { doHash, hash, numberHash } from '../../../../../base/common/hash.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IRequestHandler, IWorkerServer } from '../../../../../base/common/worker/simpleWorker.js';
+import { IRequestHandler } from '../../../../../base/common/worker/simpleWorker.js';
 import { PieceTreeTextBufferBuilder } from '../../../../../editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder.js';
 import { CellKind, IMainCellDto, INotebookDiffResult, IOutputDto, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellTextModelSplice, NotebookDocumentMetadata, TransientDocumentMetadata } from '../notebookCommon.js';
 import { Range } from '../../../../../editor/common/core/range.js';
@@ -521,11 +521,7 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 	}
 }
 
-/**
- * Defines the worker entry point. Must be exported and named `create`.
- * @skipMangle
- */
-export function create(workerServer: IWorkerServer): IRequestHandler {
+export function create(): IRequestHandler {
 	return new NotebookEditorSimpleWorker();
 }
 
