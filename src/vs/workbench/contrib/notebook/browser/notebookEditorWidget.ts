@@ -2303,6 +2303,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	changeViewZones(callback: (accessor: INotebookViewZoneChangeAccessor) => void): void {
 		this._list.changeViewZones(callback);
 	}
+
+	getViewZoneLayoutInfo(id: string): { top: number; height: number } | null {
+		return this._list.getViewZoneLayoutInfo(id);
+	}
 	//#endregion
 
 	//#region Kernel/Execution

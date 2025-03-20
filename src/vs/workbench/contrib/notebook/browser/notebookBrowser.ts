@@ -332,10 +332,32 @@ export interface INotebookCellDecorationOptions {
 	};
 }
 
-export interface INotebookDeltaDecoration {
+export interface INotebookViewZoneDecorationOptions {
+	overviewRuler?: {
+		color: string;
+		position: NotebookOverviewRulerLane;
+	};
+}
+
+export interface INotebookDeltaCellDecoration {
 	readonly handle: number;
 	readonly options: INotebookCellDecorationOptions;
 }
+
+export interface INotebookDeltaViewZoneDecoration {
+	readonly viewZoneId: string;
+	readonly options: INotebookViewZoneDecorationOptions;
+}
+
+export function isNotebookCellDecoration(obj: unknown): obj is INotebookDeltaCellDecoration {
+	return !!obj && typeof (obj as INotebookDeltaCellDecoration).handle === 'number';
+}
+
+export function isNotebookViewZoneDecoration(obj: unknown): obj is INotebookDeltaViewZoneDecoration {
+	return !!obj && typeof (obj as INotebookDeltaViewZoneDecoration).viewZoneId === 'string';
+}
+
+export type INotebookDeltaDecoration = INotebookDeltaCellDecoration | INotebookDeltaViewZoneDecoration;
 
 export interface INotebookDeltaCellStatusBarItems {
 	readonly handle: number;
@@ -464,6 +486,7 @@ export interface INotebookViewModel {
 	getNearestVisibleCellIndexUpwards(index: number): number;
 	getTrackedRange(id: string): ICellRange | null;
 	setTrackedRange(id: string | null, newRange: ICellRange | null, newStickiness: TrackedRangeStickiness): string | null;
+	getOverviewRulerDecorations(): INotebookDeltaViewZoneDecoration[];
 	getSelections(): ICellRange[];
 	getCellIndex(cell: ICellViewModel): number;
 	getMostRecentlyExecutedCell(): ICellViewModel | undefined;
@@ -736,6 +759,8 @@ export interface INotebookEditor {
 	changeModelDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null;
 
 	changeViewZones(callback: (accessor: INotebookViewZoneChangeAccessor) => void): void;
+
+	getViewZoneLayoutInfo(id: string): { top: number; height: number } | null;
 
 	/**
 	 * Get a contribution of this editor.

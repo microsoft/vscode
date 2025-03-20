@@ -32,7 +32,11 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 	) {
 		super();
 
-		const patterns = [{ pattern: '**/.vscode/mcp.json' }, { pattern: '**/settings.json' }];
+		const patterns = [
+			{ pattern: '**/.vscode/mcp.json' },
+			{ pattern: '**/settings.json' },
+			{ pattern: '**/workspace.json' },
+		];
 
 		const onDidChangeCodeLens = this._register(new Emitter<CodeLensProvider>());
 		const codeLensProvider: CodeLensProvider = {
@@ -61,13 +65,13 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 	}
 
 	private async _provideCodeLenses(model: ITextModel, onDidChangeCodeLens: () => void): Promise<CodeLensList | undefined> {
-		const inConfig = this._mcpConfigPathsService.paths.find(u => isEqual(u.uri, model.uri));
+		const inConfig = this._mcpConfigPathsService.paths.get().find(u => isEqual(u.uri, model.uri));
 		if (!inConfig) {
 			return undefined;
 		}
 
 		const tree = this._parseModel(model);
-		const serversNode = findNodeAtLocation(tree, inConfig.section ? [inConfig.section, 'servers'] : ['servers']);
+		const serversNode = findNodeAtLocation(tree, inConfig.section ? [...inConfig.section, 'servers'] : ['servers']);
 		if (!serversNode) {
 			return undefined;
 		}
@@ -182,13 +186,13 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 	}
 
 	private async _provideInlayHints(model: ITextModel, range: Range): Promise<InlayHintList | undefined> {
-		const inConfig = this._mcpConfigPathsService.paths.find(u => isEqual(u.uri, model.uri));
+		const inConfig = this._mcpConfigPathsService.paths.get().find(u => isEqual(u.uri, model.uri));
 		if (!inConfig) {
 			return undefined;
 		}
 
 		const tree = this._parseModel(model);
-		const mcpSection = inConfig.section ? findNodeAtLocation(tree, [inConfig.section]) : tree;
+		const mcpSection = inConfig.section ? findNodeAtLocation(tree, [...inConfig.section]) : tree;
 		if (!mcpSection) {
 			return undefined;
 		}

@@ -81,7 +81,7 @@ export abstract class FilesystemMpcDiscovery extends Disposable implements IMcpD
 				serverDefinitions: observableValue<readonly McpServerDefinition[]>(this, []),
 				presentation: {
 					origin: file,
-					order: adapter.order + (adapter.remoteAuthority ? McpCollectionSortOrder.RemotePenalty : 0),
+					order: adapter.order + (adapter.remoteAuthority ? McpCollectionSortOrder.RemoteBoost : 0),
 				},
 			} satisfies McpCollectionDefinition;
 
