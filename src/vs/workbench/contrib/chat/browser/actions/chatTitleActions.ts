@@ -273,7 +273,12 @@ export function registerChatTitleActions() {
 			const request = chatModel?.getRequests().find(candidate => candidate.id === item.requestId);
 			const languageModelId = widget?.input.currentLanguageModel;
 			const userSelectedTools = widget?.input.currentMode === ChatMode.Agent ? widget.input.selectedToolsModel.tools.get().map(tool => tool.id) : undefined;
-			chatService.resendRequest(request!, { userSelectedModelId: languageModelId, userSelectedTools, attempt: (request?.attempt ?? -1) + 1 });
+			chatService.resendRequest(request!, {
+				userSelectedModelId: languageModelId,
+				userSelectedTools,
+				attempt: (request?.attempt ?? -1) + 1,
+				mode: widget?.input.currentMode,
+			});
 		}
 	});
 
