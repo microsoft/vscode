@@ -367,7 +367,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 				} else if (this._continuationPrompt === undefined || this._lineContainsContinuationPrompt(lineText)) {
 					value += `\n${this._trimContinuationPrompt(lineText)}`;
 				} else {
-					value += `${lineText}`;
+					value += lineText;
 				}
 			} else {
 				break;
