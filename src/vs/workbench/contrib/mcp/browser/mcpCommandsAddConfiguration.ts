@@ -357,13 +357,13 @@ export class McpAddConfigurationCommand {
 
 	public async pickForUrlHandler(resource: URI, config: McpConfigurationServer): Promise<void> {
 		const name = decodeURIComponent(basename(resource)).replace(/\.json$/, '');
-		const title = localize('install.title', 'Install MCP server {0}', name);
+		const placeHolder = localize('install.title', 'Install MCP server {0}', name);
 		const pick = await this._quickInputService.pick([
 			{ id: 'show', label: localize('install.show', 'Show Configuration', name) },
 			{ id: 'install', label: localize('install.start', 'Install Server'), description: localize('install.description', 'Install in your user settings') },
 			{ id: 'rename', label: localize('install.rename', 'Rename "{0}"', name) },
 			{ id: 'cancel', label: localize('cancel', 'Cancel') },
-		], { title, ignoreFocusLost: true });
+		], { placeHolder, ignoreFocusLost: true });
 		switch (pick?.id) {
 			case 'show': {
 				await this._editorService.openEditor({ resource });
@@ -378,7 +378,7 @@ export class McpAddConfigurationCommand {
 				break;
 			}
 			case 'rename': {
-				const newName = await this._quickInputService.input({ title, placeHolder: localize('install.newName', 'Enter new name'), value: name });
+				const newName = await this._quickInputService.input({ placeHolder: localize('install.newName', 'Enter new name'), value: name });
 				if (newName) {
 					return this.pickForUrlHandler(resource.with({ path: `/${encodeURIComponent(newName)}.json` }), config);
 				}
