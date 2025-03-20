@@ -1855,14 +1855,24 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 	}
 
 
-	deltaCellContainerClassNames(cellId: string, added: string[], removed: string[]) {
+	deltaCellOutputContainerClassNames(cellId: string, added: string[], removed: string[]) {
 		this._sendMessageToWebview({
 			type: 'decorations',
 			cellId,
 			addedClassNames: added,
 			removedClassNames: removed
 		});
+	}
 
+	deltaMarkupPreviewClassNames(cellId: string, added: string[], removed: string[]) {
+		if (this.markupPreviewMapping.get(cellId)) {
+			this._sendMessageToWebview({
+				type: 'markupDecorations',
+				cellId,
+				addedClassNames: added,
+				removedClassNames: removed
+			});
+		}
 	}
 
 	updateOutputRenderers() {
