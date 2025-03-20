@@ -131,10 +131,9 @@ export class ScreenReaderSupport {
 			return;
 		}
 
-		const offsetForStartPositionWithinEditor = this._context.viewLayout.getVerticalOffsetForLineNumber(this._screenReaderContentState.startPositionWithinEditor.lineNumber);
-		const offsetForPositionLineNumber = this._context.viewLayout.getVerticalOffsetForLineNumber(positionLineNumber);
-		const scrollTop = offsetForPositionLineNumber - offsetForStartPositionWithinEditor;
 		const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(positionLineNumber);
+		const lineNumberWithinState = positionLineNumber - this._screenReaderContentState.startPositionWithinEditor.lineNumber;
+		const scrollTop = lineNumberWithinState * lineHeight;
 		this._doRender(scrollTop, top, this._contentLeft, this._divWidth, lineHeight);
 	}
 
