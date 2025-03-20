@@ -703,6 +703,10 @@ export class ChatAgentNameService implements IChatAgentNameService {
 	 * Returns true if the agent is allowed to use this name
 	 */
 	getAgentNameRestriction(chatAgentData: IChatAgentData): boolean {
+		if (chatAgentData.isCore) {
+			return true; // core agents are always allowed to use any name
+		}
+
 		// TODO would like to use observables here but nothing uses it downstream and I'm not sure how to combine these two
 		const nameAllowed = this.checkAgentNameRestriction(chatAgentData.name, chatAgentData).get();
 		const fullNameAllowed = !chatAgentData.fullName || this.checkAgentNameRestriction(chatAgentData.fullName.replace(/\s/g, ''), chatAgentData).get();
