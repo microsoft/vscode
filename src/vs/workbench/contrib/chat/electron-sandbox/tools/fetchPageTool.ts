@@ -59,14 +59,14 @@ export class FetchWebPageTool implements IToolImpl {
 
 		const contents = await this._readerModeService.extract(validUris);
 		// Make an array that contains either the content or undefined for invalid URLs
-		const contentsWithUndefined = new Map<string, string | undefined>();
+		const contentsWithUndefined: (string | undefined)[] = [];
 		let indexInContents = 0;
-		parsedUriResults.forEach((uri, url) => {
+		parsedUriResults.forEach((uri) => {
 			if (uri) {
-				contentsWithUndefined.set(url, contents[indexInContents]);
+				contentsWithUndefined.push(contents[indexInContents]);
 				indexInContents++;
 			} else {
-				contentsWithUndefined.set(url, undefined);
+				contentsWithUndefined.push(undefined);
 			}
 		});
 
@@ -154,21 +154,10 @@ export class FetchWebPageTool implements IToolImpl {
 		return results;
 	}
 
-	private _getPromptPartsForResults(results: Map<string, string | undefined>): IToolResultTextPart[] {
-		const arr = new Array<IToolResultTextPart>();
-		for (const [url, content] of results.entries()) {
-			if (content) {
-				arr.push({
-					kind: 'text',
-					value: `<!-- ${url} -->\n\n` + content
-				});
-			} else {
-				arr.push({
-					kind: 'text',
-					value: `<!-- ${url} -->\n\n` + localize('fetchWebPage.invalidUrl', 'Invalid URL')
-				});
-			}
-		}
-		return arr;
+	private _getPromptPartsForResults(results: (string | undefined)[]): IToolResultTextPart[] {
+		return results.map(value => ({
+			kind: 'text',
+			value: value || localize('fetchWebPage.invalidUrl', 'Invalid URL')
+		}));
 	}
 }
