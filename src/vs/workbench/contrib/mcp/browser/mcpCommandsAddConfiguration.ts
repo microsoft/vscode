@@ -34,6 +34,7 @@ const enum AddConfigurationType {
 
 	NpmPackage,
 	PipPackage,
+	DockerImage,
 }
 
 const enum AddConfigurationCopilotCommand {
@@ -83,7 +84,8 @@ export class McpAddConfigurationCommand {
 			items.push(
 				{ type: 'separator', label: localize('mcp.serverType.copilot', "Model-Assisted") },
 				{ kind: AddConfigurationType.NpmPackage, label: localize('mcp.serverType.npm', "NPM Package"), description: localize('mcp.serverType.npm.description', "Install from an NPM package name") },
-				{ kind: AddConfigurationType.PipPackage, label: localize('mcp.serverType.pip', "PIP Package"), description: localize('mcp.serverType.pip.description', "Install from a PIP package name") }
+				{ kind: AddConfigurationType.PipPackage, label: localize('mcp.serverType.pip', "PIP Package"), description: localize('mcp.serverType.pip.description', "Install from a PIP package name") },
+				{ kind: AddConfigurationType.DockerImage, label: localize('mcp.serverType.docker', "Docker Image"), description: localize('mcp.serverType.docker.description', "Install from a Docker image") }
 			);
 		}
 
@@ -173,10 +175,14 @@ export class McpAddConfigurationCommand {
 			ignoreFocusLost: true,
 			title: type === AddConfigurationType.NpmPackage
 				? localize('mcp.npm.title', "Enter NPM Package Name")
-				: localize('mcp.pip.title', "Enter Pip Package Name"),
+				: type === AddConfigurationType.PipPackage
+					? localize('mcp.pip.title', "Enter Pip Package Name")
+					: localize('mcp.docker.title', "Enter Docker Image Name"),
 			placeHolder: type === AddConfigurationType.NpmPackage
 				? localize('mcp.npm.placeholder', "Package name (e.g., @org/package)")
-				: localize('mcp.pip.placeholder', "Package name (e.g., package-name)")
+				: type === AddConfigurationType.PipPackage
+					? localize('mcp.pip.placeholder', "Package name (e.g., package-name)")
+					: localize('mcp.docker.placeholder', "Image name (e.g., mcp/imagename)")
 		});
 
 		if (!packageName) {
@@ -195,10 +201,16 @@ export class McpAddConfigurationCommand {
 		loadingQuickPick.busy = true;
 		loadingQuickPick.ignoreFocusOut = true;
 
+		const packageType = type === AddConfigurationType.NpmPackage
+			? 'npm'
+			: type === AddConfigurationType.PipPackage
+				? 'pip'
+				: 'docker';
+
 		this._commandService.executeCommand<ValidatePackageResult>(
 			AddConfigurationCopilotCommand.ValidatePackage,
 			{
-				type: type === AddConfigurationType.NpmPackage ? 'npm' : 'pip',
+				type: packageType,
 				name: packageName,
 				targetConfig: {
 					...mcpStdioServerSchema,
@@ -244,7 +256,10 @@ export class McpAddConfigurationCommand {
 
 		const configWithName = await this._commandService.executeCommand<McpConfigurationServer & { name: string }>(
 			AddConfigurationCopilotCommand.StartFlow,
-			{ name: packageName }
+			{
+				name: packageName,
+				type: packageType
+			}
 		);
 
 		if (!configWithName) {
@@ -313,6 +328,12 @@ export class McpAddConfigurationCommand {
 			}
 			case AddConfigurationType.PipPackage: {
 				const r = await this.getAssistedConfig(AddConfigurationType.PipPackage);
+				serverConfig = r?.config;
+				suggestedName = r?.name;
+				break;
+			}
+			case AddConfigurationType.DockerImage: {
+				const r = await this.getAssistedConfig(AddConfigurationType.DockerImage);
 				serverConfig = r?.config;
 				suggestedName = r?.name;
 				break;
