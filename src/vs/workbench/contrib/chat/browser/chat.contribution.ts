@@ -216,6 +216,14 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.focusWindowOnConfirmation', "Controls whether the Copilot window should be focused when a confirmation is needed."),
 			default: true,
 		},
+		'chat.tools.autoApprove': {
+			default: false,
+			description: nls.localize('chat.tools.autoApprove', "Controls whether tool use should be automatically approved ('YOLO mode'). Can be set to `true`, or an array of tool names to automatically approve."),
+			oneOf: [
+				{ type: 'boolean' },
+				{ type: 'array', items: { type: 'string' } }
+			],
+		},
 		[mcpConfigurationSection]: {
 			type: 'object',
 			default: {

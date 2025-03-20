@@ -95,6 +95,7 @@ export class McpService extends Disposable implements IMcpService {
 			const toDelete = new Set(tools.keys());
 			for (const tool of server.tools.read(reader)) {
 				const existing = tools.get(tool.id);
+				const collection = this._mcpRegistry.collections.get().find(c => c.id === server.collection.id);
 				const toolData: IToolData = {
 					id: tool.id,
 					displayName: tool.definition.name,
@@ -103,6 +104,7 @@ export class McpService extends Disposable implements IMcpService {
 					userDescription: tool.definition.description ?? '',
 					inputSchema: tool.definition.inputSchema,
 					canBeReferencedInPrompt: true,
+					runsInWorkspace: collection?.scope === StorageScope.WORKSPACE || !!collection?.remoteAuthority,
 					tags: ['mcp', 'vscode_editing'], // TODO@jrieken remove this tag
 				};
 
