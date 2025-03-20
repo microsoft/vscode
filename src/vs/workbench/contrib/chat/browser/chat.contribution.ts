@@ -211,6 +211,11 @@ configurationRegistry.registerConfiguration({
 			default: product.quality !== 'stable',
 			tags: ['experimental', 'onExp']
 		},
+		'chat.focusWindowOnConfirmation': {
+			type: 'boolean',
+			description: nls.localize('chat.focusWindowOnConfirmation', "Controls whether the Copilot window should be focused when a confirmation is needed."),
+			default: true,
+		},
 		[mcpConfigurationSection]: {
 			type: 'object',
 			default: {

@@ -16,6 +16,8 @@ import { autorun, observableValue } from '../../../../../base/common/observable.
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IHostService } from '../../../../services/host/browser/host.js';
 
 export interface IChatConfirmationButton {
 	label: string;
@@ -50,6 +52,8 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 		expandableMessage: boolean,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IHostService private readonly _hostService: IHostService,
 	) {
 		super();
 
@@ -116,6 +120,13 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 
 	protected renderMessage(element: HTMLElement): void {
 		this.messageElement.append(element);
+
+		if (this._configurationService.getValue<boolean>('chat.focusWindowOnConfirmation')) {
+			const targetWindow = dom.getWindow(element);
+			if (!targetWindow.document.hasFocus()) {
+				this._hostService.focus(targetWindow, { force: true /* Application may not be active */ });
+			}
+		}
 	}
 }
 
@@ -126,8 +137,10 @@ export class ChatConfirmationWidget extends BaseChatConfirmationWidget {
 		buttons: IChatConfirmationButton[],
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IHostService hostService: IHostService,
 	) {
-		super(title, buttons, false, instantiationService, contextMenuService);
+		super(title, buttons, false, instantiationService, contextMenuService, configurationService, hostService);
 
 		const renderedMessage = this._register(this.markdownRenderer.render(
 			typeof this.message === 'string' ? new MarkdownString(this.message) : this.message,
@@ -145,8 +158,10 @@ export class ChatCustomConfirmationWidget extends BaseChatConfirmationWidget {
 		buttons: IChatConfirmationButton[],
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IHostService hostService: IHostService,
 	) {
-		super(title, buttons, messageElementIsExpandable, instantiationService, contextMenuService);
+		super(title, buttons, messageElementIsExpandable, instantiationService, contextMenuService, configurationService, hostService);
 		this.renderMessage(messageElement);
 	}
 }
