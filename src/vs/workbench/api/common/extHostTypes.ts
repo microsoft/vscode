@@ -1864,6 +1864,7 @@ export enum PartialAcceptTriggerKind {
 	Word = 1,
 	Line = 2,
 	Suggest = 3,
+	Full = 4,
 }
 
 export enum ViewColumn {

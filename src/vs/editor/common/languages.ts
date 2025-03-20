@@ -677,6 +677,7 @@ export const enum PartialAcceptTriggerKind {
 	Word = 0,
 	Line = 1,
 	Suggest = 2,
+	Full = 3,
 }
 
 /**

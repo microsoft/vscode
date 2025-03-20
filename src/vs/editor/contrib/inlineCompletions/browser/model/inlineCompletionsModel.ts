@@ -45,6 +45,7 @@ import { SuggestItemInfo } from './suggestWidgetAdapter.js';
 export class InlineCompletionsModel extends Disposable {
 	private readonly _source = this._register(this._instantiationService.createInstance(InlineCompletionsSource, this.textModel, this._textModelVersionId, this._debounceValue));
 	private readonly _isActive = observableValue<boolean>(this, false);
+	private readonly _isAcceptingFully = observableValue<boolean>(this, false);
 	private readonly _onlyRequestInlineEditsSignal = observableSignal(this);
 	private readonly _forceUpdateExplicitlySignal = observableSignal(this);
 	private readonly _noDelaySignal = observableSignal(this);
@@ -86,6 +87,7 @@ export class InlineCompletionsModel extends Disposable {
 			/** @description call handleItemDidShow */
 			const item = this.inlineCompletionState.read(reader);
 			const completion = item?.inlineCompletion;
+			if (this._isAcceptingFully.read(reader)) { return; }
 			if (completion?.semanticId !== lastItem?.semanticId) {
 				lastItem = completion;
 				if (completion) {
@@ -646,7 +648,7 @@ export class InlineCompletionsModel extends Disposable {
 
 	public async previous(): Promise<void> { await this._deltaSelectedInlineCompletionIndex(-1); }
 
-	public async accept(editor: ICodeEditor = this._editor): Promise<void> {
+	public async accept(editor: ICodeEditor = this._editor, kind = PartialAcceptTriggerKind.Full): Promise<void> {
 		if (editor.getModel() !== this.textModel) {
 			throw new BugIndicatingError();
 		}
@@ -673,47 +675,59 @@ export class InlineCompletionsModel extends Disposable {
 
 		const completion = completionWithUpdatedRange.toInlineCompletion(undefined);
 
-		if (completion.command) {
-			// Make sure the completion list will not be disposed.
-			completion.source.addRef();
-		}
 
-		editor.pushUndoStop();
-		if (completion.snippetInfo) {
-			editor.executeEdits(
-				'inlineSuggestion.accept',
-				[
-					EditOperation.replace(completion.range, ''),
+		completion.source.addRef();
+
+		try {
+			this._isAcceptingFully.set(true, undefined);
+			editor.pushUndoStop();
+			if (completion.snippetInfo) {
+				editor.executeEdits(
+					'inlineSuggestion.accept',
+					[
+						EditOperation.replace(completion.range, ''),
+						...completion.additionalTextEdits
+					]
+				);
+				editor.setPosition(completion.snippetInfo.range.getStartPosition(), 'inlineCompletionAccept');
+				SnippetController2.get(editor)?.insert(completion.snippetInfo.snippet, { undoStopBefore: false });
+			} else {
+				const edits = state.edits;
+				const selections = getEndPositionsAfterApplying(edits).map(p => Selection.fromPositions(p));
+				editor.executeEdits('inlineSuggestion.accept', [
+					...edits.map(edit => EditOperation.replace(edit.range, edit.text)),
 					...completion.additionalTextEdits
-				]
-			);
-			editor.setPosition(completion.snippetInfo.range.getStartPosition(), 'inlineCompletionAccept');
-			SnippetController2.get(editor)?.insert(completion.snippetInfo.snippet, { undoStopBefore: false });
-		} else {
-			const edits = state.edits;
-			const selections = getEndPositionsAfterApplying(edits).map(p => Selection.fromPositions(p));
-			editor.executeEdits('inlineSuggestion.accept', [
-				...edits.map(edit => EditOperation.replace(edit.range, edit.text)),
-				...completion.additionalTextEdits
-			]);
-			editor.setSelections(state.kind === 'inlineEdit' ? selections.slice(-1) : selections, 'inlineCompletionAccept');
+				]);
+				editor.setSelections(state.kind === 'inlineEdit' ? selections.slice(-1) : selections, 'inlineCompletionAccept');
 
-			if (state.kind === 'inlineEdit' && !this._accessibilityService.isMotionReduced()) {
-				// we can assume that edits is sorted!
-				const editRanges = new TextEdit(edits).getNewRanges();
-				const dec = this._store.add(new FadeoutDecoration(editor, editRanges, () => {
-					this._store.delete(dec);
-				}));
+				if (state.kind === 'inlineEdit' && !this._accessibilityService.isMotionReduced()) {
+					// we can assume that edits is sorted!
+					const editRanges = new TextEdit(edits).getNewRanges();
+					const dec = this._store.add(new FadeoutDecoration(editor, editRanges, () => {
+						this._store.delete(dec);
+					}));
+				}
 			}
-		}
 
-		// Reset before invoking the command, as the command might cause a follow up trigger (which we don't want to reset).
-		this.stop();
+			const text = editor.getModel()!.getValueInRange(Range.fromPositions(completion.range.getStartPosition(), TextLength.ofText(completion.insertText).addToPosition(completion.range.getStartPosition())), EndOfLinePreference.LF);
+			const acceptedLength = text.length;
+			completion.source.provider.handlePartialAccept?.(
+				completion.source.inlineCompletions,
+				completion.sourceInlineCompletion,
+				acceptedLength,
+				{ kind, acceptedLength, }
+			);
 
-		if (completion.command) {
-			await this._commandService
-				.executeCommand(completion.command.id, ...(completion.command.arguments || []))
-				.then(undefined, onUnexpectedExternalError);
+			// Reset before invoking the command, as the command might cause a follow up trigger (which we don't want to reset).
+			this.stop();
+
+			if (completion.command) {
+				await this._commandService
+					.executeCommand(completion.command.id, ...(completion.command.arguments || []))
+					.then(undefined, onUnexpectedExternalError);
+			}
+		} finally {
+			this._isAcceptingFully.set(false, undefined);
 			completion.source.removeRef();
 		}
 
@@ -774,7 +788,7 @@ export class InlineCompletionsModel extends Disposable {
 
 		if (completion.snippetInfo || completion.filterText !== completion.insertText) {
 			// not in WYSIWYG mode, partial commit might change completion, thus it is not supported
-			await this.accept(editor);
+			await this.accept(editor, kind);
 			return;
 		}
 
@@ -783,7 +797,7 @@ export class InlineCompletionsModel extends Disposable {
 		const ghostTextVal = firstPart.text;
 		const acceptUntilIndexExclusive = getAcceptUntilIndex(ghostTextPos, ghostTextVal);
 		if (acceptUntilIndexExclusive === ghostTextVal.length && ghostText.parts.length === 1) {
-			this.accept(editor);
+			this.accept(editor, kind);
 			return;
 		}
 		const partialGhostTextVal = ghostTextVal.substring(0, acceptUntilIndexExclusive);

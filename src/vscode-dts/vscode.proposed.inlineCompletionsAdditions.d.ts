@@ -116,6 +116,7 @@ declare module 'vscode' {
 		Word = 1,
 		Line = 2,
 		Suggest = 3,
+		Full = 4,
 	}
 
 	// When finalizing `commands`, make sure to add a corresponding constructor parameter.

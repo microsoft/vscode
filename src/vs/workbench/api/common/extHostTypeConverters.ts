@@ -3151,6 +3151,8 @@ export namespace PartialAcceptTriggerKind {
 				return types.PartialAcceptTriggerKind.Line;
 			case languages.PartialAcceptTriggerKind.Suggest:
 				return types.PartialAcceptTriggerKind.Suggest;
+			case languages.PartialAcceptTriggerKind.Full:
+				return types.PartialAcceptTriggerKind.Full;
 			default:
 				return types.PartialAcceptTriggerKind.Unknown;
 		}
