@@ -70,7 +70,7 @@ interface IPromptReferenceBase extends IDisposable {
 
 	/**
 	 * The full range of the prompt reference in the source text,
-	 * including the {@linkcode linkRange} and any additional
+	 * including the {@link linkRange} and any additional
 	 * parts the reference may contain (e.g., the `#file:` prefix).
 	 */
 	readonly range: Range;
@@ -100,7 +100,7 @@ interface IPromptReferenceBase extends IDisposable {
 	 * The `undefined` means that no attempt to resolve the reference
 	 * was made so far or such an attempt is still in progress.
 	 *
-	 * See also {@linkcode errorCondition}.
+	 * See also {@link errorCondition}.
 	 */
 	readonly resolveFailed: boolean | undefined;
 
@@ -108,7 +108,7 @@ interface IPromptReferenceBase extends IDisposable {
 	 * If failed to resolve the reference this property contains
 	 * an error object that describes the failure reason.
 	 *
-	 * See also {@linkcode resolveFailed}.
+	 * See also {@link resolveFailed}.
 	 */
 	readonly errorCondition: ResolveError | undefined;
 
@@ -161,14 +161,14 @@ interface IPromptReferenceBase extends IDisposable {
 	 * and contents for all possible nested child references are
 	 * completely parsed and entire tree of references is built.
 	 *
-	 * The same as {@linkcode settled} but for all prompts in
+	 * The same as {@link settled} but for all prompts in
 	 * the reference tree.
 	 */
 	allSettled(): Promise<this>;
 }
 
 /**
- * The special case of the {@linkcode IPromptReferenceBase} that pertains
+ * The special case of the {@link IPromptReferenceBase} that pertains
  * to a file resource on the disk.
  */
 export interface IPromptFileReference extends IPromptReferenceBase {

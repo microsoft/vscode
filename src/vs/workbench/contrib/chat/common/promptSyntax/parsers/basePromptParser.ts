@@ -34,7 +34,7 @@ export type TErrorCondition = OpenFailed | RecursiveReference | FolderReference 
  * Base prompt parser class that provides a common interface for all
  * prompt parsers that are responsible for parsing chat prompt syntax.
  */
-export class BasePromptParser<T extends IPromptContentsProvider> extends ObservableDisposable {
+export class BasePromptParser<TContentsProvider extends IPromptContentsProvider> extends ObservableDisposable {
 	/**
 	 * List of file references in the current branch of the file reference tree.
 	 */
@@ -55,6 +55,10 @@ export class BasePromptParser<T extends IPromptContentsProvider> extends Observa
 		return this;
 	}
 
+	/**
+	 * If failed to parse prompt contents, this property has
+	 * an error object that describes the failure reason.
+	 */
 	private _errorCondition?: ResolveError;
 
 	/**
@@ -131,20 +135,14 @@ export class BasePromptParser<T extends IPromptContentsProvider> extends Observa
 	}
 
 	constructor(
-		private readonly promptContentsProvider: T,
+		private readonly promptContentsProvider: TContentsProvider,
 		seenReferences: string[] = [],
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@ILogService protected readonly logService: ILogService,
 	) {
 		super();
 
-		/**
-		 * TODO: @legomushroom - subscribe to `onDispose` event of the contents provider?
-		 */
-		// promptContentsProvider
-
 		this._onUpdate.fire = this._onUpdate.fire.bind(this._onUpdate);
-		this._register(promptContentsProvider);
 
 		// to prevent infinite file recursion, we keep track of all references in
 		// the current branch of the file reference tree and check if the current
@@ -176,6 +174,9 @@ export class BasePromptParser<T extends IPromptContentsProvider> extends Observa
 				this.firstParseResult.complete();
 			}),
 		);
+
+		// dispose self when contents provider is disposed
+		this.promptContentsProvider.onDispose(this.dispose.bind(this));
 	}
 
 	/**
@@ -532,36 +533,23 @@ export class BasePromptParser<T extends IPromptContentsProvider> extends Observa
 }
 
 /**
- * TODO: @legomushroom
- */
-export type TPromptReference = FileReference | MarkdownLink;
-
-/**
- * TODO: @legomushroom
+ * Prompt reference object represents any reference inside prompt text
+ * contents. For instance the file variable(`#file:/path/to/file.md`) or
+ * a markdown link(`[#file:file.md](/path/to/file.md)`).
  */
 export class PromptReference extends ObservableDisposable implements IPromptReference {
-	/**
-	 * Subscribe to the `onUpdate` event that is fired when prompt tokens are updated.
-	 * @param callback The callback function to be called on updates.
-	 */
-	public onUpdate(callback: () => void): this {
-		this.parser.onUpdate(callback);
-
-		return this;
-	}
-
 	public readonly range = this.token.range;
 	public readonly path: string = this.token.path;
 	public readonly text: string = this.token.text;
 
 	/**
-	 * TODO: @legomushroom
+	 * Instance of underlying prompt parser object.
 	 */
 	private readonly parser: BasePromptParser<IPromptContentsProvider>;
 
 	constructor(
 		private readonly promptContentsProvider: IPromptContentsProvider,
-		public readonly token: TPromptReference,
+		public readonly token: FileReference | MarkdownLink,
 		seenReferences: string[] = [],
 		@IInstantiationService initService: IInstantiationService,
 	) {
@@ -572,62 +560,6 @@ export class PromptReference extends ObservableDisposable implements IPromptRefe
 			this.promptContentsProvider,
 			seenReferences,
 		));
-	}
-
-	/**
-	 * TODO: @legomushroom
-	 */
-	public get resolveFailed(): boolean | undefined {
-		return this.parser.resolveFailed;
-	}
-
-	public get errorCondition(): ResolveError | undefined {
-		return this.parser.errorCondition;
-	}
-
-	public get topError(): ITopError | undefined {
-		return this.parser.topError;
-	}
-
-	public get uri(): URI {
-		return this.parser.uri;
-	}
-
-	public get isPromptFile(): boolean {
-		return this.parser.isPromptFile;
-	}
-
-	/**
-	 * TODO: @legomushroom - change to IResolveError?
-	 */
-	public get errors(): readonly ResolveError[] {
-		return this.parser.errors;
-	}
-
-	public get allErrors(): readonly IResolveError[] {
-		return this.parser.allErrors;
-	}
-
-	public get references(): readonly IPromptReference[] {
-		return this.parser.references;
-	}
-	public get allReferences(): readonly IPromptReference[] {
-		return this.parser.allReferences;
-	}
-	public get allValidReferences(): readonly IPromptReference[] {
-		return this.parser.allValidReferences;
-	}
-
-	public async settled(): Promise<this> {
-		await this.parser.settled();
-
-		return this;
-	}
-
-	public async allSettled(): Promise<this> {
-		await this.parser.allSettled();
-
-		return this;
 	}
 
 	/**
@@ -690,6 +622,71 @@ export class PromptReference extends ObservableDisposable implements IPromptRefe
 	 */
 	public start(): this {
 		this.parser.start();
+
+		return this;
+	}
+
+	/**
+	 * Subscribe to the `onUpdate` event that is fired when prompt tokens are updated.
+	 * @param callback The callback function to be called on updates.
+	 */
+	public onUpdate(callback: () => void): this {
+		this.parser.onUpdate(callback);
+
+		return this;
+	}
+
+	public get resolveFailed(): boolean | undefined {
+		return this.parser.resolveFailed;
+	}
+
+	public get errorCondition(): ResolveError | undefined {
+		return this.parser.errorCondition;
+	}
+
+	public get topError(): ITopError | undefined {
+		return this.parser.topError;
+	}
+
+	public get uri(): URI {
+		return this.parser.uri;
+	}
+
+	public get isPromptFile(): boolean {
+		return this.parser.isPromptFile;
+	}
+
+	/**
+	 * TODO: @legomushroom - change to IResolveError?
+	 */
+	public get errors(): readonly ResolveError[] {
+		return this.parser.errors;
+	}
+
+	public get allErrors(): readonly IResolveError[] {
+		return this.parser.allErrors;
+	}
+
+	public get references(): readonly IPromptReference[] {
+		return this.parser.references;
+	}
+
+	public get allReferences(): readonly IPromptReference[] {
+		return this.parser.allReferences;
+	}
+
+	public get allValidReferences(): readonly IPromptReference[] {
+		return this.parser.allValidReferences;
+	}
+
+	public async settled(): Promise<this> {
+		await this.parser.settled();
+
+		return this;
+	}
+
+	public async allSettled(): Promise<this> {
+		await this.parser.allSettled();
 
 		return this;
 	}
