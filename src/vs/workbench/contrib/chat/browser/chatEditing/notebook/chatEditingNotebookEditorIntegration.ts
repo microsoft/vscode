@@ -359,7 +359,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 					const textChange = change.diff.get().changes[indexInCell];
 					const cellViewModel = this.getCellViewModel(change);
 					if (cellViewModel) {
-						this.revealChangeInView(cellViewModel, textChange.modified);
+						this.revealChangeInView(cellViewModel, textChange?.modified);
 						this._currentChange.set({ change: change, index: indexInCell }, undefined);
 					}
 
