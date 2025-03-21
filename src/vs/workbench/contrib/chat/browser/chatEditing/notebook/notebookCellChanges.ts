@@ -21,13 +21,13 @@ export type ICellDiffInfo = |
 	{
 		originalCellIndex: number;
 		modifiedCellIndex: number;
-		modifiedHandle: number;
+		modifiedHandle?: number;
 		type: 'unchanged';
 	} & IDocumentDiffWithModelsAndActions |
 	{
 		originalCellIndex: number;
 		modifiedCellIndex: number;
-		modifiedHandle: number;
+		modifiedHandle?: number;
 		type: 'modified';
 	} & IDocumentDiffWithModelsAndActions |
 	{
@@ -38,7 +38,7 @@ export type ICellDiffInfo = |
 	{
 		modifiedCellIndex: number;
 		originalCellIndex: undefined;
-		modifiedHandle: number;
+		modifiedHandle?: number;
 		type: 'insert';
 	} & IDocumentDiffWithModelsAndActions;
 
