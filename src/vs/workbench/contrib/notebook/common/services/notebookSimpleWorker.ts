@@ -6,7 +6,7 @@ import { IDiffChange, ISequence, LcsDiff } from '../../../../../base/common/diff
 import { doHash, hash, numberHash } from '../../../../../base/common/hash.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IRequestHandler } from '../../../../../base/common/worker/simpleWorker.js';
+import { IWebWorkerServerRequestHandler } from '../../../../../base/common/worker/webWorker.js';
 import { PieceTreeTextBufferBuilder } from '../../../../../editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder.js';
 import { CellKind, IMainCellDto, INotebookDiffResult, IOutputDto, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellTextModelSplice, NotebookDocumentMetadata, TransientDocumentMetadata } from '../notebookCommon.js';
 import { Range } from '../../../../../editor/common/core/range.js';
@@ -177,7 +177,7 @@ class CellSequence implements ISequence {
 	}
 }
 
-export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable {
+export class NotebookEditorSimpleWorker implements IWebWorkerServerRequestHandler, IDisposable {
 	_requestHandlerBrand: any;
 
 	private _models: { [uri: string]: MirrorNotebookDocument };
@@ -521,7 +521,7 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 	}
 }
 
-export function create(): IRequestHandler {
+export function create(): IWebWorkerServerRequestHandler {
 	return new NotebookEditorSimpleWorker();
 }
 

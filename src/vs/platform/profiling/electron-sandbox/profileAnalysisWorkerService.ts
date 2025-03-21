@@ -6,7 +6,7 @@
 
 import { createWebWorker } from '../../../base/browser/defaultWorkerFactory.js';
 import { URI } from '../../../base/common/uri.js';
-import { Proxied } from '../../../base/common/worker/simpleWorker.js';
+import { Proxied } from '../../../base/common/worker/webWorker.js';
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';

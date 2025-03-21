@@ -13,7 +13,7 @@ import { OutputLinkComputer } from '../common/outputLinkComputer.js';
 import { IDisposable, dispose, Disposable } from '../../../../base/common/lifecycle.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 import { createWebWorker } from '../../../../base/browser/defaultWorkerFactory.js';
-import { IWorkerClient } from '../../../../base/common/worker/simpleWorker.js';
+import { IWebWorkerClient } from '../../../../base/common/worker/webWorker.js';
 import { WorkerTextModelSyncClient } from '../../../../editor/common/services/textModelSync/textModelSync.impl.js';
 
 export class OutputLinkProvider extends Disposable {
@@ -88,7 +88,7 @@ export class OutputLinkProvider extends Disposable {
 }
 
 class OutputLinkWorkerClient extends Disposable {
-	private readonly _workerClient: IWorkerClient<OutputLinkComputer>;
+	private readonly _workerClient: IWebWorkerClient<OutputLinkComputer>;
 	private readonly _workerTextModelSyncClient: WorkerTextModelSyncClient;
 	private readonly _initializeBarrier: Promise<void>;
 

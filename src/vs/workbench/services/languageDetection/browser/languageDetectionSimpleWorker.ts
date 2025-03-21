@@ -6,13 +6,13 @@
 import type { ModelOperations, ModelResult } from '@vscode/vscode-languagedetection';
 import { importAMDNodeModule } from '../../../../amdX.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
-import { IRequestHandler, IWorkerServer } from '../../../../base/common/worker/simpleWorker.js';
+import { IWebWorkerServerRequestHandler, IWebWorkerServer } from '../../../../base/common/worker/webWorker.js';
 import { LanguageDetectionWorkerHost, ILanguageDetectionWorker } from './languageDetectionWorker.protocol.js';
 import { WorkerTextModelSyncServer } from '../../../../editor/common/services/textModelSync/textModelSync.impl.js';
 
 type RegexpModel = { detect: (inp: string, langBiases: Record<string, number>, supportedLangs?: string[]) => string | undefined };
 
-export function create(workerServer: IWorkerServer): IRequestHandler {
+export function create(workerServer: IWebWorkerServer): IWebWorkerServerRequestHandler {
 	return new LanguageDetectionSimpleWorker(workerServer);
 }
 
@@ -38,7 +38,7 @@ export class LanguageDetectionSimpleWorker implements ILanguageDetectionWorker {
 
 	private modelIdToCoreId = new Map<string, string | undefined>();
 
-	constructor(workerServer: IWorkerServer) {
+	constructor(workerServer: IWebWorkerServer) {
 		this._host = LanguageDetectionWorkerHost.getChannel(workerServer);
 		this._workerTextModelSyncServer.bindToServer(workerServer);
 	}

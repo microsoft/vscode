@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { UriComponents } from '../../../../base/common/uri.js';
-import { IWorkerClient, IWorkerServer } from '../../../../base/common/worker/simpleWorker.js';
+import { IWebWorkerClient, IWebWorkerServer } from '../../../../base/common/worker/webWorker.js';
 import { IFileMatch, IFileQueryProps, IFolderQuery, ITextQueryProps } from './search.js';
 
 export interface IWorkerTextSearchComplete {
@@ -50,10 +50,10 @@ export interface ILocalFileSearchSimpleWorker {
 
 export abstract class LocalFileSearchSimpleWorkerHost {
 	public static CHANNEL_NAME = 'localFileSearchWorkerHost';
-	public static getChannel(workerServer: IWorkerServer): LocalFileSearchSimpleWorkerHost {
+	public static getChannel(workerServer: IWebWorkerServer): LocalFileSearchSimpleWorkerHost {
 		return workerServer.getChannel<LocalFileSearchSimpleWorkerHost>(LocalFileSearchSimpleWorkerHost.CHANNEL_NAME);
 	}
-	public static setChannel(workerClient: IWorkerClient<any>, obj: LocalFileSearchSimpleWorkerHost): void {
+	public static setChannel(workerClient: IWebWorkerClient<any>, obj: LocalFileSearchSimpleWorkerHost): void {
 		workerClient.setChannel<LocalFileSearchSimpleWorkerHost>(LocalFileSearchSimpleWorkerHost.CHANNEL_NAME, obj);
 	}
 

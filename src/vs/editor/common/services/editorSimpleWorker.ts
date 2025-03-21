@@ -6,7 +6,7 @@
 import { stringDiff } from '../../../base/common/diff/diff.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
-import { IRequestHandler } from '../../../base/common/worker/simpleWorker.js';
+import { IWebWorkerServerRequestHandler } from '../../../base/common/worker/webWorker.js';
 import { Position } from '../core/position.js';
 import { IRange, Range } from '../core/range.js';
 import { EndOfLineSequence, ITextModel } from '../model.js';
@@ -64,7 +64,7 @@ export interface IWordRange {
 /**
  * @internal
  */
-export class BaseEditorSimpleWorker implements IDisposable, IWorkerTextModelSyncChannelServer, IRequestHandler {
+export class BaseEditorSimpleWorker implements IDisposable, IWorkerTextModelSyncChannelServer, IWebWorkerServerRequestHandler {
 	_requestHandlerBrand: any;
 
 	private readonly _workerTextModelSyncServer = new WorkerTextModelSyncServer();

@@ -19,7 +19,7 @@ function createModuleDescription(name, exclude) {
  * @param {string} name
  */
 function createEditorWorkerModuleDescription(name) {
-	return createModuleDescription(name, ['vs/base/common/worker/simpleWorker', 'vs/editor/common/services/editorSimpleWorker']);
+	return createModuleDescription(name, ['vs/base/common/worker/webWorker', 'vs/editor/common/services/editorSimpleWorker']);
 }
 
 exports.workerEditor = createEditorWorkerModuleDescription('vs/editor/common/services/editorSimpleWorkerMain');

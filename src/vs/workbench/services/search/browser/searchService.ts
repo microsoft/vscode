@@ -14,7 +14,7 @@ import { IExtensionService } from '../../extensions/common/extensions.js';
 import { IFileMatch, IFileQuery, ISearchComplete, ISearchProgressItem, ISearchResultProvider, ISearchService, ITextQuery, SearchProviderType, TextSearchCompleteMessageType } from '../common/search.js';
 import { SearchService } from '../common/searchService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IWorkerClient, logOnceWebWorkerWarning } from '../../../../base/common/worker/simpleWorker.js';
+import { IWebWorkerClient, logOnceWebWorkerWarning } from '../../../../base/common/worker/webWorker.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { createWebWorker } from '../../../../base/browser/defaultWorkerFactory.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -48,7 +48,7 @@ export class RemoteSearchService extends SearchService {
 
 export class LocalFileSearchWorkerClient extends Disposable implements ISearchResultProvider {
 
-	protected _worker: IWorkerClient<ILocalFileSearchSimpleWorker> | null;
+	protected _worker: IWebWorkerClient<ILocalFileSearchSimpleWorker> | null;
 
 	private readonly _onDidReceiveTextSearchMatch = new Emitter<{ match: IFileMatch<UriComponents>; queryId: number }>();
 	readonly onDidReceiveTextSearchMatch: Event<{ match: IFileMatch<UriComponents>; queryId: number }> = this._onDidReceiveTextSearchMatch.event;
@@ -184,7 +184,7 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 		if (this.cache?.key === cacheKey) { this.cache = undefined; }
 	}
 
-	private _getOrCreateWorker(): IWorkerClient<ILocalFileSearchSimpleWorker> {
+	private _getOrCreateWorker(): IWebWorkerClient<ILocalFileSearchSimpleWorker> {
 		if (!this._worker) {
 			try {
 				this._worker = this._register(createWebWorker<ILocalFileSearchSimpleWorker>(

@@ -6,7 +6,7 @@
 import { timeout } from '../../../base/common/async.js';
 import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
-import { logOnceWebWorkerWarning, IWorkerClient, Proxied } from '../../../base/common/worker/simpleWorker.js';
+import { logOnceWebWorkerWarning, IWebWorkerClient, Proxied } from '../../../base/common/worker/webWorker.js';
 import { createWebWorker, IWorkerDescriptor } from '../../../base/browser/defaultWorkerFactory.js';
 import { Position } from '../../common/core/position.js';
 import { IRange, Range } from '../../common/core/range.js';
@@ -375,7 +375,7 @@ class WorkerManager extends Disposable {
 	}
 }
 
-class SynchronousWorkerClient<T extends IDisposable> implements IWorkerClient<T> {
+class SynchronousWorkerClient<T extends IDisposable> implements IWebWorkerClient<T> {
 	private readonly _instance: T;
 	public readonly proxy: Proxied<T>;
 
@@ -405,7 +405,7 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 
 	private readonly _modelService: IModelService;
 	private readonly _keepIdleModels: boolean;
-	private _worker: IWorkerClient<EditorSimpleWorker> | null;
+	private _worker: IWebWorkerClient<EditorSimpleWorker> | null;
 	private _modelManager: WorkerTextModelSyncClient | null;
 	private _disposed = false;
 
@@ -426,7 +426,7 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 		throw new Error(`Not implemented!`);
 	}
 
-	private _getOrCreateWorker(): IWorkerClient<EditorSimpleWorker> {
+	private _getOrCreateWorker(): IWebWorkerClient<EditorSimpleWorker> {
 		if (!this._worker) {
 			try {
 				this._worker = this._register(createWebWorker<EditorSimpleWorker>(this._workerDescriptorOrWorker));

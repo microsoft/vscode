@@ -13,7 +13,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
-import { IWorkerClient } from '../../../../base/common/worker/simpleWorker.js';
+import { IWebWorkerClient } from '../../../../base/common/worker/webWorker.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IDiagnosticsService } from '../../../../platform/diagnostics/common/diagnostics.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -179,7 +179,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 
 export class LanguageDetectionWorkerClient extends Disposable {
 	private worker: {
-		workerClient: IWorkerClient<ILanguageDetectionWorker>;
+		workerClient: IWebWorkerClient<ILanguageDetectionWorker>;
 		workerTextModelSyncClient: WorkerTextModelSyncClient;
 	} | undefined;
 
@@ -196,7 +196,7 @@ export class LanguageDetectionWorkerClient extends Disposable {
 	}
 
 	private _getOrCreateLanguageDetectionWorker(): {
-		workerClient: IWorkerClient<ILanguageDetectionWorker>;
+		workerClient: IWebWorkerClient<ILanguageDetectionWorker>;
 		workerTextModelSyncClient: WorkerTextModelSyncClient;
 	} {
 		if (!this.worker) {

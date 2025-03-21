@@ -5,7 +5,7 @@
 
 import * as glob from '../../../../base/common/glob.js';
 import { UriComponents, URI } from '../../../../base/common/uri.js';
-import { IRequestHandler, IWorkerServer } from '../../../../base/common/worker/simpleWorker.js';
+import { IWebWorkerServerRequestHandler, IWebWorkerServer } from '../../../../base/common/worker/webWorker.js';
 import { ILocalFileSearchSimpleWorker, LocalFileSearchSimpleWorkerHost, IWorkerFileSearchComplete, IWorkerFileSystemDirectoryHandle, IWorkerFileSystemHandle, IWorkerTextSearchComplete } from '../common/localFileSearchWorkerTypes.js';
 import { ICommonQueryProps, IFileMatch, IFileQueryProps, IFolderQuery, IPatternInfo, ITextQueryProps, } from '../common/search.js';
 import * as paths from '../../../../base/common/path.js';
@@ -48,17 +48,17 @@ const time = async <T>(name: string, task: () => Promise<T> | T) => {
 	return r;
 };
 
-export function create(workerServer: IWorkerServer): IRequestHandler {
+export function create(workerServer: IWebWorkerServer): IWebWorkerServerRequestHandler {
 	return new LocalFileSearchSimpleWorker(workerServer);
 }
 
-export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker, IRequestHandler {
+export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker, IWebWorkerServerRequestHandler {
 	_requestHandlerBrand: any;
 
 	private readonly host: LocalFileSearchSimpleWorkerHost;
 	cancellationTokens: Map<number, CancellationTokenSource> = new Map();
 
-	constructor(workerServer: IWorkerServer) {
+	constructor(workerServer: IWebWorkerServer) {
 		this.host = LocalFileSearchSimpleWorkerHost.getChannel(workerServer);
 	}
 

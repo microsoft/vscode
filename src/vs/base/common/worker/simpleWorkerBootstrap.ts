@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRequestHandler, IRequestHandlerFactory, SimpleWorkerServer } from './simpleWorker.js';
+import { IWebWorkerServerRequestHandler, IWebWorkerServerRequestHandlerFactory, WebWorkerServer } from './webWorker.js';
 
 type MessageEvent = {
 	data: any;
@@ -16,25 +16,25 @@ declare const globalThis: {
 
 let initialized = false;
 
-export function initialize<T extends IRequestHandler>(factory: IRequestHandlerFactory<T>) {
+export function initialize<T extends IWebWorkerServerRequestHandler>(factory: IWebWorkerServerRequestHandlerFactory<T>) {
 	if (initialized) {
 		throw new Error('SimpleWorker already initialized!');
 	}
 	initialized = true;
 
-	const simpleWorker = new SimpleWorkerServer<T>(
+	const webWorkerServer = new WebWorkerServer<T>(
 		msg => globalThis.postMessage(msg),
 		(workerServer) => factory(workerServer)
 	);
 
 	globalThis.onmessage = (e: MessageEvent) => {
-		simpleWorker.onmessage(e.data);
+		webWorkerServer.onmessage(e.data);
 	};
 
-	return simpleWorker;
+	return webWorkerServer;
 }
 
-export function bootstrapSimpleWorker(factory: IRequestHandlerFactory<any>) {
+export function bootstrapSimpleWorker(factory: IWebWorkerServerRequestHandlerFactory<any>) {
 	globalThis.onmessage = (_e: MessageEvent) => {
 		// Ignore first message in this case and initialize if not yet initialized
 		if (!initialized) {

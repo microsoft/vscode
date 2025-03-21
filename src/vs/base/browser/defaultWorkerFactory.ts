@@ -7,7 +7,7 @@ import { createTrustedTypesPolicy } from './trustedTypes.js';
 import { onUnexpectedError } from '../common/errors.js';
 import { AppResourcePath, COI, FileAccess } from '../common/network.js';
 import { URI } from '../common/uri.js';
-import { IWorker, IWorkerClient, Message, SimpleWorkerClient } from '../common/worker/simpleWorker.js';
+import { IWebWorker, IWebWorkerClient, Message, WebWorkerClient } from '../common/worker/webWorker.js';
 import { Disposable, toDisposable } from '../common/lifecycle.js';
 import { coalesce } from '../common/arrays.js';
 import { getNLSLanguage, getNLSMessages } from '../../nls.js';
@@ -119,7 +119,7 @@ function isPromiseLike<T>(obj: any): obj is PromiseLike<T> {
  * A worker that uses HTML5 web workers so that is has
  * its own global scope and its own thread.
  */
-class WebWorker extends Disposable implements IWorker {
+class WebWorker extends Disposable implements IWebWorker {
 
 	private static LAST_WORKER_ID = 0;
 
@@ -209,9 +209,9 @@ export class WorkerDescriptor implements IWorkerDescriptor {
 	}
 }
 
-export function createWebWorker<T extends object>(moduleId: string, label: string | undefined): IWorkerClient<T>;
-export function createWebWorker<T extends object>(workerDescriptor: IWorkerDescriptor | Worker): IWorkerClient<T>;
-export function createWebWorker<T extends object>(arg0: string | IWorkerDescriptor | Worker, arg1?: string | undefined): IWorkerClient<T> {
+export function createWebWorker<T extends object>(moduleId: string, label: string | undefined): IWebWorkerClient<T>;
+export function createWebWorker<T extends object>(workerDescriptor: IWorkerDescriptor | Worker): IWebWorkerClient<T>;
+export function createWebWorker<T extends object>(arg0: string | IWorkerDescriptor | Worker, arg1?: string | undefined): IWebWorkerClient<T> {
 	const workerDescriptorOrWorker = (typeof arg0 === 'string' ? new WorkerDescriptor(arg0, arg1) : arg0);
-	return new SimpleWorkerClient<T>(new WebWorker(workerDescriptorOrWorker));
+	return new WebWorkerClient<T>(new WebWorker(workerDescriptorOrWorker));
 }

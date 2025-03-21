@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IWorkerClient, Proxied } from '../../../../../base/common/worker/simpleWorker.js';
+import { IWebWorkerClient, Proxied } from '../../../../../base/common/worker/webWorker.js';
 import { createWebWorker } from '../../../../../base/browser/defaultWorkerFactory.js';
 import { NotebookCellTextModel } from '../../common/model/notebookCellTextModel.js';
 import { CellUri, IMainCellDto, INotebookDiffResult, NotebookCellsChangeType, NotebookRawContentEventDto } from '../../common/notebookCommon.js';
@@ -236,7 +236,7 @@ class NotebookEditorModelManager extends Disposable {
 }
 
 class NotebookWorkerClient extends Disposable {
-	private _worker: IWorkerClient<NotebookEditorSimpleWorker> | null;
+	private _worker: IWebWorkerClient<NotebookEditorSimpleWorker> | null;
 	private _modelManager: NotebookEditorModelManager | null;
 
 
@@ -270,7 +270,7 @@ class NotebookWorkerClient extends Disposable {
 		return proxy;
 	}
 
-	private _getOrCreateWorker(): IWorkerClient<NotebookEditorSimpleWorker> {
+	private _getOrCreateWorker(): IWebWorkerClient<NotebookEditorSimpleWorker> {
 		if (!this._worker) {
 			try {
 				this._worker = this._register(createWebWorker<NotebookEditorSimpleWorker>(

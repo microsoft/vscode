@@ -13,8 +13,8 @@ import { EditorWorkerHost } from './common/services/editorWorkerHost.js';
  * @internal
  */
 export function start<THost extends object, TClient extends object>(client: TClient): IWorkerContext<THost> {
-	const simpleWorker = initialize(() => new EditorSimpleWorker(client));
-	const editorWorkerHost = EditorWorkerHost.getChannel(simpleWorker);
+	const webWorkerServer = initialize(() => new EditorSimpleWorker(client));
+	const editorWorkerHost = EditorWorkerHost.getChannel(webWorkerServer);
 	const host = new Proxy({}, {
 		get(target, prop, receiver) {
 			if (typeof prop !== 'string') {
@@ -29,7 +29,7 @@ export function start<THost extends object, TClient extends object>(client: TCli
 	return {
 		host: host as THost,
 		getMirrorModels: () => {
-			return simpleWorker.requestHandler.getModels();
+			return webWorkerServer.requestHandler.getModels();
 		}
 	};
 }
