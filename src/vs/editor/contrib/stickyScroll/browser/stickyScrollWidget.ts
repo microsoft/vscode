@@ -252,7 +252,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			this._useFoldingOpacityTransition(!this._isOnGlyphMargin);
 		}
 
-		const widgetHeight = this._getHeightOfLines(this._lineNumbers) + this._lastLineRelativePosition;
+		const widgetHeight = top + this._lastLineRelativePosition;
 		this._setHeight(widgetHeight);
 
 		this._rootDomNode.style.marginLeft = '0px';
