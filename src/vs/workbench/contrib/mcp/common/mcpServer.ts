@@ -12,6 +12,7 @@ import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogger, ILoggerService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IOutputService } from '../../../services/output/common/output.js';
@@ -21,6 +22,31 @@ import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { extensionMcpCollectionPrefix, IMcpServer, IMcpServerConnection, IMcpTool, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, McpServerDefinition, McpServerToolsState } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
 
+type ServerBootData = {
+	supportsLogging: boolean;
+	supportsPrompts: boolean;
+	supportsResources: boolean;
+	toolCount: number;
+};
+type ServerBootClassification = {
+	owner: 'connor4312';
+	comment: 'Details the capabilities of the MCP server';
+	supportsLogging: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the server supports logging' };
+	supportsPrompts: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the server supports prompts' };
+	supportsResources: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the server supports resource' };
+	toolCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of tools the server advertises' };
+};
+
+type ServerBootState = {
+	state: string;
+	time: number;
+};
+type ServerBootStateClassification = {
+	owner: 'connor4312';
+	comment: 'Details the capabilities of the MCP server';
+	state: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The server outcome' };
+	time: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Duration in milliseconds to reach that state' };
+};
 
 interface IToolCacheEntry {
 	/** Cached tools so we can show what's available before it's started */
@@ -150,6 +176,7 @@ export class McpServer extends Disposable implements IMcpServer {
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@ILoggerService private readonly _loggerService: ILoggerService,
 		@IOutputService private readonly _outputService: IOutputService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -253,7 +280,14 @@ export class McpServer extends Disposable implements IMcpServer {
 				this._connection.set(connection, undefined);
 			}
 
-			return connection.start();
+			const start = Date.now();
+			const state = await connection.start();
+			this._telemetryService.publicLog2<ServerBootState, ServerBootStateClassification>('mcp/serverBootState', {
+				state: McpConnectionState.toKindString(state.state),
+				time: Date.now() - start,
+			});
+
+			return state;
 		});
 	}
 
@@ -288,6 +322,8 @@ export class McpServer extends Disposable implements IMcpServer {
 				});
 			});
 			this.toolsFromServerPromise.set(new ObservablePromise(toolPromiseSafe), tx);
+
+			return [toolPromise];
 		};
 
 		store.add(handler.onDidChangeToolList(() => {
@@ -295,8 +331,18 @@ export class McpServer extends Disposable implements IMcpServer {
 			updateTools(undefined);
 		}));
 
+		let promises: ReturnType<typeof updateTools>;
 		transaction(tx => {
-			updateTools(tx);
+			promises = updateTools(tx);
+		});
+
+		Promise.all(promises!).then(([tools]) => {
+			this._telemetryService.publicLog2<ServerBootData, ServerBootClassification>('mcp/serverBoot', {
+				supportsLogging: !!handler.capabilities.logging,
+				supportsPrompts: !!handler.capabilities.prompts,
+				supportsResources: !!handler.capabilities.resources,
+				toolCount: tools.length,
+			});
 		});
 	}
 
