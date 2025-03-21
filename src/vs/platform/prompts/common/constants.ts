@@ -18,6 +18,22 @@ export const PROMPT_FILE_EXTENSION = '.prompt.md';
 const COPILOT_CUSTOM_INSTRUCTIONS_FILENAME = 'copilot-instructions.md';
 
 /**
+ * Configuration key for the `reusable prompts` feature
+ * (also known as `prompt files`, `prompt instructions`, etc.).
+ */
+export const CONFIG_KEY: string = 'chat.promptFiles';
+
+/**
+ * Configuration key for the locations of reusable prompt files.
+ */
+export const LOCATIONS_CONFIG_KEY: string = 'chat.promptFilesLocations';
+
+/**
+ * Default reusable prompt files source folder.
+ */
+export const DEFAULT_SOURCE_FOLDER = '.github/prompts';
+
+/**
  * Check if provided path is a reusable prompt file.
  */
 export const isPromptFile = (
