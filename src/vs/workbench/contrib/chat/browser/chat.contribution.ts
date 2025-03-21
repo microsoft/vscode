@@ -30,7 +30,7 @@ import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { mcpSchemaId } from '../../../services/configuration/common/configuration.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
-import { mcpConfigurationSection, mcpDiscoverySection, mcpSchemaExampleServers } from '../../mcp/common/mcpConfiguration.js';
+import { allDiscoverySources, discoverySourceLabel, mcpConfigurationSection, mcpDiscoverySection, mcpSchemaExampleServers } from '../../mcp/common/mcpConfiguration.js';
 import { ChatAgentNameService, ChatAgentService, IChatAgentNameService, IChatAgentService } from '../common/chatAgents.js';
 import { CodeMapperService, ICodeMapperService } from '../common/chatCodeMapperService.js';
 import '../common/chatColors.js';
@@ -240,9 +240,12 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 		},
 		[mcpDiscoverySection]: {
-			type: 'boolean',
+			oneOf: [
+				{ type: 'boolean' },
+				{ type: 'array', items: { type: 'string', enum: allDiscoverySources, enumDescriptions: Object.values(discoverySourceLabel) } },
+			],
 			default: false,
-			description: nls.localize('mpc.discovery.enabled', "Enable discovery of Model Context Protocol servers on the machine."),
+			markdownDescription: nls.localize('mpc.discovery.enabled', "Configures discovery of Model Context Protocol servers on the machine. It may be set to `true` or `false` to disable or enable all sources, and an array of sources you wish to enable."),
 		},
 		[PromptsConfig.CONFIG_KEY]: {
 			type: 'boolean',

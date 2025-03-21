@@ -22,6 +22,27 @@ const mcpSchemaExampleServer = {
 	env: {},
 };
 
+export const enum DiscoverySource {
+	ClaudeDesktop = 'claude-desktop',
+	Windsurf = 'windsurf',
+	CursorGlobal = 'cursor-global',
+	CursorWorkspace = 'cursor-workspace',
+}
+
+export const allDiscoverySources = Object.keys({
+	[DiscoverySource.ClaudeDesktop]: true,
+	[DiscoverySource.Windsurf]: true,
+	[DiscoverySource.CursorGlobal]: true,
+	[DiscoverySource.CursorWorkspace]: true,
+} satisfies Record<DiscoverySource, true>) as DiscoverySource[];
+
+export const discoverySourceLabel: Record<DiscoverySource, string> = {
+	[DiscoverySource.ClaudeDesktop]: localize('mcp.discovery.source.claude-desktop', "Claude Desktop"),
+	[DiscoverySource.Windsurf]: localize('mcp.discovery.source.windsurf', "Windsurf"),
+	[DiscoverySource.CursorGlobal]: localize('mcp.discovery.source.cursor-global', "Cursor (Global)"),
+	[DiscoverySource.CursorWorkspace]: localize('mcp.discovery.source.cursor-workspace', "Cursor (Workspace)"),
+};
+
 export const mcpConfigurationSection = 'mcp';
 export const mcpDiscoverySection = 'chat.mcp.discovery.enabled';
 
