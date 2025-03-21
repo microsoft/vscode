@@ -16,7 +16,7 @@ import { SearchService } from '../common/searchService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWebWorkerClient, logOnceWebWorkerWarning } from '../../../../base/common/worker/webWorker.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { createWebWorker } from '../../../../base/browser/defaultWorkerFactory.js';
+import { createWebWorker } from '../../../../base/browser/webWorkerFactory.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILocalFileSearchWorker, LocalFileSearchWorkerHost } from '../common/localFileSearchWorkerTypes.js';
 import { memoize } from '../../../../base/common/decorators.js';

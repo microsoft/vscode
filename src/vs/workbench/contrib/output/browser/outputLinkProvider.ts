@@ -12,7 +12,7 @@ import { OUTPUT_MODE_ID, LOG_MODE_ID } from '../../../services/output/common/out
 import { OutputLinkComputer } from '../common/outputLinkComputer.js';
 import { IDisposable, dispose, Disposable } from '../../../../base/common/lifecycle.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
-import { createWebWorker } from '../../../../base/browser/defaultWorkerFactory.js';
+import { createWebWorker } from '../../../../base/browser/webWorkerFactory.js';
 import { IWebWorkerClient } from '../../../../base/common/worker/webWorker.js';
 import { WorkerTextModelSyncClient } from '../../../../editor/common/services/textModelSync/textModelSync.impl.js';
 import { FileAccess } from '../../../../base/common/network.js';

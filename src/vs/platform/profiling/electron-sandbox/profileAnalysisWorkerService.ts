@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { createWebWorker } from '../../../base/browser/defaultWorkerFactory.js';
+import { createWebWorker } from '../../../base/browser/webWorkerFactory.js';
 import { URI } from '../../../base/common/uri.js';
 import { Proxied } from '../../../base/common/worker/webWorker.js';
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';

@@ -30,7 +30,7 @@ export function createBlobWorker(blobUrl: string, options?: WorkerOptions): Work
 	return new Worker(ttPolicy ? ttPolicy.createScriptURL(blobUrl) as unknown as string : blobUrl, { ...options, type: 'module' });
 }
 
-function getWorker(descriptor: IWorkerDescriptor, id: number): Worker | Promise<Worker> {
+function getWorker(descriptor: IWebWorkerDescriptor, id: number): Worker | Promise<Worker> {
 	const label = descriptor.label || 'anonymous' + id;
 
 	// Option for hosts to overwrite the worker script (used in the standalone editor)
@@ -132,7 +132,7 @@ class WebWorker extends Disposable implements IWebWorker {
 	private readonly _onError = this._register(new Emitter<any>());
 	public readonly onError = this._onError.event;
 
-	constructor(descriptorOrWorker: IWorkerDescriptor | Worker) {
+	constructor(descriptorOrWorker: IWebWorkerDescriptor | Worker) {
 		super();
 		this.id = ++WebWorker.LAST_WORKER_ID;
 		const workerOrPromise = (
@@ -187,23 +187,21 @@ class WebWorker extends Disposable implements IWebWorker {
 	}
 }
 
-export interface IWorkerDescriptor {
+export interface IWebWorkerDescriptor {
 	readonly esmModuleLocation: URI | undefined;
 	readonly label: string | undefined;
 }
 
-export class WorkerDescriptor implements IWorkerDescriptor {
-
+export class WebWorkerDescriptor implements IWebWorkerDescriptor {
 	constructor(
 		public readonly esmModuleLocation: URI,
 		public readonly label: string | undefined,
-	) {
-	}
+	) { }
 }
 
 export function createWebWorker<T extends object>(esmModuleLocation: URI, label: string | undefined): IWebWorkerClient<T>;
-export function createWebWorker<T extends object>(workerDescriptor: IWorkerDescriptor | Worker): IWebWorkerClient<T>;
-export function createWebWorker<T extends object>(arg0: URI | IWorkerDescriptor | Worker, arg1?: string | undefined): IWebWorkerClient<T> {
-	const workerDescriptorOrWorker = (URI.isUri(arg0) ? new WorkerDescriptor(arg0, arg1) : arg0);
+export function createWebWorker<T extends object>(workerDescriptor: IWebWorkerDescriptor | Worker): IWebWorkerClient<T>;
+export function createWebWorker<T extends object>(arg0: URI | IWebWorkerDescriptor | Worker, arg1?: string | undefined): IWebWorkerClient<T> {
+	const workerDescriptorOrWorker = (URI.isUri(arg0) ? new WebWorkerDescriptor(arg0, arg1) : arg0);
 	return new WebWorkerClient<T>(new WebWorker(workerDescriptorOrWorker));
 }

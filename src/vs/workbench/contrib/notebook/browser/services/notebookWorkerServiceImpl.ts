@@ -6,7 +6,7 @@
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IWebWorkerClient, Proxied } from '../../../../../base/common/worker/webWorker.js';
-import { createWebWorker } from '../../../../../base/browser/defaultWorkerFactory.js';
+import { createWebWorker } from '../../../../../base/browser/webWorkerFactory.js';
 import { NotebookCellTextModel } from '../../common/model/notebookCellTextModel.js';
 import { CellUri, IMainCellDto, INotebookDiffResult, NotebookCellsChangeType, NotebookRawContentEventDto } from '../../common/notebookCommon.js';
 import { INotebookService } from '../../common/notebookService.js';

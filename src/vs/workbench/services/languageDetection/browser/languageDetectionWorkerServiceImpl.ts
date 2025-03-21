@@ -22,7 +22,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { LRUCache } from '../../../../base/common/map.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { canASAR } from '../../../../amdX.js';
-import { createWebWorker } from '../../../../base/browser/defaultWorkerFactory.js';
+import { createWebWorker } from '../../../../base/browser/webWorkerFactory.js';
 import { WorkerTextModelSyncClient } from '../../../../editor/common/services/textModelSync/textModelSync.impl.js';
 import { ILanguageDetectionWorker, LanguageDetectionWorkerHost } from './languageDetectionWorker.protocol.js';
 

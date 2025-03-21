@@ -7,7 +7,7 @@ import { timeout } from '../../../base/common/async.js';
 import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { logOnceWebWorkerWarning, IWebWorkerClient, Proxied } from '../../../base/common/worker/webWorker.js';
-import { createWebWorker, IWorkerDescriptor } from '../../../base/browser/defaultWorkerFactory.js';
+import { createWebWorker, IWebWorkerDescriptor } from '../../../base/browser/webWorkerFactory.js';
 import { Position } from '../../common/core/position.js';
 import { IRange, Range } from '../../common/core/range.js';
 import { ITextModel } from '../../common/model.js';
@@ -59,7 +59,7 @@ export abstract class EditorWorkerService extends Disposable implements IEditorW
 	private readonly _logService: ILogService;
 
 	constructor(
-		workerDescriptor: IWorkerDescriptor,
+		workerDescriptor: IWebWorkerDescriptor,
 		@IModelService modelService: IModelService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@ILogService logService: ILogService,
@@ -313,7 +313,7 @@ class WorkerManager extends Disposable {
 	private _lastWorkerUsedTime: number;
 
 	constructor(
-		private readonly _workerDescriptor: IWorkerDescriptor,
+		private readonly _workerDescriptor: IWebWorkerDescriptor,
 		@IModelService modelService: IModelService
 	) {
 		super();
@@ -410,7 +410,7 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 	private _disposed = false;
 
 	constructor(
-		private readonly _workerDescriptorOrWorker: IWorkerDescriptor | Worker,
+		private readonly _workerDescriptorOrWorker: IWebWorkerDescriptor | Worker,
 		keepIdleModels: boolean,
 		@IModelService modelService: IModelService,
 	) {

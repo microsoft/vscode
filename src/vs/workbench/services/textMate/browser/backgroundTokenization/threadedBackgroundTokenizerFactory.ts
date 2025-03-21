@@ -22,7 +22,7 @@ import { TextMateWorkerHost } from './worker/textMateWorkerHost.js';
 import { TextMateWorkerTokenizerController } from './textMateWorkerTokenizerController.js';
 import { IValidGrammarDefinition } from '../../common/TMScopeRegistry.js';
 import type { IRawTheme } from 'vscode-textmate';
-import { createWebWorker } from '../../../../../base/browser/defaultWorkerFactory.js';
+import { createWebWorker } from '../../../../../base/browser/webWorkerFactory.js';
 import { IWebWorkerClient, Proxied } from '../../../../../base/common/worker/webWorker.js';
 
 export class ThreadedBackgroundTokenizerFactory implements IDisposable {
