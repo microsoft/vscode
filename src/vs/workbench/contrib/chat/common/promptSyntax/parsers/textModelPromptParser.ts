@@ -20,10 +20,11 @@ export class TextModelPromptParser extends BasePromptParser<TextModelContentsPro
 		@IInstantiationService initService: IInstantiationService,
 		@ILogService logService: ILogService,
 	) {
-		const contentsProvider = initService.createInstance(TextModelContentsProvider, model)
-			.onDispose(() => this.dispose());
+		const contentsProvider = initService.createInstance(TextModelContentsProvider, model);
 
 		super(contentsProvider, seenReferences, initService, logService);
+
+		this._register(contentsProvider);
 	}
 
 	/**
