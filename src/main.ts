@@ -149,10 +149,35 @@ if (process.platform === 'win32' || process.platform === 'linux') {
 // Load our code once ready
 app.once('ready', function () {
 	if (args['trace']) {
-		const traceOptions = {
-			categoryFilter: args['trace-category-filter'] || '*',
-			traceOptions: args['trace-options'] || 'record-until-full,enable-sampling'
-		};
+		let traceOptions: Electron.TraceConfig | Electron.TraceCategoriesAndOptions;
+		if (args['trace-memory-infra']) {
+			const customCategories = args['trace-category-filter']?.split(',') || [];
+			customCategories.push('disabled-by-default-memory-infra', 'disabled-by-default-memory-infra.v8.code_stats');
+			traceOptions = {
+				included_categories: customCategories,
+				excluded_categories: ['*'],
+				memory_dump_config: {
+					allowed_dump_modes: ['light', 'detailed'],
+					triggers: [
+						{
+							type: 'periodic_interval',
+							mode: 'detailed',
+							min_time_between_dumps_ms: 10000
+						},
+						{
+							type: 'periodic_interval',
+							mode: 'light',
+							min_time_between_dumps_ms: 1000
+						}
+					]
+				}
+			};
+		} else {
+			traceOptions = {
+				categoryFilter: args['trace-category-filter'] || '*',
+				traceOptions: args['trace-options'] || 'record-until-full,enable-sampling'
+			};
+		}
 
 		contentTracing.startRecording(traceOptions).finally(() => onReady());
 	} else {
@@ -495,6 +520,18 @@ function getJSFlags(cliArgs: NativeParsedArgs): string | null {
 	// Add any existing JS flags we already got from the command line
 	if (cliArgs['js-flags']) {
 		jsFlags.push(cliArgs['js-flags']);
+	}
+
+	if (process.platform === 'linux') {
+		// Fix cppgc crash on Linux with 16KB page size.
+		// Refs https://issues.chromium.org/issues/378017037
+		// The fix from https://github.com/electron/electron/commit/6c5b2ef55e08dc0bede02384747549c1eadac0eb
+		// only affects non-renderer process.
+		// The following will ensure that the flag will be
+		// applied to the renderer process as well.
+		// TODO(deepak1556): Remove this once we update to
+		// Chromium >= 134.
+		jsFlags.push('--nodecommit_pooled_pages');
 	}
 
 	return jsFlags.length > 0 ? jsFlags.join(' ') : null;

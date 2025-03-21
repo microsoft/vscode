@@ -442,16 +442,6 @@
             "%configuration.markdown.suggest.paths.includeWorkspaceHeaderCompletions.onSingleOrDoubleHash%"
           ]
         },
-        "markdown.trace.extension": {
-          "type": "string",
-          "enum": [
-            "off",
-            "verbose"
-          ],
-          "default": "off",
-          "description": "%markdown.trace.extension.desc%",
-          "scope": "window"
-        },
         "markdown.trace.server": {
           "type": "string",
           "scope": "window",
@@ -774,11 +764,11 @@
   },
   "dependencies": {
     "@vscode/extension-telemetry": "^0.9.8",
-    "dompurify": "^3.1.7",
+    "dompurify": "^3.2.4",
     "highlight.js": "^11.8.0",
     "markdown-it": "^12.3.2",
     "markdown-it-front-matter": "^0.2.4",
-    "morphdom": "^2.6.1",
+    "morphdom": "^2.7.4",
     "picomatch": "^2.3.1",
     "punycode": "^2.3.1",
     "vscode-languageclient": "^8.0.2",

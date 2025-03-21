@@ -646,8 +646,8 @@ export class TerminalService extends Disposable implements ITerminalService {
 			const shouldPersistProcesses = this._terminalConfigurationService.config.enablePersistentSessions && reason === ShutdownReason.RELOAD;
 			if (!shouldPersistProcesses) {
 				const hasDirtyInstances = (
-					(this._terminalConfigurationService.config.confirmOnExit === 'always' && this.instances.length > 0) ||
-					(this._terminalConfigurationService.config.confirmOnExit === 'hasChildProcesses' && this.instances.some(e => e.hasChildProcesses))
+					(this._terminalConfigurationService.config.confirmOnExit === 'always' && this.foregroundInstances.length > 0) ||
+					(this._terminalConfigurationService.config.confirmOnExit === 'hasChildProcesses' && this.foregroundInstances.some(e => e.hasChildProcesses))
 				);
 				if (hasDirtyInstances) {
 					return this._onBeforeShutdownConfirmation(reason);
@@ -977,7 +977,9 @@ export class TerminalService extends Disposable implements ITerminalService {
 		await this._resolveCwd(shellLaunchConfig, splitActiveTerminal, options);
 
 		// Launch the contributed profile
-		if (contributedProfile) {
+		// If it's a custom pty implementation, we did not await the profiles ready, so
+		// we cannot launch the contributed profile and doing so would cause an error
+		if (!shellLaunchConfig.customPtyImplementation && contributedProfile) {
 			const resolvedLocation = await this.resolveLocation(options?.location);
 			let location: TerminalLocation | { viewColumn: number; preserveState?: boolean } | { splitActiveTerminal: boolean } | undefined;
 			if (splitActiveTerminal) {

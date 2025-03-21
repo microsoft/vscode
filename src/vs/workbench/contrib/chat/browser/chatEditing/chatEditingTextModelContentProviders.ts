@@ -7,7 +7,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ITextModelContentProvider } from '../../../../../editor/common/services/resolverService.js';
-import { IChatEditingService } from '../../common/chatEditingService.js';
+import { chatEditingSnapshotScheme, IChatEditingService } from '../../common/chatEditingService.js';
 import { ChatEditingSession } from './chatEditingSession.js';
 
 type ChatEditingTextModelContentQueryData = { kind: 'doc'; documentId: string; chatSessionId: string };
@@ -24,8 +24,8 @@ export class ChatEditingTextModelContentProvider implements ITextModelContentPro
 	}
 
 	constructor(
+		private readonly _chatEditingService: IChatEditingService,
 		@IModelService private readonly _modelService: IModelService,
-		@IChatEditingService private readonly _chatEditingService: IChatEditingService
 	) { }
 
 	async provideTextContent(resource: URI): Promise<ITextModel | null> {
@@ -47,22 +47,20 @@ export class ChatEditingTextModelContentProvider implements ITextModelContentPro
 	}
 }
 
-type ChatEditingSnapshotTextModelContentQueryData = { sessionId: string; requestId: string | undefined };
+type ChatEditingSnapshotTextModelContentQueryData = { sessionId: string; requestId: string | undefined; undoStop: string | undefined };
 
 export class ChatEditingSnapshotTextModelContentProvider implements ITextModelContentProvider {
-	public static readonly scheme = 'chat-editing-snapshot-text-model';
-
-	public static getSnapshotFileURI(chatSessionId: string, requestId: string | undefined, path: string): URI {
+	public static getSnapshotFileURI(chatSessionId: string, requestId: string | undefined, undoStop: string | undefined, path: string): URI {
 		return URI.from({
-			scheme: ChatEditingSnapshotTextModelContentProvider.scheme,
+			scheme: chatEditingSnapshotScheme,
 			path,
-			query: JSON.stringify({ sessionId: chatSessionId, requestId: requestId ?? '' } satisfies ChatEditingSnapshotTextModelContentQueryData),
+			query: JSON.stringify({ sessionId: chatSessionId, requestId: requestId ?? '', undoStop: undoStop ?? '' } satisfies ChatEditingSnapshotTextModelContentQueryData),
 		});
 	}
 
 	constructor(
+		private readonly _chatEditingService: IChatEditingService,
 		@IModelService private readonly _modelService: IModelService,
-		@IChatEditingService private readonly _chatEditingService: IChatEditingService
 	) { }
 
 	async provideTextContent(resource: URI): Promise<ITextModel | null> {
@@ -78,6 +76,6 @@ export class ChatEditingSnapshotTextModelContentProvider implements ITextModelCo
 			return null;
 		}
 
-		return session.getSnapshotModel(data.requestId, resource);
+		return session.getSnapshotModel(data.requestId, data.undoStop || undefined, resource);
 	}
 }

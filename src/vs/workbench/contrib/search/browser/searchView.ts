@@ -44,7 +44,6 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { IOpenerService, withSelection } from '../../../../platform/opener/common/opener.js';
 import { IProgress, IProgressService, IProgressStep } from '../../../../platform/progress/common/progress.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultInputBoxStyles, defaultToggleStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IFileIconTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -72,7 +71,7 @@ import { createEditorFromSearchResult } from '../../searchEditor/browser/searchE
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IPreferencesService, ISettingsEditorOptions } from '../../../services/preferences/common/preferences.js';
 import { ITextQueryBuilderOptions, QueryBuilder } from '../../../services/search/common/queryBuilder.js';
-import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, SearchCompletionExitCode, SearchSortOrder, TextSearchCompleteMessageType, ViewMode } from '../../../services/search/common/search.js';
+import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ISearchService, ITextQuery, SearchCompletionExitCode, SearchSortOrder, TextSearchCompleteMessageType, ViewMode } from '../../../services/search/common/search.js';
 import { TextSearchCompleteMessage } from '../../../services/search/common/searchExtTypes.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
@@ -195,15 +194,15 @@ export class SearchView extends ViewPane {
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ISearchService private readonly searchService: ISearchService,
 		@IOpenerService openerService: IOpenerService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@INotebookService private readonly notebookService: INotebookService,
 		@ILogService private readonly logService: ILogService,
 		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService
 	) {
 
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		this.container = dom.$('.search-view');
 
@@ -1665,8 +1664,34 @@ export class SearchView extends ViewPane {
 		}
 
 		// Special case for when we have an AI provider registered
-		if (this.shouldShowAIResults()) {
-			Constants.SearchContext.AIResultsRequested.bindTo(this.contextKeyService).set(!!aiResults);
+		Constants.SearchContext.AIResultsRequested.bindTo(this.contextKeyService).set(this.shouldShowAIResults() && !!aiResults);
+
+		if (this.shouldShowAIResults() && !allResults) {
+			const messageEl = this.clearMessage();
+			const noResultsMessage = nls.localize('noResultsFallback', "No results found. ");
+			dom.append(messageEl, noResultsMessage);
+
+			let aiName = 'Copilot';
+			try {
+				aiName = (await this.searchService.getAIName()) || aiName;
+			} catch (e) {
+				// ignore
+			}
+
+			if (aiName) {
+				const searchWithAIButtonTooltip = appendKeyBindingLabel(
+					nls.localize('triggerAISearch.tooltip', "Search with {0}", aiName),
+					this.keybindingService.lookupKeybinding(Constants.SearchCommandIds.SearchWithAIActionId)
+				);
+				const searchWithAIButtonText = nls.localize('searchWithAIButtonTooltip', "Search with {0}.", aiName);
+				const searchWithAIButton = this.messageDisposables.add(new SearchLinkButton(
+					searchWithAIButtonText,
+					() => {
+						this.commandService.executeCommand(Constants.SearchCommandIds.SearchWithAIActionId);
+					}, this.hoverService, searchWithAIButtonTooltip));
+				dom.append(messageEl, searchWithAIButton.element);
+			}
+
 			if (!aiResults) {
 				return;
 			}
@@ -1791,6 +1816,7 @@ export class SearchView extends ViewPane {
 		const result = this.viewModel.addAIResults();
 		return result.then((complete) => {
 			clearTimeout(slowTimer);
+			this.updateSearchResultCount(this.viewModel.searchResult.query?.userDisabledExcludesAndIgnoreFiles, this.viewModel.searchResult.query?.onlyOpenEditors, false);
 			return this.onSearchComplete(progressComplete, excludePatternText, includePatternText, complete, false);
 		}, (e) => {
 			clearTimeout(slowTimer);
@@ -1807,6 +1833,7 @@ export class SearchView extends ViewPane {
 		this.searchWidget.searchInput?.clearMessage();
 		this.state = SearchUIState.Searching;
 		this.showEmptyStage();
+		this.model.searchResult.aiTextSearchResult.hidden = true;
 
 		const slowTimer = setTimeout(() => {
 			this.state = SearchUIState.SlowSearch;
@@ -2342,6 +2369,11 @@ class SearchViewDataSource implements IAsyncDataSource<ISearchResult, Renderable
 
 		const ret: ITextSearchHeading[] = [];
 
+		if (this.searchView.shouldShowAIResults() && searchResult.searchModel.hasPlainResults && !searchResult.aiTextSearchResult.hidden) {
+			// as long as there is a query present, we can load AI results
+			ret.push(searchResult.aiTextSearchResult);
+		}
+
 		if (!searchResult.plainTextSearchResult.isEmpty()) {
 			if (!this.searchView.shouldShowAIResults()) {
 				// only one root, so just return the children
@@ -2349,11 +2381,6 @@ class SearchViewDataSource implements IAsyncDataSource<ISearchResult, Renderable
 			}
 			ret.push(searchResult.plainTextSearchResult);
 
-		}
-
-		if (this.searchView.shouldShowAIResults() && searchResult.searchModel.hasPlainResults && !searchResult.aiTextSearchResult.hidden) {
-			// as long as there is a query present, we can load AI results
-			ret.push(searchResult.aiTextSearchResult);
 		}
 
 		return ret;

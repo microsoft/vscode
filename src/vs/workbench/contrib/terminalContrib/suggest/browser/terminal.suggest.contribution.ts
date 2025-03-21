@@ -17,7 +17,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { GeneralShellType, TerminalLocation } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal.js';
-import { registerActiveInstanceAction } from '../../../terminal/browser/terminalActions.js';
+import { registerActiveInstanceAction, registerTerminalAction } from '../../../terminal/browser/terminalActions.js';
 import { registerTerminalContribution, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { TerminalSuggestCommandId } from '../common/terminal.suggest.js';
@@ -32,6 +32,7 @@ import { SuggestDetailsClassName } from '../../../../services/suggest/browser/si
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
+import './terminalSymbolIcons.js';
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
 
@@ -159,7 +160,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 				// Don't hide the suggest widget if the focus is moving to the details
 				return;
 			}
-			addon.hideSuggestWidget();
+			addon.hideSuggestWidget(true);
 		}));
 
 		this.add(addon.onAcceptedCompletion(async text => {
@@ -201,6 +202,23 @@ registerTerminalContribution(TerminalSuggestContribution.ID, TerminalSuggestCont
 
 // #region Actions
 
+registerTerminalAction({
+	id: TerminalSuggestCommandId.ConfigureSettings,
+	title: localize2('workbench.action.terminal.configureSuggestSettings', 'Configure'),
+	f1: false,
+	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
+	keybinding: {
+		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Comma,
+		weight: KeybindingWeight.WorkbenchContrib
+	},
+	menu: {
+		id: MenuId.MenubarTerminalSuggestStatusMenu,
+		group: 'right',
+		order: 1
+	},
+	run: (c, accessor) => accessor.get(IPreferencesService).openSettings({ query: terminalSuggestConfigSection })
+});
+
 registerActiveInstanceAction({
 	id: TerminalSuggestCommandId.RequestCompletions,
 	title: localize2('workbench.action.terminal.requestCompletions', 'Request Completions'),
@@ -227,7 +245,8 @@ registerActiveInstanceAction({
 	keybinding: {
 		// Up is bound to other workbench keybindings that this needs to beat
 		primary: KeyCode.UpArrow,
-		weight: KeybindingWeight.WorkbenchContrib + 1
+		weight: KeybindingWeight.WorkbenchContrib + 1,
+		when: ContextKeyExpr.or(SimpleSuggestContext.HasNavigated, ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.UpArrowNavigatesHistory}`, false))
 	},
 	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.selectPreviousSuggestion()
 });
@@ -355,24 +374,24 @@ registerActiveInstanceAction({
 		// Escape is bound to other workbench keybindings that this needs to beat
 		weight: KeybindingWeight.WorkbenchContrib + 1
 	},
-	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.hideSuggestWidget()
+	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.hideSuggestWidget(true)
 });
 
 registerActiveInstanceAction({
-	id: TerminalSuggestCommandId.ConfigureSettings,
-	title: localize2('workbench.action.terminal.configureSuggestSettings', 'Configure'),
+	id: TerminalSuggestCommandId.HideSuggestWidgetAndNavigateHistory,
+	title: localize2('workbench.action.terminal.hideSuggestWidgetAndNavigateHistory', 'Hide Suggest Widget and Navigate History'),
 	f1: false,
 	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
-	keybinding: {
-		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Comma,
-		weight: KeybindingWeight.WorkbenchContrib
+	keybinding:
+	{
+		primary: KeyCode.UpArrow,
+		when: ContextKeyExpr.and(SimpleSuggestContext.HasNavigated.negate(), ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.UpArrowNavigatesHistory}`, true)),
+		weight: KeybindingWeight.WorkbenchContrib + 2
 	},
-	menu: {
-		id: MenuId.MenubarTerminalSuggestStatusMenu,
-		group: 'right',
-		order: 1
-	},
-	run: (activeInstance, c, accessor) => accessor.get(IPreferencesService).openSettings({ query: terminalSuggestConfigSection })
+	run: (activeInstance) => {
+		TerminalSuggestContribution.get(activeInstance)?.addon?.hideSuggestWidget(true);
+		activeInstance.sendText('\u001b[A', false); // Up arrow
+	}
 });
 
 registerActiveInstanceAction({

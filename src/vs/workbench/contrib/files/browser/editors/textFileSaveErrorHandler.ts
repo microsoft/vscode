@@ -16,7 +16,7 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
-import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TextFileContentProvider } from '../../common/files.js';
 import { FileEditorInput } from './fileEditorInput.js';
 import { SAVE_FILE_AS_LABEL } from '../fileConstants.js';
@@ -45,19 +45,21 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 	static readonly ID = 'workbench.contrib.textFileSaveErrorHandler';
 
 	private readonly messages = new ResourceMap<INotificationHandle>();
-	private readonly conflictResolutionContext = new RawContextKey<boolean>(CONFLICT_RESOLUTION_CONTEXT, false, true).bindTo(this.contextKeyService);
+	private readonly conflictResolutionContext: IContextKey<boolean>;
 	private activeConflictResolutionResource: URI | undefined = undefined;
 
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ITextModelService textModelService: ITextModelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
+
+		this.conflictResolutionContext = new RawContextKey<boolean>(CONFLICT_RESOLUTION_CONTEXT, false, true).bindTo(contextKeyService);
 
 		const provider = this._register(instantiationService.createInstance(TextFileContentProvider));
 		this._register(textModelService.registerTextModelContentProvider(CONFLICT_RESOLUTION_SCHEME, provider));

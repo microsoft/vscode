@@ -14,7 +14,7 @@ import { DEBUG_MEMORY_SCHEME, IDebugService, IDebugSession, IMemoryInvalidationE
 
 const rangeRe = /range=([0-9]+):([0-9]+)/;
 
-export class DebugMemoryFileSystemProvider implements IFileSystemProvider {
+export class DebugMemoryFileSystemProvider extends Disposable implements IFileSystemProvider {
 	private memoryFdCounter = 0;
 	private readonly fdMemory = new Map<number, { session: IDebugSession; region: IMemoryRegion }>();
 	private readonly changeEmitter = new Emitter<readonly IFileChange[]>();
@@ -31,13 +31,15 @@ export class DebugMemoryFileSystemProvider implements IFileSystemProvider {
 		| FileSystemProviderCapabilities.FileOpenReadWriteClose;
 
 	constructor(private readonly debugService: IDebugService) {
-		debugService.onDidEndSession(({ session }) => {
+		super();
+
+		this._register(debugService.onDidEndSession(({ session }) => {
 			for (const [fd, memory] of this.fdMemory) {
 				if (memory.session === session) {
 					this.close(fd);
 				}
 			}
-		});
+		}));
 	}
 
 	public watch(resource: URI, opts: IWatchOptions) {

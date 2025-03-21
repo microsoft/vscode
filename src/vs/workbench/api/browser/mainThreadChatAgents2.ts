@@ -24,15 +24,17 @@ import { ILogService } from '../../../platform/log/common/log.js';
 import { IChatWidgetService } from '../../contrib/chat/browser/chat.js';
 import { ChatInputPart } from '../../contrib/chat/browser/chatInputPart.js';
 import { AddDynamicVariableAction, IAddDynamicVariableContext } from '../../contrib/chat/browser/contrib/chatDynamicVariables.js';
-import { ChatAgentLocation, IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../contrib/chat/common/chatAgents.js';
+import { IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../contrib/chat/common/chatAgents.js';
 import { IChatEditingService, IChatRelatedFileProviderMetadata } from '../../contrib/chat/common/chatEditingService.js';
 import { ChatRequestAgentPart } from '../../contrib/chat/common/chatParserTypes.js';
 import { ChatRequestParser } from '../../contrib/chat/common/chatRequestParser.js';
-import { IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatProgress, IChatService, IChatTask, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
+import { IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatService, IChatTask, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
+import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostChatAgentsShape2, ExtHostContext, IChatParticipantMetadata, IChatProgressDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
+import { ExtHostChatAgentsShape2, ExtHostContext, IChatNotebookEditDto, IChatParticipantMetadata, IChatProgressDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
+import { NotebookDto } from './mainThreadNotebookDto.js';
 
 interface AgentData {
 	dispose: () => void;
@@ -136,7 +138,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		}
 
 		const inputValue = widget?.inputEditor.getValue() ?? '';
-		this._chatService.transferChatSession({ sessionId, inputValue }, URI.revive(toWorkspace));
+		const location = widget.location;
+		const mode = widget.input.currentMode;
+		this._chatService.transferChatSession({ sessionId, inputValue, location, mode }, URI.revive(toWorkspace));
 	}
 
 	async $registerAgent(handle: number, extension: ExtensionIdentifier, id: string, metadata: IExtensionChatAgentMetadata, dynamicProps: IDynamicChatAgentProps | undefined): Promise<void> {
@@ -170,9 +174,6 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				}
 
 				return this._proxy.$provideFollowups(request, handle, result, { history }, token);
-			},
-			provideWelcomeMessage: (token: CancellationToken) => {
-				return this._proxy.$provideWelcomeMessage(handle, token);
 			},
 			provideChatTitle: (history, token) => {
 				return this._proxy.$provideChatTitle(handle, history, token);
@@ -225,7 +226,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	}
 
 	async $handleProgressChunk(requestId: string, progress: IChatProgressDto, responsePartHandle?: number): Promise<number | void> {
-		const revivedProgress = revive(progress) as IChatProgress;
+		const revivedProgress = progress.kind === 'notebookEdit' ? ChatNotebookEdit.fromChatEdit(revive(progress)) : revive(progress) as IChatProgress;
 		if (revivedProgress.kind === 'progressTask') {
 			const handle = ++this._responsePartHandlePool;
 			const responsePartId = `${requestId}_${handle}`;
@@ -384,4 +385,15 @@ function computeCompletionRanges(model: ITextModel, position: Position, reg: Reg
 	}
 
 	return { insert, replace };
+}
+
+namespace ChatNotebookEdit {
+	export function fromChatEdit(part: IChatNotebookEditDto): IChatNotebookEdit {
+		return {
+			kind: 'notebookEdit',
+			uri: part.uri,
+			done: part.done,
+			edits: part.edits.map(NotebookDto.fromCellEditOperationDto)
+		};
+	}
 }

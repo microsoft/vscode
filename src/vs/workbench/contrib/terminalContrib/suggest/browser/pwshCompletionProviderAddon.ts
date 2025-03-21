@@ -244,7 +244,7 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 		return this._completionsDeferred.p;
 	}
 
-	provideCompletions(value: string, cursorPosition: number, token: CancellationToken): Promise<ITerminalCompletion[] | undefined> {
+	provideCompletions(value: string, cursorPosition: number, allowFallbackCompletions: boolean, token: CancellationToken): Promise<ITerminalCompletion[] | undefined> {
 		// Return immediately if completions are being requested for a command since this provider
 		// only returns completions for arguments
 		if (value.substring(0, cursorPosition).trim().indexOf(' ') === -1) {

@@ -14,10 +14,6 @@ import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { IRequestHandler, IWorkerServer } from '../../../../../../base/common/worker/simpleWorker.js';
 import { TextMateWorkerHost } from './textMateWorkerHost.js';
 
-/**
- * Defines the worker entry point. Must be exported and named `create`.
- * @skipMangle
- */
 export function create(workerServer: IWorkerServer): TextMateTokenizationWorker {
 	return new TextMateTokenizationWorker(workerServer);
 }

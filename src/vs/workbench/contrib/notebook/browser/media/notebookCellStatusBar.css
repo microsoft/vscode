@@ -68,3 +68,11 @@
 .monaco-workbench .notebookOverlay .cell-statusbar-container.is-active-cell .cell-status-item-show-when-active {
 	display: initial;
 }
+
+/* Ensure execution status icons always maintain their themed colors */
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-statusbar-container .cell-status-item .codicon-notebook-state-success {
+	color: var(--vscode-notebookStatusSuccessIcon-foreground);
+}
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-statusbar-container .cell-status-item .codicon-notebook-state-error {
+	color: var(--vscode-notebookStatusErrorIcon-foreground);
+}

@@ -627,7 +627,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 
 		if (!trusted && !this.statusbarEntryAccessor.value) {
 			const entry = this.getRestrictedModeStatusbarEntry();
-			this.statusbarEntryAccessor.value = this.statusbarService.addEntry(entry, this.entryId, StatusbarAlignment.LEFT, 0.99 * Number.MAX_VALUE /* Right of remote indicator */);
+			this.statusbarEntryAccessor.value = this.statusbarService.addEntry(entry, this.entryId, StatusbarAlignment.LEFT, { location: { id: 'status.host', priority: Number.POSITIVE_INFINITY }, alignment: StatusbarAlignment.RIGHT });
 		}
 	}
 

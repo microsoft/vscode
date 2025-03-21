@@ -418,6 +418,8 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 		element.element = data.entry ?? undefined;
 		const mainItem: IQuickPickItem = element.item;
 
+		element.element.classList.toggle('indented', Boolean(mainItem.indented));
+
 		data.checkbox.checked = element.checked;
 		data.toDisposeElement.add(element.onChecked(checked => data.checkbox.checked = checked));
 		data.checkbox.disabled = element.checkboxDisabled;
@@ -929,7 +931,7 @@ export class QuickInputTree extends Disposable {
 	}
 
 	private _registerHoverListeners() {
-		const delayer = this._register(new ThrottledDelayer(this.hoverDelegate.delay));
+		const delayer = this._register(new ThrottledDelayer(typeof this.hoverDelegate.delay === 'function' ? this.hoverDelegate.delay() : this.hoverDelegate.delay));
 		this._register(this._tree.onMouseOver(async e => {
 			// If we hover over an anchor element, we don't want to show the hover because
 			// the anchor may have a tooltip that we want to show instead.

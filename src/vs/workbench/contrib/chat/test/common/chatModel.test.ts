@@ -16,11 +16,12 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
-import { ChatAgentLocation, ChatAgentService, IChatAgentService } from '../../common/chatAgents.js';
+import { ChatAgentService, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatModel, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, normalizeSerializableChatData, Response } from '../../common/chatModel.js';
 import { ChatRequestTextPart } from '../../common/chatParserTypes.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { TestExtensionService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { ChatAgentLocation } from '../../common/constants.js';
 
 suite('ChatModel', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -163,8 +164,8 @@ suite('ChatModel', () => {
 
 		assert.strictEqual(request1.isCompleteAddedRequest, true);
 		assert.strictEqual(request1.response!.isCompleteAddedRequest, true);
-		assert.strictEqual(request1.shouldBeRemovedOnSend, false);
-		assert.strictEqual(request1.response!.shouldBeRemovedOnSend, false);
+		assert.strictEqual(request1.shouldBeRemovedOnSend, undefined);
+		assert.strictEqual(request1.response!.shouldBeRemovedOnSend, undefined);
 	});
 });
 

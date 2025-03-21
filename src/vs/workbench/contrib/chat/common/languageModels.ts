@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Iterable } from '../../../../base/common/iterator.js';
@@ -29,6 +30,32 @@ export interface IChatMessageTextPart {
 	value: string;
 }
 
+export interface IChatMessageImagePart {
+	type: 'image_url';
+	value: IChatImageURLPart;
+}
+
+export interface IChatImageURLPart {
+	/**
+	 * The image's MIME type (e.g., "image/png", "image/jpeg").
+	 */
+	mimeType: string;
+
+	/**
+	 * The raw binary data of the image, encoded as a Uint8Array. Note: do not use base64 encoding. Maximum image size is 5MB.
+	 */
+	data: VSBuffer;
+}
+
+/**
+ * Specifies the detail level of the image.
+ */
+export enum ImageDetailLevel {
+	Low = 'low',
+	High = 'high'
+}
+
+
 export interface IChatMessageToolResultPart {
 	type: 'tool_result';
 	toolCallId: string;
@@ -36,7 +63,7 @@ export interface IChatMessageToolResultPart {
 	isError?: boolean;
 }
 
-export type IChatMessagePart = IChatMessageTextPart | IChatMessageToolResultPart | IChatResponseToolUsePart;
+export type IChatMessagePart = IChatMessageTextPart | IChatMessageToolResultPart | IChatResponseToolUsePart | IChatMessageImagePart;
 
 export interface IChatMessage {
 	readonly name?: string | undefined;
@@ -89,6 +116,7 @@ export interface ILanguageModelChatMetadata {
 	readonly capabilities?: {
 		readonly vision?: boolean;
 		readonly toolCalling?: boolean;
+		readonly agentMode?: boolean;
 	};
 }
 

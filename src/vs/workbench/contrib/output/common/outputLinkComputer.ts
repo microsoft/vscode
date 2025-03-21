@@ -181,10 +181,6 @@ export class OutputLinkComputer implements IRequestHandler {
 	}
 }
 
-/**
- * Defines the worker entry point. Must be exported and named `create`.
- * @skipMangle
- */
 export function create(workerServer: IWorkerServer): OutputLinkComputer {
 	return new OutputLinkComputer(workerServer);
 }

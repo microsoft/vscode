@@ -6,7 +6,7 @@
 import { Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IChatWidget, IChatWidgetService } from '../../browser/chat.js';
-import { ChatAgentLocation } from '../../common/chatAgents.js';
+import { ChatAgentLocation } from '../../common/constants.js';
 
 export class MockChatWidgetService implements IChatWidgetService {
 	readonly onDidAddWidget: Event<IChatWidget> = Event.None;
@@ -28,5 +28,9 @@ export class MockChatWidgetService implements IChatWidgetService {
 
 	getWidgetsByLocations(location: ChatAgentLocation): ReadonlyArray<IChatWidget> {
 		return [];
+	}
+
+	getAllWidgets(): ReadonlyArray<IChatWidget> {
+		throw new Error('Method not implemented.');
 	}
 }

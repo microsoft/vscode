@@ -79,9 +79,9 @@ class QuickChatGlobalAction extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyL,
 			},
 			menu: {
-				id: MenuId.ChatCommandCenter,
-				group: 'e_quickChat',
-				order: 5
+				id: MenuId.ChatTitleBarMenu,
+				group: 'a_open',
+				order: 4
 			},
 			metadata: {
 				description: localize('toggle.desc', 'Toggle the quick chat'),
@@ -134,6 +134,7 @@ class AskQuickChatAction extends Action2 {
 			id: `workbench.action.openQuickChat`,
 			category: CHAT_CATEGORY,
 			title: localize2('interactiveSession.open', "Open Quick Chat"),
+			precondition: ChatContextKeys.enabled,
 			f1: true
 		});
 	}

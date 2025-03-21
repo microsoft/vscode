@@ -5,16 +5,16 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation, languages } from 'vscode';
+import { Command, commands, Disposable, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation, languages } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
-import { ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote } from './api/git';
+import { ForcePushMode, GitErrorCodes, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
 import { Git, Stash } from './git';
 import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
-import { DiffEditorSelectionHunkToolbarContext, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges } from './staging';
+import { DiffEditorSelectionHunkToolbarContext, LineChange, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri, toMergeUris, toMultiFileDiffEditorUris } from './uri';
-import { DiagnosticSeverityConfig, dispose, getCommitShortHash, grep, isDefined, isDescendant, isWindows, pathEquals, relativePath, toDiagnosticSeverity, truncate } from './util';
+import { DiagnosticSeverityConfig, dispose, fromNow, getCommitShortHash, grep, isDefined, isDescendant, isLinuxSnap, isRemote, isWindows, pathEquals, relativePath, toDiagnosticSeverity, truncate } from './util';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
 import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
@@ -73,6 +73,10 @@ class RefItem implements QuickPickItem {
 	}
 
 	get description(): string {
+		if (this.ref.commitDetails?.commitDate) {
+			return fromNow(this.ref.commitDetails.commitDate, true, true);
+		}
+
 		switch (this.ref.type) {
 			case RefType.Head:
 				return this.shortCommit;
@@ -83,6 +87,14 @@ class RefItem implements QuickPickItem {
 			default:
 				return '';
 		}
+	}
+
+	get detail(): string | undefined {
+		if (this.ref.commitDetails?.authorName && this.ref.commitDetails?.message) {
+			return `${this.ref.commitDetails?.authorName}  |  ${this.ref.commitDetails?.message}`;
+		}
+
+		return undefined;
 	}
 
 	get refName(): string | undefined { return this.ref.name; }
@@ -96,8 +108,26 @@ class RefItem implements QuickPickItem {
 	constructor(protected readonly ref: Ref) { }
 }
 
-class CheckoutItem extends RefItem {
+class BranchItem extends RefItem {
+	override get description(): string {
+		const description: string[] = [];
 
+		if (typeof this.ref.behind === 'number' && typeof this.ref.ahead === 'number') {
+			description.push(`${this.ref.behind}↓ ${this.ref.ahead}↑`);
+		}
+		if (this.ref.commitDetails?.commitDate) {
+			description.push(fromNow(this.ref.commitDetails.commitDate, true, true));
+		}
+
+		return description.length > 0 ? description.join('  |  ') : this.shortCommit;
+	}
+
+	constructor(override readonly ref: Branch) {
+		super(ref);
+	}
+}
+
+class CheckoutItem extends BranchItem {
 	async run(repository: Repository, opts?: { detached?: boolean }): Promise<void> {
 		if (!this.ref.name) {
 			return;
@@ -116,7 +146,6 @@ class CheckoutProtectedItem extends CheckoutItem {
 	override get label(): string {
 		return `$(lock) ${this.ref.name ?? this.shortCommit}`;
 	}
-
 }
 
 class CheckoutRemoteHeadItem extends RefItem {
@@ -152,7 +181,7 @@ class CheckoutTagItem extends RefItem {
 	}
 }
 
-class BranchDeleteItem extends RefItem {
+class BranchDeleteItem extends BranchItem {
 
 	async run(repository: Repository, force?: boolean): Promise<void> {
 		if (this.ref.type === RefType.Head && this.refName) {
@@ -186,7 +215,7 @@ class RemoteTagDeleteItem extends RefItem {
 	}
 }
 
-class MergeItem extends RefItem {
+class MergeItem extends BranchItem {
 
 	async run(repository: Repository): Promise<void> {
 		if (this.ref.name || this.ref.commit) {
@@ -195,7 +224,7 @@ class MergeItem extends RefItem {
 	}
 }
 
-class RebaseItem extends RefItem {
+class RebaseItem extends BranchItem {
 
 	async run(repository: Repository): Promise<void> {
 		if (this.ref?.name) {
@@ -275,7 +304,6 @@ class StashItem implements QuickPickItem {
 
 interface ScmCommandOptions {
 	repository?: boolean;
-	diff?: boolean;
 }
 
 interface ScmCommand {
@@ -327,6 +355,8 @@ async function categorizeResourceByResolution(resources: Resource[]): Promise<{ 
 async function createCheckoutItems(repository: Repository, detached = false): Promise<QuickPickItem[]> {
 	const config = workspace.getConfiguration('git');
 	const checkoutTypeConfig = config.get<string | string[]>('checkoutType');
+	const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
+
 	let checkoutTypes: string[];
 
 	if (checkoutTypeConfig === 'all' || !checkoutTypeConfig || checkoutTypeConfig.length === 0) {
@@ -342,12 +372,12 @@ async function createCheckoutItems(repository: Repository, detached = false): Pr
 		checkoutTypes = checkoutTypes.filter(t => t !== 'tags');
 	}
 
-	const refs = await repository.getRefs();
+	const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
 	const refProcessors = checkoutTypes.map(type => getCheckoutRefProcessor(repository, type))
 		.filter(p => !!p) as RefProcessor[];
 
 	const buttons = await getRemoteRefItemButtons(repository);
-	const itemsProcessor = new CheckoutItemsProcessor(refProcessors, repository, buttons, detached);
+	const itemsProcessor = new CheckoutItemsProcessor(repository, refProcessors, buttons, detached);
 
 	return itemsProcessor.processRefs(refs);
 }
@@ -405,10 +435,22 @@ class RefProcessor {
 
 class RefItemsProcessor {
 
-	constructor(protected readonly processors: RefProcessor[]) { }
+	constructor(
+		protected readonly repository: Repository,
+		protected readonly processors: RefProcessor[],
+		protected readonly options: {
+			skipCurrentBranch?: boolean;
+			skipCurrentBranchRemote?: boolean;
+		} = {}
+	) { }
 
 	processRefs(refs: Ref[]): QuickPickItem[] {
+		const refsToSkip = this.getRefsToSkip();
+
 		for (const ref of refs) {
+			if (ref.name && refsToSkip.includes(ref.name)) {
+				continue;
+			}
 			for (const processor of this.processors) {
 				if (processor.processRef(ref)) {
 					break;
@@ -423,48 +465,19 @@ class RefItemsProcessor {
 
 		return result;
 	}
-}
 
-class RebaseItemsProcessors extends RefItemsProcessor {
+	protected getRefsToSkip(): string[] {
+		const refsToSkip = ['origin/HEAD'];
 
-	private upstreamName: string | undefined;
-
-	constructor(private readonly repository: Repository) {
-		super([
-			new RefProcessor(RefType.Head, RebaseItem),
-			new RefProcessor(RefType.RemoteHead, RebaseItem)
-		]);
-
-		if (this.repository.HEAD?.upstream) {
-			this.upstreamName = `${this.repository.HEAD?.upstream.remote}/${this.repository.HEAD?.upstream.name}`;
-		}
-	}
-
-	override processRefs(refs: Ref[]): QuickPickItem[] {
-		const result: QuickPickItem[] = [];
-
-		for (const ref of refs) {
-			if (ref.name === this.repository.HEAD?.name) {
-				continue;
-			}
-
-			if (ref.name === this.upstreamName) {
-				result.push(new RebaseUpstreamItem(ref));
-				continue;
-			}
-
-			for (const processor of this.processors) {
-				if (processor.processRef(ref)) {
-					break;
-				}
-			}
+		if (this.options.skipCurrentBranch && this.repository.HEAD?.name) {
+			refsToSkip.push(this.repository.HEAD.name);
 		}
 
-		for (const processor of this.processors) {
-			result.push(...processor.items);
+		if (this.options.skipCurrentBranchRemote && this.repository.HEAD?.upstream) {
+			refsToSkip.push(`${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`);
 		}
 
-		return result;
+		return refsToSkip;
 	}
 }
 
@@ -490,11 +503,11 @@ class CheckoutItemsProcessor extends RefItemsProcessor {
 	private defaultButtons: RemoteSourceActionButton[] | undefined;
 
 	constructor(
+		repository: Repository,
 		processors: RefProcessor[],
-		private readonly repository: Repository,
 		private readonly buttons: Map<string, RemoteSourceActionButton[]>,
 		private readonly detached = false) {
-		super(processors);
+		super(repository, processors);
 
 		// Default button(s)
 		const remote = repository.remotes.find(r => r.pushUrl === repository.HEAD?.remote || r.fetchUrl === repository.HEAD?.remote) ?? repository.remotes[0];
@@ -620,7 +633,6 @@ class CommandErrorOutputTextDocumentContentProvider implements TextDocumentConte
 async function evaluateDiagnosticsCommitHook(repository: Repository, options: CommitOptions): Promise<boolean> {
 	const config = workspace.getConfiguration('git', Uri.file(repository.root));
 	const enabled = config.get<boolean>('diagnosticsCommitHook.Enabled', false) === true;
-	const ignoredSources = config.get<string[]>('diagnosticsCommitHook.IgnoredSources', []);
 	const sourceSeverity = config.get<Record<string, DiagnosticSeverityConfig>>('diagnosticsCommitHook.Sources', { '*': 'error' });
 
 	if (!enabled) {
@@ -652,7 +664,7 @@ async function evaluateDiagnosticsCommitHook(repository: Repository, options: Co
 		// Diagnostics
 		return diags.find(d => {
 			// No source or ignored source
-			if (!d.source || ignoredSources.includes(d.source)) {
+			if (!d.source || (Object.keys(sourceSeverity).includes(d.source) && sourceSeverity[d.source] === 'none')) {
 				return false;
 			}
 
@@ -681,8 +693,8 @@ async function evaluateDiagnosticsCommitHook(repository: Repository, options: Co
 	const view = l10n.t('View Problems');
 
 	const message = changesDiagnostics.length === 1
-		? l10n.t('The following file has unresolved diagnostic information: \'{0}\'.\n\nHow would you like to proceed?', path.basename(changesDiagnostics[0][0].fsPath))
-		: l10n.t('There are {0} files that have unresolved diagnostic information.\n\nHow would you like to proceed?', changesDiagnostics.length);
+		? l10n.t('The following file has unresolved diagnostics: \'{0}\'.\n\nHow would you like to proceed?', path.basename(changesDiagnostics[0][0].fsPath))
+		: l10n.t('There are {0} files that have unresolved diagnostics.\n\nHow would you like to proceed?', changesDiagnostics.length);
 
 	const choice = await window.showWarningMessage(message, { modal: true }, commit, view);
 
@@ -713,12 +725,7 @@ export class CommandCenter {
 	) {
 		this.disposables = Commands.map(({ commandId, key, method, options }) => {
 			const command = this.createCommand(commandId, key, method, options);
-
-			if (options.diff) {
-				return commands.registerDiffInformationCommand(commandId, command);
-			} else {
-				return commands.registerCommand(commandId, command);
-			}
+			return commands.registerCommand(commandId, command);
 		});
 
 		this.disposables.push(workspace.registerTextDocumentContentProvider('git-output', this.commandErrors));
@@ -1629,23 +1636,32 @@ export class CommandCenter {
 		}
 
 		let modifiedUri = changes.modifiedUri;
+		let modifiedDocument: TextDocument | undefined;
+
 		if (!modifiedUri) {
 			const textEditor = window.activeTextEditor;
 			if (!textEditor) {
 				return;
 			}
-			const modifiedDocument = textEditor.document;
+			modifiedDocument = textEditor.document;
 			modifiedUri = modifiedDocument.uri;
 		}
+
 		if (modifiedUri.scheme !== 'file') {
 			return;
 		}
+
+		if (!modifiedDocument) {
+			modifiedDocument = await workspace.openTextDocument(modifiedUri);
+		}
+
 		const result = changes.originalWithModifiedChanges;
-		await this.runByRepository(modifiedUri, async (repository, resource) => await repository.stage(resource, result));
+		await this.runByRepository(modifiedUri, async (repository, resource) =>
+			await repository.stage(resource, result, modifiedDocument.encoding));
 	}
 
-	@command('git.stageSelectedRanges', { diff: true })
-	async stageSelectedChanges(changes: LineChange[]): Promise<void> {
+	@command('git.stageSelectedRanges')
+	async stageSelectedChanges(): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
 		if (!textEditor) {
@@ -1659,7 +1675,6 @@ export class CommandCenter {
 
 		const workingTreeLineChanges = toLineChanges(workingTreeDiffInformation);
 
-		this.logger.trace(`[CommandCenter][stageSelectedChanges] changes: ${JSON.stringify(changes)}`);
 		this.logger.trace(`[CommandCenter][stageSelectedChanges] diffInformation: ${JSON.stringify(workingTreeDiffInformation)}`);
 		this.logger.trace(`[CommandCenter][stageSelectedChanges] diffInformation changes: ${JSON.stringify(workingTreeLineChanges)}`);
 
@@ -1818,7 +1833,8 @@ export class CommandCenter {
 		const originalDocument = await workspace.openTextDocument(originalUri);
 		const result = applyLineChanges(originalDocument, modifiedDocument, changes);
 
-		await this.runByRepository(modifiedUri, async (repository, resource) => await repository.stage(resource, result));
+		await this.runByRepository(modifiedUri, async (repository, resource) =>
+			await repository.stage(resource, result, modifiedDocument.encoding));
 	}
 
 	@command('git.revertChange')
@@ -1839,8 +1855,8 @@ export class CommandCenter {
 		textEditor.selections = [new Selection(firstStagedLine, 0, firstStagedLine, 0)];
 	}
 
-	@command('git.revertSelectedRanges', { diff: true })
-	async revertSelectedRanges(changes: LineChange[]): Promise<void> {
+	@command('git.revertSelectedRanges')
+	async revertSelectedRanges(): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
 		if (!textEditor) {
@@ -1854,7 +1870,6 @@ export class CommandCenter {
 
 		const workingTreeLineChanges = toLineChanges(workingTreeDiffInformation);
 
-		this.logger.trace(`[CommandCenter][revertSelectedRanges] changes: ${JSON.stringify(changes)}`);
 		this.logger.trace(`[CommandCenter][revertSelectedRanges] diffInformation: ${JSON.stringify(workingTreeDiffInformation)}`);
 		this.logger.trace(`[CommandCenter][revertSelectedRanges] diffInformation changes: ${JSON.stringify(workingTreeLineChanges)}`);
 
@@ -1929,8 +1944,8 @@ export class CommandCenter {
 		await repository.revert([]);
 	}
 
-	@command('git.unstageSelectedRanges', { diff: true })
-	async unstageSelectedRanges(changes: LineChange[]): Promise<void> {
+	@command('git.unstageSelectedRanges')
+	async unstageSelectedRanges(): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
 		if (!textEditor) {
@@ -1950,6 +1965,17 @@ export class CommandCenter {
 			return;
 		}
 
+		const repository = this.model.getRepository(modifiedUri);
+		if (!repository) {
+			return;
+		}
+
+		const resource = repository.indexGroup.resourceStates
+			.find(r => pathEquals(r.resourceUri.fsPath, modifiedUri.fsPath));
+		if (!resource) {
+			return;
+		}
+
 		const indexDiffInformation = getIndexDiffInformation(textEditor);
 		if (!indexDiffInformation) {
 			return;
@@ -1957,11 +1983,10 @@ export class CommandCenter {
 
 		const indexLineChanges = toLineChanges(indexDiffInformation);
 
-		this.logger.trace(`[CommandCenter][unstageSelectedRanges] changes: ${JSON.stringify(changes)}`);
 		this.logger.trace(`[CommandCenter][unstageSelectedRanges] diffInformation: ${JSON.stringify(indexDiffInformation)}`);
 		this.logger.trace(`[CommandCenter][unstageSelectedRanges] diffInformation changes: ${JSON.stringify(indexLineChanges)}`);
 
-		const originalUri = toGitUri(modifiedUri, 'HEAD');
+		const originalUri = toGitUri(resource.original, 'HEAD');
 		const originalDocument = await workspace.openTextDocument(originalUri);
 		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
 		const selectedDiffs = indexLineChanges
@@ -1979,7 +2004,7 @@ export class CommandCenter {
 		this.logger.trace(`[CommandCenter][unstageSelectedRanges] invertedDiffs: ${JSON.stringify(invertedDiffs)}`);
 
 		const result = applyLineChanges(modifiedDocument, originalDocument, invertedDiffs);
-		await this.runByRepository(modifiedUri, async (repository, resource) => await repository.stage(resource, result));
+		await repository.stage(modifiedUri, result, modifiedDocument.encoding);
 	}
 
 	@command('git.unstageFile')
@@ -2154,9 +2179,9 @@ export class CommandCenter {
 
 	private getDiscardUntrackedChangesDialogDetails(resources: Resource[]): [string, string, string] {
 		const config = workspace.getConfiguration('git');
-		const untrackedChangesSoftDelete = config.get<boolean>('untrackedChangesSoftDelete', true) === true;
+		const discardUntrackedChangesToTrash = config.get<boolean>('discardUntrackedChangesToTrash', true) && !isRemote && !isLinuxSnap;
 
-		const messageWarning = !untrackedChangesSoftDelete
+		const messageWarning = !discardUntrackedChangesToTrash
 			? resources.length === 1
 				? '\n\nThis is IRREVERSIBLE!\nThis file will be FOREVER LOST if you proceed.'
 				: '\n\nThis is IRREVERSIBLE!\nThese files will be FOREVER LOST if you proceed.'
@@ -2166,7 +2191,7 @@ export class CommandCenter {
 			? l10n.t('Are you sure you want to DELETE the following untracked file: \'{0}\'?{1}', path.basename(resources[0].resourceUri.fsPath), messageWarning)
 			: l10n.t('Are you sure you want to DELETE the {0} untracked files?{1}', resources.length, messageWarning);
 
-		const messageDetail = untrackedChangesSoftDelete
+		const messageDetail = discardUntrackedChangesToTrash
 			? isWindows
 				? resources.length === 1
 					? 'You can restore this file from the Recycle Bin.'
@@ -2176,7 +2201,7 @@ export class CommandCenter {
 					: 'You can restore these files from the Trash.'
 			: '';
 
-		const primaryAction = untrackedChangesSoftDelete
+		const primaryAction = discardUntrackedChangesToTrash
 			? isWindows
 				? l10n.t('Move to Recycle Bin')
 				: l10n.t('Move to Trash')
@@ -2695,6 +2720,7 @@ export class CommandCenter {
 		const quickPick = window.createQuickPick();
 		quickPick.busy = true;
 		quickPick.sortByLabel = false;
+		quickPick.matchOnDetail = false;
 		quickPick.placeholder = opts?.detached
 			? l10n.t('Select a branch to checkout in detached mode')
 			: l10n.t('Select a branch or tag to checkout');
@@ -2915,10 +2941,13 @@ export class CommandCenter {
 	private async _branch(repository: Repository, defaultName?: string, from = false, target?: string): Promise<void> {
 		target = target ?? 'HEAD';
 
+		const config = workspace.getConfiguration('git');
+		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
+
 		if (from) {
 			const getRefPicks = async () => {
-				const refs = await repository.getRefs();
-				const refProcessors = new RefItemsProcessor([
+				const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
+				const refProcessors = new RefItemsProcessor(repository, [
 					new RefProcessor(RefType.Head),
 					new RefProcessor(RefType.RemoteHead),
 					new RefProcessor(RefType.Tag)
@@ -3020,6 +3049,9 @@ export class CommandCenter {
 	private async _deleteBranch(repository: Repository, remote: string | undefined, name: string | undefined, options: { remote: boolean; force?: boolean }): Promise<void> {
 		let run: (force?: boolean) => Promise<void>;
 
+		const config = workspace.getConfiguration('git');
+		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
+
 		if (!options.remote && typeof name === 'string') {
 			// Local branch
 			run = force => repository.deleteBranch(name!, force);
@@ -3029,34 +3061,26 @@ export class CommandCenter {
 		} else {
 			const getBranchPicks = async () => {
 				const pattern = options.remote ? 'refs/remotes' : 'refs/heads';
-				const refs = await repository.getRefs({ pattern });
+				const refs = await repository.getRefs({ pattern, includeCommitDetails: showRefDetails });
+				const processors = options.remote
+					? [new RefProcessor(RefType.RemoteHead, BranchDeleteItem)]
+					: [new RefProcessor(RefType.Head, BranchDeleteItem)];
 
-				const refsToExclude: string[] = [];
-				if (options.remote) {
-					refsToExclude.push('origin/HEAD');
+				const itemsProcessor = new RefItemsProcessor(repository, processors, {
+					skipCurrentBranch: true,
+					skipCurrentBranchRemote: true
+				});
 
-					if (repository.HEAD?.upstream) {
-						// Current branch's upstream
-						refsToExclude.push(`${repository.HEAD.upstream.remote}/${repository.HEAD.upstream.name}`);
-					}
-				} else {
-					if (repository.HEAD?.name) {
-						// Current branch
-						refsToExclude.push(repository.HEAD.name);
-					}
-				}
-
-				return refs.filter(ref => ref.name && !refsToExclude.includes(ref.name))
-					.map(ref => new BranchDeleteItem(ref));
+				return itemsProcessor.processRefs(refs);
 			};
 
 			const placeHolder = !options.remote
 				? l10n.t('Select a branch to delete')
 				: l10n.t('Select a remote branch to delete');
 
-			const choice = await this.pickRef<BranchDeleteItem>(getBranchPicks(), placeHolder);
+			const choice = await this.pickRef(getBranchPicks(), placeHolder);
 
-			if (!choice || !choice.refName) {
+			if (!(choice instanceof BranchDeleteItem) || !choice.refName) {
 				return;
 			}
 			name = choice.refName;
@@ -3107,13 +3131,19 @@ export class CommandCenter {
 
 	@command('git.merge', { repository: true })
 	async merge(repository: Repository): Promise<void> {
+		const config = workspace.getConfiguration('git');
+		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
+
 		const getQuickPickItems = async (): Promise<QuickPickItem[]> => {
-			const refs = await repository.getRefs();
-			const itemsProcessor = new RefItemsProcessor([
+			const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
+			const itemsProcessor = new RefItemsProcessor(repository, [
 				new RefProcessor(RefType.Head, MergeItem),
 				new RefProcessor(RefType.RemoteHead, MergeItem),
 				new RefProcessor(RefType.Tag, MergeItem)
-			]);
+			], {
+				skipCurrentBranch: true,
+				skipCurrentBranchRemote: true
+			});
 
 			return itemsProcessor.processRefs(refs);
 		};
@@ -3133,11 +3163,31 @@ export class CommandCenter {
 
 	@command('git.rebase', { repository: true })
 	async rebase(repository: Repository): Promise<void> {
-		const getQuickPickItems = async (): Promise<QuickPickItem[]> => {
-			const refs = await repository.getRefs();
-			const itemsProcessor = new RebaseItemsProcessors(repository);
+		const config = workspace.getConfiguration('git');
+		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
 
-			return itemsProcessor.processRefs(refs);
+		const getQuickPickItems = async (): Promise<QuickPickItem[]> => {
+			const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
+			const itemsProcessor = new RefItemsProcessor(repository, [
+				new RefProcessor(RefType.Head, RebaseItem),
+				new RefProcessor(RefType.RemoteHead, RebaseItem)
+			], {
+				skipCurrentBranch: true,
+				skipCurrentBranchRemote: true
+			});
+
+			const quickPickItems = itemsProcessor.processRefs(refs);
+
+			if (repository.HEAD?.upstream) {
+				const upstreamRef = refs.find(ref => ref.type === RefType.RemoteHead &&
+					ref.name === `${repository.HEAD!.upstream!.remote}/${repository.HEAD!.upstream!.name}`);
+
+				if (upstreamRef) {
+					quickPickItems.splice(0, 0, new RebaseUpstreamItem(upstreamRef));
+				}
+			}
+
+			return quickPickItems;
 		};
 
 		const placeHolder = l10n.t('Select a branch to rebase onto');
@@ -3172,8 +3222,11 @@ export class CommandCenter {
 
 	@command('git.deleteTag', { repository: true })
 	async deleteTag(repository: Repository): Promise<void> {
+		const config = workspace.getConfiguration('git');
+		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
+
 		const tagPicks = async (): Promise<TagDeleteItem[] | QuickPickItem[]> => {
-			const remoteTags = await repository.getRefs({ pattern: 'refs/tags' });
+			const remoteTags = await repository.getRefs({ pattern: 'refs/tags', includeCommitDetails: showRefDetails });
 			return remoteTags.length === 0 ? [{ label: l10n.t('$(info) This repository has no tags.') }] : remoteTags.map(ref => new TagDeleteItem(ref));
 		};
 

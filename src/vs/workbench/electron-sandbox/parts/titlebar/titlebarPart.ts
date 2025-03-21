@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../../base/common/event.js';
 import { getZoomFactor } from '../../../../base/browser/browser.js';
-import { addDisposableListener, EventType, getWindow, getWindowId, hide, show } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventType, getWindow, getWindowId, hide, show } from '../../../../base/browser/dom.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationService, IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -19,15 +20,13 @@ import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { hasNativeTitlebar, useWindowControlsOverlay, DEFAULT_CUSTOM_TITLEBAR_HEIGHT } from '../../../../platform/window/common/window.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { NativeMenubarControl } from './menubarControl.js';
 import { IEditorGroupsContainer, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { CodeWindow, mainWindow } from '../../../../base/browser/window.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
-import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
 
 export class NativeTitlebarPart extends BrowserTitlebarPart {
 
@@ -52,6 +51,9 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 	}
 
 	//#endregion
+
+	private maxRestoreControl: HTMLElement | undefined;
+	private resizer: HTMLElement | undefined;
 
 	private cachedWindowControlStyles: { bgColor: string; fgColor: string } | undefined;
 	private cachedWindowControlHeight: number | undefined;
@@ -155,6 +157,45 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 			})));
 		}
 
+		// Custom Window Controls (Native Windows/Linux)
+		if (
+			!hasNativeTitlebar(this.configurationService) &&		// not for native title bars
+			!useWindowControlsOverlay(this.configurationService) &&	// not when controls are natively drawn
+			this.windowControlsContainer
+		) {
+
+			// Minimize
+			const minimizeIcon = append(this.windowControlsContainer, $('div.window-icon.window-minimize' + ThemeIcon.asCSSSelector(Codicon.chromeMinimize)));
+			this._register(addDisposableListener(minimizeIcon, EventType.CLICK, () => {
+				this.nativeHostService.minimizeWindow({ targetWindowId });
+			}));
+
+			// Restore
+			this.maxRestoreControl = append(this.windowControlsContainer, $('div.window-icon.window-max-restore'));
+			this._register(addDisposableListener(this.maxRestoreControl, EventType.CLICK, async () => {
+				const maximized = await this.nativeHostService.isMaximized({ targetWindowId });
+				if (maximized) {
+					return this.nativeHostService.unmaximizeWindow({ targetWindowId });
+				}
+
+				return this.nativeHostService.maximizeWindow({ targetWindowId });
+			}));
+
+			// Close
+			const closeIcon = append(this.windowControlsContainer, $('div.window-icon.window-close' + ThemeIcon.asCSSSelector(Codicon.chromeClose)));
+			this._register(addDisposableListener(closeIcon, EventType.CLICK, () => {
+				this.nativeHostService.closeWindow({ targetWindowId });
+			}));
+
+			// Resizer
+			this.resizer = append(this.rootContainer, $('div.resizer'));
+			this._register(Event.runAndSubscribe(this.layoutService.onDidChangeWindowMaximized, ({ windowId, maximized }) => {
+				if (windowId === targetWindowId) {
+					this.onDidChangeWindowMaximized(maximized);
+				}
+			}, { windowId: targetWindowId, maximized: this.layoutService.isWindowMaximized(targetWindow) }));
+		}
+
 		// Window System Context Menu
 		// See https://github.com/electron/electron/issues/24893
 		if (isWindows && !hasNativeTitlebar(this.configurationService)) {
@@ -171,20 +212,43 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 		return result;
 	}
 
+	private onDidChangeWindowMaximized(maximized: boolean): void {
+		if (this.maxRestoreControl) {
+			if (maximized) {
+				this.maxRestoreControl.classList.remove(...ThemeIcon.asClassNameArray(Codicon.chromeMaximize));
+				this.maxRestoreControl.classList.add(...ThemeIcon.asClassNameArray(Codicon.chromeRestore));
+			} else {
+				this.maxRestoreControl.classList.remove(...ThemeIcon.asClassNameArray(Codicon.chromeRestore));
+				this.maxRestoreControl.classList.add(...ThemeIcon.asClassNameArray(Codicon.chromeMaximize));
+			}
+		}
+
+		if (this.resizer) {
+			if (maximized) {
+				hide(this.resizer);
+			} else {
+				show(this.resizer);
+			}
+		}
+	}
+
 	override updateStyles(): void {
 		super.updateStyles();
 
-		if (useWindowControlsOverlay(this.configurationService)) {
-			if (
-				!this.cachedWindowControlStyles ||
-				this.cachedWindowControlStyles.bgColor !== this.element.style.backgroundColor ||
-				this.cachedWindowControlStyles.fgColor !== this.element.style.color
-			) {
-				this.nativeHostService.updateWindowControls({
-					targetWindowId: getWindowId(getWindow(this.element)),
-					backgroundColor: this.element.style.backgroundColor,
-					foregroundColor: this.element.style.color
-				});
+		// Part container
+		if (this.element) {
+			if (useWindowControlsOverlay(this.configurationService)) {
+				if (
+					!this.cachedWindowControlStyles ||
+					this.cachedWindowControlStyles.bgColor !== this.element.style.backgroundColor ||
+					this.cachedWindowControlStyles.fgColor !== this.element.style.color
+				) {
+					this.nativeHostService.updateWindowControls({
+						targetWindowId: getWindowId(getWindow(this.element)),
+						backgroundColor: this.element.style.backgroundColor,
+						foregroundColor: this.element.style.color
+					});
+				}
 			}
 		}
 	}
@@ -282,52 +346,5 @@ export class NativeTitleService extends BrowserTitleService {
 
 	protected override doCreateAuxiliaryTitlebarPart(container: HTMLElement, editorGroupsContainer: IEditorGroupsContainer): AuxiliaryNativeTitlebarPart {
 		return this.instantiationService.createInstance(AuxiliaryNativeTitlebarPart, container, editorGroupsContainer, this.mainPart);
-	}
-}
-
-export class LinuxCustomTitlebarExperiment extends Disposable implements IWorkbenchContribution {
-
-	static readonly ID = 'workbench.contrib.linuxCustomTitlebarExperiment';
-
-	private readonly treatment = this.assignmentService.getTreatment('config.window.experimentalTitleBarStyle');
-
-	constructor(
-		@IProductService productService: IProductService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService
-	) {
-		super();
-
-		if (isLinux && productService.quality === 'stable') {
-			this.handleDefaultTitlebarStyle(); // TODO@bpasero remove me eventually once settled
-		}
-	}
-
-	private handleDefaultTitlebarStyle(): void {
-		this.updateDefaultTitlebarStyle();
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('window.titleBarStyle')) {
-				this.updateDefaultTitlebarStyle();
-			}
-		}));
-	}
-
-	private async updateDefaultTitlebarStyle(): Promise<void> {
-		const titleBarStyle = this.configurationService.inspect('window.titleBarStyle');
-
-		let titleBarStyleOverride: 'custom' | undefined;
-		if (titleBarStyle.applicationValue || titleBarStyle.userValue) {
-			// configured by user or application: clear override
-			titleBarStyleOverride = undefined;
-		} else {
-			// not configured: set override if experiment is active
-			const value = await this.treatment;
-			if (value === 'custom') {
-				titleBarStyleOverride = 'custom';
-			}
-		}
-
-		await this.nativeHostService.overrideDefaultTitlebarStyle(titleBarStyleOverride);
 	}
 }

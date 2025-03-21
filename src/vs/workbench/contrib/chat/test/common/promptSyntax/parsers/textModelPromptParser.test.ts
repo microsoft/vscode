@@ -10,7 +10,7 @@ import { Schemas } from '../../../../../../../base/common/network.js';
 import { ExpectedReference } from '../testUtils/expectedReference.js';
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
-import { FileOpenFailed } from '../../../../common/promptFileReferenceErrors.js';
+import { OpenFailed } from '../../../../common/promptFileReferenceErrors.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { randomBoolean } from '../../../../../../../base/test/common/testUtils.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
@@ -21,6 +21,7 @@ import { TextModelPromptParser } from '../../../../common/promptSyntax/parsers/t
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { assertDefined } from '../../../../../../../base/common/types.js';
 
 /**
  * Test helper to run unit tests for the {@link TextModelPromptParser}
@@ -78,7 +79,14 @@ class TextModelPromptParserTest extends Disposable {
 
 		const { references } = this.parser;
 		for (let i = 0; i < expectedReferences.length; i++) {
-			expectedReferences[i].validateEqual(references[i]);
+			const reference = references[i];
+
+			assertDefined(
+				reference,
+				`Expected reference #${i} be ${expectedReferences[i]}, got 'undefined'.`,
+			);
+
+			expectedReferences[i].validateEqual(reference);
 		}
 
 		assert.strictEqual(
@@ -143,7 +151,7 @@ suite('TextModelPromptParser', () => {
 				startLine: 1,
 				startColumn: 27,
 				pathStartColumn: 33,
-				childrenOrError: new FileOpenFailed(createURI('/abs/path/to/file.md'), 'File not found.'),
+				childrenOrError: new OpenFailed(createURI('/abs/path/to/file.md'), 'File not found.'),
 			}),
 			new ExpectedReference({
 				uri: createURI('/foo/folder/binary.file'),
@@ -152,7 +160,7 @@ suite('TextModelPromptParser', () => {
 				startLine: 7,
 				startColumn: 10,
 				pathStartColumn: 16,
-				childrenOrError: new FileOpenFailed(createURI('/foo/folder/binary.file'), 'File not found.'),
+				childrenOrError: new OpenFailed(createURI('/foo/folder/binary.file'), 'File not found.'),
 			}),
 			new ExpectedReference({
 				uri: createURI('/etc/hosts/random-file.txt'),
@@ -161,7 +169,7 @@ suite('TextModelPromptParser', () => {
 				startLine: 7,
 				startColumn: 81,
 				pathStartColumn: 91,
-				childrenOrError: new FileOpenFailed(createURI('/etc/hosts/random-file.txt'), 'File not found.'),
+				childrenOrError: new OpenFailed(createURI('/etc/hosts/random-file.txt'), 'File not found.'),
 			}),
 		]);
 	});
@@ -196,7 +204,7 @@ suite('TextModelPromptParser', () => {
 				startLine: 3,
 				startColumn: 43,
 				pathStartColumn: 55,
-				childrenOrError: new FileOpenFailed(createURI('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
+				childrenOrError: new OpenFailed(createURI('/absolute/folder/and/a/foo-bar-baz/another-file.ts'), 'File not found.'),
 			}),
 			new ExpectedReference({
 				uri: createURI('/absolute/c/file_name.prompt.md'),
@@ -205,7 +213,7 @@ suite('TextModelPromptParser', () => {
 				startLine: 6,
 				startColumn: 7,
 				pathStartColumn: 17,
-				childrenOrError: new FileOpenFailed(createURI('/absolute/c/file_name.prompt.md'), 'File not found.'),
+				childrenOrError: new OpenFailed(createURI('/absolute/c/file_name.prompt.md'), 'File not found.'),
 			}),
 			new ExpectedReference({
 				uri: createURI('/absolute/folder/main.rs'),
@@ -214,7 +222,7 @@ suite('TextModelPromptParser', () => {
 				startLine: 11,
 				startColumn: 36,
 				pathStartColumn: 42,
-				childrenOrError: new FileOpenFailed(createURI('/absolute/folder/main.rs'), 'File not found.'),
+				childrenOrError: new OpenFailed(createURI('/absolute/folder/main.rs'), 'File not found.'),
 			}),
 			new ExpectedReference({
 				uri: createURI('/absolute/folder/and/a/samefile.jpeg'),
@@ -223,7 +231,7 @@ suite('TextModelPromptParser', () => {
 				startLine: 11,
 				startColumn: 56,
 				pathStartColumn: 62,
-				childrenOrError: new FileOpenFailed(createURI('/absolute/folder/and/a/samefile.jpeg'), 'File not found.'),
+				childrenOrError: new OpenFailed(createURI('/absolute/folder/and/a/samefile.jpeg'), 'File not found.'),
 			}),
 		]);
 	});

@@ -6,9 +6,8 @@
 import './media/window.css';
 import { localize } from '../../nls.js';
 import { URI } from '../../base/common/uri.js';
-import { onUnexpectedError } from '../../base/common/errors.js';
 import { equals } from '../../base/common/objects.js';
-import { EventType, EventHelper, addDisposableListener, ModifierKeyEmitter, getActiveElement, hasWindow, getWindowById, getWindows } from '../../base/browser/dom.js';
+import { EventType, EventHelper, addDisposableListener, ModifierKeyEmitter, getActiveElement, hasWindow, getWindowById, getWindows, $ } from '../../base/browser/dom.js';
 import { Action, Separator, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../base/common/actions.js';
 import { IFileService } from '../../platform/files/common/files.js';
 import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput, IUntypedEditorInput, IEditorPane, isResourceEditorInput, IResourceMergeEditorInput } from '../common/editor.js';
@@ -131,6 +130,8 @@ export class NativeWindow extends BaseWindow {
 	) {
 		super(mainWindow, undefined, hostService, nativeEnvironmentService);
 
+		this.configuredWindowZoomLevel = this.resolveConfiguredWindowZoomLevel();
+
 		this.registerListeners();
 		this.create();
 	}
@@ -182,13 +183,6 @@ export class NativeWindow extends BaseWindow {
 			const activeElement = getActiveElement();
 			if (activeElement) {
 				this.keybindingService.dispatchByUserSettingsLabel(request.userSettingsLabel, activeElement);
-			}
-		});
-
-		// Error reporting from main
-		ipcRenderer.on('vscode:reportError', (event: unknown, error: string) => {
-			if (error) {
-				onUnexpectedError(JSON.parse(error));
 			}
 		});
 
@@ -1058,7 +1052,7 @@ export class NativeWindow extends BaseWindow {
 
 	private readonly mapWindowIdToZoomStatusEntry = new Map<number, ZoomStatusEntry>();
 
-	private configuredWindowZoomLevel = this.resolveConfiguredWindowZoomLevel();
+	private configuredWindowZoomLevel: number;
 
 	private resolveConfiguredWindowZoomLevel(): number {
 		const windowZoomLevel = this.configurationService.getValue('window.zoomLevel');
@@ -1173,11 +1167,9 @@ class ZoomStatusEntry extends Disposable {
 		const disposables = new DisposableStore();
 		this.disposable.value = disposables;
 
-		const container = document.createElement('div');
-		container.classList.add('zoom-status');
+		const container = $('.zoom-status');
 
-		const left = document.createElement('div');
-		left.classList.add('zoom-status-left');
+		const left = $('.zoom-status-left');
 		container.appendChild(left);
 
 		const zoomOutAction: Action = disposables.add(new Action('workbench.action.zoomOut', localize('zoomOut', "Zoom Out"), ThemeIcon.asClassName(Codicon.remove), true, () => this.commandService.executeCommand(zoomOutAction.id)));
@@ -1195,8 +1187,7 @@ class ZoomStatusEntry extends Disposable {
 		actionBarLeft.push(this.zoomLevelLabel, { icon: false, label: true });
 		actionBarLeft.push(zoomInAction, { icon: true, label: false, keybinding: this.keybindingService.lookupKeybinding(zoomInAction.id)?.getLabel() });
 
-		const right = document.createElement('div');
-		right.classList.add('zoom-status-right');
+		const right = $('.zoom-status-right');
 		container.appendChild(right);
 
 		const actionBarRight = disposables.add(new ActionBar(right, { hoverDelegate: nativeHoverDelegate }));

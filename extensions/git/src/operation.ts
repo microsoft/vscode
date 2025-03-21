@@ -39,7 +39,6 @@ export const enum OperationKind {
 	Merge = 'Merge',
 	MergeAbort = 'MergeAbort',
 	MergeBase = 'MergeBase',
-	MergeContinue = 'MergeContinue',
 	Move = 'Move',
 	PostCommitCommand = 'PostCommitCommand',
 	Pull = 'Pull',
@@ -70,10 +69,10 @@ export type Operation = AddOperation | ApplyOperation | BlameOperation | BranchO
 	DeleteRefOperation | DeleteRemoteRefOperation | DeleteTagOperation | DiffOperation | FetchOperation | FindTrackingBranchesOperation |
 	GetBranchOperation | GetBranchesOperation | GetCommitTemplateOperation | GetObjectDetailsOperation | GetObjectFilesOperation | GetRefsOperation |
 	GetRemoteRefsOperation | HashObjectOperation | IgnoreOperation | LogOperation | LogFileOperation | MergeOperation | MergeAbortOperation |
-	MergeBaseOperation | MergeContinueOperation | MoveOperation | PostCommitCommandOperation | PullOperation | PushOperation | RemoteOperation |
-	RenameBranchOperation | RemoveOperation | ResetOperation | RebaseOperation | RebaseAbortOperation | RebaseContinueOperation | RefreshOperation |
-	RevertFilesOperation | RevListOperation | RevParseOperation | SetBranchUpstreamOperation | ShowOperation | StageOperation | StatusOperation |
-	StashOperation | SubmoduleUpdateOperation | SyncOperation | TagOperation;
+	MergeBaseOperation | MoveOperation | PostCommitCommandOperation | PullOperation | PushOperation | RemoteOperation | RenameBranchOperation |
+	RemoveOperation | ResetOperation | RebaseOperation | RebaseAbortOperation | RebaseContinueOperation | RefreshOperation | RevertFilesOperation |
+	RevListOperation | RevParseOperation | SetBranchUpstreamOperation | ShowOperation | StageOperation | StatusOperation | StashOperation |
+	SubmoduleUpdateOperation | SyncOperation | TagOperation;
 
 type BaseOperation = { kind: OperationKind; blocking: boolean; readOnly: boolean; remote: boolean; retry: boolean; showProgress: boolean };
 export type AddOperation = BaseOperation & { kind: OperationKind.Add };
@@ -108,7 +107,6 @@ export type LogFileOperation = BaseOperation & { kind: OperationKind.LogFile };
 export type MergeOperation = BaseOperation & { kind: OperationKind.Merge };
 export type MergeAbortOperation = BaseOperation & { kind: OperationKind.MergeAbort };
 export type MergeBaseOperation = BaseOperation & { kind: OperationKind.MergeBase };
-export type MergeContinueOperation = BaseOperation & { kind: OperationKind.MergeContinue };
 export type MoveOperation = BaseOperation & { kind: OperationKind.Move };
 export type PostCommitCommandOperation = BaseOperation & { kind: OperationKind.PostCommitCommand };
 export type PullOperation = BaseOperation & { kind: OperationKind.Pull };
@@ -166,7 +164,6 @@ export const Operation = {
 	Merge: { kind: OperationKind.Merge, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as MergeOperation,
 	MergeAbort: { kind: OperationKind.MergeAbort, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as MergeAbortOperation,
 	MergeBase: { kind: OperationKind.MergeBase, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as MergeBaseOperation,
-	MergeContinue: { kind: OperationKind.MergeContinue, blocking: true, readOnly: false, remote: false, retry: false, showProgress: true } as MergeAbortOperation,
 	Move: { kind: OperationKind.Move, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as MoveOperation,
 	PostCommitCommand: { kind: OperationKind.PostCommitCommand, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as PostCommitCommandOperation,
 	Pull: { kind: OperationKind.Pull, blocking: true, readOnly: false, remote: true, retry: true, showProgress: true } as PullOperation,

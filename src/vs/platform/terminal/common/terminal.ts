@@ -92,10 +92,10 @@ export const enum TerminalSettingId {
 	EnvWindows = 'terminal.integrated.env.windows',
 	EnvironmentChangesIndicator = 'terminal.integrated.environmentChangesIndicator',
 	EnvironmentChangesRelaunch = 'terminal.integrated.environmentChangesRelaunch',
-	ExperimentalWindowsUseConptyDll = 'terminal.integrated.experimental.windowsUseConptyDll',
 	ShowExitAlert = 'terminal.integrated.showExitAlert',
 	SplitCwd = 'terminal.integrated.splitCwd',
 	WindowsEnableConpty = 'terminal.integrated.windowsEnableConpty',
+	WindowsUseConptyDll = 'terminal.integrated.windowsUseConptyDll',
 	WordSeparators = 'terminal.integrated.wordSeparators',
 	EnableFileLinks = 'terminal.integrated.enableFileLinks',
 	AllowedLinkSchemes = 'terminal.integrated.allowedLinkSchemes',
@@ -949,9 +949,11 @@ export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSourc
 
 export interface IShellIntegration {
 	readonly capabilities: ITerminalCapabilityStore;
+	readonly seenSequences: ReadonlySet<string>;
 	readonly status: ShellIntegrationStatus;
 
 	readonly onDidChangeStatus: Event<ShellIntegrationStatus>;
+	readonly onDidChangeSeenSequences: Event<ReadonlySet<string>>;
 
 	deserialize(serialized: ISerializedCommandDetectionCapability): void;
 }
