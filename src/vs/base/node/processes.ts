@@ -12,8 +12,7 @@ import * as process from '../common/process.js';
 import { CommandOptions, ForkOptions, Source, SuccessData, TerminateResponse, TerminateResponseCode } from '../common/processes.js';
 import * as Types from '../common/types.js';
 import * as pfs from './pfs.js';
-import { first } from '../common/async.js';
-export { type CommandOptions, type ForkOptions, type SuccessData, Source, type TerminateResponse, TerminateResponseCode };
+export { Source, TerminateResponseCode, type CommandOptions, type ForkOptions, type SuccessData, type TerminateResponse };
 
 export type ValueCallback<T> = (value: T | Promise<T>) => void;
 export type ErrorCallback = (error?: any) => void;

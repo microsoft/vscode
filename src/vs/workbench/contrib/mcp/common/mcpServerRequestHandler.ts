@@ -6,6 +6,7 @@
 import { equals } from '../../../../base/common/arrays.js';
 import { DeferredPromise, IntervalTimer } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
@@ -148,6 +149,10 @@ export class McpServerRequestHandler extends Disposable {
 		request: Pick<T, 'params' | 'method'>,
 		token: CancellationToken = CancellationToken.None
 	): Promise<R> {
+		if (this._store.isDisposed) {
+			return Promise.reject(new CancellationError());
+		}
+
 		const id = this._nextRequestId++;
 
 		// Create the full JSON-RPC request
@@ -160,7 +165,6 @@ export class McpServerRequestHandler extends Disposable {
 		const promise = new DeferredPromise<MCP.ServerResult>();
 		// Store the pending request
 		this._pendingRequests.set(id, { promise });
-
 		// Set up cancellation
 		const cancelListener = token.onCancellationRequested(() => {
 			if (!promise.isSettled) {
@@ -168,6 +172,7 @@ export class McpServerRequestHandler extends Disposable {
 				this.sendNotification({ method: 'notifications/cancelled', params: { requestId: id } });
 				promise.cancel();
 			}
+			cancelListener.dispose();
 		});
 
 		// Send the request
