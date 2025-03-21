@@ -58,7 +58,7 @@ export interface IExtensionStatusBarItemService {
 }
 
 
-class ExtensionStatusBarItemService implements IExtensionStatusBarItemService {
+export class ExtensionStatusBarItemService implements IExtensionStatusBarItemService {
 
 	declare readonly _serviceBrand: undefined;
 

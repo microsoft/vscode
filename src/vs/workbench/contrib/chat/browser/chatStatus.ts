@@ -3,31 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/chatStatus.css';
-import { safeIntl } from '../../../../base/common/date.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { language } from '../../../../base/common/platform.js';
-import { localize } from '../../../../nls.js';
-import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, ShowTooltipCommand, StatusbarAlignment, StatusbarEntryKind } from '../../../services/statusbar/browser/statusbar.js';
+import * as dom from '../../../../base/browser/dom.js';
 import { $, addDisposableListener, append, clearNode, EventHelper, EventType } from '../../../../base/browser/dom.js';
-import { ChatEntitlement, ChatEntitlementService, ChatSentiment, IChatEntitlementService } from '../common/chatEntitlementService.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { Lazy } from '../../../../base/common/lazy.js';
-import { contrastBorder, inputValidationErrorBorder, inputValidationInfoBorder, inputValidationWarningBorder, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
-import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { Color } from '../../../../base/common/color.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
-import product from '../../../../platform/product/common/product.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
+import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Color } from '../../../../base/common/color.js';
+import { safeIntl } from '../../../../base/common/date.js';
+import { Lazy } from '../../../../base/common/lazy.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { parseLinkedText } from '../../../../base/common/linkedText.js';
+import { language } from '../../../../base/common/platform.js';
 import { isObject } from '../../../../base/common/types.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { localize } from '../../../../nls.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { Button } from '../../../../base/browser/ui/button/button.js';
+import { Link } from '../../../../platform/opener/browser/link.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import product from '../../../../platform/product/common/product.js';
+import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { contrastBorder, inputValidationErrorBorder, inputValidationInfoBorder, inputValidationWarningBorder, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, ShowTooltipCommand, StatusbarAlignment, StatusbarEntryKind } from '../../../services/statusbar/browser/statusbar.js';
+import { ChatEntitlement, ChatEntitlementService, ChatSentiment, IChatEntitlementService } from '../common/chatEntitlementService.js';
+import { ChatStatusEntry, IChatStatusItemService } from './chatStatusItemService.js';
+import './media/chatStatus.css';
 
 //#region --- colors
 
@@ -97,9 +103,9 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	private dashboard = new Lazy<ChatStatusDashboard>(() => this.instantiationService.createInstance(ChatStatusDashboard));
 
 	constructor(
-		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
 	) {
 		super();
 
@@ -209,11 +215,13 @@ class ChatStatusDashboard extends Disposable {
 
 	constructor(
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
+		@IChatStatusItemService private readonly chatStatusItemService: IChatStatusItemService,
+		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IHoverService private readonly hoverService: IHoverService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IHoverService private readonly hoverService: IHoverService,
 		@ILanguageService private readonly languageService: ILanguageService,
-		@ICommandService private readonly commandService: ICommandService
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
 	}
@@ -268,6 +276,29 @@ class ChatStatusDashboard extends Disposable {
 			})();
 		}
 
+		// Contributions
+		{
+			for (const item of this.chatStatusItemService.getEntries()) {
+				addSeparator(undefined);
+				const chatItemDisposables = disposables.add(new MutableDisposable());
+
+				let rendered = this.renderContributedChatStatusItem(item);
+				chatItemDisposables.value = rendered.disposables;
+				this.element.appendChild(rendered.element);
+
+				disposables.add(this.chatStatusItemService.onDidChange(e => {
+					if (e.entry.id === item.id) {
+						const oldEl = rendered.element;
+
+						rendered = this.renderContributedChatStatusItem(e.entry);
+						chatItemDisposables.value = rendered.disposables;
+
+						oldEl.replaceWith(rendered.element);
+					}
+				}));
+			}
+		}
+
 		// Settings
 		{
 			addSeparator(localize('settingsTitle', "Settings"));
@@ -291,6 +322,35 @@ class ChatStatusDashboard extends Disposable {
 		}
 
 		return this.element;
+	}
+
+	private renderContributedChatStatusItem(item: ChatStatusEntry): { element: HTMLElement; disposables: DisposableStore } {
+		const disposables = new DisposableStore();
+
+		const entryEl = $('div.contribution');
+
+		const headerEl = entryEl.appendChild($('div.header', undefined, item.label));
+		if (item.description) {
+			const descriptionEl = headerEl.appendChild($('span.description'));
+			this._renderTextPlus(descriptionEl, item.description, disposables);
+		}
+
+		if (item.details) {
+			const itemElement = entryEl.appendChild($('div.detail-item'));
+			this._renderTextPlus(itemElement, item.details, disposables);
+		}
+		return { element: entryEl, disposables };
+	}
+
+	private _renderTextPlus(target: HTMLElement, text: string, store: DisposableStore): void {
+		for (const node of parseLinkedText(text).nodes) {
+			if (typeof node === 'string') {
+				const parts = renderLabelWithIcons(node);
+				dom.append(target, ...parts);
+			} else {
+				store.add(new Link(target, node, undefined, this.hoverService, this.openerService));
+			}
+		}
 	}
 
 	private runCommandAndClose(command: { id: string; args?: unknown[] } | Function): void {
