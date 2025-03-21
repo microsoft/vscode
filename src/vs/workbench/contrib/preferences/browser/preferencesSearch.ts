@@ -21,7 +21,6 @@ import { IAiRelatedInformationService, RelatedInformationType, SettingInformatio
 import { TfIdfCalculator, TfIdfDocument } from '../../../../base/common/tfIdf.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { nullRange } from '../../../services/preferences/common/preferencesModels.js';
-import { IAiSettingsSearchService } from '../../../services/aiSettingsSearch/common/aiSettingsSearch.js';
 
 export interface IEndpointDetails {
 	urlBase?: string;
@@ -593,84 +592,6 @@ class RemoteSearchProvider implements IRemoteSearchProvider {
 			if (results?.filterMatches.length) {
 				return results;
 			}
-		}
-		return null;
-	}
-}
-
-class EmbeddingsSearchProvider implements IRemoteSearchProvider {
-	private readonly _keysProvider: AiSearchKeysProvider;
-	private _filter: string = '';
-
-	constructor(
-		@IAiSettingsSearchService private readonly aiSettingsSearchService: IAiSettingsSearchService
-	) {
-		this._keysProvider = new AiSearchKeysProvider();
-	}
-
-	setFilter(filter: string): void {
-		this._filter = filter;
-	}
-
-	async searchModel(preferencesModel: ISettingsEditorModel, token: CancellationToken): Promise<ISearchResult | null> {
-		if (!this._filter) {
-			return null;
-		}
-
-		this._keysProvider.updateModel(preferencesModel);
-		const settingsRecord = this._keysProvider.getSettingsRecord();
-
-		const results = await this.aiSettingsSearchService.getEmbeddingsSearchResults(this._filter, { limit: 50 }, token);
-		if (results) {
-			const filterMatches = results.map(result => {
-				return {
-					setting: settingsRecord[result.setting],
-					matches: [settingsRecord[result.setting].range],
-					matchType: SettingMatchType.RemoteMatch,
-					keyMatchScore: 0,
-					score: result.weight
-				} satisfies ISettingMatch;
-			});
-			return { filterMatches };
-		}
-		return null;
-	}
-}
-
-class SuggestionsSearchProvider implements IRemoteSearchProvider {
-	private readonly _keysProvider: AiSearchKeysProvider;
-	private _filter: string = '';
-
-	constructor(
-		@IAiSettingsSearchService private readonly aiSettingsSearchService: IAiSettingsSearchService
-	) {
-		this._keysProvider = new AiSearchKeysProvider();
-	}
-
-	setFilter(filter: string): void {
-		this._filter = filter;
-	}
-
-	async searchModel(preferencesModel: ISettingsEditorModel, token: CancellationToken): Promise<ISearchResult | null> {
-		if (!this._filter) {
-			return null;
-		}
-
-		this._keysProvider.updateModel(preferencesModel);
-		const settingsRecord = this._keysProvider.getSettingsRecord();
-
-		const results = await this.aiSettingsSearchService.getLLMRankedSearchResults(this._filter, { limit: 3 }, token);
-		if (results) {
-			const filterMatches = results.map(result => {
-				return {
-					setting: settingsRecord[result.setting],
-					matches: [settingsRecord[result.setting].range],
-					matchType: SettingMatchType.RemoteMatch,
-					keyMatchScore: 0,
-					score: result.weight
-				} satisfies ISettingMatch;
-			});
-			return { filterMatches };
 		}
 		return null;
 	}

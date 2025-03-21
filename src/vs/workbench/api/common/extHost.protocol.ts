@@ -86,7 +86,7 @@ import { CandidatePort } from '../../services/remote/common/tunnelModel.js';
 import { IFileQueryBuilderOptions, ITextQueryBuilderOptions } from '../../services/search/common/queryBuilder.js';
 import * as search from '../../services/search/common/search.js';
 import { AISearchKeyword, TextSearchCompleteMessage } from '../../services/search/common/searchExtTypes.js';
-import { AiSettingsSearchProviderOptions, AiSettingsSearchResult } from '../../services/aiSettingsSearch/common/aiSettingsSearch.js';
+import { AiSettingsSearchProviderOptions, AiSettingsSearchResultBundle } from '../../services/aiSettingsSearch/common/aiSettingsSearch.js';
 import { ISaveProfileResult } from '../../services/userDataProfile/common/userDataProfile.js';
 import { TerminalShellExecutionCommandLineConfidence } from './extHostTypes.js';
 import * as tasks from './shared/tasks.js';
@@ -1987,13 +1987,13 @@ export interface MainThreadAiRelatedInformationShape {
 }
 
 export interface ExtHostAiSettingsSearchShape {
-	$provideEmbeddingsSearchResults(handle: number, query: string, option: AiSettingsSearchProviderOptions, token: CancellationToken): Promise<AiSettingsSearchResult[]>;
-	$provideLLMRankedSearchResults(handle: number, query: string, option: AiSettingsSearchProviderOptions, token: CancellationToken): Promise<AiSettingsSearchResult[]>;
+	$startSearch(handle: number, query: string, option: AiSettingsSearchProviderOptions, token: CancellationToken): Promise<void>;
 }
 
 export interface MainThreadAiSettingsSearchShape {
 	$registerAiSettingsSearchProvider(handle: number): void;
 	$unregisterAiSettingsSearchProvider(handle: number): void;
+	$onSearchResultBundle(handle: number, bundle: AiSettingsSearchResultBundle): void;
 }
 
 export interface ExtHostAiEmbeddingVectorShape {
@@ -3164,7 +3164,7 @@ export const MainContext = {
 	MainThreadMcp: createProxyIdentifier<MainThreadMcpShape>('MainThreadMcpShape'),
 	MainThreadAiRelatedInformation: createProxyIdentifier<MainThreadAiRelatedInformationShape>('MainThreadAiRelatedInformation'),
 	MainThreadAiEmbeddingVector: createProxyIdentifier<MainThreadAiEmbeddingVectorShape>('MainThreadAiEmbeddingVector'),
-	MainThreadChatStatus: createProxyIdentifier<MainThreadChatStatusShape>('MainThreadChatStatus'),,
+	MainThreadChatStatus: createProxyIdentifier<MainThreadChatStatusShape>('MainThreadChatStatus'),
 	MainThreadAiSettingsSearch: createProxyIdentifier<MainThreadAiSettingsSearchShape>('MainThreadAiSettingsSearch'),
 };
 

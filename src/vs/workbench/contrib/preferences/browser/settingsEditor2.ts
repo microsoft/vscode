@@ -68,6 +68,7 @@ import { IEditorProgressService } from '../../../../platform/progress/common/pro
 import { IExtensionManifest } from '../../../../platform/extensions/common/extensions.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
+import { IAiSettingsSearchService } from '../../../services/aiSettingsSearch/common/aiSettingsSearch.js';
 
 
 export const enum SettingsFocusContext {
@@ -249,6 +250,7 @@ export class SettingsEditor2 extends EditorPane {
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
+		@IAiSettingsSearchService private readonly aiSettingsSearchService: IAiSettingsSearchService
 	) {
 		super(SettingsEditor2.ID, group, telemetryService, themeService, storageService);
 		this.searchDelayer = new Delayer(300);
@@ -1703,6 +1705,8 @@ export class SettingsEditor2 extends EditorPane {
 			let remoteResults = null;
 			if (localResults && !localResults.exactMatch && !searchInProgress.token.isCancellationRequested) {
 				remoteResults = await this.remoteSearchPreferences(query, searchInProgress.token);
+				// Also call into AI search here to try it out
+				this.aiSettingsSearchService.startSearch(query, searchInProgress.token);
 			}
 
 			// Update UI only after all the search results are in

@@ -63,6 +63,7 @@ import { getPrivateApiFor } from './extHostTestingPrivateApi.js';
 import * as types from './extHostTypes.js';
 import { LanguageModelPromptTsxPart, LanguageModelTextPart } from './extHostTypes.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
+import { AiSettingsSearchResultBundle, AiSettingsSearchResultBundleKind } from '../../services/aiSettingsSearch/common/aiSettingsSearch.js';
 import { McpServerLaunch, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
 
 export namespace Command {
@@ -3275,6 +3276,28 @@ export namespace LanguageModelToolResult {
 export namespace IconPath {
 	export function fromThemeIcon(iconPath: vscode.ThemeIcon): languages.IconPath {
 		return iconPath;
+	}
+}
+
+export namespace AiSettingsSearch {
+	export function fromSettingsSearchResultBundle(bundle: vscode.SettingsSearchResultBundle): AiSettingsSearchResultBundle {
+		return {
+			kind: fromSettingsSearchResultBundleKind(bundle.kind),
+			settings: bundle.settings
+		};
+	}
+
+	function fromSettingsSearchResultBundleKind(kind: number): AiSettingsSearchResultBundleKind {
+		switch (kind) {
+			case AiSettingsSearchResultBundleKind.EMBEDDED:
+				return AiSettingsSearchResultBundleKind.EMBEDDED;
+			case AiSettingsSearchResultBundleKind.LLM_RANKED:
+				return AiSettingsSearchResultBundleKind.LLM_RANKED;
+			case AiSettingsSearchResultBundleKind.CANCELED:
+				return AiSettingsSearchResultBundleKind.CANCELED;
+			default:
+				throw new Error('Unknown AiSettingsSearchResultBundleKind');
+		}
 	}
 }
 

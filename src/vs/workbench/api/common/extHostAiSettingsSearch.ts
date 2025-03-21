@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { SettingsSearchProvider } from 'vscode';
+import type { SettingsSearchProvider, SettingsSearchResultBundle } from 'vscode';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
-import { AiSettingsSearchProviderOptions, AiSettingsSearchResult } from '../../services/aiSettingsSearch/common/aiSettingsSearch.js';
+import { AiSettingsSearchProviderOptions } from '../../services/aiSettingsSearch/common/aiSettingsSearch.js';
 import { ExtHostAiSettingsSearchShape, IMainContext, MainContext, MainThreadAiSettingsSearchShape } from './extHost.protocol.js';
 import { Disposable } from './extHostTypes.js';
+import { Progress } from '../../../platform/progress/common/progress.js';
+import { AiSettingsSearch } from './extHostTypeConverters.js';
 
 export class ExtHostAiSettingsSearch implements ExtHostAiSettingsSearchShape {
 	private _settingsSearchProviders: Map<number, SettingsSearchProvider> = new Map();
@@ -20,7 +22,7 @@ export class ExtHostAiSettingsSearch implements ExtHostAiSettingsSearchShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadAiSettingsSearch);
 	}
 
-	async $provideEmbeddingsSearchResults(handle: number, query: string, option: AiSettingsSearchProviderOptions, token: CancellationToken): Promise<AiSettingsSearchResult[]> {
+	async $startSearch(handle: number, query: string, option: AiSettingsSearchProviderOptions, token: CancellationToken): Promise<void> {
 		if (this._settingsSearchProviders.size === 0) {
 			throw new Error('No related information providers registered');
 		}
@@ -30,22 +32,11 @@ export class ExtHostAiSettingsSearch implements ExtHostAiSettingsSearchShape {
 			throw new Error('Settings search provider not found');
 		}
 
-		const results = await provider.provideEmbeddingsSearchResults(query, option, token);
-		return results;
-	}
+		const progressReporter = new Progress<SettingsSearchResultBundle>((data) => {
+			this._proxy.$onSearchResultBundle(handle, AiSettingsSearch.fromSettingsSearchResultBundle(data));
+		});
 
-	async $provideLLMRankedSearchResults(handle: number, query: string, option: AiSettingsSearchProviderOptions, token: CancellationToken): Promise<AiSettingsSearchResult[]> {
-		if (this._settingsSearchProviders.size === 0) {
-			throw new Error('No related information providers registered');
-		}
-
-		const provider = this._settingsSearchProviders.get(handle);
-		if (!provider) {
-			throw new Error('Settings search provider not found');
-		}
-
-		const results = await provider.provideLLMRankedSearchResults(query, option, token);
-		return results;
+		return provider.provideSettingsSearchResults(query, option, progressReporter, token);
 	}
 
 	registerSettingsSearchProvider(extension: IExtensionDescription, provider: SettingsSearchProvider): Disposable {

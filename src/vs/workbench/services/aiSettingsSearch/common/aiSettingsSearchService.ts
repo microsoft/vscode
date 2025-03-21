@@ -3,18 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { AiSettingsSearchProviderOptions, AiSettingsSearchResult, IAiSettingsSearchProvider, IAiSettingsSearchService } from './aiSettingsSearch.js';
+import { AiSettingsSearchResult, AiSettingsSearchResultBundle, AiSettingsSearchResultBundleKind, IAiSettingsSearchProvider, IAiSettingsSearchService } from './aiSettingsSearch.js';
 
 export class AiSettingsSearchService implements IAiSettingsSearchService {
 	readonly _serviceBrand: undefined;
-
-	static readonly DEFAULT_TIMEOUT = 1000 * 10; // 10 seconds
+	private static readonly MAX_PICKS = 5;
 
 	private _providers: IAiSettingsSearchProvider[] = [];
+	private _resultsCache: Map<AiSettingsSearchResultBundleKind, AiSettingsSearchResult[]> = new Map();
 
 	isEnabled(): boolean {
 		return this._providers.length > 0;
@@ -32,38 +31,27 @@ export class AiSettingsSearchService implements IAiSettingsSearchService {
 		};
 	}
 
-	getEmbeddingsSearchResults(query: string, options: AiSettingsSearchProviderOptions, token: CancellationToken): Promise<AiSettingsSearchResult[]> {
+	startSearch(query: string, token: CancellationToken): void {
+		this._resultsCache.clear();
+
 		if (!this.isEnabled()) {
-			return Promise.resolve([]);
+			throw new Error('No settings search providers registered');
 		}
 
-		const promises = this._providers.map(provider => provider.provideEmbeddingsSearchResults(query, options, token));
-		return this.filterProviderResults(promises);
+		this._providers.forEach(provider => provider.searchSettings(query, { limit: AiSettingsSearchService.MAX_PICKS }, token));
 	}
 
-	getLLMRankedSearchResults(query: string, options: AiSettingsSearchProviderOptions, token: CancellationToken): Promise<AiSettingsSearchResult[]> {
+	getResultsCache(kind: AiSettingsSearchResultBundleKind): AiSettingsSearchResult[] {
+		return this._resultsCache.get(kind) ?? [];
+	}
+
+	onSettingsSearchResultBundle(bundle: AiSettingsSearchResultBundle): void {
 		if (!this.isEnabled()) {
-			return Promise.resolve([]);
+			return;
 		}
 
-		const promises = this._providers.map(provider => provider.provideLLMRankedSearchResults(query, options, token));
-		return this.filterProviderResults(promises);
-	}
-
-	private async filterProviderResults(providerResults: Promise<AiSettingsSearchResult[]>[]): Promise<AiSettingsSearchResult[]> {
-		const timeoutPromises = providerResults.map(p => raceTimeout(p, AiSettingsSearchService.DEFAULT_TIMEOUT));
-		return Promise.allSettled(timeoutPromises).then(results => {
-			const searchResults: AiSettingsSearchResult[] = [];
-			for (const result of results) {
-				if (result.status === 'fulfilled') {
-					const fulfilledResult = result.value;
-					if (fulfilledResult && fulfilledResult.length > 0) {
-						searchResults.push(...fulfilledResult);
-					}
-				}
-			}
-			return searchResults;
-		});
+		console.log('Received settings search result bundle', bundle);
+		this._resultsCache.set(bundle.kind, bundle.settings);
 	}
 }
 

@@ -5,9 +5,8 @@
 
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
-import { AiSettingsSearchProviderOptions, AiSettingsSearchResult, IAiSettingsSearchProvider, IAiSettingsSearchService } from '../../services/aiSettingsSearch/common/aiSettingsSearch.js';
+import { AiSettingsSearchResultBundle, IAiSettingsSearchProvider, IAiSettingsSearchService } from '../../services/aiSettingsSearch/common/aiSettingsSearch.js';
 import { ExtHostContext, ExtHostAiSettingsSearchShape, MainContext, MainThreadAiSettingsSearchShape, } from '../common/extHost.protocol.js';
-import { CancellationToken } from '../../../base/common/cancellation.js';
 
 @extHostNamedCustomer(MainContext.MainThreadAiSettingsSearch)
 export class MainThreadAiSettingsSearch extends Disposable implements MainThreadAiSettingsSearchShape {
@@ -24,11 +23,8 @@ export class MainThreadAiSettingsSearch extends Disposable implements MainThread
 
 	$registerAiSettingsSearchProvider(handle: number): void {
 		const provider: IAiSettingsSearchProvider = {
-			provideEmbeddingsSearchResults: (query, option, token) => {
-				return this._proxy.$provideEmbeddingsSearchResults(handle, query, option, token);
-			},
-			provideLLMRankedSearchResults: (query, option, token) => {
-				return this._proxy.$provideLLMRankedSearchResults(handle, query, option, token);
+			searchSettings: (query, option, token) => {
+				return this._proxy.$startSearch(handle, query, option, token);
 			}
 		};
 		this._registrations.set(handle, this._settingsSearchService.registerSettingsSearchProvider(provider));
@@ -38,11 +34,15 @@ export class MainThreadAiSettingsSearch extends Disposable implements MainThread
 		this._registrations.deleteAndDispose(handle);
 	}
 
-	$getEmbeddingsSearchResults(query: string, option: AiSettingsSearchProviderOptions, token: CancellationToken): Promise<AiSettingsSearchResult[]> {
-		return this._settingsSearchService.getEmbeddingsSearchResults(query, option, token);
-	}
+	$onSearchResultBundle(handle: number, bundle: AiSettingsSearchResultBundle): void {
+		if (this._registrations.size === 0) {
+			throw new Error('No AI settings search providers registered');
+		}
 
-	$getLLMRankedSearchResults(query: string, option: AiSettingsSearchProviderOptions, token: CancellationToken): Promise<AiSettingsSearchResult[]> {
-		return this._settingsSearchService.getLLMRankedSearchResults(query, option, token);
+		if (!this._registrations.has(handle)) {
+			throw new Error(`No AI settings search provider found`);
+		}
+
+		this._settingsSearchService.onSettingsSearchResultBundle(bundle);
 	}
 }
