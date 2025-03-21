@@ -9,16 +9,16 @@ import { Mimes } from '../../../../../../base/common/mime.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CellKind, IMainCellDto, IOutputDto, NotebookCellMetadata } from '../../../common/notebookCommon.js';
 import { matchCellBasedOnSimilarties } from '../../../common/services/notebookCellMatching.js';
-import { NotebookEditorSimpleWorker } from '../../../common/services/notebookWebWorker.js';
+import { NotebookWorker } from '../../../common/services/notebookWebWorker.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IDiffChange } from '../../../../../../base/common/diff/diff.js';
 
 
 suite('NotebookDiff Diff Service', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
-	let worker: NotebookEditorSimpleWorker;
+	let worker: NotebookWorker;
 	suiteSetup(() => {
-		worker = new NotebookEditorSimpleWorker();
+		worker = new NotebookWorker();
 	});
 	suiteTeardown(() => {
 		worker.dispose();

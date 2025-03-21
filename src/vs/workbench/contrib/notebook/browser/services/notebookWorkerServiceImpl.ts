@@ -10,7 +10,7 @@ import { createWebWorker } from '../../../../../base/browser/defaultWorkerFactor
 import { NotebookCellTextModel } from '../../common/model/notebookCellTextModel.js';
 import { CellUri, IMainCellDto, INotebookDiffResult, NotebookCellsChangeType, NotebookRawContentEventDto } from '../../common/notebookCommon.js';
 import { INotebookService } from '../../common/notebookService.js';
-import { NotebookEditorSimpleWorker } from '../../common/services/notebookWebWorker.js';
+import { NotebookWorker } from '../../common/services/notebookWebWorker.js';
 import { INotebookEditorWorkerService } from '../../common/services/notebookWorkerService.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
@@ -76,7 +76,7 @@ class NotebookEditorModelManager extends Disposable {
 	private _syncedModelsLastUsedTime: { [modelUrl: string]: number } = Object.create(null);
 
 	constructor(
-		private readonly _proxy: Proxied<NotebookEditorSimpleWorker>,
+		private readonly _proxy: Proxied<NotebookWorker>,
 		private readonly _notebookService: INotebookService,
 		private readonly _modelService: IModelService,
 	) {
@@ -236,7 +236,7 @@ class NotebookEditorModelManager extends Disposable {
 }
 
 class NotebookWorkerClient extends Disposable {
-	private _worker: IWebWorkerClient<NotebookEditorSimpleWorker> | null;
+	private _worker: IWebWorkerClient<NotebookWorker> | null;
 	private _modelManager: NotebookEditorModelManager | null;
 
 
@@ -257,23 +257,23 @@ class NotebookWorkerClient extends Disposable {
 		return proxy.$canPromptRecommendation(modelUri.toString());
 	}
 
-	private _getOrCreateModelManager(proxy: Proxied<NotebookEditorSimpleWorker>): NotebookEditorModelManager {
+	private _getOrCreateModelManager(proxy: Proxied<NotebookWorker>): NotebookEditorModelManager {
 		if (!this._modelManager) {
 			this._modelManager = this._register(new NotebookEditorModelManager(proxy, this._notebookService, this._modelService));
 		}
 		return this._modelManager;
 	}
 
-	protected _ensureSyncedResources(resources: URI[]): Proxied<NotebookEditorSimpleWorker> {
+	protected _ensureSyncedResources(resources: URI[]): Proxied<NotebookWorker> {
 		const proxy = this._getOrCreateWorker().proxy;
 		this._getOrCreateModelManager(proxy).ensureSyncedResources(resources);
 		return proxy;
 	}
 
-	private _getOrCreateWorker(): IWebWorkerClient<NotebookEditorSimpleWorker> {
+	private _getOrCreateWorker(): IWebWorkerClient<NotebookWorker> {
 		if (!this._worker) {
 			try {
-				this._worker = this._register(createWebWorker<NotebookEditorSimpleWorker>(
+				this._worker = this._register(createWebWorker<NotebookWorker>(
 					'vs/workbench/contrib/notebook/common/services/notebookWebWorker',
 					'NotebookEditorWorker'
 				));

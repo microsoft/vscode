@@ -177,7 +177,7 @@ class CellSequence implements ISequence {
 	}
 }
 
-export class NotebookEditorSimpleWorker implements IWebWorkerServerRequestHandler, IDisposable {
+export class NotebookWorker implements IWebWorkerServerRequestHandler, IDisposable {
 	_requestHandlerBrand: any;
 
 	private _models: { [uri: string]: MirrorNotebookDocument };
@@ -522,7 +522,7 @@ export class NotebookEditorSimpleWorker implements IWebWorkerServerRequestHandle
 }
 
 export function create(): IWebWorkerServerRequestHandler {
-	return new NotebookEditorSimpleWorker();
+	return new NotebookWorker();
 }
 
 export type CellDiffInfo = {
