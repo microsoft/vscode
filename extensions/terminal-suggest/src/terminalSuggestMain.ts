@@ -127,7 +127,6 @@ async function watchPathDirectories(context: vscode.ExtensionContext, env: ITerm
 			});
 
 			activeWatchers.add(dir);
-			console.trace(`Watching PATH directory: ${dir}`);
 
 			context.subscriptions.push(new vscode.Disposable(() => {
 				try {
