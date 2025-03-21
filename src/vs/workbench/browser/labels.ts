@@ -510,8 +510,7 @@ class ResourceLabelWidget extends IconLabel {
 					`${cellIndex + 1}`,
 					`${outputIndex + 1}`
 				);
-			}
-			if (cellIndex !== undefined && typeof label.name === 'string') {
+			} else if (cellIndex !== undefined && typeof label.name === 'string') {
 				label.name = localize(
 					'notebookCellOutputLabelSimple',
 					"{0} • Cell {1} • Output",

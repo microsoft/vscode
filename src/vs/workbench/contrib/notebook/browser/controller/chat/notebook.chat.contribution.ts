@@ -26,7 +26,7 @@ import { computeCompletionRanges } from '../../../../chat/browser/contrib/chatIn
 import { IChatAgentService } from '../../../../chat/common/chatAgents.js';
 import { ChatAgentLocation } from '../../../../chat/common/constants.js';
 import { ChatContextKeys } from '../../../../chat/common/chatContextKeys.js';
-import { IChatRequestPasteVariableEntry, IBaseChatRequestVariableEntry } from '../../../../chat/common/chatModel.js';
+import { IBaseChatRequestVariableEntry } from '../../../../chat/common/chatModel.js';
 import { chatVariableLeader } from '../../../../chat/common/chatParserTypes.js';
 import { NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT, NOTEBOOK_CELL_OUTPUT_MIMETYPE } from '../../../common/notebookContextKeys.js';
 import { INotebookKernelService } from '../../../common/notebookKernelService.js';
@@ -46,6 +46,7 @@ const NOTEBOOK_TEXT_ATTACH_LIST_FOR_CHAT = ['text/plain', 'text/html',
 	'application/x.notebook.stream',
 	'application/vnd.code.notebook.stderr',
 	'application/x.notebook.stderr',
+	'image/png'
 ];
 
 class NotebookChatContribution extends Disposable implements IWorkbenchContribution {
@@ -307,55 +308,16 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 
 		const mimeType = outputViewModel.pickedMimeType?.mimeType;
 
-		if (mimeType === 'image/png') {
-			const chatWidgetService = accessor.get(IChatWidgetService);
-
-			const widget = chatWidgetService.lastFocusedWidget;
-			if (!widget) {
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		let widget = chatWidgetService.lastFocusedWidget;
+		if (!widget) {
+			const widgets = chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel);
+			if (widgets.length === 0) {
 				return;
 			}
-
-			const imageOutput = outputViewModel.model.outputs.find(output => output.mime === mimeType);
-			if (!imageOutput) {
-				return;
-			}
-
-			const attachedVariables = widget.attachmentModel.attachments;
-			const displayName = localize('cellOutputDisplayname', 'Notebook Cell Output Image');
-			let tempDisplayName = displayName;
-
-			for (let appendValue = 2; attachedVariables.some(attachment => attachment.name === tempDisplayName); appendValue++) {
-				tempDisplayName = `${displayName} ${appendValue}`;
-			}
-
-			const imageData = imageOutput.data;
-			const variableEntry: IChatRequestPasteVariableEntry = {
-				kind: 'paste',
-				code: '',
-				language: '',
-				pastedLines: '',
-				fileName: 'notebook-cell-output-image-' + outputViewModel.model.outputId,
-				copiedFrom: undefined,
-				id: 'notebook-cell-output-image-' + outputViewModel.model.outputId,
-				name: tempDisplayName,
-				isImage: true,
-				value: imageData.buffer,
-			};
-
-			widget.attachmentModel.addContext(variableEntry);
-		} else if (mimeType && NOTEBOOK_TEXT_ATTACH_LIST_FOR_CHAT.includes(mimeType)) {
-			const chatWidgetService = accessor.get(IChatWidgetService);
-			let widget = chatWidgetService.lastFocusedWidget;
-			if (!widget) {
-				const widgets = chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel);
-				if (widgets.length === 0) {
-					return;
-				}
-				widget = widgets[0];
-			}
-
-			//output context item should have the cell already
-			//outputContext
+			widget = widgets[0];
+		}
+		if (mimeType && NOTEBOOK_TEXT_ATTACH_LIST_FOR_CHAT.includes(mimeType)) {
 
 			// get the cell index
 			const cellFromViewModelHandle = outputViewModel.cellViewModel.handle;
