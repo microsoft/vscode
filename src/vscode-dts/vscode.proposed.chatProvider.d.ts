@@ -19,17 +19,17 @@ declare module 'vscode' {
 
 	/**
 	 * Represents a large language model that accepts ChatML messages and produces a streaming response
-	 */
+	*/
 	export interface LanguageModelChatProvider {
 
 		onDidReceiveLanguageModelResponse2?: Event<{ readonly extensionId: string; readonly participant?: string; readonly tokenCount?: number }>;
 
-		provideLanguageModelResponse(messages: LanguageModelChatMessage[], options: LanguageModelChatRequestOptions, extensionId: string, progress: Progress<ChatResponseFragment2>, token: CancellationToken): Thenable<any>;
+		provideLanguageModelResponse(messages: Array<LanguageModelChatMessage | LanguageModelChatMessage2>, options: LanguageModelChatRequestOptions, extensionId: string, progress: Progress<ChatResponseFragment2>, token: CancellationToken): Thenable<any>;
 
 		/** @deprecated */
-		provideLanguageModelResponse2?(messages: LanguageModelChatMessage[], options: LanguageModelChatRequestOptions, extensionId: string, progress: Progress<ChatResponseFragment2>, token: CancellationToken): Thenable<any>;
+		provideLanguageModelResponse2?(messages: Array<LanguageModelChatMessage | LanguageModelChatMessage2>, options: LanguageModelChatRequestOptions, extensionId: string, progress: Progress<ChatResponseFragment2>, token: CancellationToken): Thenable<any>;
 
-		provideTokenCount(text: string | LanguageModelChatMessage, token: CancellationToken): Thenable<number>;
+		provideTokenCount(text: string | LanguageModelChatMessage | LanguageModelChatMessage2, token: CancellationToken): Thenable<number>;
 	}
 
 	export type ChatResponseProvider = LanguageModelChatProvider;

@@ -236,7 +236,7 @@ export interface ILoggerService {
 	/**
 	 * Deregister the logger for the given resource.
 	 */
-	deregisterLogger(resource: URI): void;
+	deregisterLogger(idOrResource: URI | string): void;
 
 	/**
 	 * Get all registered loggers
@@ -701,7 +701,8 @@ export abstract class AbstractLoggerService extends Disposable implements ILogge
 		}
 	}
 
-	deregisterLogger(resource: URI): void {
+	deregisterLogger(idOrResource: URI | string): void {
+		const resource = this.toResource(idOrResource);
 		const existing = this._loggers.get(resource);
 		if (existing) {
 			if (existing.logger) {

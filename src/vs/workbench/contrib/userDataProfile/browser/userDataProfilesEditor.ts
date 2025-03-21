@@ -1047,7 +1047,7 @@ class ProfileIconRenderer extends ProfilePropertyRenderer {
 				return;
 			}
 			iconSelectBox.clearInput();
-			hoverWidget = this.hoverService.showHover({
+			hoverWidget = this.hoverService.showInstantHover({
 				content: iconSelectBox.domNode,
 				target: iconElement,
 				position: {

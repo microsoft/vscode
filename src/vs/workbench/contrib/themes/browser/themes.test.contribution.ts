@@ -21,8 +21,11 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { basename } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { splitLines } from '../../../../base/common/strings.js';
-import { ITreeSitterParserService } from '../../../../editor/common/services/treeSitterParserService.js';
+import { ITextModelTreeSitter, ITreeSitterParserService } from '../../../../editor/common/services/treeSitterParserService.js';
 import { ColorThemeData, findMetadata } from '../../../services/themes/common/colorThemeData.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { Event } from '../../../../base/common/event.js';
+import { Range } from '../../../../editor/common/core/range.js';
 
 interface IToken {
 	c: string; // token
@@ -97,6 +100,7 @@ class Snapper {
 		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
 		@ITextMateTokenizationService private readonly textMateService: ITextMateTokenizationService,
 		@ITreeSitterParserService private readonly treeSitterParserService: ITreeSitterParserService,
+		@IModelService private readonly modelService: IModelService,
 	) {
 	}
 
@@ -274,35 +278,69 @@ class Snapper {
 		}
 	}
 
-	private _treeSitterTokenize(tree: Parser.Tree, languageId: string): IToken[] {
+	private _moveInjectionCursorToRange(cursor: Parser.TreeCursor, injectionRange: { startIndex: number; endIndex: number }): void {
+		let continueCursor = cursor.gotoFirstChild();
+		// Get into the first "real" child node, as the root nodes can extend outside the range.
+		while (((cursor.startIndex < injectionRange.startIndex) || (cursor.endIndex > injectionRange.endIndex)) && continueCursor) {
+			if (cursor.endIndex < injectionRange.startIndex) {
+				continueCursor = cursor.gotoNextSibling();
+			} else {
+				continueCursor = cursor.gotoFirstChild();
+			}
+		}
+	}
+
+	private _treeSitterTokenize(textModelTreeSitter: ITextModelTreeSitter, tree: Parser.Tree, languageId: string): IToken[] {
 		const cursor = tree.walk();
 		cursor.gotoFirstChild();
 		let cursorResult: boolean = true;
 		const tokens: IToken[] = [];
 		const tokenizationSupport = TreeSitterTokenizationRegistry.get(languageId);
 
+		const cursors: { cursor: Parser.TreeCursor; languageId: string; startOffset: number; endOffset: number }[] = [{ cursor, languageId, startOffset: 0, endOffset: textModelTreeSitter.textModel.getValueLength() }];
 		do {
-			if (cursor.currentNode.childCount === 0) {
-				const capture = tokenizationSupport?.captureAtPositionTree(cursor.currentNode.startPosition.row + 1, cursor.currentNode.startPosition.column + 1, tree);
-				tokens.push({
-					c: cursor.currentNode.text.replace(/\r/g, ''),
-					t: capture && capture.length > 0 ? capture[capture.length - 1].name : '',
-					r: {
-						dark_plus: undefined,
-						light_plus: undefined,
-						dark_vs: undefined,
-						light_vs: undefined,
-						hc_black: undefined,
-					}
-				});
+			const current = cursors[cursors.length - 1];
+			const currentCursor = current.cursor;
+			const currentLanguageId = current.languageId;
+			const isOutsideRange: boolean = (currentCursor.currentNode.endIndex > current.endOffset);
 
-				while (!(cursorResult = cursor.gotoNextSibling())) {
-					if (!(cursorResult = cursor.gotoParent())) {
-						break;
+			if (!isOutsideRange && (currentCursor.currentNode.childCount === 0)) {
+				const range = new Range(currentCursor.currentNode.startPosition.row + 1, currentCursor.currentNode.startPosition.column + 1, currentCursor.currentNode.endPosition.row + 1, currentCursor.currentNode.endPosition.column + 1);
+				const injection = textModelTreeSitter.getInjection(currentCursor.currentNode.startIndex, currentLanguageId);
+				const treeSitterRange = injection?.ranges!.find(r => r.startIndex <= currentCursor.currentNode.startIndex && r.endIndex >= currentCursor.currentNode.endIndex);
+				if (injection?.tree && treeSitterRange && (treeSitterRange.startIndex === currentCursor.currentNode.startIndex)) {
+					const injectionLanguageId = injection.languageId;
+					const injectionTree = injection.tree;
+					const injectionCursor = injectionTree.walk();
+					this._moveInjectionCursorToRange(injectionCursor, treeSitterRange);
+					cursors.push({ cursor: injectionCursor, languageId: injectionLanguageId, startOffset: treeSitterRange.startIndex, endOffset: treeSitterRange.endIndex });
+					while ((currentCursor.endIndex <= treeSitterRange.endIndex) && (currentCursor.gotoNextSibling() || currentCursor.gotoParent())) { }
+				} else {
+					const capture = tokenizationSupport?.captureAtRangeTree(range, tree, textModelTreeSitter);
+					tokens.push({
+						c: currentCursor.currentNode.text.replace(/\r/g, ''),
+						t: capture?.map(cap => cap.name).join(' ') ?? '',
+						r: {
+							dark_plus: undefined,
+							light_plus: undefined,
+							dark_vs: undefined,
+							light_vs: undefined,
+							hc_black: undefined,
+						}
+					});
+					while (!(cursorResult = currentCursor.gotoNextSibling())) {
+						if (!(cursorResult = currentCursor.gotoParent())) {
+							break;
+						}
 					}
 				}
+
 			} else {
-				cursorResult = cursor.gotoFirstChild();
+				cursorResult = currentCursor.gotoFirstChild();
+			}
+			if (cursors.length > 1 && ((!cursorResult && currentCursor === cursors[cursors.length - 1].cursor) || isOutsideRange)) {
+				cursors.pop();
+				cursorResult = true;
 			}
 		} while (cursorResult);
 		return tokens;
@@ -324,14 +362,32 @@ class Snapper {
 		});
 	}
 
-	public async captureTreeSitterSyntaxTokens(fileName: string, content: string): Promise<IToken[]> {
-		const languageId = this.languageService.guessLanguageIdByFilepathOrFirstLine(URI.file(fileName));
+	public async captureTreeSitterSyntaxTokens(resource: URI, content: string): Promise<IToken[]> {
+		const languageId = this.languageService.guessLanguageIdByFilepathOrFirstLine(resource);
 		if (languageId) {
-			const tree = await this.treeSitterParserService.getTree(content, languageId!);
+			const hasLanguage = TreeSitterTokenizationRegistry.get(languageId);
+			if (!hasLanguage) {
+				return [];
+			}
+			const model = this.modelService.getModel(resource) ?? this.modelService.createModel(content, { languageId, onDidChange: Event.None }, resource);
+			let textModelTreeSitter = this.treeSitterParserService.getParseResult(model);
+			let tree = textModelTreeSitter?.parseResult?.tree;
+			if (!textModelTreeSitter) {
+				return [];
+			}
+			if (!tree) {
+				let e = await Event.toPromise(this.treeSitterParserService.onDidUpdateTree);
+				// Once more for injections
+				if (e.hasInjections) {
+					e = await Event.toPromise(this.treeSitterParserService.onDidUpdateTree);
+				}
+				textModelTreeSitter = e.tree;
+				tree = textModelTreeSitter.parseResult?.tree;
+			}
 			if (!tree) {
 				return [];
 			}
-			const result = (await this._treeSitterTokenize(tree, languageId)).filter(t => t.c.length > 0);
+			const result = (await this._treeSitterTokenize(textModelTreeSitter, tree, languageId)).filter(t => t.c.length > 0);
 			const themeTokens = await this._getTreeSitterThemesResult(result, languageId);
 			this._enrichResult(result, themeTokens);
 			return result;
@@ -348,7 +404,7 @@ async function captureTokens(accessor: ServicesAccessor, resource: URI | undefin
 
 		return fileService.readFile(resource).then(content => {
 			if (treeSitter) {
-				return snapper.captureTreeSitterSyntaxTokens(fileName, content.value.toString());
+				return snapper.captureTreeSitterSyntaxTokens(resource, content.value.toString());
 			} else {
 				return snapper.captureSyntaxTokens(fileName, content.value.toString());
 			}
@@ -377,6 +433,12 @@ CommandsRegistry.registerCommand('_workbench.captureSyntaxTokens', function (acc
 	return captureTokens(accessor, resource);
 });
 
-CommandsRegistry.registerCommand('_workbench.captureTreeSitterSyntaxTokens', function (accessor: ServicesAccessor, resource: URI) {
+CommandsRegistry.registerCommand('_workbench.captureTreeSitterSyntaxTokens', function (accessor: ServicesAccessor, resource?: URI) {
+	// If no resource is provided, use the active editor's resource
+	// This is useful for testing the command
+	if (!resource) {
+		const editorService = accessor.get(IEditorService);
+		resource = editorService.activeEditor?.resource;
+	}
 	return captureTokens(accessor, resource, true);
 });

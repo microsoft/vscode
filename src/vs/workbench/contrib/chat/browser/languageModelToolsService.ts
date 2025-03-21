@@ -9,16 +9,28 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Iterable } from '../../../../base/common/iterator.js';
+import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { LRUCache } from '../../../../base/common/map.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import * as JSONContributionRegistry from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatModel } from '../common/chatModel.js';
 import { ChatToolInvocation } from '../common/chatProgressTypes/chatToolInvocation.js';
 import { IChatService } from '../common/chatService.js';
 import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../common/languageModelToolsService.js';
+
+const jsonSchemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
 interface IToolEntry {
 	data: IToolData;
@@ -36,19 +48,28 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	private _tools = new Map<string, IToolEntry>();
 	private _toolContextKeys = new Set<string>();
-
+	private readonly _ctxToolsCount: IContextKey<number>;
 
 	private _callsByRequestId = new Map<string, IDisposable[]>();
 
+	private _workspaceToolConfirmStore: Lazy<ToolConfirmStore>;
+	private _profileToolConfirmStore: Lazy<ToolConfirmStore>;
+	private _memoryToolConfirmStore = new Set<string>();
+
 	constructor(
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IChatService private readonly _chatService: IChatService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
+
+		this._workspaceToolConfirmStore = new Lazy(() => this._register(this._instantiationService.createInstance(ToolConfirmStore, StorageScope.WORKSPACE)));
+		this._profileToolConfirmStore = new Lazy(() => this._register(this._instantiationService.createInstance(ToolConfirmStore, StorageScope.PROFILE)));
 
 		this._register(this._contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(this._toolContextKeys)) {
@@ -56,6 +77,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				this._onDidChangeToolsScheduler.schedule();
 			}
 		}));
+
+		this._ctxToolsCount = ChatContextKeys.Tools.toolsCount.bindTo(_contextKeyService);
 	}
 
 	registerToolData(toolData: IToolData): IDisposable {
@@ -64,12 +87,23 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 
 		this._tools.set(toolData.id, { data: toolData });
+		this._ctxToolsCount.set(this._tools.size);
 		this._onDidChangeToolsScheduler.schedule();
 
 		toolData.when?.keys().forEach(key => this._toolContextKeys.add(key));
 
+		let store: DisposableStore | undefined;
+		if (toolData.inputSchema) {
+			store = new DisposableStore();
+			const schemaUrl = URI.from({ scheme: Schemas.vscode, authority: 'schemas', path: `/lm/tool/${toolData.id}` }).toString();
+			jsonSchemaRegistry.registerSchema(schemaUrl, toolData.inputSchema, store);
+			store.add(jsonSchemaRegistry.registerSchemaAssociation(schemaUrl, `/lm/tool/${toolData.id}/tool_input.json`));
+		}
+
 		return toDisposable(() => {
+			store?.dispose();
 			this._tools.delete(toolData.id);
+			this._ctxToolsCount.set(this._tools.size);
 			this._refreshAllToolContextKeys();
 			this._onDidChangeToolsScheduler.schedule();
 		});
@@ -123,6 +157,22 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			}
 		}
 		return undefined;
+	}
+
+	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile' | 'memory', autoConfirm = true): void {
+		if (scope === 'workspace') {
+			this._workspaceToolConfirmStore.value.setAutoConfirm(toolId, autoConfirm);
+		} else if (scope === 'profile') {
+			this._profileToolConfirmStore.value.setAutoConfirm(toolId, autoConfirm);
+		} else {
+			this._memoryToolConfirmStore.add(toolId);
+		}
+	}
+
+	resetToolAutoConfirmation(): void {
+		this._workspaceToolConfirmStore.value.reset();
+		this._profileToolConfirmStore.value.reset();
+		this._memoryToolConfirmStore.clear();
 	}
 
 	async invokeTool(dto: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
@@ -185,6 +235,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					: undefined;
 
 				toolInvocation = new ChatToolInvocation(prepared, tool.data);
+				if (this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace)) {
+					toolInvocation.confirmed.complete(true);
+				}
+
 				model.acceptResponseProgress(request, toolInvocation);
 				if (prepared?.confirmationMessages) {
 					const userConfirmed = await toolInvocation.confirmed.p;
@@ -193,6 +247,11 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					}
 
 					dto.toolSpecificData = toolInvocation?.toolSpecificData;
+
+					if (dto.toolSpecificData?.kind === 'input') {
+						dto.parameters = dto.toolSpecificData.rawInput;
+						dto.toolSpecificData = undefined;
+					}
 				}
 			} else {
 				const prepared = tool.impl.prepareToolInvocation ?
@@ -241,6 +300,26 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 	}
 
+	private shouldAutoConfirm(toolId: string, runsInWorkspace: boolean | undefined): boolean {
+		if (this._workspaceToolConfirmStore.value.getAutoConfirm(toolId) || this._profileToolConfirmStore.value.getAutoConfirm(toolId) || this._memoryToolConfirmStore.has(toolId)) {
+			return true;
+		}
+
+		const config = this._configurationService.inspect<boolean | string[]>('chat.tools.autoApprove');
+
+		// If we know the tool runs at a global level, only consider the global config.
+		// If we know the tool runs at a workspace level, use those specific settings when appropriate.
+		let value = config.value ?? config.defaultValue;
+		if (typeof runsInWorkspace === 'boolean') {
+			value = config.userLocalValue ?? config.applicationValue;
+			if (runsInWorkspace) {
+				value = config.workspaceValue ?? config.workspaceFolderValue ?? config.userRemoteValue ?? value;
+			}
+		}
+
+		return value === true || (Array.isArray(value) && value.includes(toolId));
+	}
+
 	private cleanupCallDisposables(requestId: string, store: DisposableStore): void {
 		const disposables = this._callsByRequestId.get(requestId);
 		if (disposables) {
@@ -267,6 +346,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		super.dispose();
 
 		this._callsByRequestId.forEach(calls => dispose(calls));
+		this._ctxToolsCount.reset();
 	}
 }
 
@@ -285,3 +365,54 @@ type LanguageModelToolInvokedClassification = {
 	owner: 'roblourens';
 	comment: 'Provides insight into the usage of language model tools.';
 };
+
+class ToolConfirmStore extends Disposable {
+	private static readonly STORED_KEY = 'chat/autoconfirm';
+
+	private _autoConfirmTools: LRUCache<string, boolean> = new LRUCache<string, boolean>(100);
+	private _didChange = false;
+
+	constructor(
+		private readonly _scope: StorageScope,
+		@IStorageService private readonly storageService: IStorageService,
+	) {
+		super();
+
+		const stored = storageService.getObject<string[]>(ToolConfirmStore.STORED_KEY, this._scope);
+		if (stored) {
+			for (const key of stored) {
+				this._autoConfirmTools.set(key, true);
+			}
+		}
+
+		this._register(storageService.onWillSaveState(() => {
+			if (this._didChange) {
+				this.storageService.store(ToolConfirmStore.STORED_KEY, [...this._autoConfirmTools.keys()], this._scope, StorageTarget.MACHINE);
+				this._didChange = false;
+			}
+		}));
+	}
+
+	public reset() {
+		this._autoConfirmTools.clear();
+		this._didChange = true;
+	}
+
+	public getAutoConfirm(toolId: string): boolean {
+		if (this._autoConfirmTools.get(toolId)) {
+			this._didChange = true;
+			return true;
+		}
+
+		return false;
+	}
+
+	public setAutoConfirm(toolId: string, autoConfirm: boolean): void {
+		if (autoConfirm) {
+			this._autoConfirmTools.set(toolId, true);
+		} else {
+			this._autoConfirmTools.delete(toolId);
+		}
+		this._didChange = true;
+	}
+}

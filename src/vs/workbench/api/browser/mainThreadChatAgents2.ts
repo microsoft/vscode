@@ -24,11 +24,12 @@ import { ILogService } from '../../../platform/log/common/log.js';
 import { IChatWidgetService } from '../../contrib/chat/browser/chat.js';
 import { ChatInputPart } from '../../contrib/chat/browser/chatInputPart.js';
 import { AddDynamicVariableAction, IAddDynamicVariableContext } from '../../contrib/chat/browser/contrib/chatDynamicVariables.js';
-import { ChatAgentLocation, IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../contrib/chat/common/chatAgents.js';
+import { IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../contrib/chat/common/chatAgents.js';
 import { IChatEditingService, IChatRelatedFileProviderMetadata } from '../../contrib/chat/common/chatEditingService.js';
 import { ChatRequestAgentPart } from '../../contrib/chat/common/chatParserTypes.js';
 import { ChatRequestParser } from '../../contrib/chat/common/chatRequestParser.js';
 import { IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatService, IChatTask, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
+import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
@@ -138,8 +139,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 		const inputValue = widget?.inputEditor.getValue() ?? '';
 		const location = widget.location;
-		const toolsAgentModeEnabled = this._chatAgentService.toolsAgentModeEnabled;
-		this._chatService.transferChatSession({ sessionId, inputValue, location, toolsAgentModeEnabled }, URI.revive(toWorkspace));
+		const mode = widget.input.currentMode;
+		this._chatService.transferChatSession({ sessionId, inputValue, location, mode }, URI.revive(toWorkspace));
 	}
 
 	async $registerAgent(handle: number, extension: ExtensionIdentifier, id: string, metadata: IExtensionChatAgentMetadata, dynamicProps: IDynamicChatAgentProps | undefined): Promise<void> {
@@ -173,9 +174,6 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				}
 
 				return this._proxy.$provideFollowups(request, handle, result, { history }, token);
-			},
-			provideWelcomeMessage: (token: CancellationToken) => {
-				return this._proxy.$provideWelcomeMessage(handle, token);
 			},
 			provideChatTitle: (history, token) => {
 				return this._proxy.$provideChatTitle(handle, history, token);

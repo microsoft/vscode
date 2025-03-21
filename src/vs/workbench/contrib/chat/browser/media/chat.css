@@ -373,6 +373,33 @@
 	.progress-container .rendered-markdown [data-code] {
 		margin: 0;
 	}
+
+	.tool-input-output-part {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+	}
+
+	.tool-input-output-part .rendered-markdown p {
+		margin: inherit;
+	}
+
+	.tool-input-output-part .expando {
+		display: flex;
+		align-items: center;
+		cursor: pointer;
+	}
+
+	.tool-input-output-part .input-output {
+		display: none;
+		padding: 6px 0;
+		flex-basis: 100%;
+		width: 100%;
+	}
+
+	.tool-input-output-part.expanded .input-output {
+		display: inherit;
+	}
 }
 
 .interactive-item-container .value > .rendered-markdown li > p {
@@ -433,11 +460,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-item-container.interactive-item-compact {
 	padding: 8px 20px;
-}
-
-.interactive-item-container.interactive-item-compact.no-padding {
-	padding: unset;
-	gap: unset;
 }
 
 .interactive-item-container.interactive-item-compact .header {
@@ -1115,12 +1137,20 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding: 8px 0 0 0
 }
 
+.chat-attachment-toolbar .action-item:not(:last-child) {
+	margin-right: 4px;
+}
+
 .action-item.chat-attached-context-attachment.chat-add-files {
 	height: 20px;
-	gap: 0px;
 	color: var(--vscode-descriptionForeground);
 }
 
+.action-item.chat-attached-context-attachment.chat-add-files span.keybinding {
+	display: none;
+}
+
+.action-item.chat-mcp .action-label,
 .action-item.chat-attached-context-attachment.chat-add-files .action-label,
 .interactive-session .chat-attached-context .chat-attached-context-attachment {
 	display: flex;
@@ -1139,6 +1169,45 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-descriptionForeground);
 	font-family: unset;
 	gap: 5px;
+}
+
+.action-item.chat-mcp {
+	display: flex !important;
+
+	&.chat-mcp-has-action .action-label {
+		border-top-right-radius: 0;
+		border-bottom-right-radius: 0;
+		border-right: 0;
+	}
+
+	.chat-mcp-action {
+		align-self: stretch;
+		padding: 0 2px;
+		border-radius: 0;
+		outline: 0;
+		border: 0;
+		border-top-right-radius: 4px;
+		border-bottom-right-radius: 4px;
+		background: var(--vscode-button-background);
+		cursor: pointer;
+
+		.codicon {
+			width: fit-content;
+			color: var(--vscode-button-foreground);
+		}
+
+		.codicon::before {
+			font-size: 14px;
+		}
+
+		&.chat-mcp-action-error {
+			background: var(--vscode-activityErrorBadge-background);
+
+			.codicon {
+				color: var(--vscode-activityErrorBadge-foreground);
+			}
+		}
+	}
 }
 
 .action-item.chat-attached-context-attachment.chat-add-files .action-label.codicon::before {
@@ -1593,10 +1662,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-item-container .chat-command-button .monaco-button,
-.chat-confirmation-widget .chat-confirmation-buttons-container .monaco-button {
+.chat-confirmation-widget .chat-confirmation-buttons-container .monaco-button:not(.monaco-dropdown-button) {
 	text-align: left;
 	width: initial;
 	padding: 4px 8px;
+}
+
+.chat-confirmation-widget .chat-confirmation-buttons-container .monaco-button.monaco-dropdown-button {
+	padding: 0 3px;
 }
 
 .interactive-item-container .chat-confirmation-widget .interactive-result-code-block {

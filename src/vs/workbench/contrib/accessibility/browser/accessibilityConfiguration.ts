@@ -47,6 +47,7 @@ export const enum ViewDimUnfocusedOpacityProperties {
 export const enum AccessibilityVerbositySettingId {
 	Terminal = 'accessibility.verbosity.terminal',
 	DiffEditor = 'accessibility.verbosity.diffEditor',
+	MergeEditor = 'accessibility.verbosity.mergeEditor',
 	Chat = 'accessibility.verbosity.panelChat',
 	InlineChat = 'accessibility.verbosity.inlineChat',
 	TerminalChat = 'accessibility.verbosity.terminalChat',
@@ -636,6 +637,34 @@ const configuration: IConfigurationNode = {
 				},
 				'announcement': {
 					'description': localize('accessibility.signals.clear.announcement', "Announces when a feature is cleared."),
+					...announcementFeatureBase
+				},
+			},
+		},
+		'accessibility.signals.editsUndone': {
+			...signalFeatureBase,
+			'description': localize('accessibility.signals.editsUndone', "Plays a signal - sound (audio cue) and/or announcement (alert) - when edits have been undone."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.editsUndone.sound', "Plays a sound when edits have been undone."),
+					...soundFeatureBase
+				},
+				'announcement': {
+					'description': localize('accessibility.signals.editsUndone.announcement', "Announces when edits have been undone."),
+					...announcementFeatureBase
+				},
+			},
+		},
+		'accessibility.signals.editsKept': {
+			...signalFeatureBase,
+			'description': localize('accessibility.signals.editsKept', "Plays a signal - sound (audio cue) and/or announcement (alert) - when edits are kept."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.editsKept.sound', "Plays a sound when edits are kept."),
+					...soundFeatureBase
+				},
+				'announcement': {
+					'description': localize('accessibility.signals.editsKept.announcement', "Announces when edits are kept."),
 					...announcementFeatureBase
 				},
 			},

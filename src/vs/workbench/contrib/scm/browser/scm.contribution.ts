@@ -25,9 +25,9 @@ import { ModesRegistry } from '../../../../editor/common/languages/modesRegistry
 import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ContextKeys, SCMViewPane } from './scmViewPane.js';
-import { SCMViewService } from './scmViewService.js';
+import { RepositoryPicker, SCMViewService } from './scmViewService.js';
 import { SCMRepositoriesViewPane } from './scmRepositoriesViewPane.js';
-import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Context as SuggestContext } from '../../../../editor/contrib/suggest/browser/suggest.js';
 import { MANAGE_TRUST_COMMAND_ID, WorkspaceTrustContext } from '../../workspace/common/workspace.js';
 import { IQuickDiffService } from '../common/quickDiff.js';
@@ -532,6 +532,21 @@ CommandsRegistry.registerCommand('scm.openInTerminal', async (accessor, provider
 
 	const commandService = accessor.get(ICommandService);
 	await commandService.executeCommand('openInTerminal', provider.rootUri);
+});
+
+CommandsRegistry.registerCommand('scm.setActiveProvider', async (accessor) => {
+	const instantiationService = accessor.get(IInstantiationService);
+	const scmViewService = accessor.get(ISCMViewService);
+
+	const placeHolder = localize('scmActiveRepositoryPlaceHolder', "Select the active repository, type to filter all repositories");
+	const autoQuickItemDescription = localize('scmActiveRepositoryAutoDescription', "The active repository is updated based on focused repository/active editor");
+	const repositoryPicker = instantiationService.createInstance(RepositoryPicker, placeHolder, autoQuickItemDescription);
+
+	const result = await repositoryPicker.pickRepository();
+	if (result?.repository) {
+		const repository = result.repository !== 'auto' ? result.repository : undefined;
+		scmViewService.pinActiveRepository(repository);
+	}
 });
 
 MenuRegistry.appendMenuItem(MenuId.SCMSourceControl, {

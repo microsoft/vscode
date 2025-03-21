@@ -41,24 +41,12 @@ parameters:
     displayName: "🎯 Linux x64"
     type: boolean
     default: true
-  - name: VSCODE_BUILD_LINUX_X64_LEGACY_SERVER
-    displayName: "🎯 Linux x64 Legacy Server"
-    type: boolean
-    default: true
   - name: VSCODE_BUILD_LINUX_ARM64
     displayName: "🎯 Linux arm64"
     type: boolean
     default: true
-  - name: VSCODE_BUILD_LINUX_ARM64_LEGACY_SERVER
-    displayName: "🎯 Linux arm64 Legacy Server"
-    type: boolean
-    default: true
   - name: VSCODE_BUILD_LINUX_ARMHF
     displayName: "🎯 Linux armhf"
-    type: boolean
-    default: true
-  - name: VSCODE_BUILD_LINUX_ARMHF_LEGACY_SERVER
-    displayName: "🎯 Linux armhf Legacy Server"
     type: boolean
     default: true
   - name: VSCODE_BUILD_ALPINE
@@ -118,8 +106,6 @@ variables:
     value: ${{ or(eq(parameters.VSCODE_BUILD_WIN32, true), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}
   - name: VSCODE_BUILD_STAGE_LINUX
     value: ${{ or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}
-  - name: VSCODE_BUILD_STAGE_LINUX_LEGACY_SERVER
-    value: ${{ or(eq(parameters.VSCODE_BUILD_LINUX_X64_LEGACY_SERVER, true), eq(parameters.VSCODE_BUILD_LINUX_ARMHF_LEGACY_SERVER, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64_LEGACY_SERVER, true)) }}
   - name: VSCODE_BUILD_STAGE_ALPINE
     value: ${{ or(eq(parameters.VSCODE_BUILD_ALPINE, true), eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true)) }}
   - name: VSCODE_BUILD_STAGE_MACOS
@@ -183,6 +169,8 @@ extends:
       tsa:
         enabled: true
         configFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/tsaoptions.json
+      binskim:
+        analyzeTargetGlob: '+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.exe;+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.node;+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.dll;-:file|$(Build.SourcesDirectory)/.build/**/system-setup/VSCodeSetup*.exe;-:file|$(Build.SourcesDirectory)/.build/**/user-setup/VSCodeUserSetup*.exe'
       codeql:
         runSourceLanguagesInSourceAnalysis: true
         compiled:
@@ -279,6 +267,10 @@ extends:
                   name: Azure Pipelines
                   image: macOS-13
                   os: macOS
+                variables:
+                  # todo@connor4312 to diagnose build flakes
+                  - name: MSRUSTUP_LOG
+                    value: debug
                 steps:
                   - template: build/azure-pipelines/darwin/cli-build-darwin.yml@self
                     parameters:
@@ -292,6 +284,10 @@ extends:
                   name: Azure Pipelines
                   image: macOS-13
                   os: macOS
+                variables:
+                  # todo@connor4312 to diagnose build flakes
+                  - name: MSRUSTUP_LOG
+                    value: debug
                 steps:
                   - template: build/azure-pipelines/darwin/cli-build-darwin.yml@self
                     parameters:
@@ -322,13 +318,13 @@ extends:
                       VSCODE_BUILD_WIN32_ARM64: ${{ parameters.VSCODE_BUILD_WIN32_ARM64 }}
 
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_COMPILE_ONLY, false)) }}:
-        - stage: CustomSDL
+        - stage: APIScan
           dependsOn: []
           pool:
             name: 1es-windows-2019-x64
             os: windows
           jobs:
-            - job: WindowsSDL
+            - job: WindowsAPIScan
               steps:
                 - template: build/azure-pipelines/win32/sdl-scan-win32.yml@self
                   parameters:
@@ -394,6 +390,10 @@ extends:
                 timeoutInMinutes: 120
                 variables:
                   VSCODE_ARCH: x64
+                templateContext:
+                  sdl:
+                    suppression:
+                      suppressionFile: $(Build.SourcesDirectory)\.config\guardian\.gdnsuppress
                 steps:
                   - template: build/azure-pipelines/win32/product-build-win32.yml@self
                     parameters:
@@ -418,6 +418,10 @@ extends:
                 timeoutInMinutes: 90
                 variables:
                   VSCODE_ARCH: arm64
+                templateContext:
+                  sdl:
+                    suppression:
+                      suppressionFile: $(Build.SourcesDirectory)\.config\guardian\.gdnsuppress
                 steps:
                   - template: build/azure-pipelines/win32/product-build-win32.yml@self
                     parameters:
@@ -546,51 +550,6 @@ extends:
                       VSCODE_RUN_UNIT_TESTS: false
                       VSCODE_RUN_INTEGRATION_TESTS: false
                       VSCODE_RUN_SMOKE_TESTS: false
-
-      - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_LINUX_LEGACY_SERVER'], true)) }}:
-        - stage: LinuxLegacyServer
-          dependsOn:
-            - Compile
-          pool:
-            name: 1es-ubuntu-20.04-x64
-            os: linux
-          jobs:
-            - ${{ if eq(parameters.VSCODE_BUILD_LINUX_X64_LEGACY_SERVER, true) }}:
-              - job: Linuxx64LegacyServer
-                variables:
-                  VSCODE_ARCH: x64
-                  NPM_ARCH: x64
-                  DISPLAY: ":10"
-                steps:
-                  - template: build/azure-pipelines/linux/product-build-linux-legacy-server.yml@self
-                    parameters:
-                      VSCODE_ARCH: x64
-                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_RUN_INTEGRATION_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-
-            - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF_LEGACY_SERVER, true) }}:
-              - job: LinuxArmhfLegacyServer
-                variables:
-                  VSCODE_ARCH: armhf
-                  NPM_ARCH: arm
-                steps:
-                  - template: build/azure-pipelines/linux/product-build-linux-legacy-server.yml@self
-                    parameters:
-                      VSCODE_ARCH: armhf
-                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_RUN_INTEGRATION_TESTS: false
-
-            - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64_LEGACY_SERVER, true) }}:
-              - job: LinuxArm64LegacyServer
-                variables:
-                  VSCODE_ARCH: arm64
-                  NPM_ARCH: arm64
-                steps:
-                  - template: build/azure-pipelines/linux/product-build-linux-legacy-server.yml@self
-                    parameters:
-                      VSCODE_ARCH: arm64
-                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_RUN_INTEGRATION_TESTS: false
 
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_ALPINE'], true)) }}:
         - stage: Alpine

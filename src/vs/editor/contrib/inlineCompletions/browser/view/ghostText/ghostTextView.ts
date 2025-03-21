@@ -31,6 +31,7 @@ import { ColumnRange } from '../../utils.js';
 import { addDisposableListener, getWindow, isHTMLElement, n } from '../../../../../../base/browser/dom.js';
 import './ghostTextView.css';
 import { IMouseEvent, StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
+import { CodeEditorWidget } from '../../../../../browser/widget/codeEditor/codeEditorWidget.js';
 
 export interface IGhostTextWidgetModel {
 	readonly targetTextModel: IObservable<ITextModel | undefined>;
@@ -384,6 +385,8 @@ export class AdditionalLinesWidget extends Disposable {
 		this._store
 	);
 
+	private hasBeenAccepted = false;
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _lines: IObservable<{
@@ -397,12 +400,17 @@ export class AdditionalLinesWidget extends Disposable {
 	) {
 		super();
 
+		if (this._editor instanceof CodeEditorWidget && this._shouldKeepCursorStable) {
+			this._register(this._editor.onBeforeExecuteEdit(e => this.hasBeenAccepted = e.source === 'inlineSuggestion.accept'));
+		}
+
 		this._register(autorun(reader => {
 			/** @description update view zone */
 			const lines = this._lines.read(reader);
 			this.editorOptionsChanged.read(reader);
 
 			if (lines) {
+				this.hasBeenAccepted = false;
 				this.updateLines(lines.lineNumber, lines.additionalLines, lines.minReservedLineCount);
 			} else {
 				this.clear();
@@ -479,7 +487,9 @@ export class AdditionalLinesWidget extends Disposable {
 		if (this._viewZoneInfo) {
 			changeAccessor.removeZone(this._viewZoneInfo.viewZoneId);
 
-			this.keepCursorStable(this._viewZoneInfo.lineNumber, -this._viewZoneInfo.heightInLines);
+			if (!this.hasBeenAccepted) {
+				this.keepCursorStable(this._viewZoneInfo.lineNumber, -this._viewZoneInfo.heightInLines);
+			}
 
 			this._viewZoneInfo = undefined;
 			this._viewZoneHeight.set(undefined, undefined);

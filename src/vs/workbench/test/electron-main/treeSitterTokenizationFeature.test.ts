@@ -49,6 +49,7 @@ import { TokenQuality, TokenUpdate } from '../../../editor/common/model/tokenSto
 import { ICodeEditorService } from '../../../editor/browser/services/codeEditorService.js';
 // eslint-disable-next-line local/code-layering, local/code-import-patterns
 import { TestCodeEditorService } from '../../../editor/test/browser/editorTestServices.js';
+import { IModelContentChangedEvent } from '../../../editor/common/textModelEvents.js';
 
 class MockTelemetryService implements ITelemetryService {
 	_serviceBrand: undefined;
@@ -75,6 +76,8 @@ class MockTokenStoreService implements ITreeSitterTokenizationStoreService {
 	delete(model: ITextModel): void {
 		throw new Error('Method not implemented.');
 	}
+	handleContentChanged(model: ITextModel, e: IModelContentChangedEvent): void {
+	}
 	rangeHasTokens(model: ITextModel, range: Range, minimumTokenQuality: TokenQuality): boolean {
 		return true;
 	}
@@ -82,7 +85,7 @@ class MockTokenStoreService implements ITreeSitterTokenizationStoreService {
 		return true;
 	}
 	getNeedsRefresh(model: ITextModel): { range: Range; startOffset: number; endOffset: number }[] {
-		throw new Error('Method not implemented.');
+		return [];
 	}
 
 	_serviceBrand: undefined;
@@ -117,13 +120,13 @@ suite('Tree Sitter TokenizationFeature', function () {
 	let fileService: IFileService;
 	let textResourcePropertiesService: ITextResourcePropertiesService;
 	let languageConfigurationService: ILanguageConfigurationService;
-	const telemetryService: ITelemetryService = new MockTelemetryService();
-	const logService: ILogService = new NullLogService();
-	const configurationService: IConfigurationService = new TestConfigurationService({ 'editor.experimental.preferTreeSitter.typescript': true });
-	const themeService: IThemeService = new TestThemeService(new TestTreeSitterColorTheme());
+	let telemetryService: ITelemetryService;
+	let logService: ILogService;
+	let configurationService: IConfigurationService;
+	let themeService: IThemeService;
 	let languageService: ILanguageService;
-	const environmentService: IEnvironmentService = {} as IEnvironmentService;
-	const tokenStoreService: ITreeSitterTokenizationStoreService = new MockTokenStoreService();
+	let environmentService: IEnvironmentService;
+	let tokenStoreService: ITreeSitterTokenizationStoreService;
 	let treeSitterParserService: TreeSitterTextModelService;
 	let treeSitterTokenizationSupport: ITreeSitterTokenizationSupport;
 
@@ -132,6 +135,14 @@ suite('Tree Sitter TokenizationFeature', function () {
 	setup(async () => {
 		disposables = new DisposableStore();
 		instantiationService = disposables.add(new TestInstantiationService());
+
+		telemetryService = new MockTelemetryService();
+		logService = new NullLogService();
+		configurationService = new TestConfigurationService({ 'editor.experimental.preferTreeSitter.typescript': true });
+		themeService = new TestThemeService(new TestTreeSitterColorTheme());
+		environmentService = {} as IEnvironmentService;
+		tokenStoreService = new MockTokenStoreService();
+
 		instantiationService.set(IEnvironmentService, environmentService);
 		instantiationService.set(IConfigurationService, configurationService);
 		instantiationService.set(ILogService, logService);
@@ -209,12 +220,64 @@ suite('Tree Sitter TokenizationFeature', function () {
 		}
 	}
 
+	test('Three changes come back to back ', async () => {
+		const content = `/**
+**/
+class x {
+}
+
+
+
+
+class y {
+}`;
+		const model = await getModelAndPrepTree(content);
+
+		let updateListener: IDisposable | undefined;
+		let change: TreeUpdateEvent | undefined;
+
+		const updatePromise = new Promise<void>(resolve => {
+			updateListener = treeSitterParserService.onDidUpdateTree(async e => {
+				if (e.textModel === model) {
+					change = e;
+					resolve();
+				}
+			});
+		});
+
+		const edit1 = new Promise<void>(resolve => {
+			model.applyEdits([{ range: new Range(7, 1, 8, 1), text: '' }]);
+			resolve();
+		});
+		const edit2 = new Promise<void>(resolve => {
+			model.applyEdits([{ range: new Range(6, 1, 7, 1), text: '' }]);
+			resolve();
+		});
+		const edit3 = new Promise<void>(resolve => {
+			model.applyEdits([{ range: new Range(5, 1, 6, 1), text: '' }]);
+			resolve();
+		});
+		const edits = Promise.all([edit1, edit2, edit3]);
+		await updatePromise;
+		await edits;
+		assert.ok(change);
+
+		assert.strictEqual(change.versionId, 4);
+		assert.strictEqual(change.ranges[0].newRangeStartOffset, 0);
+		assert.strictEqual(change.ranges[0].newRangeEndOffset, 32);
+		assert.strictEqual(change.ranges[0].newRange.startLineNumber, 1);
+		assert.strictEqual(change.ranges[0].newRange.endLineNumber, 7);
+
+		updateListener?.dispose();
+		modelService.destroyModel(model.uri);
+	});
+
 	test('File single line file', async () => {
 		const content = `console.log('x');`;
 		const model = await getModelAndPrepTree(content);
 		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 1, 18), 0, 17);
 		verifyTokens(tokens);
-		assert.deepStrictEqual(tokens?.length, 7);
+		assert.deepStrictEqual(tokens?.length, 9);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
 		modelService.destroyModel(model.uri);
 	});
@@ -226,7 +289,7 @@ console.log('x');
 		const model = await getModelAndPrepTree(content);
 		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 3, 1), 0, 19);
 		verifyTokens(tokens);
-		assert.deepStrictEqual(tokens?.length, 9);
+		assert.deepStrictEqual(tokens?.length, 11);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
 		modelService.destroyModel(model.uri);
 	});
@@ -236,7 +299,7 @@ console.log('x');
 		const model = await getModelAndPrepTree(content);
 		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 3, 1), 0, 21);
 		verifyTokens(tokens);
-		assert.deepStrictEqual(tokens?.length, 9);
+		assert.deepStrictEqual(tokens?.length, 11);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
 		modelService.destroyModel(model.uri);
 	});
@@ -250,7 +313,7 @@ console.log('7');
 		const model = await getModelAndPrepTree(content);
 		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 5, 1), 0, 38);
 		verifyTokens(tokens);
-		assert.deepStrictEqual(tokens?.length, 17);
+		assert.deepStrictEqual(tokens?.length, 21);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
 		modelService.destroyModel(model.uri);
 	});
@@ -260,7 +323,7 @@ console.log('7');
 		const model = await getModelAndPrepTree(content);
 		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 5, 1), 0, 42);
 		verifyTokens(tokens);
-		assert.deepStrictEqual(tokens?.length, 17);
+		assert.deepStrictEqual(tokens?.length, 21);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
 		modelService.destroyModel(model.uri);
 	});
@@ -274,7 +337,7 @@ console.log('7');
 		const model = await getModelAndPrepTree(content);
 		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 5, 1), 0, 24);
 		verifyTokens(tokens);
-		assert.deepStrictEqual(tokens?.length, 14);
+		assert.deepStrictEqual(tokens?.length, 16);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
 		modelService.destroyModel(model.uri);
 	});
@@ -284,7 +347,7 @@ console.log('7');
 		const model = await getModelAndPrepTree(content);
 		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 5, 1), 0, 28);
 		verifyTokens(tokens);
-		assert.deepStrictEqual(tokens?.length, 14);
+		assert.deepStrictEqual(tokens?.length, 16);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
 		modelService.destroyModel(model.uri);
 	});
@@ -299,7 +362,7 @@ console.log('x');
 		const model = await getModelAndPrepTree(content);
 		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 6, 1), 0, 28);
 		verifyTokens(tokens);
-		assert.deepStrictEqual(tokens?.length, 10);
+		assert.deepStrictEqual(tokens?.length, 12);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
 		modelService.destroyModel(model.uri);
 	});
@@ -309,7 +372,7 @@ console.log('x');
 		const model = await getModelAndPrepTree(content);
 		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 6, 1), 0, 33);
 		verifyTokens(tokens);
-		assert.deepStrictEqual(tokens?.length, 10);
+		assert.deepStrictEqual(tokens?.length, 12);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
 		modelService.destroyModel(model.uri);
 	});
@@ -340,61 +403,12 @@ class Y {
 		modelService.destroyModel(model.uri);
 	});
 
-	test('Three changes come back to back ', async () => {
-		const content = `/**
-**/
-class x {
-}
-
-
-
-
-class y {
-}`;
-		const model = await getModelAndPrepTree(content);
-
-		let updateListener: IDisposable | undefined;
-		let change: TreeUpdateEvent | undefined;
-
-		const updatePromise = new Promise<void>(resolve => {
-			updateListener = treeSitterParserService.onDidUpdateTree(async e => {
-				change = e;
-				resolve();
-			});
-		});
-
-		const edit1 = new Promise<void>(resolve => {
-			model.applyEdits([{ range: new Range(7, 1, 8, 1), text: '' }]);
-			resolve();
-		});
-		const edit2 = new Promise<void>(resolve => {
-			model.applyEdits([{ range: new Range(6, 1, 7, 1), text: '' }]);
-			resolve();
-		});
-		const edit3 = new Promise<void>(resolve => {
-			model.applyEdits([{ range: new Range(5, 1, 6, 1), text: '' }]);
-			resolve();
-		});
-		Promise.all([edit1, edit2, edit3]);
-		await updatePromise;
-		assert.ok(change);
-
-		assert.strictEqual(change.versionId, 4);
-		assert.strictEqual(change.ranges[0].newRangeStartOffset, 7);
-		assert.strictEqual(change.ranges[0].newRangeEndOffset, 32);
-		assert.strictEqual(change.ranges[0].newRange.startLineNumber, 2);
-		assert.strictEqual(change.ranges[0].newRange.endLineNumber, 7);
-
-		updateListener?.dispose();
-		modelService.destroyModel(model.uri);
-	});
-
 	test('Template string', async () => {
 		const content = '`t ${6}`';
 		const model = await getModelAndPrepTree(content);
 		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 1, 8), 0, 8);
 		verifyTokens(tokens);
-		assert.deepStrictEqual(tokens?.length, 5);
+		assert.deepStrictEqual(tokens?.length, 6);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
 		modelService.destroyModel(model.uri);
 	});
@@ -409,7 +423,7 @@ class y {
 		const model = await getModelAndPrepTree(content);
 		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 6, 5), 0, 238);
 		verifyTokens(tokens);
-		assert.deepStrictEqual(tokens?.length, 56);
+		assert.deepStrictEqual(tokens?.length, 65);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
 		modelService.destroyModel(model.uri);
 	});

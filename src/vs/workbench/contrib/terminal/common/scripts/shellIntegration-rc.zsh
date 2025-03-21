@@ -80,18 +80,19 @@ __vsc_escape_value() {
 	builtin emulate -L zsh
 
 	# Process text byte by byte, not by codepoint.
-	builtin local LC_ALL=C str="$1" i byte token out=''
+	builtin local LC_ALL=C str="$1" i byte token out='' val
 
 	for (( i = 0; i < ${#str}; ++i )); do
+	# Escape backslashes, semi-colons specially, then special ASCII chars below space (0x20).
 		byte="${str:$i:1}"
-
-		# Escape backslashes, semi-colons and newlines
-		if [ "$byte" = "\\" ]; then
+		val=$(printf "%d" "'$byte")
+		if (( val < 31 )); then
+			# For control characters, use hex encoding
+			token=$(printf "\\\\x%02x" "'$byte")
+		elif [ "$byte" = "\\" ]; then
 			token="\\\\"
 		elif [ "$byte" = ";" ]; then
 			token="\\x3b"
-		elif [ "$byte" = $'\n' ]; then
-			token="\x0a"
 		else
 			token="$byte"
 		fi
@@ -111,6 +112,11 @@ unset VSCODE_NONCE
 
 __vscode_shell_env_reporting="$VSCODE_SHELL_ENV_REPORTING"
 unset VSCODE_SHELL_ENV_REPORTING
+
+builtin printf "\e]633;P;ContinuationPrompt=%s\a" "$(echo "$PS2" | sed 's/\x1b/\\\\x1b/g')"
+
+# Report this shell supports rich command detection
+builtin printf '\e]633;P;HasRichCommandDetection=True\a'
 
 __vsc_prompt_start() {
 	builtin printf '\e]633;A\a'

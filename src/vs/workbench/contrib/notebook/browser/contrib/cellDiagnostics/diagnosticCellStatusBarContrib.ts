@@ -16,7 +16,7 @@ import { CodeCellViewModel } from '../../viewModel/codeCellViewModel.js';
 import { INotebookCellStatusBarItem, CellStatusbarAlignment } from '../../../common/notebookCommon.js';
 import { ICellExecutionError } from '../../../common/notebookExecutionStateService.js';
 import { IChatAgentService } from '../../../../chat/common/chatAgents.js';
-import { Iterable } from '../../../../../../base/common/iterator.js';
+import { ChatAgentLocation } from '../../../../chat/common/constants.js';
 
 export class DiagnosticCellStatusBarContrib extends Disposable implements INotebookEditorContribution {
 	static id: string = 'workbench.notebook.statusBar.diagtnostic';
@@ -49,10 +49,15 @@ class DiagnosticCellStatusBarItem extends Disposable {
 		this._register(autorun((reader) => this.updateSparkleItem(reader.readObservable(cell.executionErrorDiagnostic))));
 	}
 
+	private hasNotebookAgent(): boolean {
+		const agents = this.chatAgentService.getAgents();
+		return !!agents.find(agent => agent.locations.includes(ChatAgentLocation.Notebook));
+	}
+
 	private async updateSparkleItem(error: ICellExecutionError | undefined) {
 		let item: INotebookCellStatusBarItem | undefined;
 
-		if (error?.location && !Iterable.isEmpty(this.chatAgentService.getAgents())) {
+		if (error?.location && this.hasNotebookAgent()) {
 			const keybinding = this.keybindingService.lookupKeybinding(OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID)?.getLabel();
 			const tooltip = localize('notebook.cell.status.diagnostic', "Quick Actions {0}", `(${keybinding})`);
 

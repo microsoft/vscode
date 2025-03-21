@@ -36,7 +36,7 @@ import { ILineBreaksComputer, ILineBreaksComputerFactory, InjectedText } from '.
 import { ViewEventHandler } from '../viewEventHandler.js';
 import { ICoordinatesConverter, InlineDecoration, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
 import { ViewModelDecorations } from './viewModelDecorations.js';
-import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent } from '../viewModelEventDispatcher.js';
+import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent, WidgetFocusChangedEvent } from '../viewModelEventDispatcher.js';
 import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from './viewModelLines.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { GlyphMarginLanesModel } from './glyphLanesModel.js';
@@ -153,9 +153,9 @@ export class ViewModel extends Disposable implements IViewModel {
 			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewTokensColorsChangedEvent());
 		}));
 
-		this._register(this._themeService.onDidColorThemeChange((e) => {
+		this._register(this._themeService.onDidColorThemeChange((theme) => {
 			this._invalidateDecorationsColorCache();
-			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewThemeChangedEvent(e.theme));
+			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewThemeChangedEvent(theme));
 		}));
 
 		this._updateConfigurationViewLineCountNow();
@@ -214,6 +214,10 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._cursor.setHasFocus(hasFocus);
 		this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewFocusChangedEvent(hasFocus));
 		this._eventDispatcher.emitOutgoingEvent(new FocusChangedEvent(!hasFocus, hasFocus));
+	}
+
+	public setHasWidgetFocus(hasWidgetFocus: boolean): void {
+		this._eventDispatcher.emitOutgoingEvent(new WidgetFocusChangedEvent(!hasWidgetFocus, hasWidgetFocus));
 	}
 
 	public onCompositionStart(): void {

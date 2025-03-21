@@ -9,10 +9,12 @@ import { TokenQuality, TokenStore, TokenUpdate } from './tokenStore.js';
 import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { IModelContentChangedEvent } from '../textModelEvents.js';
 
 export interface ITreeSitterTokenizationStoreService {
 	readonly _serviceBrand: undefined;
 	setTokens(model: ITextModel, tokens: TokenUpdate[], tokenQuality: TokenQuality): void;
+	handleContentChanged(model: ITextModel, e: IModelContentChangedEvent): void;
 	getTokens(model: ITextModel, line: number): Uint32Array | undefined;
 	updateTokens(model: ITextModel, version: number, updates: { oldRangeLength?: number; newTokens: TokenUpdate[] }[], tokenQuality: TokenQuality): void;
 	markForRefresh(model: ITextModel, range: Range): void;
@@ -42,37 +44,6 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 		this.tokens.set(model, { store: store, accurateVersion: model.getVersionId(), disposables, guessVersion: model.getVersionId() });
 
 		store.buildStore(tokens, tokenQuality);
-		disposables.add(model.onDidChangeContent(e => {
-			const storeInfo = this.tokens.get(model);
-			if (!storeInfo) {
-				return;
-			}
-
-			storeInfo.guessVersion = e.versionId;
-			for (const change of e.changes) {
-				if (change.text.length > change.rangeLength) {
-					// If possible, use the token before the change as the starting point for the new token.
-					// This is more likely to let the new text be the correct color as typeing is usually at the end of the token.
-					const offset = change.rangeOffset > 0 ? change.rangeOffset - 1 : change.rangeOffset;
-					const oldToken = storeInfo.store.getTokenAt(offset);
-					let newToken: TokenUpdate;
-					if (oldToken) {
-						// Insert. Just grow the token at this position to include the insert.
-						newToken = { startOffsetInclusive: oldToken.startOffsetInclusive, length: oldToken.length + change.text.length - change.rangeLength, token: oldToken.token };
-					} else {
-						// The document got larger and the change is at the end of the document.
-						newToken = { startOffsetInclusive: offset, length: change.text.length + 1, token: 0 };
-					}
-					storeInfo.store.update(oldToken?.length ?? 0, [newToken], TokenQuality.EditGuess);
-				} else if (change.text.length < change.rangeLength) {
-					// Delete. Delete the tokens at the corresponding range.
-					const deletedCharCount = change.rangeLength - change.text.length;
-					storeInfo.store.delete(deletedCharCount, change.rangeOffset);
-				}
-				const refreshLength = change.rangeLength > change.text.length ? change.rangeLength : change.text.length;
-				storeInfo.store.markForRefresh(change.rangeOffset, change.rangeOffset + refreshLength);
-			}
-		}));
 		disposables.add(model.onWillDispose(() => {
 			const storeInfo = this.tokens.get(model);
 			if (storeInfo) {
@@ -80,6 +51,38 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 				this.tokens.delete(model);
 			}
 		}));
+	}
+
+	handleContentChanged(model: ITextModel, e: IModelContentChangedEvent): void {
+		const storeInfo = this.tokens.get(model);
+		if (!storeInfo) {
+			return;
+		}
+
+		storeInfo.guessVersion = e.versionId;
+		for (const change of e.changes) {
+			if (change.text.length > change.rangeLength) {
+				// If possible, use the token before the change as the starting point for the new token.
+				// This is more likely to let the new text be the correct color as typeing is usually at the end of the token.
+				const offset = change.rangeOffset > 0 ? change.rangeOffset - 1 : change.rangeOffset;
+				const oldToken = storeInfo.store.getTokenAt(offset);
+				let newToken: TokenUpdate;
+				if (oldToken) {
+					// Insert. Just grow the token at this position to include the insert.
+					newToken = { startOffsetInclusive: oldToken.startOffsetInclusive, length: oldToken.length + change.text.length - change.rangeLength, token: oldToken.token };
+					// Also mark tokens that are in the range of the change as needing a refresh.
+					storeInfo.store.markForRefresh(offset, change.rangeOffset + (change.text.length > change.rangeLength ? change.text.length : change.rangeLength));
+				} else {
+					// The document got larger and the change is at the end of the document.
+					newToken = { startOffsetInclusive: offset, length: change.text.length, token: 0 };
+				}
+				storeInfo.store.update(oldToken?.length ?? 0, [newToken], TokenQuality.EditGuess);
+			} else if (change.text.length < change.rangeLength) {
+				// Delete. Delete the tokens at the corresponding range.
+				const deletedCharCount = change.rangeLength - change.text.length;
+				storeInfo.store.delete(deletedCharCount, change.rangeOffset);
+			}
+		}
 	}
 
 	rangeHasTokens(model: ITextModel, range: Range, minimumTokenQuality: TokenQuality): boolean {

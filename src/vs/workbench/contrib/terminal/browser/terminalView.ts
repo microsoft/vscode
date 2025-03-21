@@ -50,6 +50,7 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { InstanceContext, TerminalContextActionRunner } from './terminalContextMenu.js';
 import { MicrotaskDelay } from '../../../../base/common/symbols.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
 
 export class TerminalViewPane extends ViewPane {
 	private _parentDomElement: HTMLElement | undefined;
@@ -660,7 +661,8 @@ class SingleTabHoverDelegate implements IHoverDelegate {
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IHoverService private readonly _hoverService: IHoverService,
-		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService
+		@IStorageService private readonly _storageService: IStorageService,
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 	) {
 	}
 
@@ -675,8 +677,8 @@ class SingleTabHoverDelegate implements IHoverDelegate {
 		if (!instance) {
 			return;
 		}
-		const hoverInfo = getInstanceHoverInfo(instance);
-		return this._hoverService.showHover({
+		const hoverInfo = getInstanceHoverInfo(instance, this._storageService);
+		return this._hoverService.showInstantHover({
 			...options,
 			content: hoverInfo.content,
 			actions: hoverInfo.actions

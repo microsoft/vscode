@@ -24,10 +24,11 @@ import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IMarker, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
-import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, IChatWelcomeMessageContent, reviveSerializedAgent } from './chatAgents.js';
+import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, reviveSerializedAgent } from './chatAgents.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatNotebookEdit, IChatProgress, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
+import { ChatAgentLocation } from './constants.js';
 
 export interface IBaseChatRequestVariableEntry {
 	id: string;
@@ -81,11 +82,6 @@ export interface ISymbolVariableEntry extends Omit<IBaseChatRequestVariableEntry
 
 export interface ICommandResultVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
 	readonly kind: 'command';
-}
-
-export interface ILinkVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
-	readonly kind: 'link';
-	readonly value: URI;
 }
 
 export interface IImageVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
@@ -161,7 +157,7 @@ export interface IDiagnosticVariableEntry extends Omit<IBaseChatRequestVariableE
 	readonly kind: 'diagnostic';
 }
 
-export type IChatRequestVariableEntry = IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry | ISymbolVariableEntry | ICommandResultVariableEntry | ILinkVariableEntry | IBaseChatRequestVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry;
+export type IChatRequestVariableEntry = IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry | ISymbolVariableEntry | ICommandResultVariableEntry | IBaseChatRequestVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry;
 
 export function isImplicitVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestImplicitVariableEntry {
 	return obj.kind === 'implicit';
@@ -169,10 +165,6 @@ export function isImplicitVariableEntry(obj: IChatRequestVariableEntry): obj is 
 
 export function isPasteVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestPasteVariableEntry {
 	return obj.kind === 'paste';
-}
-
-export function isLinkVariableEntry(obj: IChatRequestVariableEntry): obj is ILinkVariableEntry {
-	return obj.kind === 'link';
 }
 
 export function isImageVariableEntry(obj: IChatRequestVariableEntry): obj is IImageVariableEntry {
@@ -947,7 +939,6 @@ export interface IChatModel {
 	readonly initState: ChatModelInitState;
 	readonly initialLocation: ChatAgentLocation;
 	readonly title: string;
-	readonly welcomeMessage: IChatWelcomeMessageContent | undefined;
 	readonly sampleQuestions: IChatFollowup[] | undefined;
 	readonly requestInProgress: boolean;
 	readonly requestPausibility: ChatPauseState;
@@ -1207,11 +1198,6 @@ export class ChatModel extends Disposable implements IChatModel {
 	private _initState: ChatModelInitState = ChatModelInitState.Created;
 	private _isInitializedDeferred = new DeferredPromise<void>();
 
-	private _welcomeMessage: IChatWelcomeMessageContent | undefined;
-	get welcomeMessage(): IChatWelcomeMessageContent | undefined {
-		return this._welcomeMessage;
-	}
-
 	private _sampleQuestions: IChatFollowup[] | undefined;
 	get sampleQuestions(): IChatFollowup[] | undefined {
 		return this._sampleQuestions;
@@ -1433,14 +1419,13 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._isInitializedDeferred = new DeferredPromise<void>();
 	}
 
-	initialize(welcomeMessage?: IChatWelcomeMessageContent, sampleQuestions?: IChatFollowup[]): void {
+	initialize(sampleQuestions?: IChatFollowup[]): void {
 		if (this.initState !== ChatModelInitState.Initializing) {
 			// Must call startInitialize before initialize, and only call it once
 			throw new Error(`ChatModel is in the wrong state for initialize: ${ChatModelInitState[this.initState]}`);
 		}
 
 		this._initState = ChatModelInitState.Initialized;
-		this._welcomeMessage = welcomeMessage;
 		this._sampleQuestions = sampleQuestions;
 
 		this._isInitializedDeferred.complete();

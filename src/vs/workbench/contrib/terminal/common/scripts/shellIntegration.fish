@@ -35,6 +35,9 @@ set -e VSCODE_PATH_PREFIX
 set -g vsc_env_keys
 set -g vsc_env_values
 
+# Tracks if the shell has been initialized, this prevents
+set -g vsc_initialized 0
+
 set -g __vsc_applied_env_vars 0
 function __vsc_apply_env_vars
 	if test $__vsc_applied_env_vars -eq 1;
@@ -109,6 +112,11 @@ end
 # Sent when a command line is cleared or reset, but no command was run.
 # Marks the cleared line with neither success nor failure.
 function __vsc_cmd_clear --on-event fish_cancel
+	if test $vsc_initialized -eq 0;
+		return
+	end
+	__vsc_esc E "" $__vsc_nonce
+	__vsc_esc C
 	__vsc_esc D
 end
 
@@ -170,6 +178,7 @@ function __vsc_fish_prompt_start
 	# evaluated
 	__vsc_apply_env_vars
 	__vsc_esc A
+	set -g vsc_initialized 1
 end
 
 # Sent at the end of the prompt.
@@ -207,4 +216,8 @@ function __init_vscode_shell_integration
 		end
 	end
 end
+
+# Report this shell supports rich command detection
+__vsc_esc P HasRichCommandDetection=True
+
 __preserve_fish_prompt
