@@ -229,21 +229,32 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 		const whenAgentReady = this.whenAgentReady(chatAgentService);
 
 		if (whenLanguageModelReady instanceof Promise || whenAgentReady instanceof Promise) {
-			const ready = await Promise.race([
-				timeout(10000).then(() => 'timedout'),
-				Promise.allSettled([whenLanguageModelReady, whenAgentReady])
-			]);
-
-			if (ready === 'timedout') {
+			const timeoutHandle = setTimeout(() => {
 				progress({
-					kind: 'warning',
-					content: new MarkdownString(localize('copilotTookLongWarning', "Copilot took too long to get ready. Please try again later."))
+					kind: 'progressMessage',
+					content: new MarkdownString(localize('waitingCopilot2', "Copilot is almost ready.")),
 				});
+			}, 10000);
 
-				// This means Copilot is unhealthy and we cannot retry the
-				// request. Signal this to the outside via an event.
-				this._onUnresolvableError.fire();
-				return;
+			try {
+				const ready = await Promise.race([
+					timeout(20000).then(() => 'timedout'),
+					Promise.allSettled([whenLanguageModelReady, whenAgentReady])
+				]);
+
+				if (ready === 'timedout') {
+					progress({
+						kind: 'warning',
+						content: new MarkdownString(localize('copilotTookLongWarning', "Copilot took too long to get ready. Please try again."))
+					});
+
+					// This means Copilot is unhealthy and we cannot retry the
+					// request. Signal this to the outside via an event.
+					this._onUnresolvableError.fire();
+					return;
+				}
+			} finally {
+				clearTimeout(timeoutHandle);
 			}
 		}
 
