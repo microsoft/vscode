@@ -191,6 +191,7 @@ export interface IProductConfiguration {
 			readonly scopes: string[];
 		};
 		readonly entitlementUrl: string;
+		readonly chatUrl: string;
 	};
 
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;

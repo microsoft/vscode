@@ -1,0 +1,27 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { IStringDictionary } from '../../../../base/common/collections.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { AbstractPolicyService, IPolicyService, PolicyDefinition } from '../../../../platform/policy/common/policy.js';
+import { DefaultAccountService, IDefaultAccountService } from '../../accounts/common/defaultAccount.js';
+
+export class AccountPolicyService extends AbstractPolicyService implements IPolicyService {
+
+	constructor(
+		@ILogService private readonly logService: ILogService,
+		@IDefaultAccountService private readonly defaultAccountService: DefaultAccountService
+	) {
+		super();
+	}
+
+	protected async _updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<void> {
+		this.logService.info(`AccountPolicyService#_updatePolicyDefinitions: Got ${Object.keys(policyDefinitions).length} policy definitions`);
+
+		this.defaultAccountService.onDidChangeDefaultAccount(() => {
+			this.logService.info('onDidChangeDefaultAccount event!');
+		});
+	}
+}
