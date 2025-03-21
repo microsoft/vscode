@@ -12,10 +12,6 @@ import { WorkerTextModelSyncServer } from '../../../../editor/common/services/te
 
 type RegexpModel = { detect: (inp: string, langBiases: Record<string, number>, supportedLangs?: string[]) => string | undefined };
 
-/**
- * Defines the worker entry point. Must be exported and named `create`.
- * @skipMangle
- */
 export function create(workerServer: IWorkerServer): IRequestHandler {
 	return new LanguageDetectionSimpleWorker(workerServer);
 }
