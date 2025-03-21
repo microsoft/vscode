@@ -65,11 +65,12 @@ export class SimpleSuggestWidgetItemRenderer implements IListRenderer<SimpleComp
 
 	readonly templateId = 'suggestion';
 
-	constructor(private readonly _getFontInfo: () => ISimpleSuggestWidgetFontInfo, private readonly _onDidFontConfigurationChange: Event<void>,
+	constructor(
+		private readonly _getFontInfo: () => ISimpleSuggestWidgetFontInfo,
+		private readonly _onDidFontConfigurationChange: Event<void>,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IModelService private readonly _modelService: IModelService,
-		@ILanguageService private readonly _languageService: ILanguageService) {
-	}
+		@ILanguageService private readonly _languageService: ILanguageService) { }
 
 	dispose(): void {
 		this._onDidToggleDetails.dispose();
