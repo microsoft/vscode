@@ -145,7 +145,7 @@ class ExtHostMcpServerLaunch extends Disposable implements IMcpMessageTransport 
 		super();
 
 		this._register(disposableTimeout(() => {
-			this.pushLog(LogLevel.Info, `Starting server from ${extensionHostKindToString(extHostKind)}extension host`);
+			this.pushLog(LogLevel.Info, `Starting server from ${extensionHostKindToString(extHostKind)} extension host`);
 		}));
 	}
 
