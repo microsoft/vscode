@@ -1171,13 +1171,16 @@ export class TerminalService extends Disposable implements ITerminalService {
 	}
 
 	protected _showBackgroundTerminal(instance: ITerminalInstance): void {
+		const index = this._backgroundedTerminalInstances.indexOf(instance);
+		if (index === -1) {
+			return;
+		}
 		this._backgroundedTerminalInstances.splice(this._backgroundedTerminalInstances.indexOf(instance), 1);
 		const disposables = this._backgroundedTerminalDisposables.get(instance.instanceId);
 		if (disposables) {
 			dispose(disposables);
 		}
 		this._backgroundedTerminalDisposables.delete(instance.instanceId);
-		instance.shellLaunchConfig.hideFromUser = false;
 		this._terminalGroupService.createGroup(instance);
 
 		// Make active automatically if it's the first instance
