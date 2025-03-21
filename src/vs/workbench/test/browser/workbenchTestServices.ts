@@ -1369,6 +1369,7 @@ export class TestLifecycleService extends Disposable implements ILifecycleServic
 	}
 
 	startupKind!: StartupKind;
+	willShutdown = false;
 
 	private readonly _onBeforeShutdown = this._register(new Emitter<InternalBeforeShutdownEvent>());
 	get onBeforeShutdown(): Event<InternalBeforeShutdownEvent> { return this._onBeforeShutdown.event; }

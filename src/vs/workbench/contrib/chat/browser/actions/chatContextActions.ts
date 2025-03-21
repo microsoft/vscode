@@ -29,6 +29,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { AnythingQuickAccessProviderRunOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickItemWithResource, IQuickPickSeparator, QuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ActiveEditorContext, TextCompareEditorActiveContext } from '../../../../common/contextkeys.js';
@@ -48,12 +49,13 @@ import { isSearchTreeFileMatch, isSearchTreeMatch } from '../../../search/browse
 import { SearchView } from '../../../search/browser/searchView.js';
 import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from '../../../search/browser/symbolsQuickAccess.js';
 import { SearchContext } from '../../../search/common/constants.js';
-import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { IChatAgentService } from '../../common/chatAgents.js';
+import { ChatContextKeyExprs, ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
 import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData } from '../../common/chatModel.js';
 import { ChatRequestAgentPart } from '../../common/chatParserTypes.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
+import { ChatAgentLocation } from '../../common/constants.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView, showEditsView } from '../chat.js';
 import { imageToHash, isImage } from '../chatPasteProviders.js';
@@ -73,6 +75,7 @@ export function registerChatContextActions() {
 	registerAction2(AttachFileToEditingSessionAction);
 	registerAction2(AttachFolderToEditingSessionAction);
 	registerAction2(AttachSelectionToEditingSessionAction);
+	registerAction2(AttachSearchResultAction);
 }
 
 /**
@@ -292,11 +295,11 @@ class AttachFileToChatAction extends AttachResourceAction {
 			title: localize2('workbench.action.chat.attachFile.label', "Add File to Chat"),
 			category: CHAT_CATEGORY,
 			f1: false,
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID), TextCompareEditorActiveContext)),
 			menu: [{
 				id: MenuId.SearchContext,
 				group: 'z_chat',
-				order: 1
+				order: 1,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID), TextCompareEditorActiveContext), SearchContext.SearchResultHeaderFocused.negate()),
 			}]
 		});
 	}
@@ -350,12 +353,6 @@ class AttachSelectionToChatAction extends Action2 {
 			title: localize2('workbench.action.chat.attachSelection.label', "Add Selection to Chat"),
 			category: CHAT_CATEGORY,
 			f1: false,
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID), TextCompareEditorActiveContext)),
-			menu: [{
-				id: MenuId.SearchContext,
-				group: 'z_chat',
-				order: 2
-			}]
 		});
 	}
 
@@ -411,11 +408,15 @@ class AttachFileToEditingSessionAction extends AttachResourceAction {
 			title: localize2('workbench.action.edits.attachFile.label', "Add File to {0}", 'Copilot Edits'),
 			category: CHAT_CATEGORY,
 			f1: false,
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID), TextCompareEditorActiveContext)),
 			menu: [{
 				id: MenuId.SearchContext,
 				group: 'z_chat',
-				order: 2
+				order: 2,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
+					ContextKeyExpr.or(ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID), TextCompareEditorActiveContext),
+					ChatContextKeyExprs.unifiedChatEnabled.negate(),
+					SearchContext.SearchResultHeaderFocused.negate()),
 			}]
 		});
 	}
@@ -433,6 +434,58 @@ class AttachFileToEditingSessionAction extends AttachResourceAction {
 	}
 }
 
+export class AttachSearchResultAction extends Action2 {
+	static readonly Name = 'searchResults';
+	static readonly ID = 'workbench.action.chat.insertSearchResults';
+
+	constructor() {
+		super({
+			id: AttachSearchResultAction.ID,
+			title: localize2('chat.insertSearchResults', 'Add Search Results to Chat'),
+			category: CHAT_CATEGORY,
+			f1: false,
+			menu: [{
+				id: MenuId.SearchContext,
+				group: 'z_chat',
+				order: 3,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
+					SearchContext.SearchResultHeaderFocused),
+			}]
+		});
+	}
+	async run(accessor: ServicesAccessor, ...args: any[]) {
+		const logService = accessor.get(ILogService);
+		const widget = (await showChatView(accessor.get(IViewsService)));
+
+		if (!widget) {
+			logService.trace('InsertSearchResultAction: no chat view available');
+			return;
+		}
+
+		const editor = widget.inputEditor;
+		const originalRange = editor.getSelection() ?? editor.getModel()?.getFullModelRange().collapseToEnd();
+
+		if (!originalRange) {
+			logService.trace('InsertSearchResultAction: no selection');
+			return;
+		}
+
+		let insertText = `#${AttachSearchResultAction.Name}`;
+		const varRange = new Range(originalRange.startLineNumber, originalRange.startColumn, originalRange.endLineNumber, originalRange.startColumn + insertText.length);
+		// check character before the start of the range. If it's not a space, add a space
+		const model = editor.getModel();
+		if (model && model.getValueInRange(new Range(originalRange.startLineNumber, originalRange.startColumn - 1, originalRange.startLineNumber, originalRange.startColumn)) !== ' ') {
+			insertText = ' ' + insertText;
+		}
+		const success = editor.executeEdits('chatInsertSearch', [{ range: varRange, text: insertText + ' ' }]);
+		if (!success) {
+			logService.trace(`InsertSearchResultAction: failed to insert "${insertText}"`);
+			return;
+		}
+	}
+}
+
 class AttachFolderToEditingSessionAction extends AttachResourceAction {
 
 	static readonly ID = 'workbench.action.edits.attachFolder';
@@ -443,6 +496,9 @@ class AttachFolderToEditingSessionAction extends AttachResourceAction {
 			title: localize2('workbench.action.edits.attachFolder.label', "Add Folder to {0}", 'Copilot Edits'),
 			category: CHAT_CATEGORY,
 			f1: false,
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.enabled,
+				ChatContextKeyExprs.unifiedChatEnabled.negate()),
 		});
 	}
 
@@ -469,7 +525,11 @@ class AttachSelectionToEditingSessionAction extends Action2 {
 			title: localize2('workbench.action.edits.attachSelection.label', "Add Selection to {0}", 'Copilot Edits'),
 			category: CHAT_CATEGORY,
 			f1: false,
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID), TextCompareEditorActiveContext))
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.enabled,
+				ContextKeyExpr.or(ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID), TextCompareEditorActiveContext),
+				ChatContextKeyExprs.unifiedChatEnabled.negate()
+			)
 		});
 	}
 
@@ -494,37 +554,26 @@ export class AttachContextAction extends Action2 {
 
 	static readonly ID = 'workbench.action.chat.attachContext';
 
-	// used to enable/disable the keybinding and defined menu containment
-	protected static _cdt = ContextKeyExpr.or(
-		ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel)),
-		ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Editor)),
-		ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Notebook)),
-		ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Terminal)),
-	);
-
 	constructor(desc: Readonly<IAction2Options> = {
 		id: AttachContextAction.ID,
 		title: localize2('workbench.action.chat.attachContext.label.2', "Add Context"),
 		icon: Codicon.attach,
 		category: CHAT_CATEGORY,
-		precondition: ContextKeyExpr.or(AttachContextAction._cdt, ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession))),
 		keybinding: {
-			when: ContextKeyExpr.and(ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession), ChatContextKeys.inChatInput),
+			when: ContextKeyExpr.and(
+				ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession),
+				ChatContextKeys.inChatInput,
+				ChatContextKeyExprs.inNonUnifiedPanel),
 			primary: KeyMod.CtrlCmd | KeyCode.Slash,
 			weight: KeybindingWeight.EditorContrib
 		},
 		menu: [
 			{
-				when: ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
+				when: ChatContextKeyExprs.inNonUnifiedPanel,
 				id: MenuId.ChatInputAttachmentToolbar,
-				group: 'navigation'
-			},
-			{
-				when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel).negate(), AttachContextAction._cdt),
-				id: MenuId.ChatExecute,
 				group: 'navigation',
-				order: 1
-			},
+				order: 2
+			}
 		]
 	}) {
 		super(desc);
@@ -748,7 +797,7 @@ export class AttachContextAction extends Action2 {
 		if (!widget) {
 			return;
 		}
-		const chatEditingService = widget.location === ChatAgentLocation.EditingSession ? accessor.get(IChatEditingService) : undefined;
+		const chatEditingService = widget.location === ChatAgentLocation.EditingSession || widget.isUnifiedPanelWidget ? accessor.get(IChatEditingService) : undefined;
 
 		const quickPickItems: IAttachmentQuickPickItem[] = [];
 		if (extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData'))) {
@@ -1033,14 +1082,15 @@ registerAction2(class AttachFilesAction extends AttachContextAction {
 			f1: false,
 			category: CHAT_CATEGORY,
 			menu: {
-				when: ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
+				when: ChatContextKeyExprs.inEditsOrUnified,
 				id: MenuId.ChatInputAttachmentToolbar,
-				group: 'navigation'
+				group: 'navigation',
+				order: 3
 			},
 			icon: Codicon.attach,
-			precondition: ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
+			precondition: ChatContextKeyExprs.inEditsOrUnified,
 			keybinding: {
-				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)),
+				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeyExprs.inEditsOrUnified),
 				primary: KeyMod.CtrlCmd | KeyCode.Slash,
 				weight: KeybindingWeight.EditorContrib
 			}

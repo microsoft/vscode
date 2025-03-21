@@ -470,11 +470,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (capability === TerminalCapability.CommandDetection) {
 				const commandDetection = this.capabilities.get(capability);
 				if (commandDetection) {
+					commandDetection.promptInputModel.setShellType(this.shellType);
 					capabilityListeners.set(capability, Event.any(
 						commandDetection.promptInputModel.onDidStartInput,
 						commandDetection.promptInputModel.onDidChangeInput,
 						commandDetection.promptInputModel.onDidFinishInput
-					)(() => this._labelComputer?.refreshLabel(this)));
+					)(() => {
+						this._labelComputer?.refreshLabel(this);
+						refreshShellIntegrationInfoStatus(this);
+					}));
 				}
 			}
 		}));
@@ -847,6 +851,18 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Init winpty compat and link handler after process creation as they rely on the
 		// underlying process OS
 		this._register(this._processManager.onProcessReady(async (processTraits) => {
+			// Respond to DA1 with basic conformance. Note that including this is required to avoid
+			// a long delay in conpty 1.22+ where it waits for the response.
+			// Reference: https://github.com/microsoft/terminal/blob/3760caed97fa9140a40777a8fbc1c95785e6d2ab/src/terminal/adapter/adaptDispatch.cpp#L1471-L1495
+			if (processTraits?.windowsPty?.backend === 'conpty') {
+				this._register(xterm.raw.parser.registerCsiHandler({ final: 'c' }, params => {
+					if (params.length === 0 || params.length === 1 && params[0] === 0) {
+						this._processManager.write('\x1b[?61;4c');
+						return true;
+					}
+					return false;
+				}));
+			}
 			if (this._processManager.os) {
 				lineDataEventAddon.setOperatingSystem(this._processManager.os);
 			}

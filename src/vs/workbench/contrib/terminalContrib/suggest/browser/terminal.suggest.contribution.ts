@@ -17,7 +17,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { GeneralShellType, TerminalLocation } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal.js';
-import { registerActiveInstanceAction } from '../../../terminal/browser/terminalActions.js';
+import { registerActiveInstanceAction, registerTerminalAction } from '../../../terminal/browser/terminalActions.js';
 import { registerTerminalContribution, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { TerminalSuggestCommandId } from '../common/terminal.suggest.js';
@@ -106,11 +106,10 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			return;
 		}
 
-		const pwshCompletionProviderAddon = this._pwshAddon.value = this._instantiationService.createInstance(PwshCompletionProviderAddon, undefined, this._ctx.instance.capabilities);
+		const pwshCompletionProviderAddon = this._pwshAddon.value = this._instantiationService.createInstance(PwshCompletionProviderAddon, this._ctx.instance.capabilities);
 		xterm.loadAddon(pwshCompletionProviderAddon);
 		this.add(pwshCompletionProviderAddon);
 		this.add(pwshCompletionProviderAddon.onDidRequestSendText(text => {
-			this._ctx.instance.focus();
 			this._ctx.instance.sendText(text, false);
 		}));
 		this.add(this._terminalCompletionService.registerTerminalCompletionProvider('builtinPwsh', pwshCompletionProviderAddon.id, pwshCompletionProviderAddon));
@@ -201,6 +200,23 @@ registerTerminalContribution(TerminalSuggestContribution.ID, TerminalSuggestCont
 // #endregion
 
 // #region Actions
+
+registerTerminalAction({
+	id: TerminalSuggestCommandId.ConfigureSettings,
+	title: localize2('workbench.action.terminal.configureSuggestSettings', 'Configure'),
+	f1: false,
+	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
+	keybinding: {
+		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Comma,
+		weight: KeybindingWeight.WorkbenchContrib
+	},
+	menu: {
+		id: MenuId.MenubarTerminalSuggestStatusMenu,
+		group: 'right',
+		order: 1
+	},
+	run: (c, accessor) => accessor.get(IPreferencesService).openSettings({ query: terminalSuggestConfigSection })
+});
 
 registerActiveInstanceAction({
 	id: TerminalSuggestCommandId.RequestCompletions,
@@ -375,30 +391,6 @@ registerActiveInstanceAction({
 		TerminalSuggestContribution.get(activeInstance)?.addon?.hideSuggestWidget(true);
 		activeInstance.sendText('\u001b[A', false); // Up arrow
 	}
-});
-
-registerActiveInstanceAction({
-	id: TerminalSuggestCommandId.ConfigureSettings,
-	title: localize2('workbench.action.terminal.configureSuggestSettings', 'Configure'),
-	f1: false,
-	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
-	keybinding: {
-		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Comma,
-		weight: KeybindingWeight.WorkbenchContrib
-	},
-	menu: {
-		id: MenuId.MenubarTerminalSuggestStatusMenu,
-		group: 'right',
-		order: 1
-	},
-	run: (activeInstance, c, accessor) => accessor.get(IPreferencesService).openSettings({ query: terminalSuggestConfigSection })
-});
-
-registerActiveInstanceAction({
-	id: TerminalSuggestCommandId.ClearSuggestCache,
-	title: localize2('workbench.action.terminal.clearSuggestCache', 'Clear Suggest Cache'),
-	f1: true,
-	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.pwshAddon?.clearSuggestCache()
 });
 
 // #endregion

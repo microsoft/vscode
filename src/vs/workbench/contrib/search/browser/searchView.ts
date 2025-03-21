@@ -71,7 +71,7 @@ import { createEditorFromSearchResult } from '../../searchEditor/browser/searchE
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IPreferencesService, ISettingsEditorOptions } from '../../../services/preferences/common/preferences.js';
 import { ITextQueryBuilderOptions, QueryBuilder } from '../../../services/search/common/queryBuilder.js';
-import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, SearchCompletionExitCode, SearchSortOrder, TextSearchCompleteMessageType, ViewMode } from '../../../services/search/common/search.js';
+import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ISearchService, ITextQuery, SearchCompletionExitCode, SearchSortOrder, TextSearchCompleteMessageType, ViewMode } from '../../../services/search/common/search.js';
 import { TextSearchCompleteMessage } from '../../../services/search/common/searchExtTypes.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
@@ -80,7 +80,7 @@ import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../pl
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ISearchViewModelWorkbenchService } from './searchTreeModel/searchViewModelWorkbenchService.js';
-import { ISearchTreeMatch, isSearchTreeMatch, RenderableMatch, SearchModelLocation, IChangeEvent, FileMatchOrMatch, ISearchTreeFileMatch, ISearchTreeFolderMatch, ISearchModel, ISearchResult, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeFolderMatchNoRoot, isSearchTreeFolderMatchWithResource, isSearchTreeFolderMatchWorkspaceRoot, isSearchResult, isTextSearchHeading, ITextSearchHeading } from './searchTreeModel/searchTreeCommon.js';
+import { ISearchTreeMatch, isSearchTreeMatch, RenderableMatch, SearchModelLocation, IChangeEvent, FileMatchOrMatch, ISearchTreeFileMatch, ISearchTreeFolderMatch, ISearchModel, ISearchResult, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeFolderMatchNoRoot, isSearchTreeFolderMatchWithResource, isSearchTreeFolderMatchWorkspaceRoot, isSearchResult, isTextSearchHeading, ITextSearchHeading, isSearchHeader } from './searchTreeModel/searchTreeCommon.js';
 import { INotebookFileInstanceMatch, isIMatchInNotebook } from './notebookSearch/notebookSearchModelBase.js';
 import { searchMatchComparer } from './searchCompare.js';
 import { AIFolderMatchWorkspaceRootImpl } from './AISearch/aiSearchModel.js';
@@ -117,6 +117,7 @@ export class SearchView extends ViewPane {
 	private folderMatchFocused: IContextKey<boolean>;
 	private folderMatchWithResourceFocused: IContextKey<boolean>;
 	private matchFocused: IContextKey<boolean>;
+	private searchResultHeaderFocused: IContextKey<boolean>;
 	private isEditableItem: IContextKey<boolean>;
 	private hasSearchResultsKey: IContextKey<boolean>;
 	private lastFocusState: 'input' | 'tree' = 'input';
@@ -194,6 +195,7 @@ export class SearchView extends ViewPane {
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ISearchService private readonly searchService: ISearchService,
 		@IOpenerService openerService: IOpenerService,
 		@IHoverService hoverService: IHoverService,
 		@INotebookService private readonly notebookService: INotebookService,
@@ -214,6 +216,7 @@ export class SearchView extends ViewPane {
 		this.fileMatchFocused = Constants.SearchContext.FileFocusKey.bindTo(this.contextKeyService);
 		this.folderMatchFocused = Constants.SearchContext.FolderFocusKey.bindTo(this.contextKeyService);
 		this.folderMatchWithResourceFocused = Constants.SearchContext.ResourceFolderFocusKey.bindTo(this.contextKeyService);
+		this.searchResultHeaderFocused = Constants.SearchContext.SearchResultHeaderFocused.bindTo(this.contextKeyService);
 		this.hasSearchResultsKey = Constants.SearchContext.HasSearchResults.bindTo(this.contextKeyService);
 		this.matchFocused = Constants.SearchContext.MatchFocusKey.bindTo(this.contextKeyService);
 		this.searchStateKey = SearchStateKey.bindTo(this.contextKeyService);
@@ -940,6 +943,7 @@ export class SearchView extends ViewPane {
 				this.fileMatchOrFolderMatchFocus.set(isSearchTreeFileMatch(focus) || isSearchTreeFolderMatch(focus));
 				this.fileMatchOrFolderMatchWithResourceFocus.set(isSearchTreeFileMatch(focus) || isSearchTreeFolderMatchWithResource(focus));
 				this.folderMatchWithResourceFocused.set(isSearchTreeFolderMatchWithResource(focus));
+				this.searchResultHeaderFocused.set(isSearchHeader(focus));
 				this.lastFocusState = 'tree';
 			}
 
@@ -963,6 +967,7 @@ export class SearchView extends ViewPane {
 			this.fileMatchOrFolderMatchFocus.reset();
 			this.fileMatchOrFolderMatchWithResourceFocus.reset();
 			this.folderMatchWithResourceFocused.reset();
+			this.searchResultHeaderFocused.reset();
 			this.isEditableItem.reset();
 		}));
 	}
@@ -1663,8 +1668,34 @@ export class SearchView extends ViewPane {
 		}
 
 		// Special case for when we have an AI provider registered
-		if (this.shouldShowAIResults()) {
-			Constants.SearchContext.AIResultsRequested.bindTo(this.contextKeyService).set(!!aiResults);
+		Constants.SearchContext.AIResultsRequested.bindTo(this.contextKeyService).set(this.shouldShowAIResults() && !!aiResults);
+
+		if (this.shouldShowAIResults() && !allResults) {
+			const messageEl = this.clearMessage();
+			const noResultsMessage = nls.localize('noResultsFallback', "No results found. ");
+			dom.append(messageEl, noResultsMessage);
+
+			let aiName = 'Copilot';
+			try {
+				aiName = (await this.searchService.getAIName()) || aiName;
+			} catch (e) {
+				// ignore
+			}
+
+			if (aiName) {
+				const searchWithAIButtonTooltip = appendKeyBindingLabel(
+					nls.localize('triggerAISearch.tooltip', "Search with {0}", aiName),
+					this.keybindingService.lookupKeybinding(Constants.SearchCommandIds.SearchWithAIActionId)
+				);
+				const searchWithAIButtonText = nls.localize('searchWithAIButtonTooltip', "Search with {0}.", aiName);
+				const searchWithAIButton = this.messageDisposables.add(new SearchLinkButton(
+					searchWithAIButtonText,
+					() => {
+						this.commandService.executeCommand(Constants.SearchCommandIds.SearchWithAIActionId);
+					}, this.hoverService, searchWithAIButtonTooltip));
+				dom.append(messageEl, searchWithAIButton.element);
+			}
+
 			if (!aiResults) {
 				return;
 			}
@@ -1789,6 +1820,7 @@ export class SearchView extends ViewPane {
 		const result = this.viewModel.addAIResults();
 		return result.then((complete) => {
 			clearTimeout(slowTimer);
+			this.updateSearchResultCount(this.viewModel.searchResult.query?.userDisabledExcludesAndIgnoreFiles, this.viewModel.searchResult.query?.onlyOpenEditors, false);
 			return this.onSearchComplete(progressComplete, excludePatternText, includePatternText, complete, false);
 		}, (e) => {
 			clearTimeout(slowTimer);
@@ -1805,6 +1837,7 @@ export class SearchView extends ViewPane {
 		this.searchWidget.searchInput?.clearMessage();
 		this.state = SearchUIState.Searching;
 		this.showEmptyStage();
+		this.model.searchResult.aiTextSearchResult.hidden = true;
 
 		const slowTimer = setTimeout(() => {
 			this.state = SearchUIState.SlowSearch;
@@ -2340,6 +2373,11 @@ class SearchViewDataSource implements IAsyncDataSource<ISearchResult, Renderable
 
 		const ret: ITextSearchHeading[] = [];
 
+		if (this.searchView.shouldShowAIResults() && searchResult.searchModel.hasPlainResults && !searchResult.aiTextSearchResult.hidden) {
+			// as long as there is a query present, we can load AI results
+			ret.push(searchResult.aiTextSearchResult);
+		}
+
 		if (!searchResult.plainTextSearchResult.isEmpty()) {
 			if (!this.searchView.shouldShowAIResults()) {
 				// only one root, so just return the children
@@ -2347,11 +2385,6 @@ class SearchViewDataSource implements IAsyncDataSource<ISearchResult, Renderable
 			}
 			ret.push(searchResult.plainTextSearchResult);
 
-		}
-
-		if (this.searchView.shouldShowAIResults() && searchResult.searchModel.hasPlainResults && !searchResult.aiTextSearchResult.hidden) {
-			// as long as there is a query present, we can load AI results
-			ret.push(searchResult.aiTextSearchResult);
 		}
 
 		return ret;

@@ -16,13 +16,13 @@ export = new class implements eslint.Rule.RuleModule {
 			layerbreaker: 'You are only allowed to import {{import}} from here using `import type ...`.'
 		},
 		schema: {
-			type: "array",
+			type: 'array',
 			items: {
-				type: "object",
+				type: 'object',
 				additionalProperties: {
-					type: "array",
+					type: 'array',
 					items: {
-						type: "string"
+						type: 'string'
 					}
 				}
 			}

@@ -95,12 +95,11 @@ export interface IProductConfiguration {
 
 	readonly extensionsGallery?: {
 		readonly serviceUrl: string;
-		readonly itemUrl: string;
-		readonly publisherUrl: string;
-		readonly resourceUrlTemplate: string;
-		readonly extensionUrlTemplate: string;
 		readonly controlUrl: string;
+		readonly extensionUrlTemplate: string;
+		readonly resourceUrlTemplate: string;
 		readonly nlsBaseUrl: string;
+		readonly accessSKUs?: string[];
 	};
 
 	readonly extensionPublisherOrgs?: readonly string[];
@@ -184,6 +183,16 @@ export interface IProductConfiguration {
 	readonly msftInternalDomains?: string[];
 	readonly linkProtectionTrustedDomains?: readonly string[];
 
+	readonly defaultAccount?: {
+		readonly authenticationProvider: {
+			readonly id: string;
+			readonly enterpriseProviderId: string;
+			readonly enterpriseProviderConfig: string;
+			readonly scopes: string[];
+		};
+		readonly entitlementUrl: string;
+	};
+
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
 
 	readonly 'editSessions.store'?: Omit<ConfigurationSyncStore, 'insidersUrl' | 'stableUrl'>;
@@ -198,6 +207,8 @@ export interface IProductConfiguration {
 	readonly chatParticipantRegistry?: string;
 
 	readonly emergencyAlertUrl?: string;
+
+	readonly remoteDefaultExtensionsIfInstalledLocally?: string[];
 }
 
 export interface ITunnelApplicationConfig {

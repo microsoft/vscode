@@ -27,9 +27,10 @@ import { localize } from '../../nls.js';
 import { ExtensionIdentifier } from '../../platform/extensions/common/extensions.js';
 import { IMarkerData } from '../../platform/markers/common/markers.js';
 import { IModelTokensChangedEvent } from './textModelEvents.js';
-import type * as Parser from '@vscode/tree-sitter-wasm';
 import { ITextModel } from './model.js';
 import { TokenUpdate } from './model/tokenStore.js';
+import { ITextModelTreeSitter } from './services/treeSitterParserService.js';
+import type * as Parser from '@vscode/tree-sitter-wasm';
 
 /**
  * @internal
@@ -89,12 +90,15 @@ export class EncodedTokenizationResult {
 export interface SyntaxNode {
 	startIndex: number;
 	endIndex: number;
+	startPosition: IPosition;
+	endPosition: IPosition;
 }
 
 export interface QueryCapture {
 	name: string;
 	text?: string;
 	node: SyntaxNode;
+	encodedLanguageId: number;
 }
 
 /**
@@ -108,10 +112,11 @@ export interface ITreeSitterTokenizationSupport {
 	getTokensInRange(textModel: ITextModel, range: Range, rangeStartOffset: number, rangeEndOffset: number): TokenUpdate[] | undefined;
 	tokenizeEncoded(lineNumber: number, textModel: model.ITextModel): void;
 	captureAtPosition(lineNumber: number, column: number, textModel: model.ITextModel): QueryCapture[];
-	captureAtPositionTree(lineNumber: number, column: number, tree: Parser.Tree): QueryCapture[];
+	captureAtRangeTree(range: Range, tree: Parser.Tree, textModelTreeSitter: ITextModelTreeSitter): QueryCapture[];
 	onDidChangeTokens: Event<{ textModel: model.ITextModel; changes: IModelTokensChangedEvent }>;
 	onDidChangeBackgroundTokenization: Event<{ textModel: model.ITextModel }>;
 	tokenizeEncodedInstrumented(lineNumber: number, textModel: model.ITextModel): { result: Uint32Array; captureTime: number; metadataTime: number } | undefined;
+	guessTokensForLinesContent(lineNumber: number, textModel: model.ITextModel, lines: string[]): Uint32Array[] | undefined;
 }
 
 /**
@@ -429,6 +434,43 @@ export namespace CompletionItemKinds {
 			codicon = Codicon.symbolProperty;
 		}
 		return codicon;
+	}
+
+	/**
+	 * @internal
+	 */
+	export function toLabel(kind: CompletionItemKind): string {
+		switch (kind) {
+			case CompletionItemKind.Method: return localize('suggestWidget.kind.method', 'Method');
+			case CompletionItemKind.Function: return localize('suggestWidget.kind.function', 'Function');
+			case CompletionItemKind.Constructor: return localize('suggestWidget.kind.constructor', 'Constructor');
+			case CompletionItemKind.Field: return localize('suggestWidget.kind.field', 'Field');
+			case CompletionItemKind.Variable: return localize('suggestWidget.kind.variable', 'Variable');
+			case CompletionItemKind.Class: return localize('suggestWidget.kind.class', 'Class');
+			case CompletionItemKind.Struct: return localize('suggestWidget.kind.struct', 'Struct');
+			case CompletionItemKind.Interface: return localize('suggestWidget.kind.interface', 'Interface');
+			case CompletionItemKind.Module: return localize('suggestWidget.kind.module', 'Module');
+			case CompletionItemKind.Property: return localize('suggestWidget.kind.property', 'Property');
+			case CompletionItemKind.Event: return localize('suggestWidget.kind.event', 'Event');
+			case CompletionItemKind.Operator: return localize('suggestWidget.kind.operator', 'Operator');
+			case CompletionItemKind.Unit: return localize('suggestWidget.kind.unit', 'Unit');
+			case CompletionItemKind.Value: return localize('suggestWidget.kind.value', 'Value');
+			case CompletionItemKind.Constant: return localize('suggestWidget.kind.constant', 'Constant');
+			case CompletionItemKind.Enum: return localize('suggestWidget.kind.enum', 'Enum');
+			case CompletionItemKind.EnumMember: return localize('suggestWidget.kind.enumMember', 'Enum Member');
+			case CompletionItemKind.Keyword: return localize('suggestWidget.kind.keyword', 'Keyword');
+			case CompletionItemKind.Text: return localize('suggestWidget.kind.text', 'Text');
+			case CompletionItemKind.Color: return localize('suggestWidget.kind.color', 'Color');
+			case CompletionItemKind.File: return localize('suggestWidget.kind.file', 'File');
+			case CompletionItemKind.Reference: return localize('suggestWidget.kind.reference', 'Reference');
+			case CompletionItemKind.Customcolor: return localize('suggestWidget.kind.customcolor', 'Custom Color');
+			case CompletionItemKind.Folder: return localize('suggestWidget.kind.folder', 'Folder');
+			case CompletionItemKind.TypeParameter: return localize('suggestWidget.kind.typeParameter', 'Type Parameter');
+			case CompletionItemKind.User: return localize('suggestWidget.kind.user', 'User');
+			case CompletionItemKind.Issue: return localize('suggestWidget.kind.issue', 'Issue');
+			case CompletionItemKind.Snippet: return localize('suggestWidget.kind.snippet', 'Snippet');
+			default: return '';
+		}
 	}
 
 	const data = new Map<string, CompletionItemKind>();

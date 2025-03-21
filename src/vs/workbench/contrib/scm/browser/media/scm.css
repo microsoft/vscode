@@ -650,3 +650,7 @@
 	border-radius: 2px;
 	opacity: 0.5;
 }
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item .codicon.codicon-repo {
+	padding-top: 1px;
+}

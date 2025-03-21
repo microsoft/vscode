@@ -89,7 +89,7 @@ export class LocalSearchProvider implements ISearchProvider {
 		this._filter = cleanFilter(this._filter);
 	}
 
-	searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken): Promise<ISearchResult | null> {
+	searchModel(preferencesModel: ISettingsEditorModel, token: CancellationToken): Promise<ISearchResult | null> {
 		if (!this._filter) {
 			return Promise.resolve(null);
 		}
@@ -99,7 +99,6 @@ export class LocalSearchProvider implements ISearchProvider {
 				this._filter,
 				setting,
 				true,
-				(filter, setting) => preferencesModel.findValueMatches(filter, setting),
 				this.configurationService
 			);
 			if (matchType === SettingMatchType.None || matches.length === 0) {
@@ -117,22 +116,15 @@ export class LocalSearchProvider implements ISearchProvider {
 		};
 
 		const filterMatches = preferencesModel.filterSettings(this._filter, this.getGroupFilter(this._filter), settingMatcher);
-		const exactMatch = filterMatches.find(m => m.matchType === SettingMatchType.ExactMatch);
-		if (exactMatch) {
-			return Promise.resolve({
-				filterMatches: [exactMatch],
-				exactMatch: true
-			});
-		}
 
 		// Check the top key match type.
 		const topKeyMatchType = Math.max(...filterMatches.map(m => (m.matchType & SettingKeyMatchTypes)));
 		// Always allow description matches as part of https://github.com/microsoft/vscode/issues/239936.
 		const alwaysAllowedMatchTypes = SettingMatchType.DescriptionOrValueMatch | SettingMatchType.LanguageTagSettingMatch;
-		const filteredMatches = filterMatches.filter(m => (m.matchType & topKeyMatchType) || (m.matchType & alwaysAllowedMatchTypes));
+		const filteredMatches = filterMatches.filter(m => (m.matchType & topKeyMatchType) || (m.matchType & alwaysAllowedMatchTypes) || m.matchType === SettingMatchType.ExactMatch);
 		return Promise.resolve({
 			filterMatches: filteredMatches,
-			exactMatch: false
+			exactMatch: filteredMatches.some(m => m.matchType === SettingMatchType.ExactMatch)
 		});
 	}
 
@@ -157,7 +149,6 @@ export class SettingMatches {
 		searchString: string,
 		setting: ISetting,
 		private searchDescription: boolean,
-		valuesMatcher: (filter: string, setting: ISetting) => IRange[],
 		private readonly configurationService: IConfigurationService
 	) {
 		this.matches = distinct(this._findMatchesInSetting(searchString, setting), (match) => `${match.startLineNumber}_${match.startColumn}_${match.endLineNumber}_${match.endColumn}_`);
@@ -426,7 +417,7 @@ class AiRelatedInformationSearchProvider implements IRemoteSearchProvider {
 		this._filter = cleanFilter(filter);
 	}
 
-	async searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken | undefined): Promise<ISearchResult | null> {
+	async searchModel(preferencesModel: ISettingsEditorModel, token: CancellationToken): Promise<ISearchResult | null> {
 		if (
 			!this._filter ||
 			!this.aiRelatedInformationService.isEnabled()
@@ -441,14 +432,14 @@ class AiRelatedInformationSearchProvider implements IRemoteSearchProvider {
 		};
 	}
 
-	private async getAiRelatedInformationItems(token?: CancellationToken | undefined) {
+	private async getAiRelatedInformationItems(token: CancellationToken) {
 		const settingsRecord = this._keysProvider.getSettingsRecord();
 
 		const filterMatches: ISettingMatch[] = [];
 		const relatedInformation = await this.aiRelatedInformationService.getRelatedInformation(
 			this._filter,
 			[RelatedInformationType.SettingInformation],
-			token ?? CancellationToken.None
+			token
 		) as SettingInformationResult[];
 		relatedInformation.sort((a, b) => b.weight - a.weight);
 
@@ -504,7 +495,7 @@ class TfIdfSearchProvider implements IRemoteSearchProvider {
 		return result;
 	}
 
-	async searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken | undefined): Promise<ISearchResult | null> {
+	async searchModel(preferencesModel: ISettingsEditorModel, token: CancellationToken): Promise<ISearchResult | null> {
 		if (!this._filter) {
 			return null;
 		}
@@ -535,11 +526,11 @@ class TfIdfSearchProvider implements IRemoteSearchProvider {
 		};
 	}
 
-	private async getTfIdfItems(token?: CancellationToken | undefined): Promise<ISettingMatch[]> {
+	private async getTfIdfItems(token: CancellationToken): Promise<ISettingMatch[]> {
 		const filterMatches: ISettingMatch[] = [];
 		const tfIdfCalculator = new TfIdfCalculator();
 		tfIdfCalculator.updateDocuments(this._documents);
-		const tfIdfRankings = tfIdfCalculator.calculateScores(this._filter, token ?? CancellationToken.None);
+		const tfIdfRankings = tfIdfCalculator.calculateScores(this._filter, token);
 		tfIdfRankings.sort((a, b) => b.score - a.score);
 		const maxScore = tfIdfRankings[0].score;
 
@@ -592,9 +583,9 @@ class RemoteSearchProvider implements IRemoteSearchProvider {
 		this.tfIdfSearchProvider!.setFilter(filter);
 	}
 
-	searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken): Promise<ISearchResult | null> {
+	async searchModel(preferencesModel: ISettingsEditorModel, token: CancellationToken): Promise<ISearchResult | null> {
 		if (!this.filter) {
-			return Promise.resolve(null);
+			return null;
 		}
 
 		if (!this.adaSearchProvider) {
@@ -602,9 +593,14 @@ class RemoteSearchProvider implements IRemoteSearchProvider {
 		}
 
 		// Use TF-IDF search as a fallback, ref https://github.com/microsoft/vscode/issues/224946
-		return this.adaSearchProvider.searchModel(preferencesModel, token).then((results) => {
-			return results?.filterMatches.length ? results : this.tfIdfSearchProvider!.searchModel(preferencesModel, token);
-		});
+		const results = await this.adaSearchProvider.searchModel(preferencesModel, token);
+		if (results?.filterMatches.length) {
+			return results;
+		}
+		if (!token.isCancellationRequested) {
+			return this.tfIdfSearchProvider!.searchModel(preferencesModel, token);
+		}
+		return null;
 	}
 }
 

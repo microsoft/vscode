@@ -37,11 +37,13 @@ suite('Date', () => {
 		test('yesterday', () => {
 			const yesterday = new Date();
 			yesterday.setDate(yesterday.getDate() - 1);
+			yesterday.setHours(12);
 			strictEqual(fromNowByDay(yesterday), 'Yesterday');
 		});
 		test('daysAgo', () => {
 			const daysAgo = new Date();
 			daysAgo.setDate(daysAgo.getDate() - 5);
+			daysAgo.setHours(daysAgo.getHours() - 2); // 2 hours further to avoid DST issues
 			strictEqual(fromNowByDay(daysAgo, true), '5 days ago');
 		});
 	});

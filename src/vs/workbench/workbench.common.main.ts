@@ -108,6 +108,7 @@ import './services/authentication/browser/authenticationService.js';
 import './services/authentication/browser/authenticationExtensionsService.js';
 import './services/authentication/browser/authenticationUsageService.js';
 import './services/authentication/browser/authenticationAccessService.js';
+import './services/accounts/common/defaultAccount.js';
 import '../editor/browser/services/hoverService/hoverService.js';
 import './services/assignment/common/assignmentService.js';
 import './services/outline/browser/outlineService.js';
@@ -190,6 +191,7 @@ import './contrib/speech/browser/speech.contribution.js';
 // Chat
 import './contrib/chat/browser/chat.contribution.js';
 import './contrib/inlineChat/browser/inlineChat.contribution.js';
+import './contrib/mcp/browser/mcp.contribution.js';
 
 // Interactive
 import './contrib/interactive/browser/interactive.contribution.js';

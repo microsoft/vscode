@@ -23,7 +23,7 @@ import { DebugExtensionHostAction, DebugExtensionsContribution } from './debugEx
 import { ExtensionHostProfileService } from './extensionProfileService.js';
 import { CleanUpExtensionsFolderAction, OpenExtensionsFolderAction } from './extensionsActions.js';
 import { ExtensionsAutoProfiler } from './extensionsAutoProfiler.js';
-import { InstallFailedRemoteExtensionsContribution, RemoteExtensionsInitializerContribution } from './remoteExtensionsInit.js';
+import { InstallRemoteExtensionsContribution, RemoteExtensionsInitializerContribution } from './remoteExtensionsInit.js';
 import { IExtensionHostProfileService, OpenExtensionHostProfileACtion, RuntimeExtensionsEditor, SaveExtensionHostProfileAction, StartExtensionHostProfileAction, StopExtensionHostProfileAction } from './runtimeExtensionsEditor.js';
 
 // Singletons
@@ -71,7 +71,7 @@ const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Workbench
 workbenchRegistry.registerWorkbenchContribution(ExtensionsContributions, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(ExtensionsAutoProfiler, LifecyclePhase.Eventually);
 workbenchRegistry.registerWorkbenchContribution(RemoteExtensionsInitializerContribution, LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(InstallFailedRemoteExtensionsContribution, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(InstallRemoteExtensionsContribution, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(DebugExtensionsContribution, LifecyclePhase.Restored);
 
 // Register Commands
