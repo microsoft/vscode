@@ -34,7 +34,7 @@ interface IConfiguration extends IWindowsConfiguration {
 	telemetry?: { disableFeedback?: boolean };
 	_extensionsGallery?: { enablePPE?: boolean };
 	accessibility?: { verbosity?: { debug?: boolean } };
-	chat?: { experimental?: { unifiedChatView?: boolean }; useFileStorage?: boolean };
+	chat?: { unifiedChatView?: boolean; useFileStorage?: boolean };
 }
 
 export class SettingsChangeRelauncher extends Disposable implements IWorkbenchContribution {
@@ -151,7 +151,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 			// Debug accessibility verbosity
 			processChanged(this.accessibilityVerbosityDebug.handleChange(config?.accessibility?.verbosity?.debug));
 
-			processChanged(this.unifiedChatView.handleChange(config.chat?.experimental?.unifiedChatView));
+			processChanged(this.unifiedChatView.handleChange(config.chat?.unifiedChatView));
 			processChanged(this.useFileStorage.handleChange(config.chat?.useFileStorage));
 		}
 

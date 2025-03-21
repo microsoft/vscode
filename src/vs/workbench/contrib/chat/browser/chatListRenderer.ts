@@ -761,9 +761,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.traceLayout('getNextProgressiveRenderContent', `Want to render ${data.numWordsToRender} at ${data.rate} words/s, counting...`);
 		let numNeededWords = data.numWordsToRender;
 		const partsToRender: IChatRendererContent[] = [];
-		if (element.contentReferences.length) {
-			partsToRender.push({ kind: 'references', references: element.contentReferences });
-		}
+
+		// Always add the references to avoid shifting the content parts when a reference is added, and having to re-diff all the content.
+		// The part will hide itself if the list is empty.
+		partsToRender.push({ kind: 'references', references: element.contentReferences });
 
 		let moreContentAvailable = false;
 		for (let i = 0; i < renderableResponse.length; i++) {
@@ -831,7 +832,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		// Show if no content, only "used references", ends with a complete tool call, or ends with complete text edits and there is no incomplete tool call (edits are still being applied some time after they are all generated)
 		const lastPart = partsToRender.at(-1);
-		if (!lastPart || lastPart.kind === 'references' || (lastPart.kind === 'toolInvocation' && lastPart.isComplete) || (lastPart.kind === 'textEditGroup' && lastPart.done && !partsToRender.some(part => part.kind === 'toolInvocation' && !part.isComplete))) {
+		if (
+			!lastPart ||
+			lastPart.kind === 'references' ||
+			(lastPart.kind === 'toolInvocation' && (lastPart.isComplete || lastPart.presentation === 'hidden')) ||
+			(lastPart.kind === 'textEditGroup' && lastPart.done && !partsToRender.some(part => part.kind === 'toolInvocation' && !part.isComplete))) {
 			return true;
 		}
 

@@ -446,158 +446,6 @@ export const commonAuthOptions: Fig.Option[] = [
 	}
 ];
 
-export const tunnelTopLevelSubcommands: Fig.Subcommand[] = [
-	{
-		name: 'prune',
-		description: 'Delete all servers which are currently not running',
-		options: commonCLIOptions,
-	},
-	{
-		name: 'kill',
-		description: 'Stops any running tunnel on the system',
-		options: commonCLIOptions,
-	},
-	{
-		name: 'restart',
-		description: 'Restarts any running tunnel on the system',
-		options: commonCLIOptions,
-	},
-	{
-		name: 'status',
-		description: 'Gets whether there is a tunnel running on the current machine',
-		options: commonCLIOptions,
-	},
-	{
-		name: 'rename',
-		description: 'Rename the name of this machine associated with port forwarding service',
-		options: commonCLIOptions,
-		args: {
-			name: 'name',
-		},
-	},
-	{
-		name: 'status',
-		description: 'Print process usage and diagnostics information',
-		options: commonCLIOptions,
-	},
-	{
-		name: 'unregister',
-		description: 'Remove this machine\'s association with the port forwarding service',
-		options: commonCLIOptions,
-	},
-	{
-		name: 'user',
-		subcommands: [
-			{
-				name: 'login',
-				description: 'Log in to port forwarding service',
-				options: [...commonAuthOptions, ...commonCLIOptions],
-			},
-			{
-				name: 'logout',
-				description: 'Log out of port forwarding service',
-				options: commonCLIOptions,
-			},
-			{
-				name: 'show',
-				description: 'Show the account that\'s logged into port forwarding service',
-				options: commonCLIOptions,
-			},
-			{
-				name: 'help',
-				description: 'Print this message or the help of the given subcommand(s)',
-				subcommands: [
-					{ name: 'login', description: 'Log in to port forwarding service' },
-					{ name: 'logout', description: 'Log out of port forwarding service' },
-					{ name: 'show', description: 'Show the account that\'s logged into port forwarding service' },
-					{ name: 'help', description: 'Print this message or the help of the given subcommand(s)' },
-				],
-				options: commonCLIOptions,
-			},
-		],
-		options: commonCLIOptions,
-	},
-	{
-		name: 'service',
-		description: '(Preview) Manages the tunnel when installed as a system service,',
-		subcommands: [
-			{
-				name: 'install',
-				description: 'Installs or re-installs the tunnel service on the machine',
-				options: [
-					{
-						name: '--name',
-						description: 'Sets the machine name for port forwarding service',
-
-						args: {
-							name: 'name',
-
-						},
-					},
-					{
-						name: '--accept-server-license-terms',
-						description: 'If set, the user accepts the server license terms and the server will be started without a user prompt',
-					},
-					...commonCLIOptions,
-				],
-			},
-			{
-				name: 'uninstall',
-				description: 'Uninstalls and stops the tunnel service',
-				options: commonCLIOptions,
-			},
-			{
-				name: 'log',
-				description: 'Shows logs for the running service',
-				options: commonCLIOptions,
-			},
-			{
-				name: 'help',
-				description: 'Print this message or the help of the given subcommand(s)',
-				subcommands: [
-					{ name: 'install', description: 'Installs or re-installs the tunnel service on the machine' },
-					{ name: 'uninstall', description: 'Uninstalls and stops the tunnel service' },
-					{ name: 'log', description: 'Shows logs for the running service' },
-					{ name: 'help', description: 'Print this message or the help of the given subcommand(s)' },
-				],
-				options: commonCLIOptions
-			},
-		],
-		options: commonCLIOptions,
-	},
-	{
-		name: 'help',
-		description: 'Print this message or the help of the given subcommand(s)',
-		subcommands: [
-			{ name: 'prune', description: 'Delete all servers which are currently not running' },
-			{ name: 'kill', description: 'Stops any running tunnel on the system' },
-			{ name: 'restart', description: 'Restarts any running tunnel on the system' },
-			{ name: 'status', description: 'Gets whether there is a tunnel running on the current machine' },
-			{ name: 'rename', description: 'Rename the name of this machine associated with port forwarding service' },
-			{ name: 'unregister', description: 'Remove this machine\'s association with the port forwarding service' },
-			{
-				name: 'user',
-				subcommands: [
-					{ name: 'login', description: 'Log in to port forwarding service' },
-					{ name: 'logout', description: 'Log out of port forwarding service' },
-					{ name: 'show', description: 'Show the account that\'s logged into port forwarding service' },
-				],
-			},
-			{
-				name: 'service',
-				description: '(Preview) Manages the tunnel when installed as a system service,',
-				subcommands: [
-					{ name: 'install', description: 'Installs or re-installs the tunnel service on the machine' },
-					{ name: 'uninstall', description: 'Uninstalls and stops the tunnel service' },
-					{ name: 'log', description: 'Shows logs for the running service' },
-				],
-			},
-			{ name: 'help', description: 'Print this message or the help of the given subcommand(s)' },
-		],
-	},
-];
-
-
 export const tunnelOptions: Fig.Option[] = [
 	{
 		name: '--cli-data-dir',
@@ -632,89 +480,399 @@ export const tunnelOptions: Fig.Option[] = [
 	}
 ];
 
-export const codeTunnelSubcommands = [{
-	name: 'serve-web',
-	description: 'Runs a local web version of Code - OSS',
-	options: [
-		{
-			name: '--host',
-			description: 'Host to listen on, defaults to \'localhost\'',
-			isRepeatable: true,
-			args: {
-				name: 'host',
-				isOptional: true,
+export const codeTunnelSubcommands = [
+	{
+		name: 'tunnel',
+		description: 'Create a tunnel that\'s accessible on vscode.dev from anywhere. Run`code tunnel --help` for more usage info',
+		subcommands: [
+			{
+				name: 'prune',
+				description: 'Delete all servers which are currently not running',
+				options: commonCLIOptions,
 			},
-		},
-		{
-			name: '--socket-path',
-			isRepeatable: true,
-			args: {
-				name: 'socket_path',
-				isOptional: true,
+			{
+				name: 'kill',
+				description: 'Stops any running tunnel on the system',
+				options: commonCLIOptions,
 			},
-		},
-		{
-			name: '--port',
-			description: 'Port to listen on. If 0 is passed a random free port is picked',
-			isRepeatable: true,
-			args: {
-				name: 'port',
-				isOptional: true,
+			{
+				name: 'restart',
+				description: 'Restarts any running tunnel on the system',
+				options: commonCLIOptions,
 			},
-		},
-		{
-			name: '--connection-token',
-			description: 'A secret that must be included with all requests',
-			isRepeatable: true,
-			args: {
-				name: 'connection_token',
-				isOptional: true,
+			{
+				name: 'status',
+				description: 'Gets whether there is a tunnel running on the current machine',
+				options: commonCLIOptions,
 			},
-		},
-		{
-			name: '--connection-token-file',
-			description: 'A file containing a secret that must be included with all requests',
-			isRepeatable: true,
-			args: {
-				name: 'connection_token_file',
-				isOptional: true,
+			{
+				name: 'rename',
+				description: 'Rename the name of this machine associated with port forwarding service',
+				options: commonCLIOptions,
+				args: {
+					name: 'name',
+				},
 			},
-		},
-		{
-			name: '--server-base-path',
-			description: 'Specifies the path under which the web UI and the code server is provided',
-			isRepeatable: true,
-			args: {
-				name: 'server_base_path',
-				isOptional: true,
+			{
+				name: 'status',
+				description: 'Print process usage and diagnostics information',
+				options: commonCLIOptions,
 			},
-		},
-		{
-			name: '--server-data-dir',
-			description: 'Specifies the directory that server data is kept in',
-			isRepeatable: true,
-			args: {
-				name: 'server_data_dir',
-				isOptional: true,
+			{
+				name: 'unregister',
+				description: 'Remove this machine\'s association with the port forwarding service',
+				options: commonCLIOptions,
 			},
-		},
-		{
-			name: '--without-connection-token',
-			description: 'Run without a connection token. Only use this if the connection is secured by other means',
-		},
-		{
-			name: '--accept-server-license-terms',
-			description: 'If set, the user accepts the server license terms and the server will be started without a user prompt',
-		},
-		...commonCLIOptions,
-	]
-},
-{
-	name: 'tunnel',
-	description: 'Create a tunnel that\'s accessible on vscode.dev from anywhere. Run`code tunnel --help` for more usage info',
-	subcommands: tunnelTopLevelSubcommands,
-	options: tunnelOptions
-}];
+			{
+				name: 'user',
+				subcommands: [
+					{
+						name: 'login',
+						description: 'Log in to port forwarding service',
+						options: [...commonAuthOptions, ...commonCLIOptions],
+					},
+					{
+						name: 'logout',
+						description: 'Log out of port forwarding service',
+						options: commonCLIOptions,
+					},
+					{
+						name: 'show',
+						description: 'Show the account that\'s logged into port forwarding service',
+						options: commonCLIOptions,
+					},
+					{
+						name: 'help',
+						description: 'Print this message or the help of the given subcommand(s)',
+						subcommands: [
+							{ name: 'login', description: 'Log in to port forwarding service' },
+							{ name: 'logout', description: 'Log out of port forwarding service' },
+							{ name: 'show', description: 'Show the account that\'s logged into port forwarding service' },
+							{ name: 'help', description: 'Print this message or the help of the given subcommand(s)' },
+						],
+						options: commonCLIOptions,
+					},
+				],
+				options: commonCLIOptions,
+			},
+			{
+				name: 'service',
+				description: '(Preview) Manages the tunnel when installed as a system service,',
+				subcommands: [
+					{
+						name: 'install',
+						description: 'Installs or re-installs the tunnel service on the machine',
+						options: [
+							{
+								name: '--name',
+								description: 'Sets the machine name for port forwarding service',
+
+								args: {
+									name: 'name',
+
+								},
+							},
+							{
+								name: '--accept-server-license-terms',
+								description: 'If set, the user accepts the server license terms and the server will be started without a user prompt',
+							},
+							...commonCLIOptions,
+						],
+					},
+					{
+						name: 'uninstall',
+						description: 'Uninstalls and stops the tunnel service',
+						options: commonCLIOptions,
+					},
+					{
+						name: 'log',
+						description: 'Shows logs for the running service',
+						options: commonCLIOptions,
+					},
+					{
+						name: 'help',
+						description: 'Print this message or the help of the given subcommand(s)',
+						subcommands: [
+							{ name: 'install', description: 'Installs or re-installs the tunnel service on the machine' },
+							{ name: 'uninstall', description: 'Uninstalls and stops the tunnel service' },
+							{ name: 'log', description: 'Shows logs for the running service' },
+							{ name: 'help', description: 'Print this message or the help of the given subcommand(s)' },
+						],
+						options: commonCLIOptions
+					},
+				],
+				options: commonCLIOptions,
+			},
+			{
+				name: 'help',
+				description: 'Print this message or the help of the given subcommand(s)',
+				subcommands: [
+					{ name: 'prune', description: 'Delete all servers which are currently not running' },
+					{ name: 'kill', description: 'Stops any running tunnel on the system' },
+					{ name: 'restart', description: 'Restarts any running tunnel on the system' },
+					{ name: 'status', description: 'Gets whether there is a tunnel running on the current machine' },
+					{ name: 'rename', description: 'Rename the name of this machine associated with port forwarding service' },
+					{ name: 'unregister', description: 'Remove this machine\'s association with the port forwarding service' },
+					{
+						name: 'user',
+						subcommands: [
+							{ name: 'login', description: 'Log in to port forwarding service' },
+							{ name: 'logout', description: 'Log out of port forwarding service' },
+							{ name: 'show', description: 'Show the account that\'s logged into port forwarding service' },
+						],
+					},
+					{
+						name: 'service',
+						description: '(Preview) Manages the tunnel when installed as a system service,',
+						subcommands: [
+							{ name: 'install', description: 'Installs or re-installs the tunnel service on the machine' },
+							{ name: 'uninstall', description: 'Uninstalls and stops the tunnel service' },
+							{ name: 'log', description: 'Shows logs for the running service' },
+						],
+					},
+					{ name: 'help', description: 'Print this message or the help of the given subcommand(s)' },
+				],
+			},
+		],
+		options: tunnelOptions
+	},
+	{
+		name: 'ext',
+		description: 'Manage editor extensions',
+		subcommands: [
+			{
+				name: 'list',
+				description: 'List installed extensions',
+			},
+			{
+				name: 'install',
+				description: 'Install an extension',
+			},
+			{
+				name: 'uninstall',
+				description: 'Uninstall an extension',
+			},
+			{
+				name: 'update',
+				description: 'Update the installed extensions',
+			},
+		],
+	},
+	{
+		name: 'status',
+		description: 'Print process usage and diagnostics information',
+	},
+	{
+		name: 'version',
+		description: `Changes the version of the editor you're using`,
+		options: tunnelOptions
+	},
+	{
+		name: 'serve-web',
+		description: 'Runs a local web version of Code - OSS',
+		options: [
+			{
+				name: '--host',
+				description: 'Host to listen on, defaults to \'localhost\'',
+				isRepeatable: true,
+				args: {
+					name: 'host',
+					isOptional: true,
+				},
+			},
+			{
+				name: '--socket-path',
+				isRepeatable: true,
+				args: {
+					name: 'socket_path',
+					isOptional: true,
+				},
+			},
+			{
+				name: '--port',
+				description: 'Port to listen on. If 0 is passed a random free port is picked',
+				isRepeatable: true,
+				args: {
+					name: 'port',
+					isOptional: true,
+				},
+			},
+			{
+				name: '--connection-token',
+				description: 'A secret that must be included with all requests',
+				isRepeatable: true,
+				args: {
+					name: 'connection_token',
+					isOptional: true,
+				},
+			},
+			{
+				name: '--connection-token-file',
+				description: 'A file containing a secret that must be included with all requests',
+				isRepeatable: true,
+				args: {
+					name: 'connection_token_file',
+					isOptional: true,
+				},
+			},
+			{
+				name: '--server-base-path',
+				description: 'Specifies the path under which the web UI and the code server is provided',
+				isRepeatable: true,
+				args: {
+					name: 'server_base_path',
+					isOptional: true,
+				},
+			},
+			{
+				name: '--server-data-dir',
+				description: 'Specifies the directory that server data is kept in',
+				isRepeatable: true,
+				args: {
+					name: 'server_data_dir',
+					isOptional: true,
+				},
+			},
+			{
+				name: '--without-connection-token',
+				description: 'Run without a connection token. Only use this if the connection is secured by other means',
+			},
+			{
+				name: '--accept-server-license-terms',
+				description: 'If set, the user accepts the server license terms and the server will be started without a user prompt',
+			},
+			...commonCLIOptions,
+		]
+	},
+	{
+		name: 'help',
+		description: 'Print this message or the help of the given subcommand(s)',
+		subcommands: [
+			{
+				name: 'tunnel',
+				description: 'Create a tunnel that\'s accessible on vscode.dev from anywhere. Run`code tunnel --help` for more usage info',
+				subcommands: [
+					{
+						name: 'prune',
+						description: 'Delete all servers which are currently not running',
+					},
+					{
+						name: 'kill',
+						description: 'Stops any running tunnel on the system',
+					},
+					{
+						name: 'restart',
+						description: 'Restarts any running tunnel on the system',
+					},
+					{
+						name: 'status',
+						description: 'Gets whether there is a tunnel running on the current machine',
+					},
+					{
+						name: 'rename',
+						description: 'Rename the name of this machine associated with port forwarding service',
+					},
+					{
+						name: 'unregister',
+						description: `Remove this machine's association with the port forwarding service`,
+					},
+					{
+						name: 'user',
+						subcommands: [
+							{
+								name: 'login',
+								description: 'Log in to port forwarding service',
+							},
+							{
+								name: 'logout',
+								description: 'Log out of port forwarding service',
+							},
+							{
+								name: 'show',
+								description: 'Show the account that\'s logged into port forwarding service',
+							},
+						],
+					},
+					{
+						name: 'service',
+						description: '(Preview) Manages the tunnel when installed as a system service,',
+						subcommands: [
+							{
+								name: 'install',
+								description: 'Installs or re-installs the tunnel service on the machine',
+							},
+							{
+								name: 'uninstall',
+								description: 'Uninstalls and stops the tunnel service',
+							},
+							{
+								name: 'log',
+								description: 'Shows logs for the running service',
+							},
+						],
+					}
+				],
+			},
+			{
+				name: 'ext',
+				description: 'Manage editor extensions',
+				subcommands: [
+					{
+						name: 'list',
+						description: 'List installed extensions',
+					},
+					{
+						name: 'install',
+						description: 'Install an extension',
+					},
+					{
+						name: 'uninstall',
+						description: 'Uninstall an extension',
+					},
+					{
+						name: 'update',
+						description: 'Update the installed extensions',
+					},
+				],
+			},
+			{
+				name: 'status',
+				description: 'Print process usage and diagnostics information',
+			},
+			{
+				name: 'version',
+				description: `Changes the version of the editor you're using`,
+				subcommands: [
+					{
+						name: 'use',
+						description: 'Switches the version of the editor in use',
+					},
+					{
+						name: 'show',
+						description: 'Shows the currently configured editor version',
+					},
+				],
+			},
+			{
+				name: 'serve-web',
+				description: 'Runs a local web version of Code - OSS',
+			},
+			{
+				name: 'command-shell',
+				description: 'Runs the control server on process stdin/stdout',
+				hidden: true,
+			},
+			{
+				name: 'update',
+				description: 'Updates the CLI',
+			},
+			{
+				name: 'help',
+				description: 'Print this message or the help of the given subcommand(s)',
+			},
+		],
+	},
+];
 
 const codeCompletionSpec: Fig.Spec = {
 	name: 'code',

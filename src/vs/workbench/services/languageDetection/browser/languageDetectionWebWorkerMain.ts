@@ -3,4 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export * from './common/services/editorWorkerBootstrap.js';
+import { create } from './languageDetectionWebWorker.js';
+import { bootstrapWebWorker } from '../../../../base/common/worker/webWorkerBootstrap.js';
+
+bootstrapWebWorker(create);

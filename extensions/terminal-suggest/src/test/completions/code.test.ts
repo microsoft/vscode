@@ -54,7 +54,11 @@ export const codeSpecOptionsAndSubcommands = [
 	'--version',
 	'--wait',
 	'tunnel',
-	'serve-web'
+	'serve-web',
+	'ext',
+	'help',
+	'status',
+	'version'
 ];
 
 export function createCodeTestSpecs(executable: string): ITestSpec[] {

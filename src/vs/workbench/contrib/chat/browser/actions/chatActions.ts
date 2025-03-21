@@ -717,7 +717,7 @@ registerAction2(class ResetTrustedToolsAction extends Action2 {
 
 export class CopilotTitleBarMenuRendering extends Disposable implements IWorkbenchContribution {
 
-	static readonly ID = 'copilot.titleBarMenuRendering';
+	static readonly ID = 'workbench.contrib.copilotTitleBarMenuRendering';
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,

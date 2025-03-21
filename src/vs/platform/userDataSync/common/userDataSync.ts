@@ -536,6 +536,12 @@ export interface IUserDataSyncEnablementService {
 	setResourceEnablement(resource: SyncResource, enabled: boolean): void;
 
 	getResourceSyncStateVersion(resource: SyncResource): string | undefined;
+
+	/**
+	 * Checks if resource enabled was explicitly configured before,
+	 * ignoring its default enablement value used in {@link isResourceEnabled}.
+	 */
+	isResourceEnablementConfigured(resource: SyncResource): boolean;
 }
 
 export interface IUserDataSyncTask {

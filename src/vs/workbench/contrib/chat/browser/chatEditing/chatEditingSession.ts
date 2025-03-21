@@ -10,10 +10,9 @@ import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { StringSHA1 } from '../../../../../base/common/hash.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
-import { Disposable, DisposableMap, dispose } from '../../../../../base/common/lifecycle.js';
+import { Disposable, dispose } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { asyncTransaction, autorun, derived, derivedOpts, derivedWithStore, IObservable, IReader, ITransaction, ObservablePromise, observableValue, transaction } from '../../../../../base/common/observable.js';
-import { autorunDelta, autorunIterableDelta } from '../../../../../base/common/observableInternal/autorun.js';
 import { isEqual, joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IBulkEditService } from '../../../../../editor/browser/services/bulkEditService.js';
@@ -33,11 +32,9 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { SaveReason } from '../../../../common/editor.js';
 import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { MultiDiffEditor } from '../../../multiDiffEditor/browser/multiDiffEditor.js';
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
@@ -196,7 +193,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		@IEditorService private readonly _editorService: IEditorService,
 		@IChatService private readonly _chatService: IChatService,
 		@INotebookService private readonly _notebookService: INotebookService,
-		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
@@ -219,7 +215,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			});
 		}
 
-		this._triggerSaveParticipantsOnAccept();
 		this._register(autorun(reader => {
 			const entries = this.entries.read(reader);
 			entries.forEach(entry => {
@@ -253,39 +248,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			linearHistory: this._linearHistory.get(),
 		};
 		return storage.storeState(state);
-	}
-
-	private _triggerSaveParticipantsOnAccept() {
-		const im = this._register(new DisposableMap<IModifiedFileEntry>());
-		const attachToEntry = (entry: IModifiedFileEntry) => {
-			return autorunDelta(entry.state, ({ lastValue, newValue }) => {
-				if (newValue === WorkingSetEntryState.Accepted && lastValue === WorkingSetEntryState.Modified) {
-					// Don't save a file if there's still pending changes. If there's not (e.g.
-					// the agentic flow with autosave) then save again to trigger participants.
-					if (!this._textFileService.isDirty(entry.modifiedURI)) {
-						this._textFileService.save(entry.modifiedURI, {
-							reason: SaveReason.EXPLICIT,
-							force: true,
-							ignoreErrorHandler: true,
-						}).catch(() => {
-							// ignored
-						});
-					}
-				}
-			});
-		};
-
-		this._register(autorunIterableDelta(
-			reader => this._entriesObs.read(reader),
-			({ addedValues, removedValues }) => {
-				for (const entry of addedValues) {
-					im.set(entry, attachToEntry(entry));
-				}
-				for (const entry of removedValues) {
-					im.deleteAndDispose(entry);
-				}
-			}
-		));
 	}
 
 	private _findSnapshot(requestId: string): IChatEditingSessionSnapshot | undefined {
