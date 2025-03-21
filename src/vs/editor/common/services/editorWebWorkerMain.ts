@@ -4,6 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { bootstrapWebWorker } from '../../../base/common/worker/webWorkerBootstrap.js';
-import { EditorSimpleWorker } from './editorSimpleWorker.js';
+import { EditorWorker } from './editorWebWorker.js';
 
-bootstrapWebWorker(() => new EditorSimpleWorker(null));
+bootstrapWebWorker(() => new EditorWorker(null));

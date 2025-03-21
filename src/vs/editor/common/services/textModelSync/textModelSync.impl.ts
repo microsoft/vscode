@@ -13,7 +13,7 @@ import { ensureValidWordDefinition, getWordAtText, IWordAtPosition } from '../..
 import { IDocumentColorComputerTarget } from '../../languages/defaultDocumentColorsComputer.js';
 import { ILinkComputerTarget } from '../../languages/linkComputer.js';
 import { MirrorTextModel as BaseMirrorModel, IModelChangedEvent } from '../../model/mirrorTextModel.js';
-import { IMirrorModel, IWordRange } from '../editorSimpleWorker.js';
+import { IMirrorModel, IWordRange } from '../editorWebWorker.js';
 import { IModelService } from '../model.js';
 import { IRawModelData, IWorkerTextModelSyncChannelServer } from './textModelSync.protocol.js';
 

@@ -64,7 +64,7 @@ export interface IWordRange {
 /**
  * @internal
  */
-export class EditorSimpleWorker implements IDisposable, IWorkerTextModelSyncChannelServer, IWebWorkerServerRequestHandler {
+export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelServer, IWebWorkerServerRequestHandler {
 	_requestHandlerBrand: any;
 
 	private readonly _workerTextModelSyncServer = new WorkerTextModelSyncServer();
@@ -125,7 +125,7 @@ export class EditorSimpleWorker implements IDisposable, IWorkerTextModelSyncChan
 			return null;
 		}
 
-		const result = EditorSimpleWorker.computeDiff(original, modified, options, algorithm);
+		const result = EditorWorker.computeDiff(original, modified, options, algorithm);
 		return result;
 	}
 
@@ -260,7 +260,7 @@ export class EditorSimpleWorker implements IDisposable, IWorkerTextModelSyncChan
 			}
 
 			// make sure diff won't take too long
-			if (Math.max(text.length, original.length) > EditorSimpleWorker._diffLimit) {
+			if (Math.max(text.length, original.length) > EditorWorker._diffLimit) {
 				result.push({ range, text });
 				continue;
 			}
@@ -329,7 +329,7 @@ export class EditorSimpleWorker implements IDisposable, IWorkerTextModelSyncChan
 			}
 
 			// make sure diff won't take too long
-			if (Math.max(text.length, original.length) > EditorSimpleWorker._diffLimit) {
+			if (Math.max(text.length, original.length) > EditorWorker._diffLimit) {
 				result.push({ range, text });
 				continue;
 			}
@@ -430,7 +430,7 @@ export class EditorSimpleWorker implements IDisposable, IWorkerTextModelSyncChan
 					continue;
 				}
 				seen.add(word);
-				if (seen.size > EditorSimpleWorker._suggestionsLimit) {
+				if (seen.size > EditorWorker._suggestionsLimit) {
 					break outer;
 				}
 			}

@@ -13,7 +13,7 @@ import { IRange, Range } from '../../common/core/range.js';
 import { ITextModel } from '../../common/model.js';
 import * as languages from '../../common/languages.js';
 import { ILanguageConfigurationService } from '../../common/languages/languageConfigurationRegistry.js';
-import { EditorSimpleWorker } from '../../common/services/editorSimpleWorker.js';
+import { EditorWorker } from '../../common/services/editorWebWorker.js';
 import { DiffAlgorithmName, IEditorWorkerService, ILineChange, IUnicodeHighlightsResult } from '../../common/services/editorWorker.js';
 import { IModelService } from '../../common/services/model.js';
 import { ITextResourceConfigurationService } from '../../common/services/textResourceConfiguration.js';
@@ -222,7 +222,7 @@ export abstract class EditorWorkerService extends Disposable implements IEditorW
 		return worker.$computeDefaultDocumentColors(uri.toString());
 	}
 
-	private async _workerWithResources(resources: URI[], forceLargeModels: boolean = false): Promise<Proxied<EditorSimpleWorker>> {
+	private async _workerWithResources(resources: URI[], forceLargeModels: boolean = false): Promise<Proxied<EditorWorker>> {
 		const worker = await this._workerManager.withWorker();
 		return await worker.workerWithSyncedResources(resources, forceLargeModels);
 	}
@@ -405,7 +405,7 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 
 	private readonly _modelService: IModelService;
 	private readonly _keepIdleModels: boolean;
-	private _worker: IWebWorkerClient<EditorSimpleWorker> | null;
+	private _worker: IWebWorkerClient<EditorWorker> | null;
 	private _modelManager: WorkerTextModelSyncClient | null;
 	private _disposed = false;
 
@@ -426,10 +426,10 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 		throw new Error(`Not implemented!`);
 	}
 
-	private _getOrCreateWorker(): IWebWorkerClient<EditorSimpleWorker> {
+	private _getOrCreateWorker(): IWebWorkerClient<EditorWorker> {
 		if (!this._worker) {
 			try {
-				this._worker = this._register(createWebWorker<EditorSimpleWorker>(this._workerDescriptorOrWorker));
+				this._worker = this._register(createWebWorker<EditorWorker>(this._workerDescriptorOrWorker));
 				EditorWorkerHost.setChannel(this._worker, this._createEditorWorkerHost());
 			} catch (err) {
 				logOnceWebWorkerWarning(err);
@@ -439,7 +439,7 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 		return this._worker;
 	}
 
-	protected async _getProxy(): Promise<Proxied<EditorSimpleWorker>> {
+	protected async _getProxy(): Promise<Proxied<EditorWorker>> {
 		try {
 			const proxy = this._getOrCreateWorker().proxy;
 			await proxy.$ping();
@@ -451,8 +451,8 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 		}
 	}
 
-	private _createFallbackLocalWorker(): SynchronousWorkerClient<EditorSimpleWorker> {
-		return new SynchronousWorkerClient(new EditorSimpleWorker(null));
+	private _createFallbackLocalWorker(): SynchronousWorkerClient<EditorWorker> {
+		return new SynchronousWorkerClient(new EditorWorker(null));
 	}
 
 	private _createEditorWorkerHost(): EditorWorkerHost {
@@ -461,14 +461,14 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 		};
 	}
 
-	private _getOrCreateModelManager(proxy: Proxied<EditorSimpleWorker>): WorkerTextModelSyncClient {
+	private _getOrCreateModelManager(proxy: Proxied<EditorWorker>): WorkerTextModelSyncClient {
 		if (!this._modelManager) {
 			this._modelManager = this._register(new WorkerTextModelSyncClient(proxy, this._modelService, this._keepIdleModels));
 		}
 		return this._modelManager;
 	}
 
-	public async workerWithSyncedResources(resources: URI[], forceLargeModels: boolean = false): Promise<Proxied<EditorSimpleWorker>> {
+	public async workerWithSyncedResources(resources: URI[], forceLargeModels: boolean = false): Promise<Proxied<EditorWorker>> {
 		if (this._disposed) {
 			return Promise.reject(canceled());
 		}

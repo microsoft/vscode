@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { initialize } from '../base/common/worker/webWorkerBootstrap.js';
-import { EditorSimpleWorker, IWorkerContext } from './common/services/editorSimpleWorker.js';
+import { EditorWorker, IWorkerContext } from './common/services/editorWebWorker.js';
 import { EditorWorkerHost } from './common/services/editorWorkerHost.js';
 
 /**
@@ -13,7 +13,7 @@ import { EditorWorkerHost } from './common/services/editorWorkerHost.js';
  * @internal
  */
 export function start<THost extends object, TClient extends object>(client: TClient): IWorkerContext<THost> {
-	const webWorkerServer = initialize(() => new EditorSimpleWorker(client));
+	const webWorkerServer = initialize(() => new EditorWorker(client));
 	const editorWorkerHost = EditorWorkerHost.getChannel(webWorkerServer);
 	const host = new Proxy({}, {
 		get(target, prop, receiver) {

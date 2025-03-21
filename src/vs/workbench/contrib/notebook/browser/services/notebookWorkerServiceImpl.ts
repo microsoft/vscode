@@ -278,8 +278,6 @@ class NotebookWorkerClient extends Disposable {
 					'NotebookEditorWorker'
 				));
 			} catch (err) {
-				// logOnceWebWorkerWarning(err);
-				// this._worker = new SynchronousWorkerClient(new EditorSimpleWorker(new EditorWorkerHost(this), null));
 				throw (err);
 			}
 		}

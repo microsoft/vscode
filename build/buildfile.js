@@ -19,10 +19,10 @@ function createModuleDescription(name, exclude) {
  * @param {string} name
  */
 function createEditorWorkerModuleDescription(name) {
-	return createModuleDescription(name, ['vs/base/common/worker/webWorker', 'vs/editor/common/services/editorSimpleWorker']);
+	return createModuleDescription(name, ['vs/base/common/worker/webWorker', 'vs/editor/common/services/editorWebWorker']);
 }
 
-exports.workerEditor = createEditorWorkerModuleDescription('vs/editor/common/services/editorSimpleWorkerMain');
+exports.workerEditor = createEditorWorkerModuleDescription('vs/editor/common/services/editorWebWorkerMain');
 exports.workerExtensionHost = createEditorWorkerModuleDescription('vs/workbench/api/worker/extensionHostWorkerMain');
 exports.workerNotebook = createEditorWorkerModuleDescription('vs/workbench/contrib/notebook/common/services/notebookWebWorkerMain');
 exports.workerLanguageDetection = createEditorWorkerModuleDescription('vs/workbench/services/languageDetection/browser/languageDetectionWebWorkerMain');

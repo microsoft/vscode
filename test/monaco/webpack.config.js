@@ -10,7 +10,7 @@ module.exports = {
 	mode: 'production',
 	entry: {
 		'core': './core.js',
-		'editorSimpleWorkerMain': '../../out-monaco-editor-core/esm/vs/editor/common/services/editorSimpleWorkerMain.js',
+		'editorWebWorkerMain': '../../out-monaco-editor-core/esm/vs/editor/common/services/editorWebWorkerMain.js',
 	},
 	output: {
 		globalObject: 'self',
