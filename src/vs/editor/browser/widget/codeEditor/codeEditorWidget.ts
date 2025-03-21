@@ -60,6 +60,7 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import { editorErrorForeground, editorHintForeground, editorInfoForeground, editorWarningForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { BareFontInfo } from '../../../common/config/fontInfo.js';
 
 export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
 
@@ -597,18 +598,12 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.viewModel.viewLayout.getLineHeightForLineNumber(viewPosition.lineNumber);
 	}
 
-	/*
-	public getSpecialFontInfoForPosition(position: Position): {
-		fontFamily?: string;
-		fontWeight?: string;
-		fontSize?: number;
-	} | null {
+	public getFontInfoForPosition(position: Position): BareFontInfo | undefined {
 		if (!this._modelData) {
-			return null;
+			return;
 		}
 		return this._modelData.viewModel.getFontInfoForPosition(position);
 	}
-	*/
 
 	public setHiddenAreas(ranges: IRange[], source?: unknown, forceUpdate?: boolean): void {
 		this._modelData?.viewModel.setHiddenAreas(ranges.map(r => Range.lift(r)), source, forceUpdate);
