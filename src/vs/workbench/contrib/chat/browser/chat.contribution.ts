@@ -21,7 +21,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import product from '../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { PromptsConfig } from '../../../../platform/prompts/common/config.js';
-import { PROMPT_FILE_EXTENSION } from '../../../../platform/prompts/common/constants.js';
+import { DEFAULT_SOURCE_FOLDER as PROMPT_FILES_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../platform/prompts/common/constants.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
@@ -247,7 +247,7 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			markdownDescription: nls.localize('mpc.discovery.enabled', "Configures discovery of Model Context Protocol servers on the machine. It may be set to `true` or `false` to disable or enable all sources, and an array of sources you wish to enable."),
 		},
-		[PromptsConfig.CONFIG_KEY]: {
+		[PromptsConfig.KEY]: {
 			type: 'boolean',
 			title: nls.localize(
 				'chat.reusablePrompts.config.enabled.title',
@@ -264,7 +264,7 @@ configurationRegistry.registerConfiguration({
 			disallowConfigurationDefault: true,
 			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
 		},
-		[PromptsConfig.LOCATIONS_CONFIG_KEY]: {
+		[PromptsConfig.LOCATIONS_KEY]: {
 			type: 'object',
 			title: nls.localize(
 				'chat.reusablePrompts.config.locations.title',
@@ -277,7 +277,7 @@ configurationRegistry.registerConfiguration({
 				DOCUMENTATION_URL,
 			),
 			default: {
-				[PromptsConfig.DEFAULT_SOURCE_FOLDER]: true,
+				[PROMPT_FILES_DEFAULT_SOURCE_FOLDER]: true,
 			},
 			additionalProperties: { type: 'boolean' },
 			unevaluatedProperties: { type: 'boolean' },
@@ -285,10 +285,10 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
 			examples: [
 				{
-					[PromptsConfig.DEFAULT_SOURCE_FOLDER]: true,
+					[PROMPT_FILES_DEFAULT_SOURCE_FOLDER]: true,
 				},
 				{
-					[PromptsConfig.DEFAULT_SOURCE_FOLDER]: true,
+					[PROMPT_FILES_DEFAULT_SOURCE_FOLDER]: true,
 					'/Users/vscode/repos/prompts': true,
 				},
 			],
