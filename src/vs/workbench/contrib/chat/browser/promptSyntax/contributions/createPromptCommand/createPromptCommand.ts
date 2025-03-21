@@ -101,18 +101,15 @@ const command = async (
 
 	await openerService.open(promptUri);
 
-	// if created a `user` prompt, check if prompts synchronization
-	// was configured before, and show a suggestion notification if not
 	if (type !== 'user') {
 		return;
 	}
 
-	// TODO: @legomushroom - add better logic to check if never was set
-	const notSet = (userDataSyncEnablementService.isResourceEnabled(SyncResource.Prompts, true) === true) &&
-		(userDataSyncEnablementService.isResourceEnabled(SyncResource.Prompts, false) === false);
+	const isConfigured = userDataSyncEnablementService
+		.isResourceEnablementConfigured(SyncResource.Prompts);
 
-	// if prompts synchronization was configured before, nothing to do
-	if (notSet === false) {
+	// if prompts synchronization has been already configured before, nothing to do
+	if (isConfigured === true) {
 		return;
 	}
 
