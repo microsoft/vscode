@@ -220,23 +220,18 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 	}));
 
 	const fileSystemResources = resources.filter(({ resource }) => fileService.hasProvider(resource));
-
-	// Separate directories from files
-	const draggedDirectories: IResourceStat[] = fileSystemResources.filter(({ isDirectory }) => isDirectory);
-	const draggedFiles: IResourceStat[] = fileSystemResources.filter(({ isDirectory }) => !isDirectory);
-
 	if (!options?.disableStandardTransfer) {
 
 		// Text: allows to paste into text-capable areas
 		const lineDelimiter = isWindows ? '\r\n' : '\n';
-		event.dataTransfer.setData(DataTransfers.TEXT, draggedFiles.map(({ resource }) => labelService.getUriLabel(resource, { noPrefix: true })).join(lineDelimiter));
+		event.dataTransfer.setData(DataTransfers.TEXT, fileSystemResources.map(({ resource }) => labelService.getUriLabel(resource, { noPrefix: true })).join(lineDelimiter));
 
 		// Download URL: enables support to drag a tab as file to desktop
 		// Requirements:
 		// - Chrome/Edge only
 		// - only a single file is supported
 		// - only file:/ resources are supported
-		const firstFile = draggedFiles.find(({ isDirectory }) => !isDirectory);
+		const firstFile = fileSystemResources.find(({ isDirectory }) => !isDirectory);
 		if (firstFile) {
 			const firstFileUri = FileAccess.uriToFileUri(firstFile.resource); // enforce `file:` URIs
 			if (firstFileUri.scheme === Schemas.file) {
@@ -246,8 +241,9 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 	}
 
 	// Resource URLs: allows to drop multiple file resources to a target in VS Code
-	if (draggedFiles.length) {
-		event.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify(draggedFiles.map(({ resource }) => resource.toString())));
+	const files = fileSystemResources.filter(({ isDirectory }) => !isDirectory);
+	if (files.length) {
+		event.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify(files.map(({ resource }) => resource.toString())));
 	}
 
 	// Contributions
@@ -336,14 +332,18 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 		draggedEditors.push(editor);
 	}
 
+	if (draggedEditors.length) {
+		event.dataTransfer.setData(CodeDataTransfers.EDITORS, stringify(draggedEditors));
+	}
+
+	const draggedDirectories: URI[] = [
+		...fileSystemResources.filter(({ isDirectory }) => isDirectory).map(({ resource }) => resource),
+	];
+
 	if (draggedEditors.length || draggedDirectories.length) {
 
-		if (draggedEditors.length) {
-			event.dataTransfer.setData(CodeDataTransfers.EDITORS, stringify(draggedEditors));
-		}
-
 		// Add a URI list entry
-		const uriListEntries: URI[] = [...draggedDirectories.map(d => d.resource)];
+		const uriListEntries: URI[] = [...draggedDirectories];
 		for (const editor of draggedEditors) {
 			if (editor.resource) {
 				uriListEntries.push(editor.options?.selection ? withSelection(editor.resource, editor.options.selection) : editor.resource);
