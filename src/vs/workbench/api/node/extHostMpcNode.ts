@@ -105,7 +105,7 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 
 		// Stderr handling is not currently specified https://github.com/modelcontextprotocol/specification/issues/177
 		// Just treat it as generic log data for now
-		child.stderr.pipe(new StreamSplitter('\n')).on('data', line => this._proxy.$onDidPublishLog(id, LogLevel.Warning, `[server stderr] ${line}`));
+		child.stderr.pipe(new StreamSplitter('\n')).on('data', line => this._proxy.$onDidPublishLog(id, LogLevel.Warning, `[server stderr] ${line.toString().trimEnd()}`));
 
 		child.on('spawn', () => this._proxy.$onDidChangeState(id, { state: McpConnectionState.Kind.Running }));
 
