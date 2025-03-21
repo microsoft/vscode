@@ -14,6 +14,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { newWriteableStream, ReadableStream } from '../../../../../../base/common/stream.js';
 import { IModelContentChangedEvent } from '../../../../../../editor/common/textModelEvents.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { TextModel } from '../../../../../../editor/common/model/textModel.js';
 
 /**
  * Prompt contents provider for a {@link ITextModel} instance.
@@ -98,8 +99,15 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 	}
 
 	public override createNew(
-		promptContentsSource: { uri: URI },
+		promptContentsSource: TextModel | { uri: URI },
 	): IPromptContentsProvider {
+		if (promptContentsSource instanceof TextModel) {
+			return this.initService.createInstance(
+				TextModelContentsProvider,
+				promptContentsSource,
+			);
+		}
+
 		return this.initService.createInstance(
 			FilePromptContentProvider,
 			promptContentsSource.uri,
