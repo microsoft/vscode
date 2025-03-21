@@ -266,6 +266,10 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		const reference = this.instantiationService
 			.createInstance(PromptReference, contentProvider, token, seenReferences);
 
+		// the content provider is exclusively owned by the reference
+		// hence dispose it when the reference is disposed
+		reference.onDispose(contentProvider.dispose.bind(contentProvider));
+
 		this._references.push(reference);
 
 		reference.onUpdate(this._onUpdate.fire);
@@ -554,11 +558,6 @@ export class PromptReference extends ObservableDisposable implements IPromptRefe
 		@IInstantiationService initService: IInstantiationService,
 	) {
 		super();
-
-		/**
-		 * TODO: @legomushroom - remove?
-		 */
-		this._register(promptContentsProvider);
 
 		this.parser = this._register(initService.createInstance(
 			BasePromptParser,
