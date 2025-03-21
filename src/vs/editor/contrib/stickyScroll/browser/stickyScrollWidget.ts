@@ -160,7 +160,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		if (!state) {
 			return true;
 		}
-		const futureWidgetHeight = this._getHeightOfLines(state.startLineNumbers) + state.lastLineRelativePosition;
+		const futureWidgetHeight = this._getHeightOfLines(state.startLineNumbers, state.lastLineRelativePosition);
 		if (futureWidgetHeight > 0) {
 			this._lastLineRelativePosition = state.lastLineRelativePosition;
 			const lineNumbers = [...state.startLineNumbers];
@@ -260,12 +260,12 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._editor.layoutOverlayWidget(this);
 	}
 
-	private _getHeightOfLines(lineNumbers: number[]): number {
+	private _getHeightOfLines(lineNumbers: number[], lastLineRelativePosition: number): number {
 		let totalHeight = 0;
 		for (let i = 0; i < lineNumbers.length; i++) {
 			totalHeight += this._editor.getLineHeightForLineNumber(lineNumbers[i]);
 		}
-		return totalHeight;
+		return totalHeight + lastLineRelativePosition;
 	}
 
 	private _setHeight(height: number): void {
