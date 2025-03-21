@@ -52,7 +52,7 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 			if (toolInvocation.length === 1) {
 				toolInvocationHint = localize('toolInvocationHint', "Action required: {0} ", toolInvocation[0].invocationMessage.toString());
 			} else {
-				toolInvocationHint = localize('toolInvocationsHint', "Actions required: {0} ", toolInvocation.filter(t => !t.isComplete).map(v => v.invocationMessage.toString()).join(', '));
+				toolInvocationHint = localize('toolInvocationsHint', "Action required: {0} ", toolInvocation.filter(t => !t.isComplete).map(v => v.invocationMessage.toString()).join(', '));
 			}
 		}
 		const fileTreeCount = element.response.value.filter(v => v.kind === 'treeData').length ?? 0;
