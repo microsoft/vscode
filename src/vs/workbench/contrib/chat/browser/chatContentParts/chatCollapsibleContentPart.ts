@@ -10,7 +10,7 @@ import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
-import { ChatTreeItem } from '../chat.js';
+import { ChatTreeItem, IChatCodeBlockInfo } from '../chat.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { $ } from './chatReferencesContentPart.js';
 import { EditorPool } from './chatMarkdownContentPart.js';
@@ -18,6 +18,7 @@ import { CodeBlockPart, ICodeBlockData, ICodeBlockRenderOptions } from '../codeB
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IDisposableReference } from './chatCollections.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { autorun, IObservable, observableValue } from '../../../../../base/common/observable.js';
 
 
 export abstract class ChatCollapsibleContentPart extends Disposable implements IChatContentPart {
@@ -28,6 +29,7 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	protected readonly hasFollowingContent: boolean;
+	protected _isExpanded = observableValue<boolean>(this, false);
 
 	constructor(
 		private readonly title: IMarkdownString | string,
@@ -45,9 +47,7 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 	protected init(): HTMLElement {
 		const referencesLabel = this.title;
 
-		const icon = () => {
-			return this.isExpanded() ? Codicon.chevronDown : Codicon.chevronRight;
-		};
+
 		const buttonElement = $('.chat-used-context-label', undefined);
 
 		const collapseButton = this._register(new ButtonWithIcon(buttonElement, {
@@ -62,17 +62,24 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 		}));
 		this._domNode = $('.chat-used-context', undefined, buttonElement);
 		collapseButton.label = referencesLabel;
-		collapseButton.icon = icon();
-		this.updateAriaLabel(collapseButton.element, typeof referencesLabel === 'string' ? referencesLabel : referencesLabel.value, this.isExpanded());
-		this._domNode.classList.toggle('chat-used-context-collapsed', !this.isExpanded());
+
 		this._register(collapseButton.onDidClick(() => {
-			this.setExpanded(!this.isExpanded());
-			collapseButton.icon = icon();
-			this._domNode?.classList.toggle('chat-used-context-collapsed', !this.isExpanded());
-			this._onDidChangeHeight.fire();
-			this.updateAriaLabel(collapseButton.element, typeof referencesLabel === 'string' ? referencesLabel : referencesLabel.value, this.isExpanded());
+			const value = this._isExpanded.get();
+			this._isExpanded.set(!value, undefined);
 		}));
 
+		this._register(autorun(r => {
+			const value = this._isExpanded.read(r);
+			collapseButton.icon = value ? Codicon.chevronDown : Codicon.chevronRight;
+			this._domNode?.classList.toggle('chat-used-context-collapsed', !value);
+			this.updateAriaLabel(collapseButton.element, typeof referencesLabel === 'string' ? referencesLabel : referencesLabel.value, this.isExpanded());
+
+			if (this._domNode?.isConnected) {
+				queueMicrotask(() => {
+					this._onDidChangeHeight.fire();
+				});
+			}
+		}));
 
 		const content = this.initContent();
 		this._domNode.appendChild(content);
@@ -91,13 +98,16 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 		this._register(disposable);
 	}
 
-	private _isExpanded = false;
-	protected isExpanded(): boolean {
+	get expanded(): IObservable<boolean> {
 		return this._isExpanded;
 	}
 
+	protected isExpanded(): boolean {
+		return this._isExpanded.get();
+	}
+
 	protected setExpanded(value: boolean): void {
-		this._isExpanded = value;
+		this._isExpanded.set(value, undefined);
 	}
 }
 
@@ -109,6 +119,8 @@ export class ChatCollapsibleEditorContentPart extends ChatCollapsibleContentPart
 
 	private _currentWidth: number = 0;
 
+	readonly codeblocks: IChatCodeBlockInfo[] = [];
+
 	constructor(
 		title: IMarkdownString | string,
 		context: IChatContentPartRenderContext,
@@ -116,11 +128,19 @@ export class ChatCollapsibleEditorContentPart extends ChatCollapsibleContentPart
 		private readonly textModel: Promise<ITextModel>,
 		private readonly languageId: string,
 		private readonly options: ICodeBlockRenderOptions = {},
+		private readonly codeBlockInfo: IChatCodeBlockInfo,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super(title, context);
 		this._contentDomNode = $('div.chat-collapsible-editor-content');
 		this._editorReference = this.editorPool.get();
+		this.codeblocks = [{
+			...codeBlockInfo,
+			focus: () => {
+				this._editorReference.object.focus();
+				codeBlockInfo.focus();
+			}
+		}];
 	}
 
 	override dispose(): void {
@@ -132,7 +152,7 @@ export class ChatCollapsibleEditorContentPart extends ChatCollapsibleContentPart
 		const data: ICodeBlockData = {
 			languageId: this.languageId,
 			textModel: this.textModel,
-			codeBlockIndex: 0,
+			codeBlockIndex: this.codeBlockInfo.codeBlockIndex,
 			codeBlockPartIndex: 0,
 			element: this.context.element,
 			parentContextKeyService: this.contextKeyService,
@@ -143,20 +163,13 @@ export class ChatCollapsibleEditorContentPart extends ChatCollapsibleContentPart
 		this._register(this._editorReference.object.onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
 		this._contentDomNode.appendChild(this._editorReference.object.element);
 
-		this.setExpanded(false);
-		return this._contentDomNode;
-	}
+		this._register(autorun(r => {
+			const value = this._isExpanded.read(r);
+			this._contentDomNode.style.display = value ? 'block' : 'none';
+		}));
 
-	protected override setExpanded(value: boolean): void {
-		super.setExpanded(value);
-		if (value) {
-			this._contentDomNode.style.display = 'block';
-			// this._editorReference.object.layout(this._currentWidth);
-		} else if (!value) {
-			// Hide content when collapsing
-			this._contentDomNode.style.display = 'none';
-		}
-		this._onDidChangeHeight.fire();
+
+		return this._contentDomNode;
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {

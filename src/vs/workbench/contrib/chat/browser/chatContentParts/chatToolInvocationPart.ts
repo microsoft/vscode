@@ -479,6 +479,16 @@ class ChatToolInvocationSubPart extends Disposable {
 				editorOptions: {
 					wordWrap: 'on'
 				}
+			},
+			{
+				codeBlockIndex: this.codeBlockStartIndex,
+				codemapperUri: undefined,
+				elementId: this.context.element.id,
+				focus: () => { },
+				isStreaming: false,
+				ownerMarkdownPartId: this.codeblocksPartId,
+				uri: model.uri,
+				uriPromise: Promise.resolve(model.uri)
 			}
 		));
 		this._register(collapsibleListPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
