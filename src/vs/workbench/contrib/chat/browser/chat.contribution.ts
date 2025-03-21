@@ -276,11 +276,9 @@ configurationRegistry.registerConfiguration({
 			default: {
 				[PromptsConfig.DEFAULT_SOURCE_FOLDER]: true,
 			},
-			required: [PromptsConfig.DEFAULT_SOURCE_FOLDER],
 			additionalProperties: { type: 'boolean' },
 			unevaluatedProperties: { type: 'boolean' },
 			restricted: true,
-			disallowConfigurationDefault: true,
 			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
 			examples: [
 				{
