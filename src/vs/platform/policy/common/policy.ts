@@ -7,9 +7,9 @@ import { IStringDictionary } from '../../../base/common/collections.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Iterable } from '../../../base/common/iterator.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { PolicyName } from '../../../base/common/policy.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
-export type PolicyName = string;
 export type PolicyValue = string | number | boolean;
 export type PolicyDefinition = { type: 'string' | 'number' | 'boolean' };
 

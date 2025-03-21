@@ -9,19 +9,29 @@ import { AbstractPolicyService, IPolicyService, PolicyDefinition } from '../../.
 import { DefaultAccountService, IDefaultAccountService } from '../../accounts/common/defaultAccount.js';
 
 export class AccountPolicyService extends AbstractPolicyService implements IPolicyService {
-
+	// private editorPreviewFeaturesEnabled: boolean = false;
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IDefaultAccountService private readonly defaultAccountService: DefaultAccountService
 	) {
 		super();
+		this._register(this.defaultAccountService.onDidChangeDefaultAccount((account) => {
+			this.logService.info(`account?=${account?.sessionId} previewFeatures=${account?.editor_preview_features_enabled}`);
+			// this.editorPreviewFeaturesEnabled = !!account?.editor_preview_features_enabled;
+		}));
 	}
 
 	protected async _updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<void> {
 		this.logService.info(`AccountPolicyService#_updatePolicyDefinitions: Got ${Object.keys(policyDefinitions).length} policy definitions`);
+		// if (this.editorPreviewFeaturesEnabled) {
+		// 	return;
+		// }
 
-		this.defaultAccountService.onDidChangeDefaultAccount((account) => {
-			this.logService.info(`account?=${account?.sessionId} previewFeatures=${account?.editor_preview_features_enabled}`);
-		});
+		const update: string[] = [];
+		for (const key in policyDefinitions) {
+			this.logService.info(`AccountPolicyService#_updatePolicyDefinitions: key=${key} policyDefinition=${JSON.stringify(policyDefinitions[key])}`);
+		}
+
+		this._onDidChange.fire(Object.keys(update));
 	}
 }
