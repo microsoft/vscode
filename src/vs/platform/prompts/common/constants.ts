@@ -15,7 +15,7 @@ export const PROMPT_FILE_EXTENSION = '.prompt.md';
 /**
  * Copilot custom instructions file name.
  */
-const COPILOT_CUSTOM_INSTRUCTIONS_FILENAME = 'copilot-instructions.md';
+export const COPILOT_CUSTOM_INSTRUCTIONS_FILENAME = 'copilot-instructions.md';
 
 /**
  * Check if provided path is a reusable prompt file.
