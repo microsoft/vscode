@@ -108,7 +108,12 @@ export interface LanguageModeRange extends Range {
 	attributeValue?: boolean;
 }
 
-export function getLanguageModes(supportedLanguages: { [languageId: string]: boolean }, workspace: Workspace, clientCapabilities: ClientCapabilities, requestService: FileSystemProvider): LanguageModes {
+export interface Uri {
+	scheme: string;
+	path: string;
+}
+
+export function getLanguageModes(supportedLanguages: { [languageId: string]: boolean }, workspace: Workspace, clientCapabilities: ClientCapabilities, requestService: FileSystemProvider, extensionUri: Uri): LanguageModes {
 	const htmlLanguageService = getHTMLLanguageService({ clientCapabilities, fileSystemProvider: requestService });
 	const cssLanguageService = getCSSLanguageService({ clientCapabilities, fileSystemProvider: requestService });
 
@@ -123,8 +128,8 @@ export function getLanguageModes(supportedLanguages: { [languageId: string]: boo
 		modes['css'] = getCSSMode(cssLanguageService, documentRegions, workspace);
 	}
 	if (supportedLanguages['javascript']) {
-		modes['javascript'] = getJavaScriptMode(documentRegions, 'javascript', workspace);
-		modes['typescript'] = getJavaScriptMode(documentRegions, 'typescript', workspace);
+		modes['javascript'] = getJavaScriptMode(documentRegions, 'javascript', workspace, extensionUri);
+		modes['typescript'] = getJavaScriptMode(documentRegions, 'typescript', workspace, extensionUri);
 	}
 	return {
 		async updateDataProviders(dataProviders: IHTMLDataProvider[]): Promise<void> {

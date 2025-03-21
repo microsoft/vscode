@@ -8,14 +8,15 @@ import {
 	SymbolInformation, SymbolKind, CompletionItem, Location, SignatureHelp, SignatureInformation, ParameterInformation,
 	Definition, TextEdit, TextDocument, Diagnostic, DiagnosticSeverity, Range, CompletionItemKind, Hover,
 	DocumentHighlight, DocumentHighlightKind, CompletionList, Position, FormattingOptions, FoldingRange, FoldingRangeKind, SelectionRange,
-	LanguageMode, Settings, SemanticTokenData, Workspace, DocumentContext, CompletionItemData, isCompletionItemData
+	LanguageMode, Settings, SemanticTokenData, Workspace, DocumentContext, CompletionItemData, isCompletionItemData, Uri
 } from './languageModes';
 import { getWordAtText, isWhitespaceOnly, repeat } from '../utils/strings';
 import { HTMLDocumentRegions } from './embeddedSupport';
 
 import * as ts from 'typescript';
 import { getSemanticTokens, getSemanticTokenLegend } from './javascriptSemanticTokens';
-import { getLibUriAndDocument } from './javascriptLibs';
+import { loadLibrary } from './javascriptLibs';
+import path from 'path';
 
 const JS_WORD_REGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;
 
@@ -99,7 +100,7 @@ const ignoredErrors = [
 	2792, /* Cannot_find_module_0_Did_you_mean_to_set_the_moduleResolution_option_to_node_or_to_add_aliases_to_the_paths_option */
 ];
 
-export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocumentRegions>, languageId: 'javascript' | 'typescript', workspace: Workspace): LanguageMode {
+export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocumentRegions>, languageId: 'javascript' | 'typescript', workspace: Workspace, extensionUri: Uri): LanguageMode {
 	const jsDocuments = getLanguageModelCache<TextDocument>(10, 60, document => documentRegions.get(document).getEmbeddedDocument(languageId));
 
 	const host = getLanguageServiceHost(languageId === 'javascript' ? ts.ScriptKind.JS : ts.ScriptKind.TS);
@@ -310,7 +311,10 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 							range: convertRange(jsDocument, d.textSpan)
 						};
 					} else {
-						const [libUri, libDocument] = getLibUriAndDocument(d.fileName);
+						const filePath = path.posix.join(extensionUri.path, '../node_modules/typescript/lib', d.fileName);
+						const libUri = `${extensionUri.scheme}://${filePath}`;
+						const content = loadLibrary(d.fileName);
+						const libDocument = TextDocument.create(libUri, 'typescript', 1, content);
 						return {
 							uri: libUri,
 							range: convertRange(libDocument, d.textSpan)
