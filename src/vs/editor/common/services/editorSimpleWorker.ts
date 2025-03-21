@@ -64,13 +64,14 @@ export interface IWordRange {
 /**
  * @internal
  */
-export class BaseEditorSimpleWorker implements IDisposable, IWorkerTextModelSyncChannelServer, IWebWorkerServerRequestHandler {
+export class EditorSimpleWorker implements IDisposable, IWorkerTextModelSyncChannelServer, IWebWorkerServerRequestHandler {
 	_requestHandlerBrand: any;
 
 	private readonly _workerTextModelSyncServer = new WorkerTextModelSyncServer();
 
-	constructor() {
-	}
+	constructor(
+		private readonly _foreignModule: any | null = null
+	) { }
 
 	dispose(): void {
 	}
@@ -501,18 +502,8 @@ export class BaseEditorSimpleWorker implements IDisposable, IWorkerTextModelSync
 		const result = BasicInplaceReplace.INSTANCE.navigateValueSet(range, selectionText, wordRange, word, up);
 		return result;
 	}
-}
 
-/**
- * @internal
- */
-export class EditorSimpleWorker extends BaseEditorSimpleWorker {
-
-	constructor(
-		private readonly _foreignModule: any | null
-	) {
-		super();
-	}
+	// ---- BEGIN foreign module support --------------------------------------------------------------------------
 
 	// foreign method request
 	public $fmr(method: string, args: any[]): Promise<any> {

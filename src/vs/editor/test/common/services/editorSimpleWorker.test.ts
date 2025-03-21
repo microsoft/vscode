@@ -8,14 +8,14 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { Position } from '../../../common/core/position.js';
 import { IRange, Range } from '../../../common/core/range.js';
 import { TextEdit } from '../../../common/languages.js';
-import { BaseEditorSimpleWorker } from '../../../common/services/editorSimpleWorker.js';
+import { EditorSimpleWorker } from '../../../common/services/editorSimpleWorker.js';
 import { ICommonModel } from '../../../common/services/textModelSync/textModelSync.impl.js';
 
 suite('EditorSimpleWorker', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	class WorkerWithModels extends BaseEditorSimpleWorker {
+	class WorkerWithModels extends EditorSimpleWorker {
 
 		getModel(uri: string) {
 			return this._getModel(uri);
