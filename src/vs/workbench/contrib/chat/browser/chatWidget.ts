@@ -355,7 +355,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.renderChatEditingSessionState();
 		}));
 
-		if (this._location.location === ChatAgentLocation.EditingSession || this.chatService.unifiedViewEnabled) {
+		if (this._location.location === ChatAgentLocation.EditingSession || (this.chatService.unifiedViewEnabled && this._location.location !== ChatAgentLocation.Editor)) {
 			let currentEditSession: IChatEditingSession | undefined = undefined;
 			this._register(this.onDidChangeViewModel(async () => {
 				const sessionId = this._viewModel?.sessionId;
