@@ -585,6 +585,21 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		this._editors.modified.revealRangeInCenter(diff.lineRangeMapping.modified.toExclusiveRange());
 	}
 
+	getAmountOfDiffs(): number {
+		const diffs = this._diffModel.get()?.diff.get()?.mappings;
+		return diffs ? diffs.length : 0
+	}
+
+	getIndexOfCurrentlyRevealedDiff(): number {
+		const diffs = this._diffModel.get()?.diff.get()?.mappings;
+		if (!diffs || diffs.length === 0) {
+			return - 1;
+		}
+
+		const curLineNumber = this._editors.modified.getPosition()!.lineNumber;
+		return diffs.findIndex(d => d.lineRangeMapping.modified.contains(curLineNumber))
+	}
+
 	goToDiff(target: 'previous' | 'next'): void {
 		const diffs = this._diffModel.get()?.diff.get()?.mappings;
 		if (!diffs || diffs.length === 0) {
