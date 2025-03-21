@@ -30,8 +30,12 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		const update: string[] = [];
 		for (const key in policyDefinitions) {
 			this.logService.info(`AccountPolicyService#_updatePolicyDefinitions: key=${key} policyDefinition=${JSON.stringify(policyDefinitions[key])}`);
+			if (key.startsWith('Copilot')) {
+				this.policies.set(key, true);
+				update.push(key);
+			}
 		}
 
-		this._onDidChange.fire(Object.keys(update));
+		this._onDidChange.fire(update);
 	}
 }
