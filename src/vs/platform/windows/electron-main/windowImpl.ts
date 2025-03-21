@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import electron, { BrowserWindowConstructorOptions } from 'electron';
-import { DeferredPromise, RunOnceScheduler, timeout } from '../../../base/common/async.js';
+import { DeferredPromise, RunOnceScheduler, timeout, Delayer } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../base/common/event.js';
@@ -540,6 +540,10 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	private pendingLoadConfig: INativeWindowConfiguration | undefined;
 	private wasLoaded = false;
 
+	private readonly jsCallStackMap: Map<string, number>;
+	private readonly jsCallStackCollector: Delayer<void>;
+	private readonly jsCallStackCollectorStopScheduler: RunOnceScheduler;
+
 	constructor(
 		config: IWindowCreationOptions,
 		@ILogService logService: ILogService,
@@ -593,6 +597,24 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 			this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
 		}
+		//#endregion
+
+		//#region JS Callstack Collector
+
+		let sampleInterval = parseInt(this.environmentMainService.args['unresponsive-sample-interval'] || '1000');
+		let samplePeriod = parseInt(this.environmentMainService.args['unresponsive-sample-period'] || '15000');
+		if (sampleInterval <= 0 || samplePeriod <= 0 || sampleInterval > samplePeriod) {
+			this.logService.warn(`Invalid unresponsive sample interval (${sampleInterval}ms) or period (${samplePeriod}ms), using defaults.`);
+			sampleInterval = 1000;
+			samplePeriod = 15000;
+		}
+
+		this.jsCallStackMap = new Map<string, number>();
+		this.jsCallStackCollector = this._register(new Delayer<void>(sampleInterval));
+		this.jsCallStackCollectorStopScheduler = this._register(new RunOnceScheduler(() => {
+			this.stopCollectingJScallStacks(); // Stop collecting after 15s max
+		}, samplePeriod));
+
 		//#endregion
 
 		// respect configured menu bar visibility
@@ -655,6 +677,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 		// Window error conditions to handle
 		this._register(Event.fromNodeEventEmitter(this._win, 'unresponsive')(() => this.onWindowError(WindowError.UNRESPONSIVE)));
+		this._register(Event.fromNodeEventEmitter(this._win, 'responsive')(() => this.onWindowError(WindowError.RESPONSIVE)));
 		this._register(Event.fromNodeEventEmitter(this._win.webContents, 'render-process-gone', (event, details) => details)(details => this.onWindowError(WindowError.PROCESS_GONE, { ...details })));
 		this._register(Event.fromNodeEventEmitter(this._win.webContents, 'did-fail-load', (event, exitCode, reason) => ({ exitCode, reason }))(({ exitCode, reason }) => this.onWindowError(WindowError.LOAD, { reason, exitCode })));
 
@@ -730,6 +753,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	}
 
 	private async onWindowError(error: WindowError.UNRESPONSIVE): Promise<void>;
+	private async onWindowError(error: WindowError.RESPONSIVE): Promise<void>;
 	private async onWindowError(error: WindowError.PROCESS_GONE, details: { reason: string; exitCode: number }): Promise<void>;
 	private async onWindowError(error: WindowError.LOAD, details: { reason: string; exitCode: number }): Promise<void>;
 	private async onWindowError(type: WindowError, details?: { reason?: string; exitCode?: number }): Promise<void> {
@@ -740,6 +764,9 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				break;
 			case WindowError.UNRESPONSIVE:
 				this.logService.error('CodeWindow: detected unresponsive');
+				break;
+			case WindowError.RESPONSIVE:
+				this.logService.error('CodeWindow: recovered from unresponsive');
 				break;
 			case WindowError.LOAD:
 				this.logService.error(`CodeWindow: failed to load (reason: ${details?.reason || '<unknown>'}, code: ${details?.exitCode || '<unknown>'})`);
@@ -799,6 +826,14 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 						return;
 					}
 
+					// Interrupt V8 and collect JavaScript stack
+					this.jsCallStackCollector.trigger(() => this.startCollectingJScallStacks());
+					// Stack collection will stop under any of the following conditions:
+					// - The window becomes responsive again
+					// - The window is destroyed i-e reopen or closed
+					// - sampling period is complete, default is 15s
+					this.jsCallStackCollectorStopScheduler.schedule();
+
 					// Show Dialog
 					const { response, checkboxChecked } = await this.dialogMainService.showMessageBox({
 						type: 'warning',
@@ -815,6 +850,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 					// Handle choice
 					if (response !== 2 /* keep waiting */) {
 						const reopen = response === 0;
+						this.stopCollectingJScallStacks();
 						await this.destroyWindow(reopen, checkboxChecked);
 					}
 				}
@@ -846,6 +882,9 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 					const reopen = response === 0;
 					await this.destroyWindow(reopen, checkboxChecked);
 				}
+				break;
+			case WindowError.RESPONSIVE:
+				this.stopCollectingJScallStacks();
 				break;
 		}
 	}
@@ -1447,6 +1486,44 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		});
 
 		return segments;
+	}
+
+	private async startCollectingJScallStacks(): Promise<void> {
+		if (!this.jsCallStackCollector.isTriggered()) {
+			const stack = await this._win.webContents.mainFrame.collectJavaScriptCallStack();
+
+			// Increment the count for this stack trace
+			if (stack) {
+				const count = this.jsCallStackMap.get(stack) || 0;
+				this.jsCallStackMap.set(stack, count + 1);
+			}
+
+			this.jsCallStackCollector.trigger(() => this.startCollectingJScallStacks());
+		}
+	}
+
+	private stopCollectingJScallStacks(): void {
+		this.jsCallStackCollectorStopScheduler.cancel();
+		this.jsCallStackCollector.cancel();
+
+		if (this.jsCallStackMap.size) {
+			let logMessage = `CodeWindow unresponsive samples:\n`;
+			let samples = 0;
+
+			const sortedEntries = Array.from(this.jsCallStackMap.entries())
+				.sort((a, b) => b[1] - a[1]);
+
+			for (const [stack, count] of sortedEntries) {
+				samples += count;
+				logMessage += `<${count}> ${stack}\n`;
+			}
+
+			logMessage += `Total Samples: ${samples}\n`;
+			logMessage += 'For full overview of the unresponsive period, capture cpu profile via https://aka.ms/vscode-tracing-cpu-profile';
+			this.logService.error(logMessage);
+		}
+
+		this.jsCallStackMap.clear();
 	}
 
 	matches(webContents: electron.WebContents): boolean {

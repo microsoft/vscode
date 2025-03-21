@@ -182,8 +182,9 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'__enable-file-policy': { type: 'boolean' },
 	'editSessionId': { type: 'string' },
 	'continueOn': { type: 'string' },
-
 	'enable-coi': { type: 'boolean' },
+	'unresponsive-sample-interval': { type: 'string' },
+	'unresponsive-sample-period': { type: 'string' },
 
 	// chromium flags
 	'no-proxy-server': { type: 'boolean' },
