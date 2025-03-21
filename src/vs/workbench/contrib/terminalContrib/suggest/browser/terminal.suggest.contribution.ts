@@ -106,7 +106,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			return;
 		}
 
-		const pwshCompletionProviderAddon = this._pwshAddon.value = this._instantiationService.createInstance(PwshCompletionProviderAddon, undefined, this._ctx.instance.capabilities);
+		const pwshCompletionProviderAddon = this._pwshAddon.value = this._instantiationService.createInstance(PwshCompletionProviderAddon, this._ctx.instance.capabilities);
 		xterm.loadAddon(pwshCompletionProviderAddon);
 		this.add(pwshCompletionProviderAddon);
 		this.add(pwshCompletionProviderAddon.onDidRequestSendText(text => {
@@ -391,13 +391,6 @@ registerActiveInstanceAction({
 		TerminalSuggestContribution.get(activeInstance)?.addon?.hideSuggestWidget(true);
 		activeInstance.sendText('\u001b[A', false); // Up arrow
 	}
-});
-
-registerActiveInstanceAction({
-	id: TerminalSuggestCommandId.ClearSuggestCache,
-	title: localize2('workbench.action.terminal.clearSuggestCache', 'Clear Suggest Cache'),
-	f1: true,
-	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.pwshAddon?.clearSuggestCache()
 });
 
 // #endregion
