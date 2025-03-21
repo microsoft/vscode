@@ -501,7 +501,7 @@ class ChatSetup {
 
 export class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
 
-	static readonly ID = 'workbench.chat.setup';
+	static readonly ID = 'workbench.contrib.chatSetup';
 
 	constructor(
 		@IProductService private readonly productService: IProductService,

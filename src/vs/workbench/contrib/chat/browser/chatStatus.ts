@@ -90,7 +90,7 @@ const defaultChat = {
 
 export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribution {
 
-	static readonly ID = 'chat.statusBarEntry';
+	static readonly ID = 'workbench.contrib.chatStatusBarEntry';
 
 	private entry: IStatusbarEntryAccessor | undefined = undefined;
 
