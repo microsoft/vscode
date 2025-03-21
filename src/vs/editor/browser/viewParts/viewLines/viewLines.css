@@ -70,6 +70,7 @@
 	position: absolute;
 	display: flex;
 	align-items: center;
+	overflow: hidden;
 }
 
 .monaco-editor .mtkw {

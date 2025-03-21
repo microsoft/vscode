@@ -51,7 +51,7 @@ let monospaceAssumptionsAreValid = true;
 export class ViewLine implements IVisibleLine {
 
 	public static readonly CLASS_NAME = 'view-line';
-	public static MAX_FONT_SIZE_VARIABLE_NAME = '--vscode-max-font-size';
+	// public static MAX_FONT_SIZE_VARIABLE_NAME = '--vscode-max-font-size';
 
 	private _options: ViewLineOptions;
 	private _isMaybeInvalid: boolean;
@@ -181,8 +181,8 @@ export class ViewLine implements IVisibleLine {
 		sb.appendString(String(lineHeight));
 		sb.appendString('px;line-height:');
 		sb.appendString(String(lineHeight));
-		sb.appendString(`px;${ViewLine.MAX_FONT_SIZE_VARIABLE_NAME}:`);
-		sb.appendString(String(lineHeight));
+		// sb.appendString(`px;${ViewLine.MAX_FONT_SIZE_VARIABLE_NAME}:`);
+		// sb.appendString(String(lineHeight));
 		sb.appendString('px;" class="');
 		sb.appendString(ViewLine.CLASS_NAME);
 		sb.appendString('">');
@@ -221,16 +221,16 @@ export class ViewLine implements IVisibleLine {
 			this._renderedViewLine.domNode.setTop(deltaTop);
 			this._renderedViewLine.domNode.setHeight(lineHeight);
 			this._renderedViewLine.domNode.setLineHeight(lineHeight);
-			this._setMaximumFontSize(lineHeight);
+			// this._setMaximumFontSize(lineHeight);
 		}
 	}
 
-	private _setMaximumFontSize(height: number): void {
-		if (!this._renderedViewLine || !this._renderedViewLine.domNode) {
-			return;
-		}
-		this._renderedViewLine.domNode.domNode.style.setProperty(ViewLine.MAX_FONT_SIZE_VARIABLE_NAME, `${height}px`);
-	}
+	// private _setMaximumFontSize(height: number): void {
+	// 	if (!this._renderedViewLine || !this._renderedViewLine.domNode) {
+	// 		return;
+	// 	}
+	// 	this._renderedViewLine.domNode.domNode.style.setProperty(ViewLine.MAX_FONT_SIZE_VARIABLE_NAME, `${height}px`);
+	// }
 
 	// --- end IVisibleLineData
 
