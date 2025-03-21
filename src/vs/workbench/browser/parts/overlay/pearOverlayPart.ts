@@ -31,6 +31,7 @@ import { ExtensionIdentifier } from "../../../../platform/extensions/common/exte
 import { IEditorGroupsService } from "../../../../workbench/services/editor/common/editorGroupsService.js";
 import { PEARAI_FIRST_LAUNCH_KEY } from "./common.js";
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
 
 // const PEARAI_FIRST_LAUNCH_KEY = "pearai.firstLaunch";
@@ -68,6 +69,7 @@ export class PearOverlayPart extends Part {
 		private readonly _instantiationService: IInstantiationService,
 		@IEditorGroupsService
 		private readonly _editorGroupsService: IEditorGroupsService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super(
 			PearOverlayPart.ID,
@@ -305,6 +307,8 @@ export class PearOverlayPart extends Part {
 		}
 		this.state = "open";
 		this.fullScreenOverlay!.style.zIndex = "95";
+
+		this._commandService.executeCommand('pearai.notifyOverlayOpened');
 
 		const container = this.webviewView!.webview.container;
 		container.style.display = "flex";
