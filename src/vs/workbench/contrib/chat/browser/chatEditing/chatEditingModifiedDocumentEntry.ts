@@ -38,7 +38,7 @@ import { editorSelectionBackground } from '../../../../../platform/theme/common/
 import { IUndoRedoElement, IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { SaveReason, IEditorPane } from '../../../../common/editor.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
-import { IResolvedTextFileEditorModel, stringToSnapshot } from '../../../../services/textfile/common/textfiles.js';
+import { IResolvedTextFileEditorModel, ITextFileService, stringToSnapshot } from '../../../../services/textfile/common/textfiles.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { IModifiedFileEntry, ChatEditKind, WorkingSetEntryState, IModifiedFileEntryEditorIntegration } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
@@ -110,6 +110,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		@IFilesConfigurationService fileConfigService: IFilesConfigurationService,
 		@IChatService chatService: IChatService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
+		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IFileService fileService: IFileService,
 		@IUndoRedoService undoRedoService: IUndoRedoService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -431,6 +432,21 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		this._diffInfo.set(nullDocumentDiff, tx);
 		this._edit = OffsetEdit.empty;
 		await this._collapse(tx);
+
+		const config = this._fileConfigService.getAutoSaveConfiguration(this.modifiedURI);
+		if (!config.autoSave || !this._textFileService.isDirty(this.modifiedURI)) {
+			// SAVE after accept for manual-savers, for auto-savers
+			// trigger explict save to get save participants going
+			try {
+				await this._textFileService.save(this.modifiedURI, {
+					reason: SaveReason.EXPLICIT,
+					force: true,
+					ignoreErrorHandler: true
+				});
+			} catch {
+				// ignored
+			}
+		}
 	}
 
 	protected override async _doReject(tx: ITransaction | undefined): Promise<void> {

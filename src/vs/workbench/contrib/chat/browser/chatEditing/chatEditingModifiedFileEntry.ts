@@ -86,7 +86,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 		protected _telemetryInfo: IModifiedEntryTelemetryInfo,
 		kind: ChatEditKind,
 		@IConfigurationService configService: IConfigurationService,
-		@IFilesConfigurationService fileConfigService: IFilesConfigurationService,
+		@IFilesConfigurationService protected _fileConfigService: IFilesConfigurationService,
 		@IChatService protected readonly _chatService: IChatService,
 		@IFileService protected readonly _fileService: IFileService,
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
@@ -122,7 +122,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 		const autoSaveOff = this._store.add(new MutableDisposable());
 		this._store.add(autorun(r => {
 			if (this.isCurrentlyBeingModifiedBy.read(r)) {
-				autoSaveOff.value = fileConfigService.disableAutoSave(this.modifiedURI);
+				autoSaveOff.value = _fileConfigService.disableAutoSave(this.modifiedURI);
 			} else {
 				autoSaveOff.clear();
 			}
