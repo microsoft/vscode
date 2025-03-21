@@ -75,6 +75,7 @@ export const SearchContext = {
 	ResourceFolderFocusKey: new RawContextKey<boolean>('folderMatchWithResourceFocus', false),
 	IsEditableItemKey: new RawContextKey<boolean>('isEditableItem', true),
 	MatchFocusKey: new RawContextKey<boolean>('matchFocus', false),
+	SearchResultHeaderFocused: new RawContextKey<boolean>('searchResultHeaderFocused', false),
 	ViewHasSearchPatternKey: new RawContextKey<boolean>('viewHasSearchPattern', false),
 	ViewHasReplacePatternKey: new RawContextKey<boolean>('viewHasReplacePattern', false),
 	ViewHasFilePatternKey: new RawContextKey<boolean>('viewHasFilePattern', false),
