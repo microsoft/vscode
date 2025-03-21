@@ -5,6 +5,7 @@
 
 import { join, basename, dirname } from 'path';
 import { readFileSync } from 'fs';
+import { TextDocument } from './languageModes';
 
 const contents: { [name: string]: string } = {};
 
@@ -30,4 +31,11 @@ export function loadLibrary(name: string) {
 		contents[name] = content;
 	}
 	return content;
+}
+
+export function getLibUriAndDocument(libName: string): [string, TextDocument] {
+	const filepath = join(TYPESCRIPT_LIB_SOURCE, libName);
+	const fileUri = `file:///${filepath}`;
+	const content = loadLibrary(libName);
+	return [fileUri, TextDocument.create(fileUri, 'typescript', 1, content)];
 }
