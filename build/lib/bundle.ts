@@ -6,7 +6,6 @@
 export interface IEntryPoint {
 	name: string;
 	include?: string[];
-	exclude?: string[];
 	dest?: string;
 }
 

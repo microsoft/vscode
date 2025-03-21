@@ -6,7 +6,7 @@
 import { stringDiff } from '../../../base/common/diff/diff.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
-import { IRequestHandler } from '../../../base/common/worker/simpleWorker.js';
+import { IWebWorkerServerRequestHandler } from '../../../base/common/worker/webWorker.js';
 import { Position } from '../core/position.js';
 import { IRange, Range } from '../core/range.js';
 import { EndOfLineSequence, ITextModel } from '../model.js';
@@ -64,13 +64,14 @@ export interface IWordRange {
 /**
  * @internal
  */
-export class BaseEditorSimpleWorker implements IDisposable, IWorkerTextModelSyncChannelServer, IRequestHandler {
+export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelServer, IWebWorkerServerRequestHandler {
 	_requestHandlerBrand: any;
 
 	private readonly _workerTextModelSyncServer = new WorkerTextModelSyncServer();
 
-	constructor() {
-	}
+	constructor(
+		private readonly _foreignModule: any | null = null
+	) { }
 
 	dispose(): void {
 	}
@@ -124,7 +125,7 @@ export class BaseEditorSimpleWorker implements IDisposable, IWorkerTextModelSync
 			return null;
 		}
 
-		const result = EditorSimpleWorker.computeDiff(original, modified, options, algorithm);
+		const result = EditorWorker.computeDiff(original, modified, options, algorithm);
 		return result;
 	}
 
@@ -259,7 +260,7 @@ export class BaseEditorSimpleWorker implements IDisposable, IWorkerTextModelSync
 			}
 
 			// make sure diff won't take too long
-			if (Math.max(text.length, original.length) > EditorSimpleWorker._diffLimit) {
+			if (Math.max(text.length, original.length) > EditorWorker._diffLimit) {
 				result.push({ range, text });
 				continue;
 			}
@@ -328,7 +329,7 @@ export class BaseEditorSimpleWorker implements IDisposable, IWorkerTextModelSync
 			}
 
 			// make sure diff won't take too long
-			if (Math.max(text.length, original.length) > EditorSimpleWorker._diffLimit) {
+			if (Math.max(text.length, original.length) > EditorWorker._diffLimit) {
 				result.push({ range, text });
 				continue;
 			}
@@ -429,7 +430,7 @@ export class BaseEditorSimpleWorker implements IDisposable, IWorkerTextModelSync
 					continue;
 				}
 				seen.add(word);
-				if (seen.size > EditorSimpleWorker._suggestionsLimit) {
+				if (seen.size > EditorWorker._suggestionsLimit) {
 					break outer;
 				}
 			}
@@ -501,18 +502,8 @@ export class BaseEditorSimpleWorker implements IDisposable, IWorkerTextModelSync
 		const result = BasicInplaceReplace.INSTANCE.navigateValueSet(range, selectionText, wordRange, word, up);
 		return result;
 	}
-}
 
-/**
- * @internal
- */
-export class EditorSimpleWorker extends BaseEditorSimpleWorker {
-
-	constructor(
-		private readonly _foreignModule: any | null
-	) {
-		super();
-	}
+	// ---- BEGIN foreign module support --------------------------------------------------------------------------
 
 	// foreign method request
 	public $fmr(method: string, args: any[]): Promise<any> {

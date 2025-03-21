@@ -5,9 +5,9 @@
 
 import { createTrustedTypesPolicy } from './trustedTypes.js';
 import { onUnexpectedError } from '../common/errors.js';
-import { AppResourcePath, COI, FileAccess } from '../common/network.js';
+import { COI } from '../common/network.js';
 import { URI } from '../common/uri.js';
-import { IWorker, IWorkerClient, Message, SimpleWorkerClient } from '../common/worker/simpleWorker.js';
+import { IWebWorker, IWebWorkerClient, Message, WebWorkerClient } from '../common/worker/webWorker.js';
 import { Disposable, toDisposable } from '../common/lifecycle.js';
 import { coalesce } from '../common/arrays.js';
 import { getNLSLanguage, getNLSMessages } from '../../nls.js';
@@ -30,7 +30,7 @@ export function createBlobWorker(blobUrl: string, options?: WorkerOptions): Work
 	return new Worker(ttPolicy ? ttPolicy.createScriptURL(blobUrl) as unknown as string : blobUrl, { ...options, type: 'module' });
 }
 
-function getWorker(descriptor: IWorkerDescriptor, id: number): Worker | Promise<Worker> {
+function getWorker(descriptor: IWebWorkerDescriptor, id: number): Worker | Promise<Worker> {
 	const label = descriptor.label || 'anonymous' + id;
 
 	// Option for hosts to overwrite the worker script (used in the standalone editor)
@@ -119,7 +119,7 @@ function isPromiseLike<T>(obj: any): obj is PromiseLike<T> {
  * A worker that uses HTML5 web workers so that is has
  * its own global scope and its own thread.
  */
-class WebWorker extends Disposable implements IWorker {
+class WebWorker extends Disposable implements IWebWorker {
 
 	private static LAST_WORKER_ID = 0;
 
@@ -132,7 +132,7 @@ class WebWorker extends Disposable implements IWorker {
 	private readonly _onError = this._register(new Emitter<any>());
 	public readonly onError = this._onError.event;
 
-	constructor(descriptorOrWorker: IWorkerDescriptor | Worker) {
+	constructor(descriptorOrWorker: IWebWorkerDescriptor | Worker) {
 		super();
 		this.id = ++WebWorker.LAST_WORKER_ID;
 		const workerOrPromise = (
@@ -187,31 +187,21 @@ class WebWorker extends Disposable implements IWorker {
 	}
 }
 
-export interface IWorkerDescriptor {
+export interface IWebWorkerDescriptor {
 	readonly esmModuleLocation: URI | undefined;
 	readonly label: string | undefined;
 }
 
-export class WorkerDescriptor implements IWorkerDescriptor {
-
-	public get esmModuleLocation(): URI | undefined {
-		try {
-			return FileAccess.asBrowserUri(`${this.moduleId}Main.js` as AppResourcePath);
-		} catch (e) {
-			return undefined;
-		}
-	}
-
+export class WebWorkerDescriptor implements IWebWorkerDescriptor {
 	constructor(
-		private readonly moduleId: string,
+		public readonly esmModuleLocation: URI,
 		public readonly label: string | undefined,
-	) {
-	}
+	) { }
 }
 
-export function createWebWorker<T extends object>(moduleId: string, label: string | undefined): IWorkerClient<T>;
-export function createWebWorker<T extends object>(workerDescriptor: IWorkerDescriptor | Worker): IWorkerClient<T>;
-export function createWebWorker<T extends object>(arg0: string | IWorkerDescriptor | Worker, arg1?: string | undefined): IWorkerClient<T> {
-	const workerDescriptorOrWorker = (typeof arg0 === 'string' ? new WorkerDescriptor(arg0, arg1) : arg0);
-	return new SimpleWorkerClient<T>(new WebWorker(workerDescriptorOrWorker));
+export function createWebWorker<T extends object>(esmModuleLocation: URI, label: string | undefined): IWebWorkerClient<T>;
+export function createWebWorker<T extends object>(workerDescriptor: IWebWorkerDescriptor | Worker): IWebWorkerClient<T>;
+export function createWebWorker<T extends object>(arg0: URI | IWebWorkerDescriptor | Worker, arg1?: string | undefined): IWebWorkerClient<T> {
+	const workerDescriptorOrWorker = (URI.isUri(arg0) ? new WebWorkerDescriptor(arg0, arg1) : arg0);
+	return new WebWorkerClient<T>(new WebWorker(workerDescriptorOrWorker));
 }
