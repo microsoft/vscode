@@ -751,11 +751,12 @@ export class ViewModel extends Disposable implements IViewModel {
 		const range = Range.fromPositions(position);
 		const fontDecorations = this.getFontDecorationsInRange(range);
 		const defaultFontInfo = this._configuration.options.get(EditorOption.fontInfo);
+		const lineHeight = this.viewLayout.getLineHeightForLineNumber(position.lineNumber);
 		let fontFamily: string = defaultFontInfo.fontFamily;
 		let fontWeight: string = defaultFontInfo.fontWeight;
 		let fontSize: number = defaultFontInfo.fontSize;
-		for (let i = 0, len = fontDecorations.length; i < len; i++) {
-			const fontDecoration = fontDecorations[i];
+		if (fontDecorations.length > 0) {
+			const fontDecoration = fontDecorations[0];
 			const decorationOptions = fontDecoration.options;
 			if (decorationOptions.fontFamily) {
 				fontFamily = decorationOptions.fontFamily;
@@ -772,6 +773,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			fontFamily,
 			fontWeight,
 			fontSize,
+			lineHeight,
 			fontLigatures: defaultFontInfo.fontFeatureSettings,
 			fontVariations: defaultFontInfo.fontVariationSettings,
 			letterSpacing: defaultFontInfo.letterSpacing

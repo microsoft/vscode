@@ -1576,18 +1576,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return this._undoRedoService.canRedo(this.uri);
 	}
 
-	/*
-	public getSpecialFontInfos(lineNumber: number): {
-		range: Range;
-		fontFamily: string | undefined;
-		fontSize: number | undefined;
-		fontWeight: string | undefined;
-		fontStyle: string | undefined;
-	}[] {
-		return this._decorationsTree.getSpecialFontInfos(this, this.getOffsetAt(new Position(lineNumber, 1)), this.getOffsetAt(new Position(lineNumber, this.getLineMaxColumn(lineNumber))), 0);
-	}
-	*/
-
 	//#endregion
 
 	//#region Decorations
@@ -2135,35 +2123,6 @@ class DecorationsTrees {
 		const result = this._injectedTextDecorationsTree.intervalSearch(start, end, filterOwnerId, false, versionId, false);
 		return this._ensureNodesHaveRanges(host, result).filter((i) => i.options.showIfCollapsed || !i.range.isEmpty());
 	}
-
-	/*
-	public hasSpecialFontInfo(host: IDecorationsTreesHost, start: number, end: number, filterOwnerId: number): boolean {
-		const versionId = host.getVersionId();
-		const result = this._decorationsTree0.intervalSearch(start, end, filterOwnerId, false, versionId, false);
-		return this._ensureNodesHaveRanges(host, result).filter((i) => !!i.options.fontFamily || !!i.options.fontSize).length > 0;
-	}
-
-	public getFontInfosInInterval(host: IDecorationsTreesHost, start: number, end: number, filterOwnerId: number): {
-		range: Range;
-		fontFamily: string | undefined;
-		fontSize: number | undefined;
-		fontWeight: string | undefined;
-		fontStyle: string | undefined;
-	}[] {
-		const versionId = host.getVersionId();
-		const result = this._decorationsTree0.intervalSearch(start, end, filterOwnerId, false, versionId, false);
-		const decorations = this._ensureNodesHaveRanges(host, result).filter((i) => !!i.options.fontFamily || !!i.options.fontSize);
-		return decorations.map((decoration) => {
-			return {
-				range: decoration.range,
-				fontFamily: decoration.options.fontFamily ?? undefined,
-				fontSize: decoration.options.fontSize ?? undefined,
-				fontWeight: decoration.options.fontWeight ?? undefined,
-				fontStyle: decoration.options.fontStyle ?? undefined,
-			};
-		});
-	}
-	*/
 
 	public getLineHeightInInterval(host: IDecorationsTreesHost, start: number, end: number, filterOwnerId: number): number | null {
 		const versionId = host.getVersionId();

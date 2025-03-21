@@ -142,7 +142,7 @@ export class ScreenReaderSupport {
 	}
 
 	private _doRender(scrollTop: number, top: number, left: number, width: number, height: number): void {
-		const fontInfo = this._context.viewModel.getFontInfoForPosition(this._primarySelection.getPosition()) ?? this._fontInfo;
+		const fontInfo = this._context.viewModel.getFontInfoForPosition(this._primarySelection.getPosition());
 		applyFontInfo(this._domNode, fontInfo);
 
 		this._domNode.setTop(top);
