@@ -18,7 +18,7 @@ let initialized = false;
 
 export function initialize<T extends IWebWorkerServerRequestHandler>(factory: IWebWorkerServerRequestHandlerFactory<T>) {
 	if (initialized) {
-		throw new Error('SimpleWorker already initialized!');
+		throw new Error('WebWorker already initialized!');
 	}
 	initialized = true;
 
@@ -34,7 +34,7 @@ export function initialize<T extends IWebWorkerServerRequestHandler>(factory: IW
 	return webWorkerServer;
 }
 
-export function bootstrapSimpleWorker(factory: IWebWorkerServerRequestHandlerFactory<any>) {
+export function bootstrapWebWorker(factory: IWebWorkerServerRequestHandlerFactory<any>) {
 	globalThis.onmessage = (_e: MessageEvent) => {
 		// Ignore first message in this case and initialize if not yet initialized
 		if (!initialized) {
