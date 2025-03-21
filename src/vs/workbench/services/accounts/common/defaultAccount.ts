@@ -230,7 +230,10 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 	}
 
 	private async getChatEntitlements(accessToken: string, chatUrl: string): Promise<IChatEntitlementsResponse> {
-		let editor_preview_features_enabled = true;
+		if (!chatUrl) {
+			return {};
+		}
+
 		const chatContext = await this.requestService.request({
 			type: 'GET',
 			url: chatUrl,
@@ -242,14 +245,12 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 
 		const chatData = await asJson<IChatResponse>(chatContext);
 		if (chatData) {
-			this.logService.info(`Default account chat data: ${JSON.stringify(chatData)}`);
-			// Editor preview features are disabled if the flag is present and set to 0
-			editor_preview_features_enabled = this.extractFromToken(chatData.token, 'editor_preview_features') !== '0';
+			return {
+				// Editor preview features are disabled if the flag is present and set to 0
+				editor_preview_features_enabled: this.extractFromToken(chatData.token, 'editor_preview_features') !== '0',
+			};
 		}
-
-		return {
-			editor_preview_features_enabled,
-		};
+		return {};
 	}
 
 	private async getEntitlements(accessToken: string, entitlementUrl: string): Promise<Partial<IEntitlementsResponse>> {

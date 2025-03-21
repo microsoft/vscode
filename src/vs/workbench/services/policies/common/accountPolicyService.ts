@@ -20,8 +20,8 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 	protected async _updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<void> {
 		this.logService.info(`AccountPolicyService#_updatePolicyDefinitions: Got ${Object.keys(policyDefinitions).length} policy definitions`);
 
-		this.defaultAccountService.onDidChangeDefaultAccount(() => {
-			this.logService.info('onDidChangeDefaultAccount event!');
+		this.defaultAccountService.onDidChangeDefaultAccount((account) => {
+			this.logService.info(`account?=${account?.sessionId} previewFeatures=${account?.editor_preview_features_enabled}`);
 		});
 	}
 }
