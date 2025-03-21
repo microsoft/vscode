@@ -15,7 +15,6 @@ import { Location } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../nls.js';
-import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -134,13 +133,11 @@ class ChatToolInvocationSubPart extends Disposable {
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
+		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService
 	) {
 		super();
 
 		if (toolInvocation.kind === 'toolInvocation' && toolInvocation.confirmationMessages) {
-			this._accessibilityService.alert(toolInvocation.confirmationMessages.title);
 			if (toolInvocation.toolSpecificData?.kind === 'terminal') {
 				this.domNode = this.createTerminalConfirmationWidget(toolInvocation, toolInvocation.toolSpecificData);
 			} else {

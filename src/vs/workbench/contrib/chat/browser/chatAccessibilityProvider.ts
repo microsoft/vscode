@@ -46,10 +46,13 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 		const accessibleViewHint = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.Chat);
 		let label: string = '';
 
-		const toolInvocation = element.response.value.filter(v => v.kind === 'toolInvocation' || v.kind === 'toolInvocationSerialized').filter(v => !v.isComplete);
+		const toolInvocation = element.response.value.filter(v => v.kind === 'toolInvocation').filter(v => !v.isComplete);
 		let toolInvocationHint = '';
 		if (toolInvocation.length) {
-			toolInvocationHint = localize('toolInvocationsHint', "Action required: {0} ", toolInvocation.map(v => v.invocationMessage.toString()).join(', '));
+			const titles = toolInvocation.map(v => v.confirmationMessages?.title).filter(v => !!v);
+			if (titles.length) {
+				toolInvocationHint = localize('toolInvocationsHint', "Action required: {0} ", titles.join(', '));
+			}
 		}
 		const fileTreeCount = element.response.value.filter(v => v.kind === 'treeData').length ?? 0;
 		let fileTreeCountHint = '';
