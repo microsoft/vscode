@@ -16,6 +16,7 @@ if ($ExecutionContext.SessionState.LanguageMode -ne "FullLanguage") {
 $Global:__VSCodeOriginalPrompt = $function:Prompt
 
 $Global:__LastHistoryId = -1
+$Global:__VSCodeIsInExecution = $false
 
 # Store the nonce in script scope and unset the global
 $Nonce = $env:VSCODE_NONCE
@@ -73,8 +74,10 @@ function Global:Prompt() {
 	Set-StrictMode -Off
 	$LastHistoryEntry = Get-History -Count 1
 	$Result = ""
-	# Skip finishing the command if the first command has not yet started
-	if ($Global:__LastHistoryId -ne -1) {
+	# Skip finishing the command if the first command has not yet started or an execution has not
+	# yet begun
+	if ($Global:__LastHistoryId -ne -1 -and $Global:__VSCodeIsInExecution -eq $true) {
+		$Global:__VSCodeIsInExecution = $false
 		if ($LastHistoryEntry.Id -eq $Global:__LastHistoryId) {
 			# Don't provide a command line or exit code if there was no history entry (eg. ctrl+c, enter on no command)
 			$Result += "$([char]0x1b)]633;D`a"
@@ -124,10 +127,10 @@ function Global:Prompt() {
 # Only send the command executed sequence when PSReadLine is loaded, if not shell integration should
 # still work thanks to the command line sequence
 if (Get-Module -Name PSReadLine) {
-	[Console]::Write("$([char]0x1b)]633;P;HasRichCommandDetection=True`a")
 	$__VSCodeOriginalPSConsoleHostReadLine = $function:PSConsoleHostReadLine
 	function Global:PSConsoleHostReadLine {
 		$CommandLine = $__VSCodeOriginalPSConsoleHostReadLine.Invoke()
+		$Global:__VSCodeIsInExecution = $true
 
 		# Command line
 		# OSC 633 ; E [; <CommandLine> [; <Nonce>]] ST
