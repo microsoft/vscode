@@ -18,7 +18,7 @@ import { IWebWorkerClient, logOnceWebWorkerWarning } from '../../../../base/comm
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { createWebWorker } from '../../../../base/browser/defaultWorkerFactory.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { ILocalFileSearchSimpleWorker, LocalFileSearchSimpleWorkerHost } from '../common/localFileSearchWorkerTypes.js';
+import { ILocalFileSearchWorker, LocalFileSearchWorkerHost } from '../common/localFileSearchWorkerTypes.js';
 import { memoize } from '../../../../base/common/decorators.js';
 import { HTMLFileSystemProvider } from '../../../../platform/files/browser/htmlFileSystemProvider.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -48,7 +48,7 @@ export class RemoteSearchService extends SearchService {
 
 export class LocalFileSearchWorkerClient extends Disposable implements ISearchResultProvider {
 
-	protected _worker: IWebWorkerClient<ILocalFileSearchSimpleWorker> | null;
+	protected _worker: IWebWorkerClient<ILocalFileSearchWorker> | null;
 
 	private readonly _onDidReceiveTextSearchMatch = new Emitter<{ match: IFileMatch<UriComponents>; queryId: number }>();
 	readonly onDidReceiveTextSearchMatch: Event<{ match: IFileMatch<UriComponents>; queryId: number }> = this._onDidReceiveTextSearchMatch.event;
@@ -184,14 +184,14 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 		if (this.cache?.key === cacheKey) { this.cache = undefined; }
 	}
 
-	private _getOrCreateWorker(): IWebWorkerClient<ILocalFileSearchSimpleWorker> {
+	private _getOrCreateWorker(): IWebWorkerClient<ILocalFileSearchWorker> {
 		if (!this._worker) {
 			try {
-				this._worker = this._register(createWebWorker<ILocalFileSearchSimpleWorker>(
+				this._worker = this._register(createWebWorker<ILocalFileSearchWorker>(
 					'vs/workbench/services/search/worker/localFileSearch',
 					'LocalFileSearchWorker'
 				));
-				LocalFileSearchSimpleWorkerHost.setChannel(this._worker, {
+				LocalFileSearchWorkerHost.setChannel(this._worker, {
 					$sendTextSearchMatch: (match, queryId) => {
 						return this.sendTextSearchMatch(match, queryId);
 					}

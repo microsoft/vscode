@@ -39,7 +39,7 @@ export interface IWorkerFileSystemFileHandle extends IWorkerFileSystemHandle {
 	getFile(): Promise<{ arrayBuffer(): Promise<ArrayBuffer> }>;
 }
 
-export interface ILocalFileSearchSimpleWorker {
+export interface ILocalFileSearchWorker {
 	_requestHandlerBrand: any;
 
 	$cancelQuery(queryId: number): void;
@@ -48,13 +48,13 @@ export interface ILocalFileSearchSimpleWorker {
 	$searchDirectory(handle: IWorkerFileSystemDirectoryHandle, queryProps: ITextQueryProps<UriComponents>, folderQuery: IFolderQuery, ignorePathCasing: boolean, queryId: number): Promise<IWorkerTextSearchComplete>;
 }
 
-export abstract class LocalFileSearchSimpleWorkerHost {
+export abstract class LocalFileSearchWorkerHost {
 	public static CHANNEL_NAME = 'localFileSearchWorkerHost';
-	public static getChannel(workerServer: IWebWorkerServer): LocalFileSearchSimpleWorkerHost {
-		return workerServer.getChannel<LocalFileSearchSimpleWorkerHost>(LocalFileSearchSimpleWorkerHost.CHANNEL_NAME);
+	public static getChannel(workerServer: IWebWorkerServer): LocalFileSearchWorkerHost {
+		return workerServer.getChannel<LocalFileSearchWorkerHost>(LocalFileSearchWorkerHost.CHANNEL_NAME);
 	}
-	public static setChannel(workerClient: IWebWorkerClient<any>, obj: LocalFileSearchSimpleWorkerHost): void {
-		workerClient.setChannel<LocalFileSearchSimpleWorkerHost>(LocalFileSearchSimpleWorkerHost.CHANNEL_NAME, obj);
+	public static setChannel(workerClient: IWebWorkerClient<any>, obj: LocalFileSearchWorkerHost): void {
+		workerClient.setChannel<LocalFileSearchWorkerHost>(LocalFileSearchWorkerHost.CHANNEL_NAME, obj);
 	}
 
 	abstract $sendTextSearchMatch(match: IFileMatch<UriComponents>, queryId: number): void;
