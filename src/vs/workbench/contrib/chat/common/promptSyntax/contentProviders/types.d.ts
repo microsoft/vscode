@@ -39,7 +39,7 @@ export interface IPromptContentsProvider extends IDisposable {
 	onDispose(callback: () => void): this;
 
 	/**
-	 * Create a new instance of prompt contents provider of the same type.
+	 * Create a new instance of prompt contents provider.
 	 */
 	createNew(
 		promptContentsSource: { uri: URI },

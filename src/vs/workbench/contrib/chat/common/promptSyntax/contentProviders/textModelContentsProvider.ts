@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IPromptContentsProvider } from './types.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
+import { FilePromptContentProvider } from './filePromptContentsProvider.js';
 import { PromptContentsProviderBase } from './promptContentsProviderBase.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { newWriteableStream, ReadableStream } from '../../../../../../base/common/stream.js';
 import { IModelContentChangedEvent } from '../../../../../../editor/common/textModelEvents.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 
 /**
  * Prompt contents provider for a {@link ITextModel} instance.
@@ -23,6 +26,7 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 
 	constructor(
 		private readonly model: ITextModel,
+		@IInstantiationService private readonly initService: IInstantiationService,
 	) {
 		super();
 
@@ -48,7 +52,7 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 		const stream = newWriteableStream<VSBuffer>(null);
 		const linesCount = this.model.getLineCount();
 
-		// provide the changed lines to the stream incrementaly and asynchronously
+		// provide the changed lines to the stream incrementally and asynchronously
 		// to avoid blocking the main thread and save system resources used
 		let i = 1;
 		const interval = setInterval(() => {
@@ -94,9 +98,12 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 	}
 
 	public override createNew(
-		model: ITextModel,
+		promptContentsSource: { uri: URI },
 	): IPromptContentsProvider {
-		return new TextModelContentsProvider(model);
+		return this.initService.createInstance(
+			FilePromptContentProvider,
+			promptContentsSource.uri,
+		);
 	}
 
 	/**
