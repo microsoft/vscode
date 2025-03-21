@@ -336,9 +336,7 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 		event.dataTransfer.setData(CodeDataTransfers.EDITORS, stringify(draggedEditors));
 	}
 
-	const draggedDirectories: URI[] = [
-		...fileSystemResources.filter(({ isDirectory }) => isDirectory).map(({ resource }) => resource),
-	];
+	const draggedDirectories: URI[] = fileSystemResources.filter(({ isDirectory }) => isDirectory).map(({ resource }) => resource)
 
 	if (draggedEditors.length || draggedDirectories.length) {
 
