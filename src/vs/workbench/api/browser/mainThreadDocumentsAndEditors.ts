@@ -126,18 +126,27 @@ class MainThreadDocumentAndEditorStateComputer {
 		@IPaneCompositePartService private readonly _paneCompositeService: IPaneCompositePartService,
 	) {
 		this._modelService.onModelAdded(this._updateStateOnModelAdd, this, this._toDispose);
-		this._modelService.onModelRemoved(_ => this._updateState(), this, this._toDispose);
-		this._editorService.onDidActiveEditorChange(_ => this._updateState(), this, this._toDispose);
+		this._modelService.onModelRemoved(_ => this._updateState('onModelRemoved'), this, this._toDispose);
+		this._editorService.onDidActiveEditorChange(_ => {
+			console.log('active editor changed');
+			this._updateState('onDidActiveEditorChange');
+		}, this, this._toDispose);
 
-		this._codeEditorService.onCodeEditorAdd(this._onDidAddEditor, this, this._toDispose);
-		this._codeEditorService.onCodeEditorRemove(this._onDidRemoveEditor, this, this._toDispose);
+		this._codeEditorService.onCodeEditorAdd((e) => {
+			console.log('code editor added');
+			this._onDidAddEditor(e);
+		}, this, this._toDispose);
+		this._codeEditorService.onCodeEditorRemove((e) => {
+			console.log('code editor removed');
+			this._onDidRemoveEditor(e);
+		}, this, this._toDispose);
 		this._codeEditorService.listCodeEditors().forEach(this._onDidAddEditor, this);
 
 		Event.filter(this._paneCompositeService.onDidPaneCompositeOpen, event => event.viewContainerLocation === ViewContainerLocation.Panel)(_ => this._activeEditorOrder = ActiveEditorOrder.Panel, undefined, this._toDispose);
 		Event.filter(this._paneCompositeService.onDidPaneCompositeClose, event => event.viewContainerLocation === ViewContainerLocation.Panel)(_ => this._activeEditorOrder = ActiveEditorOrder.Editor, undefined, this._toDispose);
 		this._editorService.onDidVisibleEditorsChange(_ => this._activeEditorOrder = ActiveEditorOrder.Editor, undefined, this._toDispose);
 
-		this._updateState();
+		this._updateState('constructor');
 	}
 
 	dispose(): void {
@@ -147,18 +156,18 @@ class MainThreadDocumentAndEditorStateComputer {
 
 	private _onDidAddEditor(e: ICodeEditor): void {
 		this._toDisposeOnEditorRemove.set(e.getId(), combinedDisposable(
-			e.onDidChangeModel(() => this._updateState()),
-			e.onDidFocusEditorText(() => this._updateState()),
-			e.onDidFocusEditorWidget(() => this._updateState(e))
+			e.onDidChangeModel(() => this._updateState('_onDidAddEditor#onDidChangeModel')),
+			e.onDidFocusEditorText(() => this._updateState('_onDidAddEditor#onDidFocusEditorText')),
+			e.onDidFocusEditorWidget(() => this._updateState('_onDidAddEditor#onDidFocusEditorWidget', e))
 		));
-		this._updateState();
+		this._updateState('_onDidAddEditor');
 	}
 
 	private _onDidRemoveEditor(e: ICodeEditor): void {
 		const id = e.getId();
 		if (this._toDisposeOnEditorRemove.has(id)) {
 			this._toDisposeOnEditorRemove.deleteAndDispose(id);
-			this._updateState();
+			this._updateState('_onDidRemoveEditor');
 		}
 	}
 
@@ -170,7 +179,7 @@ class MainThreadDocumentAndEditorStateComputer {
 
 		if (!this._currentState) {
 			// too early
-			this._updateState();
+			this._updateState('_updateStateOnModelAdd');
 			return;
 		}
 
@@ -188,8 +197,8 @@ class MainThreadDocumentAndEditorStateComputer {
 		));
 	}
 
-	private _updateState(widgetFocusCandidate?: ICodeEditor): void {
-
+	private _updateState(reason: string, widgetFocusCandidate?: ICodeEditor): void {
+		console.log('_updateState from : ', reason);
 		// models: ignore too large models
 		const models = new Set<ITextModel>();
 		for (const model of this._modelService.getModels()) {
@@ -203,6 +212,7 @@ class MainThreadDocumentAndEditorStateComputer {
 		let activeEditor: string | null = null; // Strict null work. This doesn't like being undefined!
 
 		for (const editor of this._codeEditorService.listCodeEditors()) {
+			console.log('editor with id : ', editor.getId());
 			if (editor.isSimpleWidget) {
 				continue;
 			}
@@ -211,6 +221,8 @@ class MainThreadDocumentAndEditorStateComputer {
 				&& !model.isDisposed() // model disposed
 				&& Boolean(this._modelService.getModel(model.uri)) // model disposing, the flag didn't flip yet but the model service already removed it
 			) {
+				console.log('passed check');
+				console.log('editor.hasTextFocus() : ', editor.hasTextFocus());
 				const apiEditor = new TextEditorSnapshot(editor);
 				editors.set(apiEditor.id, apiEditor);
 				if (editor.hasTextFocus() || (widgetFocusCandidate === editor && editor.hasWidgetFocus())) {
@@ -247,6 +259,8 @@ class MainThreadDocumentAndEditorStateComputer {
 		const newState = new DocumentAndEditorState(models, editors, activeEditor);
 		const delta = DocumentAndEditorState.compute(this._currentState, newState);
 		if (!delta.isEmpty) {
+			console.log('activeEditor : ', activeEditor);
+			console.log('new state', newState);
 			this._currentState = newState;
 			this._onDidChangeState(delta);
 		}
@@ -317,7 +331,7 @@ export class MainThreadDocumentsAndEditors {
 	}
 
 	private _onDelta(delta: DocumentAndEditorStateDelta): void {
-
+		console.log('_onDelta', delta);
 		const removedEditors: string[] = [];
 		const addedEditors: MainThreadTextEditor[] = [];
 

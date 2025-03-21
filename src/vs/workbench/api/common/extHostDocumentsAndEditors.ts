@@ -56,10 +56,12 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 	) { }
 
 	$acceptDocumentsAndEditorsDelta(delta: IDocumentsAndEditorsDelta): void {
+		console.log('$acceptDocumentsAndEditorsDelta');
 		this.acceptDocumentsAndEditorsDelta(delta);
 	}
 
 	acceptDocumentsAndEditorsDelta(delta: IDocumentsAndEditorsDelta): void {
+		console.log('acceptDocumentsAndEditorsDelta', delta);
 
 		const removedDocuments: ExtHostDocumentData[] = [];
 		const addedDocuments: ExtHostDocumentData[] = [];

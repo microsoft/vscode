@@ -340,6 +340,7 @@ export class MainThreadTextEditor {
 	}
 
 	public setSelections(selections: ISelection[]): void {
+		console.log('setSelections', selections);
 		if (this._codeEditor) {
 			this._codeEditor.setSelections(selections);
 			return;

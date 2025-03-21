@@ -890,6 +890,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	public setSelections(ranges: readonly ISelection[], source: string = 'api', reason = CursorChangeReason.NotSet): void {
+		console.log('setSelections', ranges, source, reason);
 		if (!this._modelData) {
 			return;
 		}
@@ -1682,6 +1683,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 					this._onDidContentSizeChange.fire(e);
 					break;
 				case OutgoingViewModelEventKind.FocusChanged:
+					console.log('viewModel.onEvent e.hasFocus', e, ' for editor id : ', this._id);
+					console.log('this._editorTextFocus : ', this._editorTextFocus.value());
+					console.log('.hasFocus === this._editorTextFocus.value() : ', e.hasFocus === this._editorTextFocus.value());
 					this._editorTextFocus.setValue(e.hasFocus);
 					break;
 				case OutgoingViewModelEventKind.WidgetFocusChanged:
@@ -1907,6 +1911,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (this._bannerDomNode && this._domElement.contains(this._bannerDomNode)) {
 			this._bannerDomNode.remove();
 		}
+		this._editorTextFocus.setValue(false);
 		return model;
 	}
 
@@ -2057,6 +2062,10 @@ export class BooleanEventEmitter extends Disposable {
 		} else if (this._value === BooleanEventValue.False) {
 			this._onDidChangeToFalse.fire();
 		}
+	}
+
+	public value(): boolean {
+		return this._value === BooleanEventValue.True;
 	}
 }
 
