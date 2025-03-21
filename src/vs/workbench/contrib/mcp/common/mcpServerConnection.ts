@@ -8,7 +8,7 @@ import { Disposable, DisposableStore, IReference, MutableDisposable, toDisposabl
 import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ILogger } from '../../../../platform/log/common/log.js';
+import { ILogger, log } from '../../../../platform/log/common/log.js';
 import { IMcpHostDelegate, IMcpMessageTransport } from './mcpRegistryTypes.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { IMcpServerConnection, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch } from './mcpTypes.js';
@@ -66,8 +66,8 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 
 		store.add(toDisposable(() => cts.dispose(true)));
 		store.add(launch);
-		store.add(launch.onDidLog(msg => {
-			this._logger.info(msg);
+		store.add(launch.onDidLog(({ level, message }) => {
+			log(this._logger, level, message);
 		}));
 
 		let didStart = false;

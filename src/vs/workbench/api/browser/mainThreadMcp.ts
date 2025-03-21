@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { disposableTimeout } from '../../../base/common/async.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue } from '../../../base/common/observable.js';
+import { LogLevel } from '../../../platform/log/common/log.js';
 import { IMcpMessageTransport, IMcpRegistry } from '../../contrib/mcp/common/mcpRegistryTypes.js';
 import { McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
-import { ExtensionHostKind } from '../../services/extensions/common/extensionHostKind.js';
+import { ExtensionHostKind, extensionHostKindToString } from '../../services/extensions/common/extensionHostKind.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { ExtHostContext, MainContext, MainThreadMcpShape } from '../common/extHost.protocol.js';
 
@@ -48,6 +50,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 			start: (collection, _serverDefiniton, resolveLaunch) => {
 				const id = ++this._serverIdCounter;
 				const launch = new ExtHostMcpServerLaunch(
+					_extHostContext.extensionHostKind,
 					() => proxy.$stopMcp(id),
 					msg => proxy.$sendMessage(id, JSON.stringify(msg)),
 				);
@@ -93,8 +96,13 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		}
 	}
 
-	$onDidPublishLog(id: number, log: string): void {
-		this._servers.get(id)?.pushLog(log);
+	$onDidPublishLog(id: number, level: LogLevel, log: string): void {
+		if (typeof level === 'string') {
+			level = LogLevel.Info;
+			log = level as unknown as string;
+		}
+
+		this._servers.get(id)?.pushLog(level, log);
 	}
 
 	$onDidReceiveMessage(id: number, message: string): void {
@@ -106,14 +114,14 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 class ExtHostMcpServerLaunch extends Disposable implements IMcpMessageTransport {
 	public readonly state = observableValue<McpConnectionState>('mcpServerState', { state: McpConnectionState.Kind.Starting });
 
-	private readonly _onDidLog = this._register(new Emitter<string>());
+	private readonly _onDidLog = this._register(new Emitter<{ level: LogLevel; message: string }>());
 	public readonly onDidLog = this._onDidLog.event;
 
 	private readonly _onDidReceiveMessage = this._register(new Emitter<MCP.JSONRPCMessage>());
 	public readonly onDidReceiveMessage = this._onDidReceiveMessage.event;
 
-	pushLog(log: string): void {
-		this._onDidLog.fire(log);
+	pushLog(level: LogLevel, message: string): void {
+		this._onDidLog.fire({ message, level });
 	}
 
 	pushMessage(message: string): void {
@@ -121,7 +129,7 @@ class ExtHostMcpServerLaunch extends Disposable implements IMcpMessageTransport 
 		try {
 			parsed = JSON.parse(message);
 		} catch (e) {
-			this.pushLog(`Failed to parse message: ${JSON.stringify(message)}`);
+			this.pushLog(LogLevel.Warning, `Failed to parse message: ${JSON.stringify(message)}`);
 		}
 
 		if (parsed) {
@@ -130,15 +138,20 @@ class ExtHostMcpServerLaunch extends Disposable implements IMcpMessageTransport 
 	}
 
 	constructor(
+		extHostKind: ExtensionHostKind,
 		public readonly stop: () => void,
 		public readonly send: (message: MCP.JSONRPCMessage) => void,
 	) {
 		super();
+
+		this._register(disposableTimeout(() => {
+			this.pushLog(LogLevel.Info, `Starting server from ${extensionHostKindToString(extHostKind)}extension host`);
+		}));
 	}
 
 	public override dispose(): void {
 		if (McpConnectionState.isRunning(this.state.get())) {
-			this.pushLog('Extension host shut down, server will stop.');
+			this.pushLog(LogLevel.Warning, 'Extension host shut down, server will stop.');
 			this.state.set({ state: McpConnectionState.Kind.Stopped }, undefined);
 		}
 
