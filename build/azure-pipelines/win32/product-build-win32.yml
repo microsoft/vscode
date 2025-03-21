@@ -294,7 +294,7 @@ steps:
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
-          exec { npm exec -- npm-run-all -lp "gulp vscode-win32-$(VSCODE_ARCH)-system-setup --sign" "gulp vscode-win32-$(VSCODE_ARCH)-user-setup --sign"  }
+          exec { npm exec -- npm-run-all -lp "gulp vscode-win32-$(VSCODE_ARCH)-system-setup -- --sign" "gulp vscode-win32-$(VSCODE_ARCH)-user-setup -- --sign"  }
 
           $SystemSetupPath = ".build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup-$(VSCODE_ARCH)-$(VSCODE_VERSION).exe"
           $UserSetupPath = ".build\win32-$(VSCODE_ARCH)\user-setup\VSCodeUserSetup-$(VSCODE_ARCH)-$(VSCODE_VERSION).exe"
