@@ -237,12 +237,12 @@ async function processResourceRequest(event, requestUrlComponents) {
 	const client = await sw.clients.get(event.clientId);
 	let webviewId;
 	if (!client) {
-		const workerClient = getWorkerClientForId(event.clientId);
+		const workerClient = await getWorkerClientForId(event.clientId);
 		if (!workerClient) {
 			console.error('Could not find inner client for request');
 			return notFound();
 		} else {
-			webviewId = ID;
+			webviewId = getWebviewIdForClient(workerClient);
 		}
 	} else {
 		webviewId = getWebviewIdForClient(client);
@@ -448,6 +448,15 @@ async function processLocalhostRequest(event, requestUrl) {
  * @returns {string | null}
  */
 function getWebviewIdForClient(client) {
+	// Refs https://github.com/microsoft/vscode/issues/244143
+	// With PlzDedicatedWorker, worker subresources and blob wokers
+	// will use clients different from the window client.
+	// Since we cannot different a worker main resource from a worker subresource
+	// we will use the global webview ID passed in at the time of
+	// service worker registration.
+	if (client.type === 'worker' || client.type === 'sharedworker') {
+		return ID;
+	}
 	const requesterClientUrl = new URL(client.url);
 	return requesterClientUrl.searchParams.get('id');
 }
