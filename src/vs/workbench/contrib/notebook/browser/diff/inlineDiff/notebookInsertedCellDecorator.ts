@@ -8,6 +8,8 @@ import { CellDiffInfo } from '../notebookDiffViewModel.js';
 import { INotebookEditor, NotebookOverviewRulerLane } from '../../notebookBrowser.js';
 import { overviewRulerAddedForeground } from '../../../../scm/common/quickDiff.js';
 
+export type diffInfoWithHandle = { modifiedHandle?: number } & CellDiffInfo;
+
 export class NotebookInsertedCellDecorator extends Disposable {
 	private readonly decorators = this._register(new DisposableStore());
 	constructor(
@@ -16,12 +18,18 @@ export class NotebookInsertedCellDecorator extends Disposable {
 		super();
 
 	}
-	public apply(diffInfo: CellDiffInfo[]) {
+	public apply(diffInfo: diffInfoWithHandle[]) {
 		const model = this.notebookEditor.textModel;
 		if (!model) {
 			return;
 		}
-		const cells = diffInfo.filter(diff => diff.type === 'insert').map((diff) => model.cells[diff.modifiedCellIndex]);
+		//const cells = diffInfo.filter(diff => diff.type === 'insert').map((diff) => model.cells[diff.modifiedCellIndex]);
+
+		const cells = diffInfo.filter(diff => diff.type === 'insert')
+			.map((diff) => diff.modifiedHandle ?
+				model.cells.find(c => c.handle === diff.modifiedHandle) :
+				model.cells[diff.modifiedCellIndex])
+			.filter((cell) => !!cell);
 		const ids = this.notebookEditor.deltaCellDecorations([], cells.map(cell => ({
 			handle: cell.handle,
 			options: {
