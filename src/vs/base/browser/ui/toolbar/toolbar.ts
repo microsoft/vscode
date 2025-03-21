@@ -54,10 +54,11 @@ export interface IToolBarOptions {
 export class ToolBar extends Disposable {
 	private options: IToolBarOptions;
 	protected readonly actionBar: ActionBar;
-	private toggleMenuAction: ToggleMenuAction;
+	protected readonly toggleMenuAction: ToggleMenuAction;
 	private toggleMenuActionViewItem: DropdownMenuActionViewItem | undefined;
 	private submenuActionViewItems: DropdownMenuActionViewItem[] = [];
 	private hasSecondaryActions: boolean = false;
+	protected isToggleMenuHidden: boolean = false;
 	private readonly element: HTMLElement;
 
 	private _onDidChangeDropdownVisibility = this._register(new EventMultiplexer<boolean>());
@@ -198,7 +199,7 @@ export class ToolBar extends Disposable {
 
 		// Inject additional action to open secondary actions if present
 		this.hasSecondaryActions = !!(secondaryActions && secondaryActions.length > 0);
-		if (this.hasSecondaryActions && secondaryActions) {
+		if (this.hasSecondaryActions && secondaryActions && !this.isToggleMenuHidden) {
 			this.toggleMenuAction.menuActions = secondaryActions.slice(0);
 			primaryActionsToSet.push(this.toggleMenuAction);
 		}
