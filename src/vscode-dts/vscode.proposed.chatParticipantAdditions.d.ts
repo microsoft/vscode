@@ -30,8 +30,9 @@ declare module 'vscode' {
 	}
 
 	export class ChatResponseCodeblockUriPart {
+		isEdit?: boolean;
 		value: Uri;
-		constructor(value: Uri);
+		constructor(value: Uri, isEdit?: boolean);
 	}
 
 	/**
@@ -179,7 +180,7 @@ declare module 'vscode' {
 		notebookEdit(target: Uri, isDone: true): void;
 
 		markdownWithVulnerabilities(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]): void;
-		codeblockUri(uri: Uri): void;
+		codeblockUri(uri: Uri, isEdit?: boolean): void;
 		push(part: ChatResponsePart | ChatResponseTextEditPart | ChatResponseWarningPart | ChatResponseProgressPart2): void;
 
 		/**

@@ -89,7 +89,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					this.viewState.inputValue = lastEditsState.inputValue;
 					this.viewState.inputState = {
 						...lastEditsState.inputState,
-						chatMode: lastEditsState.inputState?.chatMode ?? ChatMode.Agent
+						chatMode: lastEditsState.inputState?.chatMode ?? ChatMode.Edit
 					};
 					this.viewState.hasMigratedCurrentSession = true;
 				}

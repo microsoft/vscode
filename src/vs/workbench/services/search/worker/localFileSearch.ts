@@ -48,10 +48,6 @@ const time = async <T>(name: string, task: () => Promise<T> | T) => {
 	return r;
 };
 
-/**
- * Defines the worker entry point. Must be exported and named `create`.
- * @skipMangle
- */
 export function create(workerServer: IWorkerServer): IRequestHandler {
 	return new LocalFileSearchSimpleWorker(workerServer);
 }

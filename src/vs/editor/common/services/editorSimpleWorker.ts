@@ -6,7 +6,7 @@
 import { stringDiff } from '../../../base/common/diff/diff.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
-import { IRequestHandler, IWorkerServer } from '../../../base/common/worker/simpleWorker.js';
+import { IRequestHandler } from '../../../base/common/worker/simpleWorker.js';
 import { Position } from '../core/position.js';
 import { IRange, Range } from '../core/range.js';
 import { EndOfLineSequence, ITextModel } from '../model.js';
@@ -16,16 +16,13 @@ import { computeLinks } from '../languages/linkComputer.js';
 import { BasicInplaceReplace } from '../languages/supports/inplaceReplaceSupport.js';
 import { DiffAlgorithmName, IDiffComputationResult, ILineChange, IUnicodeHighlightsResult } from './editorWorker.js';
 import { createMonacoBaseAPI } from './editorBaseApi.js';
-import { EditorWorkerHost } from './editorWorkerHost.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { UnicodeTextModelHighlighter, UnicodeHighlighterOptions } from './unicodeTextModelHighlighter.js';
 import { DiffComputer, IChange } from '../diff/legacyLinesDiffComputer.js';
 import { ILinesDiffComputer, ILinesDiffComputerOptions } from '../diff/linesDiffComputer.js';
 import { DetailedLineRangeMapping } from '../diff/rangeMapping.js';
 import { linesDiffComputers } from '../diff/linesDiffComputers.js';
-import { createProxyObject, getAllMethodNames } from '../../../base/common/objects.js';
 import { IDocumentDiffProviderOptions } from '../diff/documentDiffProvider.js';
-import { AppResourcePath, FileAccess } from '../../../base/common/network.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
 import { computeDefaultDocumentColors } from '../languages/defaultDocumentColorsComputer.js';
 import { FindSectionHeaderOptions, SectionHeader, findSectionHeaders } from './findSectionHeaders.js';
@@ -67,15 +64,6 @@ export interface IWordRange {
 /**
  * @internal
  */
-export interface IForeignModuleFactory {
-	(ctx: IWorkerContext, createData: any): any;
-}
-
-declare const require: any;
-
-/**
- * @internal
- */
 export class BaseEditorSimpleWorker implements IDisposable, IWorkerTextModelSyncChannelServer, IRequestHandler {
 	_requestHandlerBrand: any;
 
@@ -87,11 +75,15 @@ export class BaseEditorSimpleWorker implements IDisposable, IWorkerTextModelSync
 	dispose(): void {
 	}
 
+	public async $ping() {
+		return 'pong';
+	}
+
 	protected _getModel(uri: string): ICommonModel | undefined {
 		return this._workerTextModelSyncServer.getModel(uri);
 	}
 
-	protected _getModels(): ICommonModel[] {
+	public getModels(): ICommonModel[] {
 		return this._workerTextModelSyncServer.getModels();
 	}
 
@@ -516,51 +508,10 @@ export class BaseEditorSimpleWorker implements IDisposable, IWorkerTextModelSync
  */
 export class EditorSimpleWorker extends BaseEditorSimpleWorker {
 
-	private _foreignModule: any = null;
-
 	constructor(
-		private readonly _host: EditorWorkerHost,
-		private readonly _foreignModuleFactory: IForeignModuleFactory | null
+		private readonly _foreignModule: any | null
 	) {
 		super();
-	}
-
-	public async $ping() {
-		return 'pong';
-	}
-
-	// ---- BEGIN foreign module support --------------------------------------------------------------------------
-
-	public $loadForeignModule(moduleId: string, createData: any, foreignHostMethods: string[]): Promise<string[]> {
-		const proxyMethodRequest = (method: string, args: any[]): Promise<any> => {
-			return this._host.$fhr(method, args);
-		};
-
-		const foreignHost = createProxyObject(foreignHostMethods, proxyMethodRequest);
-
-		const ctx: IWorkerContext<any> = {
-			host: foreignHost,
-			getMirrorModels: (): IMirrorModel[] => {
-				return this._getModels();
-			}
-		};
-
-		if (this._foreignModuleFactory) {
-			this._foreignModule = this._foreignModuleFactory(ctx, createData);
-			// static foreing module
-			return Promise.resolve(getAllMethodNames(this._foreignModule));
-		}
-
-		return new Promise<any>((resolve, reject) => {
-
-			const onModuleCallback = (foreignModule: { create: IForeignModuleFactory }) => {
-				this._foreignModule = foreignModule.create(ctx, createData);
-				resolve(getAllMethodNames(this._foreignModule));
-			};
-
-			const url = FileAccess.asBrowserUri(`${moduleId}.js` as AppResourcePath).toString(true);
-			import(`${url}`).then(onModuleCallback).catch(reject);
-		});
 	}
 
 	// foreign method request
@@ -577,15 +528,6 @@ export class EditorSimpleWorker extends BaseEditorSimpleWorker {
 	}
 
 	// ---- END foreign module support --------------------------------------------------------------------------
-}
-
-/**
- * Defines the worker entry point. Must be exported and named `create`.
- * @skipMangle
- * @internal
- */
-export function create(workerServer: IWorkerServer): IRequestHandler {
-	return new EditorSimpleWorker(EditorWorkerHost.getChannel(workerServer), null);
 }
 
 // This is only available in a Web Worker

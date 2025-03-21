@@ -21,10 +21,11 @@ interface CodeBlockContent {
 	readonly isComplete: boolean;
 }
 
-interface CodeBlockEntry {
+export interface CodeBlockEntry {
 	readonly model: Promise<ITextModel>;
 	readonly vulns: readonly IMarkdownVulnerability[];
 	readonly codemapperUri?: URI;
+	readonly isEdit?: boolean;
 }
 
 export class CodeBlockModelCollection extends Disposable {
@@ -33,6 +34,7 @@ export class CodeBlockModelCollection extends Disposable {
 		model: Promise<IReference<IResolvedTextEditorModel>>;
 		vulns: readonly IMarkdownVulnerability[];
 		codemapperUri?: URI;
+		isEdit?: boolean;
 	}>();
 
 	/**
@@ -63,7 +65,8 @@ export class CodeBlockModelCollection extends Disposable {
 		return {
 			model: entry.model.then(ref => ref.object.textEditorModel),
 			vulns: entry.vulns,
-			codemapperUri: entry.codemapperUri
+			codemapperUri: entry.codemapperUri,
+			isEdit: entry.isEdit,
 		};
 	}
 
@@ -117,7 +120,7 @@ export class CodeBlockModelCollection extends Disposable {
 
 		const codeblockUri = extractCodeblockUrisFromText(newText);
 		if (codeblockUri) {
-			this.setCodemapperUri(sessionId, chat, codeBlockIndex, codeblockUri.uri);
+			this.setCodemapperUri(sessionId, chat, codeBlockIndex, codeblockUri.uri, codeblockUri.isEdit);
 		}
 
 		if (content.isComplete) {
@@ -144,7 +147,7 @@ export class CodeBlockModelCollection extends Disposable {
 
 		const codeblockUri = extractCodeblockUrisFromText(newText);
 		if (codeblockUri) {
-			this.setCodemapperUri(sessionId, chat, codeBlockIndex, codeblockUri.uri);
+			this.setCodemapperUri(sessionId, chat, codeBlockIndex, codeblockUri.uri, codeblockUri.isEdit);
 			newText = codeblockUri.textWithoutResult;
 		}
 
@@ -182,10 +185,11 @@ export class CodeBlockModelCollection extends Disposable {
 		return entry;
 	}
 
-	private setCodemapperUri(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, codeBlockIndex: number, codemapperUri: URI) {
+	private setCodemapperUri(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, codeBlockIndex: number, codemapperUri: URI, isEdit?: boolean) {
 		const entry = this._models.get(this.getKey(sessionId, chat, codeBlockIndex));
 		if (entry) {
 			entry.codemapperUri = codemapperUri;
+			entry.isEdit = isEdit;
 		}
 	}
 

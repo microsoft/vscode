@@ -596,6 +596,7 @@ export class StopSessionAction2 extends AbstractInline2ChatAction {
 			menu: {
 				id: MENU_INLINE_CHAT_SIDE,
 				group: 'navigation',
+				when: CTX_INLINE_CHAT_HAS_AGENT2
 			}
 		});
 	}
