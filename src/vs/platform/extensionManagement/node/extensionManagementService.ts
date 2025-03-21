@@ -638,7 +638,7 @@ export class ExtensionsScanner extends Disposable {
 				throw fromExtractError(e);
 			}
 
-			const metadata: ManifestMetadata = { installedTimestamp: Date.now() };
+			const metadata: ManifestMetadata = { installedTimestamp: Date.now(), targetPlatform: extensionKey.targetPlatform };
 			try {
 				metadata.size = await computeSize(tempLocation, this.fileService);
 			} catch (error) {
@@ -703,7 +703,13 @@ export class ExtensionsScanner extends Disposable {
 	}
 
 	async setExtensionsForRemoval(...extensions: IExtension[]): Promise<void> {
-		const extensionKeys: ExtensionKey[] = extensions.map(e => ExtensionKey.create(e));
+		const extensionsToRemove = [];
+		for (const extension of extensions) {
+			if (await this.fileService.exists(extension.location)) {
+				extensionsToRemove.push(extension);
+			}
+		}
+		const extensionKeys: ExtensionKey[] = extensionsToRemove.map(e => ExtensionKey.create(e));
 		await this.withRemovedExtensions(removedExtensions =>
 			extensionKeys.forEach(extensionKey => {
 				removedExtensions[extensionKey.toString()] = true;
