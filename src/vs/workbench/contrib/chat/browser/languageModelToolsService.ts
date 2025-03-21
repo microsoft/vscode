@@ -236,7 +236,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					await tool.impl.prepareToolInvocation(dto.parameters, token)
 					: undefined;
 
-				toolInvocation = new ChatToolInvocation(prepared, tool.data);
+				toolInvocation = new ChatToolInvocation(prepared, tool.data, dto.callId);
 				if (this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace)) {
 					toolInvocation.confirmed.complete(true);
 				}

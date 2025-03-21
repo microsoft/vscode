@@ -51,7 +51,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 	private subPart!: ChatToolInvocationSubPart;
 
 	constructor(
-		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
+		private readonly toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
 		context: IChatContentPartRenderContext,
 		renderer: MarkdownRenderer,
 		listPool: CollapsibleListPool,
@@ -88,7 +88,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
-		return other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized';
+		return (other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized') && this.toolInvocation.toolCallId === other.toolCallId;
 	}
 
 	addDisposable(disposable: IDisposable): void {
