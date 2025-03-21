@@ -7,7 +7,7 @@ import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { autorunWithStore, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorunWithStore, IObservable, IReader, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -18,7 +18,7 @@ import { INativeMcpDiscoveryData } from '../../../../../platform/mcp/common/nati
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { Dto } from '../../../../services/extensions/common/proxyIdentifier.js';
-import { mcpDiscoverySection } from '../mcpConfiguration.js';
+import { DiscoverySource, discoverySourceLabel, mcpDiscoverySection } from '../mcpConfiguration.js';
 import { IMcpRegistry } from '../mcpRegistryTypes.js';
 import { McpCollectionDefinition, McpCollectionSortOrder, McpServerDefinition } from '../mcpTypes.js';
 import { IMcpDiscovery } from './mcpDiscovery.js';
@@ -26,8 +26,8 @@ import { ClaudeDesktopMpcDiscoveryAdapter, CursorDesktopMpcDiscoveryAdapter, Nat
 
 export type WritableMcpCollectionDefinition = McpCollectionDefinition & { serverDefinitions: ISettableObservable<readonly McpServerDefinition[]> };
 
-export abstract class FilesytemMcpDiscovery extends Disposable {
-	protected _fsDiscoveryEnabled: IObservable<boolean>;
+export abstract class FilesystemMcpDiscovery extends Disposable {
+	protected readonly _fsDiscoveryEnabled: IObservable<boolean | DiscoverySource[]>;
 
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService,
@@ -39,9 +39,21 @@ export abstract class FilesytemMcpDiscovery extends Disposable {
 		this._fsDiscoveryEnabled = observableConfigValue(mcpDiscoverySection, false, configurationService);
 	}
 
+	protected _isDiscoveryEnabled(reader: IReader, discoverySource: DiscoverySource | undefined): boolean {
+		const fsDiscovery = this._fsDiscoveryEnabled.read(reader);
+		if (typeof fsDiscovery === 'boolean') {
+			return fsDiscovery;
+		}
+		if (discoverySource && Array.isArray(fsDiscovery)) {
+			return fsDiscovery.includes(discoverySource);
+		}
+		return true;
+	}
+
 	protected watchFile(
 		file: URI,
 		collection: WritableMcpCollectionDefinition,
+		discoverySource: DiscoverySource | undefined,
 		adaptFile: (contents: VSBuffer) => McpServerDefinition[] | undefined,
 	): IDisposable {
 		const store = new DisposableStore();
@@ -65,7 +77,7 @@ export abstract class FilesytemMcpDiscovery extends Disposable {
 		};
 
 		store.add(autorunWithStore((reader, store) => {
-			if (!this._fsDiscoveryEnabled.read(reader)) {
+			if (!this._isDiscoveryEnabled(reader, discoverySource)) {
 				collectionRegistration.clear();
 				return;
 			}
@@ -84,7 +96,7 @@ export abstract class FilesytemMcpDiscovery extends Disposable {
  * Base class that discovers MCP servers on a filesystem, outside of the ones
  * defined in VS Code settings.
  */
-export abstract class NativeFilesystemMcpDiscovery extends FilesytemMcpDiscovery implements IMcpDiscovery {
+export abstract class NativeFilesystemMcpDiscovery extends FilesystemMcpDiscovery implements IMcpDiscovery {
 	private readonly adapters: readonly NativeMpcDiscoveryAdapter[];
 	private suffix = '';
 
@@ -130,7 +142,7 @@ export abstract class NativeFilesystemMcpDiscovery extends FilesytemMcpDiscovery
 
 			const collection: WritableMcpCollectionDefinition = {
 				id: adapter.id,
-				label: adapter.label + this.suffix,
+				label: discoverySourceLabel[adapter.discoverySource] + this.suffix,
 				remoteAuthority: adapter.remoteAuthority,
 				scope: StorageScope.PROFILE,
 				isTrustedByDefault: false,
@@ -141,7 +153,7 @@ export abstract class NativeFilesystemMcpDiscovery extends FilesytemMcpDiscovery
 				},
 			};
 
-			this._register(this.watchFile(file, collection, contents => adapter.adaptFile(contents, details)));
+			this._register(this.watchFile(file, collection, adapter.discoverySource, contents => adapter.adaptFile(contents, details)));
 		}
 	}
 }

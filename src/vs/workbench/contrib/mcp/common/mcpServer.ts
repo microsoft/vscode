@@ -180,7 +180,7 @@ export class McpServer extends Disposable implements IMcpServer {
 	) {
 		super();
 
-		this._loggerId = `mcpServer/${definition.id}`;
+		this._loggerId = `mcpServer.${definition.id}`;
 		this._logger = this._register(_loggerService.createLogger(this._loggerId, { hidden: true, name: `MCP: ${definition.label}` }));
 		// If the logger is disposed but not deregistered, then the disposed instance
 		// is reused and no-ops. todo@sandy081 this seems like a bug.

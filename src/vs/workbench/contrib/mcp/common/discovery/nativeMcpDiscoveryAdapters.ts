@@ -8,13 +8,14 @@ import { Platform } from '../../../../../base/common/platform.js';
 import { Mutable } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { INativeMcpDiscoveryData } from '../../../../../platform/mcp/common/nativeMcpDiscoveryHelper.js';
+import { DiscoverySource } from '../mcpConfiguration.js';
 import { McpCollectionSortOrder, McpServerDefinition, McpServerTransportType } from '../mcpTypes.js';
 
 export interface NativeMpcDiscoveryAdapter {
 	readonly remoteAuthority: string | null;
 	readonly id: string;
-	readonly label: string;
 	readonly order: number;
+	readonly discoverySource: DiscoverySource;
 
 	getFilePath(details: INativeMcpDiscoveryData): URI | undefined;
 	adaptFile(contents: VSBuffer, details: INativeMcpDiscoveryData): McpServerDefinition[] | undefined;
@@ -58,8 +59,8 @@ export function claudeConfigToServerDefinition(idPrefix: string, contents: VSBuf
 
 export class ClaudeDesktopMpcDiscoveryAdapter implements NativeMpcDiscoveryAdapter {
 	public id: string;
-	public readonly label: string = 'Claude Desktop';
 	public readonly order = McpCollectionSortOrder.Filesystem;
+	public readonly discoverySource: DiscoverySource = DiscoverySource.ClaudeDesktop;
 
 	constructor(public readonly remoteAuthority: string | null) {
 		this.id = `claude-desktop.${this.remoteAuthority}`;
@@ -83,7 +84,7 @@ export class ClaudeDesktopMpcDiscoveryAdapter implements NativeMpcDiscoveryAdapt
 }
 
 export class WindsurfDesktopMpcDiscoveryAdapter extends ClaudeDesktopMpcDiscoveryAdapter {
-	public override readonly label: string = 'Windsurf';
+	public override readonly discoverySource: DiscoverySource = DiscoverySource.Windsurf;
 
 	constructor(remoteAuthority: string | null) {
 		super(remoteAuthority);
@@ -96,7 +97,7 @@ export class WindsurfDesktopMpcDiscoveryAdapter extends ClaudeDesktopMpcDiscover
 }
 
 export class CursorDesktopMpcDiscoveryAdapter extends ClaudeDesktopMpcDiscoveryAdapter {
-	public override readonly label: string = 'Cursor';
+	public override readonly discoverySource: DiscoverySource = DiscoverySource.CursorGlobal;
 
 	constructor(remoteAuthority: string | null) {
 		super(remoteAuthority);
