@@ -336,6 +336,13 @@ export function isSearchTreeMatch(obj: any): obj is ISearchTreeMatch {
 		obj.id().startsWith(MATCH_PREFIX);
 }
 
+export function isSearchHeader(obj: any): boolean {
+	return typeof obj === 'object' &&
+		obj !== null &&
+		typeof obj.id === 'function' &&
+		obj.id().startsWith(TEXT_SEARCH_HEADING_PREFIX);
+}
+
 export function getFileMatches(matches: (ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource)[]): ISearchTreeFileMatch[] {
 
 	const folderMatches: ISearchTreeFolderMatchWithResource[] = [];
