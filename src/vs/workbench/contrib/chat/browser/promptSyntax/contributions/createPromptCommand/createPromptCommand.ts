@@ -105,6 +105,12 @@ const command = async (
 		return;
 	}
 
+	// due to PII concerns, synchronization of the 'user' reusable prompts
+	// is disabled by default, but we want to make that fact clear to the user
+	// hence after a 'user' prompt is create, we check if the synchronization
+	// was explicitly configured before, and if it wasn't, we show a suggestion
+	// to enable the synchronization logic in the Settings Sync configuration
+
 	const isConfigured = userDataSyncEnablementService
 		.isResourceEnablementConfigured(SyncResource.Prompts);
 
