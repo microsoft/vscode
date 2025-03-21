@@ -43,7 +43,7 @@ const extractEditorSrcTask = task.define('extract-editor-src', () => {
 		entryPoints: [
 			'vs/editor/editor.main',
 			'vs/editor/editor.worker.start',
-			'vs/editor/common/services/editorSimpleWorkerMain',
+			'vs/editor/common/services/editorWebWorkerMain',
 		],
 		inlineEntryPoints: [
 			apiusages,

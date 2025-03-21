@@ -133,7 +133,7 @@ class ChatToolInvocationSubPart extends Disposable {
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
+		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService
 	) {
 		super();
 

@@ -13,7 +13,7 @@ import * as strings from '../strings.js';
 const DEFAULT_CHANNEL = 'default';
 const INITIALIZE = '$initialize';
 
-export interface IWorker extends IDisposable {
+export interface IWebWorker extends IDisposable {
 	getId(): number;
 	onMessage: Event<Message>;
 	onError: Event<any>;
@@ -97,7 +97,7 @@ interface IMessageHandler {
 	handleEvent(channel: string, eventName: string, arg: any): Event<any>;
 }
 
-class SimpleWorkerProtocol {
+class WebWorkerProtocol {
 
 	private _workerId: number;
 	private _lastSentReq: number;
@@ -286,14 +286,14 @@ export type Proxied<T> = { [K in keyof T]: T[K] extends (...args: infer A) => in
 	: never
 };
 
-export interface IWorkerClient<W> {
-	proxy: Proxied<W>;
+export interface IWebWorkerClient<TProxy> {
+	proxy: Proxied<TProxy>;
 	dispose(): void;
 	setChannel<T extends object>(channel: string, handler: T): void;
 	getChannel<T extends object>(channel: string): Proxied<T>;
 }
 
-export interface IWorkerServer {
+export interface IWebWorkerServer {
 	setChannel<T extends object>(channel: string, handler: T): void;
 	getChannel<T extends object>(channel: string): Proxied<T>;
 }
@@ -301,17 +301,17 @@ export interface IWorkerServer {
 /**
  * Main thread side
  */
-export class SimpleWorkerClient<W extends object> extends Disposable implements IWorkerClient<W> {
+export class WebWorkerClient<W extends object> extends Disposable implements IWebWorkerClient<W> {
 
-	private readonly _worker: IWorker;
+	private readonly _worker: IWebWorker;
 	private readonly _onModuleLoaded: Promise<void>;
-	private readonly _protocol: SimpleWorkerProtocol;
+	private readonly _protocol: WebWorkerProtocol;
 	public readonly proxy: Proxied<W>;
 	private readonly _localChannels: Map<string, object> = new Map();
 	private readonly _remoteChannels: Map<string, object> = new Map();
 
 	constructor(
-		worker: IWorker
+		worker: IWebWorker
 	) {
 		super();
 
@@ -324,7 +324,7 @@ export class SimpleWorkerClient<W extends object> extends Disposable implements 
 			onUnexpectedError(err);
 		}));
 
-		this._protocol = new SimpleWorkerProtocol({
+		this._protocol = new WebWorkerProtocol({
 			sendMessage: (msg: any, transfer: ArrayBuffer[]): void => {
 				this._worker.postMessage(msg, transfer);
 			},
@@ -414,27 +414,27 @@ function propertyIsDynamicEvent(name: string): boolean {
 	return /^onDynamic/.test(name) && strings.isUpperAsciiLetter(name.charCodeAt(9));
 }
 
-export interface IRequestHandler {
+export interface IWebWorkerServerRequestHandler {
 	_requestHandlerBrand: any;
 	[prop: string]: any;
 }
 
-export interface IRequestHandlerFactory<T extends IRequestHandler> {
-	(workerServer: IWorkerServer): T;
+export interface IWebWorkerServerRequestHandlerFactory<T extends IWebWorkerServerRequestHandler> {
+	(workerServer: IWebWorkerServer): T;
 }
 
 /**
  * Worker side
  */
-export class SimpleWorkerServer<T extends IRequestHandler> implements IWorkerServer {
+export class WebWorkerServer<T extends IWebWorkerServerRequestHandler> implements IWebWorkerServer {
 
 	public readonly requestHandler: T;
-	private _protocol: SimpleWorkerProtocol;
+	private _protocol: WebWorkerProtocol;
 	private readonly _localChannels: Map<string, object> = new Map();
 	private readonly _remoteChannels: Map<string, object> = new Map();
 
-	constructor(postMessage: (msg: Message, transfer?: ArrayBuffer[]) => void, requestHandlerFactory: IRequestHandlerFactory<T>) {
-		this._protocol = new SimpleWorkerProtocol({
+	constructor(postMessage: (msg: Message, transfer?: ArrayBuffer[]) => void, requestHandlerFactory: IWebWorkerServerRequestHandlerFactory<T>) {
+		this._protocol = new WebWorkerProtocol({
 			sendMessage: (msg: any, transfer: ArrayBuffer[]): void => {
 				postMessage(msg, transfer);
 			},
