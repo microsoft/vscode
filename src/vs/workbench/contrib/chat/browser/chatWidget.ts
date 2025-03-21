@@ -540,6 +540,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	focusInput(): void {
 		this.inputPart.focus();
+
+		// Sometimes focusing the input part is not possible,
+		// but we'd like to be the last focused chat widget,
+		// so we emit an optimistic onDidFocus event nonetheless.
+		this._onDidFocus.fire();
 	}
 
 	hasInputFocus(): boolean {
@@ -745,6 +750,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					location: this.location,
 					userSelectedModelId: this.input.currentLanguageModel,
 					hasInstructionAttachments: this.input.hasInstructionAttachments,
+					mode: this.input.currentMode,
 				};
 				this.chatService.resendRequest(request, options).catch(e => this.logService.error('FAILED to rerun request', e));
 			}
@@ -1084,10 +1090,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return await this.chatService.resendRequest(lastRequest, options);
 	}
 
-	async acceptInputWithPrefix(prefix: string): Promise<void> {
-		this._acceptInput({ prefix });
-	}
-
 	private collectInputState(): IChatInputState {
 		const inputState: IChatInputState = {};
 		this.contribs.forEach(c => {
@@ -1098,7 +1100,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return inputState;
 	}
 
-	private async _acceptInput(query: { query: string } | { prefix: string } | undefined, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
+	private async _acceptInput(query: { query: string } | undefined, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
 		if (this.viewModel?.requestInProgress && this.viewModel.requestPausibility !== ChatPauseState.Paused) {
 			return;
 		}
@@ -1111,10 +1113,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			const editorValue = this.getInput();
 			const requestId = this.chatAccessibilityService.acceptRequest();
-			const input = !query ? editorValue :
-				'query' in query ? query.query :
-					`${query.prefix} ${editorValue}`;
-			const isUserQuery = !query || 'prefix' in query;
+			const input = !query ? editorValue : query.query;
+			const isUserQuery = !query;
 
 			const { promptInstructions } = this.inputPart.attachmentModel;
 			const instructionsEnabled = promptInstructions.featureEnabled;

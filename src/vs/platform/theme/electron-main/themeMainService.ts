@@ -15,6 +15,7 @@ import { IColorScheme } from '../../window/common/window.js';
 import { ThemeTypeSelector } from '../common/theme.js';
 import { IBaseWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { coalesce } from '../../../base/common/arrays.js';
+import { getAllWindowsExcludingOffscreen } from '../../windows/electron-main/windows.js';
 
 // These default colors match our default themes
 // editor background color ("Dark Modern", etc...)
@@ -219,7 +220,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 	}
 
 	private updateBackgroundColor(windowId: number, splash: IPartsSplash): void {
-		for (const window of electron.BrowserWindow.getAllWindows()) {
+		for (const window of getAllWindowsExcludingOffscreen()) {
 			if (window.id === windowId) {
 				window.setBackgroundColor(splash.colorInfo.background);
 				break;

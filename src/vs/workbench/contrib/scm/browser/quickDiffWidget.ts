@@ -172,7 +172,7 @@ class QuickDiffWidget extends PeekViewWidget {
 	) {
 		super(editor, { isResizeable: true, frameWidth: 1, keepEditorSelection: true, className: 'dirty-diff' }, instantiationService);
 
-		this._disposables.add(themeService.onDidColorThemeChange(e => this._applyTheme(e.theme)));
+		this._disposables.add(themeService.onDidColorThemeChange(this._applyTheme, this));
 		this._applyTheme(themeService.getColorTheme());
 
 		if (!Iterable.isEmpty(this.model.originalTextModels)) {

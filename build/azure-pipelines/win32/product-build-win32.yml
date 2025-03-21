@@ -231,6 +231,11 @@ steps:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         displayName: Codesign executables and shared libraries
 
+      - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath sign-windows-appx $(CodeSigningFolderPath) '*.ps1'
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+        displayName: Codesign Powershell scripts
+
     - ${{ if eq(parameters.VSCODE_QUALITY, 'insider') }}:
       - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath sign-windows-appx $(CodeSigningFolderPath) '*.appx'
         env:

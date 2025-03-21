@@ -492,15 +492,12 @@ export class ChatService extends Disposable implements IChatService {
 				throw new ErrorNoTelemetry('No default agent contributed');
 			}
 
-			await this.extensionService.activateByEvent(`onChatParticipant:${defaultAgentData.id}`);
+			// Activate the default extension provided agent but do not wait
+			// for it to be ready so that the session can be used immediately
+			// without having to wait for the agent to be ready.
+			this.extensionService.activateByEvent(`onChatParticipant:${defaultAgentData.id}`);
 
-			const defaultAgent = this.chatAgentService.getActivatedAgents().find(agent => agent.id === defaultAgentData.id);
-			if (!defaultAgent) {
-				throw new ErrorNoTelemetry('No default agent registered');
-			}
-
-			const sampleQuestions = await defaultAgent.provideSampleQuestions?.(model.initialLocation, token) ?? undefined;
-			model.initialize(sampleQuestions);
+			model.initialize();
 		} catch (err) {
 			this.trace('startSession', `initializeSession failed: ${err}`);
 			model.setInitializationError(err);
@@ -541,6 +538,18 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		return session;
+	}
+
+	/**
+	 * This is really just for migrating data from the edit session location to the panel.
+	 */
+	isPersistedSessionEmpty(sessionId: string): boolean {
+		const session = this._persistedSessions[sessionId];
+		if (session) {
+			return session.requests.length === 0;
+		}
+
+		return this._chatSessionStore.isSessionEmpty(sessionId);
 	}
 
 	loadSessionFromContent(data: IExportableChatData | ISerializableChatData): IChatModel | undefined {

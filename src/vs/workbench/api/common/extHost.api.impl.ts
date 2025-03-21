@@ -1477,6 +1477,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerRelatedFilesProvider(provider: vscode.ChatRelatedFilesProvider, metadata: vscode.ChatRelatedFilesProviderMetadata) {
 				checkProposedApiEnabled(extension, 'chatEditing');
 				return extHostChatAgents2.registerRelatedFilesProvider(extension, provider, metadata);
+			},
+			onDidDisposeChatSession: (listeners, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'chatParticipantPrivate');
+				return _asExtensionEvent(extHostChatAgents2.onDidDisposeChatSession)(listeners, thisArgs, disposables);
 			}
 		};
 
@@ -1812,11 +1816,13 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatReferenceBinaryData: extHostTypes.ChatReferenceBinaryData,
 			LanguageModelChatMessageRole: extHostTypes.LanguageModelChatMessageRole,
 			LanguageModelChatMessage: extHostTypes.LanguageModelChatMessage,
+			LanguageModelChatMessage2: extHostTypes.LanguageModelChatMessage2,
 			LanguageModelToolResultPart: extHostTypes.LanguageModelToolResultPart,
 			LanguageModelTextPart: extHostTypes.LanguageModelTextPart,
 			LanguageModelToolCallPart: extHostTypes.LanguageModelToolCallPart,
 			LanguageModelError: extHostTypes.LanguageModelError,
 			LanguageModelToolResult: extHostTypes.LanguageModelToolResult,
+			LanguageModelDataPart: extHostTypes.LanguageModelDataPart,
 			ExtendedLanguageModelToolResult: extHostTypes.ExtendedLanguageModelToolResult,
 			PreparedTerminalToolInvocation: extHostTypes.PreparedTerminalToolInvocation,
 			LanguageModelChatToolMode: extHostTypes.LanguageModelChatToolMode,

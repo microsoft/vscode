@@ -470,6 +470,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (capability === TerminalCapability.CommandDetection) {
 				const commandDetection = this.capabilities.get(capability);
 				if (commandDetection) {
+					commandDetection.promptInputModel.setShellType(this.shellType);
 					capabilityListeners.set(capability, Event.any(
 						commandDetection.promptInputModel.onDidStartInput,
 						commandDetection.promptInputModel.onDidChangeInput,

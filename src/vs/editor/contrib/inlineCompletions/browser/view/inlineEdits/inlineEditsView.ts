@@ -20,9 +20,8 @@ import { TextLength } from '../../../../../common/core/textLength.js';
 import { DetailedLineRangeMapping, lineRangeMappingFromRangeMappings, RangeMapping } from '../../../../../common/diff/rangeMapping.js';
 import { TextModel } from '../../../../../common/model/textModel.js';
 import { InlineEditsGutterIndicator } from './components/gutterIndicatorView.js';
-import { InlineEditsIndicator } from './components/indicatorView.js';
 import { InlineEditWithChanges } from './inlineEditWithChanges.js';
-import { GhostTextIndicator, InlineEditModel } from './inlineEditsModel.js';
+import { GhostTextIndicator, InlineEditHost, InlineEditModel } from './inlineEditsModel.js';
 import { IInlineEditModel, InlineEditTabAction } from './inlineEditsViewInterface.js';
 import { InlineEditsDeletionView } from './inlineEditsViews/inlineEditsDeletionView.js';
 import { InlineEditsInsertionView } from './inlineEditsViews/inlineEditsInsertionView.js';
@@ -51,6 +50,7 @@ export class InlineEditsView extends Disposable {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
+		private readonly _host: IObservable<InlineEditHost | undefined>,
 		private readonly _model: IObservable<InlineEditModel | undefined>,
 		private readonly _ghostTextIndicator: IObservable<GhostTextIndicator | undefined>,
 		private readonly _focusIsInMenu: ISettableObservable<boolean>,
@@ -89,7 +89,10 @@ export class InlineEditsView extends Disposable {
 		this._wordReplacementViews.recomputeInitiallyAndOnChange(this._store);
 
 		this._indicatorCyclicDependencyCircuitBreaker.set(true, undefined);
+		this._constructorDone.set(true, undefined); // TODO: remove and use correct initialization order
 	}
+
+	private readonly _constructorDone = observableValue(this, false);
 
 	private readonly _uiState = derived<{
 		state: ReturnType<typeof InlineEditsView.prototype.determineRenderState>;
@@ -100,7 +103,7 @@ export class InlineEditsView extends Disposable {
 		originalDisplayRange: LineRange;
 	} | undefined>(this, reader => {
 		const model = this._model.read(reader);
-		if (!model) {
+		if (!model || !this._constructorDone.read(reader)) {
 			return undefined;
 		}
 
@@ -163,7 +166,7 @@ export class InlineEditsView extends Disposable {
 
 	private readonly _indicatorCyclicDependencyCircuitBreaker = observableValue(this, false);
 
-	protected readonly _indicator = derivedWithStore<InlineEditsGutterIndicator | InlineEditsIndicator | undefined>(this, (reader, store) => {
+	protected readonly _indicator = derivedWithStore<InlineEditsGutterIndicator | undefined>(this, (reader, store) => {
 		if (!this._indicatorCyclicDependencyCircuitBreaker.read(reader)) {
 			return undefined;
 		}
@@ -200,6 +203,7 @@ export class InlineEditsView extends Disposable {
 			this._editorObs,
 			indicatorDisplayRange,
 			this._gutterIndicatorOffset,
+			this._host,
 			modelWithGhostTextSupport,
 			this._inlineEditsIsHovered,
 			this._focusIsInMenu,
@@ -228,7 +232,6 @@ export class InlineEditsView extends Disposable {
 		this._model.map(m => m?.inlineEdit),
 		this._previewTextModel,
 		this._uiState.map(s => s && s.state?.kind === 'sideBySide' ? ({
-			edit: s.edit,
 			newTextLineCount: s.newTextLineCount,
 			originalDisplayRange: s.originalDisplayRange,
 		}) : undefined),
@@ -272,7 +275,7 @@ export class InlineEditsView extends Disposable {
 	protected readonly _inlineDiffView = this._register(new OriginalEditorInlineDiffView(this._editor, this._inlineDiffViewState, this._previewTextModel));
 
 	protected readonly _wordReplacementViews = mapObservableArrayCached(this, this._uiState.map(s => s?.state?.kind === 'wordReplacements' ? s.state.replacements : []), (e, store) => {
-		return store.add(this._instantiationService.createInstance(InlineEditsWordReplacementView, this._editorObs, e, [e], this._tabAction));
+		return store.add(this._instantiationService.createInstance(InlineEditsWordReplacementView, this._editorObs, e, this._tabAction));
 	});
 
 	protected readonly _lineReplacementView = this._register(this._instantiationService.createInstance(InlineEditsLineReplacementView,
@@ -288,7 +291,7 @@ export class InlineEditsView extends Disposable {
 
 	private getCacheId(model: IInlineEditModel) {
 		const inlineEdit = model.inlineEdit;
-		if (model.inPartialAcceptFlow.get()) {
+		if (this._host.get()?.inPartialAcceptFlow.get()) {
 			return `${inlineEdit.inlineCompletion.id}_${inlineEdit.edit.edits.map(innerEdit => innerEdit.range.toString() + innerEdit.text).join(',')}`;
 		}
 

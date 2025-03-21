@@ -8,16 +8,15 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { ITrustedDomainService } from '../../../url/browser/trustedDomainService.js';
-import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../../common/languageModelToolsService.js';
+import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultTextPart } from '../../common/languageModelToolsService.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { InternalFetchWebPageToolId } from '../../common/tools/tools.js';
 
-export const InternalFetchWebPageToolId = 'vscode_fetchWebPage_internal';
 export const FetchWebPageToolData: IToolData = {
 	id: InternalFetchWebPageToolId,
 	displayName: 'Fetch Web Page',
-	tags: ['vscode_editing'],
+	canBeReferencedInPrompt: false,
 	modelDescription: localize('fetchWebPage.modelDescription', 'Fetches the main content from a web page. This tool is useful for summarizing or analyzing the content of a webpage.'),
-	userDescription: localize('fetchWebPage.userDescription', 'Fetch the main content from a web page. This tool is useful for summarizing or analyzing the content of a webpage.'),
 	inputSchema: {
 		type: 'object',
 		properties: {
@@ -42,33 +41,49 @@ export class FetchWebPageTool implements IToolImpl {
 	) { }
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _token: CancellationToken): Promise<IToolResult> {
-		const { valid } = this._parseUris((invocation.parameters as { urls?: string[] }).urls);
-		if (!valid.length) {
+		const parsedUriResults = this._parseUris((invocation.parameters as { urls?: string[] }).urls);
+		const validUris = Array.from(parsedUriResults.values()).filter((uri): uri is URI => !!uri);
+		if (!validUris.length) {
 			return {
 				content: [{ kind: 'text', value: localize('fetchWebPage.noValidUrls', 'No valid URLs provided.') }]
 			};
 		}
 
-		for (const uri of valid) {
+		// We approved these via confirmation, so mark them as "approved" in this session
+		// if they are not approved via the trusted domain service.
+		for (const uri of validUris) {
 			if (!this._trustedDomainService.isValid(uri)) {
 				this._alreadyApprovedDomains.add(uri.toString(true));
 			}
 		}
 
-		const result = await this._readerModeService.extract(valid);
-		// Right now there's a bug when returning multiple text content parts so we're merging into one.
-		// When that's fixed we can use the helper function _getPromptPartForWebPageContents.
-		const value = result.map((content, index) => localize(
-			'fetchWebPage.promptPart',
-			'Below is the main content extracted from the webpage ({0}). Please read and analyze this content to assist with any follow-up questions:\n\n{1}',
-			valid[index].toString(),
-			content
-		)).join('\n\n---\n\n');
-		return { content: [{ kind: 'text', value }] };
+		const contents = await this._readerModeService.extract(validUris);
+		// Make an array that contains either the content or undefined for invalid URLs
+		const contentsWithUndefined: (string | undefined)[] = [];
+		let indexInContents = 0;
+		parsedUriResults.forEach((uri) => {
+			if (uri) {
+				contentsWithUndefined.push(contents[indexInContents]);
+				indexInContents++;
+			} else {
+				contentsWithUndefined.push(undefined);
+			}
+		});
+
+		return { content: this._getPromptPartsForResults(contentsWithUndefined) };
 	}
 
 	async prepareToolInvocation(parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
-		const { invalid, valid } = this._parseUris(parameters.urls);
+		const map = this._parseUris(parameters.urls);
+		const invalid = new Array<string>();
+		const valid = new Array<URI>();
+		map.forEach((uri, url) => {
+			if (!uri) {
+				invalid.push(url);
+			} else {
+				valid.push(uri);
+			}
+		});
 		const urlsNeedingConfirmation = valid.filter(url => !this._trustedDomainService.isValid(url) && !this._alreadyApprovedDomains.has(url.toString(true)));
 
 		const pastTenseMessage = invalid.length
@@ -126,30 +141,23 @@ export class FetchWebPageTool implements IToolImpl {
 		return result;
 	}
 
-	private _parseUris(urls?: string[]): { invalid: string[]; valid: URI[] } {
-		const invalidUrls: string[] = [];
-		const validUrls: URI[] = [];
+	private _parseUris(urls?: string[]): Map<string, URI | undefined> {
+		const results = new Map<string, URI | undefined>();
 		urls?.forEach(uri => {
 			try {
 				const uriObj = URI.parse(uri);
-				validUrls.push(uriObj);
+				results.set(uri, uriObj);
 			} catch (e) {
-				invalidUrls.push(uri);
+				results.set(uri, undefined);
 			}
 		});
-
-		return { invalid: invalidUrls, valid: validUrls };
+		return results;
 	}
 
-	// private _getPromptPartForWebPageContents(webPageContents: string, uri: URI): IToolResultTextPart {
-	// 	return {
-	// 		kind: 'text',
-	// 		value: localize(
-	// 			'fetchWebPage.promptPart',
-	// 			'Below is the main content extracted from the webpage ({0}). Please read and analyze this content to assist with any follow-up questions:\n\n{1}',
-	// 			uri.toString(),
-	// 			webPageContents
-	// 		)
-	// 	};
-	// }
+	private _getPromptPartsForResults(results: (string | undefined)[]): IToolResultTextPart[] {
+		return results.map(value => ({
+			kind: 'text',
+			value: value || localize('fetchWebPage.invalidUrl', 'Invalid URL')
+		}));
+	}
 }

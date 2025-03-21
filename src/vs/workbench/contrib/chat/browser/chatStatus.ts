@@ -252,7 +252,7 @@ class ChatStatusDashboard extends Disposable {
 		if (this.chatEntitlementService.entitlement === ChatEntitlement.Limited) {
 			const { chatTotal, chatRemaining, completionsTotal, completionsRemaining, quotaResetDate, chatQuotaExceeded, completionsQuotaExceeded } = this.chatEntitlementService.quotas;
 
-			addSeparator(localize('usageTitle', "Copilot Free Usage"));
+			addSeparator(localize('usageTitle', "Copilot Free Plan Usage"));
 
 			const chatQuotaIndicator = this.createQuotaIndicator(this.element, chatTotal, chatRemaining, localize('chatsLabel', "Chat messages"));
 			const completionsQuotaIndicator = this.createQuotaIndicator(this.element, completionsTotal, completionsRemaining, localize('completionsLabel', "Code completions"));
@@ -288,7 +288,6 @@ class ChatStatusDashboard extends Disposable {
 		// New to Copilot / Signed out
 		{
 			const newUser = isNewUser(this.chatEntitlementService);
-			const proUser = this.chatEntitlementService.entitlement === ChatEntitlement.Pro;
 			const signedOut = this.chatEntitlementService.entitlement === ChatEntitlement.Unknown;
 			if (newUser || signedOut) {
 				addSeparator(undefined);
@@ -296,7 +295,7 @@ class ChatStatusDashboard extends Disposable {
 				this.element.appendChild($('div.description', undefined, newUser ? localize('activateDescription', "Set up Copilot to use AI features.") : localize('signInDescription', "Sign in to use Copilot AI features.")));
 
 				const button = disposables.add(new Button(this.element, { ...defaultButtonStyles }));
-				button.label = newUser ? proUser ? localize('activateCopilotButton', "Set up Copilot") : localize('activateCopilotFreeButton', "Set up Copilot Free") : localize('signInToUseCopilotButton', "Sign in to use Copilot");
+				button.label = newUser ? localize('activateCopilotButton', "Set up Copilot") : localize('signInToUseCopilotButton', "Sign in to use Copilot");
 				disposables.add(button.onDidClick(() => this.runCommandAndClose(newUser ? { id: 'workbench.action.chat.triggerSetup' } : () => this.chatEntitlementService.requests?.value.signIn())));
 			}
 		}

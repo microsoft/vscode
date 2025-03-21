@@ -26,7 +26,6 @@ import { ColorThemeData, findMetadata } from '../../../services/themes/common/co
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { Event } from '../../../../base/common/event.js';
 import { Range } from '../../../../editor/common/core/range.js';
-import { timeout } from '../../../../base/common/async.js';
 
 interface IToken {
 	c: string; // token
@@ -379,7 +378,9 @@ class Snapper {
 			if (!tree) {
 				let e = await Event.toPromise(this.treeSitterParserService.onDidUpdateTree);
 				// Once more for injections
-				e = await Promise.race([timeout(100).then(() => e), Event.toPromise(this.treeSitterParserService.onDidUpdateTree)]);
+				if (e.hasInjections) {
+					e = await Event.toPromise(this.treeSitterParserService.onDidUpdateTree);
+				}
 				textModelTreeSitter = e.tree;
 				tree = textModelTreeSitter.parseResult?.tree;
 			}

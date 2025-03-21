@@ -182,7 +182,7 @@ export class TreeSitterTextModelService extends Disposable implements ITreeSitte
 	}
 
 	private _handleOnDidChangeParseResult(change: ModelTreeUpdateEvent, model: ITextModel) {
-		this._onDidUpdateTree.fire({ textModel: model, ranges: change.ranges, versionId: change.versionId, tree: change.tree, languageId: change.languageId });
+		this._onDidUpdateTree.fire({ textModel: model, ranges: change.ranges, versionId: change.versionId, tree: change.tree, languageId: change.languageId, hasInjections: change.hasInjections });
 	}
 
 	private _addGrammar(languageId: string, grammarName: string) {
