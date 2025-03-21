@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { DisposableStore, isDisposable } from 'vs/base/common/lifecycle';
-import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILink, ILinksList, LinkProvider } from 'vs/editor/common/languages';
-import { IModelService } from 'vs/editor/common/services/model';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { coalesce } from '../../../../base/common/arrays.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { onUnexpectedExternalError } from '../../../../base/common/errors.js';
+import { DisposableStore, isDisposable } from '../../../../base/common/lifecycle.js';
+import { assertType } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IRange, Range } from '../../../common/core/range.js';
+import { ITextModel } from '../../../common/model.js';
+import { ILink, ILinksList, LinkProvider } from '../../../common/languages.js';
+import { IModelService } from '../../../common/services/model.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 
 export class Link implements ILink {
 
@@ -69,6 +69,8 @@ export class Link implements ILink {
 }
 
 export class LinksList {
+
+	static readonly Empty = new LinksList([]);
 
 	readonly links: Link[];
 
@@ -137,27 +139,31 @@ export class LinksList {
 
 }
 
-export function getLinks(providers: LanguageFeatureRegistry<LinkProvider>, model: ITextModel, token: CancellationToken): Promise<LinksList> {
-
+export async function getLinks(providers: LanguageFeatureRegistry<LinkProvider>, model: ITextModel, token: CancellationToken): Promise<LinksList> {
 	const lists: [ILinksList, LinkProvider][] = [];
 
 	// ask all providers for links in parallel
-	const promises = providers.ordered(model).reverse().map((provider, i) => {
-		return Promise.resolve(provider.provideLinks(model, token)).then(result => {
+	const promises = providers.ordered(model).reverse().map(async (provider, i) => {
+		try {
+			const result = await provider.provideLinks(model, token);
 			if (result) {
 				lists[i] = [result, provider];
 			}
-		}, onUnexpectedExternalError);
+		} catch (err) {
+			onUnexpectedExternalError(err);
+		}
 	});
 
-	return Promise.all(promises).then(() => {
-		const result = new LinksList(coalesce(lists));
-		if (!token.isCancellationRequested) {
-			return result;
-		}
-		result.dispose();
-		return new LinksList([]);
-	});
+	await Promise.all(promises);
+
+	let res = new LinksList(coalesce(lists));
+
+	if (token.isCancellationRequested) {
+		res.dispose();
+		res = LinksList.Empty;
+	}
+
+	return res;
 }
 
 

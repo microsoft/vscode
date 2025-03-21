@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DocumentSelector } from 'vscode-languageclient';
 import { Event, EventEmitter, extensions } from 'vscode';
 
 /**
@@ -23,7 +22,7 @@ interface LanguageParticipantContribution {
 
 export interface LanguageParticipants {
 	readonly onDidChange: Event<void>;
-	readonly documentSelector: DocumentSelector;
+	readonly documentSelector: string[];
 	hasLanguage(languageId: string): boolean;
 	useComments(languageId: string): boolean;
 	dispose(): void;
@@ -40,8 +39,10 @@ export function getLanguageParticipants(): LanguageParticipants {
 		languages = new Set();
 		languages.add('json');
 		languages.add('jsonc');
+		languages.add('snippets');
 		comments = new Set();
 		comments.add('jsonc');
+		comments.add('snippets');
 
 		for (const extension of extensions.allAcrossExtensionHosts) {
 			const jsonLanguageParticipants = extension.packageJSON?.contributes?.jsonLanguageParticipants as LanguageParticipantContribution[];

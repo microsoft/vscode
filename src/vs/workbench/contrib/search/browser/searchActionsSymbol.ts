@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import * as Constants from 'vs/workbench/contrib/search/common/constants';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import * as nls from '../../../../nls.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import * as Constants from '../common/constants.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 
 //#region Actions
 registerAction2(class ShowAllSymbolsAction extends Action2 {

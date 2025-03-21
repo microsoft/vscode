@@ -3,33 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener } from 'vs/base/browser/dom';
-import { ArrayQueue } from 'vs/base/common/arrays';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Codicon } from 'vs/base/common/codicons';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IObservable, autorun, derived, derivedWithStore, observableFromEvent, observableValue } from 'vs/base/common/observable';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { assertIsDefined } from 'vs/base/common/types';
-import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { diffDeleteDecoration, diffRemoveIcon } from 'vs/editor/browser/widget/diffEditor/registrations.contribution';
-import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditor/components/diffEditorEditors';
-import { DiffEditorViewModel, DiffMapping } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
-import { InlineDiffDeletedCodeMargin } from 'vs/editor/browser/widget/diffEditor/components/diffEditorViewZones/inlineDiffDeletedCodeMargin';
-import { LineSource, RenderOptions, renderLines } from 'vs/editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines';
-import { IObservableViewZone, animatedObservable, joinCombine } from 'vs/editor/browser/widget/diffEditor/utils';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { Position } from 'vs/editor/common/core/position';
-import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { BackgroundTokenizationState } from 'vs/editor/common/tokenizationTextModelPart';
-import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { DiffEditorOptions } from '../../diffEditorOptions';
+import { $, addDisposableListener } from '../../../../../../base/browser/dom.js';
+import { ArrayQueue } from '../../../../../../base/common/arrays.js';
+import { RunOnceScheduler } from '../../../../../../base/common/async.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { IObservable, autorun, derived, derivedWithStore, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { assertIsDefined } from '../../../../../../base/common/types.js';
+import { applyFontInfo } from '../../../../config/domFontInfo.js';
+import { CodeEditorWidget } from '../../../codeEditor/codeEditorWidget.js';
+import { diffDeleteDecoration, diffRemoveIcon } from '../../registrations.contribution.js';
+import { DiffEditorEditors } from '../diffEditorEditors.js';
+import { DiffEditorViewModel, DiffMapping } from '../../diffEditorViewModel.js';
+import { DiffEditorWidget } from '../../diffEditorWidget.js';
+import { InlineDiffDeletedCodeMargin } from './inlineDiffDeletedCodeMargin.js';
+import { LineSource, RenderOptions, renderLines } from './renderLines.js';
+import { IObservableViewZone, animatedObservable, joinCombine } from '../../utils.js';
+import { EditorOption } from '../../../../../common/config/editorOptions.js';
+import { LineRange } from '../../../../../common/core/lineRange.js';
+import { Position } from '../../../../../common/core/position.js';
+import { DetailedLineRangeMapping } from '../../../../../common/diff/rangeMapping.js';
+import { ScrollType } from '../../../../../common/editorCommon.js';
+import { BackgroundTokenizationState } from '../../../../../common/tokenizationTextModelPart.js';
+import { InlineDecoration, InlineDecorationType } from '../../../../../common/viewModel.js';
+import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
+import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { DiffEditorOptions } from '../../diffEditorOptions.js';
+import { Range } from '../../../../../common/core/range.js';
 
 /**
  * Ensures both editors have the same height by aligning unchanged lines.
@@ -81,7 +82,7 @@ export class DiffEditorViewZones extends Disposable {
 		}));
 
 		const originalModelTokenizationCompleted = this._diffModel.map(m =>
-			m ? observableFromEvent(m.model.original.onDidChangeTokens, () => m.model.original.tokenization.backgroundTokenizationState === BackgroundTokenizationState.Completed) : undefined
+			m ? observableFromEvent(this, m.model.original.onDidChangeTokens, () => m.model.original.tokenization.backgroundTokenizationState === BackgroundTokenizationState.Completed) : undefined
 		).map((m, reader) => m?.read(reader));
 
 		const alignments = derived<ILineRangeAlignment[] | null>((reader) => {
@@ -187,7 +188,7 @@ export class DiffEditorViewZones extends Disposable {
 			const renderOptions = RenderOptions.fromEditor(this._editors.modified);
 
 			for (const a of alignmentsVal) {
-				if (a.diff && !renderSideBySide) {
+				if (a.diff && !renderSideBySide && (!this._options.useTrueInlineDiffRendering.read(reader) || !allowsTrueInlineDiffRendering(a.diff))) {
 					if (!a.originalRange.isEmpty) {
 						originalModelTokenizationCompleted.read(reader); // Update view-zones once tokenization completes
 
@@ -312,7 +313,7 @@ export class DiffEditorViewZones extends Disposable {
 						}
 
 						let marginDomNode: HTMLElement | undefined = undefined;
-						if (a.diff && a.diff.modified.isEmpty && this._options.shouldRenderRevertArrows.read(reader)) {
+						if (a.diff && a.diff.modified.isEmpty && this._options.shouldRenderOldRevertArrows.read(reader)) {
 							marginDomNode = createViewZoneMarginArrow();
 						}
 
@@ -525,13 +526,15 @@ function computeRangeAlignment(
 		let lastModLineNumber = c.modified.startLineNumber;
 		let lastOrigLineNumber = c.original.startLineNumber;
 
-		function emitAlignment(origLineNumberExclusive: number, modLineNumberExclusive: number) {
+		function emitAlignment(origLineNumberExclusive: number, modLineNumberExclusive: number, forceAlignment = false) {
 			if (origLineNumberExclusive < lastOrigLineNumber || modLineNumberExclusive < lastModLineNumber) {
 				return;
 			}
 			if (first) {
 				first = false;
-			} else if (origLineNumberExclusive === lastOrigLineNumber || modLineNumberExclusive === lastModLineNumber) {
+			} else if (!forceAlignment && (origLineNumberExclusive === lastOrigLineNumber || modLineNumberExclusive === lastModLineNumber)) {
+				// This causes a re-alignment of an already aligned line.
+				// However, we don't care for the final alignment.
 				return;
 			}
 			const originalRange = new LineRange(lastOrigLineNumber, origLineNumberExclusive);
@@ -575,7 +578,7 @@ function computeRangeAlignment(
 			}
 		}
 
-		emitAlignment(c.original.endLineNumberExclusive, c.modified.endLineNumberExclusive);
+		emitAlignment(c.original.endLineNumberExclusive, c.modified.endLineNumberExclusive, true);
 
 		lastOriginalLineNumber = c.original.endLineNumberExclusive;
 		lastModifiedLineNumber = c.modified.endLineNumberExclusive;
@@ -624,4 +627,18 @@ function getAdditionalLineHeights(editor: CodeEditorWidget, viewZonesToIgnore: R
 	);
 
 	return result;
+}
+
+export function allowsTrueInlineDiffRendering(mapping: DetailedLineRangeMapping): boolean {
+	if (!mapping.innerChanges) {
+		return false;
+	}
+	return mapping.innerChanges.every(c =>
+		(rangeIsSingleLine(c.modifiedRange) && rangeIsSingleLine(c.originalRange))
+		|| c.originalRange.equalsRange(new Range(1, 1, 1, 1))
+	);
+}
+
+export function rangeIsSingleLine(range: Range): boolean {
+	return range.startLineNumber === range.endLineNumber;
 }

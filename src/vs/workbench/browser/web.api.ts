@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { PerformanceMark } from 'vs/base/common/performance';
-import type { UriComponents, URI } from 'vs/base/common/uri';
-import type { IWebSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
-import type { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
-import type { LogLevel } from 'vs/platform/log/common/log';
-import type { IUpdateProvider } from 'vs/workbench/services/update/browser/updateService';
-import type { Event } from 'vs/base/common/event';
-import type { IProductConfiguration } from 'vs/base/common/product';
-import type { ISecretStorageProvider } from 'vs/platform/secrets/common/secrets';
-import type { TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
-import type { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
-import type { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import type { IFolderToOpen, IWorkspaceToOpen } from 'vs/platform/window/common/window';
-import type { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
-import type { IEmbedderTerminalOptions } from 'vs/workbench/services/terminal/common/embedderTerminalService';
-import type { IAuthenticationProvider } from 'vs/workbench/services/authentication/common/authentication';
+import type { PerformanceMark } from '../../base/common/performance.js';
+import type { UriComponents, URI } from '../../base/common/uri.js';
+import type { IWebSocketFactory } from '../../platform/remote/browser/browserSocketFactory.js';
+import type { IURLCallbackProvider } from '../services/url/browser/urlService.js';
+import type { LogLevel } from '../../platform/log/common/log.js';
+import type { IUpdateProvider } from '../services/update/browser/updateService.js';
+import type { Event } from '../../base/common/event.js';
+import type { IProductConfiguration } from '../../base/common/product.js';
+import type { ISecretStorageProvider } from '../../platform/secrets/common/secrets.js';
+import type { TunnelProviderFeatures } from '../../platform/tunnel/common/tunnel.js';
+import type { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from '../../platform/progress/common/progress.js';
+import type { ITextEditorOptions } from '../../platform/editor/common/editor.js';
+import type { IFolderToOpen, IWorkspaceToOpen } from '../../platform/window/common/window.js';
+import type { EditorGroupLayout } from '../services/editor/common/editorGroupsService.js';
+import type { IEmbedderTerminalOptions } from '../services/terminal/common/embedderTerminalService.js';
+import type { IAuthenticationProvider } from '../services/authentication/common/authentication.js';
 
 /**
  * The `IWorkbench` interface is the API facade for web embedders
@@ -103,9 +103,23 @@ export interface IWorkbench {
 		 * `ExtensionTerminalOptions` in the extension API.
 		 */
 		createTerminal(options: IEmbedderTerminalOptions): Promise<void>;
+
+		/**
+		 * Show an information message to users. Optionally provide an array of items which will be presented as
+		 * clickable buttons.
+		 *
+		 * @param message The message to show.
+		 * @param items A set of items that will be rendered as actions in the message.
+		 * @returns A thenable that resolves to the selected item or `undefined` when being dismissed.
+		 */
+		showInformationMessage<T extends string>(message: string, ...items: T[]): Promise<T | undefined>;
 	};
 
 	workspace: {
+		/**
+		 * Resolves once the remote authority has been resolved.
+		 */
+		didResolveRemoteAuthority(): Promise<void>;
 
 		/**
 		 * Forwards a port. If the current embedder implements a tunnelFactory then that will be used to make the tunnel.
@@ -141,6 +155,13 @@ export interface IWorkbenchConstructionOptions {
 	 * from. It is for example being used for the websocket connections as address.
 	 */
 	readonly remoteAuthority?: string;
+
+	/**
+	 * The server base path is the path where the workbench is served from.
+	 * The path must be absolute (start with a slash).
+	 * Corresponds to option `server-base-path` on the server side.
+	 */
+	readonly serverBasePath?: string;
 
 	/**
 	 * The connection token to send to the server.
@@ -310,11 +331,6 @@ export interface IWorkbenchConstructionOptions {
 
 
 	//#region Branding
-
-	/**
-	 * Optional home indicator to appear above the hamburger menu in the activity bar.
-	 */
-	readonly homeIndicator?: IHomeIndicator;
 
 	/**
 	 * Optional welcome banner to appear above the workbench. Can be dismissed by the
@@ -553,25 +569,6 @@ export interface ICommand {
 	 * be exchanged across processes boundaries.
 	 */
 	handler: (...args: any[]) => unknown;
-}
-
-export interface IHomeIndicator {
-
-	/**
-	 * The link to open when clicking the home indicator.
-	 */
-	href: string;
-
-	/**
-	 * The icon name for the home indicator. This needs to be one of the existing
-	 * icons from our Codicon icon set. For example `code`.
-	 */
-	icon: string;
-
-	/**
-	 * A tooltip that will appear while hovering over the home indicator.
-	 */
-	title: string;
 }
 
 export interface IWelcomeBanner {

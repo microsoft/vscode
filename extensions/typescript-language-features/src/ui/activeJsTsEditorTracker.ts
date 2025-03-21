@@ -28,6 +28,7 @@ export class ActiveJsTsEditorTracker extends Disposable {
 
 		this._register(vscode.window.onDidChangeActiveTextEditor(_ => this.update()));
 		this._register(vscode.window.onDidChangeVisibleTextEditors(_ => this.update()));
+		this._register(vscode.window.tabGroups.onDidChangeTabGroups(_ => this.update()));
 
 		this.update();
 	}

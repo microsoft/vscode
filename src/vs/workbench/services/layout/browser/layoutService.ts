@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { Part } from 'vs/workbench/browser/part';
-import { IDimension } from 'vs/base/browser/dom';
-import { Direction } from 'vs/base/browser/ui/grid/grid';
-import { isMacintosh, isNative, isWeb } from 'vs/base/common/platform';
-import { isAuxiliaryWindow } from 'vs/base/browser/window';
-import { CustomTitleBarVisibility, TitleBarSetting, getMenuBarVisibility, hasCustomTitlebar, hasNativeTitlebar } from 'vs/platform/window/common/window';
-import { isFullscreen, isWCOEnabled } from 'vs/base/browser/browser';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { refineServiceDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { Event } from '../../../../base/common/event.js';
+import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
+import { Part } from '../../../browser/part.js';
+import { IDimension } from '../../../../base/browser/dom.js';
+import { Direction, IViewSize } from '../../../../base/browser/ui/grid/grid.js';
+import { isMacintosh, isNative, isWeb } from '../../../../base/common/platform.js';
+import { isAuxiliaryWindow } from '../../../../base/browser/window.js';
+import { CustomTitleBarVisibility, TitleBarSetting, getMenuBarVisibility, hasCustomTitlebar, hasNativeTitlebar } from '../../../../platform/window/common/window.js';
+import { isFullscreen, isWCOEnabled } from '../../../../base/browser/browser.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
 
 export const IWorkbenchLayoutService = refineServiceDecorator<ILayoutService, IWorkbenchLayoutService>(ILayoutService);
 
@@ -44,12 +45,13 @@ export const enum LayoutSettings {
 	EDITOR_TABS_MODE = 'workbench.editor.showTabs',
 	EDITOR_ACTIONS_LOCATION = 'workbench.editor.editorActionsLocation',
 	COMMAND_CENTER = 'window.commandCenter',
-	LAYOUT_ACTIONS = 'workbench.layoutControl.enabled',
+	LAYOUT_ACTIONS = 'workbench.layoutControl.enabled'
 }
 
 export const enum ActivityBarPosition {
-	SIDE = 'side',
+	DEFAULT = 'default',
 	TOP = 'top',
+	BOTTOM = 'bottom',
 	HIDDEN = 'hidden'
 }
 
@@ -68,7 +70,12 @@ export const enum EditorActionsLocation {
 export const enum Position {
 	LEFT,
 	RIGHT,
-	BOTTOM
+	BOTTOM,
+	TOP
+}
+
+export function isHorizontal(position: Position): boolean {
+	return position === Position.BOTTOM || position === Position.TOP;
 }
 
 export const enum PanelOpensMaximizedOptions {
@@ -84,6 +91,7 @@ export function positionToString(position: Position): string {
 		case Position.LEFT: return 'left';
 		case Position.RIGHT: return 'right';
 		case Position.BOTTOM: return 'bottom';
+		case Position.TOP: return 'top';
 		default: return 'bottom';
 	}
 }
@@ -91,7 +99,8 @@ export function positionToString(position: Position): string {
 const positionsByString: { [key: string]: Position } = {
 	[positionToString(Position.LEFT)]: Position.LEFT,
 	[positionToString(Position.RIGHT)]: Position.RIGHT,
-	[positionToString(Position.BOTTOM)]: Position.BOTTOM
+	[positionToString(Position.BOTTOM)]: Position.BOTTOM,
+	[positionToString(Position.TOP)]: Position.TOP
 };
 
 export function positionFromString(str: string): Position {
@@ -119,6 +128,12 @@ export function panelOpensMaximizedFromString(str: string): PanelOpensMaximizedO
 
 export type MULTI_WINDOW_PARTS = Parts.EDITOR_PART | Parts.STATUSBAR_PART | Parts.TITLEBAR_PART;
 export type SINGLE_WINDOW_PARTS = Exclude<Parts, MULTI_WINDOW_PARTS>;
+
+export function isMultiWindowPart(part: Parts): part is MULTI_WINDOW_PARTS {
+	return part === Parts.EDITOR_PART ||
+		part === Parts.STATUSBAR_PART ||
+		part === Parts.TITLEBAR_PART;
+}
 
 export interface IWorkbenchLayoutService extends ILayoutService {
 
@@ -284,6 +299,16 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	centerMainEditorLayout(active: boolean): void;
 
 	/**
+	 * Get the provided parts size in the main window.
+	 */
+	getSize(part: Parts): IViewSize;
+
+	/**
+	 * Set the provided parts size in the main window.
+	 */
+	setSize(part: Parts, size: IViewSize): void;
+
+	/**
 	 * Resize the provided part in the main window.
 	 */
 	resizePart(part: Parts, sizeChangeWidth: number, sizeChangeHeight: number): void;
@@ -291,7 +316,7 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	/**
 	 * Register a part to participate in the layout.
 	 */
-	registerPart(part: Part): void;
+	registerPart(part: Part): IDisposable;
 
 	/**
 	 * Returns whether the target window is maximized.
@@ -310,7 +335,6 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 }
 
 export function shouldShowCustomTitleBar(configurationService: IConfigurationService, window: Window, menuBarToggled?: boolean): boolean {
-
 	if (!hasCustomTitlebar(configurationService)) {
 		return false;
 	}
@@ -318,9 +342,11 @@ export function shouldShowCustomTitleBar(configurationService: IConfigurationSer
 	const inFullscreen = isFullscreen(window);
 	const nativeTitleBarEnabled = hasNativeTitlebar(configurationService);
 
-	const showCustomTitleBar = configurationService.getValue<CustomTitleBarVisibility>(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY);
-	if (showCustomTitleBar === CustomTitleBarVisibility.NEVER && nativeTitleBarEnabled || showCustomTitleBar === CustomTitleBarVisibility.WINDOWED && inFullscreen) {
-		return false;
+	if (!isWeb) {
+		const showCustomTitleBar = configurationService.getValue<CustomTitleBarVisibility>(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY);
+		if (showCustomTitleBar === CustomTitleBarVisibility.NEVER && nativeTitleBarEnabled || showCustomTitleBar === CustomTitleBarVisibility.WINDOWED && inFullscreen) {
+			return false;
+		}
 	}
 
 	if (!isTitleBarEmpty(configurationService)) {
@@ -365,13 +391,15 @@ export function shouldShowCustomTitleBar(configurationService: IConfigurationSer
 }
 
 function isTitleBarEmpty(configurationService: IConfigurationService): boolean {
+
 	// with the command center enabled, we should always show
 	if (configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER)) {
 		return false;
 	}
 
 	// with the activity bar on top, we should always show
-	if (configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP) {
+	const activityBarPosition = configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
+	if (activityBarPosition === ActivityBarPosition.TOP || activityBarPosition === ActivityBarPosition.BOTTOM) {
 		return false;
 	}
 

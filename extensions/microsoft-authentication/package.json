@@ -14,7 +14,8 @@
   ],
   "activationEvents": [],
   "enabledApiProposals": [
-    "idToken"
+    "idToken",
+    "nativeWindowHandle"
   ],
   "capabilities": {
     "virtualWorkspaces": true,
@@ -95,6 +96,27 @@
             ]
           }
         }
+      },
+      {
+        "title": "Microsoft",
+        "properties": {
+          "microsoft-authentication.implementation": {
+            "type": "string",
+            "default": "msal",
+            "enum": [
+              "msal",
+              "classic"
+            ],
+            "enumDescriptions": [
+              "%microsoft-authentication.implementation.enumDescriptions.msal%",
+              "%microsoft-authentication.implementation.enumDescriptions.classic%"
+            ],
+            "markdownDescription": "%microsoft-authentication.implementation.description%",
+            "tags": [
+              "onExP"
+            ]
+          }
+        }
       }
     ]
   },
@@ -109,16 +131,19 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "devDependencies": {
-    "@types/node": "18.x",
+    "@types/node": "20.x",
     "@types/node-fetch": "^2.5.7",
     "@types/randombytes": "^2.0.0",
     "@types/sha.js": "^2.4.0",
     "@types/uuid": "8.0.0"
   },
   "dependencies": {
-    "node-fetch": "2.6.7",
     "@azure/ms-rest-azure-env": "^2.0.0",
-    "@vscode/extension-telemetry": "^0.9.0"
+    "@azure/msal-node": "^2.16.2",
+    "@azure/msal-node-extensions": "^1.5.0",
+    "@vscode/extension-telemetry": "^0.9.8",
+    "keytar": "file:./packageMocks/keytar",
+    "vscode-tas-client": "^0.1.84"
   },
   "repository": {
     "type": "git",

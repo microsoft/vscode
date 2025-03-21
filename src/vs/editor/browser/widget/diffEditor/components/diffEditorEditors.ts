@@ -3,63 +3,65 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservable, IReader, autorunHandleChanges, observableFromEvent } from 'vs/base/common/observable';
-import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
-import { IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
-import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
-import { OverviewRulerFeature } from 'vs/editor/browser/widget/diffEditor/features/overviewRulerFeature';
-import { EditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IContentSizeChangedEvent } from 'vs/editor/common/editorCommon';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { DiffEditorOptions } from '../diffEditorOptions';
-import { ITextModel } from 'vs/editor/common/model';
-import { IDiffCodeEditorWidgetOptions } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
-import { Selection } from 'vs/editor/common/core/selection';
-import { Position } from 'vs/editor/common/core/position';
+import { Emitter } from '../../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { IReader, autorunHandleChanges, derived, derivedOpts, observableFromEvent } from '../../../../../base/common/observable.js';
+import { IEditorConstructionOptions } from '../../../config/editorConfiguration.js';
+import { IDiffEditorConstructionOptions } from '../../../editorBrowser.js';
+import { observableCodeEditor } from '../../../observableCodeEditor.js';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../codeEditor/codeEditorWidget.js';
+import { IDiffCodeEditorWidgetOptions } from '../diffEditorWidget.js';
+import { OverviewRulerFeature } from '../features/overviewRulerFeature.js';
+import { EditorOptions, IEditorOptions } from '../../../../common/config/editorOptions.js';
+import { Position } from '../../../../common/core/position.js';
+import { IContentSizeChangedEvent } from '../../../../common/editorCommon.js';
+import { localize } from '../../../../../nls.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { DiffEditorOptions } from '../diffEditorOptions.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 
 export class DiffEditorEditors extends Disposable {
-	public readonly modified: CodeEditorWidget;
-	public readonly original: CodeEditorWidget;
+	public readonly original = this._register(this._createLeftHandSideEditor(this._options.editorOptions.get(), this._argCodeEditorWidgetOptions.originalEditor || {}));
+	public readonly modified = this._register(this._createRightHandSideEditor(this._options.editorOptions.get(), this._argCodeEditorWidgetOptions.modifiedEditor || {}));
 
 	private readonly _onDidContentSizeChange = this._register(new Emitter<IContentSizeChangedEvent>());
 	public get onDidContentSizeChange() { return this._onDidContentSizeChange.event; }
 
-	public readonly modifiedScrollTop: IObservable<number>;
-	public readonly modifiedScrollHeight: IObservable<number>;
+	public readonly modifiedScrollTop = observableFromEvent(this, this.modified.onDidScrollChange, () => /** @description modified.getScrollTop */ this.modified.getScrollTop());
+	public readonly modifiedScrollHeight = observableFromEvent(this, this.modified.onDidScrollChange, () => /** @description modified.getScrollHeight */ this.modified.getScrollHeight());
 
-	public readonly modifiedModel: IObservable<ITextModel | null>;
+	public readonly modifiedObs = observableCodeEditor(this.modified);
+	public readonly originalObs = observableCodeEditor(this.original);
 
-	public readonly modifiedSelections: IObservable<Selection[]>;
-	public readonly modifiedCursor: IObservable<Position>;
+	public readonly modifiedModel = this.modifiedObs.model;
+
+	public readonly modifiedSelections = observableFromEvent(this, this.modified.onDidChangeCursorSelection, () => this.modified.getSelections() ?? []);
+	public readonly modifiedCursor = derivedOpts({ owner: this, equalsFn: Position.equals }, reader => this.modifiedSelections.read(reader)[0]?.getPosition() ?? new Position(1, 1));
+
+	public readonly originalCursor = observableFromEvent(this, this.original.onDidChangeCursorPosition, () => this.original.getPosition() ?? new Position(1, 1));
+
+	public readonly isOriginalFocused = observableCodeEditor(this.original).isFocused;
+	public readonly isModifiedFocused = observableCodeEditor(this.modified).isFocused;
+
+	public readonly isFocused = derived(this, reader => this.isOriginalFocused.read(reader) || this.isModifiedFocused.read(reader));
 
 	constructor(
 		private readonly originalEditorElement: HTMLElement,
 		private readonly modifiedEditorElement: HTMLElement,
 		private readonly _options: DiffEditorOptions,
-		codeEditorWidgetOptions: IDiffCodeEditorWidgetOptions,
+		private _argCodeEditorWidgetOptions: IDiffCodeEditorWidgetOptions,
 		private readonly _createInnerEditor: (instantiationService: IInstantiationService, container: HTMLElement, options: Readonly<IEditorOptions>, editorWidgetOptions: ICodeEditorWidgetOptions) => CodeEditorWidget,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		super();
 
-		this.original = this._register(this._createLeftHandSideEditor(_options.editorOptions.get(), codeEditorWidgetOptions.originalEditor || {}));
-		this.modified = this._register(this._createRightHandSideEditor(_options.editorOptions.get(), codeEditorWidgetOptions.modifiedEditor || {}));
-
-		this.modifiedModel = observableFromEvent(this.modified.onDidChangeModel, () => /** @description modified.model */ this.modified.getModel());
-
-		this.modifiedScrollTop = observableFromEvent(this.modified.onDidScrollChange, () => /** @description modified.getScrollTop */ this.modified.getScrollTop());
-		this.modifiedScrollHeight = observableFromEvent(this.modified.onDidScrollChange, () => /** @description modified.getScrollHeight */ this.modified.getScrollHeight());
-
-		this.modifiedSelections = observableFromEvent(this.modified.onDidChangeCursorSelection, () => this.modified.getSelections() ?? []);
-		this.modifiedCursor = observableFromEvent(this.modified.onDidChangeCursorPosition, () => this.modified.getPosition() ?? new Position(1, 1));
+		this._argCodeEditorWidgetOptions = null as any;
 
 		this._register(autorunHandleChanges({
-			createEmptyChangeSummary: () => ({} as IDiffEditorConstructionOptions),
+			createEmptyChangeSummary: (): IDiffEditorConstructionOptions => ({}),
 			handleChange: (ctx, changeSummary) => {
 				if (ctx.didChange(_options.editorOptions)) {
 					Object.assign(changeSummary, ctx.change.changedOptions);
@@ -80,14 +82,22 @@ export class DiffEditorEditors extends Disposable {
 	private _createLeftHandSideEditor(options: Readonly<IDiffEditorConstructionOptions>, codeEditorWidgetOptions: ICodeEditorWidgetOptions): CodeEditorWidget {
 		const leftHandSideOptions = this._adjustOptionsForLeftHandSide(undefined, options);
 		const editor = this._constructInnerEditor(this._instantiationService, this.originalEditorElement, leftHandSideOptions, codeEditorWidgetOptions);
-		editor.setContextValue('isInDiffLeftEditor', true);
+
+		const isInDiffLeftEditorKey = this._contextKeyService.createKey<boolean>('isInDiffLeftEditor', editor.hasWidgetFocus());
+		this._register(editor.onDidFocusEditorWidget(() => isInDiffLeftEditorKey.set(true)));
+		this._register(editor.onDidBlurEditorWidget(() => isInDiffLeftEditorKey.set(false)));
+
 		return editor;
 	}
 
 	private _createRightHandSideEditor(options: Readonly<IDiffEditorConstructionOptions>, codeEditorWidgetOptions: ICodeEditorWidgetOptions): CodeEditorWidget {
 		const rightHandSideOptions = this._adjustOptionsForRightHandSide(undefined, options);
 		const editor = this._constructInnerEditor(this._instantiationService, this.modifiedEditorElement, rightHandSideOptions, codeEditorWidgetOptions);
-		editor.setContextValue('isInDiffRightEditor', true);
+
+		const isInDiffRightEditorKey = this._contextKeyService.createKey<boolean>('isInDiffRightEditor', editor.hasWidgetFocus());
+		this._register(editor.onDidFocusEditorWidget(() => isInDiffRightEditorKey.set(true)));
+		this._register(editor.onDidBlurEditorWidget(() => isInDiffRightEditorKey.set(false)));
+
 		return editor;
 	}
 

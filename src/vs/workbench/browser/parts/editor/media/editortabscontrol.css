@@ -11,8 +11,13 @@
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .title-label,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label {
-	white-space: nowrap;
+	white-space: nowrap !important;
 	flex: 1;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .title-label .label-name,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label .label-name {
+	white-space: nowrap;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .title-label a,
@@ -36,14 +41,4 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .monaco-icon-label::after,
 .monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .monaco-icon-label::after {
 	margin-right: 0; /* by default the icon label has a padding right and this isn't wanted when not showing tabs and not showing breadcrumbs */
-}
-
-/* Drag and Drop */
-
-.monaco-editor-group-drag-image {
-	display: inline-block;
-	padding: 1px 7px;
-	border-radius: 10px;
-	font-size: 12px;
-	position: absolute;
 }

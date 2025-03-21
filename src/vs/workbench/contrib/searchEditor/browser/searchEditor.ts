@@ -3,65 +3,68 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { alert } from 'vs/base/browser/ui/aria/aria';
-import { Delayer } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { assertIsDefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import 'vs/css!./media/searchEditor';
-import { ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICodeEditorViewState } from 'vs/editor/common/editorCommon';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { ReferencesController } from 'vs/editor/contrib/gotoSymbol/browser/peek/referencesController';
-import { localize } from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IEditorProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { inputBorder, registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { AbstractTextCodeEditor } from 'vs/workbench/browser/parts/editor/textCodeEditor';
-import { EditorInputCapabilities, IEditorOpenContext } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { ExcludePatternInputWidget, IncludePatternInputWidget } from 'vs/workbench/contrib/search/browser/patternInputWidget';
-import { SearchWidget } from 'vs/workbench/contrib/search/browser/searchWidget';
-import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
-import { getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
-import { SearchModel, SearchResult } from 'vs/workbench/contrib/search/browser/searchModel';
-import { InSearchEditor, SearchEditorID, SearchEditorInputTypeId } from 'vs/workbench/contrib/searchEditor/browser/constants';
-import type { SearchConfiguration, SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
-import { serializeSearchResultForEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ITextQuery, SearchSortOrder } from 'vs/workbench/services/search/common/search';
-import { searchDetailsIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { TextSearchCompleteMessage } from 'vs/workbench/services/search/common/searchExtTypes';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { renderSearchMessage } from 'vs/workbench/contrib/search/browser/searchMessage';
-import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
-import { UnusualLineTerminatorsDetector } from 'vs/editor/contrib/unusualLineTerminators/browser/unusualLineTerminators';
-import { defaultToggleStyles, getInputBoxStyle } from 'vs/platform/theme/browser/defaultStyles';
-import { ILogService } from 'vs/platform/log/common/log';
-import { SearchContext } from 'vs/workbench/contrib/search/common/constants';
+import * as DOM from '../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { alert } from '../../../../base/browser/ui/aria/aria.js';
+import { Delayer } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { assertIsDefined } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
+import './media/searchEditor.css';
+import { ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { Position } from '../../../../editor/common/core/position.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { Selection } from '../../../../editor/common/core/selection.js';
+import { ICodeEditorViewState } from '../../../../editor/common/editorCommon.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { ReferencesController } from '../../../../editor/contrib/gotoSymbol/browser/peek/referencesController.js';
+import { localize } from '../../../../nls.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { IEditorProgressService, LongRunningOperation } from '../../../../platform/progress/common/progress.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { inputBorder, registerColor } from '../../../../platform/theme/common/colorRegistry.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { AbstractTextCodeEditor } from '../../../browser/parts/editor/textCodeEditor.js';
+import { EditorInputCapabilities, IEditorOpenContext } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { ExcludePatternInputWidget, IncludePatternInputWidget } from '../../search/browser/patternInputWidget.js';
+import { SearchWidget } from '../../search/browser/searchWidget.js';
+import { ITextQueryBuilderOptions, QueryBuilder } from '../../../services/search/common/queryBuilder.js';
+import { getOutOfWorkspaceEditorResources } from '../../search/common/search.js';
+import { SearchModelImpl } from '../../search/browser/searchTreeModel/searchModel.js';
+import { InSearchEditor, SearchEditorID, SearchEditorInputTypeId, SearchConfiguration } from './constants.js';
+import type { SearchEditorInput } from './searchEditorInput.js';
+import { serializeSearchResultForEditor } from './searchEditorSerialization.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ITextQuery, SearchSortOrder } from '../../../services/search/common/search.js';
+import { searchDetailsIcon } from '../../search/browser/searchIcons.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { TextSearchCompleteMessage } from '../../../services/search/common/searchExtTypes.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { renderSearchMessage } from '../../search/browser/searchMessage.js';
+import { EditorExtensionsRegistry, IEditorContributionDescription } from '../../../../editor/browser/editorExtensions.js';
+import { UnusualLineTerminatorsDetector } from '../../../../editor/contrib/unusualLineTerminators/browser/unusualLineTerminators.js';
+import { defaultToggleStyles, getInputBoxStyle } from '../../../../platform/theme/browser/defaultStyles.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { SearchContext } from '../../search/common/constants.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { ISearchResult } from '../../search/browser/searchTreeModel/searchTreeCommon.js';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(: |  )(\s*)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
@@ -88,13 +91,14 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 	private showingIncludesExcludes: boolean = false;
 	private searchOperation: LongRunningOperation;
 	private searchHistoryDelayer: Delayer<void>;
-	private messageDisposables: DisposableStore;
+	private readonly messageDisposables: DisposableStore;
 	private container: HTMLElement;
-	private searchModel: SearchModel;
+	private searchModel: SearchModelImpl;
 	private ongoingOperations: number = 0;
 	private updatingModelForSearch: boolean = false;
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
@@ -112,9 +116,10 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		@IEditorService editorService: IEditorService,
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@IFileService fileService: IFileService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IHoverService private readonly hoverService: IHoverService
 	) {
-		super(SearchEditor.ID, telemetryService, instantiationService, storageService, textResourceService, themeService, editorService, editorGroupService, fileService);
+		super(SearchEditor.ID, group, telemetryService, instantiationService, storageService, textResourceService, themeService, editorService, editorGroupService, fileService);
 		this.container = DOM.$('.search-editor');
 
 		this.searchOperation = this._register(new LongRunningOperation(progressService));
@@ -122,7 +127,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 
 		this.searchHistoryDelayer = new Delayer<void>(2000);
 
-		this.searchModel = this._register(this.instantiationService.createInstance(SearchModel));
+		this.searchModel = this._register(this.instantiationService.createInstance(SearchModelImpl));
 	}
 
 	protected override createEditor(parent: HTMLElement) {
@@ -137,7 +142,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 
 		this.createQueryEditor(
 			this.queryEditorContainer,
-			this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])),
+			this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]))),
 			SearchContext.InputBoxFocusedKey.bindTo(scopedContextKeyService)
 		);
 	}
@@ -161,7 +166,9 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		this.includesExcludesContainer = DOM.append(container, DOM.$('.includes-excludes'));
 
 		// Toggle query details button
-		this.toggleQueryDetailsButton = DOM.append(this.includesExcludesContainer, DOM.$('.expand' + ThemeIcon.asCSSSelector(searchDetailsIcon), { tabindex: 0, role: 'button', title: localize('moreSearch', "Toggle Search Details") }));
+		const toggleQueryDetailsLabel = localize('moreSearch', "Toggle Search Details");
+		this.toggleQueryDetailsButton = DOM.append(this.includesExcludesContainer, DOM.$('.expand' + ThemeIcon.asCSSSelector(searchDetailsIcon), { tabindex: 0, role: 'button', 'aria-label': toggleQueryDetailsLabel }));
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this.toggleQueryDetailsButton, toggleQueryDetailsLabel));
 		this._register(DOM.addDisposableListener(this.toggleQueryDetailsButton, DOM.EventType.CLICK, e => {
 			DOM.EventHelper.stop(e);
 			this.toggleIncludesExcludes();
@@ -194,7 +201,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 			ariaLabel: localize('label.includes', 'Search Include Patterns'),
 			inputBoxStyles: searchEditorInputboxStyles
 		}));
-		this.inputPatternIncludes.onSubmit(triggeredOnType => this.triggerSearch({ resetCursor: false, delay: triggeredOnType ? this.searchConfig.searchOnTypeDebouncePeriod : 0 }));
+		this._register(this.inputPatternIncludes.onSubmit(triggeredOnType => this.triggerSearch({ resetCursor: false, delay: triggeredOnType ? this.searchConfig.searchOnTypeDebouncePeriod : 0 })));
 		this._register(this.inputPatternIncludes.onChangeSearchInEditorsBox(() => this.triggerSearch()));
 
 		// Excludes
@@ -205,7 +212,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 			ariaLabel: localize('label.excludes', 'Search Exclude Patterns'),
 			inputBoxStyles: searchEditorInputboxStyles
 		}));
-		this.inputPatternExcludes.onSubmit(triggeredOnType => this.triggerSearch({ resetCursor: false, delay: triggeredOnType ? this.searchConfig.searchOnTypeDebouncePeriod : 0 }));
+		this._register(this.inputPatternExcludes.onSubmit(triggeredOnType => this.triggerSearch({ resetCursor: false, delay: triggeredOnType ? this.searchConfig.searchOnTypeDebouncePeriod : 0 })));
 		this._register(this.inputPatternExcludes.onChangeIgnoreBox(() => this.triggerSearch()));
 
 		// Messages
@@ -244,8 +251,18 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 	}
 
 	private registerEditorListeners() {
-		this.searchResultEditor.onMouseUp(e => {
-			if (e.event.detail === 2) {
+		this._register(this.searchResultEditor.onMouseUp(e => {
+			if (e.event.detail === 1) {
+				const behaviour = this.searchConfig.searchEditor.singleClickBehaviour;
+				const position = e.target.position;
+				if (position && behaviour === 'peekDefinition') {
+					const line = this.searchResultEditor.getModel()?.getLineContent(position.lineNumber) ?? '';
+					if (line.match(FILE_LINE_REGEX) || line.match(RESULT_LINE_REGEX)) {
+						this.searchResultEditor.setSelection(Range.fromPositions(position));
+						this.commandService.executeCommand('editor.action.peekDefinition');
+					}
+				}
+			} else if (e.event.detail === 2) {
 				const behaviour = this.searchConfig.searchEditor.doubleClickBehaviour;
 				const position = e.target.position;
 				if (position && behaviour !== 'selectWord') {
@@ -259,7 +276,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 					}
 				}
 			}
-		});
+		}));
 		this._register(this.searchResultEditor.onDidChangeModelContent(() => {
 			if (!this.updatingModelForSearch) {
 				this.getInput()?.setDirty(true);
@@ -437,6 +454,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		if (!matchRanges) { return; }
 
 		const matchRange = (reverse ? findPrevRange : findNextRange)(matchRanges, currentPosition);
+		if (!matchRange) { return; }
 
 		this.searchResultEditor.setSelection(matchRange);
 		this.searchResultEditor.revealLineInCenterIfOutsideViewport(matchRange.startLineNumber);
@@ -468,7 +486,20 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 	}
 
 	async triggerSearch(_options?: { resetCursor?: boolean; delay?: number; focusResults?: boolean }) {
+		const focusResults = this.searchConfig.searchEditor.focusResultsOnSearch;
+
+		// If _options don't define focusResult field, then use the setting
+		if (_options === undefined) {
+			_options = { focusResults: focusResults };
+		} else if (_options.focusResults === undefined) {
+			_options.focusResults = focusResults;
+		}
+
 		const options = { resetCursor: true, delay: 0, ..._options };
+
+		if (!(this.queryEditorWidget.searchInput?.inputBox.isInputValid())) {
+			return;
+		}
 
 		if (!this.pauseSearching) {
 			await this.runSearchDelayer.trigger(async () => {
@@ -535,15 +566,14 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 			maxResults: this.searchConfig.maxResults ?? undefined,
 			disregardIgnoreFiles: !config.useExcludeSettingsAndIgnoreFiles || undefined,
 			disregardExcludeSettings: !config.useExcludeSettingsAndIgnoreFiles || undefined,
-			excludePattern: config.filesToExclude,
+			excludePattern: [{ pattern: config.filesToExclude }],
 			includePattern: config.filesToInclude,
 			onlyOpenEditors: config.onlyOpenEditors,
 			previewOptions: {
 				matchLines: 1,
 				charsPerLine: 1000
 			},
-			afterContext: config.contextLines,
-			beforeContext: config.contextLines,
+			surroundingContext: config.contextLines,
 			isSmartCase: this.searchConfig.smartCase,
 			expandPatterns: true,
 			notebookSearchConfig: {
@@ -627,7 +657,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		DOM.append(messageBox, renderSearchMessage(message, this.instantiationService, this.notificationService, this.openerService, this.commandService, this.messageDisposables, () => this.triggerSearch()));
 	}
 
-	private async retrieveFileStats(searchResult: SearchResult): Promise<void> {
+	private async retrieveFileStats(searchResult: ISearchResult): Promise<void> {
 		const files = searchResult.matches().filter(f => !f.fileStat).map(f => f.resolveFileStat(this.fileService));
 		await Promise.all(files);
 	}
@@ -655,7 +685,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 	}
 
 	private getInput(): SearchEditorInput | undefined {
-		return this._input as SearchEditorInput;
+		return this.input as SearchEditorInput;
 	}
 
 	private priorConfig: Partial<Readonly<SearchConfiguration>> | undefined;
@@ -761,7 +791,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 	}
 }
 
-const searchEditorTextInputBorder = registerColor('searchEditor.textInputBorder', { dark: inputBorder, light: inputBorder, hcDark: inputBorder, hcLight: inputBorder }, localize('textInputBoxBorder', "Search editor text input box border."));
+const searchEditorTextInputBorder = registerColor('searchEditor.textInputBorder', inputBorder, localize('textInputBoxBorder', "Search editor text input box border."));
 
 function findNextRange(matchRanges: Range[], currentPosition: Position) {
 	for (const matchRange of matchRanges) {

@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as async from 'vs/base/common/async';
-import * as MicrotaskDelay from "vs/base/common/symbols";
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { isCancellationError } from 'vs/base/common/errors';
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import assert from 'assert';
+import * as async from '../../common/async.js';
+import * as MicrotaskDelay from "../../common/symbols.js";
+import { CancellationToken, CancellationTokenSource } from '../../common/cancellation.js';
+import { isCancellationError } from '../../common/errors.js';
+import { Event } from '../../common/event.js';
+import { URI } from '../../common/uri.js';
+import { runWithFakedTimers } from './timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
+import { DisposableStore } from '../../common/lifecycle.js';
 
 suite('Async', () => {
 
@@ -651,26 +651,28 @@ suite('Async', () => {
 		});
 
 		test('order is kept', function () {
-			const queue = new async.Queue();
+			return runWithFakedTimers({}, () => {
+				const queue = new async.Queue();
 
-			const res: number[] = [];
+				const res: number[] = [];
 
-			const f1 = () => Promise.resolve(true).then(() => res.push(1));
-			const f2 = () => async.timeout(10).then(() => res.push(2));
-			const f3 = () => Promise.resolve(true).then(() => res.push(3));
-			const f4 = () => async.timeout(20).then(() => res.push(4));
-			const f5 = () => async.timeout(0).then(() => res.push(5));
+				const f1 = () => Promise.resolve(true).then(() => res.push(1));
+				const f2 = () => async.timeout(10).then(() => res.push(2));
+				const f3 = () => Promise.resolve(true).then(() => res.push(3));
+				const f4 = () => async.timeout(20).then(() => res.push(4));
+				const f5 = () => async.timeout(0).then(() => res.push(5));
 
-			queue.queue(f1);
-			queue.queue(f2);
-			queue.queue(f3);
-			queue.queue(f4);
-			return queue.queue(f5).then(() => {
-				assert.strictEqual(res[0], 1);
-				assert.strictEqual(res[1], 2);
-				assert.strictEqual(res[2], 3);
-				assert.strictEqual(res[3], 4);
-				assert.strictEqual(res[4], 5);
+				queue.queue(f1);
+				queue.queue(f2);
+				queue.queue(f3);
+				queue.queue(f4);
+				return queue.queue(f5).then(() => {
+					assert.strictEqual(res[0], 1);
+					assert.strictEqual(res[1], 2);
+					assert.strictEqual(res[2], 3);
+					assert.strictEqual(res[3], 4);
+					assert.strictEqual(res[4], 5);
+				});
 			});
 		});
 
@@ -1517,6 +1519,44 @@ suite('Async', () => {
 			assert.strictEqual(worker.pending, 0);
 			assert.strictEqual(worked, false);
 		});
+
+		//  https://github.com/microsoft/vscode/issues/230366
+		// 	test('waitThrottleDelayBetweenWorkUnits option', async () => {
+		// 		const handled: number[] = [];
+		// 		let handledCallback: Function;
+		// 		let handledPromise = new Promise(resolve => handledCallback = resolve);
+		// 		let currentTime = 0;
+
+		// 		const handler = (units: readonly number[]) => {
+		// 			handled.push(...units);
+		// 			handledCallback();
+		// 			handledPromise = new Promise(resolve => handledCallback = resolve);
+		// 		};
+
+		// 		const worker = store.add(new async.ThrottledWorker<number>({
+		// 			maxWorkChunkSize: 5,
+		// 			maxBufferedWork: undefined,
+		// 			throttleDelay: 5,
+		// 			waitThrottleDelayBetweenWorkUnits: true
+		// 		}, handler));
+
+		// 		// Schedule work, it should execute immediately
+		// 		currentTime = Date.now();
+		// 		let worked = worker.work([1, 2, 3]);
+		// 		assert.strictEqual(worked, true);
+		// 		assertArrayEquals(handled, [1, 2, 3]);
+		// 		assert.strictEqual(Date.now() - currentTime < 5, true);
+
+		// 		// Schedule work again, it should wait at least throttle delay before executing
+		// 		currentTime = Date.now();
+		// 		worked = worker.work([4, 5]);
+		// 		assert.strictEqual(worked, true);
+		// 		// Throttle delay hasn't reset so we still must wait
+		// 		assertArrayEquals(handled, [1, 2, 3]);
+		// 		await handledPromise;
+		// 		assert.strictEqual(Date.now() - currentTime >= 5, true);
+		// 		assertArrayEquals(handled, [1, 2, 3, 4, 5]);
+		// 	});
 	});
 
 	suite('LimitedQueue', () => {
@@ -1554,6 +1594,125 @@ suite('Async', () => {
 
 			// only the last task executed
 			assert.strictEqual(counter, 4);
+		});
+	});
+
+	suite('AsyncIterableObject', function () {
+
+
+		test('onReturn NOT called', async function () {
+
+			let calledOnReturn = false;
+			const iter = new async.AsyncIterableObject<number>(writer => {
+				writer.emitMany([1, 2, 3, 4, 5]);
+			}, () => {
+				calledOnReturn = true;
+			});
+
+			for await (const item of iter) {
+				assert.strictEqual(typeof item, 'number');
+			}
+
+			assert.strictEqual(calledOnReturn, false);
+
+		});
+
+		test('onReturn called on break', async function () {
+
+			let calledOnReturn = false;
+			const iter = new async.AsyncIterableObject<number>(writer => {
+				writer.emitMany([1, 2, 3, 4, 5]);
+			}, () => {
+				calledOnReturn = true;
+			});
+
+			for await (const item of iter) {
+				assert.strictEqual(item, 1);
+				break;
+			}
+
+			assert.strictEqual(calledOnReturn, true);
+
+		});
+
+		test('onReturn called on return', async function () {
+
+			let calledOnReturn = false;
+			const iter = new async.AsyncIterableObject<number>(writer => {
+				writer.emitMany([1, 2, 3, 4, 5]);
+			}, () => {
+				calledOnReturn = true;
+			});
+
+			await (async function test() {
+				for await (const item of iter) {
+					assert.strictEqual(item, 1);
+					return;
+				}
+			})();
+
+
+			assert.strictEqual(calledOnReturn, true);
+
+		});
+
+
+		test('onReturn called on throwing', async function () {
+
+			let calledOnReturn = false;
+			const iter = new async.AsyncIterableObject<number>(writer => {
+				writer.emitMany([1, 2, 3, 4, 5]);
+			}, () => {
+				calledOnReturn = true;
+			});
+
+			try {
+				for await (const item of iter) {
+					assert.strictEqual(item, 1);
+					throw new Error();
+				}
+			} catch (e) {
+
+			}
+
+			assert.strictEqual(calledOnReturn, true);
+		});
+	});
+
+	suite('AsyncIterableSource', function () {
+
+		test('onReturn is wired up', async function () {
+			let calledOnReturn = false;
+			const source = new async.AsyncIterableSource<number>(() => { calledOnReturn = true; });
+
+			source.emitOne(1);
+			source.emitOne(2);
+			source.emitOne(3);
+			source.resolve();
+
+			for await (const item of source.asyncIterable) {
+				assert.strictEqual(item, 1);
+				break;
+			}
+
+			assert.strictEqual(calledOnReturn, true);
+
+		});
+
+		test('onReturn is wired up 2', async function () {
+			let calledOnReturn = false;
+			const source = new async.AsyncIterableSource<number>(() => { calledOnReturn = true; });
+
+			source.emitOne(1);
+			source.emitOne(2);
+			source.emitOne(3);
+			source.resolve();
+
+			for await (const item of source.asyncIterable) {
+				assert.strictEqual(typeof item, 'number');
+			}
+
+			assert.strictEqual(calledOnReturn, false);
 		});
 	});
 });

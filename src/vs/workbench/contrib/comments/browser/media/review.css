@@ -183,7 +183,7 @@
 	border: none;
 }
 
-.review-widget .body .review-comment .review-comment-contents .comment-reactions:hover .action-item a.action-label.toolbar-toggle-pickReactions {
+.review-widget .body .review-comment .review-comment-contents:hover .comment-reactions .action-item a.action-label.toolbar-toggle-pickReactions {
 	display: inline-block;
 	background-size: 16px;
 }
@@ -213,7 +213,7 @@
 	background-color: var(--vscode-statusBarItem-activeBackground);
 	border: 1px solid transparent;
 }
-.review-widget .body .review-comment .review-comment-contents a {
+.review-widget .body .review-comment .review-comment-contents .comment-body a {
 	cursor: pointer;
 }
 
@@ -242,11 +242,6 @@
 
 .review-widget .body .comment-body li > ul {
 	margin-top: 0;
-}
-
-.review-widget .body .comment-body code {
-	border-radius: 3px;
-	padding: 0 0.4em;
 }
 
 .review-widget .body .comment-body span {
@@ -386,7 +381,7 @@
 	margin-right: 12px;
 }
 
-.review-widget .body .comment-form .monaco-text-button,
+.review-widget .body .comment-form .form-actions .monaco-text-button,
 .review-widget .body .edit-container .monaco-text-button {
 	width: auto;
 	padding: 4px 10px;
@@ -530,7 +525,8 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 
 .monaco-editor .margin-view-overlays > div:hover > .comment-range-glyph.comment-diff-added:before,
 .monaco-editor .margin-view-overlays .comment-range-glyph.line-hover:before {
-	content: "\ea60";
+	content: var(--vscode-icon-plus-content);
+	font-family: var(--vscode-icon-plus-font-family);
 	font-family: "codicon";
 	border-radius: 3px;
 	width: 18px !important;
@@ -557,11 +553,13 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 }
 
 .monaco-editor .comment-range-glyph.comment-thread:before {
-	content: "\ea6b";
+	content: var(--vscode-icon-comment-add-content);
+	font-family: var(--vscode-icon-comment-add-font-family);
 
 }
 .monaco-editor .comment-range-glyph.comment-thread-unresolved:before {
-	content: "\ec0a";
+	content: var(--vscode-icon-comment-unresolved-content);
+	font-family: var(--vscode-icon-comment-unresolved-font-family);
 }
 
 .monaco-editor.inline-comment .margin-view-overlays .codicon-folding-expanded,

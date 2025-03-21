@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SequencerByKey } from 'vs/base/common/async';
-import { IEncryptionService } from 'vs/platform/encryption/common/encryptionService';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ISecretStorageProvider, ISecretStorageService, BaseSecretStorageService } from 'vs/platform/secrets/common/secrets';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
+import { SequencerByKey } from '../../../../base/common/async.js';
+import { IEncryptionService } from '../../../../platform/encryption/common/encryptionService.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { ISecretStorageProvider, ISecretStorageService, BaseSecretStorageService } from '../../../../platform/secrets/common/secrets.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
 
 export class BrowserSecretStorageService extends BaseSecretStorageService {
 

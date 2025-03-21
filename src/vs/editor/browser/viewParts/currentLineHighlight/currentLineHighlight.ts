@@ -3,22 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./currentLineHighlight';
-import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
-import { editorLineHighlight, editorLineHighlightBorder } from 'vs/editor/common/core/editorColorRegistry';
-import { RenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import * as arrays from 'vs/base/common/arrays';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { Selection } from 'vs/editor/common/core/selection';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { isHighContrast } from 'vs/platform/theme/common/theme';
-import { Position } from 'vs/editor/common/core/position';
+import './currentLineHighlight.css';
+import { DynamicViewOverlay } from '../../view/dynamicViewOverlay.js';
+import { editorLineHighlight, editorLineHighlightBorder } from '../../../common/core/editorColorRegistry.js';
+import { RenderingContext } from '../../view/renderingContext.js';
+import { ViewContext } from '../../../common/viewModel/viewContext.js';
+import * as viewEvents from '../../../common/viewEvents.js';
+import * as arrays from '../../../../base/common/arrays.js';
+import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
+import { Selection } from '../../../common/core/selection.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { isHighContrast } from '../../../../platform/theme/common/theme.js';
+import { Position } from '../../../common/core/position.js';
 
 export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 	private readonly _context: ViewContext;
-	protected _lineHeight: number;
 	protected _renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
 	protected _wordWrap: boolean;
 	protected _contentLeft: number;
@@ -39,7 +38,6 @@ export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
-		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._renderLineHighlight = options.get(EditorOption.renderLineHighlight);
 		this._renderLineHighlightOnlyWhenFocus = options.get(EditorOption.renderLineHighlightOnlyWhenFocus);
 		this._wordWrap = layoutInfo.isViewportWrapping;
@@ -89,7 +87,6 @@ export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
-		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._renderLineHighlight = options.get(EditorOption.renderLineHighlight);
 		this._renderLineHighlightOnlyWhenFocus = options.get(EditorOption.renderLineHighlightOnlyWhenFocus);
 		this._wordWrap = layoutInfo.isViewportWrapping;
@@ -204,11 +201,14 @@ export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 	protected abstract _renderOne(ctx: RenderingContext, exact: boolean): string;
 }
 
+/**
+ * Emphasizes the current line by drawing a border around it.
+ */
 export class CurrentLineHighlightOverlay extends AbstractLineHighlightOverlay {
 
 	protected _renderOne(ctx: RenderingContext, exact: boolean): string {
 		const className = 'current-line' + (this._shouldRenderInMargin() ? ' current-line-both' : '') + (exact ? ' current-line-exact' : '');
-		return `<div class="${className}" style="width:${Math.max(ctx.scrollWidth, this._contentWidth)}px; height:${this._lineHeight}px;"></div>`;
+		return `<div class="${className}" style="width:${Math.max(ctx.scrollWidth, this._contentWidth)}px;"></div>`;
 	}
 	protected _shouldRenderThis(): boolean {
 		return this._shouldRenderInContent();
@@ -218,10 +218,13 @@ export class CurrentLineHighlightOverlay extends AbstractLineHighlightOverlay {
 	}
 }
 
+/**
+ * Emphasizes the current line margin/gutter by drawing a border around it.
+ */
 export class CurrentLineMarginHighlightOverlay extends AbstractLineHighlightOverlay {
 	protected _renderOne(ctx: RenderingContext, exact: boolean): string {
 		const className = 'current-line' + (this._shouldRenderInMargin() ? ' current-line-margin' : '') + (this._shouldRenderOther() ? ' current-line-margin-both' : '') + (this._shouldRenderInMargin() && exact ? ' current-line-exact-margin' : '');
-		return `<div class="${className}" style="width:${this._contentLeft}px; height:${this._lineHeight}px;"></div>`;
+		return `<div class="${className}" style="width:${this._contentLeft}px"></div>`;
 	}
 	protected _shouldRenderThis(): boolean {
 		return true;

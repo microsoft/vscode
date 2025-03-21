@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
-import { ShutdownReason, ILifecycleService, IWillShutdownEventJoiner } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { ILogService } from 'vs/platform/log/common/log';
-import { AbstractLifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycleService';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { Promises, disposableTimeout, raceCancellation } from 'vs/base/common/async';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { handleVetos } from '../../../../platform/lifecycle/common/lifecycle.js';
+import { ShutdownReason, ILifecycleService, IWillShutdownEventJoiner, WillShutdownJoinerOrder } from '../common/lifecycle.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { ipcRenderer } from '../../../../base/parts/sandbox/electron-sandbox/globals.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { AbstractLifecycleService } from '../common/lifecycleService.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { Promises, disposableTimeout, raceCancellation } from '../../../../base/common/async.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 
 export class NativeLifecycleService extends AbstractLifecycleService {
 
@@ -154,20 +154,27 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 	}
 
 	protected async handleWillShutdown(reason: ShutdownReason): Promise<void> {
+		this._willShutdown = true;
+
 		const joiners: Promise<void>[] = [];
+		const lastJoiners: (() => Promise<void>)[] = [];
 		const pendingJoiners = new Set<IWillShutdownEventJoiner>();
 		const cts = new CancellationTokenSource();
-
 		this._onWillShutdown.fire({
 			reason,
 			token: cts.token,
 			joiners: () => Array.from(pendingJoiners.values()),
-			join(promise, joiner) {
-				joiners.push(promise);
-
-				// Track promise completion
+			join(promiseOrPromiseFn, joiner) {
 				pendingJoiners.add(joiner);
-				promise.finally(() => pendingJoiners.delete(joiner));
+
+				if (joiner.order === WillShutdownJoinerOrder.Last) {
+					const promiseFn = typeof promiseOrPromiseFn === 'function' ? promiseOrPromiseFn : () => promiseOrPromiseFn;
+					lastJoiners.push(() => promiseFn().finally(() => pendingJoiners.delete(joiner)));
+				} else {
+					const promise = typeof promiseOrPromiseFn === 'function' ? promiseOrPromiseFn() : promiseOrPromiseFn;
+					promise.finally(() => pendingJoiners.delete(joiner));
+					joiners.push(promise);
+				}
 			},
 			force: () => {
 				cts.dispose(true);
@@ -181,10 +188,16 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 		try {
 			await raceCancellation(Promises.settled(joiners), cts.token);
 		} catch (error) {
-			this.logService.error(`[lifecycle]: Error during will-shutdown phase (error: ${toErrorMessage(error)})`); // this error will not prevent the shutdown
-		} finally {
-			longRunningWillShutdownWarning.dispose();
+			this.logService.error(`[lifecycle]: Error during will-shutdown phase in default joiners (error: ${toErrorMessage(error)})`);
 		}
+
+		try {
+			await raceCancellation(Promises.settled(lastJoiners.map(lastJoiner => lastJoiner())), cts.token);
+		} catch (error) {
+			this.logService.error(`[lifecycle]: Error during will-shutdown phase in last joiners (error: ${toErrorMessage(error)})`);
+		}
+
+		longRunningWillShutdownWarning.dispose();
 	}
 
 	shutdown(): Promise<void> {

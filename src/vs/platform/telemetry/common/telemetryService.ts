@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { mixin } from 'vs/base/common/objects';
-import { isWeb } from 'vs/base/common/platform';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import product from 'vs/platform/product/common/product';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
-import { ITelemetryData, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SECTION_ID, TELEMETRY_SETTING_ID, ICommonProperties } from 'vs/platform/telemetry/common/telemetry';
-import { cleanData, getTelemetryLevel, ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { mixin } from '../../../base/common/objects.js';
+import { isWeb } from '../../../base/common/platform.js';
+import { escapeRegExpCharacters } from '../../../base/common/strings.js';
+import { localize } from '../../../nls.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
+import product from '../../product/common/product.js';
+import { IProductService } from '../../product/common/productService.js';
+import { Registry } from '../../registry/common/platform.js';
+import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from './gdprTypings.js';
+import { ITelemetryData, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SECTION_ID, TELEMETRY_SETTING_ID, ICommonProperties } from './telemetry.js';
+import { cleanData, getTelemetryLevel, ITelemetryAppender } from './telemetryUtils.js';
 
 export interface ITelemetryServiceConfig {
 	appenders: ITelemetryAppender[];
@@ -34,6 +34,7 @@ export class TelemetryService implements ITelemetryService {
 	readonly sessionId: string;
 	readonly machineId: string;
 	readonly sqmId: string;
+	readonly devDeviceId: string;
 	readonly firstSessionDate: string;
 	readonly msftInternal: boolean | undefined;
 
@@ -58,6 +59,7 @@ export class TelemetryService implements ITelemetryService {
 		this.sessionId = this._commonProperties['sessionID'] as string;
 		this.machineId = this._commonProperties['common.machineId'] as string;
 		this.sqmId = this._commonProperties['common.sqmId'] as string;
+		this.devDeviceId = this._commonProperties['common.devDeviceId'] as string;
 		this.firstSessionDate = this._commonProperties['common.firstSessionDate'] as string;
 		this.msftInternal = this._commonProperties['common.msftInternal'] as boolean | undefined;
 
@@ -174,11 +176,11 @@ function getTelemetryLevelSettingDescription(): string {
 	const telemetryTableDescription = localize('telemetry.telemetryLevel.tableDescription', "The following table outlines the data sent with each setting:");
 	const telemetryTable = `
 |       | ${crashReportsHeader} | ${errorsHeader} | ${usageHeader} |
-|:------|:---------------------:|:---------------:|:--------------:|
-| all   |            ✓          |        ✓        |        ✓       |
-| error |            ✓          |        ✓        |        -       |
-| crash |            ✓          |        -        |        -       |
-| off   |            -          |        -        |        -       |
+|:------|:-------------:|:---------------:|:----------:|
+| all   |       ✓       |        ✓        |     ✓      |
+| error |       ✓       |        ✓        |     -      |
+| crash |       ✓       |        -        |     -      |
+| off   |       -       |        -        |     -      |
 `;
 
 	const deprecatedSettingNote = localize('telemetry.telemetryLevel.deprecated', "****Note:*** If this setting is 'off', no telemetry will be sent regardless of other telemetry settings. If this setting is set to anything except 'off' and telemetry is disabled with deprecated settings, no telemetry will be sent.*");
@@ -198,7 +200,8 @@ ${deprecatedSettingNote}
 	return telemetryDescription;
 }
 
-Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+configurationRegistry.registerConfiguration({
 	'id': TELEMETRY_SECTION_ID,
 	'order': 1,
 	'type': 'object',
@@ -217,18 +220,23 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			'default': TelemetryConfiguration.ON,
 			'restricted': true,
 			'scope': ConfigurationScope.APPLICATION,
-			'tags': ['usesOnlineServices', 'telemetry']
-		}
-	}
-});
-
-// Deprecated telemetry setting
-Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-	'id': TELEMETRY_SECTION_ID,
-	'order': 110,
-	'type': 'object',
-	'title': localize('telemetryConfigurationTitle', "Telemetry"),
-	'properties': {
+			'tags': ['usesOnlineServices', 'telemetry'],
+			'policy': {
+				name: 'TelemetryLevel',
+				minimumVersion: '1.99',
+				description: localize('telemetry.telemetryLevel.policyDescription', "Controls the level of telemetry."),
+			}
+		},
+		'telemetry.disableFeedback': {
+			type: 'boolean',
+			default: false,
+			description: localize('telemetry.disableFeedback', "Disable feedback options."),
+			policy: {
+				name: 'DisableFeedback',
+				minimumVersion: '1.99',
+			}
+		},
+		// Deprecated telemetry setting
 		[TELEMETRY_OLD_SETTING_ID]: {
 			'type': 'boolean',
 			'markdownDescription':
@@ -241,6 +249,5 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			'scope': ConfigurationScope.APPLICATION,
 			'tags': ['usesOnlineServices', 'telemetry']
 		}
-	}
+	},
 });
-

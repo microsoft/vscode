@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
-import { memoize } from 'vs/base/common/decorators';
-import { FileAccess } from 'vs/base/common/network';
-import * as path from 'vs/base/common/path';
-import * as env from 'vs/base/common/platform';
-import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
-import * as pfs from 'vs/base/node/pfs';
-import * as processes from 'vs/base/node/processes';
-import * as nls from 'vs/nls';
-import { DEFAULT_TERMINAL_OSX, IExternalTerminalService, IExternalTerminalSettings, ITerminalForPlatform } from 'vs/platform/externalTerminal/common/externalTerminal';
-import { ITerminalEnvironment } from 'vs/platform/terminal/common/terminal';
+import { memoize } from '../../../base/common/decorators.js';
+import { FileAccess } from '../../../base/common/network.js';
+import * as path from '../../../base/common/path.js';
+import * as env from '../../../base/common/platform.js';
+import { sanitizeProcessEnvironment } from '../../../base/common/processes.js';
+import * as pfs from '../../../base/node/pfs.js';
+import * as processes from '../../../base/node/processes.js';
+import * as nls from '../../../nls.js';
+import { DEFAULT_TERMINAL_OSX, IExternalTerminalService, IExternalTerminalSettings, ITerminalForPlatform } from '../common/externalTerminal.js';
+import { ITerminalEnvironment } from '../../terminal/common/terminal.js';
 
 const TERMINAL_TITLE = nls.localize('console.title', "VS Code Console");
 
@@ -56,8 +56,9 @@ export class WindowsExternalTerminalService extends ExternalTerminalService impl
 		const cmdArgs = ['/c', 'start', '/wait'];
 		if (exec.indexOf(' ') >= 0) {
 			// The "" argument is the window title. Without this, exec doesn't work when the path
-			// contains spaces
-			cmdArgs.push('""');
+			// contains spaces. #6590
+			// Title is Execution Path. #220129
+			cmdArgs.push(exec);
 		}
 		cmdArgs.push(exec);
 		// Add starting directory parameter for Windows Terminal (see #90734)
@@ -80,8 +81,7 @@ export class WindowsExternalTerminalService extends ExternalTerminalService impl
 		return new Promise<number | undefined>((resolve, reject) => {
 
 			const title = `"${dir} - ${TERMINAL_TITLE}"`;
-			const command = `""${args.join('" "')}" & pause"`; // use '|' to only pause on non-zero exit code
-
+			const command = `"${args.join('" "')}" & pause`; // use '|' to only pause on non-zero exit code
 
 			// merge environment variables into a copy of the process.env
 			const env = Object.assign({}, getSanitizedEnvironment(process), envVars);
@@ -107,10 +107,10 @@ export class WindowsExternalTerminalService extends ExternalTerminalService impl
 				// prefer to use the window terminal to spawn if it's available instead
 				// of start, since that allows ctrl+c handling (#81322)
 				spawnExec = wt;
-				cmdArgs = ['-d', dir, exec, '/c', command];
+				cmdArgs = ['-d', '.', exec, '/c', command];
 			} else {
 				spawnExec = WindowsExternalTerminalService.CMD;
-				cmdArgs = ['/c', 'start', title, '/wait', exec, '/c', command];
+				cmdArgs = ['/c', 'start', title, '/wait', exec, '/c', `"${command}"`];
 			}
 
 			const cmd = cp.spawn(spawnExec, cmdArgs, options);
@@ -134,8 +134,7 @@ export class WindowsExternalTerminalService extends ExternalTerminalService impl
 	@memoize
 	private static async getWtExePath() {
 		try {
-			const wtPath = await processes.win32.findExecutable('wt');
-			return await pfs.Promises.exists(wtPath) ? wtPath : undefined;
+			return await processes.findExecutable('wt');
 		} catch {
 			return undefined;
 		}

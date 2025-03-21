@@ -3,22 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow } from 'electron';
-import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
-import { Barrier, Promises, timeout } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
-import { cwd } from 'vs/base/common/process';
-import { assertIsDefined } from 'vs/base/common/types';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IStateService } from 'vs/platform/state/node/state';
-import { ICodeWindow, LoadReason, UnloadReason } from 'vs/platform/window/electron-main/window';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
+import electron from 'electron';
+import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain.js';
+import { Barrier, Promises, timeout } from '../../../base/common/async.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { cwd } from '../../../base/common/process.js';
+import { assertIsDefined } from '../../../base/common/types.js';
+import { NativeParsedArgs } from '../../environment/common/argv.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { ILogService } from '../../log/common/log.js';
+import { IStateService } from '../../state/node/state.js';
+import { ICodeWindow, LoadReason, UnloadReason } from '../../window/electron-main/window.js';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from '../../workspace/common/workspace.js';
+import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
+import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
+import { getAllWindowsExcludingOffscreen } from '../../windows/electron-main/windows.js';
 
 export const ILifecycleMainService = createDecorator<ILifecycleMainService>('lifecycleMainService');
 
@@ -294,7 +295,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 				this.fireOnWillShutdown(ShutdownReason.QUIT);
 			}
 		};
-		app.addListener('before-quit', beforeQuitListener);
+		electron.app.addListener('before-quit', beforeQuitListener);
 
 		// window-all-closed: an event that only fires when the last window
 		// was closed. We override this event to be in charge if app.quit()
@@ -305,14 +306,14 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 			// Windows/Linux: we quit when all windows have closed
 			// Mac: we only quit when quit was requested
 			if (this._quitRequested || !isMacintosh) {
-				app.quit();
+				electron.app.quit();
 			}
 		};
-		app.addListener('window-all-closed', windowAllClosedListener);
+		electron.app.addListener('window-all-closed', windowAllClosedListener);
 
 		// will-quit: an event that is fired after all windows have been
 		// closed, but before actually quitting.
-		app.once('will-quit', e => {
+		electron.app.once('will-quit', e => {
 			this.trace('Lifecycle#app.on(will-quit) - begin');
 
 			// Prevent the quit until the shutdown promise was resolved
@@ -332,12 +333,12 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 				// will-quit listener is only installed "once". Also
 				// remove any listener we have that is no longer needed
 
-				app.removeListener('before-quit', beforeQuitListener);
-				app.removeListener('window-all-closed', windowAllClosedListener);
+				electron.app.removeListener('before-quit', beforeQuitListener);
+				electron.app.removeListener('window-all-closed', windowAllClosedListener);
 
 				this.trace('Lifecycle#app.on(will-quit) - calling app.quit()');
 
-				app.quit();
+				electron.app.quit();
 			});
 		});
 	}
@@ -428,7 +429,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 		// Window Before Closing: Main -> Renderer
 		const win = assertIsDefined(window.win);
-		win.on('close', e => {
+		windowListeners.add(Event.fromNodeEventEmitter<electron.Event>(win, 'close')(e => {
 
 			// The window already acknowledged to be closed
 			const windowId = window.id;
@@ -457,10 +458,8 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 				// No veto, close window now
 				window.close();
 			});
-		});
-
-		// Window After Closing
-		win.on('closed', () => {
+		}));
+		windowListeners.add(Event.fromNodeEventEmitter<electron.Event>(win, 'closed')(() => {
 			this.trace(`Lifecycle#window.on('closed') - window ID ${window.id}`);
 
 			// update window count
@@ -475,13 +474,14 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 			if (this.windowCounter === 0 && (!isMacintosh || this._quitRequested)) {
 				this.fireOnWillShutdown(ShutdownReason.QUIT);
 			}
-		});
+		}));
 	}
 
 	registerAuxWindow(auxWindow: IAuxiliaryWindow): void {
 		const win = assertIsDefined(auxWindow.win);
 
-		win.on('close', e => {
+		const windowListeners = new DisposableStore();
+		windowListeners.add(Event.fromNodeEventEmitter<electron.Event>(win, 'close')(e => {
 			this.trace(`Lifecycle#auxWindow.on('close') - window ID ${auxWindow.id}`);
 
 			if (this._quitRequested) {
@@ -499,11 +499,12 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 				e.preventDefault();
 			}
-		});
-
-		win.on('closed', () => {
+		}));
+		windowListeners.add(Event.fromNodeEventEmitter<electron.Event>(win, 'closed')(() => {
 			this.trace(`Lifecycle#auxWindow.on('closed') - window ID ${auxWindow.id}`);
-		});
+
+			windowListeners.dispose();
+		}));
 	}
 
 	async reload(window: ICodeWindow, cli?: NativeParsedArgs): Promise<void> {
@@ -652,7 +653,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 			// Calling app.quit() will trigger the close handlers of each opened window
 			// and only if no window vetoed the shutdown, we will get the will-quit event
 			this.trace('Lifecycle#quit() - calling app.quit()');
-			app.quit();
+			electron.app.quit();
 		});
 
 		return this.pendingQuitPromise;
@@ -690,16 +691,16 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		const quitListener = () => {
 			if (!this.relaunchHandler?.handleRelaunch(options)) {
 				this.trace('Lifecycle#relaunch() - calling app.relaunch()');
-				app.relaunch({ args });
+				electron.app.relaunch({ args });
 			}
 		};
-		app.once('quit', quitListener);
+		electron.app.once('quit', quitListener);
 
 		// `app.relaunch()` does not quit automatically, so we quit first,
 		// check for vetoes and then relaunch from the `app.on('quit')` event
 		const veto = await this.quit(true /* will restart */);
 		if (veto) {
-			app.removeListener('quit', quitListener);
+			electron.app.removeListener('quit', quitListener);
 		}
 	}
 
@@ -727,7 +728,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 			// to a participant within the window. this is not wanted when we
 			// are asked to kill the application.
 			(async () => {
-				for (const window of BrowserWindow.getAllWindows()) {
+				for (const window of getAllWindowsExcludingOffscreen()) {
 					if (window && !window.isDestroyed()) {
 						let whenWindowClosed: Promise<void>;
 						if (window.webContents && !window.webContents.isDestroyed()) {
@@ -744,6 +745,6 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		]);
 
 		// Now exit either after 1s or all windows destroyed
-		app.exit(code);
+		electron.app.exit(code);
 	}
 }

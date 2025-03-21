@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITelemetryService, ITelemetryData, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { supportsTelemetry, NullTelemetryService, getPiiPathsFromEnvironment, isInternalTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { resolveWorkbenchCommonProperties } from 'vs/workbench/services/telemetry/common/workbenchCommonProperties';
-import { TelemetryService as BaseTelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ClassifiedEvent, StrictPropertyCheck, OmitMetadata, IGDPRProperty } from 'vs/platform/telemetry/common/gdprTypings';
-import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { ITelemetryService, ITelemetryData, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
+import { supportsTelemetry, NullTelemetryService, getPiiPathsFromEnvironment, isInternalTelemetry } from '../../../../platform/telemetry/common/telemetryUtils.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { INativeWorkbenchEnvironmentService } from '../../environment/electron-sandbox/environmentService.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { ISharedProcessService } from '../../../../platform/ipc/electron-sandbox/services.js';
+import { TelemetryAppenderClient } from '../../../../platform/telemetry/common/telemetryIpc.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { resolveWorkbenchCommonProperties } from '../common/workbenchCommonProperties.js';
+import { TelemetryService as BaseTelemetryService, ITelemetryServiceConfig } from '../../../../platform/telemetry/common/telemetryService.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { ClassifiedEvent, StrictPropertyCheck, OmitMetadata, IGDPRProperty } from '../../../../platform/telemetry/common/gdprTypings.js';
+import { process } from '../../../../base/parts/sandbox/electron-sandbox/globals.js';
 
 export class TelemetryService extends Disposable implements ITelemetryService {
 
@@ -28,6 +28,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 	get sessionId(): string { return this.impl.sessionId; }
 	get machineId(): string { return this.impl.machineId; }
 	get sqmId(): string { return this.impl.sqmId; }
+	get devDeviceId(): string { return this.impl.devDeviceId; }
 	get firstSessionDate(): string { return this.impl.firstSessionDate; }
 	get msftInternal(): boolean | undefined { return this.impl.msftInternal; }
 
@@ -45,7 +46,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 			const channel = sharedProcessService.getChannel('telemetryAppender');
 			const config: ITelemetryServiceConfig = {
 				appenders: [new TelemetryAppenderClient(channel)],
-				commonProperties: resolveWorkbenchCommonProperties(storageService, environmentService.os.release, environmentService.os.hostname, productService.commit, productService.version, environmentService.machineId, environmentService.sqmId, isInternal, process, environmentService.remoteAuthority),
+				commonProperties: resolveWorkbenchCommonProperties(storageService, environmentService.os.release, environmentService.os.hostname, productService.commit, productService.version, environmentService.machineId, environmentService.sqmId, environmentService.devDeviceId, isInternal, process, environmentService.remoteAuthority),
 				piiPaths: getPiiPathsFromEnvironment(environmentService),
 				sendErrorTelemetry: true
 			};

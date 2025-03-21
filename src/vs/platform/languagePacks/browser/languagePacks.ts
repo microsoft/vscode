@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { URI } from 'vs/base/common/uri';
-import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
-import { ILanguagePackItem, LanguagePackBaseService } from 'vs/platform/languagePacks/common/languagePacks';
-import { ILogService } from 'vs/platform/log/common/log';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { URI } from '../../../base/common/uri.js';
+import { IExtensionGalleryService } from '../../extensionManagement/common/extensionManagement.js';
+import { IExtensionResourceLoaderService } from '../../extensionResourceLoader/common/extensionResourceLoader.js';
+import { ILanguagePackItem, LanguagePackBaseService } from '../common/languagePacks.js';
+import { ILogService } from '../../log/common/log.js';
 
 export class WebLanguagePacksService extends LanguagePackBaseService {
 	constructor(
@@ -56,7 +56,7 @@ export class WebLanguagePacksService extends LanguagePackBaseService {
 		}
 
 		// get the resource uri and return it
-		const uri = this.extensionResourceLoaderService.getExtensionGalleryResourceURL({
+		const uri = await this.extensionResourceLoaderService.getExtensionGalleryResourceURL({
 			// If translation is defined then manifest should have been defined.
 			name: manifest!.name,
 			publisher: manifest!.publisher,

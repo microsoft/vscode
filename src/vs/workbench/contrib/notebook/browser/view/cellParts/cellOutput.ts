@@ -3,39 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { FastDomNode } from 'vs/base/browser/fastDomNode';
-import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
-import { Action, IAction } from 'vs/base/common/actions';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import * as nls from 'vs/nls';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSION_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
-import { INotebookOutputActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { ICellOutputViewModel, ICellViewModel, IInsetRenderOutput, INotebookEditorDelegate, JUPYTER_EXTENSION_ID, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { mimetypeIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
-import { CodeCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
-import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellUri, IOrderedMimeType, NotebookCellExecutionState, NotebookCellOutputsSplice, RENDERER_NOT_AVAILABLE, isTextStreamMime } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { COPY_OUTPUT_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/controller/cellOutputActions';
-import { CLEAR_CELL_OUTPUTS_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/controller/editActions';
-import { TEXT_BASED_MIMETYPES } from 'vs/workbench/contrib/notebook/browser/contrib/clipboard/cellOutputClipboard';
+import * as DOM from '../../../../../../base/browser/dom.js';
+import { FastDomNode } from '../../../../../../base/browser/fastDomNode.js';
+import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
+import { Action } from '../../../../../../base/common/actions.js';
+import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
+import * as nls from '../../../../../../nls.js';
+import { getActionBarActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { WorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
+import { IMenuService, MenuId } from '../../../../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { IExtensionsWorkbenchService } from '../../../../extensions/common/extensions.js';
+import { ICellOutputViewModel, ICellViewModel, IInsetRenderOutput, INotebookEditorDelegate, JUPYTER_EXTENSION_ID, RenderOutputType } from '../../notebookBrowser.js';
+import { mimetypeIcon } from '../../notebookIcons.js';
+import { CellContentPart } from '../cellPart.js';
+import { CodeCellRenderTemplate } from '../notebookRenderingCommon.js';
+import { CodeCellViewModel } from '../../viewModel/codeCellViewModel.js';
+import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
+import { CellUri, IOrderedMimeType, NotebookCellExecutionState, NotebookCellOutputsSplice, RENDERER_NOT_AVAILABLE, isTextStreamMime } from '../../../common/notebookCommon.js';
+import { INotebookExecutionStateService } from '../../../common/notebookExecutionStateService.js';
+import { INotebookKernel } from '../../../common/notebookKernelService.js';
+import { INotebookService } from '../../../common/notebookService.js';
+import { COPY_OUTPUT_COMMAND_ID } from '../../controller/cellOutputActions.js';
+import { autorun, observableValue } from '../../../../../../base/common/observable.js';
+import { NOTEBOOK_CELL_HAS_HIDDEN_OUTPUTS, NOTEBOOK_CELL_IS_FIRST_OUTPUT, NOTEBOOK_CELL_OUTPUT_MIMETYPE } from '../../../common/notebookContextKeys.js';
+import { TEXT_BASED_MIMETYPES } from '../../viewModel/cellOutputTextHelper.js';
 
 interface IMimeTypeRenderer extends IQuickPickItem {
 	index: number;
@@ -61,13 +59,14 @@ interface IRenderResult {
 //  |                        |  #cell-output-toolbar
 //  |                        |  #output-element
 class CellOutputElement extends Disposable {
-	private readonly _renderDisposableStore = this._register(new DisposableStore());
+	private readonly toolbarDisposables = this._register(new DisposableStore());
 
 	innerContainer?: HTMLElement;
 	renderedOutputContainer!: HTMLElement;
 	renderResult?: IInsetRenderOutput;
 
 	private readonly contextKeyService: IContextKeyService;
+	private toolbarAttached = false;
 
 	constructor(
 		private notebookEditor: INotebookEditorDelegate,
@@ -79,7 +78,7 @@ class CellOutputElement extends Disposable {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IContextKeyService parentContextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -96,7 +95,7 @@ class CellOutputElement extends Disposable {
 	}
 
 	detach() {
-		this.renderedOutputContainer?.parentElement?.removeChild(this.renderedOutputContainer);
+		this.renderedOutputContainer?.remove();
 
 		let count = 0;
 		if (this.innerContainer) {
@@ -111,7 +110,7 @@ class CellOutputElement extends Disposable {
 			}
 
 			if (count === 0) {
-				this.innerContainer.parentElement?.removeChild(this.innerContainer);
+				this.innerContainer.remove();
 			}
 		}
 
@@ -152,10 +151,10 @@ class CellOutputElement extends Disposable {
 		} else {
 			// Another mimetype or renderer is picked, we need to clear the current output and re-render
 			const nextElement = this.innerContainer.nextElementSibling;
-			this._renderDisposableStore.clear();
+			this.toolbarDisposables.clear();
 			const element = this.innerContainer;
 			if (element) {
-				element.parentElement?.removeChild(element);
+				element.remove();
 				this.notebookEditor.removeInset(this.output);
 			}
 
@@ -208,7 +207,20 @@ class CellOutputElement extends Disposable {
 		}
 
 		const innerContainer = this._generateInnerOutputContainer(previousSibling, selectedPresentation);
-		this._attachToolbar(innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, mimeTypes);
+		if (index === 0 || this.output.visible.get()) {
+			this._attachToolbar(innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, mimeTypes);
+		} else {
+			this._register(autorun((reader) => {
+				const visible = reader.readObservable(this.output.visible);
+				if (visible && !this.toolbarAttached) {
+					this._attachToolbar(innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, mimeTypes);
+				} else if (!visible) {
+					this.toolbarDisposables.clear();
+				}
+				this.cellOutputContainer.checkForHiddenOutputs();
+			}));
+			this.cellOutputContainer.hasHiddenOutputs.set(true, undefined);
+		}
 
 		this.renderedOutputContainer = DOM.append(innerContainer, DOM.$('.rendered-output'));
 
@@ -292,17 +304,15 @@ class CellOutputElement extends Disposable {
 			return;
 		}
 
-		const useConsolidatedButton = this.notebookEditor.notebookOptions.getDisplayOptions().consolidatedOutputButton;
-
 		outputItemDiv.style.position = 'relative';
 		const mimeTypePicker = DOM.$('.cell-output-toolbar');
 
 		outputItemDiv.appendChild(mimeTypePicker);
 
-		const toolbar = this._renderDisposableStore.add(this.instantiationService.createInstance(WorkbenchToolBar, mimeTypePicker, {
+		const toolbar = this.toolbarDisposables.add(this.instantiationService.createInstance(WorkbenchToolBar, mimeTypePicker, {
 			renderDropdownAsChildElement: false
 		}));
-		toolbar.context = <INotebookOutputActionContext>{
+		toolbar.context = {
 			ui: true,
 			cell: this.output.cellViewModel as ICellViewModel,
 			outputViewModel: this.output,
@@ -311,20 +321,22 @@ class CellOutputElement extends Disposable {
 		};
 
 		// TODO: This could probably be a real registered action, but it has to talk to this output element
-		const pickAction = new Action('notebook.output.pickMimetype', nls.localize('pickMimeType', "Change Presentation"), ThemeIcon.asClassName(mimetypeIcon), undefined,
-			async _context => this._pickActiveMimeTypeRenderer(outputItemDiv, notebookTextModel, kernel, this.output));
+		const pickAction = this.toolbarDisposables.add(new Action('notebook.output.pickMimetype', nls.localize('pickMimeType', "Change Presentation"), ThemeIcon.asClassName(mimetypeIcon), undefined,
+			async _context => this._pickActiveMimeTypeRenderer(outputItemDiv, notebookTextModel, kernel, this.output)));
 
-		const menu = this._renderDisposableStore.add(this.menuService.createMenu(MenuId.NotebookOutputToolbar, this.contextKeyService));
+		const menuContextKeyService = this.toolbarDisposables.add(this.contextKeyService.createScoped(outputItemDiv));
+		const hasHiddenOutputs = NOTEBOOK_CELL_HAS_HIDDEN_OUTPUTS.bindTo(menuContextKeyService);
+		const isFirstCellOutput = NOTEBOOK_CELL_IS_FIRST_OUTPUT.bindTo(menuContextKeyService);
+		const cellOutputMimetype = NOTEBOOK_CELL_OUTPUT_MIMETYPE.bindTo(menuContextKeyService);
+		isFirstCellOutput.set(index === 0);
+		if (mimeTypes[index]) {
+			cellOutputMimetype.set(mimeTypes[index].mimeType);
+		}
+		this.toolbarDisposables.add(autorun((reader) => { hasHiddenOutputs.set(reader.readObservable(this.cellOutputContainer.hasHiddenOutputs)); }));
+		const menu = this.toolbarDisposables.add(this.menuService.createMenu(MenuId.NotebookOutputToolbar, menuContextKeyService));
+
 		const updateMenuToolbar = () => {
-			const primary: IAction[] = [];
-			let secondary: IAction[] = [];
-			const result = { primary, secondary };
-
-			createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result, () => false);
-			if (index > 0 || !useConsolidatedButton) {
-				// clear outputs should only appear in the first output item's menu
-				secondary = secondary.filter((action) => action.id !== CLEAR_CELL_OUTPUTS_COMMAND_ID);
-			}
+			let { secondary } = getActionBarActions(menu!.getActions({ shouldForwardArgs: true }), () => false);
 			if (!isCopyEnabled) {
 				secondary = secondary.filter((action) => action.id !== COPY_OUTPUT_COMMAND_ID);
 			}
@@ -335,8 +347,7 @@ class CellOutputElement extends Disposable {
 			toolbar.setActions([], secondary);
 		};
 		updateMenuToolbar();
-		this._renderDisposableStore.add(menu.onDidChange(updateMenuToolbar));
-
+		this.toolbarDisposables.add(menu.onDidChange(updateMenuToolbar));
 	}
 
 	private async _pickActiveMimeTypeRenderer(outputItemDiv: HTMLElement, notebookTextModel: NotebookTextModel, kernel: INotebookKernel | undefined, viewModel: ICellOutputViewModel) {
@@ -368,7 +379,8 @@ class CellOutputElement extends Disposable {
 			});
 		}
 
-		const picker = this.quickInputService.createQuickPick();
+		const disposables = new DisposableStore();
+		const picker = disposables.add(this.quickInputService.createQuickPick({ useSeparators: true }));
 		picker.items = [
 			...items,
 			{ type: 'separator' },
@@ -380,10 +392,10 @@ class CellOutputElement extends Disposable {
 			: nls.localize('promptChooseMimeType.placeHolder', "Select mimetype to render for current output");
 
 		const pick = await new Promise<IMimeTypeRenderer | undefined>(resolve => {
-			picker.onDidAccept(() => {
+			disposables.add(picker.onDidAccept(() => {
 				resolve(picker.selectedItems.length === 1 ? (picker.selectedItems[0] as IMimeTypeRenderer) : undefined);
-				picker.dispose();
-			});
+				disposables.dispose();
+			}));
 			picker.show();
 		});
 
@@ -398,10 +410,10 @@ class CellOutputElement extends Disposable {
 
 		// user chooses another mimetype
 		const nextElement = outputItemDiv.nextElementSibling;
-		this._renderDisposableStore.clear();
+		this.toolbarDisposables.clear();
 		const element = this.innerContainer;
 		if (element) {
-			element.parentElement?.removeChild(element);
+			element.remove();
 			this.notebookEditor.removeInset(viewModel);
 		}
 
@@ -416,9 +428,7 @@ class CellOutputElement extends Disposable {
 	}
 
 	private async _showJupyterExtension() {
-		const viewlet = await this.paneCompositeService.openPaneComposite(EXTENSION_VIEWLET_ID, ViewContainerLocation.Sidebar, true);
-		const view = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
-		view?.search(`@id:${JUPYTER_EXTENSION_ID}`);
+		await this.extensionsWorkbenchService.openSearch(`@id:${JUPYTER_EXTENSION_ID}`);
 	}
 
 	private _generateRendererInfo(renderId: string): string {
@@ -479,6 +489,15 @@ const enum CellOutputUpdateContext {
 export class CellOutputContainer extends CellContentPart {
 	private _outputEntries: OutputEntryViewHandler[] = [];
 	private _hasStaleOutputs: boolean = false;
+
+	hasHiddenOutputs = observableValue<boolean>('hasHiddenOutputs', false);
+	checkForHiddenOutputs() {
+		if (this._outputEntries.find(entry => { return entry.model.visible; })) {
+			this.hasHiddenOutputs.set(true, undefined);
+		} else {
+			this.hasHiddenOutputs.set(false, undefined);
+		}
+	}
 
 	get renderedOutputEntries() {
 		return this._outputEntries;
@@ -755,7 +774,7 @@ export class CellOutputContainer extends CellContentPart {
 			actionHandler: {
 				callback: (content) => {
 					if (content === 'command:workbench.action.openLargeOutput') {
-						this.openerService.open(CellUri.generateCellOutputUri(this.notebookEditor.textModel!.uri));
+						this.openerService.open(CellUri.generateCellOutputUriWithId(this.notebookEditor.textModel!.uri));
 					}
 
 					return;
@@ -808,5 +827,3 @@ const JUPYTER_RENDERER_MIMETYPES = [
 	'application/vnd.jupyter.widget-view+json',
 	'application/vnd.code.notebook.error'
 ];
-
-

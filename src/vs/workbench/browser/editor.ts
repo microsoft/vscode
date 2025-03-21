@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { EditorResourceAccessor, EditorExtensions, SideBySideEditor, IEditorDescriptor as ICommonEditorDescriptor, EditorCloseContext, IWillInstantiateEditorPaneEvent } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IConstructorSignature, IInstantiationService, BrandedService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Promises } from 'vs/base/common/async';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { Iterable } from 'vs/base/common/iterator';
-import { Emitter } from 'vs/base/common/event';
+import { localize } from '../../nls.js';
+import { EditorResourceAccessor, EditorExtensions, SideBySideEditor, IEditorDescriptor as ICommonEditorDescriptor, EditorCloseContext, IWillInstantiateEditorPaneEvent } from '../common/editor.js';
+import { EditorInput } from '../common/editor/editorInput.js';
+import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.js';
+import { Registry } from '../../platform/registry/common/platform.js';
+import { EditorPane } from './parts/editor/editorPane.js';
+import { IConstructorSignature, IInstantiationService, BrandedService, ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
+import { IDisposable, toDisposable } from '../../base/common/lifecycle.js';
+import { Promises } from '../../base/common/async.js';
+import { IEditorService } from '../services/editor/common/editorService.js';
+import { IUriIdentityService } from '../../platform/uriIdentity/common/uriIdentity.js';
+import { IWorkingCopyService } from '../services/workingCopy/common/workingCopyService.js';
+import { URI } from '../../base/common/uri.js';
+import { Schemas } from '../../base/common/network.js';
+import { IEditorGroup } from '../services/editor/common/editorGroupsService.js';
+import { Iterable } from '../../base/common/iterator.js';
+import { Emitter } from '../../base/common/event.js';
 
 //#region Editor Pane Registry
 
@@ -59,23 +59,23 @@ export class EditorPaneDescriptor implements IEditorPaneDescriptor {
 	static readonly onWillInstantiateEditorPane = EditorPaneDescriptor._onWillInstantiateEditorPane.event;
 
 	static create<Services extends BrandedService[]>(
-		ctor: { new(...services: Services): EditorPane },
+		ctor: { new(group: IEditorGroup, ...services: Services): EditorPane },
 		typeId: string,
 		name: string
 	): EditorPaneDescriptor {
-		return new EditorPaneDescriptor(ctor as IConstructorSignature<EditorPane>, typeId, name);
+		return new EditorPaneDescriptor(ctor as IConstructorSignature<EditorPane, [IEditorGroup]>, typeId, name);
 	}
 
 	private constructor(
-		private readonly ctor: IConstructorSignature<EditorPane>,
+		private readonly ctor: IConstructorSignature<EditorPane, [IEditorGroup]>,
 		readonly typeId: string,
 		readonly name: string
 	) { }
 
-	instantiate(instantiationService: IInstantiationService): EditorPane {
+	instantiate(instantiationService: IInstantiationService, group: IEditorGroup): EditorPane {
 		EditorPaneDescriptor._onWillInstantiateEditorPane.fire({ typeId: this.typeId });
 
-		const pane = instantiationService.createInstance(this.ctor);
+		const pane = instantiationService.createInstance(this.ctor, group);
 		EditorPaneDescriptor.instantiatedEditorPanes.add(this.typeId);
 
 		return pane;

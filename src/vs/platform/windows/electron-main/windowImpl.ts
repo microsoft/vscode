@@ -3,47 +3,47 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, Display, nativeImage, NativeImage, Rectangle, screen, SegmentedControlSegment, systemPreferences, TouchBar, TouchBarSegmentedControl } from 'electron';
-import { DeferredPromise, RunOnceScheduler, timeout } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import { getMarks, mark } from 'vs/base/common/performance';
-import { isBigSurOrNewer, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
+import electron, { BrowserWindowConstructorOptions } from 'electron';
+import { DeferredPromise, RunOnceScheduler, timeout } from '../../../base/common/async.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { toErrorMessage } from '../../../base/common/errorMessage.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { FileAccess, Schemas } from '../../../base/common/network.js';
+import { getMarks, mark } from '../../../base/common/performance.js';
+import { isBigSurOrNewer, isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
 import { release } from 'os';
-import { ISerializableCommandAction } from 'vs/platform/action/common/action';
-import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
-import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
-import { resolveMarketplaceHeaders } from 'vs/platform/externalServices/common/marketplace';
-import { IApplicationStorageMainService, IStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import { getMenuBarVisibility, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, hasNativeTitlebar, useNativeFullScreen, useWindowControlsOverlay } from 'vs/platform/window/common/window';
-import { defaultBrowserWindowOptions, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
-import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState, IBaseWindow } from 'vs/platform/window/electron-main/window';
-import { IPolicyService } from 'vs/platform/policy/common/policy';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IStateService } from 'vs/platform/state/node/state';
-import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
-import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
-import { firstOrDefault } from 'vs/base/common/arrays';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ISerializableCommandAction } from '../../action/common/action.js';
+import { IBackupMainService } from '../../backup/electron-main/backup.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../configuration/common/configuration.js';
+import { IDialogMainService } from '../../dialogs/electron-main/dialogMainService.js';
+import { NativeParsedArgs } from '../../environment/common/argv.js';
+import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
+import { isLaunchedFromCli } from '../../environment/node/argvHelper.js';
+import { IFileService } from '../../files/common/files.js';
+import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
+import { ILogService } from '../../log/common/log.js';
+import { IProductService } from '../../product/common/productService.js';
+import { IIPCObjectUrl, IProtocolMainService } from '../../protocol/electron-main/protocol.js';
+import { resolveMarketplaceHeaders } from '../../externalServices/common/marketplace.js';
+import { IApplicationStorageMainService, IStorageMainService } from '../../storage/electron-main/storageMainService.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
+import { getMenuBarVisibility, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, hasNativeTitlebar, useNativeFullScreen, useWindowControlsOverlay, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, TitlebarStyle } from '../../window/common/window.js';
+import { defaultBrowserWindowOptions, getAllWindowsExcludingOffscreen, IWindowsMainService, OpenContext, WindowStateValidator } from './windows.js';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
+import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
+import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState, IBaseWindow } from '../../window/electron-main/window.js';
+import { IPolicyService } from '../../policy/common/policy.js';
+import { IUserDataProfile } from '../../userDataProfile/common/userDataProfile.js';
+import { IStateService } from '../../state/node/state.js';
+import { IUserDataProfilesMainService } from '../../userDataProfile/electron-main/userDataProfile.js';
+import { ILoggerMainService } from '../../log/electron-main/loggerService.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
 
 export interface IWindowCreationOptions {
 	readonly state: IWindowState;
@@ -51,7 +51,7 @@ export interface IWindowCreationOptions {
 	readonly isExtensionTestHost?: boolean;
 }
 
-interface ITouchBarSegment extends SegmentedControlSegment {
+interface ITouchBarSegment extends electron.SegmentedControlSegment {
 	readonly id: string;
 }
 
@@ -111,9 +111,9 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 	protected _lastFocusTime = Date.now(); // window is shown on creation so take current time
 	get lastFocusTime(): number { return this._lastFocusTime; }
 
-	protected _win: BrowserWindow | null = null;
+	protected _win: electron.BrowserWindow | null = null;
 	get win() { return this._win; }
-	protected setWin(win: BrowserWindow): void {
+	protected setWin(win: electron.BrowserWindow, options?: BrowserWindowConstructorOptions): void {
 		this._win = win;
 
 		// Window Events
@@ -131,16 +131,18 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		this._register(Event.fromNodeEventEmitter(this._win, 'leave-full-screen')(() => this._onDidLeaveFullScreen.fire()));
 
 		// Sheet Offsets
-		const useCustomTitleStyle = !hasNativeTitlebar(this.configurationService);
+		const useCustomTitleStyle = !hasNativeTitlebar(this.configurationService, options?.titleBarStyle === 'hidden' ? TitlebarStyle.CUSTOM : undefined /* unknown */);
 		if (isMacintosh && useCustomTitleStyle) {
 			win.setSheetOffset(isBigSurOrNewer(release()) ? 28 : 22); // offset dialogs by the height of the custom title bar if we have any
 		}
 
-		// Update the window controls immediately based on cached values
-		if (useCustomTitleStyle && ((isWindows && useWindowControlsOverlay(this.configurationService)) || isMacintosh)) {
+		// Update the window controls immediately based on cached or default values
+		if (useCustomTitleStyle && useWindowControlsOverlay(this.configurationService)) {
 			const cachedWindowControlHeight = this.stateService.getItem<number>((BaseWindow.windowControlHeightStateStorageKey));
 			if (cachedWindowControlHeight) {
 				this.updateWindowControls({ height: cachedWindowControlHeight });
+			} else {
+				this.updateWindowControls({ height: DEFAULT_CUSTOM_TITLEBAR_HEIGHT });
 			}
 		}
 
@@ -158,7 +160,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			// This sets up a listener for the window hook. This is a Windows-only API provided by electron.
 			win.hookWindowMessage(WM_INITMENU, () => {
 				const [x, y] = win.getPosition();
-				const cursorPos = screen.getCursorScreenPoint();
+				const cursorPos = electron.screen.getCursorScreenPoint();
 				const cx = cursorPos.x - x;
 				const cy = cursorPos.y - y;
 
@@ -216,6 +218,49 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		super();
 	}
 
+	protected applyState(state: IWindowState, hasMultipleDisplays = electron.screen.getAllDisplays().length > 0): void {
+
+		// TODO@electron (Electron 4 regression): when running on multiple displays where the target display
+		// to open the window has a larger resolution than the primary display, the window will not size
+		// correctly unless we set the bounds again (https://github.com/microsoft/vscode/issues/74872)
+		//
+		// Extended to cover Windows as well as Mac (https://github.com/microsoft/vscode/issues/146499)
+		//
+		// However, when running with native tabs with multiple windows we cannot use this workaround
+		// because there is a potential that the new window will be added as native tab instead of being
+		// a window on its own. In that case calling setBounds() would cause https://github.com/microsoft/vscode/issues/75830
+
+		const windowSettings = this.configurationService.getValue<IWindowSettings | undefined>('window');
+		const useNativeTabs = isMacintosh && windowSettings?.nativeTabs === true;
+		if ((isMacintosh || isWindows) && hasMultipleDisplays && (!useNativeTabs || getAllWindowsExcludingOffscreen().length === 1)) {
+			if ([state.width, state.height, state.x, state.y].every(value => typeof value === 'number')) {
+				this._win?.setBounds({
+					width: state.width,
+					height: state.height,
+					x: state.x,
+					y: state.y
+				});
+			}
+		}
+
+		if (state.mode === WindowMode.Maximized || state.mode === WindowMode.Fullscreen) {
+
+			// this call may or may not show the window, depends
+			// on the platform: currently on Windows and Linux will
+			// show the window as active. To be on the safe side,
+			// we show the window at the end of this block.
+			this._win?.maximize();
+
+			if (state.mode === WindowMode.Fullscreen) {
+				this.setFullScreen(true, true);
+			}
+
+			// to reduce flicker from the default window size
+			// to maximize or fullscreen, we only show after
+			this._win?.show();
+		}
+	}
+
 	private representedFilename: string | undefined;
 
 	setRepresentedFilename(filename: string): void {
@@ -254,7 +299,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 	focus(options?: { force: boolean }): void {
 		if (isMacintosh && options?.force) {
-			app.focus({ steal: true });
+			electron.app.focus({ steal: true });
 		}
 
 		const win = this.win;
@@ -269,46 +314,9 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		win.focus();
 	}
 
-	handleTitleDoubleClick(): void {
-		const win = this.win;
-		if (!win) {
-			return;
-		}
-
-		// Respect system settings on mac with regards to title click on windows title
-		if (isMacintosh) {
-			const action = systemPreferences.getUserDefault('AppleActionOnDoubleClick', 'string');
-			switch (action) {
-				case 'Minimize':
-					win.minimize();
-					break;
-				case 'None':
-					break;
-				case 'Maximize':
-				default:
-					if (win.isMaximized()) {
-						win.unmaximize();
-					} else {
-						win.maximize();
-					}
-			}
-		}
-
-		// Linux/Windows: just toggle maximize/minimized state
-		else {
-			if (win.isMaximized()) {
-				win.unmaximize();
-			} else {
-				win.maximize();
-			}
-		}
-	}
-
-	//#region WCO
+	//#region Window Control Overlays
 
 	private static readonly windowControlHeightStateStorageKey = 'windowControlHeight';
-
-	private readonly hasWindowControlOverlay = useWindowControlsOverlay(this.configurationService);
 
 	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): void {
 		const win = this.win;
@@ -321,8 +329,8 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			this.stateService.setItem((CodeWindow.windowControlHeightStateStorageKey), options.height);
 		}
 
-		// Windows: window control overlay (WCO)
-		if (isWindows && this.hasWindowControlOverlay) {
+		// Windows/Linux: update window controls via setTitleBarOverlay()
+		if (!isMacintosh && useWindowControlsOverlay(this.configurationService)) {
 			win.setTitleBarOverlay({
 				color: options.backgroundColor?.trim() === '' ? undefined : options.backgroundColor,
 				symbolColor: options.foregroundColor?.trim() === '' ? undefined : options.foregroundColor,
@@ -330,13 +338,18 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			});
 		}
 
-		// macOS: traffic lights
+		// macOS: update window controls via setWindowButtonPosition()
 		else if (isMacintosh && options.height !== undefined) {
-			const verticalOffset = (options.height - 15) / 2; // 15px is the height of the traffic lights
-			if (!verticalOffset) {
+			// The traffic lights have a height of 12px. There's an invisible margin
+			// of 2px at the top and bottom, and 1px on the left and right. Therefore,
+			// the height for centering is 12px + 2 * 2px = 16px. When the position
+			// is set, the horizontal margin is offset to ensure the distance between
+			// the traffic lights and the window frame is equal in both directions.
+			const offset = Math.floor((options.height - 16) / 2);
+			if (!offset) {
 				win.setWindowButtonPosition(null);
 			} else {
-				win.setWindowButtonPosition({ x: verticalOffset, y: verticalOffset });
+				win.setWindowButtonPosition({ x: offset + 1, y: offset });
 			}
 		}
 	}
@@ -449,6 +462,8 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 	//#endregion
 
+	abstract matches(webContents: electron.WebContents): boolean;
+
 	override dispose(): void {
 		super.dispose();
 
@@ -477,7 +492,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	private _id: number;
 	get id(): number { return this._id; }
 
-	protected override _win: BrowserWindow;
+	protected override _win: electron.BrowserWindow;
 
 	get backupPath(): string | undefined { return this._config?.backupPath; }
 
@@ -514,14 +529,14 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 	private readonly whenReadyCallbacks: { (window: ICodeWindow): void }[] = [];
 
-	private readonly touchBarGroups: TouchBarSegmentedControl[] = [];
+	private readonly touchBarGroups: electron.TouchBarSegmentedControl[] = [];
 
 	private currentHttpProxy: string | undefined = undefined;
 	private currentNoProxy: string | undefined = undefined;
 
 	private customZoomLevel: number | undefined = undefined;
 
-	private readonly configObjectUrl = this._register(this.protocolMainService.createIPCObjectUrl<INativeWindowConfiguration>());
+	private readonly configObjectUrl: IIPCObjectUrl<INativeWindowConfiguration>;
 	private pendingLoadConfig: INativeWindowConfiguration | undefined;
 	private wasLoaded = false;
 
@@ -543,7 +558,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IProductService private readonly productService: IProductService,
-		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
+		@IProtocolMainService protocolMainService: IProtocolMainService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IStateService stateService: IStateService,
 		@IInstantiationService instantiationService: IInstantiationService
@@ -552,73 +567,29 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 		//#region create browser window
 		{
+			this.configObjectUrl = this._register(protocolMainService.createIPCObjectUrl<INativeWindowConfiguration>());
+
 			// Load window state
 			const [state, hasMultipleDisplays] = this.restoreWindowState(config.state);
 			this.windowState = state;
 			this.logService.trace('window#ctor: using window state', state);
 
-			// In case we are maximized or fullscreen, only show later
-			// after the call to maximize/fullscreen (see below)
-			const isFullscreenOrMaximized = (this.windowState.mode === WindowMode.Maximized || this.windowState.mode === WindowMode.Fullscreen);
-
-			const options = instantiationService.invokeFunction(defaultBrowserWindowOptions, this.windowState, {
-				show: !isFullscreenOrMaximized, // reduce flicker by showing later
-				webPreferences: {
-					preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-sandbox/preload.js').fsPath,
-					additionalArguments: [`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
-					v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
-				}
+			const options = instantiationService.invokeFunction(defaultBrowserWindowOptions, this.windowState, undefined, {
+				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-sandbox/preload.js').fsPath,
+				additionalArguments: [`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
+				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
 			});
-
 
 			// Create the browser window
 			mark('code/willCreateCodeBrowserWindow');
-			this._win = new BrowserWindow(options);
+			this._win = new electron.BrowserWindow(options);
 			mark('code/didCreateCodeBrowserWindow');
 
 			this._id = this._win.id;
-			this.setWin(this._win);
+			this.setWin(this._win, options);
 
-			// TODO@electron (Electron 4 regression): when running on multiple displays where the target display
-			// to open the window has a larger resolution than the primary display, the window will not size
-			// correctly unless we set the bounds again (https://github.com/microsoft/vscode/issues/74872)
-			//
-			// Extended to cover Windows as well as Mac (https://github.com/microsoft/vscode/issues/146499)
-			//
-			// However, when running with native tabs with multiple windows we cannot use this workaround
-			// because there is a potential that the new window will be added as native tab instead of being
-			// a window on its own. In that case calling setBounds() would cause https://github.com/microsoft/vscode/issues/75830
-			const windowSettings = this.configurationService.getValue<IWindowSettings | undefined>('window');
-			const useNativeTabs = isMacintosh && windowSettings?.nativeTabs === true;
-			if ((isMacintosh || isWindows) && hasMultipleDisplays && (!useNativeTabs || BrowserWindow.getAllWindows().length === 1)) {
-				if ([this.windowState.width, this.windowState.height, this.windowState.x, this.windowState.y].every(value => typeof value === 'number')) {
-					this._win.setBounds({
-						width: this.windowState.width,
-						height: this.windowState.height,
-						x: this.windowState.x,
-						y: this.windowState.y
-					});
-				}
-			}
-
-			if (isFullscreenOrMaximized) {
-				mark('code/willMaximizeCodeWindow');
-
-				// this call may or may not show the window, depends
-				// on the platform: currently on Windows and Linux will
-				// show the window as active. To be on the safe side,
-				// we show the window at the end of this block.
-				this._win.maximize();
-
-				if (this.windowState.mode === WindowMode.Fullscreen) {
-					this.setFullScreen(true, true);
-				}
-
-				// to reduce flicker from the default window size
-				// to maximize or fullscreen, we only show after
-				this._win.show();
-				mark('code/didMaximizeCodeWindow');
-			}
+			// Apply some state after window creation
+			this.applyState(this.windowState, hasMultipleDisplays);
 
 			this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
 		}
@@ -683,21 +654,19 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	private registerListeners(): void {
 
 		// Window error conditions to handle
-		this._win.on('unresponsive', () => this.onWindowError(WindowError.UNRESPONSIVE));
-		this._win.webContents.on('render-process-gone', (event, details) => this.onWindowError(WindowError.PROCESS_GONE, { ...details }));
-		this._win.webContents.on('did-fail-load', (event, exitCode, reason) => this.onWindowError(WindowError.LOAD, { reason, exitCode }));
+		this._register(Event.fromNodeEventEmitter(this._win, 'unresponsive')(() => this.onWindowError(WindowError.UNRESPONSIVE)));
+		this._register(Event.fromNodeEventEmitter(this._win.webContents, 'render-process-gone', (event, details) => details)(details => this.onWindowError(WindowError.PROCESS_GONE, { ...details })));
+		this._register(Event.fromNodeEventEmitter(this._win.webContents, 'did-fail-load', (event, exitCode, reason) => ({ exitCode, reason }))(({ exitCode, reason }) => this.onWindowError(WindowError.LOAD, { reason, exitCode })));
 
 		// Prevent windows/iframes from blocking the unload
 		// through DOM events. We have our own logic for
 		// unloading a window that should not be confused
 		// with the DOM way.
 		// (https://github.com/microsoft/vscode/issues/122736)
-		this._win.webContents.on('will-prevent-unload', event => {
-			event.preventDefault();
-		});
+		this._register(Event.fromNodeEventEmitter<electron.Event>(this._win.webContents, 'will-prevent-unload')(event => event.preventDefault()));
 
 		// Remember that we loaded
-		this._win.webContents.on('did-finish-load', () => {
+		this._register(Event.fromNodeEventEmitter(this._win.webContents, 'did-finish-load')(() => {
 
 			// Associate properties from the load request if provided
 			if (this.pendingLoadConfig) {
@@ -705,7 +674,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 				this.pendingLoadConfig = undefined;
 			}
-		});
+		}));
 
 		// Window (Un)Maximize
 		this._register(this.onDidMaximize(() => {
@@ -779,9 +748,9 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 		// Telemetry
 		type WindowErrorClassification = {
-			type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The type of window error to understand the nature of the error better.' };
+			type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The type of window error to understand the nature of the error better.' };
 			reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The reason of the window error to understand the nature of the error better.' };
-			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the window process to understand the nature of the error better' };
+			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The exit code of the window process to understand the nature of the error better' };
 			owner: 'bpasero';
 			comment: 'Provides insight into reasons the vscode window had an error.';
 		};
@@ -915,7 +884,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				}
 
 				// Delegate to windows service
-				const window = firstOrDefault(await this.windowsMainService.open({
+				const window = (await this.windowsMainService.open({
 					context: OpenContext.API,
 					userEnv: this._config.userEnv,
 					cli: {
@@ -926,7 +895,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 					forceEmpty,
 					forceNewWindow: true,
 					remoteAuthority: this.remoteAuthority
-				}));
+				})).at(0);
 				window?.focus();
 			}
 		} finally {
@@ -958,16 +927,26 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		}
 
 		// Proxy
-		if (!e || e.affectsConfiguration('http.proxy')) {
-			let newHttpProxy = (this.configurationService.getValue<string>('http.proxy') || '').trim()
+		if (!e || e.affectsConfiguration('http.proxy') || e.affectsConfiguration('http.noProxy')) {
+			const inspect = this.configurationService.inspect<string>('http.proxy');
+			let newHttpProxy = (inspect.userLocalValue || '').trim()
 				|| (process.env['https_proxy'] || process.env['HTTPS_PROXY'] || process.env['http_proxy'] || process.env['HTTP_PROXY'] || '').trim() // Not standardized.
 				|| undefined;
 
+			if (newHttpProxy?.indexOf('@') !== -1) {
+				const uri = URI.parse(newHttpProxy!);
+				const i = uri.authority.indexOf('@');
+				if (i !== -1) {
+					newHttpProxy = uri.with({ authority: uri.authority.substring(i + 1) })
+						.toString();
+				}
+			}
 			if (newHttpProxy?.endsWith('/')) {
 				newHttpProxy = newHttpProxy.substr(0, newHttpProxy.length - 1);
 			}
 
-			const newNoProxy = (process.env['no_proxy'] || process.env['NO_PROXY'] || '').trim() || undefined; // Not standardized.
+			const newNoProxy = (this.configurationService.getValue<string[]>('http.noProxy') || []).map((item) => item.trim()).join(',')
+				|| (process.env['no_proxy'] || process.env['NO_PROXY'] || '').trim() || undefined; // Not standardized.
 			if ((newHttpProxy || '').indexOf('@') === -1 && (newHttpProxy !== this.currentHttpProxy || newNoProxy !== this.currentNoProxy)) {
 				this.currentHttpProxy = newHttpProxy;
 				this.currentNoProxy = newNoProxy;
@@ -976,6 +955,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				const proxyBypassRules = newNoProxy ? `${newNoProxy},<local>` : '<local>';
 				this.logService.trace(`Setting proxy to '${proxyRules}', bypassing '${proxyBypassRules}'`);
 				this._win.webContents.session.setProxy({ proxyRules, proxyBypassRules, pacScript: '' });
+				electron.app.setProxy({ proxyRules, proxyBypassRules, pacScript: '' });
 			}
 		}
 	}
@@ -1084,9 +1064,14 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		}
 
 		// Update window related properties
+		try {
+			configuration.handle = VSBuffer.wrap(this._win.getNativeWindowHandle());
+		} catch (error) {
+			this.logService.error(`Error getting native window handle: ${error}`);
+		}
 		configuration.fullscreen = this.isFullScreen;
 		configuration.maximized = this._win.isMaximized();
-		configuration.partsSplash = this.themeMainService.getWindowSplash();
+		configuration.partsSplash = this.themeMainService.getWindowSplash(configuration.workspace);
 		configuration.zoomLevel = this.getZoomLevel();
 		configuration.isCustomZoomLevel = typeof this.customZoomLevel === 'number';
 		if (configuration.isCustomZoomLevel && configuration.partsSplash) {
@@ -1126,7 +1111,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			configuration['extensions-dir'] = cli['extensions-dir'];
 		}
 
-		configuration.accessibilitySupport = app.isAccessibilitySupportEnabled();
+		configuration.accessibilitySupport = electron.app.isAccessibilitySupportEnabled();
 		configuration.isInitialStartup = false; // since this is a reload
 		configuration.policiesData = this.policyService.serialize(); // set policies data again
 		configuration.continueOn = this.environmentMainService.continueOn;
@@ -1136,10 +1121,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			home: this.userDataProfilesService.profilesHome
 		};
 		configuration.logLevel = this.loggerMainService.getLogLevel();
-		configuration.loggers = {
-			window: this.loggerMainService.getRegisteredLoggers(this.id),
-			global: this.loggerMainService.getRegisteredLoggers()
-		};
+		configuration.loggers = this.loggerMainService.getGlobalLoggers();
 
 		// Load config
 		this.load(configuration, { isReload: true, disableExtensions: cli?.['disable-extensions'] });
@@ -1180,9 +1162,9 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 		// fullscreen gets special treatment
 		if (this.isFullScreen) {
-			let display: Display | undefined;
+			let display: electron.Display | undefined;
 			try {
-				display = screen.getDisplayMatching(this.getBounds());
+				display = electron.screen.getDisplayMatching(this.getBounds());
 			} catch (error) {
 				// Electron has weird conditions under which it throws errors
 				// e.g. https://github.com/microsoft/vscode/issues/100334 when
@@ -1227,7 +1209,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 		// only consider non-minimized window states
 		if (mode === WindowMode.Normal || mode === WindowMode.Maximized) {
-			let bounds: Rectangle;
+			let bounds: electron.Rectangle;
 			if (mode === WindowMode.Normal) {
 				bounds = this.getBounds();
 			} else {
@@ -1256,10 +1238,10 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 			// Window dimensions
 			try {
-				const displays = screen.getAllDisplays();
+				const displays = electron.screen.getAllDisplays();
 				hasMultipleDisplays = displays.length > 1;
 
-				state = this.validateWindowState(state, displays);
+				state = WindowStateValidator.validateWindowState(this.logService, state, displays);
 			} catch (err) {
 				this.logService.warn(`Unexpected error validating window state: ${err}\n${err.stack}`); // somehow display API can be picky about the state to validate
 			}
@@ -1270,149 +1252,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		return [state || defaultWindowState(), hasMultipleDisplays];
 	}
 
-	private validateWindowState(state: IWindowState, displays: Display[]): IWindowState | undefined {
-		this.logService.trace(`window#validateWindowState: validating window state on ${displays.length} display(s)`, state);
-
-		if (
-			typeof state.x !== 'number' ||
-			typeof state.y !== 'number' ||
-			typeof state.width !== 'number' ||
-			typeof state.height !== 'number'
-		) {
-			this.logService.trace('window#validateWindowState: unexpected type of state values');
-
-			return undefined;
-		}
-
-		if (state.width <= 0 || state.height <= 0) {
-			this.logService.trace('window#validateWindowState: unexpected negative values');
-
-			return undefined;
-		}
-
-		// Single Monitor: be strict about x/y positioning
-		// macOS & Linux: these OS seem to be pretty good in ensuring that a window is never outside of it's bounds.
-		// Windows: it is possible to have a window with a size that makes it fall out of the window. our strategy
-		//          is to try as much as possible to keep the window in the monitor bounds. we are not as strict as
-		//          macOS and Linux and allow the window to exceed the monitor bounds as long as the window is still
-		//          some pixels (128) visible on the screen for the user to drag it back.
-		if (displays.length === 1) {
-			const displayWorkingArea = this.getWorkingArea(displays[0]);
-			if (displayWorkingArea) {
-				this.logService.trace('window#validateWindowState: 1 monitor working area', displayWorkingArea);
-
-				function ensureStateInDisplayWorkingArea(): void {
-					if (!state || typeof state.x !== 'number' || typeof state.y !== 'number' || !displayWorkingArea) {
-						return;
-					}
-
-					if (state.x < displayWorkingArea.x) {
-						// prevent window from falling out of the screen to the left
-						state.x = displayWorkingArea.x;
-					}
-
-					if (state.y < displayWorkingArea.y) {
-						// prevent window from falling out of the screen to the top
-						state.y = displayWorkingArea.y;
-					}
-				}
-
-				// ensure state is not outside display working area (top, left)
-				ensureStateInDisplayWorkingArea();
-
-				if (state.width > displayWorkingArea.width) {
-					// prevent window from exceeding display bounds width
-					state.width = displayWorkingArea.width;
-				}
-
-				if (state.height > displayWorkingArea.height) {
-					// prevent window from exceeding display bounds height
-					state.height = displayWorkingArea.height;
-				}
-
-				if (state.x > (displayWorkingArea.x + displayWorkingArea.width - 128)) {
-					// prevent window from falling out of the screen to the right with
-					// 128px margin by positioning the window to the far right edge of
-					// the screen
-					state.x = displayWorkingArea.x + displayWorkingArea.width - state.width;
-				}
-
-				if (state.y > (displayWorkingArea.y + displayWorkingArea.height - 128)) {
-					// prevent window from falling out of the screen to the bottom with
-					// 128px margin by positioning the window to the far bottom edge of
-					// the screen
-					state.y = displayWorkingArea.y + displayWorkingArea.height - state.height;
-				}
-
-				// again ensure state is not outside display working area
-				// (it may have changed from the previous validation step)
-				ensureStateInDisplayWorkingArea();
-			}
-
-			return state;
-		}
-
-		// Multi Montior (fullscreen): try to find the previously used display
-		if (state.display && state.mode === WindowMode.Fullscreen) {
-			const display = displays.find(d => d.id === state.display);
-			if (display && typeof display.bounds?.x === 'number' && typeof display.bounds?.y === 'number') {
-				this.logService.trace('window#validateWindowState: restoring fullscreen to previous display');
-
-				const defaults = defaultWindowState(WindowMode.Fullscreen); // make sure we have good values when the user restores the window
-				defaults.x = display.bounds.x; // carefull to use displays x/y position so that the window ends up on the correct monitor
-				defaults.y = display.bounds.y;
-
-				return defaults;
-			}
-		}
-
-		// Multi Monitor (non-fullscreen): ensure window is within display bounds
-		let display: Display | undefined;
-		let displayWorkingArea: Rectangle | undefined;
-		try {
-			display = screen.getDisplayMatching({ x: state.x, y: state.y, width: state.width, height: state.height });
-			displayWorkingArea = this.getWorkingArea(display);
-		} catch (error) {
-			// Electron has weird conditions under which it throws errors
-			// e.g. https://github.com/microsoft/vscode/issues/100334 when
-			// large numbers are passed in
-		}
-
-		if (
-			display &&														// we have a display matching the desired bounds
-			displayWorkingArea &&											// we have valid working area bounds
-			state.x + state.width > displayWorkingArea.x &&					// prevent window from falling out of the screen to the left
-			state.y + state.height > displayWorkingArea.y &&				// prevent window from falling out of the screen to the top
-			state.x < displayWorkingArea.x + displayWorkingArea.width &&	// prevent window from falling out of the screen to the right
-			state.y < displayWorkingArea.y + displayWorkingArea.height		// prevent window from falling out of the screen to the bottom
-		) {
-			this.logService.trace('window#validateWindowState: multi-monitor working area', displayWorkingArea);
-
-			return state;
-		}
-
-		return undefined;
-	}
-
-	private getWorkingArea(display: Display): Rectangle | undefined {
-
-		// Prefer the working area of the display to account for taskbars on the
-		// desktop being positioned somewhere (https://github.com/microsoft/vscode/issues/50830).
-		//
-		// Linux X11 sessions sometimes report wrong display bounds, so we validate
-		// the reported sizes are positive.
-		if (display.workArea.width > 0 && display.workArea.height > 0) {
-			return display.workArea;
-		}
-
-		if (display.bounds.width > 0 && display.bounds.height > 0) {
-			return display.bounds;
-		}
-
-		return undefined;
-	}
-
-	getBounds(): Rectangle {
+	getBounds(): electron.Rectangle {
 		const [x, y] = this._win.getPosition();
 		const [width, height] = this._win.getSize();
 
@@ -1561,16 +1401,16 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			this.touchBarGroups.push(groupTouchBar);
 		}
 
-		this._win.setTouchBar(new TouchBar({ items: this.touchBarGroups }));
+		this._win.setTouchBar(new electron.TouchBar({ items: this.touchBarGroups }));
 	}
 
-	private createTouchBarGroup(items: ISerializableCommandAction[] = []): TouchBarSegmentedControl {
+	private createTouchBarGroup(items: ISerializableCommandAction[] = []): electron.TouchBarSegmentedControl {
 
 		// Group Segments
 		const segments = this.createTouchBarGroupSegments(items);
 
 		// Group Control
-		const control = new TouchBar.TouchBarSegmentedControl({
+		const control = new electron.TouchBar.TouchBarSegmentedControl({
 			segments,
 			mode: 'buttons',
 			segmentStyle: 'automatic',
@@ -1584,9 +1424,9 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 	private createTouchBarGroupSegments(items: ISerializableCommandAction[] = []): ITouchBarSegment[] {
 		const segments: ITouchBarSegment[] = items.map(item => {
-			let icon: NativeImage | undefined;
+			let icon: electron.NativeImage | undefined;
 			if (item.icon && !ThemeIcon.isThemeIcon(item.icon) && item.icon?.dark?.scheme === Schemas.file) {
-				icon = nativeImage.createFromPath(URI.revive(item.icon.dark).fsPath);
+				icon = electron.nativeImage.createFromPath(URI.revive(item.icon.dark).fsPath);
 				if (icon.isEmpty()) {
 					icon = undefined;
 				}
@@ -1607,6 +1447,10 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		});
 
 		return segments;
+	}
+
+	matches(webContents: electron.WebContents): boolean {
+		return this._win?.webContents.id === webContents.id;
 	}
 
 	override dispose(): void {

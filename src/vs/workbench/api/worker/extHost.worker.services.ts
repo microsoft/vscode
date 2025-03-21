@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
-import { ExtHostLogService } from 'vs/workbench/api/common/extHostLogService';
-import { ExtensionStoragePaths, IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
-import { ExtHostExtensionService } from 'vs/workbench/api/worker/extHostExtensionService';
+import { SyncDescriptor } from '../../../platform/instantiation/common/descriptors.js';
+import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { IExtHostExtensionService } from '../common/extHostExtensionService.js';
+import { ExtHostLogService } from '../common/extHostLogService.js';
+import { ExtensionStoragePaths, IExtensionStoragePaths } from '../common/extHostStoragePaths.js';
+import { ExtHostTelemetry, IExtHostTelemetry } from '../common/extHostTelemetry.js';
+import { ExtHostExtensionService } from './extHostExtensionService.js';
 
 // #########################################################################
 // ###                                                                   ###
@@ -20,3 +21,4 @@ import { ExtHostExtensionService } from 'vs/workbench/api/worker/extHostExtensio
 registerSingleton(ILogService, new SyncDescriptor(ExtHostLogService, [true], true));
 registerSingleton(IExtHostExtensionService, ExtHostExtensionService, InstantiationType.Eager);
 registerSingleton(IExtensionStoragePaths, ExtensionStoragePaths, InstantiationType.Eager);
+registerSingleton(IExtHostTelemetry, new SyncDescriptor(ExtHostTelemetry, [true], true));

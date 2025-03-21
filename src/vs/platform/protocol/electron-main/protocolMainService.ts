@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { session } from 'electron';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { COI, FileAccess, Schemas } from 'vs/base/common/network';
-import { basename, extname, normalize } from 'vs/base/common/path';
-import { isLinux } from 'vs/base/common/platform';
-import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IIPCObjectUrl, IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { COI, FileAccess, Schemas, CacheControlheaders } from '../../../base/common/network.js';
+import { basename, extname, normalize } from '../../../base/common/path.js';
+import { isLinux } from '../../../base/common/platform.js';
+import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
+import { URI } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
+import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain.js';
+import { INativeEnvironmentService } from '../../environment/common/environment.js';
+import { ILogService } from '../../log/common/log.js';
+import { IIPCObjectUrl, IProtocolMainService } from './protocol.js';
+import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
 
 type ProtocolCallback = { (result: string | Electron.FilePathWithHeaders | { error: number }): void };
 
@@ -24,7 +24,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 	declare readonly _serviceBrand: undefined;
 
 	private readonly validRoots = TernarySearchTree.forPaths<boolean>(!isLinux);
-	private readonly validExtensions = new Set(['.svg', '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp']); // https://github.com/microsoft/vscode/issues/119384
+	private readonly validExtensions = new Set(['.svg', '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.mp4', '.otf', '.ttf']); // https://github.com/microsoft/vscode/issues/119384
 
 	constructor(
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
@@ -96,11 +96,21 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 
 		let headers: Record<string, string> | undefined;
 		if (this.environmentService.crossOriginIsolated) {
-			if (basename(path) === 'workbench.html' || basename(path) === 'workbench-dev.html') {
+			const pathBasename = basename(path);
+			if (pathBasename === 'workbench.html' || pathBasename === 'workbench-dev.html') {
 				headers = COI.CoopAndCoep;
 			} else {
 				headers = COI.getHeadersFromQuery(request.url);
 			}
+		}
+
+		// In OSS, evict resources from the memory cache in the renderer process
+		// Refs https://github.com/microsoft/vscode/issues/148541#issuecomment-2670891511
+		if (!this.environmentService.isBuilt) {
+			headers = {
+				...headers,
+				...CacheControlheaders
+			};
 		}
 
 		// first check by validRoots
@@ -110,7 +120,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 
 		// then check by validExtensions
 		if (this.validExtensions.has(extname(path).toLowerCase())) {
-			return callback({ path });
+			return callback({ path, headers });
 		}
 
 		// finally block to load the resource

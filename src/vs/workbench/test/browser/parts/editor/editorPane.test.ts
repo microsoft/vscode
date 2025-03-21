@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { EditorPane, EditorMemento } from 'vs/workbench/browser/parts/editor/editorPane';
-import { WorkspaceTrustRequiredPlaceholderEditor } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
-import { IEditorSerializer, IEditorFactoryRegistry, EditorExtensions, EditorInputCapabilities, IEditorDescriptor, IEditorPane } from 'vs/workbench/common/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { workbenchInstantiationService, TestEditorGroupView, TestEditorGroupsService, registerTestResourceEditor, TestEditorInput, createEditorPart, TestTextResourceConfigurationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { URI } from 'vs/base/common/uri';
-import { EditorPaneDescriptor, EditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { TestStorageService, TestWorkspaceTrustManagementService } from 'vs/workbench/test/common/workbenchTestServices';
-import { extUri } from 'vs/base/common/resources';
-import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { EditorPane, EditorMemento } from '../../../../browser/parts/editor/editorPane.js';
+import { WorkspaceTrustRequiredPlaceholderEditor } from '../../../../browser/parts/editor/editorPlaceholder.js';
+import { IEditorSerializer, IEditorFactoryRegistry, EditorExtensions, EditorInputCapabilities, IEditorDescriptor, IEditorPane } from '../../../../common/editor.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { workbenchInstantiationService, TestEditorGroupView, TestEditorGroupsService, registerTestResourceEditor, TestEditorInput, createEditorPart, TestTextResourceConfigurationService } from '../../workbenchTestServices.js';
+import { TextResourceEditorInput } from '../../../../common/editor/textResourceEditorInput.js';
+import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { EditorPaneDescriptor, EditorPaneRegistry } from '../../../../browser/editor.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { TestStorageService, TestWorkspaceTrustManagementService } from '../../../common/workbenchTestServices.js';
+import { extUri } from '../../../../../base/common/resources.js';
+import { EditorService } from '../../../../services/editor/browser/editorService.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 const NullThemeService = new TestThemeService();
 
@@ -36,9 +36,9 @@ const editorInputRegistry: IEditorFactoryRegistry = Registry.as(EditorExtensions
 
 class TestEditor extends EditorPane {
 
-	constructor() {
+	constructor(group: IEditorGroup,) {
 		const disposables = new DisposableStore();
-		super('TestEditor', NullTelemetryService, NullThemeService, disposables.add(new TestStorageService()));
+		super('TestEditor', group, NullTelemetryService, NullThemeService, disposables.add(new TestStorageService()));
 
 		this._register(disposables);
 	}
@@ -50,9 +50,9 @@ class TestEditor extends EditorPane {
 
 class OtherTestEditor extends EditorPane {
 
-	constructor() {
+	constructor(group: IEditorGroup,) {
 		const disposables = new DisposableStore();
-		super('testOtherEditor', NullTelemetryService, NullThemeService, disposables.add(new TestStorageService()));
+		super('testOtherEditor', group, NullTelemetryService, NullThemeService, disposables.add(new TestStorageService()));
 
 		this._register(disposables);
 	}
@@ -118,7 +118,9 @@ suite('EditorPane', () => {
 	});
 
 	test('EditorPane API', async () => {
-		const editor = new TestEditor();
+		const group = new TestEditorGroupView(1);
+		const editor = new TestEditor(group);
+		assert.ok(editor.group);
 		const input = disposables.add(new OtherTestInput());
 		const options = {};
 
@@ -127,13 +129,11 @@ suite('EditorPane', () => {
 
 		await editor.setInput(input, options, Object.create(null), CancellationToken.None);
 		assert.strictEqual(<any>input, editor.input);
-		const group = new TestEditorGroupView(1);
-		editor.setVisible(true, group);
+		editor.setVisible(true);
 		assert(editor.isVisible());
-		assert.strictEqual(editor.group, group);
 		editor.dispose();
 		editor.clearInput();
-		editor.setVisible(false, group);
+		editor.setVisible(false);
 		assert(!editor.isVisible());
 		assert(!editor.input);
 		assert(!editor.getControl());
@@ -174,18 +174,22 @@ suite('EditorPane', () => {
 
 		const inst = workbenchInstantiationService(undefined, disposables);
 
-		const editor = disposables.add(editorRegistry.getEditorPane(disposables.add(inst.createInstance(TestResourceEditorInput, URI.file('/fake'), 'fake', '', undefined, undefined)))!.instantiate(inst));
+		const group = new TestEditorGroupView(1);
+
+		const editor = disposables.add(editorRegistry.getEditorPane(disposables.add(inst.createInstance(TestResourceEditorInput, URI.file('/fake'), 'fake', '', undefined, undefined)))!.instantiate(inst, group));
 		assert.strictEqual(editor.getId(), 'testEditor');
 
-		const otherEditor = disposables.add(editorRegistry.getEditorPane(disposables.add(inst.createInstance(TextResourceEditorInput, URI.file('/fake'), 'fake', '', undefined, undefined)))!.instantiate(inst));
+		const otherEditor = disposables.add(editorRegistry.getEditorPane(disposables.add(inst.createInstance(TextResourceEditorInput, URI.file('/fake'), 'fake', '', undefined, undefined)))!.instantiate(inst, group));
 		assert.strictEqual(otherEditor.getId(), 'workbench.editors.textResourceEditor');
 	});
 
 	test('Editor Pane Lookup favors specific class over superclass (match on super class)', function () {
 		const inst = workbenchInstantiationService(undefined, disposables);
 
+		const group = new TestEditorGroupView(1);
+
 		disposables.add(registerTestResourceEditor());
-		const editor = disposables.add(editorRegistry.getEditorPane(disposables.add(inst.createInstance(TestResourceEditorInput, URI.file('/fake'), 'fake', '', undefined, undefined)))!.instantiate(inst));
+		const editor = disposables.add(editorRegistry.getEditorPane(disposables.add(inst.createInstance(TestResourceEditorInput, URI.file('/fake'), 'fake', '', undefined, undefined)))!.instantiate(inst, group));
 
 		assert.strictEqual('workbench.editors.textResourceEditor', editor.getId());
 	});
@@ -453,8 +457,8 @@ suite('EditorPane', () => {
 	test('WorkspaceTrustRequiredEditor', async function () {
 
 		class TrustRequiredTestEditor extends EditorPane {
-			constructor(@ITelemetryService telemetryService: ITelemetryService) {
-				super('TestEditor', NullTelemetryService, NullThemeService, disposables.add(new TestStorageService()));
+			constructor(group: IEditorGroup, @ITelemetryService telemetryService: ITelemetryService) {
+				super('TestEditor', group, NullTelemetryService, NullThemeService, disposables.add(new TestStorageService()));
 			}
 
 			override getId(): string { return 'trustRequiredTestEditor'; }

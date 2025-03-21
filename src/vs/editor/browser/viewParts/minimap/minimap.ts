@@ -3,38 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./minimap';
-import * as dom from 'vs/base/browser/dom';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { GlobalPointerMoveMonitor } from 'vs/base/browser/globalPointerMoveMonitor';
-import { CharCode } from 'vs/base/common/charCode';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import * as strings from 'vs/base/common/strings';
-import { ILine, RenderedLinesCollection } from 'vs/editor/browser/view/viewLayer';
-import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
-import { RenderMinimap, EditorOption, MINIMAP_GUTTER_WIDTH, EditorLayoutInfoComputer } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
-import { RGBA8 } from 'vs/editor/common/core/rgba';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
-import { ColorId } from 'vs/editor/common/encodedTokenAttributes';
-import { MinimapCharRenderer } from 'vs/editor/browser/viewParts/minimap/minimapCharRenderer';
-import { Constants } from 'vs/editor/browser/viewParts/minimap/minimapCharSheet';
-import { MinimapTokensColorTracker } from 'vs/editor/common/viewModel/minimapTokensColorTracker';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import { EditorTheme } from 'vs/editor/common/editorTheme';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { ViewLineData, ViewModelDecoration } from 'vs/editor/common/viewModel';
-import { minimapSelection, minimapBackground, minimapForegroundOpacity } from 'vs/platform/theme/common/colorRegistry';
-import { ModelDecorationMinimapOptions } from 'vs/editor/common/model/textModel';
-import { Selection } from 'vs/editor/common/core/selection';
-import { Color } from 'vs/base/common/color';
-import { GestureEvent, EventType, Gesture } from 'vs/base/browser/touch';
-import { MinimapCharRendererFactory } from 'vs/editor/browser/viewParts/minimap/minimapCharRendererFactory';
-import { MinimapPosition, TextModelResolvedOptions } from 'vs/editor/common/model';
-import { createSingleCallFunction } from 'vs/base/common/functional';
+import './minimap.css';
+import * as dom from '../../../../base/browser/dom.js';
+import { FastDomNode, createFastDomNode } from '../../../../base/browser/fastDomNode.js';
+import { GlobalPointerMoveMonitor } from '../../../../base/browser/globalPointerMoveMonitor.js';
+import { CharCode } from '../../../../base/common/charCode.js';
+import { IDisposable, Disposable } from '../../../../base/common/lifecycle.js';
+import * as platform from '../../../../base/common/platform.js';
+import * as strings from '../../../../base/common/strings.js';
+import { ILine, RenderedLinesCollection } from '../../view/viewLayer.js';
+import { PartFingerprint, PartFingerprints, ViewPart } from '../../view/viewPart.js';
+import { RenderMinimap, EditorOption, MINIMAP_GUTTER_WIDTH, EditorLayoutInfoComputer } from '../../../common/config/editorOptions.js';
+import { Range } from '../../../common/core/range.js';
+import { RGBA8 } from '../../../common/core/rgba.js';
+import { ScrollType } from '../../../common/editorCommon.js';
+import { IEditorConfiguration } from '../../../common/config/editorConfiguration.js';
+import { ColorId } from '../../../common/encodedTokenAttributes.js';
+import { MinimapCharRenderer } from './minimapCharRenderer.js';
+import { Constants } from './minimapCharSheet.js';
+import { MinimapTokensColorTracker } from '../../../common/viewModel/minimapTokensColorTracker.js';
+import { RenderingContext, RestrictedRenderingContext } from '../../view/renderingContext.js';
+import { ViewContext } from '../../../common/viewModel/viewContext.js';
+import { EditorTheme } from '../../../common/editorTheme.js';
+import * as viewEvents from '../../../common/viewEvents.js';
+import { ViewLineData, ViewModelDecoration } from '../../../common/viewModel.js';
+import { minimapSelection, minimapBackground, minimapForegroundOpacity, editorForeground } from '../../../../platform/theme/common/colorRegistry.js';
+import { ModelDecorationMinimapOptions } from '../../../common/model/textModel.js';
+import { Selection } from '../../../common/core/selection.js';
+import { Color } from '../../../../base/common/color.js';
+import { GestureEvent, EventType, Gesture } from '../../../../base/browser/touch.js';
+import { MinimapCharRendererFactory } from './minimapCharRendererFactory.js';
+import { MinimapPosition, MinimapSectionHeaderStyle, TextModelResolvedOptions } from '../../../common/model.js';
+import { createSingleCallFunction } from '../../../../base/common/functional.js';
+import { LRUCache } from '../../../../base/common/map.js';
+import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
 
 /**
  * The orthogonal distance to the slider at which dragging "resets". This implements "snapping"
@@ -90,6 +92,13 @@ class MinimapOptions {
 	public readonly fontScale: number;
 	public readonly minimapLineHeight: number;
 	public readonly minimapCharWidth: number;
+	public readonly sectionHeaderFontFamily: string;
+	public readonly sectionHeaderFontSize: number;
+	/**
+	 * Space in between the characters of the section header (in CSS px)
+	 */
+	public readonly sectionHeaderLetterSpacing: number;
+	public readonly sectionHeaderFontColor: RGBA8;
 
 	public readonly charRenderer: () => MinimapCharRenderer;
 	public readonly defaultBackgroundColor: RGBA8;
@@ -132,6 +141,10 @@ class MinimapOptions {
 		this.fontScale = minimapLayout.minimapScale;
 		this.minimapLineHeight = minimapLayout.minimapLineHeight;
 		this.minimapCharWidth = Constants.BASE_CHAR_WIDTH * this.fontScale;
+		this.sectionHeaderFontFamily = DEFAULT_FONT_FAMILY;
+		this.sectionHeaderFontSize = minimapOpts.sectionHeaderFontSize * pixelRatio;
+		this.sectionHeaderLetterSpacing = minimapOpts.sectionHeaderLetterSpacing; // intentionally not multiplying by pixelRatio
+		this.sectionHeaderFontColor = MinimapOptions._getSectionHeaderColor(theme, tokensColorTracker.getColor(ColorId.DefaultForeground));
 
 		this.charRenderer = createSingleCallFunction(() => MinimapCharRendererFactory.create(this.fontScale, fontInfo.fontFamily));
 		this.defaultBackgroundColor = tokensColorTracker.getColor(ColorId.DefaultBackground);
@@ -153,6 +166,14 @@ class MinimapOptions {
 			return RGBA8._clamp(Math.round(255 * themeColor.rgba.a));
 		}
 		return 255;
+	}
+
+	private static _getSectionHeaderColor(theme: EditorTheme, defaultForegroundColor: RGBA8): RGBA8 {
+		const themeColor = theme.getColor(editorForeground);
+		if (themeColor) {
+			return new RGBA8(themeColor.rgba.r, themeColor.rgba.g, themeColor.rgba.b, Math.round(255 * themeColor.rgba.a));
+		}
+		return defaultForegroundColor;
 	}
 
 	public equals(other: MinimapOptions): boolean {
@@ -179,6 +200,8 @@ class MinimapOptions {
 			&& this.fontScale === other.fontScale
 			&& this.minimapLineHeight === other.minimapLineHeight
 			&& this.minimapCharWidth === other.minimapCharWidth
+			&& this.sectionHeaderFontSize === other.sectionHeaderFontSize
+			&& this.sectionHeaderLetterSpacing === other.sectionHeaderLetterSpacing
 			&& this.defaultBackgroundColor && this.defaultBackgroundColor.equals(other.defaultBackgroundColor)
 			&& this.backgroundColor && this.backgroundColor.equals(other.backgroundColor)
 			&& this.foregroundAlpha === other.foregroundAlpha
@@ -422,9 +445,9 @@ class RenderData {
 	) {
 		this.renderedLayout = renderedLayout;
 		this._imageData = imageData;
-		this._renderedLines = new RenderedLinesCollection(
-			() => MinimapLine.INVALID
-		);
+		this._renderedLines = new RenderedLinesCollection({
+			createLine: () => MinimapLine.INVALID
+		});
 		this._renderedLines._set(renderedLayout.startLineNumber, lines);
 	}
 
@@ -544,6 +567,8 @@ export interface IMinimapModel {
 	getMinimapLinesRenderingData(startLineNumber: number, endLineNumber: number, needed: boolean[]): (ViewLineData | null)[];
 	getSelections(): Selection[];
 	getMinimapDecorationsInViewport(startLineNumber: number, endLineNumber: number): ViewModelDecoration[];
+	getSectionHeaderDecorationsInViewport(startLineNumber: number, endLineNumber: number): ViewModelDecoration[];
+	getSectionHeaderText(decoration: ViewModelDecoration, fitWidth: (s: string) => string): string | null;
 	getOptions(): TextModelResolvedOptions;
 	revealLineNumber(lineNumber: number): void;
 	setScrollTop(scrollTop: number): void;
@@ -697,7 +722,7 @@ class MinimapSamplingState {
 
 	constructor(
 		public readonly samplingRatio: number,
-		public readonly minimapLines: number[]
+		public readonly minimapLines: number[]	// a map of 0-based minimap line indexes to 1-based view line numbers
 	) {
 	}
 
@@ -778,6 +803,10 @@ class MinimapSamplingState {
 	}
 }
 
+/**
+ * The minimap appears beside the editor scroll bar and visualizes a zoomed out
+ * view of the file.
+ */
 export class Minimap extends ViewPart implements IMinimapModel {
 
 	public readonly tokensColorTracker: MinimapTokensColorTracker;
@@ -789,6 +818,8 @@ export class Minimap extends ViewPart implements IMinimapModel {
 
 	private _samplingState: MinimapSamplingState | null;
 	private _shouldCheckSampling: boolean;
+
+	private _sectionHeaderCache = new LRUCache<string, string>(10, 1.5);
 
 	private _actual: InnerMinimap;
 
@@ -1037,6 +1068,18 @@ export class Minimap extends ViewPart implements IMinimapModel {
 	}
 
 	public getMinimapDecorationsInViewport(startLineNumber: number, endLineNumber: number): ViewModelDecoration[] {
+		return this._getMinimapDecorationsInViewport(startLineNumber, endLineNumber)
+			.filter(decoration => !decoration.options.minimap?.sectionHeaderStyle);
+	}
+
+	public getSectionHeaderDecorationsInViewport(startLineNumber: number, endLineNumber: number): ViewModelDecoration[] {
+		const headerHeightInMinimapLines = this.options.sectionHeaderFontSize / this.options.minimapLineHeight;
+		startLineNumber = Math.floor(Math.max(1, startLineNumber - headerHeightInMinimapLines));
+		return this._getMinimapDecorationsInViewport(startLineNumber, endLineNumber)
+			.filter(decoration => !!decoration.options.minimap?.sectionHeaderStyle);
+	}
+
+	private _getMinimapDecorationsInViewport(startLineNumber: number, endLineNumber: number) {
 		let visibleRange: Range;
 		if (this._samplingState) {
 			const modelStartLineNumber = this._samplingState.minimapLines[startLineNumber - 1];
@@ -1060,7 +1103,22 @@ export class Minimap extends ViewPart implements IMinimapModel {
 			}
 			return result;
 		}
+
 		return decorations;
+	}
+
+	public getSectionHeaderText(decoration: ViewModelDecoration, fitWidth: (s: string) => string): string | null {
+		const headerText = decoration.options.minimap?.sectionHeaderText;
+		if (!headerText) {
+			return null;
+		}
+		const cachedText = this._sectionHeaderCache.get(headerText);
+		if (cachedText) {
+			return cachedText;
+		}
+		const fittedText = fitWidth(headerText);
+		this._sectionHeaderCache.set(headerText, fittedText);
+		return fittedText;
 	}
 
 	public getOptions(): TextModelResolvedOptions {
@@ -1469,6 +1527,7 @@ class InnerMinimap extends Disposable {
 			const lineOffsetMap = new ContiguousLineMap<number[] | null>(layout.startLineNumber, layout.endLineNumber, null);
 			this._renderSelectionsHighlights(canvasContext, selections, lineOffsetMap, layout, minimapLineHeight, tabSize, minimapCharWidth, canvasInnerWidth);
 			this._renderDecorationsHighlights(canvasContext, decorations, lineOffsetMap, layout, minimapLineHeight, tabSize, minimapCharWidth, canvasInnerWidth);
+			this._renderSectionHeaders(layout);
 		}
 	}
 
@@ -1733,6 +1792,112 @@ class InnerMinimap extends Disposable {
 	private renderDecoration(canvasContext: CanvasRenderingContext2D, decorationColor: Color | undefined, x: number, y: number, width: number, height: number) {
 		canvasContext.fillStyle = decorationColor && decorationColor.toString() || '';
 		canvasContext.fillRect(x, y, width, height);
+	}
+
+	private _renderSectionHeaders(layout: MinimapLayout) {
+		const minimapLineHeight = this._model.options.minimapLineHeight;
+		const sectionHeaderFontSize = this._model.options.sectionHeaderFontSize;
+		const sectionHeaderLetterSpacing = this._model.options.sectionHeaderLetterSpacing;
+		const backgroundFillHeight = sectionHeaderFontSize * 1.5;
+		const { canvasInnerWidth } = this._model.options;
+
+		const backgroundColor = this._model.options.backgroundColor;
+		const backgroundFill = `rgb(${backgroundColor.r} ${backgroundColor.g} ${backgroundColor.b} / .7)`;
+		const foregroundColor = this._model.options.sectionHeaderFontColor;
+		const foregroundFill = `rgb(${foregroundColor.r} ${foregroundColor.g} ${foregroundColor.b})`;
+		const separatorStroke = foregroundFill;
+
+		const canvasContext = this._decorationsCanvas.domNode.getContext('2d')!;
+		canvasContext.letterSpacing = sectionHeaderLetterSpacing + 'px';
+		canvasContext.font = '500 ' + sectionHeaderFontSize + 'px ' + this._model.options.sectionHeaderFontFamily;
+		canvasContext.strokeStyle = separatorStroke;
+		canvasContext.lineWidth = 0.2;
+
+		const decorations = this._model.getSectionHeaderDecorationsInViewport(layout.startLineNumber, layout.endLineNumber);
+		decorations.sort((a, b) => a.range.startLineNumber - b.range.startLineNumber);
+
+		const fitWidth = InnerMinimap._fitSectionHeader.bind(null, canvasContext,
+			canvasInnerWidth - MINIMAP_GUTTER_WIDTH);
+
+		for (const decoration of decorations) {
+			const y = layout.getYForLineNumber(decoration.range.startLineNumber, minimapLineHeight) + sectionHeaderFontSize;
+			const backgroundFillY = y - sectionHeaderFontSize;
+			const separatorY = backgroundFillY + 2;
+			const headerText = this._model.getSectionHeaderText(decoration, fitWidth);
+
+			InnerMinimap._renderSectionLabel(
+				canvasContext,
+				headerText,
+				decoration.options.minimap?.sectionHeaderStyle === MinimapSectionHeaderStyle.Underlined,
+				backgroundFill,
+				foregroundFill,
+				canvasInnerWidth,
+				backgroundFillY,
+				backgroundFillHeight,
+				y,
+				separatorY);
+		}
+	}
+
+	private static _fitSectionHeader(
+		target: CanvasRenderingContext2D,
+		maxWidth: number,
+		headerText: string,
+	): string {
+		if (!headerText) {
+			return headerText;
+		}
+
+		const ellipsis = '…';
+		const width = target.measureText(headerText).width;
+		const ellipsisWidth = target.measureText(ellipsis).width;
+
+		if (width <= maxWidth || width <= ellipsisWidth) {
+			return headerText;
+		}
+
+		const len = headerText.length;
+		const averageCharWidth = width / headerText.length;
+		const maxCharCount = Math.floor((maxWidth - ellipsisWidth) / averageCharWidth) - 1;
+
+		// Find a halfway point that isn't after whitespace
+		let halfCharCount = Math.ceil(maxCharCount / 2);
+		while (halfCharCount > 0 && /\s/.test(headerText[halfCharCount - 1])) {
+			--halfCharCount;
+		}
+
+		// Split with ellipsis
+		return headerText.substring(0, halfCharCount)
+			+ ellipsis + headerText.substring(len - (maxCharCount - halfCharCount));
+	}
+
+	private static _renderSectionLabel(
+		target: CanvasRenderingContext2D,
+		headerText: string | null,
+		hasSeparatorLine: boolean,
+		backgroundFill: string,
+		foregroundFill: string,
+		minimapWidth: number,
+		backgroundFillY: number,
+		backgroundFillHeight: number,
+		textY: number,
+		separatorY: number
+	): void {
+		if (headerText) {
+			target.fillStyle = backgroundFill;
+			target.fillRect(0, backgroundFillY, minimapWidth, backgroundFillHeight);
+
+			target.fillStyle = foregroundFill;
+			target.fillText(headerText, MINIMAP_GUTTER_WIDTH, textY);
+		}
+
+		if (hasSeparatorLine) {
+			target.beginPath();
+			target.moveTo(0, separatorY);
+			target.lineTo(minimapWidth, separatorY);
+			target.closePath();
+			target.stroke();
+		}
 	}
 
 	private renderLines(layout: MinimapLayout): RenderData | null {

@@ -3,34 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
-import { Schemas } from 'vs/base/common/network';
-import { localize, localize2 } from 'vs/nls';
-import { IMenu, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IExtensionTerminalProfile, ITerminalProfile, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
-import { TaskExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
-import { ICreateTerminalOptions, ITerminalLocationOptions, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalCommandId, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalContextKeys, TerminalContextKeyStrings } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { Action, IAction, Separator, SubmenuAction } from '../../../../base/common/actions.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { IMenu, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { IExtensionTerminalProfile, ITerminalProfile, TerminalLocation, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
+import { ResourceContextKey } from '../../../common/contextkeys.js';
+import { TaskExecutionSupportedContext } from '../../tasks/common/taskService.js';
+import { ICreateTerminalOptions, ITerminalLocationOptions, ITerminalService } from './terminal.js';
+import { TerminalCommandId, TERMINAL_VIEW_ID } from '../common/terminal.js';
+import { TerminalContextKeys, TerminalContextKeyStrings } from '../common/terminalContextKey.js';
+import { terminalStrings } from '../common/terminalStrings.js';
+import { ACTIVE_GROUP, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 
 const enum ContextMenuGroup {
 	Create = '1_create',
-	Edit = '2_edit',
-	Clear = '3_clear',
-	Kill = '4_kill',
-	Config = '5_config'
+	Edit = '3_edit',
+	Clear = '5_clear',
+	Kill = '7_kill',
+	Config = '9_config'
 }
 
 export const enum TerminalMenuBarGroup {
 	Create = '1_create',
-	Run = '2_run',
-	Manage = '3_manage',
-	Configure = '4_configure'
+	Run = '3_run',
+	Manage = '5_manage',
+	Configure = '7_configure'
 }
 
 export function setupTerminalMenus(): void {
@@ -293,7 +294,7 @@ export function setupTerminalMenus(): void {
 				item: {
 					command: {
 						id: TerminalCommandId.NewWithProfile,
-						title: localize('workbench.action.terminal.newWithProfile.short', "New Terminal With Profile")
+						title: localize('workbench.action.terminal.newWithProfile.short', "New Terminal With Profile...")
 					},
 					group: ContextMenuGroup.Create
 				}
@@ -679,7 +680,7 @@ export function setupTerminalMenus(): void {
 	});
 }
 
-export function getTerminalActionBarArgs(location: ITerminalLocationOptions, profiles: ITerminalProfile[], defaultProfileName: string, contributedProfiles: readonly IExtensionTerminalProfile[], terminalService: ITerminalService, dropdownMenu: IMenu): {
+export function getTerminalActionBarArgs(location: ITerminalLocationOptions, profiles: ITerminalProfile[], defaultProfileName: string, contributedProfiles: readonly IExtensionTerminalProfile[], terminalService: ITerminalService, dropdownMenu: IMenu, disposableStore: DisposableStore): {
 	dropdownAction: IAction;
 	dropdownMenuActions: IAction[];
 	className: string;
@@ -694,37 +695,37 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 		const options: ICreateTerminalOptions = { config: p, location };
 		const splitOptions: ICreateTerminalOptions = { config: p, location: splitLocation };
 		const sanitizedProfileName = p.profileName.replace(/[\n\r\t]/g, '');
-		dropdownActions.push(new Action(TerminalCommandId.NewWithProfile, isDefault ? localize('defaultTerminalProfile', "{0} (Default)", sanitizedProfileName) : sanitizedProfileName, undefined, true, async () => {
+		dropdownActions.push(disposableStore.add(new Action(TerminalCommandId.NewWithProfile, isDefault ? localize('defaultTerminalProfile', "{0} (Default)", sanitizedProfileName) : sanitizedProfileName, undefined, true, async () => {
 			const instance = await terminalService.createTerminal(options);
 			terminalService.setActiveInstance(instance);
 			await terminalService.focusActiveInstance();
-		}));
-		submenuActions.push(new Action(TerminalCommandId.Split, isDefault ? localize('defaultTerminalProfile', "{0} (Default)", sanitizedProfileName) : sanitizedProfileName, undefined, true, async () => {
+		})));
+		submenuActions.push(disposableStore.add(new Action(TerminalCommandId.Split, isDefault ? localize('defaultTerminalProfile', "{0} (Default)", sanitizedProfileName) : sanitizedProfileName, undefined, true, async () => {
 			const instance = await terminalService.createTerminal(splitOptions);
 			terminalService.setActiveInstance(instance);
 			await terminalService.focusActiveInstance();
-		}));
+		})));
 	}
 
 	for (const contributed of contributedProfiles) {
 		const isDefault = contributed.title === defaultProfileName;
 		const title = isDefault ? localize('defaultTerminalProfile', "{0} (Default)", contributed.title.replace(/[\n\r\t]/g, '')) : contributed.title.replace(/[\n\r\t]/g, '');
-		dropdownActions.push(new Action('contributed', title, undefined, true, () => terminalService.createTerminal({
+		dropdownActions.push(disposableStore.add(new Action('contributed', title, undefined, true, () => terminalService.createTerminal({
 			config: {
 				extensionIdentifier: contributed.extensionIdentifier,
 				id: contributed.id,
 				title
 			},
 			location
-		})));
-		submenuActions.push(new Action('contributed-split', title, undefined, true, () => terminalService.createTerminal({
+		}))));
+		submenuActions.push(disposableStore.add(new Action('contributed-split', title, undefined, true, () => terminalService.createTerminal({
 			config: {
 				extensionIdentifier: contributed.extensionIdentifier,
 				id: contributed.id,
 				title
 			},
 			location: splitLocation
-		})));
+		}))));
 	}
 
 	const defaultProfileAction = dropdownActions.find(d => d.label.endsWith('(Default)'));
@@ -746,6 +747,6 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 		submenuActions.unshift(defaultSubmenuProfileAction);
 	}
 
-	const dropdownAction = new Action('refresh profiles', localize('launchProfile', 'Launch Profile...'), 'codicon-chevron-down', true);
+	const dropdownAction = disposableStore.add(new Action('refresh profiles', localize('launchProfile', 'Launch Profile...'), 'codicon-chevron-down', true));
 	return { dropdownAction, dropdownMenuActions: dropdownActions, className: `terminal-tab-actions-${terminalService.resolveLocation(location)}` };
 }

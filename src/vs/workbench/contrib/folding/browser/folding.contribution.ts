@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
-import * as nls from 'vs/nls';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { editorConfigurationBaseNode } from 'vs/editor/common/config/editorConfigurationSchema';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { FoldingRangeProvider } from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { FoldingController } from '../../../../editor/contrib/folding/browser/folding.js';
+import * as nls from '../../../../nls.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from '../../../common/contributions.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { editorConfigurationBaseNode } from '../../../../editor/common/config/editorConfigurationSchema.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { FoldingRangeProvider } from '../../../../editor/common/languages.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 
 class DefaultFoldingRangeProvider extends Disposable implements IWorkbenchContribution {
 

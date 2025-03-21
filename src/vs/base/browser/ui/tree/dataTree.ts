@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { AbstractTree, AbstractTreeViewState, IAbstractTreeOptions } from 'vs/base/browser/ui/tree/abstractTree';
-import { IList } from 'vs/base/browser/ui/tree/indexTreeModel';
-import { ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
-import { IDataSource, ITreeElement, ITreeModel, ITreeNode, ITreeRenderer, ITreeSorter, TreeError } from 'vs/base/browser/ui/tree/tree';
-import { Iterable } from 'vs/base/common/iterator';
+import { IIdentityProvider, IListVirtualDelegate } from '../list/list.js';
+import { AbstractTree, AbstractTreeViewState, IAbstractTreeOptions } from './abstractTree.js';
+import { ObjectTreeModel } from './objectTreeModel.js';
+import { IDataSource, ITreeElement, ITreeModel, ITreeNode, ITreeRenderer, ITreeSorter, TreeError } from './tree.js';
+import { Iterable } from '../../../common/iterator.js';
 
 export interface IDataTreeOptions<T, TFilterData = void> extends IAbstractTreeOptions<T, TFilterData> {
 	readonly sorter?: ITreeSorter<T>;
@@ -168,7 +167,7 @@ export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | nu
 		return { elements, size: children.length };
 	}
 
-	protected createModel(user: string, view: IList<ITreeNode<T, TFilterData>>, options: IDataTreeOptions<T, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {
-		return new ObjectTreeModel(user, view, options);
+	protected createModel(user: string, options: IDataTreeOptions<T, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {
+		return new ObjectTreeModel(user, options);
 	}
 }

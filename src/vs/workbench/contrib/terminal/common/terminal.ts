@@ -3,21 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
-import Severity from 'vs/base/common/severity';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { URI } from 'vs/base/common/uri';
-import * as nls from 'vs/nls';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ISerializedCommandDetectionCapability, ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
-import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IFixedTerminalDimensions, IProcessDataEvent, IProcessProperty, IProcessPropertyMap, IProcessReadyEvent, IProcessReadyWindowsPty, IShellLaunchConfig, ITerminalBackend, ITerminalContributions, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ProcessPropertyType, TerminalIcon, TerminalLocationString, TitleEventSource } from 'vs/platform/terminal/common/terminal';
-import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
-import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { Event } from '../../../../base/common/event.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
+import { IProcessEnvironment, isLinux, OperatingSystem } from '../../../../base/common/platform.js';
+import Severity from '../../../../base/common/severity.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
+import * as nls from '../../../../nls.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { ISerializedCommandDetectionCapability, ITerminalCapabilityStore } from '../../../../platform/terminal/common/capabilities/capabilities.js';
+import { IMergedEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariable.js';
+import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IFixedTerminalDimensions, IProcessDataEvent, IProcessProperty, IProcessPropertyMap, IProcessReadyEvent, IProcessReadyWindowsPty, IShellLaunchConfig, ITerminalBackend, ITerminalContributions, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalTabAction, ProcessPropertyType, TerminalIcon, TerminalLocationString, TitleEventSource } from '../../../../platform/terminal/common/terminal.js';
+import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
+import { IEnvironmentVariableInfo } from './environmentVariable.js';
+import { IExtensionPointDescriptor } from '../../../services/extensions/common/extensionsRegistry.js';
+import { defaultTerminalContribCommandsToSkipShell } from '../terminalContribExports.js';
 
 export const TERMINAL_VIEW_ID = 'terminal';
 
@@ -27,7 +28,12 @@ export const TERMINAL_CONFIG_SECTION = 'terminal.integrated';
 
 export const DEFAULT_LETTER_SPACING = 0;
 export const MINIMUM_LETTER_SPACING = -5;
-export const DEFAULT_LINE_HEIGHT = 1;
+// HACK: On Linux it's common for fonts to include an underline that is rendered lower than the
+// bottom of the cell which causes it to be cut off due to `overflow:hidden` in the DOM renderer.
+// See:
+// - https://github.com/microsoft/vscode/issues/211933
+// - https://github.com/xtermjs/xterm.js/issues/4067
+export const DEFAULT_LINE_HEIGHT = isLinux ? 1.1 : 1;
 
 export const MINIMUM_FONT_WEIGHT = 1;
 export const MAXIMUM_FONT_WEIGHT = 1000;
@@ -135,8 +141,9 @@ export interface ITerminalConfiguration {
 	altClickMovesCursor: boolean;
 	macOptionIsMeta: boolean;
 	macOptionClickForcesSelection: boolean;
-	gpuAcceleration: 'auto' | 'on' | 'canvas' | 'off';
+	gpuAcceleration: 'auto' | 'on' | 'off';
 	rightClickBehavior: 'default' | 'copyPaste' | 'paste' | 'selectWord' | 'nothing';
+	middleClickBehavior: 'default' | 'paste';
 	cursorBlinking: boolean;
 	cursorStyle: 'block' | 'underline' | 'line';
 	cursorStyleInactive: 'outline' | 'block' | 'underline' | 'line' | 'none';
@@ -150,7 +157,6 @@ export interface ITerminalConfiguration {
 	mouseWheelScrollSensitivity: number;
 	tabStopWidth: number;
 	sendKeybindingsToShell: boolean;
-	// fontLigatures: boolean;
 	fontSize: number;
 	letterSpacing: number;
 	lineHeight: number;
@@ -173,13 +179,11 @@ export interface ITerminalConfiguration {
 	showExitAlert: boolean;
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
 	windowsEnableConpty: boolean;
+	windowsUseConptyDll?: boolean;
 	wordSeparators: string;
 	enableFileLinks: 'off' | 'on' | 'notRemote';
+	allowedLinkSchemes: string[];
 	unicodeVersion: '6' | '11';
-	localEchoLatencyThreshold: number;
-	localEchoExcludePrograms: ReadonlyArray<string>;
-	localEchoEnabled: 'auto' | 'on' | 'off';
-	localEchoStyle: 'bold' | 'dim' | 'italic' | 'underlined' | 'inverted' | string;
 	enablePersistentSessions: boolean;
 	tabs: {
 		enabled: boolean;
@@ -196,17 +200,21 @@ export interface ITerminalConfiguration {
 	customGlyphs: boolean;
 	persistentSessionReviveProcess: 'onExit' | 'onExitAndWindowClose' | 'never';
 	ignoreProcessNames: string[];
-	autoReplies: { [key: string]: string };
 	shellIntegration?: {
 		enabled: boolean;
-		decorationsEnabled: boolean;
+		decorationsEnabled: 'both' | 'gutter' | 'overviewRuler' | 'never';
 	};
 	enableImages: boolean;
 	smoothScrolling: boolean;
 	ignoreBracketedPasteMode: boolean;
+	rescaleOverlappingGlyphs: boolean;
+	fontLigatures?: {
+		enabled: boolean;
+		featureSettings: string;
+		fallbackLigatures: string[];
+	};
+	hideOnLastClosed: boolean;
 }
-
-export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];
 
 export interface ITerminalFont {
 	fontFamily: string;
@@ -230,6 +238,7 @@ export interface IRemoteTerminalAttachTarget {
 	color: string | undefined;
 	fixedDimensions: IFixedTerminalDimensions | undefined;
 	shellIntegrationNonce: string;
+	tabActions?: ITerminalTabAction[];
 }
 
 export interface IBeforeProcessDataEvent {
@@ -268,6 +277,8 @@ export interface ITerminalProcessInfo {
 export const isTerminalProcessManager = (t: ITerminalProcessInfo | ITerminalProcessManager): t is ITerminalProcessManager => typeof (t as ITerminalProcessManager).write === 'function';
 
 export interface ITerminalProcessManager extends IDisposable, ITerminalProcessInfo {
+	readonly processTraits: IProcessReadyEvent | undefined;
+
 	readonly onPtyDisconnect: Event<void>;
 	readonly onPtyReconnect: Event<void>;
 
@@ -360,6 +371,10 @@ export interface ITerminalStatus {
 	 */
 	tooltip?: string | undefined;
 	/**
+	 * What to show for this status in the terminal's hover when details are toggled.
+	 */
+	detailedTooltip?: string | undefined;
+	/**
 	 * Actions to expose on hover.
 	 */
 	hoverActions?: ITerminalStatusHoverAction[];
@@ -382,8 +397,6 @@ export interface ISerializedTerminalInstanceContext {
 export const QUICK_LAUNCH_PROFILE_CHOICE = 'workbench.action.terminal.profile.choice';
 
 export const enum TerminalCommandId {
-	FindNext = 'workbench.action.terminal.findNext',
-	FindPrevious = 'workbench.action.terminal.findPrevious',
 	Toggle = 'workbench.action.terminal.toggleTerminal',
 	Kill = 'workbench.action.terminal.kill',
 	KillViewOrEditor = 'workbench.action.terminal.killViewOrEditor',
@@ -392,19 +405,10 @@ export const enum TerminalCommandId {
 	KillAll = 'workbench.action.terminal.killAll',
 	QuickKill = 'workbench.action.terminal.quickKill',
 	ConfigureTerminalSettings = 'workbench.action.terminal.openSettings',
-	OpenDetectedLink = 'workbench.action.terminal.openDetectedLink',
-	OpenWordLink = 'workbench.action.terminal.openWordLink',
 	ShellIntegrationLearnMore = 'workbench.action.terminal.learnMore',
-	OpenFileLink = 'workbench.action.terminal.openFileLink',
-	OpenWebLink = 'workbench.action.terminal.openUrlLink',
-	RunRecentCommand = 'workbench.action.terminal.runRecentCommand',
-	FocusAccessibleBuffer = 'workbench.action.terminal.focusAccessibleBuffer',
-	AccessibleBufferGoToNextCommand = 'workbench.action.terminal.accessibleBufferGoToNextCommand',
-	AccessibleBufferGoToPreviousCommand = 'workbench.action.terminal.accessibleBufferGoToPreviousCommand',
 	CopyLastCommand = 'workbench.action.terminal.copyLastCommand',
 	CopyLastCommandOutput = 'workbench.action.terminal.copyLastCommandOutput',
 	CopyLastCommandAndLastCommandOutput = 'workbench.action.terminal.copyLastCommandAndLastCommandOutput',
-	GoToRecentDirectory = 'workbench.action.terminal.goToRecentDirectory',
 	CopyAndClearSelection = 'workbench.action.terminal.copyAndClearSelection',
 	CopySelection = 'workbench.action.terminal.copySelection',
 	CopySelectionAsHtml = 'workbench.action.terminal.copySelectionAsHtml',
@@ -422,7 +426,6 @@ export const enum TerminalCommandId {
 	Split = 'workbench.action.terminal.split',
 	SplitActiveTab = 'workbench.action.terminal.splitActiveTab',
 	SplitInActiveWorkspace = 'workbench.action.terminal.splitInActiveWorkspace',
-	ShowQuickFixes = 'workbench.action.terminal.showQuickFixes',
 	Unsplit = 'workbench.action.terminal.unsplit',
 	JoinActiveTab = 'workbench.action.terminal.joinActiveTab',
 	Join = 'workbench.action.terminal.join',
@@ -451,11 +454,9 @@ export const enum TerminalCommandId {
 	ScrollDownLine = 'workbench.action.terminal.scrollDown',
 	ScrollDownPage = 'workbench.action.terminal.scrollDownPage',
 	ScrollToBottom = 'workbench.action.terminal.scrollToBottom',
-	ScrollToBottomAccessibleView = 'workbench.action.terminal.scrollToBottomAccessibleView',
 	ScrollUpLine = 'workbench.action.terminal.scrollUp',
 	ScrollUpPage = 'workbench.action.terminal.scrollUpPage',
 	ScrollToTop = 'workbench.action.terminal.scrollToTop',
-	ScrollToTopAccessibleView = 'workbench.action.terminal.scrollToTopAccessibleView',
 	Clear = 'workbench.action.terminal.clear',
 	ClearSelection = 'workbench.action.terminal.clearSelection',
 	ChangeIcon = 'workbench.action.terminal.changeIcon',
@@ -465,9 +466,6 @@ export const enum TerminalCommandId {
 	Rename = 'workbench.action.terminal.rename',
 	RenameActiveTab = 'workbench.action.terminal.renameActiveTab',
 	RenameWithArgs = 'workbench.action.terminal.renameWithArg',
-	FindFocus = 'workbench.action.terminal.focusFind',
-	FindHide = 'workbench.action.terminal.hideFind',
-	QuickOpenTerm = 'workbench.action.quickOpenTerm',
 	ScrollToPreviousCommand = 'workbench.action.terminal.scrollToPreviousCommand',
 	ScrollToNextCommand = 'workbench.action.terminal.scrollToNextCommand',
 	SelectToPreviousCommand = 'workbench.action.terminal.selectToPreviousCommand',
@@ -475,37 +473,16 @@ export const enum TerminalCommandId {
 	SelectToPreviousLine = 'workbench.action.terminal.selectToPreviousLine',
 	SelectToNextLine = 'workbench.action.terminal.selectToNextLine',
 	SendSequence = 'workbench.action.terminal.sendSequence',
-	ToggleFindRegex = 'workbench.action.terminal.toggleFindRegex',
-	ToggleFindWholeWord = 'workbench.action.terminal.toggleFindWholeWord',
-	ToggleFindCaseSensitive = 'workbench.action.terminal.toggleFindCaseSensitive',
-	SearchWorkspace = 'workbench.action.terminal.searchWorkspace',
 	AttachToSession = 'workbench.action.terminal.attachToSession',
 	DetachSession = 'workbench.action.terminal.detachSession',
 	MoveToEditor = 'workbench.action.terminal.moveToEditor',
 	MoveToTerminalPanel = 'workbench.action.terminal.moveToTerminalPanel',
 	MoveIntoNewWindow = 'workbench.action.terminal.moveIntoNewWindow',
 	SetDimensions = 'workbench.action.terminal.setDimensions',
-	ClearPreviousSessionHistory = 'workbench.action.terminal.clearPreviousSessionHistory',
-	SelectPrevSuggestion = 'workbench.action.terminal.selectPrevSuggestion',
-	SelectPrevPageSuggestion = 'workbench.action.terminal.selectPrevPageSuggestion',
-	SelectNextSuggestion = 'workbench.action.terminal.selectNextSuggestion',
-	SelectNextPageSuggestion = 'workbench.action.terminal.selectNextPageSuggestion',
-	AcceptSelectedSuggestion = 'workbench.action.terminal.acceptSelectedSuggestion',
-	HideSuggestWidget = 'workbench.action.terminal.hideSuggestWidget',
 	FocusHover = 'workbench.action.terminal.focusHover',
 	ShowEnvironmentContributions = 'workbench.action.terminal.showEnvironmentContributions',
-	ToggleStickyScroll = 'workbench.action.terminal.toggleStickyScroll',
 	StartVoice = 'workbench.action.terminal.startVoice',
 	StopVoice = 'workbench.action.terminal.stopVoice',
-	FontZoomIn = 'workbench.action.terminal.fontZoomIn',
-	FontZoomOut = 'workbench.action.terminal.fontZoomOut',
-	FontZoomReset = 'workbench.action.terminal.fontZoomReset',
-
-	// Developer commands
-
-	WriteDataToTerminal = 'workbench.action.terminal.writeDataToTerminal',
-	ShowTextureAtlas = 'workbench.action.terminal.showTextureAtlas',
-	RestartPtyHost = 'workbench.action.terminal.restartPtyHost',
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
@@ -520,14 +497,6 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.DeleteToLineStart,
 	TerminalCommandId.DeleteWordLeft,
 	TerminalCommandId.DeleteWordRight,
-	TerminalCommandId.FindFocus,
-	TerminalCommandId.FindHide,
-	TerminalCommandId.FindNext,
-	TerminalCommandId.FindPrevious,
-	TerminalCommandId.GoToRecentDirectory,
-	TerminalCommandId.ToggleFindRegex,
-	TerminalCommandId.ToggleFindWholeWord,
-	TerminalCommandId.ToggleFindCaseSensitive,
 	TerminalCommandId.FocusNextPane,
 	TerminalCommandId.FocusNext,
 	TerminalCommandId.FocusPreviousPane,
@@ -550,7 +519,6 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.ResizePaneUp,
 	TerminalCommandId.RunActiveFile,
 	TerminalCommandId.RunSelectedText,
-	TerminalCommandId.RunRecentCommand,
 	TerminalCommandId.ScrollDownLine,
 	TerminalCommandId.ScrollDownPage,
 	TerminalCommandId.ScrollToBottom,
@@ -568,15 +536,9 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.SplitInActiveWorkspace,
 	TerminalCommandId.Split,
 	TerminalCommandId.Toggle,
-	TerminalCommandId.SelectPrevSuggestion,
-	TerminalCommandId.SelectPrevPageSuggestion,
-	TerminalCommandId.SelectNextSuggestion,
-	TerminalCommandId.SelectNextPageSuggestion,
-	TerminalCommandId.AcceptSelectedSuggestion,
-	TerminalCommandId.HideSuggestWidget,
 	TerminalCommandId.FocusHover,
-	TerminalCommandId.FocusAccessibleBuffer,
 	AccessibilityCommandId.OpenAccessibilityHelp,
+	'workbench.action.tasks.rerunForActiveTerminal',
 	'editor.action.toggleTabFocusMode',
 	'notifications.hideList',
 	'notifications.hideToasts',
@@ -615,6 +577,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.previousPanelView',
 	'workbench.action.nextSideBarView',
 	'workbench.action.previousSideBarView',
+	'workbench.action.debug.disconnect',
 	'workbench.action.debug.start',
 	'workbench.action.debug.stop',
 	'workbench.action.debug.run',
@@ -649,7 +612,19 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.quickOpenView',
 	'workbench.action.toggleMaximizedPanel',
 	'notification.acceptPrimaryAction',
-	'runCommands'
+	'runCommands',
+	'workbench.action.terminal.chat.start',
+	'workbench.action.terminal.chat.close',
+	'workbench.action.terminal.chat.discard',
+	'workbench.action.terminal.chat.makeRequest',
+	'workbench.action.terminal.chat.cancel',
+	'workbench.action.terminal.chat.feedbackHelpful',
+	'workbench.action.terminal.chat.feedbackUnhelpful',
+	'workbench.action.terminal.chat.feedbackReportIssue',
+	'workbench.action.terminal.chat.runCommand',
+	'workbench.action.terminal.chat.insertCommand',
+	'workbench.action.terminal.chat.viewInChat',
+	...defaultTerminalContribCommandsToSkipShell,
 ];
 
 export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITerminalContributions> = {

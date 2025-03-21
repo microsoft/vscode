@@ -3,24 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./standaloneQuickInput';
-import { Event } from 'vs/base/common/event';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
-import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IQuickInputService, IQuickInputButton, IQuickPickItem, IQuickPick, IInputBox, IQuickNavigateConfiguration, IPickOptions, QuickPickInput, IInputOptions, IQuickWidget } from 'vs/platform/quickinput/common/quickInput';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { EditorScopedLayoutService } from 'vs/editor/standalone/browser/standaloneLayoutService';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { QuickInputController, IQuickInputControllerHost } from 'vs/platform/quickinput/browser/quickInputController';
-import { QuickInputService } from 'vs/platform/quickinput/browser/quickInputService';
-import { createSingleCallFunction } from 'vs/base/common/functional';
-import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
+import './standaloneQuickInput.css';
+import { Event } from '../../../../base/common/event.js';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from '../../../browser/editorBrowser.js';
+import { EditorContributionInstantiation, registerEditorContribution } from '../../../browser/editorExtensions.js';
+import { IEditorContribution } from '../../../common/editorCommon.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IQuickInputService, IQuickPickItem, IQuickPick, IInputBox, IQuickNavigateConfiguration, IPickOptions, QuickPickInput, IInputOptions, IQuickWidget } from '../../../../platform/quickinput/common/quickInput.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { EditorScopedLayoutService } from '../standaloneLayoutService.js';
+import { ICodeEditorService } from '../../../browser/services/codeEditorService.js';
+import { QuickInputController, IQuickInputControllerHost } from '../../../../platform/quickinput/browser/quickInputController.js';
+import { QuickInputService } from '../../../../platform/quickinput/browser/quickInputService.js';
+import { createSingleCallFunction } from '../../../../base/common/functional.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 class EditorScopedQuickInputService extends QuickInputService {
 
@@ -33,7 +31,6 @@ class EditorScopedQuickInputService extends QuickInputService {
 		@IThemeService themeService: IThemeService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IHoverService hoverService: IHoverService,
 	) {
 		super(
 			instantiationService,
@@ -41,7 +38,6 @@ class EditorScopedQuickInputService extends QuickInputService {
 			themeService,
 			new EditorScopedLayoutService(editor.getContainerDomNode(), codeEditorService),
 			configurationService,
-			hoverService
 		);
 
 		// Use the passed in code editor as host for the quick input widget
@@ -52,6 +48,7 @@ class EditorScopedQuickInputService extends QuickInputService {
 				_serviceBrand: undefined,
 				get mainContainer() { return widget.getDomNode(); },
 				getContainer() { return widget.getDomNode(); },
+				whenContainerStylesLoaded() { return undefined; },
 				get containers() { return [widget.getDomNode()]; },
 				get activeContainer() { return widget.getDomNode(); },
 				get mainContainerDimension() { return editor.getLayoutInfo(); },
@@ -61,7 +58,6 @@ class EditorScopedQuickInputService extends QuickInputService {
 				get onDidLayoutContainer() { return Event.map(editor.onDidLayoutChange, dimension => ({ container: widget.getDomNode(), dimension })); },
 				get onDidChangeActiveContainer() { return Event.None; },
 				get onDidAddContainer() { return Event.None; },
-				get whenActiveContainerStylesLoaded() { return Promise.resolve(); },
 				get mainContainerOffset() { return { top: 0, quickPickTop: 0 }; },
 				get activeContainerOffset() { return { top: 0, quickPickTop: 0 }; },
 				focus: () => editor.focus()
@@ -103,10 +99,9 @@ export class StandaloneQuickInputService implements IQuickInputService {
 		return quickInputService;
 	}
 
-	get quickAccess(): IQuickAccessController { return this.activeService.quickAccess; }
-
-	get backButton(): IQuickInputButton { return this.activeService.backButton; }
-
+	get currentQuickInput() { return this.activeService.currentQuickInput; }
+	get quickAccess() { return this.activeService.quickAccess; }
+	get backButton() { return this.activeService.backButton; }
 	get onShow() { return this.activeService.onShow; }
 	get onHide() { return this.activeService.onHide; }
 
@@ -116,7 +111,7 @@ export class StandaloneQuickInputService implements IQuickInputService {
 	) {
 	}
 
-	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options: O = <O>{}, token: CancellationToken = CancellationToken.None): Promise<(O extends { canPickMany: true } ? T[] : T) | undefined> {
+	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: O, token: CancellationToken = CancellationToken.None): Promise<(O extends { canPickMany: true } ? T[] : T) | undefined> {
 		return (this.activeService as unknown as QuickInputController /* TS fail */).pick(picks, options, token);
 	}
 
@@ -124,8 +119,10 @@ export class StandaloneQuickInputService implements IQuickInputService {
 		return this.activeService.input(options, token);
 	}
 
-	createQuickPick<T extends IQuickPickItem>(): IQuickPick<T> {
-		return this.activeService.createQuickPick();
+	createQuickPick<T extends IQuickPickItem>(options: { useSeparators: true }): IQuickPick<T, { useSeparators: true }>;
+	createQuickPick<T extends IQuickPickItem>(options?: { useSeparators: boolean }): IQuickPick<T, { useSeparators: false }>;
+	createQuickPick<T extends IQuickPickItem>(options: { useSeparators: boolean } = { useSeparators: false }): IQuickPick<T, { useSeparators: boolean }> {
+		return this.activeService.createQuickPick(options);
 	}
 
 	createInputBox(): IInputBox {
@@ -158,6 +155,14 @@ export class StandaloneQuickInputService implements IQuickInputService {
 
 	cancel(): Promise<void> {
 		return this.activeService.cancel();
+	}
+
+	setAlignment(alignment: 'top' | 'center' | { top: number; left: number }): void {
+		return this.activeService.setAlignment(alignment);
+	}
+
+	toggleHover(): void {
+		return this.activeService.toggleHover();
 	}
 }
 

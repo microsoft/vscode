@@ -3,30 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/progressService';
-
-import { localize } from 'vs/nls';
-import { IDisposable, dispose, DisposableStore, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IProgressService, IProgressOptions, IProgressStep, ProgressLocation, IProgress, Progress, IProgressCompositeOptions, IProgressNotificationOptions, IProgressRunner, IProgressIndicator, IProgressWindowOptions, IProgressDialogOptions } from 'vs/platform/progress/common/progress';
-import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { DeferredPromise, RunOnceScheduler, timeout } from 'vs/base/common/async';
-import { ProgressBadge, IActivityService } from 'vs/workbench/services/activity/common/activity';
-import { INotificationService, Severity, INotificationHandle, NotificationPriority, isNotificationSource, NotificationsFilter } from 'vs/platform/notification/common/notification';
-import { Action } from 'vs/base/common/actions';
-import { Event, Emitter } from 'vs/base/common/event';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { Dialog } from 'vs/base/browser/ui/dialog/dialog';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { EventHelper } from 'vs/base/browser/dom';
-import { parseLinkedText } from 'vs/base/common/linkedText';
-import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { stripIcons } from 'vs/base/common/iconLabels';
-import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
+import './media/progressService.css';
+import { localize } from '../../../../nls.js';
+import { IDisposable, dispose, DisposableStore, Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IProgressService, IProgressOptions, IProgressStep, ProgressLocation, IProgress, Progress, IProgressCompositeOptions, IProgressNotificationOptions, IProgressRunner, IProgressIndicator, IProgressWindowOptions, IProgressDialogOptions } from '../../../../platform/progress/common/progress.js';
+import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from '../../statusbar/browser/statusbar.js';
+import { DeferredPromise, RunOnceScheduler, timeout } from '../../../../base/common/async.js';
+import { ProgressBadge, IActivityService } from '../../activity/common/activity.js';
+import { INotificationService, Severity, INotificationHandle, NotificationPriority, isNotificationSource, NotificationsFilter } from '../../../../platform/notification/common/notification.js';
+import { Action } from '../../../../base/common/actions.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
+import { Dialog } from '../../../../base/browser/ui/dialog/dialog.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { parseLinkedText } from '../../../../base/common/linkedText.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
+import { IViewsService } from '../../views/common/viewsService.js';
+import { IPaneCompositePartService } from '../../panecomposite/browser/panecomposite.js';
+import { stripIcons } from '../../../../base/common/iconLabels.js';
+import { IUserActivityService } from '../../userActivity/common/userActivityService.js';
+import { createWorkbenchDialogOptions } from '../../../../platform/dialogs/browser/dialog.js';
 
 export class ProgressService extends Disposable implements IProgressService {
 
@@ -40,13 +37,23 @@ export class ProgressService extends Disposable implements IProgressService {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@ILayoutService private readonly layoutService: ILayoutService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IUserActivityService private readonly userActivityService: IUserActivityService,
 	) {
 		super();
 	}
 
-	async withProgress<R = unknown>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: (choice?: number) => void): Promise<R> {
+	async withProgress<R = unknown>(options: IProgressOptions, originalTask: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: (choice?: number) => void): Promise<R> {
 		const { location } = options;
+
+		const task = async (progress: IProgress<IProgressStep>) => {
+			const activeLock = this.userActivityService.markActive({ whenHeldFor: 15_000 });
+			try {
+				return await originalTask(progress);
+			} finally {
+				activeLock.dispose();
+			}
+		};
 
 		const handleStringLocation = (location: string) => {
 			const viewContainer = this.viewDescriptorService.getViewContainerById(location);
@@ -172,14 +179,14 @@ export class ProgressService extends Disposable implements IProgressService {
 				text,
 				showProgress: options.type || true,
 				ariaLabel: text,
-				tooltip: title,
+				tooltip: stripIcons(title).trim(),
 				command: progressCommand
 			};
 
 			if (this.windowProgressStatusEntry) {
 				this.windowProgressStatusEntry.update(statusEntryProperties);
 			} else {
-				this.windowProgressStatusEntry = this.statusbarService.addEntry(statusEntryProperties, 'status.progress', StatusbarAlignment.LEFT);
+				this.windowProgressStatusEntry = this.statusbarService.addEntry(statusEntryProperties, 'status.progress', StatusbarAlignment.LEFT, -Number.MAX_VALUE /* almost last entry */);
 			}
 		}
 
@@ -304,7 +311,7 @@ export class ProgressService extends Disposable implements IProgressService {
 			if (options.cancellable) {
 				const cancelAction = new class extends Action {
 					constructor() {
-						super('progress.cancel', localize('cancel', "Cancel"), undefined, true);
+						super('progress.cancel', typeof options.cancellable === 'string' ? options.cancellable : localize('cancel', "Cancel"), undefined, true);
 					}
 
 					override async run(): Promise<void> {
@@ -345,7 +352,10 @@ export class ProgressService extends Disposable implements IProgressService {
 			}
 
 			// Clear upon dispose
-			Event.once(notification.onDidClose)(() => notificationDisposables.dispose());
+			Event.once(notification.onDidClose)(() => {
+				notificationDisposables.dispose();
+				dispose(windowProgressDisposable);
+			});
 
 			return notification;
 		};
@@ -443,11 +453,6 @@ export class ProgressService extends Disposable implements IProgressService {
 		const progressIndicator = this.viewsService.getViewProgressIndicator(viewId);
 		const promise = progressIndicator ? this.withCompositeProgress(progressIndicator, task, options) : task({ report: () => { } });
 
-		const location = this.viewDescriptorService.getViewLocationById(viewId);
-		if (location !== ViewContainerLocation.Sidebar) {
-			return promise;
-		}
-
 		const viewletId = this.viewDescriptorService.getViewContainerByViewId(viewId)?.id;
 		if (viewletId === undefined) {
 			return promise;
@@ -463,7 +468,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		let activityProgress: IDisposable;
 		let delayHandle: any = setTimeout(() => {
 			delayHandle = undefined;
-			const handle = this.activityService.showViewContainerActivity(viewletId, { badge: new ProgressBadge(() => ''), priority: 100 });
+			const handle = this.activityService.showViewContainerActivity(viewletId, { badge: new ProgressBadge(() => '') });
 			const startTimeVisible = Date.now();
 			const minTimeVisible = 300;
 			activityProgress = {
@@ -539,46 +544,28 @@ export class ProgressService extends Disposable implements IProgressService {
 	private withDialogProgress<P extends Promise<R>, R = unknown>(options: IProgressDialogOptions, task: (progress: IProgress<IProgressStep>) => P, onDidCancel?: (choice?: number) => void): P {
 		const disposables = new DisposableStore();
 
-		const allowableCommands = [
-			'workbench.action.quit',
-			'workbench.action.reloadWindow',
-			'copy',
-			'cut',
-			'editor.action.clipboardCopyAction',
-			'editor.action.clipboardCutAction'
-		];
-
 		let dialog: Dialog;
 
 		const createDialog = (message: string) => {
 			const buttons = options.buttons || [];
 			if (!options.sticky) {
-				buttons.push(options.cancellable ? localize('cancel', "Cancel") : localize('dismiss', "Dismiss"));
+				buttons.push(options.cancellable
+					? (typeof options.cancellable === 'boolean' ? localize('cancel', "Cancel") : options.cancellable)
+					: localize('dismiss', "Dismiss")
+				);
 			}
 
 			dialog = new Dialog(
 				this.layoutService.activeContainer,
 				message,
 				buttons,
-				{
+				createWorkbenchDialogOptions({
 					type: 'pending',
 					detail: options.detail,
 					cancelId: buttons.length - 1,
 					disableCloseAction: options.sticky,
-					disableDefaultAction: options.sticky,
-					keyEventProcessor: (event: StandardKeyboardEvent) => {
-						const resolved = this.keybindingService.softDispatch(event, this.layoutService.activeContainer);
-						if (resolved.kind === ResultKind.KbFound && resolved.commandId) {
-							if (!allowableCommands.includes(resolved.commandId)) {
-								EventHelper.stop(event, true);
-							}
-						}
-					},
-					buttonStyles: defaultButtonStyles,
-					checkboxStyles: defaultCheckboxStyles,
-					inputBoxStyles: defaultInputBoxStyles,
-					dialogStyles: defaultDialogStyles
-				}
+					disableDefaultAction: options.sticky
+				}, this.keybindingService, this.layoutService)
 			);
 
 			disposables.add(dialog);

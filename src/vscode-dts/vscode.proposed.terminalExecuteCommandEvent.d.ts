@@ -40,6 +40,8 @@ declare module 'vscode' {
 		 *
 		 * Note that this event will not fire if the executed command exits the shell, listen to
 		 * {@link onDidCloseTerminal} to handle that case.
+		 *
+		 * @deprecated Use {@link window.onDidStartTerminalShellExecution}
 		 */
 		export const onDidExecuteTerminalCommand: Event<TerminalExecutedCommand>;
 	}

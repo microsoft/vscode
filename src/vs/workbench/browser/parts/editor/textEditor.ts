@@ -3,32 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { distinct, deepClone } from 'vs/base/common/objects';
-import { Emitter, Event } from 'vs/base/common/event';
-import { isObject, assertIsDefined } from 'vs/base/common/types';
-import { MutableDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorOpenContext, IEditorPaneSelection, EditorPaneSelectionCompareResult, EditorPaneSelectionChangeReason, IEditorPaneWithSelection, IEditorPaneSelectionChangeEvent } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { computeEditorAriaLabel } from 'vs/workbench/browser/editor';
-import { AbstractEditorWithViewState } from 'vs/workbench/browser/parts/editor/editorWithViewState';
-import { IEditorViewState } from 'vs/editor/common/editorCommon';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ITextResourceConfigurationChangeEvent, ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorOptions, ITextEditorOptions, TextEditorSelectionRevealType, TextEditorSelectionSource } from 'vs/platform/editor/common/editor';
-import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { localize } from '../../../../nls.js';
+import { URI } from '../../../../base/common/uri.js';
+import { distinct, deepClone } from '../../../../base/common/objects.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { isObject, assertIsDefined } from '../../../../base/common/types.js';
+import { MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { IEditorOpenContext, IEditorPaneSelection, EditorPaneSelectionCompareResult, EditorPaneSelectionChangeReason, IEditorPaneWithSelection, IEditorPaneSelectionChangeEvent, IEditorPaneScrollPosition, IEditorPaneWithScrolling } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { computeEditorAriaLabel } from '../../editor.js';
+import { AbstractEditorWithViewState } from './editorWithViewState.js';
+import { IEditorViewState } from '../../../../editor/common/editorCommon.js';
+import { Selection } from '../../../../editor/common/core/selection.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { ITextResourceConfigurationChangeEvent, ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { IEditorOptions as ICodeEditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IEditorOptions, ITextEditorOptions, TextEditorSelectionRevealType, TextEditorSelectionSource } from '../../../../platform/editor/common/editor.js';
+import { ICursorPositionChangedEvent } from '../../../../editor/common/cursorEvents.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 
 export interface IEditorConfiguration {
 	editor: object;
@@ -46,12 +46,15 @@ export interface IEditorConfiguration {
 /**
  * The base class of editors that leverage any kind of text editor for the editing experience.
  */
-export abstract class AbstractTextEditor<T extends IEditorViewState> extends AbstractEditorWithViewState<T> implements IEditorPaneWithSelection {
+export abstract class AbstractTextEditor<T extends IEditorViewState> extends AbstractEditorWithViewState<T> implements IEditorPaneWithSelection, IEditorPaneWithScrolling {
 
 	private static readonly VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
 
 	protected readonly _onDidChangeSelection = this._register(new Emitter<IEditorPaneSelectionChangeEvent>());
 	readonly onDidChangeSelection = this._onDidChangeSelection.event;
+
+	protected readonly _onDidChangeScroll = this._register(new Emitter<void>());
+	readonly onDidChangeScroll = this._onDidChangeScroll.event;
 
 	private editorContainer: HTMLElement | undefined;
 
@@ -62,6 +65,7 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 
 	constructor(
 		id: string,
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
@@ -71,7 +75,7 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IFileService protected readonly fileService: IFileService
 	) {
-		super(id, AbstractTextEditor.VIEW_STATE_PREFERENCE_KEY, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
+		super(id, group, AbstractTextEditor.VIEW_STATE_PREFERENCE_KEY, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
 
 		// Listen to configuration changes
 		this._register(this.textResourceConfigurationService.onDidChangeConfiguration(e => this.handleConfigurationChangeEvent(e)));
@@ -127,8 +131,8 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 		return editorConfiguration;
 	}
 
-	private computeAriaLabel(): string {
-		return this._input ? computeEditorAriaLabel(this._input, undefined, this.group, this.editorGroupService.count) : localize('editor', "Editor");
+	protected computeAriaLabel(): string {
+		return this.input ? computeEditorAriaLabel(this.input, undefined, this.group, this.editorGroupService.count) : localize('editor', "Editor");
 	}
 
 	private onDidChangeFileSystemProvider(scheme: string): void {
@@ -185,6 +189,7 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 			this._register(mainControl.onDidChangeModel(() => this.updateEditorConfiguration()));
 			this._register(mainControl.onDidChangeCursorPosition(e => this._onDidChangeSelection.fire({ reason: this.toEditorPaneSelectionChangeReason(e) })));
 			this._register(mainControl.onDidChangeModelContent(() => this._onDidChangeSelection.fire({ reason: EditorPaneSelectionChangeReason.EDIT })));
+			this._register(mainControl.onDidScrollChange(() => this._onDidChangeScroll.fire()));
 		}
 	}
 
@@ -255,12 +260,37 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 		super.clearInput();
 	}
 
-	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
+	getScrollPosition(): IEditorPaneScrollPosition {
+		const editor = this.getMainControl();
+		if (!editor) {
+			throw new Error('Control has not yet been initialized');
+		}
+
+		return {
+			// The top position can vary depending on the view zones (find widget for example)
+			scrollTop: editor.getScrollTop() - editor.getTopForLineNumber(1),
+			scrollLeft: editor.getScrollLeft(),
+		};
+	}
+
+	setScrollPosition(scrollPosition: IEditorPaneScrollPosition): void {
+		const editor = this.getMainControl();
+		if (!editor) {
+			throw new Error('Control has not yet been initialized');
+		}
+
+		editor.setScrollTop(scrollPosition.scrollTop);
+		if (scrollPosition.scrollLeft) {
+			editor.setScrollLeft(scrollPosition.scrollLeft);
+		}
+	}
+
+	protected override setEditorVisible(visible: boolean): void {
 		if (visible) {
 			this.consumePendingConfigurationChangeEvent();
 		}
 
-		super.setEditorVisible(visible, group);
+		super.setEditorVisible(visible);
 	}
 
 	protected override toEditorViewStateResource(input: EditorInput): URI | undefined {

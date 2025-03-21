@@ -3,32 +3,74 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { localize, localize2 } from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
-import { INotebookCellToolbarActionContext, INotebookCommandContext, NotebookMultiCellAction, NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { IBaseCellEditorOptions, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
-import { NotebookCellInternalMetadata, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
-import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { IEditorOptions } from '../../../../../../editor/common/config/editorOptions.js';
+import { localize, localize2 } from '../../../../../../nls.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
+import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { Registry } from '../../../../../../platform/registry/common/platform.js';
+import { ActiveEditorContext } from '../../../../../common/contextkeys.js';
+import { INotebookCellToolbarActionContext, INotebookCommandContext, NotebookMultiCellAction, NOTEBOOK_ACTIONS_CATEGORY } from '../../controller/coreActions.js';
+import { IBaseCellEditorOptions, ICellViewModel } from '../../notebookBrowser.js';
+import { NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_EDITOR_FOCUSED } from '../../../common/notebookContextKeys.js';
+import { CellContentPart } from '../cellPart.js';
+import { NotebookCellInternalMetadata, NOTEBOOK_EDITOR_ID } from '../../../common/notebookCommon.js';
+import { NotebookOptions } from '../../notebookOptions.js';
+import { CellViewModelStateChangeEvent } from '../../notebookViewEvents.js';
+import { ITextModelUpdateOptions } from '../../../../../../editor/common/model.js';
 
-export class CellEditorOptions extends CellContentPart {
+//todo@Yoyokrazy implenets is needed or not?
+export class CellEditorOptions extends CellContentPart implements ITextModelUpdateOptions {
 	private _lineNumbers: 'on' | 'off' | 'inherit' = 'inherit';
+	private _tabSize?: number;
+	private _indentSize?: number | 'tabSize';
+	private _insertSpaces?: boolean;
+
+	set tabSize(value: number | undefined) {
+		if (this._tabSize !== value) {
+			this._tabSize = value;
+			this._onDidChange.fire();
+		}
+	}
+
+	get tabSize() {
+		return this._tabSize;
+	}
+
+	set indentSize(value: number | 'tabSize' | undefined) {
+		if (this._indentSize !== value) {
+			this._indentSize = value;
+			this._onDidChange.fire();
+		}
+	}
+
+	get indentSize() {
+		return this._indentSize;
+	}
+
+	set insertSpaces(value: boolean | undefined) {
+		if (this._insertSpaces !== value) {
+			this._insertSpaces = value;
+			this._onDidChange.fire();
+		}
+	}
+
+	get insertSpaces() {
+		return this._insertSpaces;
+	}
+
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 	private _value: IEditorOptions;
 
-	constructor(private readonly base: IBaseCellEditorOptions, readonly notebookOptions: NotebookOptions, readonly configurationService: IConfigurationService) {
+	constructor(
+		private readonly base: IBaseCellEditorOptions,
+		readonly notebookOptions: NotebookOptions,
+		readonly configurationService: IConfigurationService) {
 		super();
 
 		this._register(base.onDidChange(() => {
@@ -50,7 +92,23 @@ export class CellEditorOptions extends CellContentPart {
 	}
 
 	private _computeEditorOptions() {
-		const value = this.base.value;
+		const value = this.base.value; // base IEditorOptions
+
+		// TODO @Yoyokrazy find a different way to get the editor overrides, this is not the right way
+		const cellEditorOverridesRaw = this.notebookOptions.getDisplayOptions().editorOptionsCustomizations;
+		const indentSize = cellEditorOverridesRaw?.['editor.indentSize'];
+		if (indentSize !== undefined) {
+			this.indentSize = indentSize;
+		}
+		const insertSpaces = cellEditorOverridesRaw?.['editor.insertSpaces'];
+		if (insertSpaces !== undefined) {
+			this.insertSpaces = insertSpaces;
+		}
+		const tabSize = cellEditorOverridesRaw?.['editor.tabSize'];
+		if (tabSize !== undefined) {
+			this.tabSize = tabSize;
+		}
+
 		let cellRenderLineNumber = value.lineNumbers;
 
 		switch (this._lineNumbers) {
@@ -75,14 +133,19 @@ export class CellEditorOptions extends CellContentPart {
 				break;
 		}
 
+		const overrides: Partial<IEditorOptions> = {};
 		if (value.lineNumbers !== cellRenderLineNumber) {
-			return {
-				...value,
-				...{ lineNumbers: cellRenderLineNumber }
-			};
-		} else {
-			return Object.assign({}, value);
+			overrides.lineNumbers = cellRenderLineNumber;
 		}
+
+		if (this.notebookOptions.getLayoutConfiguration().disableRulers) {
+			overrides.rulers = [];
+		}
+
+		return {
+			...value,
+			...overrides,
+		};
 	}
 
 	getUpdatedValue(internalMetadata: NotebookCellInternalMetadata, cellUri: URI): IEditorOptions {

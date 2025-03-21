@@ -3,17 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { CoreEditingCommands, CoreNavigationCommands } from 'vs/editor/browser/coreCommands';
-import { Position } from 'vs/editor/common/core/position';
-import { ITextModel } from 'vs/editor/common/model';
-import { InlineCompletion, InlineCompletionContext, InlineCompletionsProvider } from 'vs/editor/common/languages';
-import { ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
-import { autorun } from 'vs/base/common/observable';
-import { MersenneTwister } from 'vs/editor/test/common/model/bracketPairColorizer/combineTextEditInfos.test';
+import { timeout } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { CoreEditingCommands, CoreNavigationCommands } from '../../../../browser/coreCommands.js';
+import { Position } from '../../../../common/core/position.js';
+import { ITextModel } from '../../../../common/model.js';
+import { InlineCompletion, InlineCompletionContext, InlineCompletionsProvider } from '../../../../common/languages.js';
+import { ITestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { InlineCompletionsModel } from '../../browser/model/inlineCompletionsModel.js';
+import { autorun } from '../../../../../base/common/observable.js';
 
 export class MockInlineCompletionsProvider implements InlineCompletionsProvider {
 	private returnValue: InlineCompletion[] = [];
@@ -83,7 +82,7 @@ export class GhostTextContext extends Disposable {
 
 		this._register(autorun(reader => {
 			/** @description update */
-			const ghostText = model.ghostText.read(reader);
+			const ghostText = model.primaryGhostText.read(reader);
 			let view: string | undefined;
 			if (ghostText) {
 				view = ghostText.render(this.editor.getValue(), true);
@@ -131,25 +130,5 @@ export class GhostTextContext extends Disposable {
 	public leftDelete(): void {
 		CoreEditingCommands.DeleteLeft.runEditorCommand(null, this.editor, null);
 	}
-}
-
-export function generateRandomMultilineString(rng: MersenneTwister, numberOfLines: number, maximumLengthOfLines: number = 20): string {
-	let randomText: string = '';
-	for (let i = 0; i < numberOfLines; i++) {
-		const lengthOfLine = rng.nextIntRange(0, maximumLengthOfLines + 1);
-		randomText += generateRandomSimpleString(rng, lengthOfLine) + '\n';
-	}
-	return randomText;
-}
-
-function generateRandomSimpleString(rng: MersenneTwister, stringLength: number): string {
-	const possibleCharacters: string = ' abcdefghijklmnopqrstuvwxyz0123456789';
-	let randomText: string = '';
-	for (let i = 0; i < stringLength; i++) {
-		const characterIndex = rng.nextIntRange(0, possibleCharacters.length);
-		randomText += possibleCharacters.charAt(characterIndex);
-
-	}
-	return randomText;
 }
 

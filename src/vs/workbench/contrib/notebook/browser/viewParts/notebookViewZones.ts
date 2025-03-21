@@ -3,13 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { INotebookViewCellsUpdateEvent, INotebookViewZone, INotebookViewZoneChangeAccessor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookCellListView } from 'vs/workbench/contrib/notebook/browser/view/notebookCellListView';
-import { ICoordinatesConverter } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
+import { FastDomNode, createFastDomNode } from '../../../../../base/browser/fastDomNode.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { localize2 } from '../../../../../nls.js';
+import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
+import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IsDevelopmentContext } from '../../../../../platform/contextkey/common/contextkeys.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { getNotebookEditorFromEditorPane, INotebookViewCellsUpdateEvent, INotebookViewZone, INotebookViewZoneChangeAccessor } from '../notebookBrowser.js';
+import { NotebookCellListView } from '../view/notebookCellListView.js';
+import { ICoordinatesConverter } from '../view/notebookRenderingCommon.js';
+import { CellViewModel } from '../viewModel/notebookViewModelImpl.js';
+
+const invalidFunc = () => { throw new Error(`Invalid notebook view zone change accessor`); };
 
 interface IZoneWidget {
 	whitespaceId: string;
@@ -29,25 +37,49 @@ export class NotebookViewZones extends Disposable {
 		this.domNode.setPosition('absolute');
 		this.domNode.setAttribute('role', 'presentation');
 		this.domNode.setAttribute('aria-hidden', 'true');
+		this.domNode.setWidth('100%');
 		this._zones = {};
 
 		this.listView.containerDomNode.appendChild(this.domNode.domNode);
 	}
 
-	changeViewZones(callback: (changeAccessor: INotebookViewZoneChangeAccessor) => void): void {
+	changeViewZones(callback: (changeAccessor: INotebookViewZoneChangeAccessor) => void): boolean {
+		let zonesHaveChanged = false;
 		const changeAccessor: INotebookViewZoneChangeAccessor = {
 			addZone: (zone: INotebookViewZone): string => {
+				zonesHaveChanged = true;
 				return this._addZone(zone);
 			},
 			removeZone: (id: string): void => {
+				zonesHaveChanged = true;
+				// TODO: validate if zones have changed layout
 				this._removeZone(id);
 			},
 			layoutZone: (id: string): void => {
+				zonesHaveChanged = true;
+				// TODO: validate if zones have changed layout
 				this._layoutZone(id);
 			}
 		};
 
 		safeInvoke1Arg(callback, changeAccessor);
+
+		// Invalidate changeAccessor
+		changeAccessor.addZone = invalidFunc;
+		changeAccessor.removeZone = invalidFunc;
+		changeAccessor.layoutZone = invalidFunc;
+
+		return zonesHaveChanged;
+	}
+
+	getViewZoneLayoutInfo(viewZoneId: string): { height: number; top: number } | null {
+		const zoneWidget = this._zones[viewZoneId];
+		if (!zoneWidget) {
+			return null;
+		}
+		const top = this.listView.getWhitespacePosition(zoneWidget.whitespaceId);
+		const height = zoneWidget.zone.heightInPx;
+		return { height: height, top: top };
 	}
 
 	onCellsChanged(e: INotebookViewCellsUpdateEvent): void {
@@ -104,7 +136,8 @@ export class NotebookViewZones extends Disposable {
 	}
 
 	private _addZone(zone: INotebookViewZone): string {
-		const whitespaceId = this.listView.insertWhitespace(zone.afterModelPosition, zone.heightInPx);
+		const viewPosition = this.coordinator.convertModelIndexToViewIndex(zone.afterModelPosition);
+		const whitespaceId = this.listView.insertWhitespace(viewPosition, zone.heightInPx);
 		const isInHiddenArea = this._isInHiddenRanges(zone);
 		const myZone: IZoneWidget = {
 			whitespaceId: whitespaceId,
@@ -124,6 +157,16 @@ export class NotebookViewZones extends Disposable {
 
 	private _removeZone(id: string): void {
 		this.listView.removeWhitespace(id);
+		const zoneWidget = this._zones[id];
+		if (zoneWidget) {
+			// safely remove the dom node from its parent
+			try {
+				this.domNode.removeChild(zoneWidget.domNode);
+			} catch {
+				// ignore the error
+			}
+		}
+
 		delete this._zones[id];
 	}
 
@@ -133,18 +176,17 @@ export class NotebookViewZones extends Disposable {
 			return;
 		}
 
+		this._updateWhitespace(this._zones[id]);
+
 		const isInHiddenArea = this._isInHiddenRanges(zoneWidget.zone);
 
 		if (isInHiddenArea) {
 			zoneWidget.domNode.setDisplay('none');
 		} else {
-			const afterPosition = zoneWidget.zone.afterModelPosition;
-			const index = afterPosition - 1;
-			const viewIndex = this.coordinator.convertModelIndexToViewIndex(index);
-			const top = this.listView.elementTop(viewIndex);
-			const height = this.listView.elementHeight(viewIndex);
-			zoneWidget.domNode.setTop(top + height);
+			const top = this.listView.getWhitespacePosition(zoneWidget.whitespaceId);
+			zoneWidget.domNode.setTop(top);
 			zoneWidget.domNode.setDisplay('block');
+			zoneWidget.domNode.setHeight(zoneWidget.zone.heightInPx);
 		}
 	}
 
@@ -163,10 +205,66 @@ export class NotebookViewZones extends Disposable {
 	}
 }
 
-function safeInvoke1Arg(func: Function, arg1: any): any {
+function safeInvoke1Arg(func: Function, arg1: any): void {
 	try {
-		return func(arg1);
+		func(arg1);
 	} catch (e) {
 		onUnexpectedError(e);
 	}
 }
+
+class ToggleNotebookViewZoneDeveloperAction extends Action2 {
+	static viewZoneIds: string[] = [];
+	constructor() {
+		super({
+			id: 'notebook.developer.addViewZones',
+			title: localize2('workbench.notebook.developer.addViewZones', "Toggle Notebook View Zones"),
+			category: Categories.Developer,
+			precondition: IsDevelopmentContext,
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+
+		if (!editor) {
+			return;
+		}
+
+		if (ToggleNotebookViewZoneDeveloperAction.viewZoneIds.length > 0) {
+			// remove all view zones
+			editor.changeViewZones(accessor => {
+				// remove all view zones in reverse order, to follow how we handle this in the prod code
+				ToggleNotebookViewZoneDeveloperAction.viewZoneIds.reverse().forEach(id => {
+					accessor.removeZone(id);
+				});
+				ToggleNotebookViewZoneDeveloperAction.viewZoneIds = [];
+			});
+		} else {
+			editor.changeViewZones(accessor => {
+				const cells = editor.getCellsInRange();
+				if (cells.length === 0) {
+					return;
+				}
+
+				const viewZoneIds: string[] = [];
+				for (let i = 0; i < cells.length; i++) {
+					const domNode = document.createElement('div');
+					domNode.innerText = `View Zone ${i}`;
+					domNode.style.backgroundColor = 'rgba(0, 255, 0, 0.5)';
+					const viewZoneId = accessor.addZone({
+						afterModelPosition: i,
+						heightInPx: 200,
+						domNode: domNode,
+					});
+					viewZoneIds.push(viewZoneId);
+				}
+				ToggleNotebookViewZoneDeveloperAction.viewZoneIds = viewZoneIds;
+			});
+		}
+	}
+}
+
+registerAction2(ToggleNotebookViewZoneDeveloperAction);

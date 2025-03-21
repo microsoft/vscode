@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { getErrorMessage, isCancellationError } from 'vs/base/common/errors';
-import { Schemas } from 'vs/base/common/network';
-import { basename } from 'vs/base/common/resources';
-import { gt } from 'vs/base/common/semver/semver';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { EXTENSION_IDENTIFIER_REGEX, IExtensionGalleryService, IExtensionInfo, IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOptions, InstallExtensionInfo, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions, getExtensionId, getGalleryExtensionId, getIdAndVersion } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionType, EXTENSION_CATEGORIES, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { ILogger } from 'vs/platform/log/common/log';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { getErrorMessage, isCancellationError } from '../../../base/common/errors.js';
+import { Schemas } from '../../../base/common/network.js';
+import { basename } from '../../../base/common/resources.js';
+import { gt } from '../../../base/common/semver/semver.js';
+import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
+import { EXTENSION_IDENTIFIER_REGEX, IExtensionGalleryService, IExtensionInfo, IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOptions, InstallExtensionInfo, InstallOperation } from './extensionManagement.js';
+import { areSameExtensions, getExtensionId, getGalleryExtensionId, getIdAndVersion } from './extensionManagementUtil.js';
+import { ExtensionType, EXTENSION_CATEGORIES, IExtensionManifest } from '../../extensions/common/extensions.js';
+import { ILogger } from '../../log/common/log.js';
 
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
@@ -100,7 +100,7 @@ export class ExtensionManagementCLI {
 				}
 			}
 
-			const installed = await this.extensionManagementService.getInstalled(ExtensionType.User, installOptions.profileLocation);
+			const installed = await this.extensionManagementService.getInstalled(undefined, installOptions.profileLocation);
 
 			if (installVSIXInfos.length) {
 				await Promise.all(installVSIXInfos.map(async ({ vsix, installOptions }) => {
@@ -137,7 +137,7 @@ export class ExtensionManagementCLI {
 			}
 		}
 
-		this.logger.trace(localize('updateExtensionsQuery', "Fetching latest versions for {0} extensions", installedExtensionsQuery.length));
+		this.logger.trace(localize({ key: 'updateExtensionsQuery', comment: ['Placeholder is for the count of extensions'] }, "Fetching latest versions for {0} extensions", installedExtensionsQuery.length));
 		const availableVersions = await this.extensionGalleryService.getExtensions(installedExtensionsQuery, { compatible: true }, CancellationToken.None);
 
 		const extensionsToUpdate: InstallExtensionInfo[] = [];
@@ -146,7 +146,7 @@ export class ExtensionManagementCLI {
 				if (areSameExtensions(oldVersion.identifier, newVersion.identifier) && gt(newVersion.version, oldVersion.manifest.version)) {
 					extensionsToUpdate.push({
 						extension: newVersion,
-						options: { operation: InstallOperation.Update, installPreReleaseVersion: oldVersion.isPreReleaseVersion }
+						options: { operation: InstallOperation.Update, installPreReleaseVersion: oldVersion.preRelease, profileLocation, isApplicationScoped: oldVersion.isApplicationScoped }
 					});
 				}
 			}
@@ -224,7 +224,7 @@ export class ExtensionManagementCLI {
 			}
 			extensionsToInstall.push({
 				extension: gallery,
-				options: { ...installOptions, installGivenVersion: !!version },
+				options: { ...installOptions, installGivenVersion: !!version, isApplicationScoped: installOptions.isApplicationScoped || installedExtension?.isApplicationScoped },
 			});
 		}));
 
@@ -253,7 +253,7 @@ export class ExtensionManagementCLI {
 		const valid = await this.validateVSIX(manifest, force, installOptions.profileLocation, installedExtensions);
 		if (valid) {
 			try {
-				await this.extensionManagementService.install(vsix, installOptions);
+				await this.extensionManagementService.install(vsix, { ...installOptions, installGivenVersion: true });
 				this.logger.info(localize('successVsixInstall', "Extension '{0}' was successfully installed.", basename(vsix)));
 			} catch (error) {
 				if (isCancellationError(error)) {

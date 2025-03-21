@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { stripIcons } from 'vs/base/common/iconLabels';
-import { localize } from 'vs/nls';
-import { TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
+import { stripIcons } from '../../../../base/common/iconLabels.js';
+import { localize } from '../../../../nls.js';
+import { TestResultState, TestRunProfileBitset } from './testTypes.js';
 
 export const enum Testing {
 	// marked as "extension" so that any existing test extensions are assigned to it.
@@ -18,6 +18,8 @@ export const enum Testing {
 
 	ResultsPanelId = 'workbench.panel.testResults',
 	ResultsViewId = 'workbench.panel.testResults.view',
+
+	MessageLanguageId = 'vscodeInternalTestMessage'
 }
 
 export const enum TestExplorerViewMode {
@@ -61,11 +63,14 @@ export const enum TestCommandId {
 	ContinousRunUsingForTest = 'testing.continuousRunUsingForTest',
 	CoverageAtCursor = 'testing.coverageAtCursor',
 	CoverageByUri = 'testing.coverage.uri',
-	CoverageViewChangeSorting = 'testing.coverageViewChangeSorting',
 	CoverageClear = 'testing.coverage.close',
 	CoverageCurrentFile = 'testing.coverageCurrentFile',
+	CoverageFilterToTest = 'testing.coverageFilterToTest',
+	CoverageFilterToTestInEditor = 'testing.coverageFilterToTestInEditor',
 	CoverageLastRun = 'testing.coverageLastRun',
 	CoverageSelectedAction = 'testing.coverageSelected',
+	CoverageToggleToolbar = 'testing.coverageToggleToolbar',
+	CoverageViewChangeSorting = 'testing.coverageViewChangeSorting',
 	DebugAction = 'testing.debug',
 	DebugAllAction = 'testing.debugAll',
 	DebugAtCursor = 'testing.debugAtCursor',
@@ -78,9 +83,13 @@ export const enum TestCommandId {
 	GetExplorerSelection = '_testing.getExplorerSelection',
 	GetSelectedProfiles = 'testing.getSelectedProfiles',
 	GoToTest = 'testing.editFocusedTest',
+	GoToRelatedTest = 'testing.goToRelatedTest',
+	PeekRelatedTest = 'testing.peekRelatedTest',
+	GoToRelatedCode = 'testing.goToRelatedCode',
+	PeekRelatedCode = 'testing.peekRelatedCode',
 	HideTestAction = 'testing.hideTest',
-	OpenOutputPeek = 'testing.openOutputPeek',
 	OpenCoverage = 'testing.openCoverage',
+	OpenOutputPeek = 'testing.openOutputPeek',
 	RefreshTestsAction = 'testing.refreshTests',
 	ReRunFailedTests = 'testing.reRunFailTests',
 	ReRunLastRun = 'testing.reRunLastRun',
@@ -97,6 +106,8 @@ export const enum TestCommandId {
 	SelectDefaultTestProfiles = 'testing.selectDefaultTestProfiles',
 	ShowMostRecentOutputAction = 'testing.showMostRecentOutput',
 	StartContinousRun = 'testing.startContinuousRun',
+	StartContinousRunFromExtension = 'testing.startContinuousRunFromExtension',
+	StopContinousRunFromExtension = 'testing.stopContinuousRunFromExtension',
 	StopContinousRun = 'testing.stopContinuousRun',
 	TestingSortByDurationAction = 'testing.sortByDuration',
 	TestingSortByLocationAction = 'testing.sortByLocation',

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
+import fs from 'fs';
+import path from 'path';
 import * as tss from './treeshaking';
 
 const REPO_ROOT = path.join(__dirname, '../../');
@@ -29,7 +29,7 @@ function writeFile(filePath: string, contents: Buffer | string): void {
 	fs.writeFileSync(filePath, contents);
 }
 
-export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: string }): void {
+export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: string; tsOutDir: string }): void {
 	const ts = require('typescript') as typeof import('typescript');
 
 	const tsConfig = JSON.parse(fs.readFileSync(path.join(options.sourcesRoot, 'tsconfig.monaco.json')).toString());
@@ -41,6 +41,9 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 		compilerOptions = tsConfig.compilerOptions;
 	}
 	tsConfig.compilerOptions = compilerOptions;
+	tsConfig.compilerOptions.sourceMap = true;
+	tsConfig.compilerOptions.module = 'es2022';
+	tsConfig.compilerOptions.outDir = options.tsOutDir;
 
 	compilerOptions.noEmit = false;
 	compilerOptions.noUnusedLocals = false;
@@ -59,7 +62,11 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 	// Add extra .d.ts files from `node_modules/@types/`
 	if (Array.isArray(options.compilerOptions?.types)) {
 		options.compilerOptions.types.forEach((type: string) => {
-			options.typings.push(`../node_modules/@types/${type}/index.d.ts`);
+			if (type === '@webgpu/types') {
+				options.typings.push(`../node_modules/${type}/dist/index.d.ts`);
+			} else {
+				options.typings.push(`../node_modules/@types/${type}/index.d.ts`);
+			}
 		});
 	}
 
@@ -90,12 +97,7 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 			for (let i = info.importedFiles.length - 1; i >= 0; i--) {
 				const importedFileName = info.importedFiles[i].fileName;
 
-				let importedFilePath: string;
-				if (/^vs\/css!/.test(importedFileName)) {
-					importedFilePath = importedFileName.substr('vs/css!'.length) + '.css';
-				} else {
-					importedFilePath = importedFileName;
-				}
+				let importedFilePath = importedFileName;
 				if (/(^\.\/)|(^\.\.\/)/.test(importedFilePath)) {
 					importedFilePath = path.join(path.dirname(fileName), importedFilePath);
 				}
@@ -103,8 +105,9 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 				if (/\.css$/.test(importedFilePath)) {
 					transportCSS(importedFilePath, copyFile, writeOutputFile);
 				} else {
-					if (fs.existsSync(path.join(options.sourcesRoot, importedFilePath + '.js'))) {
-						copyFile(importedFilePath + '.js');
+					const pathToCopy = path.join(options.sourcesRoot, importedFilePath);
+					if (fs.existsSync(pathToCopy) && !fs.statSync(pathToCopy).isDirectory()) {
+						copyFile(importedFilePath);
 					}
 				}
 			}
@@ -115,182 +118,8 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 	writeOutputFile('tsconfig.json', JSON.stringify(tsConfig, null, '\t'));
 
 	[
-		'vs/css.build.ts',
-		'vs/css.ts',
-		'vs/loader.js',
-		'vs/loader.d.ts',
-		'vs/nls.build.ts',
-		'vs/nls.ts',
-		'vs/nls.mock.ts',
+		'vs/loader.js'
 	].forEach(copyFile);
-}
-
-export interface IOptions2 {
-	srcFolder: string;
-	outFolder: string;
-	outResourcesFolder: string;
-	ignores: string[];
-	renames: { [filename: string]: string };
-}
-
-export function createESMSourcesAndResources2(options: IOptions2): void {
-	const ts = require('typescript') as typeof import('typescript');
-
-	const SRC_FOLDER = path.join(REPO_ROOT, options.srcFolder);
-	const OUT_FOLDER = path.join(REPO_ROOT, options.outFolder);
-	const OUT_RESOURCES_FOLDER = path.join(REPO_ROOT, options.outResourcesFolder);
-
-	const getDestAbsoluteFilePath = (file: string): string => {
-		const dest = options.renames[file.replace(/\\/g, '/')] || file;
-		if (dest === 'tsconfig.json') {
-			return path.join(OUT_FOLDER, `tsconfig.json`);
-		}
-		if (/\.ts$/.test(dest)) {
-			return path.join(OUT_FOLDER, dest);
-		}
-		return path.join(OUT_RESOURCES_FOLDER, dest);
-	};
-
-	const allFiles = walkDirRecursive(SRC_FOLDER);
-	for (const file of allFiles) {
-
-		if (options.ignores.indexOf(file.replace(/\\/g, '/')) >= 0) {
-			continue;
-		}
-
-		if (file === 'tsconfig.json') {
-			const tsConfig = JSON.parse(fs.readFileSync(path.join(SRC_FOLDER, file)).toString());
-			tsConfig.compilerOptions.module = 'es6';
-			tsConfig.compilerOptions.outDir = path.join(path.relative(OUT_FOLDER, OUT_RESOURCES_FOLDER), 'vs').replace(/\\/g, '/');
-			write(getDestAbsoluteFilePath(file), JSON.stringify(tsConfig, null, '\t'));
-			continue;
-		}
-
-		if (/\.d\.ts$/.test(file) || /\.css$/.test(file) || /\.js$/.test(file) || /\.ttf$/.test(file)) {
-			// Transport the files directly
-			write(getDestAbsoluteFilePath(file), fs.readFileSync(path.join(SRC_FOLDER, file)));
-			continue;
-		}
-
-		if (/\.ts$/.test(file)) {
-			// Transform the .ts file
-			let fileContents = fs.readFileSync(path.join(SRC_FOLDER, file)).toString();
-
-			const info = ts.preProcessFile(fileContents);
-
-			for (let i = info.importedFiles.length - 1; i >= 0; i--) {
-				const importedFilename = info.importedFiles[i].fileName;
-				const pos = info.importedFiles[i].pos;
-				const end = info.importedFiles[i].end;
-
-				let importedFilepath: string;
-				if (/^vs\/css!/.test(importedFilename)) {
-					importedFilepath = importedFilename.substr('vs/css!'.length) + '.css';
-				} else {
-					importedFilepath = importedFilename;
-				}
-				if (/(^\.\/)|(^\.\.\/)/.test(importedFilepath)) {
-					importedFilepath = path.join(path.dirname(file), importedFilepath);
-				}
-
-				let relativePath: string;
-				if (importedFilepath === path.dirname(file).replace(/\\/g, '/')) {
-					relativePath = '../' + path.basename(path.dirname(file));
-				} else if (importedFilepath === path.dirname(path.dirname(file)).replace(/\\/g, '/')) {
-					relativePath = '../../' + path.basename(path.dirname(path.dirname(file)));
-				} else {
-					relativePath = path.relative(path.dirname(file), importedFilepath);
-				}
-				relativePath = relativePath.replace(/\\/g, '/');
-				if (!/(^\.\/)|(^\.\.\/)/.test(relativePath)) {
-					relativePath = './' + relativePath;
-				}
-				fileContents = (
-					fileContents.substring(0, pos + 1)
-					+ relativePath
-					+ fileContents.substring(end + 1)
-				);
-			}
-
-			fileContents = fileContents.replace(/import ([a-zA-Z0-9]+) = require\(('[^']+')\);/g, function (_, m1, m2) {
-				return `import * as ${m1} from ${m2};`;
-			});
-
-			write(getDestAbsoluteFilePath(file), fileContents);
-			continue;
-		}
-
-		console.log(`UNKNOWN FILE: ${file}`);
-	}
-
-
-	function walkDirRecursive(dir: string): string[] {
-		if (dir.charAt(dir.length - 1) !== '/' || dir.charAt(dir.length - 1) !== '\\') {
-			dir += '/';
-		}
-		const result: string[] = [];
-		_walkDirRecursive(dir, result, dir.length);
-		return result;
-	}
-
-	function _walkDirRecursive(dir: string, result: string[], trimPos: number): void {
-		const files = fs.readdirSync(dir);
-		for (let i = 0; i < files.length; i++) {
-			const file = path.join(dir, files[i]);
-			if (fs.statSync(file).isDirectory()) {
-				_walkDirRecursive(file, result, trimPos);
-			} else {
-				result.push(file.substr(trimPos));
-			}
-		}
-	}
-
-	function write(absoluteFilePath: string, contents: string | Buffer): void {
-		if (/(\.ts$)|(\.js$)/.test(absoluteFilePath)) {
-			contents = toggleComments(contents.toString());
-		}
-		writeFile(absoluteFilePath, contents);
-
-		function toggleComments(fileContents: string): string {
-			const lines = fileContents.split(/\r\n|\r|\n/);
-			let mode = 0;
-			for (let i = 0; i < lines.length; i++) {
-				const line = lines[i];
-				if (mode === 0) {
-					if (/\/\/ ESM-comment-begin/.test(line)) {
-						mode = 1;
-						continue;
-					}
-					if (/\/\/ ESM-uncomment-begin/.test(line)) {
-						mode = 2;
-						continue;
-					}
-					continue;
-				}
-
-				if (mode === 1) {
-					if (/\/\/ ESM-comment-end/.test(line)) {
-						mode = 0;
-						continue;
-					}
-					lines[i] = '// ' + line;
-					continue;
-				}
-
-				if (mode === 2) {
-					if (/\/\/ ESM-uncomment-end/.test(line)) {
-						mode = 0;
-						continue;
-					}
-					lines[i] = line.replace(/^(\s*)\/\/ ?/, function (_, indent) {
-						return indent;
-					});
-				}
-			}
-
-			return lines.join('\n');
-		}
-	}
 }
 
 function transportCSS(module: string, enqueue: (module: string) => void, write: (path: string, contents: string | Buffer) => void): boolean {

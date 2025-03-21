@@ -3,31 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IAction, Separator } from 'vs/base/common/actions';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenu, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { NOTEBOOK_EDITOR_ID, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebooKernelActionViewItem } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookKernelView';
-import { ActionViewWithLabel, UnifiedSubmenuActionView } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellActionView';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
-import { IActionViewItem, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { disposableTimeout } from 'vs/base/common/async';
-import { HiddenItemStrategy, IWorkbenchToolBarOptions, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import * as DOM from '../../../../../base/browser/dom.js';
+import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
+import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { ToolBar } from '../../../../../base/browser/ui/toolbar/toolbar.js';
+import { IAction, Separator } from '../../../../../base/common/actions.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
+import { MenuEntryActionViewItem, SubmenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IMenu, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { SELECT_KERNEL_ID } from '../controller/coreActions.js';
+import { NOTEBOOK_EDITOR_ID, NotebookSetting } from '../../common/notebookCommon.js';
+import { INotebookEditorDelegate } from '../notebookBrowser.js';
+import { NotebooKernelActionViewItem } from './notebookKernelView.js';
+import { ActionViewWithLabel, UnifiedSubmenuActionView } from '../view/cellParts/cellActionView.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
+import { NotebookOptions } from '../notebookOptions.js';
+import { IActionViewItem, IActionViewItemProvider } from '../../../../../base/browser/ui/actionbar/actionbar.js';
+import { disposableTimeout } from '../../../../../base/common/async.js';
+import { HiddenItemStrategy, IWorkbenchToolBarOptions, WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { WorkbenchHoverDelegate } from '../../../../../platform/hover/browser/hover.js';
 
 interface IActionModel {
 	action: IAction;
@@ -75,18 +78,18 @@ class WorkbenchAlwaysLabelStrategy implements IActionLayoutStrategy {
 		readonly goToMenu: IMenu,
 		readonly instantiationService: IInstantiationService) { }
 
-	actionProvider(action: IAction): IActionViewItem | undefined {
+	actionProvider(action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined {
 		if (action.id === SELECT_KERNEL_ID) {
 			//	this is being disposed by the consumer
-			return this.instantiationService.createInstance(NotebooKernelActionViewItem, action, this.notebookEditor);
+			return this.instantiationService.createInstance(NotebooKernelActionViewItem, action, this.notebookEditor, options);
 		}
 
 		if (action instanceof MenuItemAction) {
-			return this.instantiationService.createInstance(ActionViewWithLabel, action, undefined);
+			return this.instantiationService.createInstance(ActionViewWithLabel, action, { hoverDelegate: options.hoverDelegate });
 		}
 
 		if (action instanceof SubmenuItemAction && action.item.submenu.id === MenuId.NotebookCellExecuteGoTo.id) {
-			return this.instantiationService.createInstance(UnifiedSubmenuActionView, action, undefined, true, {
+			return this.instantiationService.createInstance(UnifiedSubmenuActionView, action, { hoverDelegate: options.hoverDelegate }, true, {
 				getActions: () => {
 					return this.goToMenu.getActions().find(([group]) => group === 'navigation/execute')?.[1] ?? [];
 				}
@@ -115,25 +118,25 @@ class WorkbenchNeverLabelStrategy implements IActionLayoutStrategy {
 		readonly goToMenu: IMenu,
 		readonly instantiationService: IInstantiationService) { }
 
-	actionProvider(action: IAction): IActionViewItem | undefined {
+	actionProvider(action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined {
 		if (action.id === SELECT_KERNEL_ID) {
 			//	this is being disposed by the consumer
-			return this.instantiationService.createInstance(NotebooKernelActionViewItem, action, this.notebookEditor);
+			return this.instantiationService.createInstance(NotebooKernelActionViewItem, action, this.notebookEditor, options);
 		}
 
 		if (action instanceof MenuItemAction) {
-			return this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined);
+			return this.instantiationService.createInstance(MenuEntryActionViewItem, action, { hoverDelegate: options.hoverDelegate });
 		}
 
 		if (action instanceof SubmenuItemAction) {
 			if (action.item.submenu.id === MenuId.NotebookCellExecuteGoTo.id) {
-				return this.instantiationService.createInstance(UnifiedSubmenuActionView, action, undefined, false, {
+				return this.instantiationService.createInstance(UnifiedSubmenuActionView, action, { hoverDelegate: options.hoverDelegate }, false, {
 					getActions: () => {
 						return this.goToMenu.getActions().find(([group]) => group === 'navigation/execute')?.[1] ?? [];
 					}
 				}, this.actionProvider.bind(this));
 			} else {
-				return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action, undefined);
+				return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action, { hoverDelegate: options.hoverDelegate });
 			}
 		}
 
@@ -159,20 +162,20 @@ class WorkbenchDynamicLabelStrategy implements IActionLayoutStrategy {
 		readonly goToMenu: IMenu,
 		readonly instantiationService: IInstantiationService) { }
 
-	actionProvider(action: IAction): IActionViewItem | undefined {
+	actionProvider(action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined {
 		if (action.id === SELECT_KERNEL_ID) {
 			//	this is being disposed by the consumer
-			return this.instantiationService.createInstance(NotebooKernelActionViewItem, action, this.notebookEditor);
+			return this.instantiationService.createInstance(NotebooKernelActionViewItem, action, this.notebookEditor, options);
 		}
 
 		const a = this.editorToolbar.primaryActions.find(a => a.action.id === action.id);
 		if (!a || a.renderLabel) {
 			if (action instanceof MenuItemAction) {
-				return this.instantiationService.createInstance(ActionViewWithLabel, action, undefined);
+				return this.instantiationService.createInstance(ActionViewWithLabel, action, { hoverDelegate: options.hoverDelegate });
 			}
 
 			if (action instanceof SubmenuItemAction && action.item.submenu.id === MenuId.NotebookCellExecuteGoTo.id) {
-				return this.instantiationService.createInstance(UnifiedSubmenuActionView, action, undefined, true, {
+				return this.instantiationService.createInstance(UnifiedSubmenuActionView, action, { hoverDelegate: options.hoverDelegate }, true, {
 					getActions: () => {
 						return this.goToMenu.getActions().find(([group]) => group === 'navigation/execute')?.[1] ?? [];
 					}
@@ -182,18 +185,18 @@ class WorkbenchDynamicLabelStrategy implements IActionLayoutStrategy {
 			return undefined;
 		} else {
 			if (action instanceof MenuItemAction) {
-				this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined);
+				this.instantiationService.createInstance(MenuEntryActionViewItem, action, { hoverDelegate: options.hoverDelegate });
 			}
 
 			if (action instanceof SubmenuItemAction) {
 				if (action.item.submenu.id === MenuId.NotebookCellExecuteGoTo.id) {
-					return this.instantiationService.createInstance(UnifiedSubmenuActionView, action, undefined, false, {
+					return this.instantiationService.createInstance(UnifiedSubmenuActionView, action, { hoverDelegate: options.hoverDelegate }, false, {
 						getActions: () => {
 							return this.goToMenu.getActions().find(([group]) => group === 'navigation/execute')?.[1] ?? [];
 						}
 					}, this.actionProvider.bind(this));
 				} else {
-					return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action, undefined);
+					return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action, { hoverDelegate: options.hoverDelegate });
 				}
 			}
 
@@ -277,6 +280,14 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 		)(this._updatePerEditorChange, this));
 
 		this._registerNotebookActionsToolbar();
+
+		this._register(DOM.addDisposableListener(this.domNode, DOM.EventType.CONTEXT_MENU, e => {
+			const event = new StandardMouseEvent(DOM.getWindow(this.domNode), e);
+			this.contextMenuService.showContextMenu({
+				menuId: MenuId.NotebookToolbarContext,
+				getAnchor: () => event,
+			});
+		}));
 	}
 
 	private _buildBody() {
@@ -318,26 +329,32 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 
 		const context = {
 			ui: true,
-			notebookEditor: this.notebookEditor
+			notebookEditor: this.notebookEditor,
+			source: 'notebookToolbar'
 		};
 
-		const actionProvider = (action: IAction) => {
+		const actionProvider = (action: IAction, options: IActionViewItemOptions) => {
 			if (action.id === SELECT_KERNEL_ID) {
 				// this is being disposed by the consumer
-				return this.instantiationService.createInstance(NotebooKernelActionViewItem, action, this.notebookEditor);
+				return this.instantiationService.createInstance(NotebooKernelActionViewItem, action, this.notebookEditor, options);
 			}
 
 			if (this._renderLabel !== RenderLabel.Never) {
 				const a = this._primaryActions.find(a => a.action.id === action.id);
 				if (a && a.renderLabel) {
-					return action instanceof MenuItemAction ? this.instantiationService.createInstance(ActionViewWithLabel, action, undefined) : undefined;
+					return action instanceof MenuItemAction ? this.instantiationService.createInstance(ActionViewWithLabel, action, { hoverDelegate: options.hoverDelegate }) : undefined;
 				} else {
-					return action instanceof MenuItemAction ? this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined) : undefined;
+					return action instanceof MenuItemAction ? this.instantiationService.createInstance(MenuEntryActionViewItem, action, { hoverDelegate: options.hoverDelegate }) : undefined;
 				}
 			} else {
-				return action instanceof MenuItemAction ? this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined) : undefined;
+				return action instanceof MenuItemAction ? this.instantiationService.createInstance(MenuEntryActionViewItem, action, { hoverDelegate: options.hoverDelegate }) : undefined;
 			}
 		};
+
+		// Make sure both toolbars have the same hover delegate for instant hover to work
+		// Due to the elements being further apart than normal toolbars, the default time limit is to short and has to be increased
+		const hoverDelegate = this._register(this.instantiationService.createInstance(WorkbenchHoverDelegate, 'element', { instantHover: true }, {}));
+		hoverDelegate.setInstantHoverTimeLimit(600);
 
 		const leftToolbarOptions: IWorkbenchToolBarOptions = {
 			hiddenItemStrategy: HiddenItemStrategy.RenderInSecondaryGroup,
@@ -347,6 +364,7 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 			},
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
 			renderDropdownAsChildElement: true,
+			hoverDelegate
 		};
 
 		this._notebookLeftToolbar = this.instantiationService.createInstance(
@@ -363,7 +381,8 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 		this._notebookRightToolbar = new ToolBar(this._notebookTopRightToolbarContainer, this.contextMenuService, {
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
 			actionViewItemProvider: actionProvider,
-			renderDropdownAsChildElement: true
+			renderDropdownAsChildElement: true,
+			hoverDelegate
 		});
 		this._register(this._notebookRightToolbar);
 		this._notebookRightToolbar.context = context;
@@ -406,7 +425,7 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 				this._renderLabel = this._convertConfiguration(this.configurationService.getValue<RenderLabelWithFallback>(NotebookSetting.globalToolbarShowLabel));
 				this._updateStrategy();
 				const oldElement = this._notebookLeftToolbar.getElement();
-				oldElement.parentElement?.removeChild(oldElement);
+				oldElement.remove();
 				this._notebookLeftToolbar.dispose();
 
 				this._notebookLeftToolbar = this.instantiationService.createInstance(
@@ -485,6 +504,7 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 			this._deferredActionUpdate = disposableTimeout(async () => {
 				await this._setNotebookActions();
 				this.visible = true;
+				this._deferredActionUpdate?.dispose();
 				this._deferredActionUpdate = undefined;
 			}, 50);
 		}

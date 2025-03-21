@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITerminalLinkDetector, ITerminalSimpleLink, TerminalBuiltinLinkType, TerminalLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { TerminalLink } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLink';
-import { XtermLinkMatcherHandler } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkManager';
+import { Emitter } from '../../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../nls.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ITerminalLinkDetector, ITerminalSimpleLink, TerminalBuiltinLinkType, TerminalLinkType } from './links.js';
+import { TerminalLink } from './terminalLink.js';
+import { XtermLinkMatcherHandler } from './terminalLinkManager.js';
 import type { IBufferLine, ILink, ILinkProvider, IViewportRange } from '@xterm/xterm';
 
 export interface IActivateLinkEvent {
@@ -76,7 +76,8 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 		// Cap the maximum context on either side of the line being provided, by taking the context
 		// around the line being provided for this ensures the line the pointer is on will have
 		// links provided.
-		const maxLineContext = Math.max(this._detector.maxLinkLength, this._detector.xterm.cols);
+		const maxCharacterContext = Math.max(this._detector.maxLinkLength, this._detector.xterm.cols);
+		const maxLineContext = Math.ceil(maxCharacterContext / this._detector.xterm.cols);
 		const minStartLine = Math.max(startLine - maxLineContext, 0);
 		const maxEndLine = Math.min(endLine + maxLineContext, this._detector.xterm.buffer.active.length);
 
@@ -92,9 +93,7 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 
 		const detectedLinks = await this._detector.detect(lines, startLine, endLine);
 		for (const link of detectedLinks) {
-			links.push(this._createTerminalLink(link, async (event) => {
-				this._onDidActivateLink.fire({ link, event });
-			}));
+			links.push(this._createTerminalLink(link, async (event) => this._onDidActivateLink.fire({ link, event })));
 		}
 
 		return links;
@@ -110,6 +109,8 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 			this._detector.xterm,
 			l.bufferRange,
 			l.text,
+			l.uri,
+			l.parsedLink,
 			l.actions,
 			this._detector.xterm.buffer.active.viewportY,
 			activateCallback,

@@ -3,25 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { timeout } from 'vs/base/common/async';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Range } from 'vs/editor/common/core/range';
-import { InlineCompletionsProvider } from 'vs/editor/common/languages';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
-import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
-import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
-import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
-import { SingleTextEdit } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
-import { GhostTextContext, MockInlineCompletionsProvider } from 'vs/editor/contrib/inlineCompletions/test/browser/utils';
-import { ITestCodeEditor, TestCodeEditorInstantiationOptions, withAsyncTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { Selection } from 'vs/editor/common/core/selection';
+import assert from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Range } from '../../../../common/core/range.js';
+import { InlineCompletionsProvider } from '../../../../common/languages.js';
+import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
+import { LanguageFeaturesService } from '../../../../common/services/languageFeaturesService.js';
+import { ViewModel } from '../../../../common/viewModel/viewModelImpl.js';
+import { InlineCompletionsController } from '../../browser/controller/inlineCompletionsController.js';
+import { InlineCompletionsModel } from '../../browser/model/inlineCompletionsModel.js';
+import { SingleTextEdit } from '../../../../common/core/textEdit.js';
+import { GhostTextContext, MockInlineCompletionsProvider } from './utils.js';
+import { ITestCodeEditor, TestCodeEditorInstantiationOptions, withAsyncTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { createTextModel } from '../../../../test/common/testTextModel.js';
+import { IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { Selection } from '../../../../common/core/selection.js';
+import { computeGhostText } from '../../browser/model/computeGhostText.js';
 
 suite('Inline Completions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -37,7 +38,7 @@ suite('Inline Completions', () => {
 			const options = ['prefix', 'subword'] as const;
 			const result = {} as any;
 			for (const option of options) {
-				result[option] = new SingleTextEdit(range, suggestion).computeGhostText(tempModel, option)?.render(cleanedText, true);
+				result[option] = computeGhostText(new SingleTextEdit(range, suggestion), tempModel, option)?.render(cleanedText, true);
 			}
 
 			tempModel.dispose();
@@ -775,9 +776,9 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
 					options.serviceCollection = new ServiceCollection();
 				}
 				options.serviceCollection.set(ILanguageFeaturesService, languageFeaturesService);
-				options.serviceCollection.set(IAudioCueService, {
-					playAudioCue: async () => { },
-					isEnabled(cue: unknown) { return false; },
+				options.serviceCollection.set(IAccessibilitySignalService, {
+					playSignal: async () => { },
+					isSoundEnabled(signal: unknown) { return false; },
 				} as any);
 				const d = languageFeaturesService.inlineCompletionsProvider.register({ pattern: '**' }, options.provider);
 				disposableStore.add(d);

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 
 export const enum SearchCommandIds {
 	FindInFilesActionId = 'workbench.action.findInFiles',
@@ -30,7 +30,7 @@ export const enum SearchCommandIds {
 	RevealInSideBarForSearchResults = 'search.action.revealInSideBar',
 	ReplaceInFilesActionId = 'workbench.action.replaceInFiles',
 	ShowAllSymbolsActionId = 'workbench.action.showAllSymbols',
-	QuickTextSearchActionId = 'workbench.action.experimental.quickTextSearch',
+	QuickTextSearchActionId = 'workbench.action.quickTextSearch',
 	CancelSearchActionId = 'search.action.cancel',
 	RefreshSearchResultsActionId = 'search.action.refreshSearchResults',
 	FocusNextSearchResultActionId = 'search.action.focusNextSearchResult',
@@ -38,9 +38,13 @@ export const enum SearchCommandIds {
 	ToggleSearchOnTypeActionId = 'workbench.action.toggleSearchOnType',
 	CollapseSearchResultsActionId = 'search.action.collapseSearchResults',
 	ExpandSearchResultsActionId = 'search.action.expandSearchResults',
+	ExpandRecursivelyCommandId = 'search.action.expandRecursively',
 	ClearSearchResultsActionId = 'search.action.clearSearchResults',
 	ViewAsTreeActionId = 'search.action.viewAsTree',
 	ViewAsListActionId = 'search.action.viewAsList',
+	ShowAIResultsActionId = 'search.action.showAIResults',
+	HideAIResultsActionId = 'search.action.hideAIResults',
+	SearchWithAIActionId = 'search.action.searchWithAI',
 	ToggleQueryDetailsActionId = 'workbench.action.search.toggleQueryDetails',
 	ExcludeFolderFromSearchId = 'search.action.excludeFromSearch',
 	FocusNextInputActionId = 'search.focus.nextInputBox',
@@ -53,6 +57,7 @@ export const enum SearchCommandIds {
 export const SearchContext = {
 	SearchViewVisibleKey: new RawContextKey<boolean>('searchViewletVisible', true),
 	SearchViewFocusedKey: new RawContextKey<boolean>('searchViewletFocus', false),
+	SearchResultListFocusedKey: new RawContextKey<boolean>('searchResultListFocused', true),
 	InputBoxFocusedKey: new RawContextKey<boolean>('inputBoxFocus', false),
 	SearchInputBoxFocusedKey: new RawContextKey<boolean>('searchInputBoxFocus', false),
 	ReplaceInputBoxFocusedKey: new RawContextKey<boolean>('replaceInputBoxFocus', false),
@@ -74,4 +79,7 @@ export const SearchContext = {
 	ViewHasFilePatternKey: new RawContextKey<boolean>('viewHasFilePattern', false),
 	ViewHasSomeCollapsibleKey: new RawContextKey<boolean>('viewHasSomeCollapsibleResult', false),
 	InTreeViewKey: new RawContextKey<boolean>('inTreeView', false),
+	hasAIResultProvider: new RawContextKey<boolean>('hasAIResultProviderKey', false),
+	AIResultsTitle: new RawContextKey<boolean>('aiResultsTitle', false),
+	AIResultsRequested: new RawContextKey<boolean>('aiResultsRequested', false),
 };

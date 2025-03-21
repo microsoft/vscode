@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { BidirectionalMap, LinkedMap, LRUCache, mapsStrictEqualIgnoreOrder, ResourceMap, SetMap, Touch } from 'vs/base/common/map';
-import { extUriIgnorePathCase } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { BidirectionalMap, LinkedMap, LRUCache, mapsStrictEqualIgnoreOrder, MRUCache, NKeyMap, ResourceMap, SetMap, Touch } from '../../common/map.js';
+import { extUriIgnorePathCase } from '../../common/resources.js';
+import { URI } from '../../common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Map', () => {
 
@@ -256,6 +256,53 @@ suite('Map', () => {
 		const values: number[] = [];
 		[...cache.keys()].forEach(key => values.push(cache.get(key)!));
 		assert.deepStrictEqual(values, [7, 8, 9, 10, 11]);
+		assert.deepStrictEqual([...cache.values()], values);
+	});
+
+	test('LinkedMap - MRU Cache simple', () => {
+		const cache = new MRUCache<number, number>(5);
+
+		[1, 2, 3, 4, 5].forEach(value => cache.set(value, value));
+		assert.strictEqual(cache.size, 5);
+		cache.set(6, 6);
+		assert.strictEqual(cache.size, 5);
+		assert.deepStrictEqual([...cache.keys()], [1, 2, 3, 4, 6]);
+		cache.set(7, 7);
+		assert.strictEqual(cache.size, 5);
+		assert.deepStrictEqual([...cache.keys()], [1, 2, 3, 4, 7]);
+		const values: number[] = [];
+		[1, 2, 3, 4, 7].forEach(key => values.push(cache.get(key)!));
+		assert.deepStrictEqual(values, [1, 2, 3, 4, 7]);
+	});
+
+	test('LinkedMap - MRU Cache get', () => {
+		const cache = new MRUCache<number, number>(5);
+
+		[1, 2, 3, 4, 5].forEach(value => cache.set(value, value));
+		assert.strictEqual(cache.size, 5);
+		assert.deepStrictEqual([...cache.keys()], [1, 2, 3, 4, 5]);
+		cache.get(3);
+		assert.deepStrictEqual([...cache.keys()], [1, 2, 4, 5, 3]);
+		cache.peek(4);
+		assert.deepStrictEqual([...cache.keys()], [1, 2, 4, 5, 3]);
+		const values: number[] = [];
+		[1, 2, 3, 4, 5].forEach(key => values.push(cache.get(key)!));
+		assert.deepStrictEqual(values, [1, 2, 3, 4, 5]);
+	});
+
+	test('LinkedMap - MRU Cache limit with ratio', () => {
+		const cache = new MRUCache<number, number>(10, 0.5);
+
+		for (let i = 1; i <= 10; i++) {
+			cache.set(i, i);
+		}
+		assert.strictEqual(cache.size, 10);
+		cache.set(11, 11);
+		assert.strictEqual(cache.size, 5);
+		assert.deepStrictEqual([...cache.keys()], [1, 2, 3, 4, 11]);
+		const values: number[] = [];
+		[...cache.keys()].forEach(key => values.push(cache.get(key)!));
+		assert.deepStrictEqual(values, [1, 2, 3, 4, 11]);
 		assert.deepStrictEqual([...cache.values()], values);
 	});
 
@@ -634,5 +681,58 @@ suite('SetMap', () => {
 		const setMap = new SetMap<string, number>();
 		assert.deepStrictEqual([...setMap.get('a')], []);
 	});
+});
 
+suite('NKeyMap', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('set and get', () => {
+		const map = new NKeyMap<number, [string, string, string, string]>();
+		map.set(1, 'a', 'b', 'c', 'd');
+		map.set(2, 'a', 'c', 'c', 'd');
+		map.set(3, 'b', 'e', 'f', 'g');
+		assert.strictEqual(map.get('a', 'b', 'c', 'd'), 1);
+		assert.strictEqual(map.get('a', 'c', 'c', 'd'), 2);
+		assert.strictEqual(map.get('b', 'e', 'f', 'g'), 3);
+		assert.strictEqual(map.get('a', 'b', 'c', 'a'), undefined);
+	});
+
+	test('clear', () => {
+		const map = new NKeyMap<number, [string, string, string, string]>();
+		map.set(1, 'a', 'b', 'c', 'd');
+		map.set(2, 'a', 'c', 'c', 'd');
+		map.set(3, 'b', 'e', 'f', 'g');
+		map.clear();
+		assert.strictEqual(map.get('a', 'b', 'c', 'd'), undefined);
+		assert.strictEqual(map.get('a', 'c', 'c', 'd'), undefined);
+		assert.strictEqual(map.get('b', 'e', 'f', 'g'), undefined);
+	});
+
+	test('values', () => {
+		const map = new NKeyMap<number, [string, string, string, string]>();
+		map.set(1, 'a', 'b', 'c', 'd');
+		map.set(2, 'a', 'c', 'c', 'd');
+		map.set(3, 'b', 'e', 'f', 'g');
+		assert.deepStrictEqual(Array.from(map.values()), [1, 2, 3]);
+	});
+
+	test('toString', () => {
+		const map = new NKeyMap<number, [string, string, string]>();
+		map.set(1, 'f', 'o', 'o');
+		map.set(2, 'b', 'a', 'r');
+		map.set(3, 'b', 'a', 'z');
+		map.set(3, 'b', 'o', 'o');
+		assert.strictEqual(map.toString(), [
+			'f: ',
+			'  o: ',
+			'    o: 1',
+			'b: ',
+			'  a: ',
+			'    r: 2',
+			'    z: 3',
+			'  o: ',
+			'    o: 3',
+			'',
+		].join('\n'));
+	});
 });

@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { ExtensionToggleData } from 'vs/workbench/contrib/preferences/common/preferences';
+import { isWeb, isWindows } from '../../../../base/common/platform.js';
+import { localize } from '../../../../nls.js';
+import { ExtensionToggleData } from '../common/preferences.js';
 
 export interface ITOCEntry<T> {
 	id: string;
@@ -12,6 +13,7 @@ export interface ITOCEntry<T> {
 	order?: number;
 	children?: ITOCEntry<T>[];
 	settings?: Array<T>;
+	hide?: boolean;
 }
 
 const defaultCommonlyUsedSettings: string[] = [
@@ -147,6 +149,11 @@ export const tocData: ITOCEntry<string> = {
 			label: localize('features', "Features"),
 			children: [
 				{
+					id: 'features/accessibilitySignals',
+					label: localize('accessibility.signals', 'Accessibility Signals'),
+					settings: ['accessibility.signal*']
+				},
+				{
 					id: 'features/accessibility',
 					label: localize('accessibility', "Accessibility"),
 					settings: ['accessibility.*']
@@ -222,11 +229,6 @@ export const tocData: ITOCEntry<string> = {
 					settings: ['notebook.*', 'interactiveWindow.*']
 				},
 				{
-					id: 'features/audioCues',
-					label: localize('audioCues', 'Audio Cues'),
-					settings: ['audioCues.*']
-				},
-				{
 					id: 'features/mergeEditor',
 					label: localize('mergeEditor', 'Merge Editor'),
 					settings: ['mergeEditor.*']
@@ -235,6 +237,12 @@ export const tocData: ITOCEntry<string> = {
 					id: 'features/chat',
 					label: localize('chat', 'Chat'),
 					settings: ['chat.*', 'inlineChat.*']
+				},
+				{
+					id: 'features/issueReporter',
+					label: localize('issueReporter', 'Issue Reporter'),
+					settings: ['issueReporter.*'],
+					hide: !isWeb
 				}
 			]
 		},
@@ -275,7 +283,8 @@ export const tocData: ITOCEntry<string> = {
 				{
 					id: 'application/other',
 					label: localize('other', "Other"),
-					settings: ['application.*']
+					settings: ['application.*'],
+					hide: isWindows
 				}
 			]
 		},
@@ -314,3 +323,4 @@ knownTermMappings.set('power shell', 'PowerShell');
 knownTermMappings.set('powershell', 'PowerShell');
 knownTermMappings.set('javascript', 'JavaScript');
 knownTermMappings.set('typescript', 'TypeScript');
+knownTermMappings.set('github', 'GitHub');

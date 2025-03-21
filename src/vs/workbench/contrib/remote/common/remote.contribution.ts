@@ -3,32 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, WorkbenchPhase, Extensions as WorkbenchExtensions, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ILabelService, ResourceLabelFormatting } from 'vs/platform/label/common/label';
-import { OperatingSystem, isWeb, OS } from 'vs/base/common/platform';
-import { Schemas } from 'vs/base/common/network';
-import { IRemoteAgentService, remoteConnectionLatencyMeasurer } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { ILoggerService } from 'vs/platform/log/common/log';
-import { localize, localize2 } from 'vs/nls';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { firstOrDefault } from 'vs/base/common/arrays';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { PersistentConnection } from 'vs/platform/remote/common/remoteAgentConnection';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
-import { IDownloadService } from 'vs/platform/download/common/download';
-import { DownloadServiceChannel } from 'vs/platform/download/common/downloadIpc';
-import { RemoteLoggerChannelClient } from 'vs/platform/log/common/logIpc';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, WorkbenchPhase, Extensions as WorkbenchExtensions, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { ILabelService, ResourceLabelFormatting } from '../../../../platform/label/common/label.js';
+import { OperatingSystem, isWeb, OS } from '../../../../base/common/platform.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
+import { ILoggerService } from '../../../../platform/log/common/log.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { PersistentConnection } from '../../../../platform/remote/common/remoteAgentConnection.js';
+import { IDownloadService } from '../../../../platform/download/common/download.js';
+import { DownloadServiceChannel } from '../../../../platform/download/common/downloadIpc.js';
+import { RemoteLoggerChannelClient } from '../../../../platform/log/common/logIpc.js';
+import { REMOTE_DEFAULT_IF_LOCAL_EXTENSIONS } from '../../../../platform/remote/common/remote.js';
+import product from '../../../../platform/product/common/product.js';
+
+
+const EXTENSION_IDENTIFIER_PATTERN = '([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$';
 
 export class LabelContribution implements IWorkbenchContribution {
 
@@ -114,7 +116,7 @@ class RemoteInvalidWorkspaceDetector extends Disposable implements IWorkbenchCon
 
 	private async validateRemoteWorkspace(): Promise<void> {
 		const workspace = this.contextService.getWorkspace();
-		const workspaceUriToStat = workspace.configuration ?? firstOrDefault(workspace.folders)?.uri;
+		const workspaceUriToStat = workspace.configuration ?? workspace.folders.at(0)?.uri;
 		if (!workspaceUriToStat) {
 			return; // only when in workspace
 		}
@@ -144,100 +146,10 @@ class RemoteInvalidWorkspaceDetector extends Disposable implements IWorkbenchCon
 	}
 }
 
-class InitialRemoteConnectionHealthContribution implements IWorkbenchContribution {
-
-	constructor(
-		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
-		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-	) {
-		if (this._environmentService.remoteAuthority) {
-			this._checkInitialRemoteConnectionHealth();
-		}
-	}
-
-	private async _checkInitialRemoteConnectionHealth(): Promise<void> {
-		try {
-			await this._remoteAgentService.getRawEnvironment();
-
-			type RemoteConnectionSuccessClassification = {
-				owner: 'alexdima';
-				comment: 'The initial connection succeeded';
-				web: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Is web ui.' };
-				connectionTimeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Time, in ms, until connected'; isMeasurement: true };
-				remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the resolver.' };
-			};
-			type RemoteConnectionSuccessEvent = {
-				web: boolean;
-				connectionTimeMs: number | undefined;
-				remoteName: string | undefined;
-			};
-			this._telemetryService.publicLog2<RemoteConnectionSuccessEvent, RemoteConnectionSuccessClassification>('remoteConnectionSuccess', {
-				web: isWeb,
-				connectionTimeMs: await this._remoteAgentService.getConnection()?.getInitialConnectionTimeMs(),
-				remoteName: getRemoteName(this._environmentService.remoteAuthority)
-			});
-
-			await this._measureExtHostLatency();
-
-		} catch (err) {
-
-			type RemoteConnectionFailureClassification = {
-				owner: 'alexdima';
-				comment: 'The initial connection failed';
-				web: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Is web ui.' };
-				remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the resolver.' };
-				connectionTimeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Time, in ms, until connection failure'; isMeasurement: true };
-				message: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Error message' };
-			};
-			type RemoteConnectionFailureEvent = {
-				web: boolean;
-				remoteName: string | undefined;
-				connectionTimeMs: number | undefined;
-				message: string;
-			};
-			this._telemetryService.publicLog2<RemoteConnectionFailureEvent, RemoteConnectionFailureClassification>('remoteConnectionFailure', {
-				web: isWeb,
-				connectionTimeMs: await this._remoteAgentService.getConnection()?.getInitialConnectionTimeMs(),
-				remoteName: getRemoteName(this._environmentService.remoteAuthority),
-				message: err ? err.message : ''
-			});
-
-		}
-	}
-
-	private async _measureExtHostLatency() {
-		const measurement = await remoteConnectionLatencyMeasurer.measure(this._remoteAgentService);
-		if (measurement === undefined) {
-			return;
-		}
-
-		type RemoteConnectionLatencyClassification = {
-			owner: 'connor4312';
-			comment: 'The latency to the remote extension host';
-			web: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether this is running on web' };
-			remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Anonymized remote name' };
-			latencyMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Latency to the remote, in milliseconds'; isMeasurement: true };
-		};
-		type RemoteConnectionLatencyEvent = {
-			web: boolean;
-			remoteName: string | undefined;
-			latencyMs: number;
-		};
-
-		this._telemetryService.publicLog2<RemoteConnectionLatencyEvent, RemoteConnectionLatencyClassification>('remoteConnectionLatency', {
-			web: isWeb,
-			remoteName: getRemoteName(this._environmentService.remoteAuthority),
-			latencyMs: measurement.current
-		});
-	}
-}
-
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 registerWorkbenchContribution2(LabelContribution.ID, LabelContribution, WorkbenchPhase.BlockStartup);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Restored);
 registerWorkbenchContribution2(RemoteInvalidWorkspaceDetector.ID, RemoteInvalidWorkspaceDetector, WorkbenchPhase.BlockStartup);
-workbenchContributionsRegistry.registerWorkbenchContribution(InitialRemoteConnectionHealthContribution, LifecyclePhase.Restored);
 
 const enableDiagnostics = true;
 
@@ -298,7 +210,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				type: 'object',
 				markdownDescription: localize('remote.extensionKind', "Override the kind of an extension. `ui` extensions are installed and run on the local machine while `workspace` extensions are run on the remote. By overriding an extension's default kind using this setting, you specify if that extension should be installed and enabled locally or remotely."),
 				patternProperties: {
-					'([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
+					[EXTENSION_IDENTIFIER_PATTERN]: {
 						oneOf: [{ type: 'array', items: extensionKindSchema }, extensionKindSchema],
 						default: ['ui'],
 					},
@@ -314,12 +226,12 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			},
 			'remote.autoForwardPorts': {
 				type: 'boolean',
-				markdownDescription: localize('remote.autoForwardPorts', "When enabled, new running processes are detected and ports that they listen on are automatically forwarded. Disabling this setting will not prevent all ports from being forwarded. Even when disabled, extensions will still be able to cause ports to be forwarded, and opening some URLs will still cause ports to forwarded."),
+				markdownDescription: localize('remote.autoForwardPorts', "When enabled, new running processes are detected and ports that they listen on are automatically forwarded. Disabling this setting will not prevent all ports from being forwarded. Even when disabled, extensions will still be able to cause ports to be forwarded, and opening some URLs will still cause ports to forwarded. Also see {0}.", '`#remote.autoForwardPortsSource#`'),
 				default: true
 			},
 			'remote.autoForwardPortsSource': {
 				type: 'string',
-				markdownDescription: localize('remote.autoForwardPortsSource', "Sets the source from which ports are automatically forwarded when {0} is true. On Windows and macOS remotes, the `process` and `hybrid` options have no effect and `output` will be used.", '`#remote.autoForwardPorts#`'),
+				markdownDescription: localize('remote.autoForwardPortsSource', "Sets the source from which ports are automatically forwarded when {0} is true. When {0} is false, {1} will be used to find information about ports that have already been forwarded. On Windows and macOS remotes, the `process` and `hybrid` options have no effect and `output` will be used.", '`#remote.autoForwardPorts#`', '`#remote.autoForwardPortsSource#`'),
 				enum: ['process', 'output', 'hybrid'],
 				enumDescriptions: [
 					localize('remote.autoForwardPortsSource.process', "Ports will be automatically forwarded when discovered by watching for processes that are started and include a port."),
@@ -331,7 +243,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			'remote.autoForwardPortsFallback': {
 				type: 'number',
 				default: 20,
-				markdownDescription: localize('remote.autoForwardPortFallback', "The number of auto forwarded ports that will trigger the switch from `process` to `hybrid` when automatically forwarding ports and `remote.autoForwardPortsSource` is set to `process`. Set to `0` to disable the fallback.")
+				markdownDescription: localize('remote.autoForwardPortFallback', "The number of auto forwarded ports that will trigger the switch from `process` to `hybrid` when automatically forwarding ports and `remote.autoForwardPortsSource` is set to `process` by default. Set to `0` to disable the fallback. When `remote.autoForwardPortsFallback` hasn't been configured, but `remote.autoForwardPortsSource` has, `remote.autoForwardPortsFallback` will be treated as though it's set to `0`.")
 			},
 			'remote.forwardOnOpen': {
 				type: 'boolean',
@@ -448,6 +360,16 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				enum: ['localhost', 'allInterfaces'],
 				default: 'localhost',
 				description: localize('remote.localPortHost', "Specifies the local host name that will be used for port forwarding.")
+			},
+			[REMOTE_DEFAULT_IF_LOCAL_EXTENSIONS]: {
+				type: 'array',
+				markdownDescription: localize('remote.defaultExtensionsIfInstalledLocally.markdownDescription', 'List of extensions to install automatically on all remotes if already installed locally.'),
+				default: product?.remoteDefaultExtensionsIfInstalledLocally || [],
+				items: {
+					type: 'string',
+					pattern: EXTENSION_IDENTIFIER_PATTERN,
+					patternErrorMessage: localize('remote.defaultExtensionsIfInstalledLocally.invalidFormat', 'Extension identifier must be in format "publisher.name".')
+				},
 			}
 		}
 	});

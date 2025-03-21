@@ -3,24 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
-import { getActiveDocument } from 'vs/base/browser/dom';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import * as platform from 'vs/base/common/platform';
-import { CopyOptions, InMemoryClipboardMetadataManager } from 'vs/editor/browser/controller/textAreaInput';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Command, EditorAction, MultiCommand, registerEditorAction } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Handler } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { CopyPasteController } from 'vs/editor/contrib/dropOrPasteInto/browser/copyPasteController';
-import * as nls from 'vs/nls';
-import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import * as browser from '../../../../base/browser/browser.js';
+import { getActiveDocument } from '../../../../base/browser/dom.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import * as platform from '../../../../base/common/platform.js';
+import * as nls from '../../../../nls.js';
+import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { CopyOptions, InMemoryClipboardMetadataManager } from '../../../browser/controller/editContext/clipboardUtils.js';
+import { NativeEditContextRegistry } from '../../../browser/controller/editContext/native/nativeEditContextRegistry.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { Command, EditorAction, MultiCommand, registerEditorAction } from '../../../browser/editorExtensions.js';
+import { ICodeEditorService } from '../../../browser/services/codeEditorService.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { Handler } from '../../../common/editorCommon.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { CopyPasteController } from '../../dropOrPasteInto/browser/copyPasteController.js';
 
 const CLIPBOARD_CONTEXT_MENU_GROUP = '9_cutcopypaste';
 
@@ -111,7 +112,6 @@ export const CopyAction = supportsCopy ? registerCommand(new MultiCommand({
 MenuRegistry.appendMenuItem(MenuId.MenubarEditMenu, { submenu: MenuId.MenubarCopy, title: nls.localize2('copy as', "Copy As"), group: '2_ccp', order: 3 });
 MenuRegistry.appendMenuItem(MenuId.EditorContext, { submenu: MenuId.EditorContextCopy, title: nls.localize2('copy as', "Copy As"), group: CLIPBOARD_CONTEXT_MENU_GROUP, order: 3 });
 MenuRegistry.appendMenuItem(MenuId.EditorContext, { submenu: MenuId.EditorContextShare, title: nls.localize2('share', "Share"), group: '11_share', order: -1, when: ContextKeyExpr.and(ContextKeyExpr.notEquals('resourceScheme', 'output'), EditorContextKeys.editorTextFocus) });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { submenu: MenuId.EditorTitleContextShare, title: nls.localize2('share', "Share"), group: '11_share', order: -1 });
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, { submenu: MenuId.ExplorerContextShare, title: nls.localize2('share', "Share"), group: '11_share', order: -1 });
 
 export const PasteAction = supportsPaste ? registerCommand(new MultiCommand({
@@ -157,8 +157,7 @@ class ExecCommandCopyWithSyntaxHighlightingAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.clipboardCopyWithSyntaxHighlightingAction',
-			label: nls.localize('actions.clipboard.copyWithSyntaxHighlightingLabel', "Copy With Syntax Highlighting"),
-			alias: 'Copy With Syntax Highlighting',
+			label: nls.localize2('actions.clipboard.copyWithSyntaxHighlightingLabel', "Copy with Syntax Highlighting"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
@@ -202,7 +201,14 @@ function registerExecCommandImpl(target: MultiCommand | undefined, browserComman
 			if (selection && selection.isEmpty() && !emptySelectionClipboard) {
 				return true;
 			}
-			focusedEditor.getContainerDomNode().ownerDocument.execCommand(browserCommand);
+			// TODO this is very ugly. The entire copy/paste/cut system needs a complete refactoring.
+			if (focusedEditor.getOption(EditorOption.effectiveExperimentalEditContextEnabled) && browserCommand === 'cut') {
+				// execCommand(copy) works for edit context, but not execCommand(cut).
+				focusedEditor.getContainerDomNode().ownerDocument.execCommand('copy');
+				focusedEditor.trigger(undefined, Handler.Cut, undefined);
+			} else {
+				focusedEditor.getContainerDomNode().ownerDocument.execCommand(browserCommand);
+			}
 			return true;
 		}
 		return false;
@@ -226,8 +232,20 @@ if (PasteAction) {
 
 		// Only if editor text focus (i.e. not if editor has widget focus).
 		const focusedEditor = codeEditorService.getFocusedCodeEditor();
-		if (focusedEditor && focusedEditor.hasTextFocus()) {
-			const result = focusedEditor.getContainerDomNode().ownerDocument.execCommand('paste');
+		if (focusedEditor && focusedEditor.hasModel() && focusedEditor.hasTextFocus()) {
+			// execCommand(paste) does not work with edit context
+			let result: boolean;
+			const experimentalEditContextEnabled = focusedEditor.getOption(EditorOption.effectiveExperimentalEditContextEnabled);
+			if (experimentalEditContextEnabled) {
+				const nativeEditContext = NativeEditContextRegistry.get(focusedEditor.getId());
+				if (nativeEditContext) {
+					result = nativeEditContext.executePaste();
+				} else {
+					result = false;
+				}
+			} else {
+				result = focusedEditor.getContainerDomNode().ownerDocument.execCommand('paste');
+			}
 			if (result) {
 				return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
 			} else if (platform.isWeb) {

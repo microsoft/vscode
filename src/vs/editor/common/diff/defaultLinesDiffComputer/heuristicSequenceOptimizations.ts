@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { forEachWithNeighbors } from 'vs/base/common/arrays';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
-import { ISequence, OffsetPair, SequenceDiff } from 'vs/editor/common/diff/defaultLinesDiffComputer/algorithms/diffAlgorithm';
-import { LineSequence } from 'vs/editor/common/diff/defaultLinesDiffComputer/lineSequence';
-import { LinesSliceCharSequence } from 'vs/editor/common/diff/defaultLinesDiffComputer/linesSliceCharSequence';
+import { forEachWithNeighbors } from '../../../../base/common/arrays.js';
+import { OffsetRange } from '../../core/offsetRange.js';
+import { ISequence, OffsetPair, SequenceDiff } from './algorithms/diffAlgorithm.js';
+import { LineSequence } from './lineSequence.js';
+import { LinesSliceCharSequence } from './linesSliceCharSequence.js';
 
 export function optimizeSequenceDiffs(sequence1: ISequence, sequence2: ISequence, sequenceDiffs: SequenceDiff[]): SequenceDiff[] {
 	let result = sequenceDiffs;
@@ -219,7 +219,13 @@ export function removeShortMatches(sequence1: ISequence, sequence2: ISequence, s
 	return result;
 }
 
-export function extendDiffsToEntireWordIfAppropriate(sequence1: LinesSliceCharSequence, sequence2: LinesSliceCharSequence, sequenceDiffs: SequenceDiff[]): SequenceDiff[] {
+export function extendDiffsToEntireWordIfAppropriate(
+	sequence1: LinesSliceCharSequence,
+	sequence2: LinesSliceCharSequence,
+	sequenceDiffs: SequenceDiff[],
+	findParent: (seq: LinesSliceCharSequence, idx: number) => OffsetRange | undefined,
+	force: boolean = false,
+): SequenceDiff[] {
 	const equalMappings = SequenceDiff.invert(sequenceDiffs, sequence1.length);
 
 	const additional: SequenceDiff[] = [];
@@ -231,8 +237,8 @@ export function extendDiffsToEntireWordIfAppropriate(sequence1: LinesSliceCharSe
 			return;
 		}
 
-		const w1 = sequence1.findWordContaining(pair.offset1);
-		const w2 = sequence2.findWordContaining(pair.offset2);
+		const w1 = findParent(sequence1, pair.offset1);
+		const w2 = findParent(sequence2, pair.offset2);
 		if (!w1 || !w2) {
 			return;
 		}
@@ -247,13 +253,13 @@ export function extendDiffsToEntireWordIfAppropriate(sequence1: LinesSliceCharSe
 
 		while (equalMappings.length > 0) {
 			const next = equalMappings[0];
-			const intersects = next.seq1Range.intersects(w1) || next.seq2Range.intersects(w2);
+			const intersects = next.seq1Range.intersects(w.seq1Range) || next.seq2Range.intersects(w.seq2Range);
 			if (!intersects) {
 				break;
 			}
 
-			const v1 = sequence1.findWordContaining(next.seq1Range.start);
-			const v2 = sequence2.findWordContaining(next.seq2Range.start);
+			const v1 = findParent(sequence1, next.seq1Range.start);
+			const v2 = findParent(sequence2, next.seq2Range.start);
 			// Because there is an intersection, we know that the words are not empty.
 			const v = new SequenceDiff(v1!, v2!);
 			const equalPart = v.intersect(next)!;
@@ -271,7 +277,7 @@ export function extendDiffsToEntireWordIfAppropriate(sequence1: LinesSliceCharSe
 			}
 		}
 
-		if (equalChars1 + equalChars2 < (w.seq1Range.length + w.seq2Range.length) * 2 / 3) {
+		if ((force && equalChars1 + equalChars2 < w.seq1Range.length + w.seq2Range.length) || equalChars1 + equalChars2 < (w.seq1Range.length + w.seq2Range.length) * 2 / 3) {
 			additional.push(w);
 		}
 

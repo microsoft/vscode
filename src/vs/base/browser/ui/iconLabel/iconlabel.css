@@ -31,6 +31,14 @@
 	flex-shrink: 0; /* fix for https://github.com/microsoft/vscode/issues/13787 */
 }
 
+.monaco-icon-label-iconpath {
+	width: 16px;
+	height: 16px;
+	padding-left: 2px;
+	margin-top: 2px;
+	display: flex;
+}
+
 .monaco-icon-label-container.disabled {
 	color: var(--vscode-disabledForeground);
 }
@@ -79,11 +87,6 @@
 .monaco-icon-label.deprecated {
 	text-decoration: line-through;
 	opacity: 0.66;
-}
-
-/* make sure apply italic font style to decorations as well */
-.monaco-icon-label.italic::after {
-	font-style: italic;
 }
 
 .monaco-icon-label.strikethrough > .monaco-icon-label-container > .monaco-icon-name-container > .label-name,

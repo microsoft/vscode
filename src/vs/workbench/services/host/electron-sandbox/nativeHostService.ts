@@ -3,20 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, IOpenEmptyWindowOptions, IPoint, IRectangle } from 'vs/platform/window/common/window';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { NativeHostService } from 'vs/platform/native/common/nativeHostService';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
-import { disposableWindowInterval, getActiveDocument, getWindowId, getWindowsCount, hasWindow, onDidRegisterWindow } from 'vs/base/browser/dom';
-import { memoize } from 'vs/base/common/decorators';
-import { isAuxiliaryWindow } from 'vs/base/browser/window';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { IHostService } from '../browser/host.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { ILabelService, Verbosity } from '../../../../platform/label/common/label.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, IOpenEmptyWindowOptions, IPoint, IRectangle } from '../../../../platform/window/common/window.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { NativeHostService } from '../../../../platform/native/common/nativeHostService.js';
+import { INativeWorkbenchEnvironmentService } from '../../environment/electron-sandbox/environmentService.js';
+import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
+import { disposableWindowInterval, getActiveDocument, getWindowId, getWindowsCount, hasWindow, onDidRegisterWindow } from '../../../../base/browser/dom.js';
+import { memoize } from '../../../../base/common/decorators.js';
+import { isAuxiliaryWindow } from '../../../../base/browser/window.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 
 class WorkbenchNativeHostService extends NativeHostService {
 
@@ -38,17 +39,21 @@ class WorkbenchHostService extends Disposable implements IHostService {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
+
+		this.onDidChangeFocus = Event.latch(
+			Event.any(
+				Event.map(Event.filter(this.nativeHostService.onDidFocusMainOrAuxiliaryWindow, id => hasWindow(id), this._store), () => this.hasFocus, this._store),
+				Event.map(Event.filter(this.nativeHostService.onDidBlurMainOrAuxiliaryWindow, id => hasWindow(id), this._store), () => this.hasFocus, this._store),
+				Event.map(this.onDidChangeActiveWindow, () => this.hasFocus, this._store)
+			), undefined, this._store
+		);
+
+		this.onDidChangeFullScreen = Event.filter(this.nativeHostService.onDidChangeWindowFullScreen, e => hasWindow(e.windowId), this._store);
 	}
 
 	//#region Focus
 
-	readonly onDidChangeFocus = Event.latch(
-		Event.any(
-			Event.map(Event.filter(this.nativeHostService.onDidFocusMainOrAuxiliaryWindow, id => hasWindow(id), this._store), () => this.hasFocus, this._store),
-			Event.map(Event.filter(this.nativeHostService.onDidBlurMainOrAuxiliaryWindow, id => hasWindow(id), this._store), () => this.hasFocus, this._store),
-			Event.map(this.onDidChangeActiveWindow, () => this.hasFocus, this._store)
-		), undefined, this._store
-	);
+	readonly onDidChangeFocus: Event<boolean>;
 
 	get hasFocus(): boolean {
 		return getActiveDocument().hasFocus();
@@ -65,7 +70,6 @@ class WorkbenchHostService extends Disposable implements IHostService {
 	}
 
 	//#endregion
-
 
 	//#region Window
 
@@ -94,7 +98,7 @@ class WorkbenchHostService extends Disposable implements IHostService {
 		return Event.latch(emitter.event, undefined, this._store);
 	}
 
-	readonly onDidChangeFullScreen = Event.filter(this.nativeHostService.onDidChangeWindowFullScreen, e => hasWindow(e.windowId), this._store);
+	readonly onDidChangeFullScreen: Event<{ readonly windowId: number; readonly fullscreen: boolean }>;
 
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
@@ -130,7 +134,7 @@ class WorkbenchHostService extends Disposable implements IHostService {
 			return this.labelService.getWorkspaceLabel({ id: '', configPath: openable.workspaceUri }, { verbose: Verbosity.LONG });
 		}
 
-		return this.labelService.getUriLabel(openable.fileUri);
+		return this.labelService.getUriLabel(openable.fileUri, { appendWorkspaceSuffix: true });
 	}
 
 	private doOpenEmptyWindow(options?: IOpenEmptyWindowOptions): Promise<void> {
@@ -160,7 +164,6 @@ class WorkbenchHostService extends Disposable implements IHostService {
 
 	//#endregion
 
-
 	//#region Lifecycle
 
 	focus(targetWindow: Window, options?: { force: boolean }): Promise<void> {
@@ -184,6 +187,26 @@ class WorkbenchHostService extends Disposable implements IHostService {
 
 	async withExpectedShutdown<T>(expectedShutdownTask: () => Promise<T>): Promise<T> {
 		return await expectedShutdownTask();
+	}
+
+	//#endregion
+
+	//#region Screenshots
+
+	getScreenshot(): Promise<ArrayBufferLike | undefined> {
+		return this.nativeHostService.getScreenshot();
+	}
+
+	//#endregion
+
+	//#region Native Handle
+
+	private _nativeWindowHandleCache = new Map<number, Promise<VSBuffer | undefined>>();
+	async getNativeWindowHandle(windowId: number): Promise<VSBuffer | undefined> {
+		if (!this._nativeWindowHandleCache.has(windowId)) {
+			this._nativeWindowHandleCache.set(windowId, this.nativeHostService.getNativeWindowHandle(windowId));
+		}
+		return this._nativeWindowHandleCache.get(windowId)!;
 	}
 
 	//#endregion

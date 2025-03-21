@@ -10,23 +10,23 @@
   "main": "./out/node/htmlServerMain",
   "dependencies": {
     "@vscode/l10n": "^0.0.18",
-    "vscode-css-languageservice": "^6.2.12",
-    "vscode-html-languageservice": "^5.1.2",
-    "vscode-languageserver": "^9.0.2-next.1",
-    "vscode-languageserver-textdocument": "^1.0.11",
+    "vscode-css-languageservice": "^6.3.2",
+    "vscode-html-languageservice": "^5.3.2",
+    "vscode-languageserver": "^10.0.0-next.11",
+    "vscode-languageserver-textdocument": "^1.0.12",
     "vscode-uri": "^3.0.8"
   },
   "devDependencies": {
     "@types/mocha": "^9.1.1",
-    "@types/node": "18.x"
+    "@types/node": "20.x"
   },
   "scripts": {
     "compile": "npx gulp compile-extension:html-language-features-server",
     "watch": "npx gulp watch-extension:html-language-features-server",
-    "install-service-next": "yarn add vscode-css-languageservice@next && yarn add vscode-html-languageservice@next",
-    "install-service-local": "yarn link vscode-css-languageservice && yarn link vscode-html-languageservice",
-    "install-server-next": "yarn add vscode-languageserver@next",
-    "install-server-local": "yarn link vscode-languageserver",
-    "test": "yarn compile && node ./test/index.js"
+    "install-service-next": "npm install vscode-css-languageservice@next && npm install vscode-html-languageservice@next",
+    "install-service-local": "npm install vscode-css-languageservice && npm install vscode-html-languageservice",
+    "install-server-next": "npm install vscode-languageserver@next",
+    "install-server-local": "npm install vscode-languageserver",
+    "test": "npm run compile && node ./test/index.js"
   }
 }

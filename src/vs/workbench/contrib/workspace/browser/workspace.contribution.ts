@@ -3,53 +3,53 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/workspaceTrustEditor';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { localize, localize2 } from 'vs/nls';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Severity } from 'vs/platform/notification/common/notification';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, workspaceTrustToString, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Codicon } from 'vs/base/common/codicons';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
-import { shieldIcon, WorkspaceTrustEditor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustEditor';
-import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
-import { WORKSPACE_TRUST_BANNER, WORKSPACE_TRUST_EMPTY_WINDOW, WORKSPACE_TRUST_ENABLED, WORKSPACE_TRUST_STARTUP_PROMPT, WORKSPACE_TRUST_UNTRUSTED_FILES } from 'vs/workbench/services/workspaces/common/workspaceTrust';
-import { IEditorSerializer, IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { isEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceContextService, IWorkspaceFoldersWillChangeEvent, toWorkspaceIdentifier, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { dirname, resolve } from 'vs/base/common/path';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IBannerItem, IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
-import { isVirtualWorkspace } from 'vs/platform/workspace/common/virtualWorkspace';
-import { LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { WORKSPACE_TRUST_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { MANAGE_TRUST_COMMAND_ID, WorkspaceTrustContext } from 'vs/workbench/contrib/workspace/common/workspace';
-import { isWeb } from 'vs/base/common/platform';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { securityConfigurationNodeBase } from 'vs/workbench/common/configuration';
-import { basename, dirname as uriDirname } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
+import './media/workspaceTrustEditor.css';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { Severity } from '../../../../platform/notification/common/notification.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, WorkspaceTrustUriResponse } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
+import { IEditorPaneRegistry, EditorPaneDescriptor } from '../../../browser/editor.js';
+import { shieldIcon, WorkspaceTrustEditor } from './workspaceTrustEditor.js';
+import { WorkspaceTrustEditorInput } from '../../../services/workspaces/browser/workspaceTrustEditorInput.js';
+import { WORKSPACE_TRUST_BANNER, WORKSPACE_TRUST_EMPTY_WINDOW, WORKSPACE_TRUST_ENABLED, WORKSPACE_TRUST_STARTUP_PROMPT, WORKSPACE_TRUST_UNTRUSTED_FILES } from '../../../services/workspaces/common/workspaceTrust.js';
+import { IEditorSerializer, IEditorFactoryRegistry, EditorExtensions } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { isEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceContextService, IWorkspaceFoldersWillChangeEvent, toWorkspaceIdentifier, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { dirname, resolve } from '../../../../base/common/path.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { IBannerItem, IBannerService } from '../../../services/banner/browser/bannerService.js';
+import { isVirtualWorkspace } from '../../../../platform/workspace/common/virtualWorkspace.js';
+import { LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID } from '../../extensions/common/extensions.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { WORKSPACE_TRUST_SETTING_TAG } from '../../preferences/common/preferences.js';
+import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
+import { ILabelService, Verbosity } from '../../../../platform/label/common/label.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { MANAGE_TRUST_COMMAND_ID, WorkspaceTrustContext } from '../common/workspace.js';
+import { isWeb } from '../../../../base/common/platform.js';
+import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
+import { securityConfigurationNodeBase } from '../../../common/configuration.js';
+import { basename, dirname as uriDirname } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 
 const BANNER_RESTRICTED_MODE = 'workbench.banner.restrictedMode';
 const STARTUP_PROMPT_SHOWN_KEY = 'workspace.trust.startupPrompt.shown';
@@ -103,11 +103,12 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		return !isSingleFolderWorkspaceIdentifier(toWorkspaceIdentifier(this.workspaceContextService.getWorkspace()));
 	}
 
-	private async registerListeners(): Promise<void> {
-		await this.workspaceTrustManagementService.workspaceResolved;
+	private registerListeners(): void {
 
 		// Open files trust request
 		this._register(this.workspaceTrustRequestService.onDidInitiateOpenFilesTrustRequest(async () => {
+			await this.workspaceTrustManagementService.workspaceResolved;
+
 			// Details
 			const markdownDetails = [
 				this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY ?
@@ -148,6 +149,8 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 
 		// Workspace trust request
 		this._register(this.workspaceTrustRequestService.onDidInitiateWorkspaceTrustRequest(async requestOptions => {
+			await this.workspaceTrustManagementService.workspaceResolved;
+
 			// Title
 			const message = this.useWorkspaceLanguage ?
 				localize('workspaceTrust', "Do you trust the authors of the files in this workspace?") :
@@ -558,16 +561,13 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 
 	//#region Statusbar
 
-	private getStatusbarEntry(trusted: boolean): IStatusbarEntry {
-		const text = workspaceTrustToString(trusted);
-
+	private getRestrictedModeStatusbarEntry(): IStatusbarEntry {
 		let ariaLabel = '';
 		let toolTip: IMarkdownString | string | undefined;
 		switch (this.workspaceContextService.getWorkbenchState()) {
 			case WorkbenchState.EMPTY: {
-				ariaLabel = trusted ? localize('status.ariaTrustedWindow', "This window is trusted.") :
-					localize('status.ariaUntrustedWindow', "Restricted Mode: Some features are disabled because this window is not trusted.");
-				toolTip = trusted ? ariaLabel : {
+				ariaLabel = localize('status.ariaUntrustedWindow', "Restricted Mode: Some features are disabled because this window is not trusted.");
+				toolTip = {
 					value: localize(
 						{ key: 'status.tooltipUntrustedWindow2', comment: ['[abc]({n}) are links.  Only translate `features are disabled` and `window is not trusted`. Do not change brackets and parentheses or {n}'] },
 						"Running in Restricted Mode\n\nSome [features are disabled]({0}) because this [window is not trusted]({1}).",
@@ -580,9 +580,8 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 				break;
 			}
 			case WorkbenchState.FOLDER: {
-				ariaLabel = trusted ? localize('status.ariaTrustedFolder', "This folder is trusted.") :
-					localize('status.ariaUntrustedFolder', "Restricted Mode: Some features are disabled because this folder is not trusted.");
-				toolTip = trusted ? ariaLabel : {
+				ariaLabel = localize('status.ariaUntrustedFolder', "Restricted Mode: Some features are disabled because this folder is not trusted.");
+				toolTip = {
 					value: localize(
 						{ key: 'status.tooltipUntrustedFolder2', comment: ['[abc]({n}) are links.  Only translate `features are disabled` and `folder is not trusted`. Do not change brackets and parentheses or {n}'] },
 						"Running in Restricted Mode\n\nSome [features are disabled]({0}) because this [folder is not trusted]({1}).",
@@ -595,9 +594,8 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 				break;
 			}
 			case WorkbenchState.WORKSPACE: {
-				ariaLabel = trusted ? localize('status.ariaTrustedWorkspace', "This workspace is trusted.") :
-					localize('status.ariaUntrustedWorkspace', "Restricted Mode: Some features are disabled because this workspace is not trusted.");
-				toolTip = trusted ? ariaLabel : {
+				ariaLabel = localize('status.ariaUntrustedWorkspace', "Restricted Mode: Some features are disabled because this workspace is not trusted.");
+				toolTip = {
 					value: localize(
 						{ key: 'status.tooltipUntrustedWorkspace2', comment: ['[abc]({n}) are links. Only translate `features are disabled` and `workspace is not trusted`. Do not change brackets and parentheses or {n}'] },
 						"Running in Restricted Mode\n\nSome [features are disabled]({0}) because this [workspace is not trusted]({1}).",
@@ -613,7 +611,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 
 		return {
 			name: localize('status.WorkspaceTrust', "Workspace Trust"),
-			text: trusted ? `$(shield)` : `$(shield) ${text}`,
+			text: `$(shield) ${localize('untrusted', "Restricted Mode")}`,
 			ariaLabel: ariaLabel,
 			tooltip: toolTip,
 			command: MANAGE_TRUST_COMMAND_ID,
@@ -628,8 +626,8 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 		}
 
 		if (!trusted && !this.statusbarEntryAccessor.value) {
-			const entry = this.getStatusbarEntry(trusted);
-			this.statusbarEntryAccessor.value = this.statusbarService.addEntry(entry, this.entryId, StatusbarAlignment.LEFT, 0.99 * Number.MAX_VALUE /* Right of remote indicator */);
+			const entry = this.getRestrictedModeStatusbarEntry();
+			this.statusbarEntryAccessor.value = this.statusbarService.addEntry(entry, this.entryId, StatusbarAlignment.LEFT, { location: { id: 'status.host', priority: Number.POSITIVE_INFINITY }, alignment: StatusbarAlignment.RIGHT });
 		}
 	}
 
@@ -828,7 +826,7 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 		type WorkspaceTrustInfoEventClassification = {
 			owner: 'sbatten';
 			comment: 'Information about the workspaces trusted on the machine';
-			trustedFoldersCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of trusted folders on the machine' };
+			trustedFoldersCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of trusted folders on the machine' };
 		};
 
 		type WorkspaceTrustInfoEvent = {
@@ -854,7 +852,7 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 			owner: 'sbatten';
 			comment: 'Logged when the workspace transitions between trusted and restricted modes';
 			workspaceId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'An id of the workspace' };
-			isTrusted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'true if the workspace is trusted' };
+			isTrusted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'true if the workspace is trusted' };
 		};
 
 		this.telemetryService.publicLog2<WorkspaceTrustStateChangedEvent, WorkspaceTrustStateChangedEventClassification>('workspaceTrustStateChanged', {
@@ -866,9 +864,9 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 			type WorkspaceTrustFolderInfoEventClassification = {
 				owner: 'sbatten';
 				comment: 'Some metrics on the trusted workspaces folder structure';
-				trustedFolderDepth: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of directories deep of the trusted path' };
-				workspaceFolderDepth: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of directories deep of the workspace path' };
-				delta: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The difference between the trusted path and the workspace path directories depth' };
+				trustedFolderDepth: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of directories deep of the trusted path' };
+				workspaceFolderDepth: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of directories deep of the workspace path' };
+				delta: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The difference between the trusted path and the workspace path directories depth' };
 			};
 
 			type WorkspaceTrustFolderInfoEvent = {

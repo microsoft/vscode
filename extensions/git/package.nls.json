@@ -23,6 +23,8 @@
 	"command.stageSelectedRanges": "Stage Selected Ranges",
 	"command.revertSelectedRanges": "Revert Selected Ranges",
 	"command.stageChange": "Stage Change",
+	"command.stageSelection": "Stage Selection",
+	"command.stageBlock": "Stage Block",
 	"command.revertChange": "Revert Change",
 	"command.unstage": "Unstage Changes",
 	"command.unstageAll": "Unstage All Changes",
@@ -33,6 +35,7 @@
 	"command.cleanAllTracked": "Discard All Tracked Changes",
 	"command.cleanAllUntracked": "Discard All Untracked Changes",
 	"command.closeAllDiffEditors": "Close All Diff Editors",
+	"command.closeAllUnmodifiedEditors": "Close All Unmodified Editors",
 	"command.commit": "Commit",
 	"command.commitAmend": "Commit (Amend)",
 	"command.commitSigned": "Commit (Signed Off)",
@@ -62,12 +65,14 @@
 	"command.branch": "Create Branch...",
 	"command.branchFrom": "Create Branch From...",
 	"command.deleteBranch": "Delete Branch...",
+	"command.deleteRemoteBranch": "Delete Remote Branch...",
 	"command.renameBranch": "Rename Branch...",
 	"command.cherryPick": "Cherry Pick...",
+	"command.cherryPickAbort": "Abort Cherry Pick",
 	"command.merge": "Merge...",
 	"command.mergeAbort": "Abort Merge",
 	"command.rebase": "Rebase Branch...",
-	"command.createTag": "Create Tag",
+	"command.createTag": "Create Tag...",
 	"command.deleteTag": "Delete Tag...",
 	"command.deleteRemoteTag": "Delete Remote Tag...",
 	"command.fetch": "Fetch",
@@ -115,8 +120,17 @@
 	"command.timelineCompareWithSelected": "Compare with Selected",
 	"command.manageUnsafeRepositories": "Manage Unsafe Repositories",
 	"command.openRepositoriesInParentFolders": "Open Repositories In Parent Folders",
-	"command.viewAllChanges": "View All Changes",
-	"command.viewCommit": "View Commit",
+	"command.viewChanges": "Open Changes",
+	"command.viewStagedChanges": "Open Staged Changes",
+	"command.viewUntrackedChanges": "Open Untracked Changes",
+	"command.viewCommit": "Open Commit",
+	"command.graphCheckout": "Checkout",
+	"command.graphCheckoutDetached": "Checkout (Detached)",
+	"command.graphCherryPick": "Cherry Pick",
+	"command.graphDeleteBranch": "Delete Branch",
+	"command.graphDeleteTag": "Delete Tag",
+	"command.blameToggleEditorDecoration": "Toggle Git Blame Editor Decoration",
+	"command.blameToggleStatusBarItem": "Toggle Git Blame Status Bar Item",
 	"command.api.getRepositories": "Get Repositories",
 	"command.api.getRepositoryState": "Get Repository State",
 	"command.api.getRemoteSources": "Get Remote Sources",
@@ -176,6 +190,7 @@
 	"config.decorations.enabled": "Controls whether Git contributes colors and badges to the Explorer and the Open Editors view.",
 	"config.enableStatusBarSync": "Controls whether the Git Sync command appears in the status bar.",
 	"config.followTagsWhenSync": "Push all annotated tags when running the sync command.",
+	"config.replaceTagsWhenPull": "Automatically replace the local tags with the remote tags in case of a conflict when running the pull command.",
 	"config.promptToSaveFilesBeforeStash": "Controls whether Git should check for unsaved files before stashing changes.",
 	"config.promptToSaveFilesBeforeStash.always": "Check for any unsaved files.",
 	"config.promptToSaveFilesBeforeStash.staged": "Check only for unsaved staged files.",
@@ -196,7 +211,7 @@
 	"config.openAfterClone.prompt": "Always prompt for action.",
 	"config.showInlineOpenFileAction": "Controls whether to show an inline Open File action in the Git changes view.",
 	"config.showPushSuccessNotification": "Controls whether to show a notification when a push is successful.",
-	"config.inputValidation": "Controls when to show commit message input validation.",
+	"config.inputValidation": "Controls whether to show commit message input validation diagnostics.",
 	"config.inputValidationLength": "Controls the commit message length threshold for showing a warning.",
 	"config.inputValidationSubjectLength": "Controls the commit message subject length threshold for showing a warning. Unset it to inherit the value of `#git.inputValidationLength#`.",
 	"config.detectSubmodules": "Controls whether to automatically detect Git submodules.",
@@ -266,6 +281,15 @@
 	"config.publishBeforeContinueOn.never": "Never publish unpublished Git state when using Continue Working On from a Git repository",
 	"config.publishBeforeContinueOn.prompt": "Prompt to publish unpublished Git state when using Continue Working On from a Git repository",
 	"config.similarityThreshold": "Controls the threshold of the similarity index (the amount of additions/deletions compared to the file's size) for changes in a pair of added/deleted files to be considered a rename. **Note:** Requires Git version `2.18.0` or later.",
+	"config.blameEditorDecoration.enabled": "Controls whether to show blame information in the editor using editor decorations.",
+	"config.blameEditorDecoration.template": "Template for the blame information editor decoration. Supported variables:\n\n* `hash`: Commit hash\n\n* `hashShort`: First N characters of the commit hash according to `#git.commitShortHashLength#`\n\n* `subject`: First line of the commit message\n\n* `authorName`: Author name\n\n* `authorEmail`: Author email\n\n* `authorDate`: Author date\n\n* `authorDateAgo`: Time difference between now and the author date\n\n",
+	"config.blameStatusBarItem.enabled": "Controls whether to show blame information in the status bar.",
+	"config.blameStatusBarItem.template": "Template for the blame information status bar item. Supported variables:\n\n* `hash`: Commit hash\n\n* `hashShort`: First N characters of the commit hash according to `#git.commitShortHashLength#`\n\n* `subject`: First line of the commit message\n\n* `authorName`: Author name\n\n* `authorEmail`: Author email\n\n* `authorDate`: Author date\n\n* `authorDateAgo`: Time difference between now and the author date\n\n",
+	"config.commitShortHashLength": "Controls the length of the commit short hash.",
+	"config.diagnosticsCommitHook.Enabled": "Controls whether to check for unresolved diagnostics before committing.",
+	"config.diagnosticsCommitHook.Sources": "Controls the list of sources (**Item**) and the minimum severity (**Value**) to be considered before committing. **Note:** To ignore diagnostics from a particular source, add the source to the list and set the minimum severity to `none`.",
+	"config.discardUntrackedChangesToTrash": "Controls whether discarding untracked changes moves the file(s) to the Recycle Bin (Windows), Trash (macOS, Linux) instead of deleting them permanently. **Note:** This setting has no effect when connected to a remote or when running in Linux as a snap package.",
+	"config.showReferenceDetails": "Controls whether to show the details of the last commit for Git refs in the checkout, branch, and tag pickers.",
 	"submenu.explorer": "Git",
 	"submenu.commit": "Commit",
 	"submenu.commit.amend": "Amend",
@@ -286,10 +310,17 @@
 	"colors.ignored": "Color for ignored resources.",
 	"colors.conflict": "Color for resources with conflicts.",
 	"colors.submodule": "Color for submodule resources.",
+	"colors.incomingAdded": "Color for added incoming resource.",
+	"colors.incomingDeleted": "Color for deleted incoming resource.",
+	"colors.incomingRenamed": "Color for renamed incoming resource.",
+	"colors.incomingModified": "Color for modified incoming resource.",
+	"colors.blameEditorDecoration": "Color for the blame editor decoration.",
 	"view.workbench.scm.missing.windows": {
 		"message": "[Download Git for Windows](https://git-scm.com/download/win)\nAfter installing, please [reload](command:workbench.action.reloadWindow) (or [troubleshoot](command:git.showOutput)). Additional source control providers can be installed [from the Marketplace](command:workbench.extensions.search?%22%40category%3A%5C%22scm%20providers%5C%22%22).",
 		"comment": [
 			"{Locked='](command:workbench.action.reloadWindow'}",
+			"{Locked='](command:git.showOutput'}",
+			"{Locked='](command:workbench.extensions.search?%22%40category%3A%5C%22scm%20providers%5C%22%22'}",
 			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
 			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
 		]
@@ -298,6 +329,8 @@
 		"message": "[Download Git for macOS](https://git-scm.com/download/mac)\nAfter installing, please [reload](command:workbench.action.reloadWindow) (or [troubleshoot](command:git.showOutput)). Additional source control providers can be installed [from the Marketplace](command:workbench.extensions.search?%22%40category%3A%5C%22scm%20providers%5C%22%22).",
 		"comment": [
 			"{Locked='](command:workbench.action.reloadWindow'}",
+			"{Locked='](command:git.showOutput'}",
+			"{Locked='](command:workbench.extensions.search?%22%40category%3A%5C%22scm%20providers%5C%22%22'}",
 			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
 			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
 		]
@@ -306,11 +339,19 @@
 		"message": "Source control depends on Git being installed.\n[Download Git for Linux](https://git-scm.com/download/linux)\nAfter installing, please [reload](command:workbench.action.reloadWindow) (or [troubleshoot](command:git.showOutput)). Additional source control providers can be installed [from the Marketplace](command:workbench.extensions.search?%22%40category%3A%5C%22scm%20providers%5C%22%22).",
 		"comment": [
 			"{Locked='](command:workbench.action.reloadWindow'}",
+			"{Locked='](command:git.showOutput'}",
+			"{Locked='](command:workbench.extensions.search?%22%40category%3A%5C%22scm%20providers%5C%22%22'}",
 			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
 			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
 		]
 	},
-	"view.workbench.scm.missing": "Install Git, a popular source control system, to track code changes and collaborate with others. Learn more in our [Git guides](https://aka.ms/vscode-scm).",
+	"view.workbench.scm.missing": {
+		"message": "Install Git, a popular source control system, to track code changes and collaborate with others. Learn more in our [Git guides](https://aka.ms/vscode-scm).",
+		"comment": [
+			"{Locked='](https://aka.ms/vscode-scm'}",
+			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
+		]
+	},
 	"view.workbench.scm.disabled": {
 		"message": "If you would like to use Git features, please enable Git in your [settings](command:workbench.action.openSettings?%5B%22git.enabled%22%5D).\nTo learn more about how to use Git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
 		"comment": [
@@ -320,7 +361,7 @@
 		]
 	},
 	"view.workbench.scm.empty": {
-		"message": "In order to use Git features, you can open a folder containing a Git repository or clone from a URL.\n[Open Folder](command:vscode.openFolder)\n[Clone Repository](command:git.clone)\nTo learn more about how to use Git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
+		"message": "In order to use Git features, you can open a folder containing a Git repository or clone from a URL.\n[Open Folder](command:vscode.openFolder)\n[Clone Repository](command:git.cloneRecursive)\nTo learn more about how to use Git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
 		"comment": [
 			"{Locked='](command:vscode.openFolder'}",
 			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",

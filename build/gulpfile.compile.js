@@ -3,30 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+//@ts-check
 'use strict';
 
 const gulp = require('gulp');
 const util = require('./lib/util');
+const date = require('./lib/date');
 const task = require('./lib/task');
 const compilation = require('./lib/compilation');
-const optimize = require('./lib/optimize');
 
+/**
+ * @param {boolean} disableMangle
+ */
 function makeCompileBuildTask(disableMangle) {
 	return task.series(
 		util.rimraf('out-build'),
-		util.buildWebNodePaths('out-build'),
+		date.writeISODate('out-build'),
 		compilation.compileApiProposalNamesTask,
-		compilation.compileTask('src', 'out-build', true, { disableMangle }),
-		optimize.optimizeLoaderTask('out-build', 'out-build', true)
+		compilation.compileTask('src', 'out-build', true, { disableMangle })
 	);
 }
 
-// Full compile, including nls and inline sources in sourcemaps, mangling, minification, for build
-const compileBuildTask = task.define('compile-build', makeCompileBuildTask(false));
-gulp.task(compileBuildTask);
-exports.compileBuildTask = compileBuildTask;
+// Local/PR compile, including nls and inline sources in sourcemaps, minification, no mangling
+const compileBuildWithoutManglingTask = task.define('compile-build-without-mangling', makeCompileBuildTask(true));
+gulp.task(compileBuildWithoutManglingTask);
+exports.compileBuildWithoutManglingTask = compileBuildWithoutManglingTask;
 
-// Full compile for PR ci, e.g no mangling
-const compileBuildTaskPullRequest = task.define('compile-build-pr', makeCompileBuildTask(true));
-gulp.task(compileBuildTaskPullRequest);
-exports.compileBuildTaskPullRequest = compileBuildTaskPullRequest;
+// CI compile, including nls and inline sources in sourcemaps, mangling, minification, for build
+const compileBuildWithManglingTask = task.define('compile-build-with-mangling', makeCompileBuildTask(false));
+gulp.task(compileBuildWithManglingTask);
+exports.compileBuildWithManglingTask = compileBuildWithManglingTask;

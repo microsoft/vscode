@@ -3,84 +3,53 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { Iterable } from 'vs/base/common/iterator';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { ChatDynamicVariableModel } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables';
-import { IChatModel, IChatRequestVariableData } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IParsedChatRequest, ChatRequestVariablePart, ChatRequestDynamicVariablePart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatVariablesService, IChatRequestVariableValue, IChatVariableData, IChatVariableResolver, IDynamicVariable } from 'vs/workbench/contrib/chat/common/chatVariables';
-
-interface IChatData {
-	data: IChatVariableData;
-	resolver: IChatVariableResolver;
-}
+import { coalesce } from '../../../../base/common/arrays.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Location } from '../../../../editor/common/languages.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { IChatRequestVariableData, IChatRequestVariableEntry } from '../common/chatModel.js';
+import { ChatRequestDynamicVariablePart, ChatRequestToolPart, IParsedChatRequest } from '../common/chatParserTypes.js';
+import { IChatVariablesService, IDynamicVariable } from '../common/chatVariables.js';
+import { ChatAgentLocation, ChatConfiguration } from '../common/constants.js';
+import { IChatWidgetService, showChatView, showEditsView } from './chat.js';
+import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
 
 export class ChatVariablesService implements IChatVariablesService {
 	declare _serviceBrand: undefined;
 
-	private _resolver = new Map<string, IChatData>();
-
 	constructor(
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IViewsService private readonly viewsService: IViewsService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 	}
 
-	async resolveVariables(prompt: IParsedChatRequest, model: IChatModel, token: CancellationToken): Promise<IChatRequestVariableData> {
-		const resolvedVariables: Record<string, IChatRequestVariableValue[]> = {};
-		const jobs: Promise<any>[] = [];
+	resolveVariables(prompt: IParsedChatRequest, attachedContextVariables: IChatRequestVariableEntry[] | undefined): IChatRequestVariableData {
+		let resolvedVariables: IChatRequestVariableEntry[] = [];
 
-		const parsedPrompt: string[] = [];
 		prompt.parts
 			.forEach((part, i) => {
-				if (part instanceof ChatRequestVariablePart) {
-					const data = this._resolver.get(part.variableName.toLowerCase());
-					if (data) {
-						jobs.push(data.resolver(prompt.text, part.variableArg, model, token).then(value => {
-							if (value) {
-								resolvedVariables[part.variableName] = value;
-								parsedPrompt[i] = `[${part.text}](values:${part.variableName})`;
-							} else {
-								parsedPrompt[i] = part.promptText;
-							}
-						}).catch(onUnexpectedExternalError));
-					}
-				} else if (part instanceof ChatRequestDynamicVariablePart) {
-					const referenceName = this.getUniqueReferenceName(part.referenceText, resolvedVariables);
-					resolvedVariables[referenceName] = part.data;
-					const safeText = part.text.replace(/[\[\]]/g, '_');
-					const safeTarget = referenceName.replace(/[\(\)]/g, '_');
-					parsedPrompt[i] = `[${safeText}](values:${safeTarget})`;
-				} else {
-					parsedPrompt[i] = part.promptText;
+				if (part instanceof ChatRequestDynamicVariablePart || part instanceof ChatRequestToolPart) {
+					resolvedVariables[i] = part.toVariableEntry();
 				}
 			});
 
-		await Promise.allSettled(jobs);
+		// Make array not sparse
+		resolvedVariables = coalesce<IChatRequestVariableEntry>(resolvedVariables);
+
+		// "reverse", high index first so that replacement is simple
+		resolvedVariables.sort((a, b) => b.range!.start - a.range!.start);
+
+		if (attachedContextVariables) {
+			// attachments not in the prompt
+			resolvedVariables.push(...attachedContextVariables);
+		}
+
 
 		return {
 			variables: resolvedVariables,
-			message: parsedPrompt.join('').trim()
 		};
-	}
-
-	private getUniqueReferenceName(name: string, vars: Record<string, any>): string {
-		let i = 1;
-		while (vars[name]) {
-			name = `${name}_${i++}`;
-		}
-		return name;
-	}
-
-	hasVariable(name: string): boolean {
-		return this._resolver.has(name.toLowerCase());
-	}
-
-	getVariables(): Iterable<Readonly<IChatVariableData>> {
-		const all = Iterable.map(this._resolver.values(), data => data.data);
-		return Iterable.filter(all, data => !data.hidden);
 	}
 
 	getDynamicVariables(sessionId: string): ReadonlyArray<IDynamicVariable> {
@@ -101,14 +70,30 @@ export class ChatVariablesService implements IChatVariablesService {
 		return model.variables;
 	}
 
-	registerVariable(data: IChatVariableData, resolver: IChatVariableResolver): IDisposable {
-		const key = data.name.toLowerCase();
-		if (this._resolver.has(key)) {
-			throw new Error(`A chat variable with the name '${data.name}' already exists.`);
+	async attachContext(name: string, value: string | URI | Location, location: ChatAgentLocation) {
+		if (location !== ChatAgentLocation.Panel && location !== ChatAgentLocation.EditingSession) {
+			return;
 		}
-		this._resolver.set(key, { data, resolver });
-		return toDisposable(() => {
-			this._resolver.delete(key);
-		});
+
+		const unifiedViewEnabled = !!this.configurationService.getValue(ChatConfiguration.UnifiedChatView);
+		const widget = location === ChatAgentLocation.EditingSession && !unifiedViewEnabled
+			? await showEditsView(this.viewsService)
+			: (this.chatWidgetService.lastFocusedWidget ?? await showChatView(this.viewsService));
+		if (!widget || !widget.viewModel) {
+			return;
+		}
+
+		const key = name.toLowerCase();
+		if (key === 'file' && typeof value !== 'string') {
+			const uri = URI.isUri(value) ? value : value.uri;
+			const range = 'range' in value ? value.range : undefined;
+			widget.attachmentModel.addFile(uri, range);
+			return;
+		}
+
+		if (key === 'folder' && URI.isUri(value)) {
+			widget.attachmentModel.addFolder(value);
+			return;
+		}
 	}
 }

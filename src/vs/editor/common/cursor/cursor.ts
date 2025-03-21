@@ -3,24 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedError } from 'vs/base/common/errors';
-import * as strings from 'vs/base/common/strings';
-import { CursorCollection } from 'vs/editor/common/cursor/cursorCollection';
-import { CursorConfiguration, CursorState, EditOperationResult, EditOperationType, IColumnSelectData, PartialCursorState, ICursorSimpleModel } from 'vs/editor/common/cursorCommon';
-import { CursorContext } from 'vs/editor/common/cursor/cursorContext';
-import { DeleteOperations } from 'vs/editor/common/cursor/cursorDeleteOperations';
-import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
-import { CompositionOutcome, TypeOperations, TypeWithAutoClosingCommand } from 'vs/editor/common/cursor/cursorTypeOperations';
-import { Position } from 'vs/editor/common/core/position';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { ISelection, Selection, SelectionDirection } from 'vs/editor/common/core/selection';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ITextModel, TrackedRangeStickiness, IModelDeltaDecoration, ICursorStateComputer, IIdentifiedSingleEditOperation, IValidEditOperation } from 'vs/editor/common/model';
-import { RawContentChangedType, ModelInjectedTextChangedEvent, InternalModelContentChangeEvent } from 'vs/editor/common/textModelEvents';
-import { VerticalRevealType, ViewCursorStateChangedEvent, ViewRevealRangeRequestEvent } from 'vs/editor/common/viewEvents';
-import { dispose, Disposable } from 'vs/base/common/lifecycle';
-import { ICoordinatesConverter } from 'vs/editor/common/viewModel';
-import { CursorStateChangedEvent, ViewModelEventsCollector } from 'vs/editor/common/viewModelEventDispatcher';
+import { onUnexpectedError } from '../../../base/common/errors.js';
+import * as strings from '../../../base/common/strings.js';
+import { CursorCollection } from './cursorCollection.js';
+import { CursorConfiguration, CursorState, EditOperationResult, EditOperationType, IColumnSelectData, PartialCursorState, ICursorSimpleModel } from '../cursorCommon.js';
+import { CursorContext } from './cursorContext.js';
+import { DeleteOperations } from './cursorDeleteOperations.js';
+import { CursorChangeReason } from '../cursorEvents.js';
+import { CompositionOutcome, TypeOperations } from './cursorTypeOperations.js';
+import { BaseTypeWithAutoClosingCommand } from './cursorTypeEditOperations.js';
+import { Position } from '../core/position.js';
+import { Range, IRange } from '../core/range.js';
+import { ISelection, Selection, SelectionDirection } from '../core/selection.js';
+import * as editorCommon from '../editorCommon.js';
+import { ITextModel, TrackedRangeStickiness, IModelDeltaDecoration, ICursorStateComputer, IIdentifiedSingleEditOperation, IValidEditOperation } from '../model.js';
+import { RawContentChangedType, ModelInjectedTextChangedEvent, InternalModelContentChangeEvent } from '../textModelEvents.js';
+import { VerticalRevealType, ViewCursorStateChangedEvent, ViewRevealRangeRequestEvent } from '../viewEvents.js';
+import { dispose, Disposable } from '../../../base/common/lifecycle.js';
+import { ICoordinatesConverter } from '../viewModel.js';
+import { CursorStateChangedEvent, ViewModelEventsCollector } from '../viewModelEventDispatcher.js';
 
 export class CursorsController extends Disposable {
 
@@ -136,7 +137,7 @@ export class CursorsController extends Disposable {
 		this._columnSelectData = columnSelectData;
 	}
 
-	public revealPrimary(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, minimalReveal: boolean, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType): void {
+	public revealAll(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, minimalReveal: boolean, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType): void {
 		const viewPositions = this._cursors.getViewPositions();
 
 		let revealViewRange: Range | null = null;
@@ -148,6 +149,12 @@ export class CursorsController extends Disposable {
 		}
 
 		eventsCollector.emitViewEvent(new ViewRevealRangeRequestEvent(source, minimalReveal, revealViewRange, revealViewSelections, verticalType, revealHorizontal, scrollType));
+	}
+
+	public revealPrimary(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, minimalReveal: boolean, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType): void {
+		const primaryCursor = this._cursors.getPrimaryCursor();
+		const revealViewSelections = [primaryCursor.viewState.selection];
+		eventsCollector.emitViewEvent(new ViewRevealRangeRequestEvent(source, minimalReveal, null, revealViewSelections, verticalType, revealHorizontal, scrollType));
 	}
 
 	public saveState(): editorCommon.ICursorState[] {
@@ -212,7 +219,7 @@ export class CursorsController extends Disposable {
 		}
 
 		this.setStates(eventsCollector, 'restoreState', CursorChangeReason.NotSet, CursorState.fromModelSelections(desiredSelections));
-		this.revealPrimary(eventsCollector, 'restoreState', false, VerticalRevealType.Simple, true, editorCommon.ScrollType.Immediate);
+		this.revealAll(eventsCollector, 'restoreState', false, VerticalRevealType.Simple, true, editorCommon.ScrollType.Immediate);
 	}
 
 	public onModelContentChanged(eventsCollector: ViewModelEventsCollector, event: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent): void {
@@ -252,7 +259,7 @@ export class CursorsController extends Disposable {
 				if (this._hasFocus && e.resultingSelection && e.resultingSelection.length > 0) {
 					const cursorState = CursorState.fromModelSelections(e.resultingSelection);
 					if (this.setStates(eventsCollector, 'modelChange', e.isUndoing ? CursorChangeReason.Undo : e.isRedoing ? CursorChangeReason.Redo : CursorChangeReason.RecoverFromMarkers, cursorState)) {
-						this.revealPrimary(eventsCollector, 'modelChange', false, VerticalRevealType.Simple, true, editorCommon.ScrollType.Smooth);
+						this.revealAll(eventsCollector, 'modelChange', false, VerticalRevealType.Simple, true, editorCommon.ScrollType.Smooth);
 					}
 				} else {
 					const selectionsFromMarkers = this._cursors.readSelectionFromMarkers();
@@ -361,7 +368,7 @@ export class CursorsController extends Disposable {
 
 			for (let i = 0; i < opResult.commands.length; i++) {
 				const command = opResult.commands[i];
-				if (command instanceof TypeWithAutoClosingCommand && command.enclosingRange && command.closeCharacterRange) {
+				if (command instanceof BaseTypeWithAutoClosingCommand && command.enclosingRange && command.closeCharacterRange) {
 					autoClosedCharactersRanges.push(command.closeCharacterRange);
 					autoClosedEnclosingRanges.push(command.enclosingRange);
 				}
@@ -519,7 +526,7 @@ export class CursorsController extends Disposable {
 		this._cursors.startTrackingSelections();
 		this._validateAutoClosedActions();
 		if (this._emitStateChangedIfNecessary(eventsCollector, source, cursorChangeReason, oldState, false)) {
-			this.revealPrimary(eventsCollector, source, false, VerticalRevealType.Simple, true, editorCommon.ScrollType.Smooth);
+			this.revealAll(eventsCollector, source, false, VerticalRevealType.Simple, true, editorCommon.ScrollType.Smooth);
 		}
 	}
 
@@ -733,7 +740,7 @@ interface ICommandsData {
 	hadTrackedEditOperation: boolean;
 }
 
-class CommandExecutor {
+export class CommandExecutor {
 
 	public static executeCommands(model: ITextModel, selectionsBefore: Selection[], commands: (editorCommon.ICommand | null)[]): Selection[] | null {
 
@@ -1013,8 +1020,9 @@ class CommandExecutor {
 class CompositionLineState {
 	constructor(
 		public readonly text: string,
-		public readonly startSelection: number,
-		public readonly endSelection: number
+		public readonly lineNumber: number,
+		public readonly startSelectionOffset: number,
+		public readonly endSelectionOffset: number
 	) { }
 }
 
@@ -1028,8 +1036,10 @@ class CompositionState {
 			if (selection.startLineNumber !== selection.endLineNumber) {
 				return null;
 			}
+			const lineNumber = selection.startLineNumber;
 			result.push(new CompositionLineState(
-				textModel.getLineContent(selection.startLineNumber),
+				textModel.getLineContent(lineNumber),
+				lineNumber,
 				selection.startColumn - 1,
 				selection.endColumn - 1
 			));
@@ -1065,24 +1075,28 @@ class CompositionState {
 
 	private static _deduceOutcome(original: CompositionLineState, current: CompositionLineState): CompositionOutcome {
 		const commonPrefix = Math.min(
-			original.startSelection,
-			current.startSelection,
+			original.startSelectionOffset,
+			current.startSelectionOffset,
 			strings.commonPrefixLength(original.text, current.text)
 		);
 		const commonSuffix = Math.min(
-			original.text.length - original.endSelection,
-			current.text.length - current.endSelection,
+			original.text.length - original.endSelectionOffset,
+			current.text.length - current.endSelectionOffset,
 			strings.commonSuffixLength(original.text, current.text)
 		);
 		const deletedText = original.text.substring(commonPrefix, original.text.length - commonSuffix);
-		const insertedText = current.text.substring(commonPrefix, current.text.length - commonSuffix);
+		const insertedTextStartOffset = commonPrefix;
+		const insertedTextEndOffset = current.text.length - commonSuffix;
+		const insertedText = current.text.substring(insertedTextStartOffset, insertedTextEndOffset);
+		const insertedTextRange = new Range(current.lineNumber, insertedTextStartOffset + 1, current.lineNumber, insertedTextEndOffset + 1);
 		return new CompositionOutcome(
 			deletedText,
-			original.startSelection - commonPrefix,
-			original.endSelection - commonPrefix,
+			original.startSelectionOffset - commonPrefix,
+			original.endSelectionOffset - commonPrefix,
 			insertedText,
-			current.startSelection - commonPrefix,
-			current.endSelection - commonPrefix
+			current.startSelectionOffset - commonPrefix,
+			current.endSelectionOffset - commonPrefix,
+			insertedTextRange
 		);
 	}
 }

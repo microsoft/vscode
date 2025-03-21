@@ -6,13 +6,13 @@
 import * as fs from 'fs';
 import { tmpdir } from 'os';
 import { promisify } from 'util';
-import { ResourceQueue, timeout } from 'vs/base/common/async';
-import { isEqualOrParent, isRootOrDriveLetter, randomPath } from 'vs/base/common/extpath';
-import { normalizeNFC } from 'vs/base/common/normalization';
-import { join } from 'vs/base/common/path';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
+import { ResourceQueue, timeout } from '../common/async.js';
+import { isEqualOrParent, isRootOrDriveLetter, randomPath } from '../common/extpath.js';
+import { normalizeNFC } from '../common/normalization.js';
+import { join } from '../common/path.js';
+import { isLinux, isMacintosh, isWindows } from '../common/platform.js';
+import { extUriBiasedIgnorePathCase } from '../common/resources.js';
+import { URI } from '../common/uri.js';
 
 //#region rimraf
 
@@ -60,14 +60,6 @@ async function rimraf(path: string, mode = RimRafMode.UNLINK, moveToPath?: strin
 async function rimrafMove(path: string, moveToPath = randomPath(tmpdir())): Promise<void> {
 	try {
 		try {
-			// Intentionally using `fs.promises` here to skip
-			// the patched graceful-fs method that can result
-			// in very long running `rename` calls when the
-			// folder is locked by a file watcher. We do not
-			// really want to slow down this operation more
-			// than necessary and we have a fallback to delete
-			// via unlink.
-			// https://github.com/microsoft/vscode/issues/139908
 			await fs.promises.rename(path, moveToPath);
 		} catch (error) {
 			if (error.code === 'ENOENT') {
@@ -87,7 +79,7 @@ async function rimrafMove(path: string, moveToPath = randomPath(tmpdir())): Prom
 }
 
 async function rimrafUnlink(path: string): Promise<void> {
-	return promisify(fs.rm)(path, { recursive: true, force: true, maxRetries: 3 });
+	return fs.promises.rm(path, { recursive: true, force: true, maxRetries: 3 });
 }
 
 export function rimrafSync(path: string): void {
@@ -118,12 +110,12 @@ export interface IDirent {
 async function readdir(path: string): Promise<string[]>;
 async function readdir(path: string, options: { withFileTypes: true }): Promise<IDirent[]>;
 async function readdir(path: string, options?: { withFileTypes: true }): Promise<(string | IDirent)[]> {
-	return handleDirectoryChildren(await (options ? safeReaddirWithFileTypes(path) : promisify(fs.readdir)(path)));
+	return handleDirectoryChildren(await (options ? safeReaddirWithFileTypes(path) : fs.promises.readdir(path)));
 }
 
 async function safeReaddirWithFileTypes(path: string): Promise<IDirent[]> {
 	try {
-		return await promisify(fs.readdir)(path, { withFileTypes: true });
+		return await fs.promises.readdir(path, { withFileTypes: true });
 	} catch (error) {
 		console.warn('[node.js fs] readdir with filetypes failed with error: ', error);
 	}
@@ -142,7 +134,7 @@ async function safeReaddirWithFileTypes(path: string): Promise<IDirent[]> {
 		let isSymbolicLink = false;
 
 		try {
-			const lstat = await Promises.lstat(join(path, child));
+			const lstat = await fs.promises.lstat(join(path, child));
 
 			isFile = lstat.isFile();
 			isDirectory = lstat.isDirectory();
@@ -267,7 +259,7 @@ export namespace SymlinkSupport {
 		// First stat the link
 		let lstats: fs.Stats | undefined;
 		try {
-			lstats = await Promises.lstat(path);
+			lstats = await fs.promises.lstat(path);
 
 			// Return early if the stat is not a symbolic link at all
 			if (!lstats.isSymbolicLink()) {
@@ -280,7 +272,7 @@ export namespace SymlinkSupport {
 		// If the stat is a symbolic link or failed to stat, use fs.stat()
 		// which for symbolic links will stat the target they point to
 		try {
-			const stats = await Promises.stat(path);
+			const stats = await fs.promises.stat(path);
 
 			return { stat: stats, symbolicLink: lstats?.isSymbolicLink() ? { dangling: false } : undefined };
 		} catch (error) {
@@ -295,7 +287,7 @@ export namespace SymlinkSupport {
 			// are not supported (https://github.com/nodejs/node/issues/36790)
 			if (isWindows && error.code === 'EACCES') {
 				try {
-					const stats = await Promises.stat(await Promises.readlink(path));
+					const stats = await fs.promises.stat(await fs.promises.readlink(path));
 
 					return { stat: stats, symbolicLink: { dangling: false } };
 				} catch (error) {
@@ -493,7 +485,7 @@ function ensureWriteOptions(options?: IWriteFileOptions): IEnsuredWriteFileOptio
  * - allows to move across multiple disks
  * - attempts to retry the operation for certain error codes on Windows
  */
-async function rename(source: string, target: string, windowsRetryTimeout: number | false = 60000 /* matches graceful-fs */): Promise<void> {
+async function rename(source: string, target: string, windowsRetryTimeout: number | false = 60000): Promise<void> {
 	if (source === target) {
 		return;  // simulate node.js behaviour here and do a no-op if paths match
 	}
@@ -501,12 +493,10 @@ async function rename(source: string, target: string, windowsRetryTimeout: numbe
 	try {
 		if (isWindows && typeof windowsRetryTimeout === 'number') {
 			// On Windows, a rename can fail when either source or target
-			// is locked by AV software. We do leverage graceful-fs to iron
-			// out these issues, however in case the target file exists,
-			// graceful-fs will immediately return without retry for fs.rename().
+			// is locked by AV software.
 			await renameWithRetry(source, target, Date.now(), windowsRetryTimeout);
 		} else {
-			await promisify(fs.rename)(source, target);
+			await fs.promises.rename(source, target);
 		}
 	} catch (error) {
 		// In two cases we fallback to classic copy and delete:
@@ -528,7 +518,7 @@ async function rename(source: string, target: string, windowsRetryTimeout: numbe
 
 async function renameWithRetry(source: string, target: string, startTime: number, retryTimeout: number, attempt = 0): Promise<void> {
 	try {
-		return await promisify(fs.rename)(source, target);
+		return await fs.promises.rename(source, target);
 	} catch (error) {
 		if (error.code !== 'EACCES' && error.code !== 'EPERM' && error.code !== 'EBUSY') {
 			throw error; // only for errors we think are temporary
@@ -630,7 +620,7 @@ async function doCopy(source: string, target: string, payload: ICopyPayload): Pr
 async function doCopyDirectory(source: string, target: string, mode: number, payload: ICopyPayload): Promise<void> {
 
 	// Create folder
-	await Promises.mkdir(target, { recursive: true, mode });
+	await fs.promises.mkdir(target, { recursive: true, mode });
 
 	// Copy each file recursively
 	const files = await readdir(source);
@@ -642,16 +632,16 @@ async function doCopyDirectory(source: string, target: string, mode: number, pay
 async function doCopyFile(source: string, target: string, mode: number): Promise<void> {
 
 	// Copy file
-	await Promises.copyFile(source, target);
+	await fs.promises.copyFile(source, target);
 
 	// restore mode (https://github.com/nodejs/node/issues/1104)
-	await Promises.chmod(target, mode);
+	await fs.promises.chmod(target, mode);
 }
 
 async function doCopySymlink(source: string, target: string, payload: ICopyPayload): Promise<void> {
 
 	// Figure out link target
-	let linkTarget = await Promises.readlink(source);
+	let linkTarget = await fs.promises.readlink(source);
 
 	// Special case: the symlink points to a target that is
 	// actually within the path that is being copied. In that
@@ -662,7 +652,7 @@ async function doCopySymlink(source: string, target: string, payload: ICopyPaylo
 	}
 
 	// Create symlink
-	await Promises.symlink(linkTarget, target);
+	await fs.promises.symlink(linkTarget, target);
 }
 
 //#endregion
@@ -670,30 +660,18 @@ async function doCopySymlink(source: string, target: string, payload: ICopyPaylo
 //#region Promise based fs methods
 
 /**
- * Prefer this helper class over the `fs.promises` API to
- * enable `graceful-fs` to function properly. Given issue
- * https://github.com/isaacs/node-graceful-fs/issues/160 it
- * is evident that the module only takes care of the non-promise
- * based fs methods.
+ * Some low level `fs` methods provided as `Promises` similar to
+ * `fs.promises` but with notable differences, either implemented
+ * by us or by restoring the original callback based behavior.
  *
- * Another reason is `realpath` being entirely different in
- * the promise based implementation compared to the other
- * one (https://github.com/microsoft/vscode/issues/118562)
- *
- * Note: using getters for a reason, since `graceful-fs`
- * patching might kick in later after modules have been
- * loaded we need to defer access to fs methods.
- * (https://github.com/microsoft/vscode/issues/124176)
+ * At least `realpath` is implemented differently in the promise
+ * based implementation compared to the callback based one. The
+ * promise based implementation actually calls `fs.realpath.native`.
+ * (https://github.com/microsoft/vscode/issues/118562)
  */
 export const Promises = new class {
 
 	//#region Implemented by node.js
-
-	get access() { return promisify(fs.access); }
-
-	get stat() { return promisify(fs.stat); }
-	get lstat() { return promisify(fs.lstat); }
-	get utimes() { return promisify(fs.utimes); }
 
 	get read() {
 
@@ -713,7 +691,6 @@ export const Promises = new class {
 			});
 		};
 	}
-	get readFile() { return promisify(fs.readFile); }
 
 	get write() {
 
@@ -734,27 +711,14 @@ export const Promises = new class {
 		};
 	}
 
-	get appendFile() { return promisify(fs.appendFile); }
+	get fdatasync() { return promisify(fs.fdatasync); } // not exposed as API in 20.x yet
 
-	get fdatasync() { return promisify(fs.fdatasync); }
-	get truncate() { return promisify(fs.truncate); }
+	get open() { return promisify(fs.open); } 			// changed to return `FileHandle` in promise API
+	get close() { return promisify(fs.close); } 		// not exposed as API due to the `FileHandle` return type of `open`
 
-	get copyFile() { return promisify(fs.copyFile); }
+	get realpath() { return promisify(fs.realpath); }	// `fs.promises.realpath` will use `fs.realpath.native` which we do not want
 
-	get open() { return promisify(fs.open); }
-	get close() { return promisify(fs.close); }
-
-	get symlink() { return promisify(fs.symlink); }
-	get readlink() { return promisify(fs.readlink); }
-
-	get chmod() { return promisify(fs.chmod); }
-
-	get mkdir() { return promisify(fs.mkdir); }
-
-	get unlink() { return promisify(fs.unlink); }
-	get rmdir() { return promisify(fs.rmdir); }
-
-	get realpath() { return promisify(fs.realpath); }
+	get ftruncate() { return promisify(fs.ftruncate); } // not exposed as API in 20.x yet
 
 	//#endregion
 
@@ -762,7 +726,7 @@ export const Promises = new class {
 
 	async exists(path: string): Promise<boolean> {
 		try {
-			await Promises.access(path);
+			await fs.promises.access(path);
 
 			return true;
 		} catch {

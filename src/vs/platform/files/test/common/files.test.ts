@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { isEqual, isEqualOrParent } from 'vs/base/common/extpath';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
-import { FileChangesEvent, FileChangeType, IFileChange, isParent } from 'vs/platform/files/common/files';
+import assert from 'assert';
+import { isEqual, isEqualOrParent } from '../../../../base/common/extpath.js';
+import { isLinux, isMacintosh, isWindows } from '../../../../base/common/platform.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../base/test/common/utils.js';
+import { FileChangesEvent, FileChangeType, IFileChange, isParent } from '../../common/files.js';
 
 suite('Files', () => {
 

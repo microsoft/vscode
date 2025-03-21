@@ -12,23 +12,12 @@ properties:
     - resource: Microsoft.WinGet.DSC/WinGetPackage
       id: npm
       directives:
-        description: Install NodeJS version >=18.15.x and <19
+        description: Install NodeJS version 20
         allowPrerelease: true
       settings:
         id: OpenJS.NodeJS.LTS
-        version: "18.18.0"
+        version: "20.14.0"
         source: winget
-    - resource: NpmDsc/NpmPackage
-      id: yarn
-      dependsOn:
-        - npm
-      directives:
-        description: Install Yarn
-        allowPrerelease: true
-      settings:
-        Name: 'yarn'
-        Global: true
-        PackageDirectory: '${WinGetConfigRoot}\..\'
     - resource: Microsoft.WinGet.DSC/WinGetPackage
       directives:
         description: Install Python 3.10
@@ -56,7 +45,7 @@ properties:
         includeRecommended: true
         components:
           - Microsoft.VisualStudio.Workload.VCTools
-    - resource: YarnDsc/YarnInstall
+    - resource: NpmDsc/NpmInstall
       dependsOn:
         - npm
       directives:

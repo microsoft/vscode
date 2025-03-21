@@ -8,10 +8,10 @@ import * as vscode from 'vscode';
 import { addJSONProviders } from './features/jsonContributions';
 import { runSelectedScript, selectAndRunScriptFromFolder } from './commands';
 import { NpmScriptsTreeDataProvider } from './npmView';
-import { getPackageManager, invalidateTasksCache, NpmTaskProvider, hasPackageJson } from './tasks';
+import { getScriptRunner, getPackageManager, invalidateTasksCache, NpmTaskProvider, hasPackageJson } from './tasks';
 import { invalidateHoverScriptsCache, NpmScriptHoverProvider } from './scriptHover';
 import { NpmScriptLensProvider } from './npmScriptLens';
-import * as which from 'which';
+import which from 'which';
 
 let treeDataProvider: NpmScriptsTreeDataProvider | undefined;
 
@@ -38,7 +38,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	treeDataProvider = registerExplorer(context);
 
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => {
-		if (e.affectsConfiguration('npm.exclude') || e.affectsConfiguration('npm.autoDetect') || e.affectsConfiguration('npm.scriptExplorerExclude')) {
+		if (e.affectsConfiguration('npm.exclude') || e.affectsConfiguration('npm.autoDetect') || e.affectsConfiguration('npm.scriptExplorerExclude') || e.affectsConfiguration('npm.runSilent') || e.affectsConfiguration('npm.packageManager') || e.affectsConfiguration('npm.scriptRunner')) {
 			invalidateTasksCache();
 			if (treeDataProvider) {
 				treeDataProvider.refresh();
@@ -63,9 +63,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	context.subscriptions.push(vscode.commands.registerCommand('npm.refresh', () => {
 		invalidateScriptCaches();
 	}));
+	context.subscriptions.push(vscode.commands.registerCommand('npm.scriptRunner', (args) => {
+		if (args instanceof vscode.Uri) {
+			return getScriptRunner(args, context, true);
+		}
+		return '';
+	}));
 	context.subscriptions.push(vscode.commands.registerCommand('npm.packageManager', (args) => {
 		if (args instanceof vscode.Uri) {
-			return getPackageManager(context, args);
+			return getPackageManager(args, context, true);
 		}
 		return '';
 	}));

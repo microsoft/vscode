@@ -3,20 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { importAMDNodeModule } from 'vs/amdX';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservable, autorun, keepObserved, observableFromEvent } from 'vs/base/common/observable';
-import { countEOL } from 'vs/editor/common/core/eolCounter';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { Range } from 'vs/editor/common/core/range';
-import { IBackgroundTokenizationStore, ILanguageIdCodec } from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
-import { TokenizationStateStore } from 'vs/editor/common/model/textModelTokens';
-import { IModelContentChange, IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
-import { ContiguousMultilineTokensBuilder } from 'vs/editor/common/tokens/contiguousMultilineTokensBuilder';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ArrayEdit, MonotonousIndexTransformer, SingleArrayEdit } from 'vs/workbench/services/textMate/browser/arrayOperation';
-import type { StateDeltas, TextMateTokenizationWorker } from 'vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker';
+import { importAMDNodeModule } from '../../../../../amdX.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { IObservable, autorun, keepObserved } from '../../../../../base/common/observable.js';
+import { Proxied } from '../../../../../base/common/worker/webWorker.js';
+import { countEOL } from '../../../../../editor/common/core/eolCounter.js';
+import { LineRange } from '../../../../../editor/common/core/lineRange.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { IBackgroundTokenizationStore, ILanguageIdCodec } from '../../../../../editor/common/languages.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { TokenizationStateStore } from '../../../../../editor/common/model/textModelTokens.js';
+import { IModelContentChange, IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
+import { ContiguousMultilineTokensBuilder } from '../../../../../editor/common/tokens/contiguousMultilineTokensBuilder.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
+import { ArrayEdit, MonotonousIndexTransformer, SingleArrayEdit } from '../arrayOperation.js';
+import type { StateDeltas, TextMateTokenizationWorker } from './worker/textMateTokenizationWorker.worker.js';
 import type { applyStateStackDiff, StateStack } from 'vscode-textmate';
 
 export class TextMateWorkerTokenizerController extends Disposable {
@@ -38,7 +40,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 
 	constructor(
 		private readonly _model: ITextModel,
-		private readonly _worker: TextMateTokenizationWorker,
+		private readonly _worker: Proxied<TextMateTokenizationWorker>,
 		private readonly _languageIdCodec: ILanguageIdCodec,
 		private readonly _backgroundTokenizationStore: IBackgroundTokenizationStore,
 		private readonly _configurationService: IConfigurationService,
@@ -55,7 +57,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 					changes: changesToString(e.changes),
 				});
 			}
-			this._worker.acceptModelChanged(this.controllerId, e);
+			this._worker.$acceptModelChanged(this.controllerId, e);
 			this._pendingChanges.push(e);
 		}));
 
@@ -63,7 +65,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 			const languageId = this._model.getLanguageId();
 			const encodedLanguageId =
 				this._languageIdCodec.encodeLanguageId(languageId);
-			this._worker.acceptModelLanguageChanged(
+			this._worker.$acceptModelLanguageChanged(
 				this.controllerId,
 				languageId,
 				encodedLanguageId
@@ -72,7 +74,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 
 		const languageId = this._model.getLanguageId();
 		const encodedLanguageId = this._languageIdCodec.encodeLanguageId(languageId);
-		this._worker.acceptNewModel({
+		this._worker.$acceptNewModel({
 			uri: this._model.uri,
 			versionId: this._model.getVersionId(),
 			lines: this._model.getLinesContent(),
@@ -86,17 +88,17 @@ export class TextMateWorkerTokenizerController extends Disposable {
 		this._register(autorun(reader => {
 			/** @description update maxTokenizationLineLength */
 			const maxTokenizationLineLength = this._maxTokenizationLineLength.read(reader);
-			this._worker.acceptMaxTokenizationLineLength(this.controllerId, maxTokenizationLineLength);
+			this._worker.$acceptMaxTokenizationLineLength(this.controllerId, maxTokenizationLineLength);
 		}));
 	}
 
 	public override dispose(): void {
 		super.dispose();
-		this._worker.acceptRemovedModel(this.controllerId);
+		this._worker.$acceptRemovedModel(this.controllerId);
 	}
 
 	public requestTokens(startLineNumber: number, endLineNumberExclusive: number): void {
-		this._worker.retokenize(this.controllerId, startLineNumber, endLineNumberExclusive);
+		this._worker.$retokenize(this.controllerId, startLineNumber, endLineNumberExclusive);
 	}
 
 	/**
@@ -237,13 +239,3 @@ function changesToString(changes: IModelContentChange[]): string {
 	return changes.map(c => Range.lift(c.range).toString() + ' => ' + c.text).join(' & ');
 }
 
-function observableConfigValue<T>(key: string, defaultValue: T, configurationService: IConfigurationService): IObservable<T> {
-	return observableFromEvent(
-		(handleChange) => configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(key)) {
-				handleChange(e);
-			}
-		}),
-		() => configurationService.getValue<T>(key) ?? defaultValue,
-	);
-}

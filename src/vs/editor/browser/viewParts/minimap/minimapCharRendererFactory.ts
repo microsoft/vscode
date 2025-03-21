@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MinimapCharRenderer } from 'vs/editor/browser/viewParts/minimap/minimapCharRenderer';
-import { allCharCodes, Constants } from 'vs/editor/browser/viewParts/minimap/minimapCharSheet';
-import { prebakedMiniMaps } from 'vs/editor/browser/viewParts/minimap/minimapPreBaked';
-import { toUint8 } from 'vs/base/common/uint';
+import { MinimapCharRenderer } from './minimapCharRenderer.js';
+import { allCharCodes, Constants } from './minimapCharSheet.js';
+import { prebakedMiniMaps } from './minimapPreBaked.js';
+import { toUint8 } from '../../../../base/common/uint.js';
 
 /**
  * Creates character renderers. It takes a 'scale' that determines how large

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Quality } from './application';
 import { Code } from './code';
 
 export class Editors {
@@ -11,9 +12,9 @@ export class Editors {
 
 	async saveOpenedFile(): Promise<any> {
 		if (process.platform === 'darwin') {
-			await this.code.dispatchKeybinding('cmd+s');
+			await this.code.sendKeybinding('cmd+s');
 		} else {
-			await this.code.dispatchKeybinding('ctrl+s');
+			await this.code.sendKeybinding('ctrl+s');
 		}
 	}
 
@@ -28,10 +29,9 @@ export class Editors {
 		let retries = 0;
 		while (retries < 10) {
 			await this.code.waitAndClick(`.tabs-container div.tab[data-resource-name$="${fileName}"]`);
-			await this.code.dispatchKeybinding(process.platform === 'darwin' ? 'cmd+1' : 'ctrl+1'); // make editor really active if click failed somehow
 
 			try {
-				await this.waitForEditorFocus(fileName, 50 /* 50 retries * 100ms delay = 5s */);
+				await this.code.sendKeybinding(process.platform === 'darwin' ? 'cmd+1' : 'ctrl+1', () => this.waitForEditorFocus(fileName, 50 /* 50 retries * 100ms delay = 5s */));
 				return;
 			} catch (e) {
 				error = e;
@@ -53,7 +53,7 @@ export class Editors {
 	}
 
 	async waitForActiveEditor(fileName: string, retryCount?: number): Promise<any> {
-		const selector = `.editor-instance .monaco-editor[data-uri$="${fileName}"] textarea`;
+		const selector = `.editor-instance .monaco-editor[data-uri$="${fileName}"] ${this.code.quality === Quality.Stable ? 'textarea' : '.native-edit-context'}`;
 		return this.code.waitForActiveElement(selector, retryCount);
 	}
 
@@ -62,12 +62,11 @@ export class Editors {
 	}
 
 	async newUntitledFile(): Promise<void> {
+		const accept = () => this.waitForEditorFocus('Untitled-1');
 		if (process.platform === 'darwin') {
-			await this.code.dispatchKeybinding('cmd+n');
+			await this.code.sendKeybinding('cmd+n', accept);
 		} else {
-			await this.code.dispatchKeybinding('ctrl+n');
+			await this.code.sendKeybinding('ctrl+n', accept);
 		}
-
-		await this.waitForEditorFocus('Untitled-1');
 	}
 }

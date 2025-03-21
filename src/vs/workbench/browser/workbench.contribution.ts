@@ -3,14 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Registry } from 'vs/platform/registry/common/platform';
-import { localize } from 'vs/nls';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common/platform';
-import { ConfigurationMigrationWorkbenchContribution, DynamicWorkbenchSecurityConfiguration, IConfigurationMigrationRegistry, workbenchConfigurationNodeBase, Extensions, ConfigurationKeyValuePairs, problemsConfigurationNodeBase } from 'vs/workbench/common/configuration';
-import { isStandalone } from 'vs/base/browser/browser';
-import { WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
-import { ActivityBarPosition, EditorActionsLocation, EditorTabsMode, LayoutSettings } from 'vs/workbench/services/layout/browser/layoutService';
+import { Registry } from '../../platform/registry/common/platform.js';
+import { localize } from '../../nls.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../platform/configuration/common/configurationRegistry.js';
+import { isMacintosh, isWindows, isLinux, isWeb, isNative } from '../../base/common/platform.js';
+import { ConfigurationMigrationWorkbenchContribution, DynamicWorkbenchSecurityConfiguration, IConfigurationMigrationRegistry, workbenchConfigurationNodeBase, Extensions, ConfigurationKeyValuePairs, problemsConfigurationNodeBase, windowConfigurationNodeBase, DynamicWindowConfiguration } from '../common/configuration.js';
+import { isStandalone } from '../../base/browser/browser.js';
+import { WorkbenchPhase, registerWorkbenchContribution2 } from '../common/contributions.js';
+import { ActivityBarPosition, EditorActionsLocation, EditorTabsMode, LayoutSettings } from '../services/layout/browser/layoutService.js';
+import { defaultWindowTitle, defaultWindowTitleSeparator } from './parts/titlebar/windowTitle.js';
+import { CustomEditorLabelService } from '../services/editor/common/customEditorLabelService.js';
 
 const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
@@ -27,6 +29,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 	registry.registerConfiguration({
 		...workbenchConfigurationNodeBase,
 		'properties': {
+			'workbench.externalBrowser': {
+				type: 'string',
+				markdownDescription: localize('browser', "Configure the browser to use for opening http or https links externally. This can either be the name of the browser (`edge`, `chrome`, `firefox`) or an absolute path to the browser's executable. Will use the system default if not set."),
+				included: isNative,
+				restricted: true
+			},
 			'workbench.editor.titleScrollbarSizing': {
 				type: 'string',
 				enum: ['default', 'large'],
@@ -59,6 +67,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'markdownDescription': localize('editorActionsLocation', "Controls where the editor actions are shown."),
 				'default': 'default'
 			},
+			'workbench.editor.alwaysShowEditorActions': {
+				'type': 'boolean',
+				'markdownDescription': localize('alwaysShowEditorActions', "Controls whether to always show the editor actions, even when the editor group is not active."),
+				'default': false
+			},
 			'workbench.editor.wrapTabs': {
 				'type': 'boolean',
 				'markdownDescription': localize({ comment: ['{0}, {1} will be a setting name rendered as a link'], key: 'wrapTabs' }, "Controls whether tabs should be wrapped over multiple lines when exceeding available space or whether a scrollbar should appear instead. This value is ignored when {0} is not set to '{1}'.", '`#workbench.editor.showTabs#`', '`multiple`'),
@@ -83,6 +96,35 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'boolean',
 				'markdownDescription': localize('decorations.colors', "Controls whether editor file decorations should use colors."),
 				'default': true
+			},
+			[CustomEditorLabelService.SETTING_ID_ENABLED]: {
+				'type': 'boolean',
+				'markdownDescription': localize('workbench.editor.label.enabled', "Controls whether the custom workbench editor labels should be applied."),
+				'default': true,
+			},
+			[CustomEditorLabelService.SETTING_ID_PATTERNS]: {
+				'type': 'object',
+				'markdownDescription': (() => {
+					let customEditorLabelDescription = localize('workbench.editor.label.patterns', "Controls the rendering of the editor label. Each __Item__ is a pattern that matches a file path. Both relative and absolute file paths are supported. The relative path must include the WORKSPACE_FOLDER (e.g `WORKSPACE_FOLDER/src/**.tsx` or `*/src/**.tsx`). Absolute patterns must start with a `/`. In case multiple patterns match, the longest matching path will be picked. Each __Value__ is the template for the rendered editor when the __Item__ matches. Variables are substituted based on the context:");
+					customEditorLabelDescription += '\n- ' + [
+						localize('workbench.editor.label.dirname', "`${dirname}`: name of the folder in which the file is located (e.g. `WORKSPACE_FOLDER/folder/file.txt -> folder`)."),
+						localize('workbench.editor.label.nthdirname', "`${dirname(N)}`: name of the nth parent folder in which the file is located (e.g. `N=2: WORKSPACE_FOLDER/static/folder/file.txt -> WORKSPACE_FOLDER`). Folders can be picked from the start of the path by using negative numbers (e.g. `N=-1: WORKSPACE_FOLDER/folder/file.txt -> WORKSPACE_FOLDER`). If the __Item__ is an absolute pattern path, the first folder (`N=-1`) refers to the first folder in the absolute path, otherwise it corresponds to the workspace folder."),
+						localize('workbench.editor.label.filename', "`${filename}`: name of the file without the file extension (e.g. `WORKSPACE_FOLDER/folder/file.txt -> file`)."),
+						localize('workbench.editor.label.extname', "`${extname}`: the file extension (e.g. `WORKSPACE_FOLDER/folder/file.txt -> txt`)."),
+						localize('workbench.editor.label.nthextname', "`${extname(N)}`: the nth extension of the file separated by '.' (e.g. `N=2: WORKSPACE_FOLDER/folder/file.ext1.ext2.ext3 -> ext1`). Extension can be picked from the start of the extension by using negative numbers (e.g. `N=-1: WORKSPACE_FOLDER/folder/file.ext1.ext2.ext3 -> ext2`)."),
+					].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
+					customEditorLabelDescription += '\n\n' + localize('customEditorLabelDescriptionExample', "Example: `\"**/static/**/*.html\": \"${filename} - ${dirname} (${extname})\"` will render a file `WORKSPACE_FOLDER/static/folder/file.html` as `file - folder (html)`.");
+
+					return customEditorLabelDescription;
+				})(),
+				additionalProperties:
+				{
+					type: ['string', 'null'],
+					markdownDescription: localize('workbench.editor.label.template', "The template which should be rendered when the pattern matches. May include the variables ${dirname}, ${filename} and ${extname}."),
+					minLength: 1,
+					pattern: '.*[a-zA-Z0-9].*'
+				},
+				'default': {}
 			},
 			'workbench.editor.labelFormat': {
 				'type': 'string',
@@ -121,19 +163,16 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.editor.historyBasedLanguageDetection': {
 				type: 'boolean',
 				default: true,
-				tags: ['experimental'],
 				description: localize('workbench.editor.historyBasedLanguageDetection', "Enables use of editor history in language detection. This causes automatic language detection to favor languages that have been recently opened and allows for automatic language detection to operate with smaller inputs."),
 			},
 			'workbench.editor.preferHistoryBasedLanguageDetection': {
 				type: 'boolean',
 				default: false,
-				tags: ['experimental'],
 				description: localize('workbench.editor.preferBasedLanguageDetection', "When enabled, a language detection model that takes into account editor history will be given higher precedence."),
 			},
 			'workbench.editor.languageDetectionHints': {
 				type: 'object',
 				default: { 'untitledEditors': true, 'notebookEditors': true },
-				tags: ['experimental'],
 				description: localize('workbench.editor.showLanguageDetectionHints', "When enabled, shows a Status bar Quick Fix when the editor language doesn't match detected content language."),
 				additionalProperties: false,
 				properties: {
@@ -253,17 +292,17 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.enablePreview': {
 				'type': 'boolean',
-				'description': localize('enablePreview', "Controls whether opened editors show as preview editors. Preview editors do not stay open, are reused until explicitly set to be kept open (via double-click or editing), and show file names in italics."),
+				'description': localize('enablePreview', "Controls whether preview mode is used when editors open. There is a maximum of one preview mode editor per editor group. This editor displays its filename in italics on its tab or title label and in the Open Editors view. Its contents will be replaced by the next editor opened in preview mode. Making a change in a preview mode editor will persist it, as will a double-click on its label, or the 'Keep Open' option in its label context menu. Opening a file from Explorer with a double-click persists its editor immediately."),
 				'default': true
 			},
 			'workbench.editor.enablePreviewFromQuickOpen': {
 				'type': 'boolean',
-				'markdownDescription': localize({ comment: ['{0}, {1} will be a setting name rendered as a link'], key: 'enablePreviewFromQuickOpen' }, "Controls whether editors opened from Quick Open show as preview editors. Preview editors do not stay open, and are reused until explicitly set to be kept open (via double-click or editing). When enabled, hold Ctrl before selection to open an editor as a non-preview. This value is ignored when {0} is not set to {1}.", '`#workbench.editor.enablePreview#`', '`multiple`'),
+				'markdownDescription': localize({ comment: ['{0}, {1} will be a setting name rendered as a link'], key: 'enablePreviewFromQuickOpen' }, "Controls whether editors opened from Quick Open show as preview editors. Preview editors do not stay open, and are reused until explicitly set to be kept open (via double-click or editing). When enabled, hold Ctrl before selection to open an editor as a non-preview. This value is ignored when {0} is not set to {1}.", '`#workbench.editor.showTabs#`', '`multiple`'),
 				'default': false
 			},
 			'workbench.editor.enablePreviewFromCodeNavigation': {
 				'type': 'boolean',
-				'markdownDescription': localize({ comment: ['{0}, {1} will be a setting name rendered as a link'], key: 'enablePreviewFromCodeNavigation' }, "Controls whether editors remain in preview when a code navigation is started from them. Preview editors do not stay open, and are reused until explicitly set to be kept open (via double-click or editing). This value is ignored when {0} is not set to {1}.", '`#workbench.editor.enablePreview#`', '`multiple`'),
+				'markdownDescription': localize({ comment: ['{0}, {1} will be a setting name rendered as a link'], key: 'enablePreviewFromCodeNavigation' }, "Controls whether editors remain in preview when a code navigation is started from them. Preview editors do not stay open, and are reused until explicitly set to be kept open (via double-click or editing). This value is ignored when {0} is not set to {1}.", '`#workbench.editor.showTabs#`', '`multiple`'),
 				'default': false
 			},
 			'workbench.editor.closeOnFileDelete': {
@@ -472,11 +511,16 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': 'left',
 				'description': localize('sideBarLocation', "Controls the location of the primary side bar and activity bar. They can either show on the left or right of the workbench. The secondary side bar will show on the opposite side of the workbench.")
 			},
+			'workbench.panel.showLabels': {
+				'type': 'boolean',
+				'default': true,
+				'description': localize('panelShowLabels', "Controls whether activity items in the panel title are shown as label or icon."),
+			},
 			'workbench.panel.defaultLocation': {
 				'type': 'string',
-				'enum': ['left', 'bottom', 'right'],
+				'enum': ['left', 'bottom', 'top', 'right'],
 				'default': 'bottom',
-				'description': localize('panelDefaultLocation', "Controls the default location of the panel (Terminal, Debug Console, Output, Problems) in a new workspace. It can either show at the bottom, right, or left of the editor area."),
+				'description': localize('panelDefaultLocation', "Controls the default location of the panel (Terminal, Debug Console, Output, Problems) in a new workspace. It can either show at the bottom, top, right, or left of the editor area."),
 			},
 			'workbench.panel.opensMaximized': {
 				'type': 'string',
@@ -489,6 +533,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('workbench.panel.opensMaximized.preserve', "Open the panel to the state that it was in, before it was closed.")
 				]
 			},
+			'workbench.secondarySideBar.showLabels': {
+				'type': 'boolean',
+				'default': true,
+				'markdownDescription': localize('secondarySideBarShowLabels', "Controls whether activity items in the secondary sidebar title are shown as label or icon. This setting only has an effect when {0} is not set to {1}.", '`#workbench.activityBar.location#`', '`top`'),
+			},
 			'workbench.statusBar.visible': {
 				'type': 'boolean',
 				'default': true,
@@ -496,29 +545,42 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			[LayoutSettings.ACTIVITY_BAR_LOCATION]: {
 				'type': 'string',
-				'enum': ['side', 'top', 'hidden'],
-				'default': 'side',
-				'markdownDescription': localize({ comment: ['This is the description for a setting'], key: 'activityBarLocation' }, "Controls the location of the Activity Bar. It can either show to the `side` or `top` of the Primary Side Bar or `hidden`."),
+				'enum': ['default', 'top', 'bottom', 'hidden'],
+				'default': 'default',
+				'markdownDescription': localize({ comment: ['This is the description for a setting'], key: 'activityBarLocation' }, "Controls the location of the Activity Bar relative to the Primary and Secondary Side Bars."),
 				'enumDescriptions': [
-					localize('workbench.activityBar.location.side', "Show the Activity Bar to the side of the Primary Side Bar."),
-					localize('workbench.activityBar.location.top', "Show the Activity Bar on top of the Primary Side Bar."),
-					localize('workbench.activityBar.location.hide', "Hide the Activity Bar.")
+					localize('workbench.activityBar.location.default', "Show the Activity Bar on the side of the Primary Side Bar and on top of the Secondary Side Bar."),
+					localize('workbench.activityBar.location.top', "Show the Activity Bar on top of the Primary and Secondary Side Bars."),
+					localize('workbench.activityBar.location.bottom', "Show the Activity Bar at the bottom of the Primary and Secondary Side Bars."),
+					localize('workbench.activityBar.location.hide', "Hide the Activity Bar in the Primary and Secondary Side Bars.")
 				],
 			},
 			'workbench.activityBar.iconClickBehavior': {
 				'type': 'string',
 				'enum': ['toggle', 'focus'],
 				'default': 'toggle',
-				'description': localize('activityBarIconClickBehavior', "Controls the behavior of clicking an activity bar icon in the workbench."),
+				'markdownDescription': localize({ comment: ['{0}, {1} will be a setting name rendered as a link'], key: 'activityBarIconClickBehavior' }, "Controls the behavior of clicking an Activity Bar icon in the workbench. This value is ignored when {0} is not set to {1}.", '`#workbench.activityBar.location#`', '`default`'),
 				'enumDescriptions': [
-					localize('workbench.activityBar.iconClickBehavior.toggle', "Hide the side bar if the clicked item is already visible."),
-					localize('workbench.activityBar.iconClickBehavior.focus', "Focus side bar if the clicked item is already visible.")
+					localize('workbench.activityBar.iconClickBehavior.toggle', "Hide the Primary Side Bar if the clicked item is already visible."),
+					localize('workbench.activityBar.iconClickBehavior.focus', "Focus the Primary Side Bar if the clicked item is already visible.")
 				]
 			},
 			'workbench.view.alwaysShowHeaderActions': {
 				'type': 'boolean',
 				'default': false,
 				'description': localize('viewVisibility', "Controls the visibility of view header actions. View header actions may either be always visible, or only visible when that view is focused or hovered over.")
+			},
+			'workbench.view.showQuietly': {
+				'type': 'object',
+				'description': localize('workbench.view.showQuietly', "If an extension requests a hidden view to be shown, display a clickable status bar indicator instead."),
+				'scope': ConfigurationScope.WINDOW,
+				'properties': {
+					'workbench.panel.output': {
+						'type': 'boolean',
+						'description': localize('workbench.panel.output', "Output view")
+					}
+				},
+				'additionalProperties': false
 			},
 			'workbench.fontAliasing': {
 				'type': 'string',
@@ -564,6 +626,13 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				default: 'auto',
 				tags: ['accessibility'],
 				enum: ['on', 'off', 'auto']
+			},
+			'workbench.navigationControl.enabled': {
+				'type': 'boolean',
+				'default': true,
+				'markdownDescription': isWeb ?
+					localize('navigationControlEnabledWeb', "Controls whether the navigation control in the title bar is shown.") :
+					localize({ key: 'navigationControlEnabled', comment: ['{0}, {1} is a placeholder for a setting identifier.'] }, "Controls whether the navigation control is shown in the custom title bar. This setting only has an effect when {0} is not set to {1}.", '`#window.customTitleBarVisibility#`', '`never`')
 			},
 			[LayoutSettings.LAYOUT_ACTIONS]: {
 				'type': 'boolean',
@@ -611,34 +680,23 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 		localize('remoteName', "`${remoteName}`: e.g. SSH"),
 		localize('dirty', "`${dirty}`: an indicator for when the active editor has unsaved changes."),
 		localize('focusedView', "`${focusedView}`: the name of the view that is currently focused."),
+		localize('activeRepositoryName', "`${activeRepositoryName}`: the name of the active repository (e.g. vscode)."),
+		localize('activeRepositoryBranchName', "`${activeRepositoryBranchName}`: the name of the active branch in the active repository (e.g. main)."),
+		localize('activeEditorState', "`${activeEditorState}`: provides information about the state of the active editor (e.g. modified). This will be appended by default when in screen reader mode with {0} enabled.", '`accessibility.windowTitleOptimized`'),
 		localize('separator', "`${separator}`: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text.")
 	].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
 
 	registry.registerConfiguration({
-		'id': 'window',
-		'order': 8,
-		'title': localize('windowConfigurationTitle', "Window"),
-		'type': 'object',
+		...windowConfigurationNodeBase,
 		'properties': {
 			'window.title': {
 				'type': 'string',
-				'default': (() => {
-					if (isMacintosh && isNative) {
-						return '${activeEditorShort}${separator}${rootName}${separator}${profileName}'; // macOS has native dirty indicator
-					}
-
-					const base = '${dirty}${activeEditorShort}${separator}${rootName}${separator}${profileName}${separator}${appName}';
-					if (isWeb) {
-						return base + '${separator}${remoteName}'; // Web: always show remote name
-					}
-
-					return base;
-				})(),
+				'default': defaultWindowTitle,
 				'markdownDescription': windowTitleDescription
 			},
 			'window.titleSeparator': {
 				'type': 'string',
-				'default': isMacintosh ? ' \u2014 ' : ' - ',
+				'default': defaultWindowTitleSeparator,
 				'markdownDescription': localize("window.titleSeparator", "Separator used by {0}.", '`#window.title#`')
 			},
 			[LayoutSettings.COMMAND_CENTER]: {
@@ -735,6 +793,9 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 		}
 	});
 
+	// Dynamic Window Configuration
+	registerWorkbenchContribution2(DynamicWindowConfiguration.ID, DynamicWindowConfiguration, WorkbenchPhase.Eventually);
+
 	// Problems
 	registry.registerConfiguration({
 		...problemsConfigurationNodeBase,
@@ -815,6 +876,17 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 				result.push([LayoutSettings.ACTIVITY_BAR_LOCATION, { value: ActivityBarPosition.HIDDEN }]);
 			}
 			return result;
+		}
+	}]);
+
+Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: LayoutSettings.ACTIVITY_BAR_LOCATION, migrateFn: (value: any) => {
+			const results: ConfigurationKeyValuePairs = [];
+			if (value === 'side') {
+				results.push([LayoutSettings.ACTIVITY_BAR_LOCATION, { value: ActivityBarPosition.DEFAULT }]);
+			}
+			return results;
 		}
 	}]);
 

@@ -3,27 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { serializeEnvironmentDescriptionMap, serializeEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableShared';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Schemas } from 'vs/base/common/network';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IRequestResolveVariablesEvent, IShellLaunchConfigDto, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, IProcessProperty, ProcessPropertyType, IProcessPropertyMap, TitleEventSource, ISerializedTerminalState, IPtyHostController, ITerminalProcessOptions, IProcessReadyEvent, ITerminalLogService, IPtyHostLatencyMeasurement } from 'vs/platform/terminal/common/terminal';
-import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
-import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
-import { ICompleteTerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ISerializableEnvironmentDescriptionMap as ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
-import type * as performance from 'vs/base/common/performance';
-import { RemoteTerminalChannelEvent, RemoteTerminalChannelRequest } from 'vs/workbench/contrib/terminal/common/remote/terminal';
+import { Event } from '../../../../../base/common/event.js';
+import { URI, UriComponents } from '../../../../../base/common/uri.js';
+import { IChannel } from '../../../../../base/parts/ipc/common/ipc.js';
+import { IWorkbenchConfigurationService } from '../../../../services/configuration/common/configuration.js';
+import { IRemoteAuthorityResolverService } from '../../../../../platform/remote/common/remoteAuthorityResolver.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { serializeEnvironmentDescriptionMap, serializeEnvironmentVariableCollection } from '../../../../../platform/terminal/common/environmentVariableShared.js';
+import { IConfigurationResolverService } from '../../../../services/configurationResolver/common/configurationResolver.js';
+import { SideBySideEditor, EditorResourceAccessor } from '../../../../common/editor.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { IEnvironmentVariableService } from '../environmentVariable.js';
+import { IProcessDataEvent, IRequestResolveVariablesEvent, IShellLaunchConfigDto, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, IProcessProperty, ProcessPropertyType, IProcessPropertyMap, TitleEventSource, ISerializedTerminalState, IPtyHostController, ITerminalProcessOptions, IProcessReadyEvent, ITerminalLogService, IPtyHostLatencyMeasurement } from '../../../../../platform/terminal/common/terminal.js';
+import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from '../../../../../platform/terminal/common/terminalProcess.js';
+import { IProcessEnvironment, OperatingSystem } from '../../../../../base/common/platform.js';
+import { ICompleteTerminalConfiguration } from '../terminal.js';
+import { IPtyHostProcessReplayEvent } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { ISerializableEnvironmentDescriptionMap as ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariableCollection } from '../../../../../platform/terminal/common/environmentVariable.js';
+import type * as performance from '../../../../../base/common/performance.js';
+import { RemoteTerminalChannelEvent, RemoteTerminalChannelRequest } from './terminal.js';
+import { ConfigurationResolverExpression } from '../../../../services/configurationResolver/common/configurationResolverExpression.js';
 
 export const REMOTE_TERMINAL_CHANNEL_NAME = 'remoteterminal';
 
@@ -133,20 +134,15 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 		// But then we will keep only some variables, since the rest need to be resolved on the remote side
 		const resolvedVariables = Object.create(null);
 		const lastActiveWorkspace = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) ?? undefined : undefined;
-		let allResolvedVariables: Map<string, string> | undefined = undefined;
+		const expr = ConfigurationResolverExpression.parse({ shellLaunchConfig, configuration });
 		try {
-			allResolvedVariables = (await this._resolverService.resolveAnyMap(lastActiveWorkspace, {
-				shellLaunchConfig,
-				configuration
-			})).resolvedVariables;
+			await this._resolverService.resolveAsync(lastActiveWorkspace, expr);
 		} catch (err) {
 			this._logService.error(err);
 		}
-		if (allResolvedVariables) {
-			for (const [name, value] of allResolvedVariables.entries()) {
-				if (/^config:/.test(name) || name === 'selectedText' || name === 'lineNumber') {
-					resolvedVariables[name] = value;
-				}
+		for (const [{ inner }, resolved] of expr.resolved()) {
+			if (/^config:/.test(inner) || inner === 'selectedText' || inner === 'lineNumber') {
+				resolvedVariables[inner] = resolved.value;
 			}
 		}
 
@@ -250,12 +246,6 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 	freePortKillProcess(port: string): Promise<{ port: string; processId: string }> {
 		return this._channel.call(RemoteTerminalChannelRequest.FreePortKillProcess, [port]);
 	}
-	installAutoReply(match: string, reply: string): Promise<void> {
-		return this._channel.call(RemoteTerminalChannelRequest.InstallAutoReply, [match, reply]);
-	}
-	uninstallAllAutoReplies(): Promise<void> {
-		return this._channel.call(RemoteTerminalChannelRequest.UninstallAllAutoReplies, []);
-	}
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
 		return this._channel.call(RemoteTerminalChannelRequest.GetDefaultSystemShell, [osOverride]);
 	}
@@ -318,4 +308,15 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 	serializeTerminalState(ids: number[]): Promise<string> {
 		return this._channel.call(RemoteTerminalChannelRequest.SerializeTerminalState, [ids]);
 	}
+
+	// #region Pty service contribution RPC calls
+
+	installAutoReply(match: string, reply: string): Promise<void> {
+		return this._channel.call(RemoteTerminalChannelRequest.InstallAutoReply, [match, reply]);
+	}
+	uninstallAllAutoReplies(): Promise<void> {
+		return this._channel.call(RemoteTerminalChannelRequest.UninstallAllAutoReplies, []);
+	}
+
+	// #endregion
 }

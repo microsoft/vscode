@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { generateUuid } from 'vs/base/common/uuid';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { isIMenuItem, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { MenuService } from 'vs/platform/actions/common/menuService';
-import { NullCommandService } from 'vs/platform/commands/test/common/nullCommandService';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { InMemoryStorageService } from 'vs/platform/storage/common/storage';
+import assert from 'assert';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { isIMenuItem, MenuId, MenuRegistry } from '../../common/actions.js';
+import { MenuService } from '../../common/menuService.js';
+import { NullCommandService } from '../../../commands/test/common/nullCommandService.js';
+import { MockContextKeyService, MockKeybindingService } from '../../../keybinding/test/common/mockKeybindingService.js';
+import { InMemoryStorageService } from '../../../storage/common/storage.js';
 
 // --- service instances
 
@@ -30,7 +30,7 @@ suite('MenuService', function () {
 	let testMenuId: MenuId;
 
 	setup(function () {
-		menuService = new MenuService(NullCommandService, new InMemoryStorageService());
+		menuService = new MenuService(NullCommandService, new MockKeybindingService(), new InMemoryStorageService());
 		testMenuId = new MenuId(`testo/${generateUuid()}`);
 		disposables.clear();
 	});

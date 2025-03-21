@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 
-import { isURLDomainTrusted } from 'vs/workbench/contrib/url/browser/trustedDomainsValidator';
-import { URI } from 'vs/base/common/uri';
-import { extractGitHubRemotesFromGitConfig } from 'vs/workbench/contrib/url/browser/trustedDomains';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { isURLDomainTrusted } from '../../common/trustedDomains.js';
 
 function linkAllowedByRules(link: string, rules: string[]) {
 	assert.ok(isURLDomainTrusted(URI.parse(link), rules), `Link\n${link}\n should be allowed by rules\n${JSON.stringify(rules)}`);
@@ -16,29 +15,6 @@ function linkAllowedByRules(link: string, rules: string[]) {
 function linkNotAllowedByRules(link: string, rules: string[]) {
 	assert.ok(!isURLDomainTrusted(URI.parse(link), rules), `Link\n${link}\n should NOT be allowed by rules\n${JSON.stringify(rules)}`);
 }
-
-suite('GitHub remote extraction', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
-	test('All known formats', () => {
-		assert.deepStrictEqual(
-			extractGitHubRemotesFromGitConfig(
-				`
-[remote "1"]
-			url = git@github.com:sshgit/vscode.git
-[remote "2"]
-			url = git@github.com:ssh/vscode
-[remote "3"]
-			url = https://github.com/httpsgit/vscode.git
-[remote "4"]
-			url = https://github.com/https/vscode`),
-			[
-				'https://github.com/sshgit/vscode/',
-				'https://github.com/ssh/vscode/',
-				'https://github.com/httpsgit/vscode/',
-				'https://github.com/https/vscode/'
-			]);
-	});
-});
 
 suite('Link protection domain matching', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

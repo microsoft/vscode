@@ -9,8 +9,8 @@
  * exist.
  */
 
-import { Lazy } from 'vs/base/common/lazy';
-import { OperatingSystem } from 'vs/base/common/platform';
+import { Lazy } from '../../../../../base/common/lazy.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
 
 export interface IParsedLink {
 	path: ILinkPartialRange;
@@ -84,12 +84,13 @@ function generateLinkSuffixRegex(eolOnly: boolean) {
 		// foo#339
 		// foo#339:12                              [#190288]
 		// foo#339.12
+		// foo, 339                                [#217927]
 		// "foo",339
 		// "foo",339:12
 		// "foo",339.12
 		// "foo",339.12-789
 		// "foo",339.12-341.789
-		`(?::|#| |['"],)${r()}([:.]${c()}(?:-(?:${re()}\\.)?${ce()})?)?` + eolSuffix,
+		`(?::|#| |['"],|, )${r()}([:.]${c()}(?:-(?:${re()}\\.)?${ce()})?)?` + eolSuffix,
 		// The quotes below are optional           [#171652]
 		// "foo", line 339                         [#40468]
 		// "foo", line 339, col 12
@@ -109,14 +110,19 @@ function generateLinkSuffixRegex(eolOnly: boolean) {
 		// "foo", lines 339-341                    [#171880]
 		// "foo", lines 339-341, characters 12-789 [#178287]
 		`['"]?(?:,? |: ?| on )lines? ${r()}(?:-${re()})?(?:,? (?:col(?:umn)?|characters?) ${c()}(?:-${ce()})?)?` + eolSuffix,
+		// () and [] are interchangeable
 		// foo(339)
 		// foo(339,12)
 		// foo(339, 12)
 		// foo (339)
-		//   ...
+		// foo (339,12)
+		// foo (339, 12)
 		// foo: (339)
-		//   ...
-		`:? ?[\\[\\(]${r()}(?:, ?${c()})?[\\]\\)]` + eolSuffix,
+		// foo: (339,12)
+		// foo: (339, 12)
+		// foo(339:12)                             [#229842]
+		// foo (339:12)                            [#229842]
+		`:? ?[\\[\\(]${r()}(?:(?:, ?|:)${c()})?[\\]\\)]` + eolSuffix,
 	];
 
 	const suffixClause = lineAndColumnRegexClauses
@@ -276,6 +282,11 @@ function detectLinksViaSuffix(line: string): IParsedLink[] {
 					text: prefixMatch.groups.prefix
 				};
 				path = path.substring(prefix.text.length);
+
+				// Don't allow suffix links to be returned when the link itself is the empty string
+				if (path.trim().length === 0) {
+					continue;
+				}
 
 				// If there are multiple characters in the prefix, trim the prefix if the _first_
 				// suffix character is the same as the last prefix character. For example, for the

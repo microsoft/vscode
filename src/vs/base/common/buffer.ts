@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Lazy } from 'vs/base/common/lazy';
-import * as streams from 'vs/base/common/stream';
+import { Lazy } from './lazy.js';
+import * as streams from './stream.js';
 
 declare const Buffer: any;
 
@@ -174,6 +174,18 @@ export class VSBuffer {
 
 	indexOf(subarray: VSBuffer | Uint8Array, offset = 0) {
 		return binaryIndexOf(this.buffer, subarray instanceof VSBuffer ? subarray.buffer : subarray, offset);
+	}
+
+	equals(other: VSBuffer): boolean {
+		if (this === other) {
+			return true;
+		}
+
+		if (this.byteLength !== other.byteLength) {
+			return false;
+		}
+
+		return this.buffer.every((value, index) => value === other.buffer[index]);
 	}
 }
 

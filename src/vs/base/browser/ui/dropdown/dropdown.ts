@@ -3,17 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
-import { $, addDisposableListener, append, EventHelper, EventType, isMouseEvent } from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { EventType as GestureEventType, Gesture } from 'vs/base/browser/touch';
-import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { IMenuOptions } from 'vs/base/browser/ui/menu/menu';
-import { ActionRunner, IAction } from 'vs/base/common/actions';
-import { Emitter } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import 'vs/css!./dropdown';
+import { IContextMenuProvider } from '../../contextmenu.js';
+import { $, addDisposableListener, append, EventHelper, EventType, isMouseEvent } from '../../dom.js';
+import { StandardKeyboardEvent } from '../../keyboardEvent.js';
+import { EventType as GestureEventType, Gesture } from '../../touch.js';
+import { AnchorAlignment } from '../contextview/contextview.js';
+import type { IManagedHover } from '../hover/hover.js';
+import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
+import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
+import { IMenuOptions } from '../menu/menu.js';
+import { ActionRunner, IAction } from '../../../common/actions.js';
+import { Emitter } from '../../../common/event.js';
+import { KeyCode } from '../../../common/keyCodes.js';
+import { IDisposable } from '../../../common/lifecycle.js';
+import './dropdown.css';
 
 export interface ILabelRenderer {
 	(container: HTMLElement): IDisposable | null;
@@ -33,6 +36,8 @@ class BaseDropdown extends ActionRunner {
 	private visible: boolean | undefined;
 	private _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
+
+	private hover: IManagedHover | undefined;
 
 	constructor(container: HTMLElement, options: IBaseDropdownOptions) {
 		super();
@@ -70,7 +75,7 @@ class BaseDropdown extends ActionRunner {
 			}));
 		}
 
-		this._register(addDisposableListener(this._label, EventType.KEY_UP, e => {
+		this._register(addDisposableListener(this._label, EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				EventHelper.stop(e, true); // https://github.com/microsoft/vscode/issues/57997
@@ -101,7 +106,11 @@ class BaseDropdown extends ActionRunner {
 
 	set tooltip(tooltip: string) {
 		if (this._label) {
-			this._label.title = tooltip;
+			if (!this.hover && tooltip !== '') {
+				this.hover = this._register(getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('mouse'), this._label, tooltip));
+			} else if (this.hover) {
+				this.hover.update(tooltip);
+			}
 		}
 	}
 
@@ -150,6 +159,12 @@ class BaseDropdown extends ActionRunner {
 
 export interface IActionProvider {
 	getActions(): readonly IAction[];
+}
+
+export function isActionProvider(obj: unknown): obj is IActionProvider {
+	const candidate = obj as IActionProvider | undefined;
+
+	return typeof candidate?.getActions === 'function';
 }
 
 export interface IDropdownMenuOptions extends IBaseDropdownOptions {

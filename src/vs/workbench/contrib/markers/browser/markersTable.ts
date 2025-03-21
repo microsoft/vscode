@@ -3,33 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import * as DOM from 'vs/base/browser/dom';
-import { Event } from 'vs/base/common/event';
-import { ITableContextMenuEvent, ITableEvent, ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IOpenEvent, IWorkbenchTableOptions, WorkbenchTable } from 'vs/platform/list/browser/listService';
-import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { compareMarkersByUri, Marker, MarkerTableItem, ResourceMarkers } from 'vs/workbench/contrib/markers/browser/markersModel';
-import { MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { SeverityIcon } from 'vs/platform/severityIcon/browser/severityIcon';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { FilterOptions } from 'vs/workbench/contrib/markers/browser/markersFilterOptions';
-import { Link } from 'vs/platform/opener/browser/link';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { MarkersViewModel } from 'vs/workbench/contrib/markers/browser/markersTreeViewer';
-import { IAction } from 'vs/base/common/actions';
-import { QuickFixAction, QuickFixActionViewItem } from 'vs/workbench/contrib/markers/browser/markersViewActions';
-import { DomEmitter } from 'vs/base/browser/event';
-import Messages from 'vs/workbench/contrib/markers/browser/messages';
-import { isUndefinedOrNull } from 'vs/base/common/types';
-import { IProblemsWidget } from 'vs/workbench/contrib/markers/browser/markersView';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { Range } from 'vs/editor/common/core/range';
-import { unsupportedSchemas } from 'vs/platform/markers/common/markerService';
-import Severity from 'vs/base/common/severity';
+import { localize } from '../../../../nls.js';
+import * as DOM from '../../../../base/browser/dom.js';
+import { Event } from '../../../../base/common/event.js';
+import { ITableContextMenuEvent, ITableEvent, ITableRenderer, ITableVirtualDelegate } from '../../../../base/browser/ui/table/table.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IOpenEvent, IWorkbenchTableOptions, WorkbenchTable } from '../../../../platform/list/browser/listService.js';
+import { HighlightedLabel } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
+import { compareMarkersByUri, Marker, MarkerTableItem, ResourceMarkers } from './markersModel.js';
+import { MarkerSeverity } from '../../../../platform/markers/common/markers.js';
+import { SeverityIcon } from '../../../../base/browser/ui/severityIcon/severityIcon.js';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { FilterOptions } from './markersFilterOptions.js';
+import { Link } from '../../../../platform/opener/browser/link.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { MarkersViewModel } from './markersTreeViewer.js';
+import { IAction } from '../../../../base/common/actions.js';
+import { QuickFixAction, QuickFixActionViewItem } from './markersViewActions.js';
+import { DomEmitter } from '../../../../base/browser/event.js';
+import Messages from './messages.js';
+import { isUndefinedOrNull } from '../../../../base/common/types.js';
+import { IProblemsWidget } from './markersView.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { unsupportedSchemas } from '../../../../platform/markers/common/markerService.js';
+import Severity from '../../../../base/common/severity.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 const $ = DOM.$;
 
@@ -43,6 +44,7 @@ interface IMarkerCodeColumnTemplateData {
 	readonly sourceLabel: HighlightedLabel;
 	readonly codeLabel: HighlightedLabel;
 	readonly codeLink: Link;
+	readonly templateDisposable: DisposableStore;
 }
 
 interface IMarkerFileColumnTemplateData {
@@ -74,8 +76,7 @@ class MarkerSeverityColumnRenderer implements ITableRenderer<MarkerTableItem, IM
 
 		const actionBarColumn = DOM.append(container, $('.actions'));
 		const actionBar = new ActionBar(actionBarColumn, {
-			actionViewItemProvider: (action: IAction) => action.id === QuickFixAction.ID ? this.instantiationService.createInstance(QuickFixActionViewItem, <QuickFixAction>action) : undefined,
-			animated: false
+			actionViewItemProvider: (action: IAction, options) => action.id === QuickFixAction.ID ? this.instantiationService.createInstance(QuickFixActionViewItem, <QuickFixAction>action, options) : undefined
 		});
 
 		return { actionBar, icon };
@@ -118,21 +119,23 @@ class MarkerCodeColumnRenderer implements ITableRenderer<MarkerTableItem, IMarke
 	readonly templateId: string = MarkerCodeColumnRenderer.TEMPLATE_ID;
 
 	constructor(
+		@IHoverService private readonly hoverService: IHoverService,
 		@IOpenerService private readonly openerService: IOpenerService
 	) { }
 
 	renderTemplate(container: HTMLElement): IMarkerCodeColumnTemplateData {
+		const templateDisposable = new DisposableStore();
 		const codeColumn = DOM.append(container, $('.code'));
 
-		const sourceLabel = new HighlightedLabel(codeColumn);
+		const sourceLabel = templateDisposable.add(new HighlightedLabel(codeColumn));
 		sourceLabel.element.classList.add('source-label');
 
-		const codeLabel = new HighlightedLabel(codeColumn);
+		const codeLabel = templateDisposable.add(new HighlightedLabel(codeColumn));
 		codeLabel.element.classList.add('code-label');
 
-		const codeLink = new Link(codeColumn, { href: '', label: '' }, {}, this.openerService);
+		const codeLink = templateDisposable.add(new Link(codeColumn, { href: '', label: '' }, {}, this.hoverService, this.openerService));
 
-		return { codeColumn, sourceLabel, codeLabel, codeLink };
+		return { codeColumn, sourceLabel, codeLabel, codeLink, templateDisposable };
 	}
 
 	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerCodeColumnTemplateData, height: number | undefined): void {
@@ -150,12 +153,12 @@ class MarkerCodeColumnRenderer implements ITableRenderer<MarkerTableItem, IMarke
 				templateData.codeColumn.title = `${element.marker.source} (${element.marker.code.value})`;
 				templateData.sourceLabel.set(element.marker.source, element.sourceMatches);
 
-				const codeLinkLabel = new HighlightedLabel($('.code-link-label'));
+				const codeLinkLabel = templateData.templateDisposable.add(new HighlightedLabel($('.code-link-label')));
 				codeLinkLabel.set(element.marker.code.value, element.codeMatches);
 
 				templateData.codeLink.link = {
-					href: element.marker.code.target.toString(),
-					title: element.marker.code.target.toString(),
+					href: element.marker.code.target.toString(true),
+					title: element.marker.code.target.toString(true),
 					label: codeLinkLabel.element,
 				};
 			}
@@ -165,7 +168,9 @@ class MarkerCodeColumnRenderer implements ITableRenderer<MarkerTableItem, IMarke
 		}
 	}
 
-	disposeTemplate(templateData: IMarkerCodeColumnTemplateData): void { }
+	disposeTemplate(templateData: IMarkerCodeColumnTemplateData): void {
+		templateData.templateDisposable.dispose();
+	}
 }
 
 class MarkerMessageColumnRenderer implements ITableRenderer<MarkerTableItem, IMarkerHighlightedLabelColumnTemplateData> {
@@ -186,7 +191,9 @@ class MarkerMessageColumnRenderer implements ITableRenderer<MarkerTableItem, IMa
 		templateData.highlightedLabel.set(element.marker.message, element.messageMatches);
 	}
 
-	disposeTemplate(templateData: IMarkerHighlightedLabelColumnTemplateData): void { }
+	disposeTemplate(templateData: IMarkerHighlightedLabelColumnTemplateData): void {
+		templateData.highlightedLabel.dispose();
+	}
 }
 
 class MarkerFileColumnRenderer implements ITableRenderer<MarkerTableItem, IMarkerFileColumnTemplateData> {
@@ -217,27 +224,32 @@ class MarkerFileColumnRenderer implements ITableRenderer<MarkerTableItem, IMarke
 		templateData.positionLabel.set(positionLabel, undefined);
 	}
 
-	disposeTemplate(templateData: IMarkerFileColumnTemplateData): void { }
+	disposeTemplate(templateData: IMarkerFileColumnTemplateData): void {
+		templateData.fileLabel.dispose();
+		templateData.positionLabel.dispose();
+	}
 }
 
-class MarkerOwnerColumnRenderer implements ITableRenderer<MarkerTableItem, IMarkerHighlightedLabelColumnTemplateData> {
+class MarkerSourceColumnRenderer implements ITableRenderer<MarkerTableItem, IMarkerHighlightedLabelColumnTemplateData> {
 
-	static readonly TEMPLATE_ID = 'owner';
+	static readonly TEMPLATE_ID = 'source';
 
-	readonly templateId: string = MarkerOwnerColumnRenderer.TEMPLATE_ID;
+	readonly templateId: string = MarkerSourceColumnRenderer.TEMPLATE_ID;
 
 	renderTemplate(container: HTMLElement): IMarkerHighlightedLabelColumnTemplateData {
-		const columnElement = DOM.append(container, $('.owner'));
+		const columnElement = DOM.append(container, $('.source'));
 		const highlightedLabel = new HighlightedLabel(columnElement);
 		return { columnElement, highlightedLabel };
 	}
 
 	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerHighlightedLabelColumnTemplateData, height: number | undefined): void {
-		templateData.columnElement.title = element.marker.owner;
-		templateData.highlightedLabel.set(element.marker.owner, element.ownerMatches);
+		templateData.columnElement.title = element.marker.source ?? '';
+		templateData.highlightedLabel.set(element.marker.source ?? '', element.sourceMatches);
 	}
 
-	disposeTemplate(templateData: IMarkerHighlightedLabelColumnTemplateData): void { }
+	disposeTemplate(templateData: IMarkerHighlightedLabelColumnTemplateData): void {
+		templateData.highlightedLabel.dispose();
+	}
 }
 
 class MarkersTableVirtualDelegate implements ITableVirtualDelegate<any> {
@@ -309,7 +321,7 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 					weight: 1,
 					minimumWidth: 100,
 					maximumWidth: 300,
-					templateId: MarkerOwnerColumnRenderer.TEMPLATE_ID,
+					templateId: MarkerSourceColumnRenderer.TEMPLATE_ID,
 					project(row: Marker): Marker { return row; }
 				}
 			],
@@ -318,7 +330,7 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 				this.instantiationService.createInstance(MarkerCodeColumnRenderer),
 				this.instantiationService.createInstance(MarkerMessageColumnRenderer),
 				this.instantiationService.createInstance(MarkerFileColumnRenderer),
-				this.instantiationService.createInstance(MarkerOwnerColumnRenderer),
+				this.instantiationService.createInstance(MarkerSourceColumnRenderer),
 			],
 			options
 		) as WorkbenchTable<MarkerTableItem>;
@@ -442,11 +454,10 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 					const codeMatches = marker.marker.code ? FilterOptions._filter(this.filterOptions.textFilter.text, typeof marker.marker.code === 'string' ? marker.marker.code : marker.marker.code.value) ?? undefined : undefined;
 					const messageMatches = FilterOptions._messageFilter(this.filterOptions.textFilter.text, marker.marker.message) ?? undefined;
 					const fileMatches = FilterOptions._messageFilter(this.filterOptions.textFilter.text, this.labelService.getUriLabel(marker.resource, { relative: true })) ?? undefined;
-					const ownerMatches = FilterOptions._messageFilter(this.filterOptions.textFilter.text, marker.marker.owner) ?? undefined;
 
-					const matched = sourceMatches || codeMatches || messageMatches || fileMatches || ownerMatches;
+					const matched = sourceMatches || codeMatches || messageMatches || fileMatches;
 					if ((matched && !this.filterOptions.textFilter.negate) || (!matched && this.filterOptions.textFilter.negate)) {
-						items.push(new MarkerTableItem(marker, sourceMatches, codeMatches, messageMatches, fileMatches, ownerMatches));
+						items.push(new MarkerTableItem(marker, sourceMatches, codeMatches, messageMatches, fileMatches));
 					}
 
 					continue;

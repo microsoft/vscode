@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as electron from 'electron';
-import { memoize } from 'vs/base/common/decorators';
-import { Event } from 'vs/base/common/event';
-import { hash } from 'vs/base/common/hash';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { ILifecycleMainService, IRelaunchHandler, IRelaunchOptions } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IUpdate, State, StateType, UpdateType } from 'vs/platform/update/common/update';
-import { AbstractUpdateService, createUpdateURL, UpdateErrorClassification, UpdateNotAvailableClassification } from 'vs/platform/update/electron-main/abstractUpdateService';
+import { memoize } from '../../../base/common/decorators.js';
+import { Event } from '../../../base/common/event.js';
+import { hash } from '../../../base/common/hash.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
+import { ILifecycleMainService, IRelaunchHandler, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
+import { ILogService } from '../../log/common/log.js';
+import { IProductService } from '../../product/common/productService.js';
+import { IRequestService } from '../../request/common/request.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { IUpdate, State, StateType, UpdateType } from '../common/update.js';
+import { AbstractUpdateService, createUpdateURL, UpdateErrorClassification } from './abstractUpdateService.js';
 
 export class DarwinUpdateService extends AbstractUpdateService implements IRelaunchHandler {
 
@@ -24,8 +24,8 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 
 	@memoize private get onRawError(): Event<string> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'error', (_, message) => message); }
 	@memoize private get onRawUpdateNotAvailable(): Event<void> { return Event.fromNodeEventEmitter<void>(electron.autoUpdater, 'update-not-available'); }
-	@memoize private get onRawUpdateAvailable(): Event<IUpdate> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'update-available', (_, url, version) => ({ url, version, productVersion: version })); }
-	@memoize private get onRawUpdateDownloaded(): Event<IUpdate> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'update-downloaded', (_, releaseNotes, version, date) => ({ releaseNotes, version, productVersion: version, date })); }
+	@memoize private get onRawUpdateAvailable(): Event<void> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'update-available'); }
+	@memoize private get onRawUpdateDownloaded(): Event<IUpdate> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'update-downloaded', (_, releaseNotes, version, timestamp) => ({ version, productVersion: version, timestamp })); }
 
 	constructor(
 		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
@@ -96,12 +96,12 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 		electron.autoUpdater.checkForUpdates();
 	}
 
-	private onUpdateAvailable(update: IUpdate): void {
+	private onUpdateAvailable(): void {
 		if (this.state.type !== StateType.CheckingForUpdates) {
 			return;
 		}
 
-		this.setState(State.Downloading(update));
+		this.setState(State.Downloading);
 	}
 
 	private onUpdateDownloaded(update: IUpdate): void {
@@ -109,12 +109,14 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 			return;
 		}
 
+		this.setState(State.Downloaded(update));
+
 		type UpdateDownloadedClassification = {
 			owner: 'joaomoreno';
-			version: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version number of the new VS Code that has been downloaded.' };
+			newVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version number of the new VS Code that has been downloaded.' };
 			comment: 'This is used to know how often VS Code has successfully downloaded the update.';
 		};
-		this.telemetryService.publicLog2<{ version: String }, UpdateDownloadedClassification>('update:downloaded', { version: update.version });
+		this.telemetryService.publicLog2<{ newVersion: String }, UpdateDownloadedClassification>('update:downloaded', { newVersion: update.version });
 
 		this.setState(State.Ready(update));
 	}
@@ -123,7 +125,6 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 		if (this.state.type !== StateType.CheckingForUpdates) {
 			return;
 		}
-		this.telemetryService.publicLog2<{ explicit: boolean }, UpdateNotAvailableClassification>('update:notAvailable', { explicit: this.state.explicit });
 
 		this.setState(State.Idle(UpdateType.Archive));
 	}

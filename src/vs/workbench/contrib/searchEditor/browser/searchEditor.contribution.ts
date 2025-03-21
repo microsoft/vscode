@@ -3,40 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { extname, isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { Range } from 'vs/editor/common/core/range';
-import { ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding } from 'vs/editor/contrib/find/browser/findModel';
-import { localize, localize2 } from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
-import { IEditorSerializer, IEditorFactoryRegistry, EditorExtensions, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
-import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { getSearchView } from 'vs/workbench/contrib/search/browser/searchActionsBase';
-import { searchNewEditorIcon, searchRefreshIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
-import * as SearchConstants from 'vs/workbench/contrib/search/common/constants';
-import * as SearchEditorConstants from 'vs/workbench/contrib/searchEditor/browser/constants';
-import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
-import { createEditorFromSearchResult, modifySearchEditorContextLinesCommand, openNewSearchEditor, openSearchEditor, selectAllSearchEditorMatchesCommand, toggleSearchEditorCaseSensitiveCommand, toggleSearchEditorContextLinesCommand, toggleSearchEditorRegexCommand, toggleSearchEditorWholeWordCommand } from 'vs/workbench/contrib/searchEditor/browser/searchEditorActions';
-import { getOrMakeSearchEditorInput, SearchConfiguration, SearchEditorInput, SEARCH_EDITOR_EXT } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { VIEW_ID } from 'vs/workbench/services/search/common/search';
-import { RegisteredEditorPriority, IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
-import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { getActiveElement } from 'vs/base/browser/dom';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { extname, isEqual } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding } from '../../../../editor/contrib/find/browser/findModel.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { IEditorSerializer, IEditorFactoryRegistry, EditorExtensions, DEFAULT_EDITOR_ASSOCIATION } from '../../../common/editor.js';
+import { ActiveEditorContext } from '../../../common/contextkeys.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { getSearchView } from '../../search/browser/searchActionsBase.js';
+import { searchNewEditorIcon, searchRefreshIcon } from '../../search/browser/searchIcons.js';
+import * as SearchConstants from '../../search/common/constants.js';
+import * as SearchEditorConstants from './constants.js';
+import { SearchEditor } from './searchEditor.js';
+import { createEditorFromSearchResult, modifySearchEditorContextLinesCommand, openNewSearchEditor, openSearchEditor, selectAllSearchEditorMatchesCommand, toggleSearchEditorCaseSensitiveCommand, toggleSearchEditorContextLinesCommand, toggleSearchEditorRegexCommand, toggleSearchEditorWholeWordCommand } from './searchEditorActions.js';
+import { getOrMakeSearchEditorInput, SearchEditorInput, SEARCH_EDITOR_EXT } from './searchEditorInput.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { VIEW_ID } from '../../../services/search/common/search.js';
+import { RegisteredEditorPriority, IEditorResolverService } from '../../../services/editor/common/editorResolverService.js';
+import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from '../../../services/workingCopy/common/workingCopyEditorService.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IWorkingCopyIdentifier } from '../../../services/workingCopy/common/workingCopy.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { getActiveElement } from '../../../../base/browser/dom.js';
 
 
 const OpenInEditorCommandId = 'search.action.openInEditor';
@@ -104,7 +104,7 @@ registerWorkbenchContribution2(SearchEditorContribution.ID, SearchEditorContribu
 //#endregion
 
 //#region Input Serializer
-type SerializedSearchEditor = { modelUri: string | undefined; dirty: boolean; config: SearchConfiguration; name: string; matchRanges: Range[]; backingUri: string };
+type SerializedSearchEditor = { modelUri: string | undefined; dirty: boolean; config?: SearchEditorConstants.SearchConfiguration; name: string; matchRanges: Range[]; backingUri?: string };
 
 class SearchEditorInputSerializer implements IEditorSerializer {
 
@@ -113,8 +113,12 @@ class SearchEditorInputSerializer implements IEditorSerializer {
 	}
 
 	serialize(input: SearchEditorInput) {
+		if (!this.canSerialize(input)) {
+			return undefined;
+		}
+
 		if (input.isDisposed()) {
-			return JSON.stringify({ modelUri: undefined, dirty: false, config: input.tryReadConfigSync(), name: input.getName(), matchRanges: [], backingUri: input.backingUri?.toString() } as SerializedSearchEditor);
+			return JSON.stringify({ modelUri: undefined, dirty: false, config: input.tryReadConfigSync(), name: input.getName(), matchRanges: [], backingUri: input.backingUri?.toString() } satisfies SerializedSearchEditor);
 		}
 
 		let modelUri = undefined;
@@ -127,7 +131,7 @@ class SearchEditorInputSerializer implements IEditorSerializer {
 		const matchRanges = dirty ? input.getMatchRanges() : [];
 		const backingUri = input.backingUri;
 
-		return JSON.stringify({ modelUri, dirty, config, name: input.getName(), matchRanges, backingUri: backingUri?.toString() } as SerializedSearchEditor);
+		return JSON.stringify({ modelUri, dirty, config, name: input.getName(), matchRanges, backingUri: backingUri?.toString() } satisfies SerializedSearchEditor);
 	}
 
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): SearchEditorInput | undefined {
@@ -203,7 +207,7 @@ const translateLegacyConfig = (legacyConfig: LegacySearchEditorArgs & OpenSearch
 	return config;
 };
 
-export type OpenSearchEditorArgs = Partial<SearchConfiguration & { triggerSearch: boolean; focusResults: boolean; location: 'reuse' | 'new' }>;
+export type OpenSearchEditorArgs = Partial<SearchEditorConstants.SearchConfiguration & { triggerSearch: boolean; focusResults: boolean; location: 'reuse' | 'new' }>;
 const openArgMetadata = {
 	description: 'Open a new search editor. Arguments passed can include variables like ${relativeFileDirname}.',
 	args: [{

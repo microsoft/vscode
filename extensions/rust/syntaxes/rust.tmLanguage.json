@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dustypomerleau/rust-syntax/commit/ffa06ae9d52ea5464d3047cdbdc6bb970a665d23",
+	"version": "https://github.com/dustypomerleau/rust-syntax/commit/e90d3dbdb61b96e4afdce6f7a3572426b1a86d9d",
 	"name": "Rust",
 	"scopeName": "source.rust",
 	"patterns": [
@@ -482,10 +482,13 @@
 							"name": "punctuation.brackets.angle.rust"
 						}
 					},
-					"end": "\\{|;",
+					"end": "(\\{)|(;)",
 					"endCaptures": {
-						"0": {
+						"1": {
 							"name": "punctuation.brackets.curly.rust"
+						},
+						"2": {
+							"name": "punctuation.semi.rust"
 						}
 					},
 					"patterns": [
@@ -709,7 +712,7 @@
 				{
 					"comment": "other keywords",
 					"name": "keyword.other.rust",
-					"match": "\\b(as|async|become|box|dyn|move|final|impl|in|override|priv|pub|ref|typeof|union|unsafe|unsized|use|virtual|where)\\b"
+					"match": "\\b(as|async|become|box|dyn|move|final|gen|impl|in|override|priv|pub|ref|typeof|union|unsafe|unsized|use|virtual|where)\\b"
 				},
 				{
 					"comment": "fn",
@@ -820,7 +823,7 @@
 				{
 					"comment": "dashrocket, skinny arrow",
 					"name": "keyword.operator.arrow.skinny.rust",
-					"match": "->"
+					"match": "->|<-"
 				},
 				{
 					"comment": "hashrocket, fat arrow",

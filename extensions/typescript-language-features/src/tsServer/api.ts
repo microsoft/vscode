@@ -13,16 +13,7 @@ export class API {
 	}
 
 	public static readonly defaultVersion = API.fromSimpleString('1.0.0');
-	public static readonly v300 = API.fromSimpleString('3.0.0');
-	public static readonly v310 = API.fromSimpleString('3.1.0');
-	public static readonly v314 = API.fromSimpleString('3.1.4');
-	public static readonly v320 = API.fromSimpleString('3.2.0');
-	public static readonly v333 = API.fromSimpleString('3.3.3');
-	public static readonly v340 = API.fromSimpleString('3.4.0');
-	public static readonly v350 = API.fromSimpleString('3.5.0');
-	public static readonly v370 = API.fromSimpleString('3.7.0');
 	public static readonly v380 = API.fromSimpleString('3.8.0');
-	public static readonly v381 = API.fromSimpleString('3.8.1');
 	public static readonly v390 = API.fromSimpleString('3.9.0');
 	public static readonly v400 = API.fromSimpleString('4.0.0');
 	public static readonly v401 = API.fromSimpleString('4.0.1');
@@ -35,7 +26,10 @@ export class API {
 	public static readonly v500 = API.fromSimpleString('5.0.0');
 	public static readonly v510 = API.fromSimpleString('5.1.0');
 	public static readonly v520 = API.fromSimpleString('5.2.0');
+	public static readonly v544 = API.fromSimpleString('5.4.4');
 	public static readonly v540 = API.fromSimpleString('5.4.0');
+	public static readonly v560 = API.fromSimpleString('5.6.0');
+	public static readonly v570 = API.fromSimpleString('5.7.0');
 
 	public static fromVersionString(versionString: string): API {
 		let version = semver.valid(versionString);
@@ -78,5 +72,9 @@ export class API {
 
 	public lt(other: API): boolean {
 		return !this.gte(other);
+	}
+
+	public isYarnPnp(): boolean {
+		return this.fullVersionString.includes('-sdk');
 	}
 }

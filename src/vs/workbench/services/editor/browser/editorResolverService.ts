@@ -3,31 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as glob from 'vs/base/common/glob';
-import { distinct, firstOrDefault, flatten, insert } from 'vs/base/common/arrays';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { basename, extname, isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { EditorActivation, EditorResolution, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor, EditorInputWithOptions, IResourceSideBySideEditorInput, isEditorInputWithOptions, isEditorInputWithOptionsAndGroup, isResourceDiffEditorInput, isResourceSideBySideEditorInput, isUntitledResourceEditorInput, isResourceMergeEditorInput, IUntypedEditorInput, SideBySideEditor, isResourceDiffListEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { Schemas } from 'vs/base/common/network';
-import { RegisteredEditorInfo, RegisteredEditorPriority, RegisteredEditorOptions, EditorAssociation, EditorAssociations, editorsAssociationsSettingId, globMatchesResource, IEditorResolverService, priorityToRank, ResolvedEditor, ResolvedStatus, EditorInputFactoryObject } from 'vs/workbench/services/editor/common/editorResolverService';
-import { QuickPickItem, IKeyMods, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { localize } from 'vs/nls';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
-import { findGroup } from 'vs/workbench/services/editor/common/editorGroupFinder';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { PreferredGroup } from 'vs/workbench/services/editor/common/editorService';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { PauseableEmitter } from 'vs/base/common/event';
+import * as glob from '../../../../base/common/glob.js';
+import { distinct, insert } from '../../../../base/common/arrays.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { basename, extname, isEqual } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { EditorActivation, EditorResolution, IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor, EditorInputWithOptions, IResourceSideBySideEditorInput, isEditorInputWithOptions, isEditorInputWithOptionsAndGroup, isResourceDiffEditorInput, isResourceSideBySideEditorInput, isUntitledResourceEditorInput, isResourceMergeEditorInput, IUntypedEditorInput, SideBySideEditor, isResourceMultiDiffEditorInput } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { IEditorGroup, IEditorGroupsService } from '../common/editorGroupsService.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { RegisteredEditorInfo, RegisteredEditorPriority, RegisteredEditorOptions, EditorAssociation, EditorAssociations, editorsAssociationsSettingId, globMatchesResource, IEditorResolverService, priorityToRank, ResolvedEditor, ResolvedStatus, EditorInputFactoryObject } from '../common/editorResolverService.js';
+import { QuickPickItem, IKeyMods, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
+import { localize } from '../../../../nls.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IExtensionService } from '../../extensions/common/extensions.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { findGroup } from '../common/editorGroupFinder.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { PreferredGroup } from '../common/editorService.js';
+import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
+import { PauseableEmitter } from '../../../../base/common/event.js';
 
 interface RegisteredEditor {
 	globPattern: string | glob.IRelativePattern;
@@ -62,7 +61,6 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ILogService private readonly logService: ILogService
@@ -78,9 +76,9 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		}));
 
 		// When extensions have registered we no longer need the cache
-		this.extensionService.onDidRegisterExtensions(() => {
+		this._register(this.extensionService.onDidRegisterExtensions(() => {
 			this.cache = undefined;
-		});
+		}));
 	}
 
 	private resolveUntypedInputAndGroup(editor: IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<[IUntypedEditorInput, IEditorGroup, EditorActivation | undefined] | undefined> | [IUntypedEditorInput, IEditorGroup, EditorActivation | undefined] | undefined {
@@ -195,7 +193,6 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		}
 
 		if (input) {
-			this.sendEditorResolutionTelemetry(input.editor);
 			if (input.editor.editorId !== selectedEditor.editorInfo.id) {
 				this.logService.warn(`Editor ID Mismatch: ${input.editor.editorId} !== ${selectedEditor.editorInfo.id}. This will cause bugs. Please ensure editorInput.editorId matches the registered id`);
 			}
@@ -339,7 +336,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	 * Returns all editors as an array. Possible to contain duplicates
 	 */
 	private get _registeredEditors(): RegisteredEditors {
-		return flatten(Array.from(this._flattenedEditors.values()));
+		return Array.from(this._flattenedEditors.values()).flat();
 	}
 
 	updateUserAssociations(globPattern: string, editorID: string): void {
@@ -476,7 +473,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		}
 
 		// If it's a diff list editor we trigger the create diff list editor input
-		if (isResourceDiffListEditorInput(editor)) {
+		if (isResourceMultiDiffEditorInput(editor)) {
 			if (!selectedEditor.editorFactoryObject.createMultiDiffEditorInput) {
 				return;
 			}
@@ -504,9 +501,14 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		// If the editor states it can only be opened once per resource we must close all existing ones except one and move the new one into the group
 		const singleEditorPerResource = typeof selectedEditor.options?.singlePerResource === 'function' ? selectedEditor.options.singlePerResource() : selectedEditor.options?.singlePerResource;
 		if (singleEditorPerResource) {
-			const foundInput = await this.moveExistingEditorForResource(resource, selectedEditor.editorInfo.id, group);
-			if (foundInput) {
-				return { editor: foundInput, options };
+			const existingEditors = this.findExistingEditorsForResource(resource, selectedEditor.editorInfo.id);
+			if (existingEditors.length) {
+				const editor = await this.moveExistingEditorForResource(existingEditors, group);
+				if (editor) {
+					return { editor, options };
+				} else {
+					return; // failed to move
+				}
 			}
 		}
 
@@ -524,27 +526,21 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	}
 
 	/**
-	 * Moves an editor with the resource and viewtype to target group if one exists
+	 * Moves the first existing editor for a resource to the target group unless already opened there.
 	 * Additionally will close any other editors that are open for that resource and viewtype besides the first one found
 	 * @param resource The resource of the editor
 	 * @param viewType the viewtype of the editor
 	 * @param targetGroup The group to move it to
-	 * @returns An editor input if one exists, else undefined
+	 * @returns The moved editor input or `undefined` if the editor could not be moved
 	 */
 	private async moveExistingEditorForResource(
-		resource: URI,
-		viewType: string,
+		existingEditorsForResource: Array<{ editor: EditorInput; group: IEditorGroup }>,
 		targetGroup: IEditorGroup,
 	): Promise<EditorInput | undefined> {
-		const editorInfoForResource = this.findExistingEditorsForResource(resource, viewType);
-		if (!editorInfoForResource.length) {
-			return;
-		}
-
-		const editorToUse = editorInfoForResource[0];
+		const editorToUse = existingEditorsForResource[0];
 
 		// We should only have one editor but if there are multiple we close the others
-		for (const { editor, group } of editorInfoForResource) {
+		for (const { editor, group } of existingEditorsForResource) {
 			if (editor !== editorToUse.editor) {
 				const closed = await group.closeEditor(editor);
 				if (!closed) {
@@ -555,10 +551,13 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 		// Move the editor already opened to the target group
 		if (targetGroup.id !== editorToUse.group.id) {
-			editorToUse.group.moveEditor(editorToUse.editor, targetGroup);
-			return editorToUse.editor;
+			const moved = editorToUse.group.moveEditor(editorToUse.editor, targetGroup);
+			if (!moved) {
+				return;
+			}
 		}
-		return;
+
+		return editorToUse.editor;
 	}
 
 	/**
@@ -643,7 +642,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	}
 
 	private mapEditorsToQuickPickEntry(resource: URI, showDefaultPicker?: boolean) {
-		const currentEditor = firstOrDefault(this.editorGroupService.activeGroup.findEditors(resource));
+		const currentEditor = this.editorGroupService.activeGroup.findEditors(resource).at(0);
 		// If untitled, we want all registered editors
 		let registeredEditors = resource.scheme === Schemas.untitled ? this._registeredEditors.filter(e => e.editorInfo.priority !== RegisteredEditorPriority.exclusive) : this.findMatchingEditors(resource);
 		// We don't want duplicate Id entries
@@ -714,7 +713,8 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		const editorPicks = this.mapEditorsToQuickPickEntry(resource, showDefaultPicker);
 
 		// Create the editor picker
-		const editorPicker = this.quickInputService.createQuickPick<IQuickPickItem>();
+		const disposables = new DisposableStore();
+		const editorPicker = disposables.add(this.quickInputService.createQuickPick<IQuickPickItem>({ useSeparators: true }));
 		const placeHolderMessage = showDefaultPicker ?
 			localize('promptOpenWith.updateDefaultPlaceHolder', "Select new default editor for '{0}'", `*${extname(resource)}`) :
 			localize('promptOpenWith.placeHolder', "Select editor for '{0}'", basename(resource));
@@ -728,7 +728,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 		// Prompt the user to select an editor
 		const picked: EditorPick | undefined = await new Promise<EditorPick | undefined>(resolve => {
-			editorPicker.onDidAccept(e => {
+			disposables.add(editorPicker.onDidAccept(e => {
 				let result: EditorPick | undefined = undefined;
 
 				if (editorPicker.selectedItems.length === 1) {
@@ -745,11 +745,14 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 				}
 
 				resolve(result);
-			});
+			}));
 
-			editorPicker.onDidHide(() => resolve(undefined));
+			disposables.add(editorPicker.onDidHide(() => {
+				disposables.dispose();
+				resolve(undefined);
+			}));
 
-			editorPicker.onDidTriggerItemButton(e => {
+			disposables.add(editorPicker.onDidTriggerItemButton(e => {
 
 				// Trigger opening and close picker
 				resolve({ item: e.item, openInBackground: false });
@@ -758,7 +761,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 				if (resource && e.item && e.item.id) {
 					this.updateUserAssociations(`*${extname(resource)}`, e.item.id,);
 				}
-			});
+			}));
 
 			editorPicker.show();
 		});
@@ -787,20 +790,6 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		}
 
 		return undefined;
-	}
-
-	private sendEditorResolutionTelemetry(chosenInput: EditorInput): void {
-		type editorResolutionClassification = {
-			viewType: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The id of the editor opened. Used to gain an understanding of what editors are most popular' };
-			owner: 'lramos15';
-			comment: 'An event that fires when an editor type is picked';
-		};
-		type editorResolutionEvent = {
-			viewType: string;
-		};
-		if (chosenInput.editorId) {
-			this.telemetryService.publicLog2<editorResolutionEvent, editorResolutionClassification>('override.viewType', { viewType: chosenInput.editorId });
-		}
 	}
 
 	private cacheEditors() {

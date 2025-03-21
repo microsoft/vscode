@@ -3,16 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, ExtensionContext, Uri, l10n } from 'vscode';
+import { Disposable, ExtensionContext, Uri, l10n, window } from 'vscode';
 import { LanguageClientOptions } from 'vscode-languageclient';
-import { startClient, LanguageClientConstructor, SchemaRequestService, AsyncDisposable } from '../jsonClient';
+import { startClient, LanguageClientConstructor, SchemaRequestService, AsyncDisposable, languageServerDescription } from '../jsonClient';
 import { LanguageClient } from 'vscode-languageclient/browser';
-
-declare const Worker: {
-	new(stringUrl: string): any;
-};
-
-declare function fetch(uri: string, options: any): any;
 
 let client: AsyncDisposable | undefined;
 
@@ -24,7 +18,7 @@ export async function activate(context: ExtensionContext) {
 		worker.postMessage({ i10lLocation: l10n.uri?.toString(false) ?? '' });
 
 		const newLanguageClient: LanguageClientConstructor = (id: string, name: string, clientOptions: LanguageClientOptions) => {
-			return new LanguageClient(id, name, clientOptions, worker);
+			return new LanguageClient(id, name, worker, clientOptions);
 		};
 
 		const schemaRequests: SchemaRequestService = {
@@ -43,7 +37,10 @@ export async function activate(context: ExtensionContext) {
 			}
 		};
 
-		client = await startClient(context, newLanguageClient, { schemaRequests, timer });
+		const logOutputChannel = window.createOutputChannel(languageServerDescription, { log: true });
+		context.subscriptions.push(logOutputChannel);
+
+		client = await startClient(context, newLanguageClient, { schemaRequests, timer, logOutputChannel });
 
 	} catch (e) {
 		console.log(e);

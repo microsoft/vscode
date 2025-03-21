@@ -3,8 +3,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-const ts = require("typescript");
+const typescript_1 = __importDefault(require("typescript"));
 const fs_1 = require("fs");
 const path_1 = require("path");
 const minimatch_1 = require("minimatch");
@@ -23,7 +26,6 @@ const minimatch_1 = require("minimatch");
 // Types we assume are present in all implementations of JS VMs (node.js, browsers)
 // Feel free to add more core types as you see needed if present in node.js and browsers
 const CORE_TYPES = [
-    'require', // from our AMD loader
     'setTimeout',
     'clearTimeout',
     'setInterval',
@@ -62,7 +64,27 @@ const CORE_TYPES = [
     'EventTarget',
     'BroadcastChannel',
     'performance',
-    'Blob'
+    'Blob',
+    'crypto',
+    'File',
+    'fetch',
+    'RequestInit',
+    'Headers',
+    'Request',
+    'Response',
+    'Body',
+    '__type',
+    '__global',
+    'Performance',
+    'PerformanceMark',
+    'PerformanceObserver',
+    'ImportMeta',
+    'structuredClone',
+    // webcrypto has been available since Node.js 19, but still live in dom.d.ts
+    'Crypto',
+    'SubtleCrypto',
+    'JsonWebKey',
+    'MessageEvent',
 ];
 // Types that are defined in a common layer but are known to be only
 // available in native environments should not be allowed in browser
@@ -103,6 +125,22 @@ const RULES = [
             // Safe access to requestIdleCallback & cancelIdleCallback
             'requestIdleCallback',
             'cancelIdleCallback'
+        ],
+        disallowedTypes: NATIVE_TYPES,
+        disallowedDefinitions: [
+            'lib.dom.d.ts', // no DOM
+            '@types/node' // no node.js
+        ]
+    },
+    // Common: vs/base/common/performance.ts
+    {
+        target: '**/vs/base/common/performance.ts',
+        allowedTypes: [
+            ...CORE_TYPES,
+            // Safe access to Performance
+            'Performance',
+            'PerformanceEntry',
+            'PerformanceTiming'
         ],
         disallowedTypes: NATIVE_TYPES,
         disallowedDefinitions: [
@@ -164,6 +202,20 @@ const RULES = [
             '@types/node' // no node.js
         ]
     },
+    // Common: vs/base/parts/sandbox/electron-sandbox/preload.ts
+    {
+        target: '**/vs/base/parts/sandbox/electron-sandbox/preload.ts',
+        allowedTypes: [
+            ...CORE_TYPES,
+            // Safe access to a very small subset of node.js
+            'process',
+            'NodeJS'
+        ],
+        disallowedTypes: NATIVE_TYPES,
+        disallowedDefinitions: [
+            '@types/node' // no node.js
+        ]
+    },
     // Common
     {
         target: '**/vs/**/common/**',
@@ -211,6 +263,22 @@ const RULES = [
             '@types/node' // no node.js
         ]
     },
+    // Electron (utility)
+    {
+        target: '**/vs/**/electron-utility/**',
+        allowedTypes: [
+            ...CORE_TYPES,
+            // --> types from electron.d.ts that duplicate from lib.dom.d.ts
+            'Event',
+            'Request'
+        ],
+        disallowedTypes: [
+            'ipcMain' // not allowed, use validatedIpcMain instead
+        ],
+        disallowedDefinitions: [
+            'lib.dom.d.ts' // no DOM
+        ]
+    },
     // Electron (main)
     {
         target: '**/vs/**/electron-main/**',
@@ -233,8 +301,8 @@ let hasErrors = false;
 function checkFile(program, sourceFile, rule) {
     checkNode(sourceFile);
     function checkNode(node) {
-        if (node.kind !== ts.SyntaxKind.Identifier) {
-            return ts.forEachChild(node, checkNode); // recurse down
+        if (node.kind !== typescript_1.default.SyntaxKind.Identifier) {
+            return typescript_1.default.forEachChild(node, checkNode); // recurse down
         }
         const checker = program.getTypeChecker();
         const symbol = checker.getSymbolAtLocation(node);
@@ -290,11 +358,11 @@ function checkFile(program, sourceFile, rule) {
     }
 }
 function createProgram(tsconfigPath) {
-    const tsConfig = ts.readConfigFile(tsconfigPath, ts.sys.readFile);
-    const configHostParser = { fileExists: fs_1.existsSync, readDirectory: ts.sys.readDirectory, readFile: file => (0, fs_1.readFileSync)(file, 'utf8'), useCaseSensitiveFileNames: process.platform === 'linux' };
-    const tsConfigParsed = ts.parseJsonConfigFileContent(tsConfig.config, configHostParser, (0, path_1.resolve)((0, path_1.dirname)(tsconfigPath)), { noEmit: true });
-    const compilerHost = ts.createCompilerHost(tsConfigParsed.options, true);
-    return ts.createProgram(tsConfigParsed.fileNames, tsConfigParsed.options, compilerHost);
+    const tsConfig = typescript_1.default.readConfigFile(tsconfigPath, typescript_1.default.sys.readFile);
+    const configHostParser = { fileExists: fs_1.existsSync, readDirectory: typescript_1.default.sys.readDirectory, readFile: file => (0, fs_1.readFileSync)(file, 'utf8'), useCaseSensitiveFileNames: process.platform === 'linux' };
+    const tsConfigParsed = typescript_1.default.parseJsonConfigFileContent(tsConfig.config, configHostParser, (0, path_1.resolve)((0, path_1.dirname)(tsconfigPath)), { noEmit: true });
+    const compilerHost = typescript_1.default.createCompilerHost(tsConfigParsed.options, true);
+    return typescript_1.default.createProgram(tsConfigParsed.fileNames, tsConfigParsed.options, compilerHost);
 }
 //
 // Create program and start checking

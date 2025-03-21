@@ -36,9 +36,9 @@ export interface NativeParsedArgs {
 	diff?: boolean;
 	merge?: boolean;
 	add?: boolean;
+	remove?: boolean;
 	goto?: boolean;
 	'new-window'?: boolean;
-	'unity-launch'?: boolean; // Always open a new window, except if opening the first window or opening a file or folder as part of the launch.
 	'reuse-window'?: boolean;
 	locale?: string;
 	'user-data-dir'?: string;
@@ -51,6 +51,7 @@ export interface NativeParsedArgs {
 	'no-cached-data'?: boolean;
 	verbose?: boolean;
 	trace?: boolean;
+	'trace-memory-infra'?: boolean;
 	'trace-category-filter'?: string;
 	'trace-options'?: string;
 	'open-devtools'?: boolean;
@@ -83,6 +84,7 @@ export interface NativeParsedArgs {
 	'install-builtin-extension'?: string[]; // undefined or array of 1 or more
 	'uninstall-extension'?: string[]; // undefined or array of 1 or more
 	'update-extensions'?: boolean;
+	'do-not-include-pack-dependencies'?: boolean;
 	'locate-extension'?: string[]; // undefined or array of 1 or more
 	'enable-proposed-api'?: string[]; // undefined or array of 1 or more
 	'open-url'?: boolean;
@@ -91,6 +93,7 @@ export interface NativeParsedArgs {
 	'disable-telemetry'?: boolean;
 	'export-default-configuration'?: string;
 	'install-source'?: string;
+	'add-mcp'?: string[];
 	'disable-updates'?: boolean;
 	'use-inmemory-secretstorage'?: boolean;
 	'password-store'?: string;
@@ -130,6 +133,7 @@ export interface NativeParsedArgs {
 	'inspect'?: string;
 	'inspect-brk'?: string;
 	'js-flags'?: string;
+	'disable-lcd-text'?: boolean;
 	'disable-gpu'?: boolean;
 	'disable-gpu-sandbox'?: boolean;
 	'nolazy'?: boolean;
@@ -140,4 +144,10 @@ export interface NativeParsedArgs {
 	'log-net-log'?: string;
 	'vmodule'?: string;
 	'disable-dev-shm-usage'?: boolean;
+	'ozone-platform'?: string;
+	'enable-tracing'?: string;
+	'trace-startup-format'?: string;
+	'trace-startup-file'?: string;
+	'trace-startup-duration'?: string;
+	'xdg-portal-required-version'?: string;
 }

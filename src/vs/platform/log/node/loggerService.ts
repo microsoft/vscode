@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { AbstractLoggerService, ILogger, ILoggerOptions, ILoggerService, LogLevel } from 'vs/platform/log/common/log';
-import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
+import { URI } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
+import { AbstractLoggerService, ILogger, ILoggerOptions, ILoggerService, LogLevel } from '../common/log.js';
+import { SpdLogLogger } from './spdlogLog.js';
 
 export class LoggerService extends AbstractLoggerService implements ILoggerService {
 

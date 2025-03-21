@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-let err = false;
 
 const nodeVersion = /^(\d+)\.(\d+)\.(\d+)/.exec(process.versions.node);
 const majorNodeVersion = parseInt(nodeVersion[1]);
@@ -10,53 +9,33 @@ const minorNodeVersion = parseInt(nodeVersion[2]);
 const patchNodeVersion = parseInt(nodeVersion[3]);
 
 if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
-	if (majorNodeVersion < 18 || (majorNodeVersion === 18 && minorNodeVersion < 15)) {
-		console.error('\x1b[1;31m*** Please use node.js versions >=18.15.x and <19.\x1b[0;0m');
-		err = true;
+	if (majorNodeVersion < 20 || (majorNodeVersion === 20 && minorNodeVersion < 18) || (majorNodeVersion === 20 && minorNodeVersion === 18 && patchNodeVersion < 1)) {
+		console.error('\x1b[1;31m*** Please use Node.js v20.18.1 or later for development.\x1b[0;0m');
+		throw new Error();
 	}
-	if (majorNodeVersion >= 19) {
-		console.warn('\x1b[1;31m*** Warning: Versions of node.js >= 19 have not been tested.\x1b[0;0m')
-	}
+}
+
+if (process.env['npm_execpath'].includes('yarn')) {
+	console.error('\x1b[1;31m*** Seems like you are using `yarn` which is not supported in this repo any more, please use `npm i` instead. ***\x1b[0;0m');
+	throw new Error();
 }
 
 const path = require('path');
 const fs = require('fs');
 const cp = require('child_process');
-const yarnVersion = cp.execSync('yarn -v', { encoding: 'utf8' }).trim();
-const parsedYarnVersion = /^(\d+)\.(\d+)\.(\d+)/.exec(yarnVersion);
-const majorYarnVersion = parseInt(parsedYarnVersion[1]);
-const minorYarnVersion = parseInt(parsedYarnVersion[2]);
-const patchYarnVersion = parseInt(parsedYarnVersion[3]);
-
-if (
-	majorYarnVersion < 1 ||
-	majorYarnVersion === 1 && (
-		minorYarnVersion < 10 || (minorYarnVersion === 10 && patchYarnVersion < 1)
-	) ||
-	majorYarnVersion >= 2
-) {
-	console.error('\x1b[1;31m*** Please use yarn >=1.10.1 and <2.\x1b[0;0m');
-	err = true;
-}
-
-if (!/yarn[\w-.]*\.c?js$|yarnpkg$/.test(process.env['npm_execpath'])) {
-	console.error('\x1b[1;31m*** Please use yarn to install dependencies.\x1b[0;0m');
-	err = true;
-}
+const os = require('os');
 
 if (process.platform === 'win32') {
 	if (!hasSupportedVisualStudioVersion()) {
 		console.error('\x1b[1;31m*** Invalid C/C++ Compiler Toolchain. Please check https://github.com/microsoft/vscode/wiki/How-to-Contribute#prerequisites.\x1b[0;0m');
-		err = true;
+		throw new Error();
 	}
-	if (!err) {
-		installHeaders();
-	}
+	installHeaders();
 }
 
-if (err) {
-	console.error('');
-	process.exit(1);
+if (process.arch !== os.arch()) {
+	console.error(`\x1b[1;31m*** ARCHITECTURE MISMATCH: The node.js process is ${process.arch}, but your OS architecture is ${os.arch()}. ***\x1b[0;0m`);
+	console.error(`\x1b[1;31m*** This can greatly increase the build time of vs code. ***\x1b[0;0m`);
 }
 
 function hasSupportedVisualStudioVersion() {
@@ -76,9 +55,9 @@ function hasSupportedVisualStudioVersion() {
 		const programFiles86Path = process.env['ProgramFiles(x86)'];
 		const programFiles64Path = process.env['ProgramFiles'];
 
+		const vsTypes = ['Enterprise', 'Professional', 'Community', 'Preview', 'BuildTools', 'IntPreview'];
 		if (programFiles64Path) {
 			vsPath = `${programFiles64Path}/Microsoft Visual Studio/${version}`;
-			const vsTypes = ['Enterprise', 'Professional', 'Community', 'Preview', 'BuildTools'];
 			if (vsTypes.some(vsType => fs.existsSync(path.join(vsPath, vsType)))) {
 				availableVersions.push(version);
 				break;
@@ -87,7 +66,6 @@ function hasSupportedVisualStudioVersion() {
 
 		if (programFiles86Path) {
 			vsPath = `${programFiles86Path}/Microsoft Visual Studio/${version}`;
-			const vsTypes = ['Enterprise', 'Professional', 'Community', 'Preview', 'BuildTools'];
 			if (vsTypes.some(vsType => fs.existsSync(path.join(vsPath, vsType)))) {
 				availableVersions.push(version);
 				break;
@@ -98,48 +76,30 @@ function hasSupportedVisualStudioVersion() {
 }
 
 function installHeaders() {
-	const yarn = 'yarn.cmd';
-	const yarnResult = cp.spawnSync(yarn, ['install'], {
+	cp.execSync(`npm.cmd ${process.env['npm_command'] || 'ci'}`, {
 		env: process.env,
 		cwd: path.join(__dirname, 'gyp'),
 		stdio: 'inherit'
 	});
-	if (yarnResult.error || yarnResult.status !== 0) {
-		console.error(`Installing node-gyp failed`);
-		err = true;
-		return;
-	}
 
-	// The node gyp package got installed using the above yarn command using the gyp/package.json
+	// The node gyp package got installed using the above npm command using the gyp/package.json
 	// file checked into our repository. So from that point it is save to construct the path
 	// to that executable
 	const node_gyp = path.join(__dirname, 'gyp', 'node_modules', '.bin', 'node-gyp.cmd');
-	const result = cp.execFileSync(node_gyp, ['list'], { encoding: 'utf8' });
+	const result = cp.execFileSync(node_gyp, ['list'], { encoding: 'utf8', shell: true });
 	const versions = new Set(result.split(/\n/g).filter(line => !line.startsWith('gyp info')).map(value => value));
 
-	const local = getHeaderInfo(path.join(__dirname, '..', '..', '.yarnrc'));
-	const remote = getHeaderInfo(path.join(__dirname, '..', '..', 'remote', '.yarnrc'));
+	const local = getHeaderInfo(path.join(__dirname, '..', '..', '.npmrc'));
+	const remote = getHeaderInfo(path.join(__dirname, '..', '..', 'remote', '.npmrc'));
 
 	if (local !== undefined && !versions.has(local.target)) {
 		// Both disturl and target come from a file checked into our repository
-		cp.execFileSync(node_gyp, ['install', '--dist-url', local.disturl, local.target]);
+		cp.execFileSync(node_gyp, ['install', '--dist-url', local.disturl, local.target], { shell: true });
 	}
 
-	// Avoid downloading headers for Windows arm64 till we move to Nodejs v19 in remote
-	// which is the first official release with support for the architecture. Downloading
-	// the headers for older versions now redirect to https://origin.nodejs.org/404.html
-	// which causes checksum validation error in node-gyp.
-	//
-	// gyp http 200 https://origin.nodejs.org/404.html
-	// gyp WARN install got an error, rolling back install
-	// gyp ERR! install error
-	// gyp ERR! stack Error: win-arm64/node.lib local checksum 4c62bed7a032f7b36984321b7ffdd60b596fac870672037ff879ae9ac9548fb7 not match remote undefined
-	//
-	if (remote !== undefined && !versions.has(remote.target) &&
-		process.env['npm_config_arch'] !== "arm64" &&
-		process.arch !== "arm64") {
+	if (remote !== undefined && !versions.has(remote.target)) {
 		// Both disturl and target come from a file checked into our repository
-		cp.execFileSync(node_gyp, ['install', '--dist-url', remote.disturl, remote.target]);
+		cp.execFileSync(node_gyp, ['install', '--dist-url', remote.disturl, remote.target], { shell: true });
 	}
 }
 
@@ -151,11 +111,11 @@ function getHeaderInfo(rcFile) {
 	const lines = fs.readFileSync(rcFile, 'utf8').split(/\r\n?/g);
 	let disturl, target;
 	for (const line of lines) {
-		let match = line.match(/\s*disturl\s*\"(.*)\"\s*$/);
+		let match = line.match(/\s*disturl=*\"(.*)\"\s*$/);
 		if (match !== null && match.length >= 1) {
 			disturl = match[1];
 		}
-		match = line.match(/\s*target\s*\"(.*)\"\s*$/);
+		match = line.match(/\s*target=*\"(.*)\"\s*$/);
 		if (match !== null && match.length >= 1) {
 			target = match[1];
 		}

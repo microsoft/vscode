@@ -3,19 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { ConfigurationScope, IConfigurationNode, IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { ConfigurationTarget, IConfigurationService, IConfigurationValue, IInspectValue } from 'vs/platform/configuration/common/configuration';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Emitter } from 'vs/base/common/event';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { OperatingSystem, isWindows } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { equals } from 'vs/base/common/objects';
-import { DeferredPromise } from 'vs/base/common/async';
+import { localize } from '../../nls.js';
+import { ConfigurationScope, IConfigurationNode, IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../platform/registry/common/platform.js';
+import { IWorkbenchContribution } from './contributions.js';
+import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../platform/workspace/common/workspace.js';
+import { ConfigurationTarget, IConfigurationService, IConfigurationValue, IInspectValue } from '../../platform/configuration/common/configuration.js';
+import { Disposable } from '../../base/common/lifecycle.js';
+import { Emitter } from '../../base/common/event.js';
+import { IRemoteAgentService } from '../services/remote/common/remoteAgentService.js';
+import { OperatingSystem, isWindows } from '../../base/common/platform.js';
+import { URI } from '../../base/common/uri.js';
+import { equals } from '../../base/common/objects.js';
+import { DeferredPromise } from '../../base/common/async.js';
+import { IUserDataProfile, IUserDataProfilesService } from '../../platform/userDataProfile/common/userDataProfile.js';
 
 export const applicationConfigurationNodeBase = Object.freeze<IConfigurationNode>({
 	'id': 'application',
@@ -44,6 +45,13 @@ export const problemsConfigurationNodeBase = Object.freeze<IConfigurationNode>({
 	'title': localize('problemsConfigurationTitle', "Problems"),
 	'type': 'object',
 	'order': 101
+});
+
+export const windowConfigurationNodeBase = Object.freeze<IConfigurationNode>({
+	'id': 'window',
+	'order': 8,
+	'title': localize('windowConfigurationTitle', "Window"),
+	'type': 'object',
 });
 
 export const Extensions = {
@@ -213,15 +221,84 @@ export class DynamicWorkbenchSecurityConfiguration extends Disposable implements
 					},
 					'default': [],
 					'markdownDescription': localize('security.allowedUNCHosts', 'A set of UNC host names (without leading or trailing backslash, for example `192.168.0.1` or `my-server`) to allow without user confirmation. If a UNC host is being accessed that is not allowed via this setting or has not been acknowledged via user confirmation, an error will occur and the operation stopped. A restart is required when changing this setting. Find out more about this setting at https://aka.ms/vscode-windows-unc.'),
-					'scope': ConfigurationScope.MACHINE
+					'scope': ConfigurationScope.APPLICATION_MACHINE
 				},
 				'security.restrictUNCAccess': {
 					'type': 'boolean',
 					'default': true,
 					'markdownDescription': localize('security.restrictUNCAccess', 'If enabled, only allows access to UNC host names that are allowed by the `#security.allowedUNCHosts#` setting or after user confirmation. Find out more about this setting at https://aka.ms/vscode-windows-unc.'),
-					'scope': ConfigurationScope.MACHINE
+					'scope': ConfigurationScope.APPLICATION_MACHINE
 				}
 			}
 		});
+	}
+}
+
+export const CONFIG_NEW_WINDOW_PROFILE = 'window.newWindowProfile';
+
+export class DynamicWindowConfiguration extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.dynamicWindowConfiguration';
+
+	private configurationNode: IConfigurationNode | undefined;
+	private newWindowProfile: IUserDataProfile | undefined;
+
+	constructor(
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+	) {
+		super();
+		this.registerNewWindowProfileConfiguration();
+		this._register(this.userDataProfilesService.onDidChangeProfiles((e) => this.registerNewWindowProfileConfiguration()));
+
+		this.setNewWindowProfile();
+		this.checkAndResetNewWindowProfileConfig();
+
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.source !== ConfigurationTarget.DEFAULT && e.affectsConfiguration(CONFIG_NEW_WINDOW_PROFILE)) {
+				this.setNewWindowProfile();
+			}
+		}));
+		this._register(this.userDataProfilesService.onDidChangeProfiles(() => this.checkAndResetNewWindowProfileConfig()));
+	}
+
+	private registerNewWindowProfileConfiguration(): void {
+		const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+		const configurationNode: IConfigurationNode = {
+			...windowConfigurationNodeBase,
+			'properties': {
+				[CONFIG_NEW_WINDOW_PROFILE]: {
+					'type': ['string', 'null'],
+					'default': null,
+					'enum': [...this.userDataProfilesService.profiles.map(profile => profile.name), null],
+					'enumItemLabels': [...this.userDataProfilesService.profiles.map(p => ''), localize('active window', "Active Window")],
+					'description': localize('newWindowProfile', "Specifies the profile to use when opening a new window. If a profile name is provided, the new window will use that profile. If no profile name is provided, the new window will use the profile of the active window or the Default profile if no active window exists."),
+					'scope': ConfigurationScope.APPLICATION,
+				}
+			}
+		};
+		if (this.configurationNode) {
+			registry.updateConfigurations({ add: [configurationNode], remove: [this.configurationNode] });
+		} else {
+			registry.registerConfiguration(configurationNode);
+		}
+		this.configurationNode = configurationNode;
+	}
+
+	private setNewWindowProfile(): void {
+		const newWindowProfileName = this.configurationService.getValue(CONFIG_NEW_WINDOW_PROFILE);
+		this.newWindowProfile = newWindowProfileName ? this.userDataProfilesService.profiles.find(profile => profile.name === newWindowProfileName) : undefined;
+	}
+
+	private checkAndResetNewWindowProfileConfig(): void {
+		const newWindowProfileName = this.configurationService.getValue(CONFIG_NEW_WINDOW_PROFILE);
+		if (!newWindowProfileName) {
+			return;
+		}
+		const profile = this.newWindowProfile ? this.userDataProfilesService.profiles.find(profile => profile.id === this.newWindowProfile!.id) : undefined;
+		if (newWindowProfileName === profile?.name) {
+			return;
+		}
+		this.configurationService.updateValue(CONFIG_NEW_WINDOW_PROFILE, profile?.name);
 	}
 }

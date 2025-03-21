@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IModelService } from 'vs/editor/common/services/model';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { IUndoRedoDelegate, MultiModelEditStackElement } from 'vs/editor/common/model/editStack';
+import { IModelService } from './model.js';
+import { ITextModelService } from './resolverService.js';
+import { Disposable, IDisposable, dispose } from '../../../base/common/lifecycle.js';
+import { IUndoRedoService } from '../../../platform/undoRedo/common/undoRedo.js';
+import { IUndoRedoDelegate, MultiModelEditStackElement } from '../model/editStack.js';
 
 export class ModelUndoRedoParticipant extends Disposable implements IUndoRedoDelegate {
 	constructor(
