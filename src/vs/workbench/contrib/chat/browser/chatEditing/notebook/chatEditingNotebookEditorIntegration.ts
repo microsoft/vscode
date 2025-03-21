@@ -287,12 +287,13 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 		}));
 
 		const cellsAreVisible = onDidChangeVisibleRanges.map(v => v.length > 0);
+		const debouncedChanges = debouncedObservable(cellChanges, 10);
 		this._register(autorun(r => {
 			if (this.notebookEditor.textModel !== this.notebookModel || !cellsAreVisible.read(r) || !this.notebookEditor.getViewModel()) {
 				return;
 			}
 			// We can have inserted cells that have been accepted, in those cases we do not want any decorators on them.
-			const changes = debouncedObservable(cellChanges, 10).read(r).filter(c => c.type === 'insert' ? !c.diff.read(r).identical : true);
+			const changes = debouncedChanges.read(r).filter(c => c.type === 'insert' ? !c.diff.read(r).identical : true);
 			const modifiedChanges = changes.filter(c => c.type === 'modified');
 
 			this.createDecorators();
