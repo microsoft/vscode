@@ -228,8 +228,13 @@ export class AttachToolsAction extends Action2 {
 				lastSelectedItems = new Set(items);
 				picker.selectedItems = items;
 
-				widget.input.selectedToolsModel.update(items.filter(isToolPick).map(tool => tool.tool));
-
+				const toolPicks = items.filter(isToolPick);
+				const allTools = picks.filter(isToolPick);
+				if (toolPicks.length === allTools.length) {
+					widget.input.selectedToolsModel.reset();
+				} else {
+					widget.input.selectedToolsModel.update(items.filter(isToolPick).map(tool => tool.tool));
+				}
 			} finally {
 				ignoreEvent = false;
 			}
