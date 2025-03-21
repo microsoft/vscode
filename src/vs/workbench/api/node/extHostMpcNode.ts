@@ -13,6 +13,7 @@ import { LogLevel } from '../../../platform/log/common/log.js';
 import { McpConnectionState, McpServerLaunch, McpServerTransportStdio, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
 import { ExtHostMcpService } from '../common/extHostMcp.js';
 import { IExtHostRpcService } from '../common/extHostRpcService.js';
+import { findExecutable } from '../../../base/node/processes.js';
 
 export class NodeExtHostMpcService extends ExtHostMcpService {
 	constructor(
@@ -79,11 +80,15 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 		const abortCtrl = new AbortController();
 		let child: ChildProcessWithoutNullStreams;
 		try {
-			child = spawn(launch.command, launch.args, {
+			const cwd = launch.cwd ? URI.revive(launch.cwd).fsPath : homedir();
+			const { executable, args, shell } = await formatSubprocessArguments(launch.command, launch.args, cwd, env);
+			this._proxy.$onDidPublishLog(id, LogLevel.Debug, `Server command line: ${executable} ${args.join(' ')}`);
+			child = spawn(executable, args, {
 				stdio: 'pipe',
 				cwd: launch.cwd ? URI.revive(launch.cwd).fsPath : homedir(),
 				signal: abortCtrl.signal,
 				env,
+				shell,
 			});
 		} catch (e) {
 			onError(e);
@@ -123,3 +128,31 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 		this.nodeServers.set(id, { abortCtrl, child });
 	}
 }
+
+const windowsShellScriptRe = /\.(bat|cmd)$/i;
+
+/**
+ * Formats arguments to avoid issues on Windows for CVE-2024-27980.
+ */
+export const formatSubprocessArguments = async (
+	executable: string,
+	args: ReadonlyArray<string>,
+	cwd: string | undefined,
+	env: Record<string, string | undefined>,
+) => {
+	if (process.platform !== 'win32') {
+		return { executable, args, shell: false };
+	}
+
+	const found = await findExecutable(executable, cwd, undefined, env);
+	if (found && windowsShellScriptRe.test(found)) {
+		const quote = (s: string) => s.includes(' ') ? `"${s}"` : s;
+		return {
+			executable: quote(found),
+			args: args.map(quote),
+			shell: true,
+		};
+	}
+
+	return { executable, args, shell: false };
+};
