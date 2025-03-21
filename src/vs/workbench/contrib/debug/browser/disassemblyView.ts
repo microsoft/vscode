@@ -775,8 +775,8 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 		this._focusedStackFrameColor = themeService.getColorTheme().getColor(focusedStackFrameColor);
 
 		this._register(themeService.onDidColorThemeChange(e => {
-			this._topStackFrameColor = e.theme.getColor(topStackFrameColor);
-			this._focusedStackFrameColor = e.theme.getColor(focusedStackFrameColor);
+			this._topStackFrameColor = e.getColor(topStackFrameColor);
+			this._focusedStackFrameColor = e.getColor(focusedStackFrameColor);
 		}));
 	}
 

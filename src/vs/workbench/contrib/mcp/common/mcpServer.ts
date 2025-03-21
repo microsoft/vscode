@@ -8,6 +8,8 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
 import { autorun, autorunWithStore, derived, disposableObservableValue, IObservable, ITransaction, observableFromEvent, ObservablePromise, observableValue, transaction } from '../../../../base/common/observable.js';
+import { basename } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ILogger, ILoggerService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -140,6 +142,7 @@ export class McpServer extends Disposable implements IMcpServer {
 	constructor(
 		public readonly collection: McpCollectionReference,
 		public readonly definition: McpDefinitionReference,
+		explicitRoots: URI[] | undefined,
 		private readonly _requiresExtensionActivation: boolean | undefined,
 		private readonly _toolCache: McpServerMetadataCache,
 		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
@@ -157,11 +160,13 @@ export class McpServer extends Disposable implements IMcpServer {
 		this._register(toDisposable(() => _loggerService.deregisterLogger(this._loggerId)));
 
 		// 1. Reflect workspaces into the MCP roots
-		const workspaces = observableFromEvent(
-			this,
-			workspacesService.onDidChangeWorkspaceFolders,
-			() => workspacesService.getWorkspace().folders,
-		);
+		const workspaces = explicitRoots
+			? observableValue(this, explicitRoots.map(uri => ({ uri, name: basename(uri) })))
+			: observableFromEvent(
+				this,
+				workspacesService.onDidChangeWorkspaceFolders,
+				() => workspacesService.getWorkspace().folders,
+			);
 
 		this._register(autorunWithStore(reader => {
 			const cnx = this._connection.read(reader)?.handler.read(reader);

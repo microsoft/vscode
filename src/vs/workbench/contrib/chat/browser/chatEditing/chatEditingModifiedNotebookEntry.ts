@@ -129,8 +129,8 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 					const internalId = generateCellHash(cell.uri);
 					edits.push({ editType: CellEditType.PartialInternalMetadata, index, internalMetadata: { internalId } });
 				});
-				resourceRef.object.notebook.applyEdits(edits, true, undefined, () => undefined, undefined, true);
-				originalRef.object.notebook.applyEdits(edits, true, undefined, () => undefined, undefined, true);
+				resourceRef.object.notebook.applyEdits(edits, true, undefined, () => undefined, undefined, false);
+				originalRef.object.notebook.applyEdits(edits, true, undefined, () => undefined, undefined, false);
 			}
 			const instance = instantiationService.createInstance(ChatEditingModifiedNotebookEntry, resourceRef, originalRef, _multiDiffEntryDelegate, options.serializer.options, telemetryInfo, chatKind, initialContent);
 			instance._register(disposables);
@@ -279,7 +279,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 						editType: CellEditType.DocumentMetadata,
 						metadata: this.modifiedModel.metadata
 					};
-					this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, true);
+					this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, false);
 					break;
 				}
 				case NotebookCellsChangeType.ModelChange: {
@@ -304,7 +304,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 							index,
 							language: event.language
 						};
-						this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, true);
+						this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, false);
 					}
 					break;
 				}
@@ -317,7 +317,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 							index,
 							metadata: event.metadata
 						};
-						this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, true);
+						this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, false);
 					}
 					break;
 				}
@@ -331,7 +331,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 							index,
 							internalMetadata: event.internalMetadata
 						};
-						this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, true);
+						this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, false);
 					}
 					break;
 				}
@@ -345,7 +345,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 							append: event.append,
 							outputs: event.outputs
 						};
-						this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, true);
+						this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, false);
 					}
 					break;
 				}
@@ -358,14 +358,14 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 							append: event.append,
 							items: event.outputItems
 						};
-						this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, true);
+						this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, false);
 					}
 					break;
 				}
 				case NotebookCellsChangeType.Move: {
 					const result = adjustCellDiffAndOriginalModelBasedOnCellMovements(event, this._cellsDiffInfo.get().slice());
 					if (result) {
-						this.originalModel.applyEdits(result[1], true, undefined, () => undefined, undefined, true);
+						this.originalModel.applyEdits(result[1], true, undefined, () => undefined, undefined, false);
 						this._cellsDiffInfo.set(result[0], undefined);
 					}
 					break;
@@ -440,7 +440,8 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		const transientOptions = this.transientOptions;
 		const outputSizeLimit = this.configurationService.getValue<number>(NotebookSetting.outputBackupSizeLimit) * 1024;
 
-		let initial = this.initialContent;
+		// create a snapshot of the current state of the model, before the next set of edits
+		let initial = createSnapshot(this.modifiedModel, transientOptions, outputSizeLimit);
 		let last = '';
 
 		return {

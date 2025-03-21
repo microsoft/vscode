@@ -467,6 +467,7 @@ export class ExtensionGalleryError extends Error {
 }
 
 export const enum ExtensionManagementErrorCode {
+	NotFound = 'NotFound',
 	Unsupported = 'Unsupported',
 	Deprecated = 'Deprecated',
 	Malicious = 'Malicious',

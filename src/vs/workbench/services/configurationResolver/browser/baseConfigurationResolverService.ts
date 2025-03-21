@@ -171,7 +171,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 			}
 			// Input
 			else if (variable.name === 'input') {
-				result = await this.showUserInput(section!, variable.arg!, await this.resolveInputs(folder, section!, target));
+				result = await this.showUserInput(section!, variable.arg!, await this.resolveInputs(folder, section!, target), variableToCommandMap);
 			}
 			// Contributed variable
 			else if (this._contributedVariables.has(variable.inner)) {
@@ -244,7 +244,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		this.storageService.store(LAST_INPUT_STORAGE_KEY, JSON.stringify(lru.toJSON()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
-	private async showUserInput(section: string, variable: string, inputInfos: ConfiguredInput[] | undefined): Promise<IResolvedValue | undefined> {
+	private async showUserInput(section: string, variable: string, inputInfos: ConfiguredInput[] | undefined, variableToCommandMap?: IStringDictionary<string>): Promise<IResolvedValue | undefined> {
 		if (!inputInfos) {
 			throw new VariableError(VariableKind.Input, localize('inputVariable.noInputSection', "Variable '{0}' must be defined in an '{1}' section of the debug or task configuration.", variable, 'inputs'));
 		}
@@ -265,10 +265,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 					if (!Types.isString(info.description)) {
 						missingAttribute('description');
 					}
-					const inputOptions: IInputOptions = { prompt: info.description, ignoreFocusLost: true, value: previousPickedValue };
-					if (info.default) {
-						inputOptions.value = info.default;
-					}
+					const inputOptions: IInputOptions = { prompt: info.description, ignoreFocusLost: true, value: variableToCommandMap?.[`input:${variable}`] ?? previousPickedValue ?? info.default };
 					if (info.password) {
 						inputOptions.password = info.password;
 					}
@@ -307,10 +304,11 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 							value: value
 						};
 
+						const topValue = variableToCommandMap?.[`input:${variable}`] ?? previousPickedValue ?? info.default;
 						if (value === info.default) {
 							item.description = localize('inputVariable.defaultInputValue', "(Default)");
 							picks.unshift(item);
-						} else if (!info.default && value === previousPickedValue) {
+						} else if (value === topValue) {
 							picks.unshift(item);
 						} else {
 							picks.push(item);

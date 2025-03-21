@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 export enum ChatConfiguration {
-	UnifiedChatView = 'chat.experimental.unifiedChatView',
+	UnifiedChatView = 'chat.unifiedChatView',
 	UseFileStorage = 'chat.useFileStorage',
 }
 

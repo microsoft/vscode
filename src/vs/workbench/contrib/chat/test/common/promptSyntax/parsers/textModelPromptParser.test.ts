@@ -21,6 +21,7 @@ import { TextModelPromptParser } from '../../../../common/promptSyntax/parsers/t
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { assertDefined } from '../../../../../../../base/common/types.js';
 
 /**
  * Test helper to run unit tests for the {@link TextModelPromptParser}
@@ -78,7 +79,14 @@ class TextModelPromptParserTest extends Disposable {
 
 		const { references } = this.parser;
 		for (let i = 0; i < expectedReferences.length; i++) {
-			expectedReferences[i].validateEqual(references[i]);
+			const reference = references[i];
+
+			assertDefined(
+				reference,
+				`Expected reference #${i} be ${expectedReferences[i]}, got 'undefined'.`,
+			);
+
+			expectedReferences[i].validateEqual(reference);
 		}
 
 		assert.strictEqual(

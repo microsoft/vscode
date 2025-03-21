@@ -95,6 +95,7 @@ export class McpService extends Disposable implements IMcpService {
 			const toDelete = new Set(tools.keys());
 			for (const tool of server.tools.read(reader)) {
 				const existing = tools.get(tool.id);
+				const collection = this._mcpRegistry.collections.get().find(c => c.id === server.collection.id);
 				const toolData: IToolData = {
 					id: tool.id,
 					displayName: tool.definition.name,
@@ -103,6 +104,7 @@ export class McpService extends Disposable implements IMcpService {
 					userDescription: tool.definition.description ?? '',
 					inputSchema: tool.definition.inputSchema,
 					canBeReferencedInPrompt: true,
+					runsInWorkspace: collection?.scope === StorageScope.WORKSPACE || !!collection?.remoteAuthority,
 					tags: ['mcp', 'vscode_editing'], // TODO@jrieken remove this tag
 				};
 
@@ -175,7 +177,14 @@ export class McpService extends Disposable implements IMcpService {
 		// Create any new servers that are needed.
 		for (const def of nextDefinitions) {
 			const store = new DisposableStore();
-			const object = this._instantiationService.createInstance(McpServer, def.collectionDefinition, def.serverDefinition, !!def.collectionDefinition.lazy, def.collectionDefinition.scope === StorageScope.WORKSPACE ? this.workspaceCache : this.userCache);
+			const object = this._instantiationService.createInstance(
+				McpServer,
+				def.collectionDefinition,
+				def.serverDefinition,
+				def.serverDefinition.roots,
+				!!def.collectionDefinition.lazy,
+				def.collectionDefinition.scope === StorageScope.WORKSPACE ? this.workspaceCache : this.userCache,
+			);
 			store.add(object);
 			this._syncTools(object, store);
 

@@ -20,9 +20,8 @@ import { TextLength } from '../../../../../common/core/textLength.js';
 import { DetailedLineRangeMapping, lineRangeMappingFromRangeMappings, RangeMapping } from '../../../../../common/diff/rangeMapping.js';
 import { TextModel } from '../../../../../common/model/textModel.js';
 import { InlineEditsGutterIndicator } from './components/gutterIndicatorView.js';
-import { InlineEditsIndicator } from './components/indicatorView.js';
 import { InlineEditWithChanges } from './inlineEditWithChanges.js';
-import { GhostTextIndicator, InlineEditModel } from './inlineEditsModel.js';
+import { GhostTextIndicator, InlineEditHost, InlineEditModel } from './inlineEditsModel.js';
 import { IInlineEditModel, InlineEditTabAction } from './inlineEditsViewInterface.js';
 import { InlineEditsDeletionView } from './inlineEditsViews/inlineEditsDeletionView.js';
 import { InlineEditsInsertionView } from './inlineEditsViews/inlineEditsInsertionView.js';
@@ -51,6 +50,7 @@ export class InlineEditsView extends Disposable {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
+		private readonly _host: IObservable<InlineEditHost | undefined>,
 		private readonly _model: IObservable<InlineEditModel | undefined>,
 		private readonly _ghostTextIndicator: IObservable<GhostTextIndicator | undefined>,
 		private readonly _focusIsInMenu: ISettableObservable<boolean>,
@@ -166,7 +166,7 @@ export class InlineEditsView extends Disposable {
 
 	private readonly _indicatorCyclicDependencyCircuitBreaker = observableValue(this, false);
 
-	protected readonly _indicator = derivedWithStore<InlineEditsGutterIndicator | InlineEditsIndicator | undefined>(this, (reader, store) => {
+	protected readonly _indicator = derivedWithStore<InlineEditsGutterIndicator | undefined>(this, (reader, store) => {
 		if (!this._indicatorCyclicDependencyCircuitBreaker.read(reader)) {
 			return undefined;
 		}
@@ -203,6 +203,7 @@ export class InlineEditsView extends Disposable {
 			this._editorObs,
 			indicatorDisplayRange,
 			this._gutterIndicatorOffset,
+			this._host,
 			modelWithGhostTextSupport,
 			this._inlineEditsIsHovered,
 			this._focusIsInMenu,
@@ -290,7 +291,7 @@ export class InlineEditsView extends Disposable {
 
 	private getCacheId(model: IInlineEditModel) {
 		const inlineEdit = model.inlineEdit;
-		if (model.inPartialAcceptFlow.get()) {
+		if (this._host.get()?.inPartialAcceptFlow.get()) {
 			return `${inlineEdit.inlineCompletion.id}_${inlineEdit.edit.edits.map(innerEdit => innerEdit.range.toString() + innerEdit.text).join(',')}`;
 		}
 

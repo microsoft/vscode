@@ -154,7 +154,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 
 		// if the `prompt snippets` feature is enabled, and file is a `prompt snippet`,
 		// start resolving nested file references immediately and subscribe to updates
-		if (variable instanceof ChatFileReference && variable.isPromptSnippet) {
+		if (variable instanceof ChatFileReference && variable.isPromptFile) {
 			// subscribe to variable changes
 			variable.onUpdate(() => {
 				this.updateDecorations();

@@ -90,9 +90,10 @@ export class EditTool implements IToolImpl {
 		}
 
 		const parameters = invocation.parameters as EditToolParams;
-		const uri = URI.revive(parameters.file); // TODO@roblourens do revive in MainThreadLanguageModelTools
+		const fileUri = URI.revive(parameters.file); // TODO@roblourens do revive in MainThreadLanguageModelTools
+		const uri = CellUri.parse(fileUri)?.notebook || fileUri;
 
-		if (!this.workspaceContextService.isInsideWorkspace(uri)) {
+		if (!this.workspaceContextService.isInsideWorkspace(uri) && !this.notebookService.getNotebookTextModel(uri)) {
 			const groupsByLastActive = this.editorGroupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 			const uriIsOpenInSomeEditor = groupsByLastActive.some((group) => {
 				return group.editors.some((editor) => {
@@ -128,19 +129,19 @@ export class EditTool implements IToolImpl {
 		});
 		model.acceptResponseProgress(request, {
 			kind: 'codeblockUri',
-			uri
+			uri,
+			isEdit: true
 		});
 		model.acceptResponseProgress(request, {
 			kind: 'markdownContent',
 			content: new MarkdownString(parameters.code + '\n````\n')
 		});
-		const notebookUri = CellUri.parse(uri)?.notebook || uri;
 		// Signal start.
-		if (this.notebookService.hasSupportedNotebooks(notebookUri) && (this.notebookService.getNotebookTextModel(notebookUri))) {
+		if (this.notebookService.hasSupportedNotebooks(uri) && (this.notebookService.getNotebookTextModel(uri))) {
 			model.acceptResponseProgress(request, {
 				kind: 'notebookEdit',
 				edits: [],
-				uri: notebookUri
+				uri
 			});
 		} else {
 			model.acceptResponseProgress(request, {
@@ -169,8 +170,8 @@ export class EditTool implements IToolImpl {
 		}, token);
 
 		// Signal end.
-		if (this.notebookService.hasSupportedNotebooks(notebookUri) && (this.notebookService.getNotebookTextModel(notebookUri))) {
-			model.acceptResponseProgress(request, { kind: 'notebookEdit', uri: notebookUri, edits: [], done: true });
+		if (this.notebookService.hasSupportedNotebooks(uri) && (this.notebookService.getNotebookTextModel(uri))) {
+			model.acceptResponseProgress(request, { kind: 'notebookEdit', uri, edits: [], done: true });
 		} else {
 			model.acceptResponseProgress(request, { kind: 'textEdit', uri, edits: [], done: true });
 		}

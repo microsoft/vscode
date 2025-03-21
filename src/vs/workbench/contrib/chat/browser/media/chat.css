@@ -1210,11 +1210,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
-.quick-input-list .quick-input-list-rows > .quick-input-list-row .monaco-icon-label.tool-pick .codicon[class*='codicon-'] {
-	font-size: 14px;
-}
-
-
 .action-item.chat-attached-context-attachment.chat-add-files .action-label.codicon::before {
 	font: normal normal normal 16px/1 codicon;
 }
@@ -1667,10 +1662,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-item-container .chat-command-button .monaco-button,
-.chat-confirmation-widget .chat-confirmation-buttons-container .monaco-button {
+.chat-confirmation-widget .chat-confirmation-buttons-container .monaco-button:not(.monaco-dropdown-button) {
 	text-align: left;
 	width: initial;
 	padding: 4px 8px;
+}
+
+.chat-confirmation-widget .chat-confirmation-buttons-container .monaco-button.monaco-dropdown-button {
+	padding: 0 3px;
 }
 
 .interactive-item-container .chat-confirmation-widget .interactive-result-code-block {
