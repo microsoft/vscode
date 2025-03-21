@@ -15,7 +15,7 @@ import { INotebookEditorWorkerService } from '../../common/services/notebookWork
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { TextModel } from '../../../../../editor/common/model/textModel.js';
-import { Schemas } from '../../../../../base/common/network.js';
+import { FileAccess, Schemas } from '../../../../../base/common/network.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 
 export class NotebookEditorWorkerServiceImpl extends Disposable implements INotebookEditorWorkerService {
@@ -274,7 +274,7 @@ class NotebookWorkerClient extends Disposable {
 		if (!this._worker) {
 			try {
 				this._worker = this._register(createWebWorker<NotebookWorker>(
-					'vs/workbench/contrib/notebook/common/services/notebookWebWorker',
+					FileAccess.asBrowserUri('vs/workbench/contrib/notebook/common/services/notebookWebWorkerMain.js'),
 					'NotebookEditorWorker'
 				));
 			} catch (err) {

@@ -21,7 +21,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { ILocalFileSearchWorker, LocalFileSearchWorkerHost } from '../common/localFileSearchWorkerTypes.js';
 import { memoize } from '../../../../base/common/decorators.js';
 import { HTMLFileSystemProvider } from '../../../../platform/files/browser/htmlFileSystemProvider.js';
-import { Schemas } from '../../../../base/common/network.js';
+import { FileAccess, Schemas } from '../../../../base/common/network.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { localize } from '../../../../nls.js';
@@ -188,7 +188,7 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 		if (!this._worker) {
 			try {
 				this._worker = this._register(createWebWorker<ILocalFileSearchWorker>(
-					'vs/workbench/services/search/worker/localFileSearch',
+					FileAccess.asBrowserUri('vs/workbench/services/search/worker/localFileSearchMain.js'),
 					'LocalFileSearchWorker'
 				));
 				LocalFileSearchWorkerHost.setChannel(this._worker, {

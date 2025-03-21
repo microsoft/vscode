@@ -5,7 +5,7 @@
 
 import { createTrustedTypesPolicy } from './trustedTypes.js';
 import { onUnexpectedError } from '../common/errors.js';
-import { AppResourcePath, COI, FileAccess } from '../common/network.js';
+import { COI } from '../common/network.js';
 import { URI } from '../common/uri.js';
 import { IWebWorker, IWebWorkerClient, Message, WebWorkerClient } from '../common/worker/webWorker.js';
 import { Disposable, toDisposable } from '../common/lifecycle.js';
@@ -194,24 +194,16 @@ export interface IWorkerDescriptor {
 
 export class WorkerDescriptor implements IWorkerDescriptor {
 
-	public get esmModuleLocation(): URI | undefined {
-		try {
-			return FileAccess.asBrowserUri(`${this.moduleId}Main.js` as AppResourcePath);
-		} catch (e) {
-			return undefined;
-		}
-	}
-
 	constructor(
-		private readonly moduleId: string,
+		public readonly esmModuleLocation: URI,
 		public readonly label: string | undefined,
 	) {
 	}
 }
 
-export function createWebWorker<T extends object>(moduleId: string, label: string | undefined): IWebWorkerClient<T>;
+export function createWebWorker<T extends object>(esmModuleLocation: URI, label: string | undefined): IWebWorkerClient<T>;
 export function createWebWorker<T extends object>(workerDescriptor: IWorkerDescriptor | Worker): IWebWorkerClient<T>;
-export function createWebWorker<T extends object>(arg0: string | IWorkerDescriptor | Worker, arg1?: string | undefined): IWebWorkerClient<T> {
-	const workerDescriptorOrWorker = (typeof arg0 === 'string' ? new WorkerDescriptor(arg0, arg1) : arg0);
+export function createWebWorker<T extends object>(arg0: URI | IWorkerDescriptor | Worker, arg1?: string | undefined): IWebWorkerClient<T> {
+	const workerDescriptorOrWorker = (URI.isUri(arg0) ? new WorkerDescriptor(arg0, arg1) : arg0);
 	return new WebWorkerClient<T>(new WebWorker(workerDescriptorOrWorker));
 }

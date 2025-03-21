@@ -201,7 +201,7 @@ export class LanguageDetectionWorkerClient extends Disposable {
 	} {
 		if (!this.worker) {
 			const workerClient = this._register(createWebWorker<ILanguageDetectionWorker>(
-				'vs/workbench/services/languageDetection/browser/languageDetectionWebWorker',
+				FileAccess.asBrowserUri('vs/workbench/services/languageDetection/browser/languageDetectionWebWorkerMain.js'),
 				'LanguageDetectionWorker'
 			));
 			LanguageDetectionWorkerHost.setChannel(workerClient, {

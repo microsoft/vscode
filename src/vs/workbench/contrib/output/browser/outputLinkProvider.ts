@@ -15,6 +15,7 @@ import { ILanguageFeaturesService } from '../../../../editor/common/services/lan
 import { createWebWorker } from '../../../../base/browser/defaultWorkerFactory.js';
 import { IWebWorkerClient } from '../../../../base/common/worker/webWorker.js';
 import { WorkerTextModelSyncClient } from '../../../../editor/common/services/textModelSync/textModelSync.impl.js';
+import { FileAccess } from '../../../../base/common/network.js';
 
 export class OutputLinkProvider extends Disposable {
 
@@ -98,7 +99,7 @@ class OutputLinkWorkerClient extends Disposable {
 	) {
 		super();
 		this._workerClient = this._register(createWebWorker<OutputLinkComputer>(
-			'vs/workbench/contrib/output/common/outputLinkComputer',
+			FileAccess.asBrowserUri('vs/workbench/contrib/output/common/outputLinkComputerMain.js'),
 			'OutputLinkDetectionWorker'
 		));
 		this._workerTextModelSyncClient = WorkerTextModelSyncClient.create(this._workerClient, modelService);
