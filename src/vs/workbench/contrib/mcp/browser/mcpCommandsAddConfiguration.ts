@@ -38,6 +38,28 @@ const enum AddConfigurationType {
 	DockerImage,
 }
 
+type AssistedConfigurationType = AddConfigurationType.NpmPackage | AddConfigurationType.PipPackage | AddConfigurationType.DockerImage;
+
+const assistedTypes = {
+	[AddConfigurationType.NpmPackage]: {
+		title: localize('mcp.npm.title', "Enter NPM Package Name"),
+		placeholder: localize('mcp.npm.placeholder', "Package name (e.g., @org/package)"), pickLabel: localize('mcp.serverType.npm', "NPM Package"),
+		pickDescription: localize('mcp.serverType.npm.description', "Install from an NPM package name")
+	},
+	[AddConfigurationType.PipPackage]: {
+		title: localize('mcp.pip.title', "Enter Pip Package Name"),
+		placeholder: localize('mcp.pip.placeholder', "Package name (e.g., package-name)"),
+		pickLabel: localize('mcp.serverType.pip', "Pip Package"),
+		pickDescription: localize('mcp.serverType.pip.description', "Install from a Pip package name")
+	},
+	[AddConfigurationType.DockerImage]: {
+		title: localize('mcp.docker.title', "Enter Docker Image Name"),
+		placeholder: localize('mcp.docker.placeholder', "Image name (e.g., mcp/imagename)"),
+		pickLabel: localize('mcp.serverType.docker', "Docker Image"),
+		pickDescription: localize('mcp.serverType.docker.description', "Install from a Docker image")
+	},
+};
+
 const enum AddConfigurationCopilotCommand {
 	/** Returns whether MCP enhanced setup is enabled. */
 	IsSupported = 'github.copilot.chat.mcp.setup.check',
@@ -106,9 +128,11 @@ export class McpAddConfigurationCommand {
 			items.unshift({ type: 'separator', label: localize('mcp.serverType.manual', "Manual Install") });
 			items.push(
 				{ type: 'separator', label: localize('mcp.serverType.copilot', "Model-Assisted") },
-				{ kind: AddConfigurationType.NpmPackage, label: localize('mcp.serverType.npm', "NPM Package"), description: localize('mcp.serverType.npm.description', "Install from an NPM package name") },
-				{ kind: AddConfigurationType.PipPackage, label: localize('mcp.serverType.pip', "PIP Package"), description: localize('mcp.serverType.pip.description', "Install from a PIP package name") },
-				{ kind: AddConfigurationType.DockerImage, label: localize('mcp.serverType.docker', "Docker Image"), description: localize('mcp.serverType.docker.description', "Install from a Docker image") }
+				...Object.entries(assistedTypes).map(([type, { pickLabel, pickDescription }]) => ({
+					kind: Number(type) as AddConfigurationType,
+					label: pickLabel,
+					description: pickDescription,
+				}))
 			);
 		}
 
@@ -201,19 +225,11 @@ export class McpAddConfigurationCommand {
 		return targetPick?.target;
 	}
 
-	private async getAssistedConfig(type: AddConfigurationType): Promise<{ name: string; config: McpConfigurationServer } | undefined> {
+	private async getAssistedConfig(type: AssistedConfigurationType): Promise<{ name: string; config: McpConfigurationServer } | undefined> {
 		const packageName = await this._quickInputService.input({
 			ignoreFocusLost: true,
-			title: type === AddConfigurationType.NpmPackage
-				? localize('mcp.npm.title', "Enter NPM Package Name")
-				: type === AddConfigurationType.PipPackage
-					? localize('mcp.pip.title', "Enter Pip Package Name")
-					: localize('mcp.docker.title', "Enter Docker Image Name"),
-			placeHolder: type === AddConfigurationType.NpmPackage
-				? localize('mcp.npm.placeholder', "Package name (e.g., @org/package)")
-				: type === AddConfigurationType.PipPackage
-					? localize('mcp.pip.placeholder', "Package name (e.g., package-name)")
-					: localize('mcp.docker.placeholder', "Image name (e.g., mcp/imagename)")
+			title: assistedTypes[type].title,
+			placeHolder: assistedTypes[type].placeholder,
 		});
 
 		if (!packageName) {
@@ -351,20 +367,10 @@ export class McpAddConfigurationCommand {
 			case AddConfigurationType.SSE:
 				serverConfig = await this.getSSEConfig();
 				break;
-			case AddConfigurationType.NpmPackage: {
-				const r = await this.getAssistedConfig(AddConfigurationType.NpmPackage);
-				serverConfig = r?.config;
-				suggestedName = r?.name;
-				break;
-			}
-			case AddConfigurationType.PipPackage: {
-				const r = await this.getAssistedConfig(AddConfigurationType.PipPackage);
-				serverConfig = r?.config;
-				suggestedName = r?.name;
-				break;
-			}
+			case AddConfigurationType.NpmPackage:
+			case AddConfigurationType.PipPackage:
 			case AddConfigurationType.DockerImage: {
-				const r = await this.getAssistedConfig(AddConfigurationType.DockerImage);
+				const r = await this.getAssistedConfig(serverType);
 				serverConfig = r?.config;
 				suggestedName = r?.name;
 				break;
