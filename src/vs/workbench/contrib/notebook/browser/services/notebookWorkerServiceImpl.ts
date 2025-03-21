@@ -10,7 +10,7 @@ import { createWebWorker } from '../../../../../base/browser/defaultWorkerFactor
 import { NotebookCellTextModel } from '../../common/model/notebookCellTextModel.js';
 import { CellUri, IMainCellDto, INotebookDiffResult, NotebookCellsChangeType, NotebookRawContentEventDto } from '../../common/notebookCommon.js';
 import { INotebookService } from '../../common/notebookService.js';
-import { NotebookEditorSimpleWorker } from '../../common/services/notebookSimpleWorker.js';
+import { NotebookEditorSimpleWorker } from '../../common/services/notebookWebWorker.js';
 import { INotebookEditorWorkerService } from '../../common/services/notebookWorkerService.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
@@ -274,7 +274,7 @@ class NotebookWorkerClient extends Disposable {
 		if (!this._worker) {
 			try {
 				this._worker = this._register(createWebWorker<NotebookEditorSimpleWorker>(
-					'vs/workbench/contrib/notebook/common/services/notebookSimpleWorker',
+					'vs/workbench/contrib/notebook/common/services/notebookWebWorker',
 					'NotebookEditorWorker'
 				));
 			} catch (err) {
