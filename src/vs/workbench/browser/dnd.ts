@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DataTransfers, IDragAndDropData } from '../../base/browser/dnd.js';
-import { DragAndDropObserver, EventType, addDisposableListener, onDidRegisterWindow } from '../../base/browser/dom.js';
+import { DragAndDropObserver, EventType, addDisposableListener, onDidRegisterWindow, isHTMLElement } from '../../base/browser/dom.js';
 import { DragMouseEvent } from '../../base/browser/mouseEvent.js';
 import { IListDragAndDrop } from '../../base/browser/ui/list/list.js';
 import { ElementsDragAndDropData, ListViewTargetSector } from '../../base/browser/ui/list/listView.js';
@@ -546,7 +546,14 @@ export class CompositeDragAndDropObserver extends Disposable {
 				const { id, type } = draggedItemProvider();
 				this.writeDragData(id, type);
 
-				e.dataTransfer?.setDragImage(element, 0, 0);
+				if (e.dataTransfer) {
+					const actionLabel = element.querySelector('.action-label');
+					if (actionLabel && isHTMLElement(actionLabel)) {
+						e.dataTransfer.setDragImage(actionLabel, 0, 0);
+					} else {
+						e.dataTransfer.setDragImage(element, 0, 0);
+					}
+				}
 
 				this.onDragStart.fire({ eventData: e, dragAndDropData: this.readDragData(type)! });
 			},
