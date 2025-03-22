@@ -219,7 +219,14 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 		return {};
 	}
 
+	private _handlingForwardedRequest: string | undefined;
 	private async forwardRequestToCopilot(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService): Promise<void> {
+
+		if (this._handlingForwardedRequest === requestModel.message.text) {
+			throw new Error('Already handling this request');
+		}
+
+		this._handlingForwardedRequest = requestModel.message.text;
 
 		// We need a signal to know when we can resend the request to
 		// Copilot. Waiting for the registration of the agent is not
