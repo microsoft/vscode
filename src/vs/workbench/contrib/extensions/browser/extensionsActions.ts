@@ -179,6 +179,20 @@ export class PromptExtensionInstallFailureAction extends Action {
 			return;
 		}
 
+		if (ExtensionManagementErrorCode.InvalidAuthority === (<ExtensionManagementErrorCode>this.error.name)) {
+			await this.dialogService.prompt({
+				type: 'error',
+				message: localize('invalid certificate authority', "Cannot install '{0}' extension because {1} doesn't recognize the certificate's root authority.", this.extension.displayName, this.productService.nameLong),
+				detail: getErrorMessage(this.error),
+				buttons: [{
+					label: localize('learn more', "Learn More"),
+					run: () => this.openerService.open('https://chromium.googlesource.com/chromium/src/+/lkgr/docs/linux/cert_management.md')
+				}],
+				cancelButton: localize('cancel', "Cancel")
+			});
+			return;
+		}
+
 		const operationMessage = this.installOperation === InstallOperation.Update ? localize('update operation', "Error while updating '{0}' extension.", this.extension.displayName || this.extension.identifier.id)
 			: localize('install operation', "Error while installing '{0}' extension.", this.extension.displayName || this.extension.identifier.id);
 		let additionalMessage;
