@@ -332,11 +332,13 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 		draggedEditors.push(editor);
 	}
 
-	if (draggedEditors.length) {
-		event.dataTransfer.setData(CodeDataTransfers.EDITORS, stringify(draggedEditors));
+	const draggedDirectories: URI[] = fileSystemResources.filter(({ isDirectory }) => isDirectory).map(({ resource }) => resource);
+
+	if (draggedEditors.length || draggedDirectories.length) {
+		event.dataTransfer.setData(CodeDataTransfers.EDITORS, stringify([...draggedEditors, ...draggedDirectories]));
 
 		// Add a URI list entry
-		const uriListEntries: URI[] = [];
+		const uriListEntries: URI[] = [...draggedDirectories];
 		for (const editor of draggedEditors) {
 			if (editor.resource) {
 				uriListEntries.push(editor.options?.selection ? withSelection(editor.resource, editor.options.selection) : editor.resource);
