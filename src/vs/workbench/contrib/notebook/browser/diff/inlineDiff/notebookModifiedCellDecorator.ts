@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { CellDiffInfo } from '../notebookDiffViewModel.js';
 import { INotebookEditor, NotebookOverviewRulerLane } from '../../notebookBrowser.js';
 import { NotebookCellTextModel } from '../../../common/model/notebookCellTextModel.js';
 import { overviewRulerModifiedForeground } from '../../../../scm/common/quickDiff.js';
+import { diffInfoWithHandle } from './notebookInsertedCellDecorator.js';
 
 export class NotebookModifiedCellDecorator extends Disposable {
 	private readonly decorators = this._register(new DisposableStore());
@@ -17,7 +17,7 @@ export class NotebookModifiedCellDecorator extends Disposable {
 		super();
 	}
 
-	public apply(diffInfo: CellDiffInfo[]) {
+	public apply(diffInfo: diffInfoWithHandle[]) {
 		const model = this.notebookEditor.textModel;
 		if (!model) {
 			return;
@@ -26,8 +26,12 @@ export class NotebookModifiedCellDecorator extends Disposable {
 		const modifiedCells: NotebookCellTextModel[] = [];
 		for (const diff of diffInfo) {
 			if (diff.type === 'modified') {
-				const cell = model.cells[diff.modifiedCellIndex];
-				modifiedCells.push(cell);
+				const cell = diff.modifiedHandle ?
+					model.cells.find(c => c.handle === diff.modifiedHandle) :
+					model.cells[diff.modifiedCellIndex];
+				if (cell) {
+					modifiedCells.push(cell);
+				}
 			}
 		}
 

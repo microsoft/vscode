@@ -297,7 +297,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			const modifiedChanges = changes.filter(c => c.type === 'modified');
 
 			this.createDecorators();
-			this.insertedCellDecorator?.apply(changes);
+			this.insertedCellDecorator?.apply(changes.filter(c => c.type === 'insert'));
 			this.modifiedCellDecorator?.apply(modifiedChanges);
 			this.deletedCellDecorator?.apply(changes, originalModel);
 		}));
