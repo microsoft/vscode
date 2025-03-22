@@ -12,10 +12,11 @@ import { isEmptyObject, isString } from '../../../base/common/types.js';
 import { ConfigurationModel } from './configurationModels.js';
 import { Extensions, IConfigurationRegistry, IRegisteredConfigurationPropertySchema } from './configurationRegistry.js';
 import { ILogService, NullLogService } from '../../log/common/log.js';
-import { IPolicyService, PolicyDefinition, PolicyName } from '../../policy/common/policy.js';
+import { IPolicyService, PolicyDefinition } from '../../policy/common/policy.js';
 import { Registry } from '../../registry/common/platform.js';
 import { getErrorMessage } from '../../../base/common/errors.js';
 import * as json from '../../../base/common/json.js';
+import { PolicyName } from '../../../base/common/policy.js';
 
 export class DefaultConfiguration extends Disposable {
 
