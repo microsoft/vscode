@@ -318,6 +318,13 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 		`CalculateNativeWinOcclusion,PlzDedicatedWorker,${app.commandLine.getSwitchValue('disable-features')}`;
 	app.commandLine.appendSwitch('disable-features', featuresToDisable);
 
+	// Following features are enabled from the runtime:
+	// `EarlyEstablishGpuChannel` - Refs https://issues.chromium.org/issues/40208065
+	// `EstablishGpuChannelAsync` - Refs https://issues.chromium.org/issues/40208065
+	const featuresToEnable =
+		`EarlyEstablishGpuChannel,EstablishGpuChannelAsync,${app.commandLine.getSwitchValue('enable-features')}`;
+	app.commandLine.appendSwitch('enable-features', featuresToEnable);
+
 	// Blink features to configure.
 	// `FontMatchingCTMigration` - Siwtch font matching on macOS to Appkit (Refs https://github.com/microsoft/vscode/issues/224496#issuecomment-2270418470).
 	// `StandardizedBrowserZoom` - Disable zoom adjustment for bounding box (https://github.com/microsoft/vscode/issues/232750#issuecomment-2459495394)
