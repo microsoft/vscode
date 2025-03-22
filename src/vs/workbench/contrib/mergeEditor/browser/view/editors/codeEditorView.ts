@@ -65,6 +65,7 @@ export abstract class CodeEditorView extends Disposable {
 	protected readonly checkboxesVisible = observableConfigValue<boolean>('mergeEditor.showCheckboxes', false, this.configurationService);
 	protected readonly showDeletionMarkers = observableConfigValue<boolean>('mergeEditor.showDeletionMarkers', true, this.configurationService);
 	protected readonly useSimplifiedDecorations = observableConfigValue<boolean>('mergeEditor.useSimplifiedDecorations', false, this.configurationService);
+	protected readonly showOnlyConflictingChangesInOverviewRulers = observableConfigValue<boolean>('mergeEditor.showOnlyConflictingChangesInOverviewRulers', false, this.configurationService);
 
 	public readonly editor = this.instantiationService.createInstance(
 		CodeEditorWidget,
