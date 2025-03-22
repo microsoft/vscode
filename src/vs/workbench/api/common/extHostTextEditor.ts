@@ -424,6 +424,7 @@ export class ExtHostTextEditor {
 		selections: Selection[], options: IResolvedTextEditorConfiguration,
 		visibleRanges: Range[], viewColumn: vscode.ViewColumn | undefined
 	) {
+		console.log('ExtHostTextEditor constructor on id: ', id);
 		this._selections = selections;
 		this._options = new ExtHostTextEditorOptions(this._proxy, this.id, options, _logService);
 		this._visibleRanges = visibleRanges;
@@ -432,6 +433,9 @@ export class ExtHostTextEditor {
 		const that = this;
 
 		this.value = Object.freeze({
+			get id(): string {
+				return id;
+			},
 			get document(): vscode.TextDocument {
 				return document.value;
 			},
@@ -453,6 +457,7 @@ export class ExtHostTextEditor {
 				return that._selections;
 			},
 			set selections(value: Selection[]) {
+				console.log('set selections on id: ', id);
 				if (!Array.isArray(value) || value.some(a => !(a instanceof Selection))) {
 					throw illegalArgument('selections');
 				}
@@ -613,6 +618,7 @@ export class ExtHostTextEditor {
 	}
 
 	private async _trySetSelection(): Promise<vscode.TextEditor | null | undefined> {
+		console.log('_trySetSelection on id: ', this.id);
 		const selection = this._selections.map(TypeConverters.Selection.from);
 		await this._runOnProxy(() => this._proxy.$trySetSelections(this.id, selection));
 		return this.value;

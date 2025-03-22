@@ -210,6 +210,7 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	public setHasFocus(hasFocus: boolean): void {
+		console.log('setHasFocus', hasFocus, ' for editorId : ', this._editorId);
 		this._hasFocus = hasFocus;
 		this._cursor.setHasFocus(hasFocus);
 		this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewFocusChangedEvent(hasFocus));
@@ -217,6 +218,7 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	public setHasWidgetFocus(hasWidgetFocus: boolean): void {
+		console.log('setHasWidgetFocus', hasWidgetFocus, ' for editorId : ', this._editorId);
 		this._eventDispatcher.emitOutgoingEvent(new WidgetFocusChangedEvent(!hasWidgetFocus, hasWidgetFocus));
 	}
 

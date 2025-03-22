@@ -293,6 +293,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	}
 
 	$trySetSelections(id: string, selections: ISelection[]): Promise<void> {
+		console.log('trySetSelections with id : ', id, ' selections:', selections);
 		const editor = this._editorLocator.getEditor(id);
 		if (!editor) {
 			return Promise.reject(illegalArgument(`TextEditor(${id})`));

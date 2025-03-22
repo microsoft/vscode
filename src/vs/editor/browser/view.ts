@@ -133,7 +133,7 @@ export class View extends ViewEventHandler {
 		this._ownerID = ownerID;
 
 		this._widgetFocusTracker = this._register(
-			new CodeEditorWidgetFocusTracker(editorContainer, overflowWidgetsDomNode)
+			new CodeEditorWidgetFocusTracker(editorContainer, overflowWidgetsDomNode, this._ownerID)
 		);
 		this._register(this._widgetFocusTracker.onChange(() => {
 			this._context.viewModel.setHasWidgetFocus(this._widgetFocusTracker.hasFocus());
@@ -693,10 +693,12 @@ export class View extends ViewEventHandler {
 	}
 
 	public isFocused(): boolean {
+		console.log('isFocused', this._editContext.isFocused(), ' editorID', this._ownerID);
 		return this._editContext.isFocused();
 	}
 
 	public isWidgetFocused(): boolean {
+		console.log('isWidgetFocused', this._widgetFocusTracker.hasFocus(), ' editorID', this._ownerID);
 		return this._widgetFocusTracker.hasFocus();
 	}
 
@@ -881,7 +883,7 @@ class CodeEditorWidgetFocusTracker extends Disposable {
 
 	private _hadFocus: boolean | undefined = undefined;
 
-	constructor(domElement: HTMLElement, overflowWidgetsDomNode: HTMLElement | undefined) {
+	constructor(domElement: HTMLElement, overflowWidgetsDomNode: HTMLElement | undefined, private readonly ownerId: string) {
 		super();
 
 		this._hasDomElementFocus = false;
@@ -915,11 +917,13 @@ class CodeEditorWidgetFocusTracker extends Disposable {
 		const focused = this._hasDomElementFocus || this._overflowWidgetsDomNodeHasFocus;
 		if (this._hadFocus !== focused) {
 			this._hadFocus = focused;
+			console.log('CodeEditorWidgetFocusTracker#_update', focused, ' editorID', this.ownerId);
 			this._onChange.fire(undefined);
 		}
 	}
 
 	public hasFocus(): boolean {
+		console.log('CodeEditorWidgetFocusTracker#hasFocus', this._hadFocus ?? false, ' editorID', this.ownerId);
 		return this._hadFocus ?? false;
 	}
 
