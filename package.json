@@ -238,5 +238,8 @@
   },
   "optionalDependencies": {
     "windows-foreground-love": "0.5.0"
+  },
+  "volta": {
+    "node": "20.17.0"
   }
 }
