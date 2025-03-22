@@ -1014,7 +1014,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.addFilesToolbar.context = { widget, placeholder: localize('chatAttachFiles', 'Search for files and context to add to your request') };
 		this._register(this.addFilesToolbar.onDidChangeMenuItems(() => {
 			if (this.cachedDimensions) {
-				this.layout(this.cachedDimensions.height, this.cachedDimensions.width);
+				this._onDidChangeHeight.fire();
 			}
 		}));
 	}
