@@ -1728,6 +1728,19 @@ export class Repository {
 			args.push('-A');
 		}
 
+		try {
+			const configSparseCheckout = (await this.exec(['config', '--get', 'core.sparsecheckout'])).stdout?.trim();
+			const isSparseActive = configSparseCheckout && configSparseCheckout.toLowerCase() === 'true';
+
+			if (isSparseActive) {
+				args.push('--sparse');
+			}
+		} catch (err) {
+			if (err.stderr) {
+				throw err;
+			}
+		}
+
 		if (paths && paths.length) {
 			for (const chunk of splitInChunks(paths.map(p => sanitizeRelativePath(this.repositoryRoot, p)), MAX_CLI_LENGTH)) {
 				await this.exec([...args, '--', ...chunk]);
