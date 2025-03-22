@@ -8,6 +8,7 @@ import { Event } from '../../../../base/common/event.js';
 import { MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { mapValues } from '../../../../base/common/objects.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { registerEditorFeature } from '../../../../editor/common/editorFeatures.js';
 import * as nls from '../../../../nls.js';
@@ -240,11 +241,12 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 		},
 		[mcpDiscoverySection]: {
-			oneOf: [
-				{ type: 'boolean' },
-				{ type: 'array', items: { type: 'string', enum: allDiscoverySources, enumDescriptions: Object.values(discoverySourceLabel) } },
-			],
-			default: false,
+			type: 'object',
+			default: Object.fromEntries(allDiscoverySources.map(k => [k, true])),
+			properties: Object.fromEntries(allDiscoverySources.map(k => [
+				k,
+				{ type: 'boolean', description: nls.localize('mcp.discovery.source', "Enables discovery of {0} servers", discoverySourceLabel[k]) }
+			])),
 			markdownDescription: nls.localize('mpc.discovery.enabled', "Configures discovery of Model Context Protocol servers on the machine. It may be set to `true` or `false` to disable or enable all sources, and an array of sources you wish to enable."),
 		},
 		[PromptsConfig.KEY]: {

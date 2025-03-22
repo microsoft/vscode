@@ -27,7 +27,7 @@ import { ClaudeDesktopMpcDiscoveryAdapter, CursorDesktopMpcDiscoveryAdapter, Nat
 export type WritableMcpCollectionDefinition = McpCollectionDefinition & { serverDefinitions: ISettableObservable<readonly McpServerDefinition[]> };
 
 export abstract class FilesystemMcpDiscovery extends Disposable {
-	protected readonly _fsDiscoveryEnabled: IObservable<boolean | DiscoverySource[]>;
+	protected readonly _fsDiscoveryEnabled: IObservable<boolean | { [K in DiscoverySource]: boolean }>;
 
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService,
@@ -44,8 +44,8 @@ export abstract class FilesystemMcpDiscovery extends Disposable {
 		if (typeof fsDiscovery === 'boolean') {
 			return fsDiscovery;
 		}
-		if (discoverySource && Array.isArray(fsDiscovery)) {
-			return fsDiscovery.includes(discoverySource);
+		if (discoverySource && fsDiscovery[discoverySource] === false) {
+			return false;
 		}
 		return true;
 	}
