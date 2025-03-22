@@ -35,7 +35,10 @@ import { ExtHostWorkspaceShape, IRelativePatternDto, IWorkspaceData, MainContext
 import { revive } from '../../../base/common/marshalling.js';
 import { AuthInfo, Credentials } from '../../../platform/request/common/request.js';
 import { ExcludeSettingOptions, TextSearchContext2, TextSearchMatch2 } from '../../services/search/common/searchExtTypes.js';
-import { VSBuffer } from '../../../base/common/buffer.js';
+import { bufferToStream, readableToBuffer, VSBuffer } from '../../../base/common/buffer.js';
+import { toDecodeStream, toEncodeReadable, UTF8 } from '../../services/textfile/common/encoding.js';
+import { consumeStream } from '../../../base/common/stream.js';
+import { stringToSnapshot } from '../../services/textfile/common/textfiles.js';
 
 export interface IExtHostWorkspaceProvider {
 	getWorkspaceFolder2(uri: vscode.Uri, resolveParent?: boolean): Promise<vscode.WorkspaceFolder | undefined>;
@@ -942,13 +945,24 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 	// --- encodings ---
 
-	decode(content: Uint8Array, uri: UriComponents | undefined, options?: { encoding: string }): Promise<string> {
-		return this._proxy.$decode(VSBuffer.wrap(content), uri, options);
+	async decode(content: Uint8Array, uri: UriComponents | undefined, opts?: { encoding: string }): Promise<string> {
+		const options = await this._proxy.$resolveDecoding(uri, opts);
+
+		const stream = (await toDecodeStream(bufferToStream(VSBuffer.wrap(content)), options)).stream;
+		return consumeStream(stream, chunks => chunks.join());
 	}
 
 	async encode(content: string, uri: UriComponents | undefined, options?: { encoding: string }): Promise<Uint8Array> {
-		const buff = await this._proxy.$encode(content, uri, options);
-		return buff.buffer;
+		const { encoding, addBOM } = await this._proxy.$resolveEncoding(uri, options);
+
+		// when encoding is standard skip encoding step
+		if (encoding === UTF8 && !addBOM) {
+			return VSBuffer.fromString(content).buffer;
+		}
+
+		// otherwise create encoded readable
+		const res = await toEncodeReadable(stringToSnapshot(content), encoding, { addBOM });
+		return readableToBuffer(res).buffer;
 	}
 }
 
