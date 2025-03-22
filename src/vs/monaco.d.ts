@@ -1823,7 +1823,8 @@ declare namespace monaco.editor {
 		Both = 0,
 		Right = 1,
 		Left = 2,
-		None = 3
+		LeftIfNonBlockCursor = 3,
+		None = 4
 	}
 
 	/**
@@ -2392,7 +2393,11 @@ declare namespace monaco.editor {
 		/**
 		 * If the given position is on injected text, prefers the position right of it.
 		*/
-		RightOfInjectedText = 4
+		RightOfInjectedText = 4,
+		/**
+		 * If the given position is on injected text while the cursor is block cursor, prefers the position right of it.
+		*/
+		RightOfInjectedTextBlockCursor = 5
 	}
 
 	/**
