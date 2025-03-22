@@ -831,7 +831,7 @@ export class SuggestWidget implements IDisposable {
 
 		if (this._state === State.Empty || this._state === State.Loading) {
 			// showing a message only
-			height = info.itemHeight + info.borderHeight;
+			height = info.itemHeight;
 			width = info.defaultSize.width / 2;
 			this.element.enableSashes(false, false, false, false);
 			this.element.minSize = this.element.maxSize = new dom.Dimension(width, height);
@@ -848,7 +848,7 @@ export class SuggestWidget implements IDisposable {
 			const preferredWidth = this._completionModel ? this._completionModel.stats.pLabelLen * info.typicalHalfwidthCharacterWidth : width;
 
 			// height math
-			const fullHeight = info.statusBarHeight + this._list.contentHeight + info.borderHeight;
+			const fullHeight = info.statusBarHeight + this._list.contentHeight;
 			const minHeight = info.itemHeight + info.statusBarHeight;
 			const editorBox = dom.getDomNodePagePosition(this.editor.getDomNode());
 			const cursorBox = this.editor.getScrolledVisiblePosition(this.editor.getPosition());
@@ -856,7 +856,7 @@ export class SuggestWidget implements IDisposable {
 			const maxHeightBelow = Math.min(bodyBox.height - cursorBottom - info.verticalPadding, fullHeight);
 			const availableSpaceAbove = editorBox.top + cursorBox.top - info.verticalPadding;
 			const maxHeightAbove = Math.min(availableSpaceAbove, fullHeight);
-			let maxHeight = Math.min(Math.max(maxHeightAbove, maxHeightBelow) + info.borderHeight, fullHeight);
+			let maxHeight = Math.min(Math.max(maxHeightAbove, maxHeightBelow), fullHeight);
 
 			if (height === this._cappedHeight?.capped) {
 				// Restore the old (wanted) height when the current
