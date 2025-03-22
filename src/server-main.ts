@@ -28,7 +28,7 @@ perf.mark('code/server/start');
 // Do a quick parse to determine if a server or the cli needs to be started
 const parsedArgs = minimist(process.argv.slice(2), {
 	boolean: ['start-server', 'list-extensions', 'print-ip-address', 'help', 'version', 'accept-server-license-terms', 'update-extensions'],
-	string: ['install-extension', 'install-builtin-extension', 'uninstall-extension', 'locate-extension', 'socket-path', 'host', 'port', 'compatibility'],
+	string: ['install-extension', 'install-builtin-extension', 'uninstall-extension', 'locate-extension', 'socket-path', 'host', 'port', 'compatibility', 'download-extensions-locally'],
 	alias: { help: 'h', version: 'v' }
 });
 ['host', 'port', 'accept-server-license-terms'].forEach(e => {
@@ -41,7 +41,7 @@ const parsedArgs = minimist(process.argv.slice(2), {
 });
 
 const extensionLookupArgs = ['list-extensions', 'locate-extension'];
-const extensionInstallArgs = ['install-extension', 'install-builtin-extension', 'uninstall-extension', 'update-extensions'];
+const extensionInstallArgs = ['install-extension', 'install-builtin-extension', 'uninstall-extension', 'update-extensions', 'download-extensions-locally'];
 
 const shouldSpawnCli = parsedArgs.help || parsedArgs.version || extensionLookupArgs.some(a => !!parsedArgs[a]) || (extensionInstallArgs.some(a => !!parsedArgs[a]) && !parsedArgs['start-server']);
 
