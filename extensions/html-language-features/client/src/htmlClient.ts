@@ -95,7 +95,12 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 	const languageParticipants = getLanguageParticipants();
 	context.subscriptions.push(languageParticipants);
 
-	let client: Disposable | undefined = await startClientWithParticipants(languageParticipants, newLanguageClient, outputChannel, runtime);
+	const extensionUri = {
+		scheme: context.extensionUri.scheme,
+		path: context.extensionUri.path,
+	};
+
+	let client: Disposable | undefined = await startClientWithParticipants(languageParticipants, newLanguageClient, outputChannel, runtime, extensionUri);
 
 	const promptForLinkedEditingKey = 'html.promptForLinkedEditing';
 	if (extensions.getExtension('formulahendry.auto-rename-tag') !== undefined && (context.globalState.get(promptForLinkedEditingKey) !== false)) {
@@ -128,7 +133,7 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 				const oldClient = client;
 				client = undefined;
 				await oldClient.dispose();
-				client = await startClientWithParticipants(languageParticipants, newLanguageClient, outputChannel, runtime);
+				client = await startClientWithParticipants(languageParticipants, newLanguageClient, outputChannel, runtime, extensionUri);
 			}
 		}, 2000);
 	});
@@ -142,7 +147,7 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 	};
 }
 
-async function startClientWithParticipants(languageParticipants: LanguageParticipants, newLanguageClient: LanguageClientConstructor, outputChannel: OutputChannel, runtime: Runtime): Promise<AsyncDisposable> {
+async function startClientWithParticipants(languageParticipants: LanguageParticipants, newLanguageClient: LanguageClientConstructor, outputChannel: OutputChannel, runtime: Runtime, extensionUri: { scheme: string; path: string }): Promise<AsyncDisposable> {
 
 	const toDispose: Disposable[] = [];
 
@@ -158,6 +163,7 @@ async function startClientWithParticipants(languageParticipants: LanguagePartici
 			configurationSection: ['html', 'css', 'javascript', 'js/ts'], // the settings to synchronize
 		},
 		initializationOptions: {
+			extensionUri: extensionUri,
 			embeddedLanguages,
 			handledSchemas: ['file'],
 			provideFormatter: false, // tell the server to not provide formatting capability and ignore the `html.format.enable` setting.
