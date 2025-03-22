@@ -66,6 +66,35 @@ export function generateMetadataUri(notebook: URI): URI {
 	return notebook.with({ scheme: Schemas.vscodeNotebookMetadata, fragment });
 }
 
+export function parseCellOutputUri(uri: URI): { notebook: URI; openIn: string; outputId?: string; cellFragment?: string; outputIndex?: number } | undefined {
+	if (uri.scheme !== Schemas.vscodeNotebookCellOutput) {
+		return;
+	}
+
+	const params = new URLSearchParams(uri.query);
+	const openIn = params.get('openIn');
+	if (!openIn) {
+		return;
+	}
+	const outputId = params.get('outputId') ?? undefined;
+	const cellFragment = uri.fragment ?? undefined;
+	const outputIndex = params.get('outputIndex') ? parseInt(params.get('outputIndex') || '', 10) : undefined;
+	const notebookScheme = params.get('notebookScheme');
+
+
+	return {
+		notebook: uri.with({
+			scheme: notebookScheme || Schemas.file,
+			fragment: null,
+			query: null
+		}),
+		openIn: openIn,
+		outputId: outputId,
+		cellFragment: cellFragment,
+		outputIndex: outputIndex,
+	};
+}
+
 export interface INotebookDocumentService {
 	readonly _serviceBrand: undefined;
 
@@ -84,6 +113,15 @@ export class NotebookDocumentWorkbenchService implements INotebookDocumentServic
 			const cellUri = parse(uri);
 			if (cellUri) {
 				const document = this._documents.get(cellUri.notebook);
+				if (document) {
+					return document;
+				}
+			}
+		}
+		if (uri.scheme === Schemas.vscodeNotebookCellOutput) {
+			const parsedData = parseCellOutputUri(uri);
+			if (parsedData) {
+				const document = this._documents.get(parsedData.notebook);
 				if (document) {
 					return document;
 				}

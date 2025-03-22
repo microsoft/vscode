@@ -646,22 +646,32 @@ export namespace CellUri {
 		});
 	}
 
-	export function parseCellOutputUri(uri: URI): { notebook: URI; outputId?: string } | undefined {
+	export function parseCellOutputUri(uri: URI): { notebook: URI; openIn: string; outputId?: string; cellFragment?: string; outputIndex?: number } | undefined {
 		if (uri.scheme !== Schemas.vscodeNotebookCellOutput) {
 			return;
 		}
 
 		const params = new URLSearchParams(uri.query);
-		const outputId = params.get('outputId') || undefined;
+		const openIn = params.get('openIn');
+		if (!openIn) {
+			return;
+		}
+		const outputId = params.get('outputId') ?? undefined;
+		const cellFragment = uri.fragment ?? undefined;
+		const outputIndex = params.get('outputIndex') ? parseInt(params.get('outputIndex') || '', 10) : undefined;
 		const notebookScheme = params.get('notebookScheme');
 
+
 		return {
-			outputId,
 			notebook: uri.with({
 				scheme: notebookScheme || Schemas.file,
 				fragment: null,
 				query: null
 			}),
+			openIn: openIn,
+			outputId: outputId,
+			cellFragment: cellFragment,
+			outputIndex: outputIndex,
 		};
 	}
 
