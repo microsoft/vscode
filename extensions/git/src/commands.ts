@@ -91,7 +91,7 @@ class RefItem implements QuickPickItem {
 
 	get detail(): string | undefined {
 		if (this.ref.commitDetails?.authorName && this.ref.commitDetails?.message) {
-			return `${this.ref.commitDetails?.authorName}  |  ${this.ref.commitDetails?.message}`;
+			return `${this.ref.commitDetails?.authorName}$(circle-small-filled)${this.ref.commitDetails?.message}`;
 		}
 
 		return undefined;
@@ -119,7 +119,7 @@ class BranchItem extends RefItem {
 			description.push(fromNow(this.ref.commitDetails.commitDate, true, true));
 		}
 
-		return description.length > 0 ? description.join('  |  ') : this.shortCommit;
+		return description.length > 0 ? description.join('$(circle-small-filled)') : this.shortCommit;
 	}
 
 	constructor(override readonly ref: Branch) {
