@@ -582,6 +582,10 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				},
 				'additionalProperties': false
 			},
+			'workbench.fontFamily': {
+				'type': 'string',
+				'description': localize('workbench.fontFamily', "Controls the font family of the workbench.")
+			},
 			'workbench.fontAliasing': {
 				'type': 'string',
 				'enum': ['default', 'antialiased', 'none', 'auto'],
