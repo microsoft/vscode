@@ -228,7 +228,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	get instanceId(): number { return this._instanceId; }
-	get resource(): URI { return this._resource; }
+	get resource(): URI { return this._resource; } // TODO: attach /completion at the end of URI depending on shell type?
 	get cols(): number {
 		if (this._fixedCols !== undefined) {
 			return this._fixedCols;
