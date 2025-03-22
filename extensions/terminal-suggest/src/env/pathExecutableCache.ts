@@ -38,7 +38,12 @@ export class PathExecutableCache implements vscode.Disposable {
 		}
 	}
 
-	async getExecutablesInPath(env: { [key: string]: string | undefined } = process.env): Promise<{ completionResources: Set<ICompletionResource> | undefined; labels: Set<string> | undefined } | undefined> {
+	refresh(): void {
+		this._cachedExes = undefined;
+		this._cachedPathValue = undefined;
+	}
+
+	async getExecutablesInPath(env: ITerminalEnvironment = process.env): Promise<{ completionResources: Set<ICompletionResource> | undefined; labels: Set<string> | undefined } | undefined> {
 		// Create cache key
 		let pathValue: string | undefined;
 		if (isWindows) {
@@ -107,3 +112,5 @@ export class PathExecutableCache implements vscode.Disposable {
 		}
 	}
 }
+
+export type ITerminalEnvironment = { [key: string]: string | undefined } | undefined;
