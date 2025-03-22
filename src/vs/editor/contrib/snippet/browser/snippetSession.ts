@@ -289,7 +289,9 @@ export class OneSnippet {
 	merge(others: OneSnippet[]): void {
 
 		const model = this._editor.getModel();
-		this._nestingLevel *= 10;
+		this._nestingLevel *= Math.max(
+			...others.map(o => o._snippet.placeholderInfo.last?.index || 8)
+		) + 2;
 
 		this._editor.changeDecorations(accessor => {
 
