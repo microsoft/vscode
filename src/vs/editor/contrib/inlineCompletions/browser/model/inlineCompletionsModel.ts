@@ -91,6 +91,11 @@ export class InlineCompletionsModel extends Disposable {
 			const item = this.inlineCompletionState.read(reader);
 			const completion = item?.inlineCompletion;
 			if (completion?.semanticId !== lastItem?.semanticId) {
+				if (!completion && lastItem) {
+					const i = lastItem.inlineCompletion;
+					const src = i.source;
+					src.provider.handleRejection?.(src.inlineCompletions, i.sourceInlineCompletion, /*isExplicit=*/false);
+				}
 				lastItem = completion;
 				if (completion) {
 					const i = completion.inlineCompletion;
@@ -316,7 +321,7 @@ export class InlineCompletionsModel extends Disposable {
 				const source = inlineCompletion?.source;
 				const sourceInlineCompletion = inlineCompletion?.sourceInlineCompletion;
 				if (sourceInlineCompletion && source?.provider.handleRejection) {
-					source.provider.handleRejection(source.inlineCompletions, sourceInlineCompletion);
+					source.provider.handleRejection(source.inlineCompletions, sourceInlineCompletion, /*isExplicit=*/true);
 				}
 			}
 
