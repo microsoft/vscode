@@ -45,6 +45,7 @@ export interface IToolInvocation {
 	chatRequestId?: string;
 	chatInteractionId?: string;
 	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData;
+	modelId?: string;
 }
 
 export interface IToolInvocationContext {
