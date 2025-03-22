@@ -152,7 +152,7 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 				isDefault: true,
 				isCore: true,
 				isToolsAgent,
-				when: isToolsAgent ? ToolsAgentWhen : undefined,
+				when: isToolsAgent ? ToolsAgentWhen?.serialize() : undefined,
 				slashCommands: [],
 				disambiguation: [],
 				locations: [location],
