@@ -89,6 +89,7 @@ import './mainThreadProfileContentHandlers.js';
 import './mainThreadAiRelatedInformation.js';
 import './mainThreadAiEmbeddingVector.js';
 import './mainThreadMcp.js';
+import './mainThreadChatStatus.js';
 
 export class ExtensionPoints implements IWorkbenchContribution {
 

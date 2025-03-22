@@ -19,6 +19,14 @@
 	color: var(--vscode-descriptionForeground);
 	margin-bottom: 4px;
 	font-weight: 600;
+	display: flex;
+	flex-direction: row;
+	gap: 6px;
+
+	.description {
+		margin-left: auto;
+		font-weight: normal;
+	}
 }
 
 .chat-status-bar-entry-tooltip div.description {
@@ -110,4 +118,10 @@
 
 .chat-status-bar-entry-tooltip .settings .setting.disabled .setting-label {
 	color: var(--vscode-disabledForeground);
+}
+
+/* Contributions */
+
+.chat-status-bar-entry-tooltip .detail-item {
+
 }
