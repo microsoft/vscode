@@ -10,6 +10,7 @@ import { EditorOption } from '../../common/config/editorOptions.js';
 import { StringBuilder } from '../../common/core/stringBuilder.js';
 import * as viewEvents from '../../common/viewEvents.js';
 import { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
+import { ViewContext } from '../../common/viewModel/viewContext.js';
 
 /**
  * Represents a visible line
@@ -22,7 +23,7 @@ export interface IVisibleLine extends ILine {
 	 * Return null if the HTML should not be touched.
 	 * Return the new HTML otherwise.
 	 */
-	renderLine(lineNumber: number, deltaTop: number, lineHeight: number, viewportData: ViewportData, sb: StringBuilder): boolean;
+	renderLine(viewContext: ViewContext, lineNumber: number, deltaTop: number, viewportData: ViewportData, sb: StringBuilder): boolean;
 
 	/**
 	 * Layout the line.
@@ -255,7 +256,8 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 	private readonly _linesCollection: RenderedLinesCollection<T> = new RenderedLinesCollection<T>(this._lineFactory);
 
 	constructor(
-		private readonly _lineFactory: ILineFactory<T>
+		private readonly _lineFactory: ILineFactory<T>,
+		private readonly _viewContext: ViewContext
 	) {
 	}
 
@@ -354,7 +356,7 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 
 		const inp = this._linesCollection._get();
 
-		const renderer = new ViewLayerRenderer<T>(this.domNode.domNode, this._lineFactory, viewportData);
+		const renderer = new ViewLayerRenderer<T>(this.domNode.domNode, this._lineFactory, viewportData, this._viewContext);
 
 		const ctx: IRendererContext<T> = {
 			rendLineNumberStart: inp.rendLineNumberStart,
@@ -383,6 +385,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 		private readonly _domNode: HTMLElement,
 		private readonly _lineFactory: ILineFactory<T>,
 		private readonly _viewportData: ViewportData,
+		private readonly _viewContext: ViewContext
 	) {
 	}
 
@@ -467,7 +470,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 
 		for (let i = startIndex; i <= endIndex; i++) {
 			const lineNumber = rendLineNumberStart + i;
-			lines[i].layoutLine(lineNumber, deltaTop[lineNumber - deltaLN], this._viewportData.lineHeight);
+			lines[i].layoutLine(lineNumber, deltaTop[lineNumber - deltaLN], this._viewContext.viewLayout.getLineHeightForLineNumber(lineNumber));
 		}
 	}
 
@@ -571,7 +574,8 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 					continue;
 				}
 
-				const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], this._viewportData.lineHeight, this._viewportData, sb);
+				const renderedLineNumber = i + rendLineNumberStart;
+				const renderResult = line.renderLine(this._viewContext, renderedLineNumber, deltaTop[i], this._viewportData, sb);
 				if (!renderResult) {
 					// line does not need rendering
 					continue;
@@ -601,7 +605,8 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 					continue;
 				}
 
-				const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], this._viewportData.lineHeight, this._viewportData, sb);
+				const renderedLineNumber = i + rendLineNumberStart;
+				const renderResult = line.renderLine(this._viewContext, renderedLineNumber, deltaTop[i], this._viewportData, sb);
 				if (!renderResult) {
 					// line does not need rendering
 					continue;

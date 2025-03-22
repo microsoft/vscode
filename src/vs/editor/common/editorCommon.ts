@@ -633,7 +633,9 @@ export interface IThemeDecorationRenderOptions {
 
 	fontStyle?: string;
 	fontWeight?: string;
-	fontSize?: string;
+	fontFamily?: string;
+	fontSize?: number;
+	lineHeight?: number;
 	textDecoration?: string;
 	cursor?: string;
 	color?: string | ThemeColor;
@@ -676,7 +678,7 @@ export interface IContentDecorationRenderOptions {
 	borderRadius?: string;
 	fontStyle?: string;
 	fontWeight?: string;
-	fontSize?: string;
+	fontSize?: number;
 	fontFamily?: string;
 	textDecoration?: string;
 	color?: string | ThemeColor;

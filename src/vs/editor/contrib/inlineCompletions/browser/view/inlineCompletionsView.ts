@@ -55,6 +55,7 @@ export class InlineCompletionsView extends Disposable {
 		.recomputeInitiallyAndOnChange(this._store);
 
 	private readonly _fontFamily = this._editorObs.getOption(EditorOption.inlineSuggest).map(val => val.fontFamily);
+	private readonly _cursorSelection = this._editorObs.cursorSelection;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -66,12 +67,21 @@ export class InlineCompletionsView extends Disposable {
 
 		this._register(createStyleSheetFromObservable(derived(reader => {
 			const fontFamily = this._fontFamily.read(reader);
-			if (fontFamily === '' || fontFamily === 'default') { return ''; }
+			const cursorSelection = this._cursorSelection.read(reader);
+			if ((fontFamily === '' || fontFamily === 'default') && !cursorSelection) { return ''; }
+			let fontSize: number = this._editor.getOption(EditorOption.fontSize);
+			if (cursorSelection) {
+				const fontInfo = this._editor.getFontInfoForPosition(cursorSelection.getPosition());
+				if (fontInfo) {
+					fontSize = fontInfo.fontSize;
+				}
+			}
 			return `
 .monaco-editor .ghost-text-decoration,
 .monaco-editor .ghost-text-decoration-preview,
 .monaco-editor .ghost-text {
 	font-family: ${fontFamily};
+	font-size: ${fontSize}px;
 }`;
 		})));
 

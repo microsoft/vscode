@@ -47,6 +47,11 @@
 	white-space: nowrap;
 }
 
+.monaco-editor .sticky-line-content > span {
+	display: flex;
+	align-items: center;
+}
+
 .monaco-editor .sticky-line-number-inner {
 	display: inline-block;
 	text-align: right;

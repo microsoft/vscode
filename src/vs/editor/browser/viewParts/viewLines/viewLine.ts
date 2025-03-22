@@ -19,6 +19,8 @@ import { EditorFontLigatures } from '../../../common/config/editorOptions.js';
 import { DomReadingContext } from './domReadingContext.js';
 import type { ViewLineOptions } from './viewLineOptions.js';
 import { ViewGpuContext } from '../../gpu/viewGpuContext.js';
+import { ViewContext } from '../../../common/viewModel/viewContext.js';
+import { Range } from '../../../common/core/range.js';
 
 const canUseFastRenderedViewLine = (function () {
 	if (platform.isNative) {
@@ -49,6 +51,7 @@ let monospaceAssumptionsAreValid = true;
 export class ViewLine implements IVisibleLine {
 
 	public static readonly CLASS_NAME = 'view-line';
+	// public static MAX_FONT_SIZE_VARIABLE_NAME = '--vscode-max-font-size';
 
 	private _options: ViewLineOptions;
 	private _isMaybeInvalid: boolean;
@@ -97,7 +100,7 @@ export class ViewLine implements IVisibleLine {
 		return false;
 	}
 
-	public renderLine(lineNumber: number, deltaTop: number, lineHeight: number, viewportData: ViewportData, sb: StringBuilder): boolean {
+	public renderLine(viewContext: ViewContext, lineNumber: number, deltaTop: number, viewportData: ViewportData, sb: StringBuilder): boolean {
 		if (this._options.useGpu && this._viewGpuContext?.canRender(this._options, viewportData, lineNumber)) {
 			this._renderedViewLine?.domNode?.domNode.remove();
 			this._renderedViewLine = null;
@@ -171,10 +174,15 @@ export class ViewLine implements IVisibleLine {
 			return false;
 		}
 
+		const lineHeight = viewContext.viewLayout.getLineHeightForLineNumber(lineNumber);
 		sb.appendString('<div style="top:');
 		sb.appendString(String(deltaTop));
 		sb.appendString('px;height:');
 		sb.appendString(String(lineHeight));
+		sb.appendString('px;line-height:');
+		sb.appendString(String(lineHeight));
+		// sb.appendString(`px;${ViewLine.MAX_FONT_SIZE_VARIABLE_NAME}:`);
+		// sb.appendString(String(lineHeight));
 		sb.appendString('px;" class="');
 		sb.appendString(ViewLine.CLASS_NAME);
 		sb.appendString('">');
@@ -184,7 +192,8 @@ export class ViewLine implements IVisibleLine {
 		sb.appendString('</div>');
 
 		let renderedViewLine: IRenderedViewLine | null = null;
-		if (monospaceAssumptionsAreValid && canUseFastRenderedViewLine && lineData.isBasicASCII && options.useMonospaceOptimizations && output.containsForeignElements === ForeignElementType.None) {
+		const fontDecorationsExistOnLine = viewContext.viewModel.getFontDecorationsInRange(new Range(lineNumber, 1, lineNumber, viewContext.viewModel.model.getLineMaxColumn(lineNumber))).length > 0;
+		if (!fontDecorationsExistOnLine && monospaceAssumptionsAreValid && canUseFastRenderedViewLine && lineData.isBasicASCII && options.useMonospaceOptimizations && output.containsForeignElements === ForeignElementType.None) {
 			renderedViewLine = new FastRenderedViewLine(
 				this._renderedViewLine ? this._renderedViewLine.domNode : null,
 				renderLineInput,
@@ -211,8 +220,17 @@ export class ViewLine implements IVisibleLine {
 		if (this._renderedViewLine && this._renderedViewLine.domNode) {
 			this._renderedViewLine.domNode.setTop(deltaTop);
 			this._renderedViewLine.domNode.setHeight(lineHeight);
+			this._renderedViewLine.domNode.setLineHeight(lineHeight);
+			// this._setMaximumFontSize(lineHeight);
 		}
 	}
+
+	// private _setMaximumFontSize(height: number): void {
+	// 	if (!this._renderedViewLine || !this._renderedViewLine.domNode) {
+	// 		return;
+	// 	}
+	// 	this._renderedViewLine.domNode.domNode.style.setProperty(ViewLine.MAX_FONT_SIZE_VARIABLE_NAME, `${height}px`);
+	// }
 
 	// --- end IVisibleLineData
 

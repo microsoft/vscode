@@ -34,12 +34,15 @@ import { ViewLayout } from '../viewLayout/viewLayout.js';
 import { MinimapTokensColorTracker } from './minimapTokensColorTracker.js';
 import { ILineBreaksComputer, ILineBreaksComputerFactory, InjectedText } from '../modelLineProjectionData.js';
 import { ViewEventHandler } from '../viewEventHandler.js';
-import { ICoordinatesConverter, InlineDecoration, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
+import { ICoordinatesConverter, InlineDecoration, ISpecialLineHeightChangeAccessor, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
 import { ViewModelDecorations } from './viewModelDecorations.js';
 import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent, WidgetFocusChangedEvent } from '../viewModelEventDispatcher.js';
 import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from './viewModelLines.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { GlyphMarginLanesModel } from './glyphLanesModel.js';
+import { BareFontInfo } from '../config/fontInfo.js';
+import { getActiveWindow } from '../../../base/browser/dom.js';
+import { PixelRatio } from '../../../base/browser/pixelRatio.js';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -419,6 +422,31 @@ export class ViewModel extends Disposable implements IViewModel {
 			this._handleVisibleLinesChanged();
 		}));
 
+		this._register(this.model.onDidChangeLineHeight((e) => {
+			e.changes.forEach((change) => {
+				if (change.ownerId !== this._editorId && change.ownerId !== 0) {
+					return;
+				}
+				const lineNumber = change.lineNumber;
+				const lineHeight = change.lineHeight;
+				const decorationId = change.decorationId;
+				const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
+				if (lineHeight !== null) {
+					for (let i = viewRange.startLineNumber; i <= viewRange.endLineNumber; i++) {
+						this.viewLayout.changeSpecialLineHeights((accessor: ISpecialLineHeightChangeAccessor) => {
+							accessor.insertOrChangeSpecialLineHeight(decorationId, lineNumber, lineHeight);
+						});
+					}
+				} else {
+					for (let i = viewRange.startLineNumber; i <= viewRange.endLineNumber; i++) {
+						this.viewLayout.changeSpecialLineHeights((accessor: ISpecialLineHeightChangeAccessor) => {
+							accessor.removeSpecialLineHeight(decorationId);
+						});
+					}
+				}
+			});
+		}));
+
 		this._register(this.model.onDidChangeTokens((e) => {
 			const viewRanges: { fromLineNumber: number; toLineNumber: number }[] = [];
 			for (let j = 0, lenJ = e.ranges.length; j < lenJ; j++) {
@@ -717,6 +745,43 @@ export class ViewModel extends Disposable implements IViewModel {
 
 	public getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[] {
 		return this._decorations.getDecorationsViewportData(visibleRange).decorations;
+	}
+
+	public getFontInfoForPosition(position: Position): BareFontInfo {
+		const range = Range.fromPositions(position);
+		const fontDecorations = this.getFontDecorationsInRange(range);
+		const defaultFontInfo = this._configuration.options.get(EditorOption.fontInfo);
+		const lineHeight = this.viewLayout.getLineHeightForLineNumber(position.lineNumber);
+		let fontFamily: string = defaultFontInfo.fontFamily;
+		let fontWeight: string = defaultFontInfo.fontWeight;
+		let fontSize: number = defaultFontInfo.fontSize;
+		if (fontDecorations.length > 0) {
+			const fontDecoration = fontDecorations[0];
+			const decorationOptions = fontDecoration.options;
+			if (decorationOptions.fontFamily) {
+				fontFamily = decorationOptions.fontFamily;
+			}
+			if (decorationOptions.fontWeight) {
+				fontWeight = decorationOptions.fontWeight;
+			}
+			if (decorationOptions.fontSize) {
+				fontSize = decorationOptions.fontSize;
+			}
+		}
+		// TODO: maybe we should also allow font-ligatures, font-variations and letter-spacing?
+		return BareFontInfo.createFromRawSettings({
+			fontFamily,
+			fontWeight,
+			fontSize,
+			lineHeight,
+			fontLigatures: defaultFontInfo.fontFeatureSettings,
+			fontVariations: defaultFontInfo.fontVariationSettings,
+			letterSpacing: defaultFontInfo.letterSpacing
+		}, PixelRatio.getInstance(getActiveWindow()).value);
+	}
+
+	public getFontDecorationsInRange(range: Range): ViewModelDecoration[] {
+		return this._decorations.getFontDecorationsInRange(range);
 	}
 
 	public getInjectedTextAt(viewPosition: Position): InjectedText | null {

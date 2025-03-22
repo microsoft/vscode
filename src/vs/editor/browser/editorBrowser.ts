@@ -19,12 +19,13 @@ import { IDiffComputationResult, ILineChange } from '../common/diff/legacyLinesD
 import * as editorCommon from '../common/editorCommon.js';
 import { GlyphMarginLane, ICursorStateComputer, IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration, ITextModel, PositionAffinity } from '../common/model.js';
 import { InjectedText } from '../common/modelLineProjectionData.js';
-import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent } from '../common/textModelEvents.js';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelLineHeightChangedEvent } from '../common/textModelEvents.js';
 import { IEditorWhitespace, IViewModel } from '../common/viewModel.js';
 import { OverviewRulerZone } from '../common/viewModel/overviewZoneManager.js';
 import { MenuId } from '../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
+import { BareFontInfo } from '../common/config/fontInfo.js';
 
 /**
  * A view zone is a full horizontal rectangle that 'pushes' text down.
@@ -892,6 +893,13 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	getConfiguredWordAtPosition(position: Position): IWordAtPosition | null;
 
 	/**
+	 * An event emitted when line heights from decorations change
+	 * @internal
+	 * @event
+	 */
+	onDidChangeLineHeight: Event<ModelLineHeightChangedEvent>;
+
+	/**
 	 * Get value of the current model attached to this editor.
 	 * @see {@link ITextModel.getValue}
 	 */
@@ -1067,6 +1075,16 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * Get the vertical position (top offset) for the position w.r.t. to the first line.
 	 */
 	getTopForPosition(lineNumber: number, column: number): number;
+
+	/**
+	 * Get the line height for the line number.
+	 */
+	getLineHeightForLineNumber(lineNumber: number): number;
+
+	/**
+	 * Get the font info for the editor at the given position.
+	 */
+	getFontInfoForPosition(position: Position): BareFontInfo | undefined;
 
 	/**
 	 * Set the model ranges that will be hidden in the view.
