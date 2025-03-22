@@ -19,7 +19,7 @@ import { ITextModel } from '../../editor/common/model.js';
 import { IThemeService } from '../../platform/theme/common/themeService.js';
 import { Event, Emitter } from '../../base/common/event.js';
 import { ILabelService } from '../../platform/label/common/label.js';
-import { getIconClasses } from '../../editor/common/services/getIconClasses.js';
+import { getIconAttributes, getIconClasses } from '../../editor/common/services/getIconClasses.js';
 import { Disposable, dispose, IDisposable, MutableDisposable } from '../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
 import { normalizeDriveLetter } from '../../base/common/labels.js';
@@ -295,6 +295,7 @@ class ResourceLabelWidget extends IconLabel {
 	private options: IResourceLabelOptions | undefined = undefined;
 
 	private computedIconClasses: string[] | undefined = undefined;
+	private computedIconAttributes: Record<string, string> | undefined = undefined;
 	private computedLanguageId: string | undefined = undefined;
 	private computedPathLabel: string | undefined = undefined;
 	private computedWorkspaceFolderLabel: string | undefined = undefined;
@@ -570,13 +571,14 @@ class ResourceLabelWidget extends IconLabel {
 			return false;
 		}
 
-		const iconLabelOptions: IIconLabelValueOptions & { extraClasses: string[] } = {
+		const iconLabelOptions: IIconLabelValueOptions & { extraClasses: string[]; extraAttributes: { [attrName: string]: string } } = {
 			title: '',
 			italic: this.options?.italic,
 			strikethrough: this.options?.strikethrough,
 			matches: this.options?.matches,
 			descriptionMatches: this.options?.descriptionMatches,
 			extraClasses: [],
+			extraAttributes: {},
 			separator: this.options?.separator,
 			domId: this.options?.domId,
 			disabledCommand: this.options?.disabledCommand,
@@ -612,15 +614,24 @@ class ResourceLabelWidget extends IconLabel {
 				this.computedIconClasses = getIconClasses(this.modelService, this.languageService, resource, this.options.fileKind, this.options.icon);
 			}
 
+			if (!this.computedIconAttributes) {
+				this.computedIconAttributes = getIconAttributes(resource);
+			}
+
 			if (URI.isUri(this.options.icon)) {
 				iconLabelOptions.iconPath = this.options.icon;
 			}
 
 			iconLabelOptions.extraClasses = this.computedIconClasses.slice(0);
+			iconLabelOptions.extraAttributes = this.computedIconAttributes;
 		}
 
 		if (this.options?.extraClasses) {
 			iconLabelOptions.extraClasses.push(...this.options.extraClasses);
+		}
+
+		if (this.options?.extraAttributes) {
+			Object.assign(iconLabelOptions.extraAttributes, this.options.extraAttributes);
 		}
 
 		if (this.options?.fileDecorations && resource) {
