@@ -320,7 +320,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 								extensionDisplayName: extension.description.displayName ?? extension.description.name,
 								id: providerDescriptor.id,
 								description: providerDescriptor.description,
-								when: providerDescriptor.when,
+								when: ContextKeyExpr.deserialize(providerDescriptor.when),
 								metadata: {
 									isSticky: providerDescriptor.isSticky,
 									sampleRequest: providerDescriptor.sampleRequest,

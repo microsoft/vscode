@@ -16,7 +16,7 @@ import { equalsIgnoreCase } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Command, ProviderResult } from '../../../../editor/common/languages.js';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -42,7 +42,7 @@ export interface IChatAgentData {
 	name: string;
 	fullName?: string;
 	description?: string;
-	when?: string;
+	when?: ContextKeyExpression;
 	extensionId: ExtensionIdentifier;
 	extensionPublisherId: string;
 	/** This is the extension publisher id, or, in the case of a dynamically registered participant (remote agent), whatever publisher name we have for it */
@@ -289,8 +289,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		this._agentsContextKeys.clear();
 		for (const agent of this._agents.values()) {
 			if (agent.data.when) {
-				const expr = ContextKeyExpr.deserialize(agent.data.when);
-				for (const key of expr?.keys() || []) {
+				for (const key of agent.data.when.keys() || []) {
 					this._agentsContextKeys.add(key);
 				}
 			}
@@ -420,7 +419,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 
 	private _agentIsEnabled(idOrAgent: string | IChatAgentEntry): boolean {
 		const entry = typeof idOrAgent === 'string' ? this._agents.get(idOrAgent) : idOrAgent;
-		return !entry?.data.when || this.contextKeyService.contextMatchesRules(ContextKeyExpr.deserialize(entry.data.when));
+		return !entry?.data.when || this.contextKeyService.contextMatchesRules(entry.data.when);
 	}
 
 	getAgentByFullyQualifiedId(id: string): IChatAgentData | undefined {
@@ -564,7 +563,7 @@ export class MergedChatAgent implements IChatAgent {
 		private readonly data: IChatAgentData,
 		private readonly impl: IChatAgentImplementation
 	) { }
-	when?: string | undefined;
+	when?: ContextKeyExpression | undefined;
 	publisherDisplayName?: string | undefined;
 	isDynamic?: boolean | undefined;
 
@@ -742,6 +741,9 @@ export function reviveSerializedAgent(raw: ISerializableChatAgentData): IChatAge
 			...(raw as any),
 			name: (raw as any).id,
 		};
+	if (agent.when) {
+		agent.when = ContextKeyExpr.deserialize(agent.when);
+	}
 
 	// Fill in required fields that may be missing from old data
 	if (!('extensionPublisherId' in agent)) {
@@ -756,5 +758,5 @@ export function reviveSerializedAgent(raw: ISerializableChatAgentData): IChatAge
 		agent.extensionId = new ExtensionIdentifier('');
 	}
 
-	return revive(agent);
+	return revive(agent) as IChatAgentData;
 }

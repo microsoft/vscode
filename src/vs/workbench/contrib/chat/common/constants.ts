@@ -6,6 +6,7 @@
 export enum ChatConfiguration {
 	UnifiedChatView = 'chat.unifiedChatView',
 	UseFileStorage = 'chat.useFileStorage',
+	AgentEnabled = 'chat.agent.enabled',
 }
 
 export enum ChatMode {

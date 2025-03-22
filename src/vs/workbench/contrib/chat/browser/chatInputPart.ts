@@ -400,6 +400,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		});
 
 		this.initSelectedModel();
+
+		this._register(agentService.onDidChangeAgents(() => {
+			if (!agentService.hasToolsAgent && this._currentMode === ChatMode.Agent) {
+				this.setChatMode(ChatMode.Edit);
+			}
+		}));
 	}
 
 	private getSelectedModelStorageKey(): string {
@@ -451,6 +457,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	setChatMode(mode: ChatMode): void {
 		if (!this.options.supportsChangingModes) {
 			return;
+		}
+
+		if (mode === ChatMode.Agent && !this.agentService.hasToolsAgent) {
+			mode = ChatMode.Edit;
 		}
 
 		this._currentMode = mode;
@@ -1366,7 +1376,6 @@ class ChatSubmitDropdownActionItem extends DropdownWithPrimaryActionViewItem {
 		options: IDropdownWithPrimaryActionViewItemOptions,
 		@IMenuService menuService: IMenuService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IChatAgentService chatAgentService: IChatAgentService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@INotificationService notificationService: INotificationService,
@@ -1491,6 +1500,7 @@ class ToggleChatModeActionViewItem extends DropdownMenuActionViewItemWithKeybind
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatService chatService: IChatService,
+		@IChatAgentService chatAgentService: IChatAgentService,
 	) {
 		const makeAction = (mode: ChatMode): IAction => ({
 			...action,
@@ -1510,8 +1520,11 @@ class ToggleChatModeActionViewItem extends DropdownMenuActionViewItemWithKeybind
 			getActions: () => {
 				const agentStateActions = [
 					makeAction(ChatMode.Edit),
-					makeAction(ChatMode.Agent),
 				];
+				if (chatAgentService.hasToolsAgent) {
+					agentStateActions.push(makeAction(ChatMode.Agent));
+				}
+
 				if (chatService.unifiedViewEnabled) {
 					agentStateActions.unshift(makeAction(ChatMode.Ask));
 				}

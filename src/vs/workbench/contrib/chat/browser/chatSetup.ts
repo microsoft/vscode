@@ -63,7 +63,7 @@ import { CHAT_CATEGORY, CHAT_OPEN_ACTION_ID, CHAT_SETUP_ACTION_ID } from './acti
 import { ChatViewId, EditsViewId, ensureSideBarChatViewSize, IChatWidgetService, preferCopilotEditsView, showCopilotView } from './chat.js';
 import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
 import { ChatViewsWelcomeExtensions, IChatViewsWelcomeContributionRegistry } from './viewsWelcome/chatViewsWelcome.js';
-import { ChatAgentLocation } from '../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration } from '../common/constants.js';
 import { ILanguageModelsService } from '../common/languageModels.js';
 import { Dialog } from '../../../../base/browser/ui/dialog/dialog.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
@@ -93,6 +93,12 @@ const defaultChat = {
 };
 
 //#region Contribution
+
+const ToolsAgentWhen = ContextKeyExpr.and(
+	ContextKeyExpr.equals(`config.${ChatConfiguration.AgentEnabled}`, true),
+	ChatContextKeys.Editing.agentModeDisallowed.negate(),
+	ContextKeyExpr.not(`previewFeaturesDisabled`) // Set by extension
+);
 
 class SetupChatAgentImplementation extends Disposable implements IChatAgentImplementation {
 
@@ -146,6 +152,7 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 				isDefault: true,
 				isCore: true,
 				isToolsAgent,
+				when: isToolsAgent ? ToolsAgentWhen : undefined,
 				slashCommands: [],
 				disambiguation: [],
 				locations: [location],

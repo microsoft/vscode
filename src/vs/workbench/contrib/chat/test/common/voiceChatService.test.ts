@@ -38,7 +38,6 @@ suite('VoiceChat', () => {
 		}
 		fullName?: string | undefined;
 		description?: string | undefined;
-		when?: string | undefined;
 		publisherDisplayName?: string | undefined;
 		isDefault?: boolean | undefined;
 		isDynamic?: boolean | undefined;

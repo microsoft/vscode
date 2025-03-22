@@ -960,7 +960,9 @@ export interface ISerializableChatsData {
 	[sessionId: string]: ISerializableChatData;
 }
 
-export type ISerializableChatAgentData = UriDto<IChatAgentData>;
+export interface ISerializableChatAgentData extends Omit<UriDto<IChatAgentData>, 'when'> {
+	when?: string;
+}
 
 export interface ISerializableChatRequestData {
 	requestId: string;

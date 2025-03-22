@@ -369,8 +369,9 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 			if (enabled) {
 				this.registerEnablementSetting();
 				expDisabledKey.set(false);
-			} else if (this.productService.quality === 'stable') {
-				// undefined treatment- on stable, fall back to disabled
+			} else if (this.productService.quality === 'stable' || typeof enabled === 'boolean') {
+				// If undefined treatment, on stable, fall back to disabled.
+				// Other qualities fall back to enabled.
 				this.deregisterSetting();
 				expDisabledKey.set(true);
 			}
@@ -389,7 +390,7 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 			title: nls.localize('interactiveSessionConfigurationTitle', "Chat"),
 			type: 'object',
 			properties: {
-				'chat.agent.enabled': {
+				[ChatConfiguration.AgentEnabled]: {
 					type: 'boolean',
 					description: nls.localize('chat.agent.enabled.description', "Enable agent mode for {0}. When this is enabled, a dropdown appears in the {0} view to toggle agent mode.", 'Copilot Edits'),
 					default: this.productService.quality !== 'stable',
