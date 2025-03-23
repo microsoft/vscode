@@ -22,6 +22,8 @@ import { ChatRequestTextPart } from '../../common/chatParserTypes.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { TestExtensionService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { ChatAgentLocation } from '../../common/constants.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 
 suite('ChatModel', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -35,6 +37,7 @@ suite('ChatModel', () => {
 		instantiationService.stub(IExtensionService, new TestExtensionService());
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(IChatAgentService, testDisposables.add(instantiationService.createInstance(ChatAgentService)));
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	});
 
 	test('Waits for initialization', async () => {
