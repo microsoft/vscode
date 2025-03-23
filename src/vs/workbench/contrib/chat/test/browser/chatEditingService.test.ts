@@ -136,7 +136,10 @@ suite('ChatEditingService', function () {
 		const uri = URI.from({ scheme: 'test', path: 'HelloWorld' });
 
 		const model = chatService.startSession(ChatAgentLocation.EditingSession, CancellationToken.None);
-		const session = await editingService.createEditingSession(model, true);
+		const session = await model.editingSessionObs?.promise;
+		if (!session) {
+			assert.fail('session not created');
+		}
 
 		const chatRequest = model?.addRequest({ text: '', parts: [] }, { variables: [] }, 0);
 		assertType(chatRequest.response);
@@ -159,7 +162,6 @@ suite('ChatEditingService', function () {
 
 		await entry.reject(undefined);
 
-		session.dispose();
 		model.dispose();
 	});
 

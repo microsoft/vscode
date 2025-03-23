@@ -604,11 +604,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				}
 			});
 		}));
-
-		if (this._state.get() !== ChatEditingSessionState.Disposed) {
-			// session got disposed while we were closing editors and clearing state
-			this.dispose();
-		}
 	}
 
 	override dispose() {
