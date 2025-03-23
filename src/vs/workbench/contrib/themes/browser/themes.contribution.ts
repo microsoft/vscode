@@ -306,7 +306,7 @@ class InstalledThemesPicker {
 
 		let marketplaceThemePicker: MarketplaceThemesPicker | undefined;
 		if (this.extensionGalleryService.isEnabled()) {
-			if (this.extensionResourceLoaderService.supportsExtensionGalleryResources && this.options.browseMessage) {
+			if (await this.extensionResourceLoaderService.supportsExtensionGalleryResources() && this.options.browseMessage) {
 				marketplaceThemePicker = this.instantiationService.createInstance(MarketplaceThemesPicker, this.getMarketplaceColorThemes.bind(this), this.options.marketplaceTag);
 				picks = [configurationEntry(this.options.browseMessage, ConfigureItem.BROWSE_GALLERY), ...picks];
 			} else {
@@ -772,7 +772,7 @@ registerAction2(class extends Action2 {
 		const extensionResourceLoaderService = accessor.get(IExtensionResourceLoaderService);
 		const instantiationService = accessor.get(IInstantiationService);
 
-		if (!extensionGalleryService.isEnabled() || !extensionResourceLoaderService.supportsExtensionGalleryResources) {
+		if (!extensionGalleryService.isEnabled() || !await extensionResourceLoaderService.supportsExtensionGalleryResources()) {
 			return;
 		}
 		const currentTheme = themeService.getColorTheme();
@@ -809,7 +809,7 @@ MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 	order: 7
 } satisfies ISubmenuItem);
 MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
-	title: localize({ key: 'miSelectTheme', comment: ['&& denotes a mnemonic'] }, "&&Theme"),
+	title: localize({ key: 'miSelectTheme', comment: ['&& denotes a mnemonic'] }, "&&Themes"),
 	submenu: ThemesSubMenu,
 	group: '2_configuration',
 	order: 7

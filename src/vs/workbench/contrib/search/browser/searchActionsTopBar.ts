@@ -15,7 +15,7 @@ import { VIEW_ID } from '../../../services/search/common/search.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { SearchStateKey, SearchUIState } from '../common/search.js';
 import { category, getSearchView } from './searchActionsBase.js';
 import { isSearchTreeMatch, RenderableMatch, ISearchResult, isSearchTreeFolderMatch, isSearchTreeFolderMatchNoRoot, isSearchTreeFolderMatchWorkspaceRoot, isSearchResult, isTextSearchHeading, isSearchTreeFileMatch } from './searchTreeModel/searchTreeCommon.js';
@@ -205,6 +205,34 @@ registerAction2(class ViewAsListAction extends Action2 {
 	}
 });
 
+registerAction2(class SearchWithAIAction extends Action2 {
+	constructor() {
+		super({
+			id: Constants.SearchCommandIds.SearchWithAIActionId,
+			title: nls.localize2('SearchWithAIAction.label', "Search with AI"),
+			category,
+			f1: true,
+			precondition: Constants.SearchContext.hasAIResultProvider,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				when: ContextKeyExpr.and(Constants.SearchContext.hasAIResultProvider, Constants.SearchContext.SearchViewFocusedKey),
+				primary: KeyMod.CtrlCmd | KeyCode.KeyI
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: any[]) {
+		const searchView = getSearchView(accessor.get(IViewsService));
+		if (searchView) {
+			const viewer = searchView.getControl();
+			searchView.model.searchResult.aiTextSearchResult.hidden = false;
+			searchView.model.cancelAISearch(true);
+			searchView.model.clearAiSearchResults();
+			await searchView.queueRefreshTree();
+			await forcedExpandRecursively(viewer, searchView.model.searchResult.aiTextSearchResult);
+		}
+	}
+});
 
 //#endregion
 
@@ -274,7 +302,7 @@ function cancelSearch(accessor: ServicesAccessor) {
 function refreshSearch(accessor: ServicesAccessor) {
 	const viewsService = accessor.get(IViewsService);
 	const searchView = getSearchView(viewsService);
-	searchView?.triggerQueryChange({ preserveFocus: false });
+	searchView?.triggerQueryChange({ preserveFocus: false, shouldUpdateAISearch: !searchView.model.searchResult.aiTextSearchResult.hidden });
 }
 
 function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {

@@ -18,7 +18,7 @@ import { IPaneCompositePartService } from '../../panecomposite/browser/panecompo
 import { ViewContainerLocation } from '../../../common/views.js';
 import { TelemetryTrustedValue } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { isWeb } from '../../../../base/common/platform.js';
-import { createBlobWorker } from '../../../../base/browser/defaultWorkerFactory.js';
+import { createBlobWorker } from '../../../../base/browser/webWorkerFactory.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ITerminalBackendRegistry, TerminalExtensions } from '../../../../platform/terminal/common/terminal.js';
 
@@ -508,7 +508,7 @@ export abstract class AbstractTimerService implements ITimerService {
 
 	private readonly _barrier = new Barrier();
 	private readonly _marks = new PerfMarks();
-	private readonly _rndValueShouldSendTelemetry = Math.random() < .05; // 5% of users
+	private readonly _rndValueShouldSendTelemetry = Math.random() < .03; // 3% of users
 
 	private _startupMetrics?: IStartupMetrics;
 

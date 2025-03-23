@@ -70,6 +70,10 @@ export class SimpleCompletionModel<T extends SimpleCompletionItem> {
 		}
 	}
 
+	forceRefilterAll() {
+		this._refilterKind = Refilter.All;
+	}
+
 	private _ensureCachedState(): void {
 		if (this._refilterKind !== Refilter.Nothing) {
 			this._createCachedState();
@@ -98,9 +102,9 @@ export class SimpleCompletionModel<T extends SimpleCompletionItem> {
 
 			const item = source[i];
 
-			// if (item.isInvalid) {
-			// 	continue; // SKIP invalid items
-			// }
+			if (item.isInvalid) {
+				continue; // SKIP invalid items
+			}
 
 			// collect all support, know if their result is incomplete
 			// this._providerInfo.set(item.provider, Boolean(item.container.incomplete));
@@ -166,7 +170,7 @@ export class SimpleCompletionModel<T extends SimpleCompletionItem> {
 
 				} else {
 					// by default match `word` against the `label`
-					const match = scoreFn(word, wordLow, wordPos, item.completion.label, item.labelLow, 0, this._fuzzyScoreOptions);
+					const match = scoreFn(word, wordLow, wordPos, item.textLabel, item.labelLow, 0, this._fuzzyScoreOptions);
 					if (!match && word !== '') {
 						continue; // NO match
 					}
@@ -178,7 +182,7 @@ export class SimpleCompletionModel<T extends SimpleCompletionItem> {
 			target.push(item);
 
 			// update stats
-			labelLengths.push(item.completion.label.length);
+			labelLengths.push(item.textLabel.length);
 		}
 
 		this._filteredItems = target.sort(this._rawCompareFn?.bind(undefined, leadingLineContent));

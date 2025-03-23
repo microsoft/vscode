@@ -14,7 +14,7 @@ import { Selection } from '../common/core/selection.js';
 import { ICursorSelectionChangedEvent } from '../common/cursorEvents.js';
 import { IModelDeltaDecoration, ITextModel } from '../common/model.js';
 import { IModelContentChangedEvent } from '../common/textModelEvents.js';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IOverlayWidget, IOverlayWidgetPosition, IPasteEvent } from './editorBrowser.js';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent, IOverlayWidget, IOverlayWidgetPosition, IPasteEvent } from './editorBrowser.js';
 import { Point } from './point.js';
 
 /**
@@ -232,6 +232,8 @@ export class ObservableCodeEditor extends Disposable {
 	public readonly layoutInfoContentLeft = this.layoutInfo.map(l => l.contentLeft);
 	public readonly layoutInfoDecorationsLeft = this.layoutInfo.map(l => l.decorationsLeft);
 	public readonly layoutInfoWidth = this.layoutInfo.map(l => l.width);
+	public readonly layoutInfoMinimap = this.layoutInfo.map(l => l.minimap);
+	public readonly layoutInfoVerticalScrollbarWidth = this.layoutInfo.map(l => l.verticalScrollbarWidth);
 
 	public readonly contentWidth = observableFromEvent(this.editor.onDidContentSizeChange, () => this.editor.getContentWidth());
 
@@ -276,6 +278,25 @@ export class ObservableCodeEditor extends Disposable {
 		return toDisposable(() => {
 			d.dispose();
 			this.editor.removeOverlayWidget(w);
+		});
+	}
+
+	public createContentWidget(widget: IObservableContentWidget): IDisposable {
+		const contentWidgetId = 'observableContentWidget' + (this._widgetCounter++);
+		const w: IContentWidget = {
+			getDomNode: () => widget.domNode,
+			getPosition: () => widget.position.get(),
+			getId: () => contentWidgetId,
+			allowEditorOverflow: widget.allowEditorOverflow,
+		};
+		this.editor.addContentWidget(w);
+		const d = autorun(reader => {
+			widget.position.read(reader);
+			this.editor.layoutContentWidget(w);
+		});
+		return toDisposable(() => {
+			d.dispose();
+			this.editor.removeContentWidget(w);
 		});
 	}
 
@@ -332,11 +353,32 @@ export class ObservableCodeEditor extends Disposable {
 		}));
 		return result;
 	}
+
+	public readonly openedPeekWidgets = observableValue(this, 0);
+
+	isTargetHovered(predicate: (target: IEditorMouseEvent) => boolean, store: DisposableStore): IObservable<boolean> {
+		const isHovered = observableValue('isInjectedTextHovered', false);
+		store.add(this.editor.onMouseMove(e => {
+			const val = predicate(e);
+			isHovered.set(val, undefined);
+		}));
+
+		store.add(this.editor.onMouseLeave(E => {
+			isHovered.set(false, undefined);
+		}));
+		return isHovered;
+	}
 }
 
 interface IObservableOverlayWidget {
 	get domNode(): HTMLElement;
 	readonly position: IObservable<IOverlayWidgetPosition | null>;
 	readonly minContentWidthInPx: IObservable<number>;
+	get allowEditorOverflow(): boolean;
+}
+
+interface IObservableContentWidget {
+	get domNode(): HTMLElement;
+	readonly position: IObservable<IContentWidgetPosition | null>;
 	get allowEditorOverflow(): boolean;
 }

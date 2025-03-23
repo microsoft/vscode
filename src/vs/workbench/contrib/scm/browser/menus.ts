@@ -5,7 +5,7 @@
 
 import { IAction } from '../../../../base/common/actions.js';
 import { equals } from '../../../../base/common/arrays.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, IDisposable, dispose } from '../../../../base/common/lifecycle.js';
 import './media/scm.css';
 import { localize } from '../../../../nls.js';
@@ -276,8 +276,8 @@ export class SCMMenus implements ISCMMenus, IDisposable {
 		// Duplicate the `SCMTitle` menu items to the `SCMSourceControlInline` menu. We do this
 		// so that menu items can be independently hidden/shown in the "Source Control" and the
 		// "Source Control Repositories" views.
-		MenuRegistry.onDidChangeMenu(e => {
-			if (!e.has(MenuId.SCMTitle)) {
+		this.disposables.add(Event.runAndSubscribe(MenuRegistry.onDidChangeMenu, e => {
+			if (e && !e.has(MenuId.SCMTitle)) {
 				return;
 			}
 
@@ -285,7 +285,7 @@ export class SCMMenus implements ISCMMenus, IDisposable {
 			for (const menuItem of MenuRegistry.getMenuItems(MenuId.SCMTitle)) {
 				this.repositoryMenuDisposables.add(MenuRegistry.appendMenuItem(MenuId.SCMSourceControlInline, menuItem));
 			}
-		}, this, this.disposables);
+		}));
 	}
 
 	private onDidRemoveRepository(repository: ISCMRepository): void {

@@ -20,14 +20,14 @@ import { IValidEditOperation, TrackedRangeStickiness } from '../../../../editor/
 import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { StandardTokenType } from '../../../../editor/common/encodedTokenAttributes.js';
-import { autorun, derived, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derivedWithStore, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import './media/inlineChat.css';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { InlineCompletionsController } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
-import { ChatAgentLocation, IChatAgentService } from '../../chat/common/chatAgents.js';
+import { IChatAgentService } from '../../chat/common/chatAgents.js';
 import { IMarkerDecorationsService } from '../../../../editor/common/services/markerDecorations.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { toAction } from '../../../../base/common/actions.js';
@@ -38,6 +38,8 @@ import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modes
 import { createStyleSheet2 } from '../../../../base/browser/domStylesheets.js';
 import { stringValue } from '../../../../base/browser/cssValue.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { ChatAgentLocation } from '../../chat/common/constants.js';
 
 export const CTX_INLINE_CHAT_SHOWING_HINT = new RawContextKey<boolean>('inlineChatShowingHint', false, localize('inlineChatShowingHint', "Whether inline chat shows a contextual hint"));
 
@@ -222,7 +224,7 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 		const configHintEmpty = observableConfigValue(InlineChatConfigKeys.LineEmptyHint, false, this._configurationService);
 		const configHintNL = observableConfigValue(InlineChatConfigKeys.LineNLHint, false, this._configurationService);
 
-		const showDataObs = derived(r => {
+		const showDataObs = derivedWithStore((r, store) => {
 			const ghostState = ghostCtrl?.model.read(r)?.state.read(r);
 
 			const textFocus = editorObs.isTextFocused.read(r);
@@ -238,6 +240,12 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 			if (model.getLanguageId() === PLAINTEXT_LANGUAGE_ID || model.getLanguageId() === 'markdown') {
 				return undefined;
 			}
+
+			// DEBT - I cannot use `model.onDidChangeContent` directly here
+			// https://github.com/microsoft/vscode/issues/242059
+			const emitter = store.add(new Emitter<void>());
+			store.add(model.onDidChangeContent(() => emitter.fire()));
+			observableFromEvent(emitter.event, () => model.getVersionId()).read(r);
 
 			const visible = this._visibilityObs.read(r);
 			const isEol = model.getLineMaxColumn(position.lineNumber) === position.column;

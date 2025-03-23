@@ -6,7 +6,7 @@
 import { isWindows } from '../../../../../base/common/platform.js';
 import { count } from '../../../../../base/common/strings.js';
 import { SimpleCompletionModel, type LineContext } from '../../../../services/suggest/browser/simpleCompletionModel.js';
-import type { TerminalCompletionItem } from './terminalCompletionItem.js';
+import { TerminalCompletionItemKind, type TerminalCompletionItem } from './terminalCompletionItem.js';
 
 export class TerminalCompletionModel extends SimpleCompletionModel<TerminalCompletionItem> {
 	constructor(
@@ -18,10 +18,26 @@ export class TerminalCompletionModel extends SimpleCompletionModel<TerminalCompl
 }
 
 const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionItem, b: TerminalCompletionItem) => {
+	// Boost always on top inline completions
+	if (a.completion.kind === TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop && a.completion.kind !== b.completion.kind) {
+		return -1;
+	}
+	if (b.completion.kind === TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop && a.completion.kind !== b.completion.kind) {
+		return 1;
+	}
+
 	// Sort by the score
 	let score = b.score[0] - a.score[0];
 	if (score !== 0) {
 		return score;
+	}
+
+	// Boost inline completions
+	if (a.completion.kind === TerminalCompletionItemKind.InlineSuggestion && a.completion.kind !== b.completion.kind) {
+		return -1;
+	}
+	if (b.completion.kind === TerminalCompletionItemKind.InlineSuggestion && a.completion.kind !== b.completion.kind) {
+		return 1;
 	}
 
 	// Sort by underscore penalty (eg. `__init__/` should be penalized)
@@ -31,7 +47,11 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 
 	// Sort files of the same name by extension
 	const isArg = leadingLineContent.includes(' ');
-	if (!isArg && a.labelLowExcludeFileExt === b.labelLowExcludeFileExt) {
+	if (!isArg && a.completion.kind === TerminalCompletionItemKind.File && b.completion.kind === TerminalCompletionItemKind.File) {
+		// If the file name excluding the extension is different, just do a regular sort
+		if (a.labelLowExcludeFileExt !== b.labelLowExcludeFileExt) {
+			return a.labelLowExcludeFileExt.localeCompare(b.labelLowExcludeFileExt, undefined, { ignorePunctuation: true });
+		}
 		// Then by label length ascending (excluding file extension if it's a file)
 		score = a.labelLowExcludeFileExt.length - b.labelLowExcludeFileExt.length;
 		if (score !== 0) {
@@ -49,21 +69,54 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 		}
 	}
 
-	// Sort by folder depth (eg. `vscode/` should come before `vscode-.../`)
-	if (a.labelLowNormalizedPath && b.labelLowNormalizedPath) {
-		// Directories
-		// Count depth of path (number of / or \ occurrences)
-		score = count(a.labelLowNormalizedPath, '/') - count(b.labelLowNormalizedPath, '/');
+	// Sort by more detailed completions
+	if (a.completion.kind === TerminalCompletionItemKind.Method && b.completion.kind === TerminalCompletionItemKind.Method) {
+		if (typeof a.completion.label !== 'string' && a.completion.label.description && typeof b.completion.label !== 'string' && b.completion.label.description) {
+			score = 0;
+		} else if (typeof a.completion.label !== 'string' && a.completion.label.description) {
+			score = -2;
+		} else if (typeof b.completion.label !== 'string' && b.completion.label.description) {
+			score = 2;
+		}
+		score += (b.completion.detail ? 1 : 0) + (b.completion.documentation ? 2 : 0) - (a.completion.detail ? 1 : 0) - (a.completion.documentation ? 2 : 0);
 		if (score !== 0) {
 			return score;
 		}
+	}
 
-		// Ensure shorter prefixes appear first
-		if (b.labelLowNormalizedPath.startsWith(a.labelLowNormalizedPath)) {
-			return -1; // `a` is a prefix of `b`, so `a` should come first
+	// Sort by folder depth (eg. `vscode/` should come before `vscode-.../`)
+	if (a.completion.kind === TerminalCompletionItemKind.Folder && b.completion.kind === TerminalCompletionItemKind.Folder) {
+		if (a.labelLowNormalizedPath && b.labelLowNormalizedPath) {
+			// Directories
+			// Count depth of path (number of / or \ occurrences)
+			score = count(a.labelLowNormalizedPath, '/') - count(b.labelLowNormalizedPath, '/');
+			if (score !== 0) {
+				return score;
+			}
+
+			// Ensure shorter prefixes appear first
+			if (b.labelLowNormalizedPath.startsWith(a.labelLowNormalizedPath)) {
+				return -1; // `a` is a prefix of `b`, so `a` should come first
+			}
+			if (a.labelLowNormalizedPath.startsWith(b.labelLowNormalizedPath)) {
+				return 1; // `b` is a prefix of `a`, so `b` should come first
+			}
 		}
-		if (a.labelLowNormalizedPath.startsWith(b.labelLowNormalizedPath)) {
-			return 1; // `b` is a prefix of `a`, so `b` should come first
+	}
+
+	if (a.completion.kind !== b.completion.kind) {
+		// Sort by kind
+		if ((a.completion.kind === TerminalCompletionItemKind.Method || a.completion.kind === TerminalCompletionItemKind.Alias) && (b.completion.kind !== TerminalCompletionItemKind.Method && b.completion.kind !== TerminalCompletionItemKind.Alias)) {
+			return -1; // Methods and aliases should come first
+		}
+		if ((b.completion.kind === TerminalCompletionItemKind.Method || b.completion.kind === TerminalCompletionItemKind.Alias) && (a.completion.kind !== TerminalCompletionItemKind.Method && a.completion.kind !== TerminalCompletionItemKind.Alias)) {
+			return 1; // Methods and aliases should come first
+		}
+		if ((a.completion.kind === TerminalCompletionItemKind.File || a.completion.kind === TerminalCompletionItemKind.Folder) && (b.completion.kind !== TerminalCompletionItemKind.File && b.completion.kind !== TerminalCompletionItemKind.Folder)) {
+			return 1; // Resources should come last
+		}
+		if ((b.completion.kind === TerminalCompletionItemKind.File || b.completion.kind === TerminalCompletionItemKind.Folder) && (a.completion.kind !== TerminalCompletionItemKind.File && a.completion.kind !== TerminalCompletionItemKind.Folder)) {
+			return -1; // Resources should come last
 		}
 	}
 

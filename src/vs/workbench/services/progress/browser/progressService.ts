@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/progressService.css';
-
 import { localize } from '../../../../nls.js';
 import { IDisposable, dispose, DisposableStore, Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IProgressService, IProgressOptions, IProgressStep, ProgressLocation, IProgress, Progress, IProgressCompositeOptions, IProgressNotificationOptions, IProgressRunner, IProgressIndicator, IProgressWindowOptions, IProgressDialogOptions } from '../../../../platform/progress/common/progress.js';
@@ -18,16 +17,13 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { Dialog } from '../../../../base/browser/ui/dialog/dialog.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { EventHelper } from '../../../../base/browser/dom.js';
 import { parseLinkedText } from '../../../../base/common/linkedText.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { IViewsService } from '../../views/common/viewsService.js';
 import { IPaneCompositePartService } from '../../panecomposite/browser/panecomposite.js';
 import { stripIcons } from '../../../../base/common/iconLabels.js';
-import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { ResultKind } from '../../../../platform/keybinding/common/keybindingResolver.js';
 import { IUserActivityService } from '../../userActivity/common/userActivityService.js';
+import { createWorkbenchDialogOptions } from '../../../../platform/dialogs/browser/dialog.js';
 
 export class ProgressService extends Disposable implements IProgressService {
 
@@ -190,7 +186,7 @@ export class ProgressService extends Disposable implements IProgressService {
 			if (this.windowProgressStatusEntry) {
 				this.windowProgressStatusEntry.update(statusEntryProperties);
 			} else {
-				this.windowProgressStatusEntry = this.statusbarService.addEntry(statusEntryProperties, 'status.progress', StatusbarAlignment.LEFT);
+				this.windowProgressStatusEntry = this.statusbarService.addEntry(statusEntryProperties, 'status.progress', StatusbarAlignment.LEFT, -Number.MAX_VALUE /* almost last entry */);
 			}
 		}
 
@@ -548,15 +544,6 @@ export class ProgressService extends Disposable implements IProgressService {
 	private withDialogProgress<P extends Promise<R>, R = unknown>(options: IProgressDialogOptions, task: (progress: IProgress<IProgressStep>) => P, onDidCancel?: (choice?: number) => void): P {
 		const disposables = new DisposableStore();
 
-		const allowableCommands = [
-			'workbench.action.quit',
-			'workbench.action.reloadWindow',
-			'copy',
-			'cut',
-			'editor.action.clipboardCopyAction',
-			'editor.action.clipboardCutAction'
-		];
-
 		let dialog: Dialog;
 
 		const createDialog = (message: string) => {
@@ -572,25 +559,13 @@ export class ProgressService extends Disposable implements IProgressService {
 				this.layoutService.activeContainer,
 				message,
 				buttons,
-				{
+				createWorkbenchDialogOptions({
 					type: 'pending',
 					detail: options.detail,
 					cancelId: buttons.length - 1,
 					disableCloseAction: options.sticky,
-					disableDefaultAction: options.sticky,
-					keyEventProcessor: (event: StandardKeyboardEvent) => {
-						const resolved = this.keybindingService.softDispatch(event, this.layoutService.activeContainer);
-						if (resolved.kind === ResultKind.KbFound && resolved.commandId) {
-							if (!allowableCommands.includes(resolved.commandId)) {
-								EventHelper.stop(event, true);
-							}
-						}
-					},
-					buttonStyles: defaultButtonStyles,
-					checkboxStyles: defaultCheckboxStyles,
-					inputBoxStyles: defaultInputBoxStyles,
-					dialogStyles: defaultDialogStyles
-				}
+					disableDefaultAction: options.sticky
+				}, this.keybindingService, this.layoutService)
 			);
 
 			disposables.add(dialog);

@@ -35,6 +35,7 @@ import { canExpandCompletionItem, SuggestDetailsOverlay, SuggestDetailsWidget } 
 import { ItemRenderer } from './suggestWidgetRenderer.js';
 import { getListStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
+import { CompletionItemKinds } from '../../../common/languages.js';
 
 /**
  * Suggest widget colors
@@ -236,17 +237,19 @@ export class SuggestWidget implements IDisposable {
 				getAriaLabel: (item: CompletionItem) => {
 
 					let label = item.textLabel;
+					const kindLabel = CompletionItemKinds.toLabel(item.completion.kind);
 					if (typeof item.completion.label !== 'string') {
 						const { detail, description } = item.completion.label;
 						if (detail && description) {
-							label = nls.localize('label.full', '{0} {1}, {2}', label, detail, description);
+							label = nls.localize('label.full', '{0} {1}, {2}, {3}', label, detail, description, kindLabel);
 						} else if (detail) {
-							label = nls.localize('label.detail', '{0} {1}', label, detail);
+							label = nls.localize('label.detail', '{0} {1}, {2}', label, detail, kindLabel);
 						} else if (description) {
-							label = nls.localize('label.desc', '{0}, {1}', label, description);
+							label = nls.localize('label.desc', '{0}, {1}, {2}', label, description, kindLabel);
 						}
+					} else {
+						label = nls.localize('label', '{0}, {1}', label, kindLabel);
 					}
-
 					if (!item.isResolved || !this._isDetailsVisible()) {
 						return label;
 					}
@@ -1041,3 +1044,4 @@ export class SuggestContentWidget implements IContentWidget {
 		this._position = position;
 	}
 }
+

@@ -10,7 +10,7 @@ import { createDecorator } from '../../../platform/instantiation/common/instanti
 import { URI } from '../../../base/common/uri.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import { IDisposable, DisposableStore, Disposable, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { Disposable as VSCodeDisposable, EnvironmentVariableMutatorType, TerminalExitReason, TerminalCompletionItem, TerminalShellType as VSCodeTerminalShellType } from './extHostTypes.js';
+import { Disposable as VSCodeDisposable, EnvironmentVariableMutatorType, TerminalExitReason, TerminalCompletionItem } from './extHostTypes.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { localize } from '../../../nls.js';
 import { NotSupportedError } from '../../../base/common/errors.js';
@@ -18,7 +18,7 @@ import { serializeEnvironmentDescriptionMap, serializeEnvironmentVariableCollect
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IEnvironmentVariableCollectionDescription, IEnvironmentVariableMutator, ISerializableEnvironmentVariableCollection } from '../../../platform/terminal/common/environmentVariable.js';
-import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, IProcessProperty, ProcessPropertyType, IProcessPropertyMap, TerminalShellType, PosixShellType, WindowsShellType, GeneralShellType } from '../../../platform/terminal/common/terminal.js';
+import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, IProcessProperty, ProcessPropertyType, IProcessPropertyMap, TerminalShellType } from '../../../platform/terminal/common/terminal.js';
 import { TerminalDataBufferer } from '../../../platform/terminal/common/terminalDataBuffering.js';
 import { ThemeColor } from '../../../base/common/themables.js';
 import { Promises } from '../../../base/common/async.js';
@@ -85,7 +85,7 @@ export class ExtHostTerminal extends Disposable {
 	private _pidPromiseComplete: ((value: number | undefined) => any) | undefined;
 	private _rows: number | undefined;
 	private _exitStatus: vscode.TerminalExitStatus | undefined;
-	private _state: vscode.TerminalState = { isInteractedWith: false, shellType: undefined };
+	private _state: vscode.TerminalState = { isInteractedWith: false, shell: undefined };
 	private _selection: string | undefined;
 
 	shellIntegration: vscode.TerminalShellIntegration | undefined;
@@ -269,28 +269,10 @@ export class ExtHostTerminal extends Disposable {
 
 	public setShellType(shellType: TerminalShellType | undefined): boolean {
 
-		let extHostType: VSCodeTerminalShellType | undefined;
-
-		switch (shellType) {
-			case PosixShellType.Sh: extHostType = VSCodeTerminalShellType.Sh; break;
-			case PosixShellType.Bash: extHostType = VSCodeTerminalShellType.Bash; break;
-			case PosixShellType.Fish: extHostType = VSCodeTerminalShellType.Fish; break;
-			case PosixShellType.Csh: extHostType = VSCodeTerminalShellType.Csh; break;
-			case PosixShellType.Ksh: extHostType = VSCodeTerminalShellType.Ksh; break;
-			case PosixShellType.Zsh: extHostType = VSCodeTerminalShellType.Zsh; break;
-			case WindowsShellType.CommandPrompt: extHostType = VSCodeTerminalShellType.CommandPrompt; break;
-			case WindowsShellType.GitBash: extHostType = VSCodeTerminalShellType.GitBash; break;
-			case GeneralShellType.PowerShell: extHostType = VSCodeTerminalShellType.PowerShell; break;
-			case GeneralShellType.Python: extHostType = VSCodeTerminalShellType.Python; break;
-			case GeneralShellType.Julia: extHostType = VSCodeTerminalShellType.Julia; break;
-			case GeneralShellType.NuShell: extHostType = VSCodeTerminalShellType.NuShell; break;
-			default: extHostType = undefined; break;
-		}
-
-		if (this._state.shellType !== shellType) {
+		if (this._state.shell !== shellType) {
 			this._state = {
 				...this._state,
-				shellType: extHostType
+				shell: shellType
 			};
 			return true;
 		}
@@ -779,7 +761,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		});
 	}
 
-	public async $provideTerminalCompletions(id: string, options: ITerminalCompletionContextDto): Promise<vscode.TerminalCompletionItem[] | TerminalCompletionListDto | undefined> {
+	public async $provideTerminalCompletions(id: string, options: ITerminalCompletionContextDto): Promise<TerminalCompletionListDto | undefined> {
 		const token = new CancellationTokenSource().token;
 		if (token.isCancellationRequested || !this.activeTerminal) {
 			return undefined;
@@ -794,11 +776,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		if (completions === null || completions === undefined) {
 			return undefined;
 		}
-		if (Array.isArray(completions)) {
-			return completions;
-		} else {
-			return TerminalCompletionList.from(completions);
-		}
+		return TerminalCompletionList.from(completions);
 	}
 
 	public $acceptTerminalShellType(id: number, shellType: TerminalShellType | undefined): void {

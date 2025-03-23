@@ -7,8 +7,8 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { IFileService, IFileStatWithMetadata, IResolveMetadataFileOptions } from '../../../../../../platform/files/common/files.js';
 import { TerminalCompletionService, TerminalResourceRequestConfig } from '../../browser/terminalCompletionService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import assert from 'assert';
-import { isWindows } from '../../../../../../base/common/platform.js';
+import assert, { fail } from 'assert';
+import { isWindows, type IProcessEnvironment } from '../../../../../../base/common/platform.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { createFileStat } from '../../../../../test/common/workbenchTestServices.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -17,6 +17,7 @@ import { TerminalCapabilityStore } from '../../../../../../platform/terminal/com
 import { ShellEnvDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/shellEnvDetectionCapability.js';
 import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalCompletion, TerminalCompletionItemKind } from '../../browser/terminalCompletionItem.js';
+import { count } from '../../../../../../base/common/strings.js';
 
 const pathSeparator = isWindows ? '\\' : '/';
 
@@ -31,6 +32,9 @@ interface IAssertionCommandLineConfig {
 	replacementLength: number;
 }
 
+/**
+ * Assert the set of completions exist exactly, including their order.
+ */
 function assertCompletions(actual: ITerminalCompletion[] | undefined, expected: IAssertionTerminalCompletion[], expectedConfig: IAssertionCommandLineConfig) {
 	assert.deepStrictEqual(
 		actual?.map(e => ({
@@ -48,6 +52,42 @@ function assertCompletions(actual: ITerminalCompletion[] | undefined, expected: 
 		}))
 	);
 }
+
+/**
+ * Assert a set of completions exist within the actual set.
+ */
+function assertPartialCompletionsExist(actual: ITerminalCompletion[] | undefined, expectedPartial: IAssertionTerminalCompletion[], expectedConfig: IAssertionCommandLineConfig) {
+	if (!actual) {
+		fail();
+	}
+	const expectedMapped = expectedPartial.map(e => ({
+		label: e.label.replaceAll('/', pathSeparator),
+		detail: e.detail ? e.detail.replaceAll('/', pathSeparator) : '',
+		kind: e.kind ?? TerminalCompletionItemKind.Folder,
+		replacementIndex: expectedConfig.replacementIndex,
+		replacementLength: expectedConfig.replacementLength,
+	}));
+	for (const expectedItem of expectedMapped) {
+		assert.deepStrictEqual(actual.map(e => ({
+			label: e.label,
+			detail: e.detail ?? '',
+			kind: e.kind ?? TerminalCompletionItemKind.Folder,
+			replacementIndex: e.replacementIndex,
+			replacementLength: e.replacementLength,
+		})).find(e => e.detail === expectedItem.detail), expectedItem);
+	}
+}
+
+const testEnv: IProcessEnvironment = {
+	HOME: '/home/user',
+	USERPROFILE: '/home/user'
+};
+
+let homeDir = isWindows ? testEnv['USERPROFILE'] : testEnv['HOME'];
+if (!homeDir!.endsWith('/')) {
+	homeDir += '/';
+}
+const standardTidleItem = Object.freeze({ label: '~', detail: homeDir });
 
 suite('TerminalCompletionService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -71,11 +111,19 @@ suite('TerminalCompletionService', () => {
 				return createFileStat(resource);
 			},
 			async resolve(resource: URI, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata> {
-				const children = childResources.filter(e => e.resource.fsPath.startsWith(resource.fsPath));
+				const children = childResources.filter(child => {
+					const childFsPath = child.resource.path.replace(/\/$/, '');
+					const parentFsPath = resource.path.replace(/\/$/, '');
+					return (
+						childFsPath.startsWith(parentFsPath) &&
+						count(childFsPath, '/') === count(parentFsPath, '/') + 1
+					);
+				});
 				return createFileStat(resource, undefined, undefined, undefined, children);
 			},
 		});
 		terminalCompletionService = store.add(instantiationService.createInstance(TerminalCompletionService));
+		terminalCompletionService.processEnv = testEnv;
 		validResources = [];
 		childResources = [];
 		capabilities = store.add(new TerminalCapabilityStore());
@@ -103,8 +151,8 @@ suite('TerminalCompletionService', () => {
 		setup(() => {
 			validResources = [URI.parse('file:///test')];
 			childResources = [
-				{ resource: URI.parse('file:///test/folder1/'), isDirectory: true },
-				{ resource: URI.parse('file:///test/file1.txt'), isFile: true },
+				{ resource: URI.parse('file:///test/folder1/'), isDirectory: true, isFile: false },
+				{ resource: URI.parse('file:///test/file1.txt'), isDirectory: false, isFile: true },
 			];
 		});
 
@@ -120,6 +168,7 @@ suite('TerminalCompletionService', () => {
 				{ label: '.', detail: '/test/' },
 				{ label: './folder1/', detail: '/test/folder1/' },
 				{ label: '../', detail: '/' },
+				standardTidleItem,
 			], { replacementIndex: 1, replacementLength: 0 });
 		});
 
@@ -165,19 +214,6 @@ suite('TerminalCompletionService', () => {
 				{ label: './folder1/', detail: '/test/folder1/' },
 				{ label: './../', detail: '/' },
 			], { replacementIndex: 3, replacementLength: 3 });
-		});
-		test('cd ~/| should return home folder completions', async () => {
-			const resourceRequestConfig: TerminalResourceRequestConfig = {
-				cwd: URI.parse('file:///test/folder1'),// Updated to reflect home directory
-				foldersRequested: true,
-				pathSeparator,
-				env: { HOME: '/test/' }
-			};
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ~/', 5, provider, capabilities);
-
-			assertCompletions(result, [
-				{ label: '~/', detail: '/test/' },
-			], { replacementIndex: 3, replacementLength: 2 });
 		});
 	});
 
@@ -230,6 +266,62 @@ suite('TerminalCompletionService', () => {
 			], { replacementIndex: 0, replacementLength: 3 });
 		});
 	});
+
+	suite('~ -> $HOME', () => {
+		let resourceRequestConfig: TerminalResourceRequestConfig;
+		let shellEnvDetection: ShellEnvDetectionCapability;
+
+		setup(() => {
+			shellEnvDetection = store.add(new ShellEnvDetectionCapability());
+			shellEnvDetection.setEnvironment({
+				HOME: '/home',
+				USERPROFILE: '/home'
+			}, true);
+			capabilities.add(TerminalCapability.ShellEnvDetection, shellEnvDetection);
+
+			resourceRequestConfig = {
+				cwd: URI.parse('file:///test/folder1'),// Updated to reflect home directory
+				filesRequested: true,
+				foldersRequested: true,
+				pathSeparator
+			};
+			validResources = [
+				URI.parse('file:///test'),
+				URI.parse('file:///test/folder1'),
+				URI.parse('file:///home'),
+				URI.parse('file:///home/vscode'),
+				URI.parse('file:///home/vscode/foo'),
+				URI.parse('file:///home/vscode/bar.txt'),
+			];
+			childResources = [
+				{ resource: URI.parse('file:///home/vscode'), isDirectory: true },
+				{ resource: URI.parse('file:///home/vscode/foo'), isDirectory: true },
+				{ resource: URI.parse('file:///home/vscode/bar.txt'), isFile: true },
+			];
+		});
+
+		test('~| should return completion for ~', async () => {
+			assertPartialCompletionsExist(await terminalCompletionService.resolveResources(resourceRequestConfig, '~', 1, provider, capabilities), [
+				{ label: '~', detail: '/home/' },
+			], { replacementIndex: 0, replacementLength: 1 });
+		});
+
+		test('~/| should return folder completions relative to $HOME', async () => {
+			assertCompletions(await terminalCompletionService.resolveResources(resourceRequestConfig, '~/', 2, provider, capabilities), [
+				{ label: '~/', detail: '/home/' },
+				{ label: '~/vscode/', detail: '/home/vscode/' },
+			], { replacementIndex: 0, replacementLength: 2 });
+		});
+
+		test('~/vscode/| should return folder completions relative to $HOME/vscode', async () => {
+			assertCompletions(await terminalCompletionService.resolveResources(resourceRequestConfig, '~/vscode/', 9, provider, capabilities), [
+				{ label: '~/vscode/', detail: '/home/vscode/' },
+				{ label: '~/vscode/foo/', detail: '/home/vscode/foo/' },
+				{ label: '~/vscode/bar.txt', detail: '/home/vscode/bar.txt', kind: TerminalCompletionItemKind.File },
+			], { replacementIndex: 0, replacementLength: 9 });
+		});
+	});
+
 	suite('resolveResources edge cases and advanced scenarios', () => {
 		setup(() => {
 			validResources = [];
@@ -358,11 +450,12 @@ suite('TerminalCompletionService', () => {
 				{ label: '.', detail: '/test/' },
 				{ label: './folder1/', detail: '/test/folder1/' },
 				{ label: './folder2/', detail: '/test/folder2/' },
-				{ label: '../', detail: '/' }
+				{ label: '../', detail: '/' },
+				standardTidleItem,
 			], { replacementIndex: 0, replacementLength: 0 });
 		});
 
-		test('./| Large directory should handle many results gracefully', async () => {
+		test('./| should handle large directories with many results gracefully', async () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///test'),
 				foldersRequested: true,
@@ -382,7 +475,7 @@ suite('TerminalCompletionService', () => {
 			assert.strictEqual(result.at(-1)?.label, `.${pathSeparator}..${pathSeparator}`);
 		});
 
-		test('./folder| Folders should be resolved even if the trailing / is missing', async () => {
+		test('./folder| should include current folder with trailing / is missing', async () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///test'),
 				foldersRequested: true,
@@ -455,10 +548,8 @@ suite('TerminalCompletionService', () => {
 			};
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ', 3, provider, capabilities);
 
-			assertCompletions(result, [
-				{ label: '.', detail: '/test/' },
+			assertPartialCompletionsExist(result, [
 				{ label: 'folder1', detail: 'CDPATH /cdpath_value/folder1/' },
-				{ label: '../', detail: '/' },
 			], { replacementIndex: 3, replacementLength: 0 });
 		});
 
@@ -472,10 +563,8 @@ suite('TerminalCompletionService', () => {
 			};
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ', 3, provider, capabilities);
 
-			assertCompletions(result, [
-				{ label: '.', detail: '/test/' },
+			assertPartialCompletionsExist(result, [
 				{ label: '/cdpath_value/folder1/', detail: 'CDPATH' },
-				{ label: '../', detail: '/' },
 			], { replacementIndex: 3, replacementLength: 0 });
 		});
 
@@ -511,13 +600,11 @@ suite('TerminalCompletionService', () => {
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ', 3, provider, capabilities);
 
 			const finalPrefix = isWindows ? 'C:\\' : '/';
-			assertCompletions(result, [
-				{ label: '.', detail: `${finalPrefix}test/` },
+			assertPartialCompletionsExist(result, [
 				{ label: 'folder1', detail: `CDPATH ${finalPrefix}cdpath1_value/folder1/` },
 				{ label: 'folder2', detail: `CDPATH ${finalPrefix}cdpath1_value/folder2/` },
 				{ label: 'folder1', detail: `CDPATH ${finalPrefix}cdpath2_value/inner_dir/folder1/` },
 				{ label: 'folder2', detail: `CDPATH ${finalPrefix}cdpath2_value/inner_dir/folder2/` },
-				{ label: '../', detail: finalPrefix },
 			], { replacementIndex: 3, replacementLength: 0 });
 		});
 	});

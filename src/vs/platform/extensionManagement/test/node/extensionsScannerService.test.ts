@@ -105,20 +105,20 @@ suite('NativeExtensionsScanerService Test', () => {
 	});
 
 	test('scan user extensions', async () => {
-		const manifest: Partial<IScannedExtensionManifest> = anExtensionManifest({ 'name': 'name', 'publisher': 'pub', __metadata: { id: 'uuid' } });
+		const manifest: Partial<IScannedExtensionManifest> = anExtensionManifest({ 'name': 'name', 'publisher': 'pub' });
 		const extensionLocation = await aUserExtension(manifest);
 		const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
 		const actual = await testObject.scanAllUserExtensions();
 
 		assert.deepStrictEqual(actual.length, 1);
-		assert.deepStrictEqual(actual[0].identifier, { id: 'pub.name', uuid: 'uuid' });
+		assert.deepStrictEqual(actual[0].identifier, { id: 'pub.name' });
 		assert.deepStrictEqual(actual[0].location.toString(), extensionLocation.toString());
 		assert.deepStrictEqual(actual[0].isBuiltin, false);
 		assert.deepStrictEqual(actual[0].type, ExtensionType.User);
 		assert.deepStrictEqual(actual[0].isValid, true);
 		assert.deepStrictEqual(actual[0].validations, []);
-		assert.deepStrictEqual(actual[0].metadata, { id: 'uuid' });
+		assert.deepStrictEqual(actual[0].metadata, undefined);
 		assert.deepStrictEqual(actual[0].targetPlatform, TargetPlatform.UNDEFINED);
 		delete manifest.__metadata;
 		assert.deepStrictEqual(actual[0].manifest, manifest);
@@ -298,6 +298,28 @@ suite('NativeExtensionsScanerService Test', () => {
 		assert.deepStrictEqual(actual!.manifest.displayName, 'Hello World');
 	});
 
+	test('scan single extension with manifest metadata retains manifest metadata', async () => {
+		const manifest: Partial<IExtensionManifest> = anExtensionManifest({ 'name': 'name', 'publisher': 'pub' });
+		const expectedMetadata = { size: 12345, installedTimestamp: 1234567890, targetPlatform: TargetPlatform.DARWIN_ARM64 };
+		const extensionLocation = await aUserExtension({
+			...manifest,
+			__metadata: expectedMetadata
+		});
+		const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
+
+		const actual = await testObject.scanExistingExtension(extensionLocation, ExtensionType.User, {});
+
+		assert.notStrictEqual(actual, null);
+		assert.deepStrictEqual(actual!.identifier, { id: 'pub.name' });
+		assert.deepStrictEqual(actual!.location.toString(), extensionLocation.toString());
+		assert.deepStrictEqual(actual!.isBuiltin, false);
+		assert.deepStrictEqual(actual!.type, ExtensionType.User);
+		assert.deepStrictEqual(actual!.isValid, true);
+		assert.deepStrictEqual(actual!.validations, []);
+		assert.deepStrictEqual(actual!.metadata, expectedMetadata);
+		assert.deepStrictEqual(actual!.manifest, manifest);
+	});
+
 	async function aUserExtension(manifest: Partial<IScannedExtensionManifest>): Promise<URI> {
 		const environmentService = instantiationService.get(INativeEnvironmentService);
 		return anExtension(manifest, URI.file(environmentService.extensionsPath));
@@ -310,7 +332,7 @@ suite('NativeExtensionsScanerService Test', () => {
 
 	async function anExtension(manifest: Partial<IScannedExtensionManifest>, root: URI): Promise<URI> {
 		const fileService = instantiationService.get(IFileService);
-		const extensionLocation = joinPath(root, `${manifest.publisher}.${manifest.name}-${manifest.version}-${manifest.__metadata?.targetPlatform ?? TargetPlatform.UNDEFINED}`);
+		const extensionLocation = joinPath(root, `${manifest.publisher}.${manifest.name}-${manifest.version}`);
 		await fileService.writeFile(joinPath(extensionLocation, 'package.json'), VSBuffer.fromString(JSON.stringify(manifest)));
 		return extensionLocation;
 	}

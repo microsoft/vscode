@@ -18,7 +18,7 @@ import { IEditorGroupsService } from '../../../../services/editor/common/editorG
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { isChatViewTitleActionContext } from '../../common/chatActions.js';
-import { ChatAgentLocation } from '../../common/chatAgents.js';
+import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
 
 enum MoveToNewLocation {
 	Editor = 'Editor',
@@ -32,7 +32,7 @@ export function registerMoveActions() {
 				id: `workbench.action.chat.openInEditor`,
 				title: localize2('chat.openInEditor.label', "Open Chat in Editor"),
 				category: CHAT_CATEGORY,
-				precondition: ChatContextKeys.enabled,
+				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask)),
 				f1: true,
 				menu: {
 					id: MenuId.ViewTitle,
@@ -55,7 +55,7 @@ export function registerMoveActions() {
 				id: `workbench.action.chat.openInNewWindow`,
 				title: localize2('chat.openInNewWindow.label', "Open Chat in New Window"),
 				category: CHAT_CATEGORY,
-				precondition: ChatContextKeys.enabled,
+				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask)),
 				f1: true,
 				menu: {
 					id: MenuId.ViewTitle,
@@ -100,17 +100,12 @@ async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNew
 
 	const widget = (_sessionId ? widgetService.getWidgetBySessionId(_sessionId) : undefined)
 		?? widgetService.lastFocusedWidget;
-	if (!widget || widget.location !== ChatAgentLocation.Panel) {
+	if (!widget || !widget.viewModel || widget.location !== ChatAgentLocation.Panel) {
 		await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true } }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
 		return;
 	}
 
-	const viewModel = widget.viewModel;
-	if (!viewModel) {
-		return;
-	}
-
-	const sessionId = viewModel.sessionId;
+	const sessionId = widget.viewModel.sessionId;
 	const viewState = widget.getViewState();
 	widget.clear();
 
@@ -129,7 +124,7 @@ async function moveToSidebar(accessor: ServicesAccessor): Promise<void> {
 	if (chatEditor instanceof ChatEditor && chatEditorInput instanceof ChatEditorInput && chatEditorInput.sessionId) {
 		await editorService.closeEditor({ editor: chatEditor.input, groupId: editorGroupService.activeGroup.id });
 		view = await viewsService.openView(ChatViewId) as ChatViewPane;
-		view.loadSession(chatEditorInput.sessionId, chatEditor.getViewState());
+		await view.loadSession(chatEditorInput.sessionId, chatEditor.getViewState());
 	} else {
 		view = await viewsService.openView(ChatViewId) as ChatViewPane;
 	}

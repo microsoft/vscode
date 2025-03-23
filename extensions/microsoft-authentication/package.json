@@ -115,23 +115,6 @@
             "tags": [
               "onExP"
             ]
-          },
-          "microsoft-authentication.clientIdVersion": {
-            "type": "string",
-            "default": "v1",
-            "enum": [
-              "v2",
-              "v1"
-            ],
-            "enumDescriptions": [
-              "%microsoft-authentication.clientIdVersion.enumDescriptions.v2%",
-              "%microsoft-authentication.clientIdVersion.enumDescriptions.v1%"
-            ],
-            "markdownDescription": "%microsoft-authentication.clientIdVersion.description%",
-            "tags": [
-              "onExP",
-              "experimental"
-            ]
           }
         }
       }
@@ -161,6 +144,9 @@
     "@vscode/extension-telemetry": "^0.9.8",
     "keytar": "file:./packageMocks/keytar",
     "vscode-tas-client": "^0.1.84"
+  },
+  "overrides": {
+    "@azure/msal-node-runtime": "^0.18.1"
   },
   "repository": {
     "type": "git",

@@ -19,7 +19,7 @@ import { PrefixSumComputer } from '../../../../../editor/common/model/prefixSumC
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IListService, IWorkbenchListOptions, WorkbenchList } from '../../../../../platform/list/browser/listService.js';
-import { CursorAtBoundary, ICellViewModel, CellEditState, ICellOutputViewModel, CellRevealType, CellRevealRangeType, CursorAtLineBoundary, INotebookViewZoneChangeAccessor } from '../notebookBrowser.js';
+import { CursorAtBoundary, ICellViewModel, CellEditState, ICellOutputViewModel, CellRevealType, CellRevealRangeType, CursorAtLineBoundary, INotebookViewZoneChangeAccessor, INotebookCellOverlayChangeAccessor } from '../notebookBrowser.js';
 import { CellViewModel, NotebookViewModel } from '../viewModel/notebookViewModelImpl.js';
 import { diff, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind, SelectionStateType, NOTEBOOK_EDITOR_CURSOR_LINE_BOUNDARY } from '../../common/notebookCommon.js';
 import { ICellRange, cellRangesToIndexes, reduceCellRanges, cellRangesEqual } from '../../common/notebookRange.js';
@@ -36,6 +36,7 @@ import { NotebookOptions } from '../notebookOptions.js';
 import { INotebookExecutionStateService } from '../../common/notebookExecutionStateService.js';
 import { NotebookCellAnchor } from './notebookCellAnchor.js';
 import { NotebookViewZones } from '../viewParts/notebookViewZones.js';
+import { NotebookCellOverlays } from '../viewParts/notebookCellOverlays.js';
 
 const enum CellRevealPosition {
 	Top,
@@ -79,6 +80,7 @@ function validateWebviewBoundary(element: HTMLElement) {
 export class NotebookCellList extends WorkbenchList<CellViewModel> implements IDisposable, IStyleController, INotebookCellList {
 	protected override readonly view!: NotebookCellListView<CellViewModel>;
 	private viewZones!: NotebookViewZones;
+	private cellOverlays!: NotebookCellOverlays;
 	get onWillScroll(): Event<ScrollEvent> { return this.view.onWillScroll; }
 
 	get rowsContainer(): HTMLElement {
@@ -289,6 +291,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	protected override createListView(container: HTMLElement, virtualDelegate: IListVirtualDelegate<CellViewModel>, renderers: IListRenderer<any, any>[], viewOptions: IListViewOptions<CellViewModel>): IListView<CellViewModel> {
 		const listView = new NotebookCellListView(container, virtualDelegate, renderers, viewOptions);
 		this.viewZones = new NotebookViewZones(listView, this);
+		this.cellOverlays = new NotebookCellOverlays(listView);
 		return listView;
 	}
 
@@ -340,6 +343,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 			// update whitespaces which are anchored to the model indexes
 			this.viewZones.onCellsChanged(e);
+			this.cellOverlays.onCellsChanged(e);
 
 			const currentRanges = this._hiddenRangeIds.map(id => this._viewModel!.getTrackedRange(id)).filter(range => range !== null) as ICellRange[];
 			const newVisibleViewCells: CellViewModel[] = getVisibleCells(this._viewModel!.viewCells as CellViewModel[], currentRanges);
@@ -448,6 +452,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 				this._updateHiddenRangePrefixSum(newRanges);
 				this.viewZones.onHiddenRangesChange();
 				this.viewZones.layout();
+				this.cellOverlays.onHiddenRangesChange();
+				this.cellOverlays.layout();
 				return false;
 			}
 		}
@@ -461,12 +467,14 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this._updateHiddenRangePrefixSum(newRanges);
 		// Update view zone positions after hidden ranges change
 		this.viewZones.onHiddenRangesChange();
+		this.cellOverlays.onHiddenRangesChange();
 
 		if (triggerViewUpdate) {
 			this.updateHiddenAreasInView(oldRanges, newRanges);
 		}
 
 		this.viewZones.layout();
+		this.cellOverlays.layout();
 		return true;
 	}
 
@@ -541,6 +549,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 
 		this.viewZones.layout();
+		this.cellOverlays.layout();
 	}
 
 	getModelIndex(cell: CellViewModel): number | undefined {
@@ -1036,7 +1045,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			}
 
 			const editorAttachedPromise = new Promise<void>((resolve, reject) => {
-				element.onDidChangeEditorAttachState(() => {
+				Event.once(element.onDidChangeEditorAttachState)(() => {
 					element.editorAttached ? resolve() : reject();
 				});
 			});
@@ -1168,7 +1177,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const wrapperBottom = this.getViewScrollBottom();
 
 		if (offset < scrollTop || offset > wrapperBottom) {
-			this.view.setScrollTop(offset - this.view.renderHeight / 2);
+			const newTop = Math.max(0, offset - this.view.renderHeight / 2);
+			this.view.setScrollTop(newTop);
 		}
 	}
 
@@ -1231,12 +1241,14 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			}
 			this.view.updateElementHeight(index, size, anchorElementIndex);
 			this.viewZones.layout();
+			this.cellOverlays.layout();
 			return;
 		}
 
 		if (anchorElementIndex !== null) {
 			this.view.updateElementHeight(index, size, anchorElementIndex);
 			this.viewZones.layout();
+			this.cellOverlays.layout();
 			return;
 		}
 
@@ -1250,12 +1262,14 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			if (this._notebookCellAnchor.shouldAnchor(this.view, focus, heightDelta, this.element(index))) {
 				this.view.updateElementHeight(index, size, focus);
 				this.viewZones.layout();
+				this.cellOverlays.layout();
 				return;
 			}
 		}
 
 		this.view.updateElementHeight(index, size, null);
 		this.viewZones.layout();
+		this.cellOverlays.layout();
 		return;
 	}
 
@@ -1263,6 +1277,16 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		if (this.viewZones.changeViewZones(callback)) {
 			this.viewZones.layout();
 		}
+	}
+
+	changeCellOverlays(callback: (accessor: INotebookCellOverlayChangeAccessor) => void): void {
+		if (this.cellOverlays.changeCellOverlays(callback)) {
+			this.cellOverlays.layout();
+		}
+	}
+
+	getViewZoneLayoutInfo(viewZoneId: string): { height: number; top: number } | null {
+		return this.viewZones.getViewZoneLayoutInfo(viewZoneId);
 	}
 
 	// override
@@ -1346,14 +1370,14 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		if (styles.listFocusAndSelectionBackground) {
 			content.push(`
-				.monaco-drag-image,
+				.monaco-drag-image${suffix},
 				.monaco-list${suffix}:focus > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected.focused { background-color: ${styles.listFocusAndSelectionBackground}; }
 			`);
 		}
 
 		if (styles.listFocusAndSelectionForeground) {
 			content.push(`
-				.monaco-drag-image,
+				.monaco-drag-image${suffix},
 				.monaco-list${suffix}:focus > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected.focused { color: ${styles.listFocusAndSelectionForeground}; }
 			`);
 		}
@@ -1386,7 +1410,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		if (styles.listFocusOutline) {
 			content.push(`
-				.monaco-drag-image,
+				.monaco-drag-image${suffix},
 				.monaco-list${suffix}:focus > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }
 			`);
 		}
@@ -1438,6 +1462,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this._localDisposableStore.dispose();
 		this._notebookCellAnchor.dispose();
 		this.viewZones.dispose();
+		this.cellOverlays.dispose();
 		super.dispose();
 
 		// un-ref

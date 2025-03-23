@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DataTransfers, IDragAndDropData } from '../../dnd.js';
-import { $, addDisposableListener, animate, Dimension, getActiveElement, getContentHeight, getContentWidth, getDocument, getTopLeftOffset, getWindow, isAncestor, isHTMLElement, isSVGElement, scheduleAtNextAnimationFrame } from '../../dom.js';
+import { addDisposableListener, animate, Dimension, getActiveElement, getContentHeight, getContentWidth, getDocument, getTopLeftOffset, getWindow, isAncestor, isHTMLElement, isSVGElement, scheduleAtNextAnimationFrame } from '../../dom.js';
 import { DomEmitter } from '../../event.js';
 import { IMouseWheelEvent } from '../../mouseEvent.js';
 import { EventType as TouchEventType, Gesture, GestureEvent } from '../../touch.js';
@@ -24,6 +24,7 @@ import { BugIndicatingError } from '../../../common/errors.js';
 import { AriaRole } from '../aria/aria.js';
 import { ScrollableElementChangeOptions } from '../scrollbar/scrollableElementOptions.js';
 import { clamp } from '../../../common/numbers.js';
+import { applyDragImage } from '../dnd/dnd.js';
 
 interface IItem<T> {
 	readonly id: string;
@@ -1180,32 +1181,15 @@ export class ListView<T> implements IListView<T> {
 		event.dataTransfer.effectAllowed = 'copyMove';
 		event.dataTransfer.setData(DataTransfers.TEXT, uri);
 
-		if (event.dataTransfer.setDragImage) {
-			let label: string | undefined;
-
-			if (this.dnd.getDragLabel) {
-				label = this.dnd.getDragLabel(elements, event);
-			}
-
-			if (typeof label === 'undefined') {
-				label = String(elements.length);
-			}
-
-			const dragImage = $('.monaco-drag-image');
-			dragImage.textContent = label;
-
-			const getDragImageContainer = (e: HTMLElement | null) => {
-				while (e && !e.classList.contains('monaco-workbench')) {
-					e = e.parentElement;
-				}
-				return e || this.domNode.ownerDocument;
-			};
-
-			const container = getDragImageContainer(this.domNode);
-			container.appendChild(dragImage);
-			event.dataTransfer.setDragImage(dragImage, -10, -10);
-			setTimeout(() => dragImage.remove(), 0);
+		let label: string | undefined;
+		if (this.dnd.getDragLabel) {
+			label = this.dnd.getDragLabel(elements, event);
 		}
+		if (typeof label === 'undefined') {
+			label = String(elements.length);
+		}
+
+		applyDragImage(event, this.domNode, label, [this.domId /* add domId to get list specific styling */]);
 
 		this.domNode.classList.add('dragging');
 		this.currentDragData = new ElementsDragAndDropData(elements);
@@ -1243,7 +1227,11 @@ export class ListView<T> implements IListView<T> {
 			}));
 			selectionStore.add(addDisposableListener(doc, 'selectionchange', () => {
 				const selection = doc.getSelection();
-				if (!selection) {
+				// if the selection changed _after_ mouseup, it's from clearing the list or similar, so teardown
+				if (!selection || selection.isCollapsed) {
+					if (movementStore.isDisposed) {
+						selectionStore.dispose();
+					}
 					return;
 				}
 
@@ -1527,8 +1515,9 @@ export class ListView<T> implements IListView<T> {
 	protected getRenderRange(renderTop: number, renderHeight: number): IRange {
 		const range = this.getVisibleRange(renderTop, renderHeight);
 		if (this.currentSelectionBounds) {
-			range.start = Math.min(range.start, this.currentSelectionBounds.start);
-			range.end = Math.max(range.end, this.currentSelectionBounds.end + 1);
+			const max = this.rangeMap.count;
+			range.start = Math.min(range.start, this.currentSelectionBounds.start, max);
+			range.end = Math.min(Math.max(range.end, this.currentSelectionBounds.end + 1), max);
 		}
 
 		return range;
