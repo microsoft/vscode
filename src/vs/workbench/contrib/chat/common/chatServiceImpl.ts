@@ -469,13 +469,17 @@ export class ChatService extends Disposable implements IChatService {
 		this.saveState();
 	}
 
-	startSession(location: ChatAgentLocation, token: CancellationToken): ChatModel {
+	startSession(location: ChatAgentLocation, token: CancellationToken, isGlobalEditingSession: boolean = true): ChatModel {
 		this.trace('startSession');
-		return this._startSession(undefined, location, token);
+		return this._startSession(undefined, location, isGlobalEditingSession, token);
 	}
 
-	private _startSession(someSessionHistory: IExportableChatData | ISerializableChatData | undefined, location: ChatAgentLocation, token: CancellationToken): ChatModel {
+	private _startSession(someSessionHistory: IExportableChatData | ISerializableChatData | undefined, location: ChatAgentLocation, isGlobalEditingSession: boolean, token: CancellationToken): ChatModel {
 		const model = this.instantiationService.createInstance(ChatModel, someSessionHistory, location);
+		if (location === ChatAgentLocation.EditingSession || (this.unifiedViewEnabled && location === ChatAgentLocation.Panel)) {
+			model.startEditingSession(isGlobalEditingSession);
+		}
+
 		this._sessionModels.set(model.sessionId, model);
 		this.initializeSession(model, token);
 		return model;
@@ -528,7 +532,7 @@ export class ChatService extends Disposable implements IChatService {
 			return undefined;
 		}
 
-		const session = this._startSession(sessionData, sessionData.initialLocation ?? ChatAgentLocation.Panel, CancellationToken.None);
+		const session = this._startSession(sessionData, sessionData.initialLocation ?? ChatAgentLocation.Panel, true, CancellationToken.None);
 
 		const isTransferred = this.transferredSessionData?.sessionId === sessionId;
 		if (isTransferred) {
@@ -553,7 +557,7 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	loadSessionFromContent(data: IExportableChatData | ISerializableChatData): IChatModel | undefined {
-		return this._startSession(data, data.initialLocation ?? ChatAgentLocation.Panel, CancellationToken.None);
+		return this._startSession(data, data.initialLocation ?? ChatAgentLocation.Panel, true, CancellationToken.None);
 	}
 
 	async resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions): Promise<void> {

@@ -21,7 +21,6 @@ import { IOffsetRange, OffsetRange } from '../../../../editor/common/core/offset
 import { IRange } from '../../../../editor/common/core/range.js';
 import { Location, SymbolKind, TextEdit } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IMarker, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
@@ -30,7 +29,7 @@ import { IChatEditingService, IChatEditingSession } from './chatEditingService.j
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatNotebookEdit, IChatProgress, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
-import { ChatAgentLocation, ChatConfiguration } from './constants.js';
+import { ChatAgentLocation } from './constants.js';
 
 export interface IBaseChatRequestVariableEntry {
 	id: string;
@@ -1317,8 +1316,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		private readonly _initialLocation: ChatAgentLocation,
 		@ILogService private readonly logService: ILogService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
-		@IChatEditingService chatEditingService: IChatEditingService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IChatEditingService private readonly chatEditingService: IChatEditingService,
 	) {
 		super();
 
@@ -1336,11 +1334,14 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		this._initialRequesterAvatarIconUri = initialData?.requesterAvatarIconUri && URI.revive(initialData.requesterAvatarIconUri);
 		this._initialResponderAvatarIconUri = isUriComponents(initialData?.responderAvatarIconUri) ? URI.revive(initialData.responderAvatarIconUri) : initialData?.responderAvatarIconUri;
+	}
 
-		if (this._initialLocation === ChatAgentLocation.EditingSession || (configurationService.getValue(ChatConfiguration.UnifiedChatView) && this._initialLocation === ChatAgentLocation.Panel)) {
-			this._editingSession = new ObservablePromise(chatEditingService.startOrContinueGlobalEditingSession(this));
-			this._editingSession.promise.then(editingSession => this._register(editingSession));
-		}
+	startEditingSession(isGlobalEditingSession?: boolean): void {
+		const editingSessionPromise = isGlobalEditingSession ?
+			this.chatEditingService.startOrContinueGlobalEditingSession(this) :
+			this.chatEditingService.createEditingSession(this);
+		this._editingSession = new ObservablePromise(editingSessionPromise);
+		this._editingSession.promise.then(editingSession => this._store.isDisposed ? editingSession.dispose() : this._register(editingSession));
 	}
 
 	private _deserialize(obj: IExportableChatData): ChatRequestModel[] {
