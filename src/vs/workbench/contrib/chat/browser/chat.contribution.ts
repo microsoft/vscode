@@ -240,13 +240,18 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 		},
 		[mcpDiscoverySection]: {
-			type: 'object',
-			default: Object.fromEntries(allDiscoverySources.map(k => [k, true])),
-			properties: Object.fromEntries(allDiscoverySources.map(k => [
-				k,
-				{ type: 'boolean', description: nls.localize('mcp.discovery.source', "Enables discovery of {0} servers", discoverySourceLabel[k]) }
-			])),
-			markdownDescription: nls.localize('mpc.discovery.enabled', "Configures discovery of Model Context Protocol servers on the machine. It may be set to `true` or `false` to disable or enable all sources, and an array of sources you wish to enable."),
+			oneOf: [
+				{ type: 'boolean' },
+				{
+					type: 'object',
+					default: Object.fromEntries(allDiscoverySources.map(k => [k, true])),
+					properties: Object.fromEntries(allDiscoverySources.map(k => [
+						k,
+						{ type: 'boolean', description: nls.localize('mcp.discovery.source', "Enables discovery of {0} servers", discoverySourceLabel[k]) }
+					])),
+				}
+			],
+			markdownDescription: nls.localize('mpc.discovery.enabled', "Configures discovery of Model Context Protocol servers on the machine. It may be set to `true` or `false` to disable or enable all sources, and an mapping sources you wish to enable."),
 		},
 		[PromptsConfig.KEY]: {
 			type: 'boolean',
