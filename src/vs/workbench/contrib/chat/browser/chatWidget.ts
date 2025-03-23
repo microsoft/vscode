@@ -1089,9 +1089,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (this.viewModel) {
 			this._onDidAcceptInput.fire();
-			if (!checkModeOption(this.input.currentMode, this.viewOptions.autoScroll)) {
-				this.scrollLock = false;
-			}
+			this.scrollLock = !!checkModeOption(this.input.currentMode, this.viewOptions.autoScroll);
 
 			const editorValue = this.getInput();
 			const requestId = this.chatAccessibilityService.acceptRequest();
@@ -1220,11 +1218,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight - 2;
 
 		const listHeight = Math.max(0, height - inputPartHeight);
-		if (!checkModeOption(this.input.currentMode, this.viewOptions.autoScroll)) {
-			this.listContainer.style.setProperty('--chat-current-response-min-height', listHeight * .75 + 'px');
-		} else {
-			this.listContainer.style.removeProperty('--chat-current-response-min-height');
-		}
+		this.listContainer.style.setProperty('--chat-current-response-min-height', listHeight * .75 + 'px');
 
 		this.tree.layout(listHeight, width);
 		this.tree.getHTMLElement().style.height = `${listHeight}px`;
