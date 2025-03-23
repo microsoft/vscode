@@ -743,15 +743,14 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 			const signedOut = chatEntitlementService.entitlement === ChatEntitlement.Unknown;
 			const setupFromDialog = configurationService.getValue('chat.experimental.setupFromDialog');
 
-			let primaryActionId: string;
-			let primaryActionTitle: string;
-			let primaryActionIcon: ThemeIcon;
+			let primaryActionId = TOGGLE_CHAT_ACTION_ID;
+			let primaryActionTitle = localize('toggleChat', "Toggle Chat");
+			let primaryActionIcon = Codicon.copilot;
 			if (!chatExtensionInstalled && (!setupFromDialog || chatHidden)) {
 				primaryActionId = CHAT_SETUP_ACTION_ID;
 				primaryActionTitle = localize('triggerChatSetup', "Use AI Features with Copilot for free...");
-				primaryActionIcon = Codicon.copilot;
 			} else if (chatExtensionInstalled && signedOut) {
-				primaryActionId = TOGGLE_CHAT_ACTION_ID;
+				primaryActionId = setupFromDialog ? CHAT_SETUP_ACTION_ID : TOGGLE_CHAT_ACTION_ID;
 				primaryActionTitle = localize('signInToChatSetup', "Sign in to use Copilot...");
 				primaryActionIcon = Codicon.copilotNotConnected;
 			} else if (chatExtensionInstalled && (chatQuotaExceeded || completionsQuotaExceeded)) {
@@ -764,10 +763,6 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 					primaryActionTitle = localize('chatAndCompletionsQuotaExceededButton', "Copilot Free plan limit reached. Click for details.");
 				}
 				primaryActionIcon = Codicon.copilotWarning;
-			} else {
-				primaryActionId = TOGGLE_CHAT_ACTION_ID;
-				primaryActionTitle = localize('toggleChat', "Toggle Chat");
-				primaryActionIcon = Codicon.copilot;
 			}
 			return instantiationService.createInstance(DropdownWithPrimaryActionViewItem, instantiationService.createInstance(MenuItemAction, {
 				id: primaryActionId,
