@@ -281,7 +281,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					result: 'success',
 					chatSessionId: dto.context?.sessionId,
 					toolId: tool.data.id,
-					toolExtensionId: tool.data.extensionId?.value,
+					toolExtensionId: tool.data.source.type === 'extension' ? tool.data.source.extensionId.value : undefined,
+					toolSourceKind: tool.data.source.type,
 				});
 			return toolResult;
 		} catch (err) {
@@ -292,7 +293,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					result,
 					chatSessionId: dto.context?.sessionId,
 					toolId: tool.data.id,
-					toolExtensionId: tool.data.extensionId?.value,
+					toolExtensionId: tool.data.source.type === 'extension' ? tool.data.source.extensionId.value : undefined,
+					toolSourceKind: tool.data.source.type,
 				});
 			throw err;
 		} finally {
@@ -359,6 +361,7 @@ type LanguageModelToolInvokedEvent = {
 	chatSessionId: string | undefined;
 	toolId: string;
 	toolExtensionId: string | undefined;
+	toolSourceKind: string;
 };
 
 type LanguageModelToolInvokedClassification = {
@@ -366,6 +369,7 @@ type LanguageModelToolInvokedClassification = {
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the chat session that the tool was used within, if applicable.' };
 	toolId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the tool used.' };
 	toolExtensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension that contributed the tool.' };
+	toolSourceKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source (mcp/extension/internal) of the tool.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the usage of language model tools.';
 };

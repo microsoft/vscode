@@ -19,7 +19,7 @@ import { Schemas } from '../../../../base/common/network.js';
 
 export interface IToolData {
 	id: string;
-	extensionId?: ExtensionIdentifier;
+	source: ToolDataSource;
 	toolReferenceName?: string;
 	icon?: { dark: URI; light?: URI } | ThemeIcon;
 	when?: ContextKeyExpression;
@@ -34,6 +34,21 @@ export interface IToolData {
 	 * on the host, undefined if known.
 	 */
 	runsInWorkspace?: boolean;
+}
+
+export type ToolDataSource =
+	| { type: 'extension'; extensionId: ExtensionIdentifier }
+	| { type: 'mcp'; collectionId: string }
+	| { type: 'internal' };
+
+export namespace ToolDataSource {
+	export function toKey(source: ToolDataSource): string {
+		switch (source.type) {
+			case 'extension': return `extension:${source.extensionId.value}`;
+			case 'mcp': return `mcp:${source.collectionId}`;
+			case 'internal': return 'internal';
+		}
+	}
 }
 
 export interface IToolInvocation {

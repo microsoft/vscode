@@ -16,12 +16,19 @@ import { MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ObservableMemento, observableMemento } from '../../../../platform/observable/common/observableMemento.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ILanguageModelToolsService, IToolData } from '../common/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../common/languageModelToolsService.js';
 
-type StoredData = { all: boolean; ids?: string[] };
+/**
+ * New tools and new tool sources that come in should generally be enabled until
+ * the user disables them. To store things, we store only the buckets and
+ * individual tools that were disabled, so the new data sources that come in
+ * are enabled, and new tools that come in for data sources not disabled are
+ * also enabled.
+ */
+type StoredData = { disabledBuckets?: /* ToolDataSource.toKey */ readonly string[]; disabledTools?: readonly string[] };
 
 const storedTools = observableMemento<StoredData>({
-	defaultValue: { all: true },
+	defaultValue: {},
 	key: 'chat/selectedTools',
 });
 
@@ -47,15 +54,23 @@ export class ChatSelectedTools extends Disposable {
 			() => Array.from(toolsService.getTools()).filter(t => t.canBeReferencedInPrompt)
 		);
 
+		const disabledData = this._selectedTools.map(data => {
+			return (data.disabledBuckets?.length || data.disabledTools?.length) && {
+				buckets: new Set(data.disabledBuckets),
+				toolIds: new Set(data.disabledTools),
+			};
+		});
+
 		this.tools = derived(r => {
-			const stored = this._selectedTools.read(r);
+			const disabled = disabledData.read(r);
 			const tools = allTools.read(r);
-			if (stored.all) {
+			if (!disabled) {
 				return tools;
 			}
 
-			const ids = new Set(stored.ids);
-			return tools.filter(t => ids.has(t.id));
+			return tools.filter(t =>
+				!(disabled.toolIds.has(t.id) || disabled.buckets.has(ToolDataSource.toKey(t.source)))
+			);
 		});
 
 		const toolsCount = derived(r => {
@@ -101,11 +116,10 @@ export class ChatSelectedTools extends Disposable {
 		};
 	}
 
-	update(tools: readonly IToolData[]): void {
-		this._selectedTools.set({ all: false, ids: tools.map(t => t.id) }, undefined);
-	}
-
-	reset(): void {
-		this._selectedTools.set({ all: true }, undefined);
+	update(disableBuckets: readonly ToolDataSource[], disableTools: readonly IToolData[]): void {
+		this._selectedTools.set({
+			disabledBuckets: disableBuckets.map(ToolDataSource.toKey),
+			disabledTools: disableTools.map(t => t.id)
+		}, undefined);
 	}
 }
