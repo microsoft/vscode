@@ -1031,7 +1031,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private renderAttachedContext() {
 		const container = this.attachedContextContainer;
-		const oldHeight = container.offsetHeight;
+		// Note- can't measure attachedContextContainer, because it has `display: contents`, so measure the parent to check for height changes
+		const oldHeight = this.attachmentsContainer.offsetHeight;
 		const store = new DisposableStore();
 		this.attachedContextDisposables.value = store;
 
@@ -1075,7 +1076,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}));
 		}
 
-		if (oldHeight !== container.offsetHeight) {
+		if (oldHeight !== this.attachmentsContainer.offsetHeight) {
 			this._onDidChangeHeight.fire();
 		}
 	}
