@@ -32,9 +32,9 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IMarkdownVulnerability } from '../../common/annotations.js';
-import { IChatEditingService, IEditSessionEntryDiff } from '../../common/chatEditingService.js';
+import { IEditSessionEntryDiff } from '../../common/chatEditingService.js';
 import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
-import { IChatMarkdownContent, IChatUndoStop } from '../../common/chatService.js';
+import { IChatMarkdownContent, IChatService, IChatUndoStop } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { CodeBlockEntry, CodeBlockModelCollection } from '../../common/codeBlockModelCollection.js';
 import { IChatCodeBlockInfo } from '../chat.js';
@@ -318,8 +318,8 @@ class CollapsedCodeBlock extends Disposable {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IChatEditingService private readonly chatEditingService: IChatEditingService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IChatService private readonly chatService: IChatService,
 	) {
 		super();
 		this.element = $('.chat-codeblock-pill-widget');
@@ -355,58 +355,60 @@ class CollapsedCodeBlock extends Disposable {
 
 		this._uri = uri;
 
+		const session = this.chatService.getSession(this.sessionId);
 		const iconText = this.labelService.getUriBasenameLabel(uri);
-		const editSession = this.chatEditingService.getEditingSession(this.sessionId);
-		const modifiedEntry = editSession?.getEntry(uri);
-		const isComplete = !modifiedEntry?.isCurrentlyBeingModifiedBy.get();
-
-		let iconClasses: string[] = [];
-		if (isStreaming || !isComplete) {
-			const codicon = ThemeIcon.modify(Codicon.loading, 'spin');
-			iconClasses = ThemeIcon.asClassNameArray(codicon);
-		} else {
-			const fileKind = uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
-			iconClasses = getIconClasses(this.modelService, this.languageService, uri, fileKind);
-		}
-
-		const iconEl = dom.$('span.icon');
-		iconEl.classList.add(...iconClasses);
-
-		const children = [dom.$('span.icon-label', {}, iconText)];
-		const labelDetail = dom.$('span.label-detail', {}, '');
-		children.push(labelDetail);
-		if (isStreaming) {
-			labelDetail.textContent = localize('chat.codeblock.generating', "Generating edits...");
-		}
-
-		this.element.replaceChildren(iconEl, ...children);
-		this.updateTooltip(this.labelService.getUriLabel(uri, { relative: false }));
-
-		const renderDiff = (changes: IEditSessionEntryDiff | undefined) => {
-			const labelAdded = this.element.querySelector('.label-added') ?? this.element.appendChild(dom.$('span.label-added'));
-			const labelRemoved = this.element.querySelector('.label-removed') ?? this.element.appendChild(dom.$('span.label-removed'));
-			if (changes && !changes?.identical && !changes?.quitEarly) {
-				this._currentDiff = changes;
-				labelAdded.textContent = `+${changes.added}`;
-				labelRemoved.textContent = `-${changes.removed}`;
-				const insertionsFragment = changes.added === 1 ? localize('chat.codeblock.insertions.one', "1 insertion") : localize('chat.codeblock.insertions', "{0} insertions", changes.added);
-				const deletionsFragment = changes.removed === 1 ? localize('chat.codeblock.deletions.one', "1 deletion") : localize('chat.codeblock.deletions', "{0} deletions", changes.removed);
-				const summary = localize('summary', 'Edited {0}, {1}, {2}', iconText, insertionsFragment, deletionsFragment);
-				this.element.ariaLabel = summary;
-				this.updateTooltip(summary);
-			}
-		};
-
-		const diffBetweenStops = modifiedEntry && editSession
-			? editSession.getEntryDiffBetweenStops(modifiedEntry.modifiedURI, this.requestId, this.inUndoStop)
-			: undefined;
-
-		// Show a percentage progress that is driven by the rewrite
-
 		this._progressStore.add(autorun(r => {
+			const editSession = session?.editingSessionObs?.promiseResult.read(r)?.data;
+			const modifiedEntry = editSession?.getEntry(uri);
+			const modifiedByRequest = modifiedEntry?.isCurrentlyBeingModifiedBy.read(r);
+			const isComplete = !modifiedByRequest || modifiedByRequest.id !== this.requestId;
+
+			let iconClasses: string[] = [];
+			if (isStreaming || !isComplete) {
+				const codicon = ThemeIcon.modify(Codicon.loading, 'spin');
+				iconClasses = ThemeIcon.asClassNameArray(codicon);
+			} else {
+				const fileKind = uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
+				iconClasses = getIconClasses(this.modelService, this.languageService, uri, fileKind);
+			}
+
+			const iconEl = dom.$('span.icon');
+			iconEl.classList.add(...iconClasses);
+
+			const children = [dom.$('span.icon-label', {}, iconText)];
+			const labelDetail = dom.$('span.label-detail', {}, '');
+			children.push(labelDetail);
+			if (isStreaming) {
+				labelDetail.textContent = localize('chat.codeblock.generating', "Generating edits...");
+			}
+
+			this.element.replaceChildren(iconEl, ...children);
+			this.updateTooltip(this.labelService.getUriLabel(uri, { relative: false }));
+
+			const renderDiff = (changes: IEditSessionEntryDiff | undefined) => {
+				const labelAdded = this.element.querySelector('.label-added') ?? this.element.appendChild(dom.$('span.label-added'));
+				const labelRemoved = this.element.querySelector('.label-removed') ?? this.element.appendChild(dom.$('span.label-removed'));
+				if (changes && !changes?.identical && !changes?.quitEarly) {
+					this._currentDiff = changes;
+					labelAdded.textContent = `+${changes.added}`;
+					labelRemoved.textContent = `-${changes.removed}`;
+					const insertionsFragment = changes.added === 1 ? localize('chat.codeblock.insertions.one', "1 insertion") : localize('chat.codeblock.insertions', "{0} insertions", changes.added);
+					const deletionsFragment = changes.removed === 1 ? localize('chat.codeblock.deletions.one', "1 deletion") : localize('chat.codeblock.deletions', "{0} deletions", changes.removed);
+					const summary = localize('summary', 'Edited {0}, {1}, {2}', iconText, insertionsFragment, deletionsFragment);
+					this.element.ariaLabel = summary;
+					this.updateTooltip(summary);
+				}
+			};
+
+			const diffBetweenStops = modifiedEntry && editSession
+				? editSession.getEntryDiffBetweenStops(modifiedEntry.modifiedURI, this.requestId, this.inUndoStop)
+				: undefined;
+
+			// Show a percentage progress that is driven by the rewrite
+
+
 			const rewriteRatio = modifiedEntry?.rewriteRatio.read(r);
 
-			const isComplete = !modifiedEntry?.isCurrentlyBeingModifiedBy.read(r);
 			if (!isStreaming && !isComplete) {
 				const value = rewriteRatio;
 				labelDetail.textContent = value === 0 || !value ? localize('chat.codeblock.generating', "Generating edits...") : localize('chat.codeblock.applyingPercentage', "Applying edits ({0}%)...", Math.round(value * 100));

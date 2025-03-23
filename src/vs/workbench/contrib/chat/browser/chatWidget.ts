@@ -355,24 +355,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.renderChatEditingSessionState();
 		}));
 
-		if (this._location.location === ChatAgentLocation.EditingSession || (this.chatService.unifiedViewEnabled && this._location.location !== ChatAgentLocation.Editor)) {
-			let currentEditSession: IChatEditingSession | undefined = undefined;
-			this._register(this.onDidChangeViewModel(async () => {
-				const sessionId = this._viewModel?.sessionId;
-				if (sessionId) {
-					if (sessionId !== currentEditSession?.chatSessionId) {
-						currentEditSession = await chatEditingService.startOrContinueGlobalEditingSession(sessionId);
-					}
-				} else {
-					if (currentEditSession) {
-						const session = currentEditSession;
-						currentEditSession = undefined;
-						await session.stop();
-					}
-				}
-			}));
-		}
-
 		this._register(codeEditorService.registerCodeEditorOpenHandler(async (input: ITextResourceEditorInput, _source: ICodeEditor | null, _sideBySide?: boolean): Promise<ICodeEditor | null> => {
 			const resource = input.resource;
 			if (resource.scheme !== Schemas.vscodeChatCodeBlock) {
