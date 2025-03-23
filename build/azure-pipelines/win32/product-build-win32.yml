@@ -226,7 +226,13 @@ steps:
           echo "##vso[task.setvariable variable=EsrpCliDllPath]$Version\net6.0\esrpcli.dll"
         displayName: Find ESRP CLI
 
-      - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath sign-windows $(CodeSigningFolderPath) '*.dll,*.exe,*.node'
+      # hack to get the ESRP to work
+      - powershell: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
+          mv $(CodeSigningFolderPath)\tools\inno_updater.exe $(CodeSigningFolderPath)\tools\inno_updater.exe.already_signed
+          node build\azure-pipelines\common\sign $env:EsrpCliDllPath sign-windows $(CodeSigningFolderPath) '*.dll,*.exe,*.node'
+          mv $(CodeSigningFolderPath)\tools\inno_updater.exe.already_signed $(CodeSigningFolderPath)\tools\inno_updater.exe
         env:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         displayName: Codesign executables and shared libraries
