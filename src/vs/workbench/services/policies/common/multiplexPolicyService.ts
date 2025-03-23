@@ -5,12 +5,14 @@
 
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { PolicyName } from '../../../../base/common/policy.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { AbstractPolicyService, IPolicyService, PolicyDefinition } from '../../../../platform/policy/common/policy.js';
 
 export class MultiplexPolicyService extends AbstractPolicyService implements IPolicyService {
 
 	constructor(
-		private readonly policyServices: ReadonlyArray<IPolicyService>
+		private readonly policyServices: ReadonlyArray<IPolicyService>,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -22,7 +24,17 @@ export class MultiplexPolicyService extends AbstractPolicyService implements IPo
 
 	protected async _updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<void> {
 		// Update all policy services with the new definitions
-		await Promise.all(this.policyServices.map(service => service.updatePolicyDefinitions(policyDefinitions)));
+		const results = await Promise.all(this.policyServices.map(service => service.updatePolicyDefinitions(policyDefinitions)));
+		// Check that no results have overlapping keys
+		const changed = new Set<string>();
+		for (const result of results) {
+			for (const key in result) {
+				if (changed.has(key)) {
+					this.logService.warn(`MultiplexPolicyService#_updatePolicyDefinitions - Found overlapping keys in policy services: ${key}`);
+				}
+				changed.add(key);
+			}
+		}
 	}
 
 	private onDidChangePolicies(names: readonly PolicyName[], service: IPolicyService): void {

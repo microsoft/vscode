@@ -21,4 +21,14 @@ export interface IPolicy {
 	 * The policy description (optional).
 	 */
 	readonly description?: string;
+
+	/**
+	 * Is preview feature
+	 */
+	readonly previewFeature?: boolean;
+
+	/**
+	 * Default value when enabled. Default is `false`.
+	 */
+	readonly defaultValue?: any;
 }

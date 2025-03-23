@@ -9,33 +9,41 @@ import { AbstractPolicyService, IPolicyService, PolicyDefinition } from '../../.
 import { DefaultAccountService, IDefaultAccountService } from '../../accounts/common/defaultAccount.js';
 
 export class AccountPolicyService extends AbstractPolicyService implements IPolicyService {
-	// private editorPreviewFeaturesEnabled: boolean = false;
+	private chatPreviewFeaturesEnabled: boolean = true;
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IDefaultAccountService private readonly defaultAccountService: DefaultAccountService
 	) {
 		super();
 		this._register(this.defaultAccountService.onDidChangeDefaultAccount((account) => {
-			this.logService.info(`account?=${account?.sessionId} previewFeatures=${account?.chat_preview_features_enabled}`);
-			// this.editorPreviewFeaturesEnabled = !!account?.editor_preview_features_enabled;
+			if (!account) {
+				return;
+			}
+			this.chatPreviewFeaturesEnabled = (account.chat_preview_features_enabled === undefined) || account.chat_preview_features_enabled;
+			this._updatePolicyDefinitions(this.policyDefinitions);
 		}));
 	}
 
 	protected async _updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<void> {
-		this.logService.info(`AccountPolicyService#_updatePolicyDefinitions: Got ${Object.keys(policyDefinitions).length} policy definitions`);
-		// if (this.editorPreviewFeaturesEnabled) {
-		// 	return;
-		// }
+		this.logService.trace(`AccountPolicyService#_updatePolicyDefinitions: Got ${Object.keys(policyDefinitions).length} policy definitions`);
 
 		const update: string[] = [];
 		for (const key in policyDefinitions) {
-			this.logService.info(`AccountPolicyService#_updatePolicyDefinitions: key=${key} policyDefinition=${JSON.stringify(policyDefinitions[key])}`);
-			if (key.startsWith('Copilot')) {
-				this.policies.set(key, true);
+			const policy = policyDefinitions[key];
+			if (policy.previewFeature) {
+				if (this.chatPreviewFeaturesEnabled) {
+					this.policies.delete(key);
+					continue;
+				}
+				const defaultValue = policy.defaultValue;
+				const updatedValue = defaultValue === undefined ? false : defaultValue;
+				if (this.policies.get(key) === updatedValue) {
+					continue;
+				}
+				this.policies.set(key, updatedValue);
 				update.push(key);
 			}
 		}
-
 		this._onDidChange.fire(update);
 	}
 }
