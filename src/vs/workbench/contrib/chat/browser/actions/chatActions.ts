@@ -806,19 +806,19 @@ export async function handleCurrentEditingSession(currentEditingSession: IChatEd
 			phrase = phrase ?? defaultPhrase;
 			const { result } = await dialogService.prompt({
 				title: localize('chat.startEditing.confirmation.title', "Start new chat?"),
-				message: phrase + ' ' + localize('chat.startEditing.confirmation.pending.message.2', "Do you want to accept pending edits to {0} files?", undecidedEdits.length),
+				message: phrase + ' ' + localize('chat.startEditing.confirmation.pending.message.2', "Do you want to keep pending edits to {0} files?", undecidedEdits.length),
 				type: 'info',
 				cancelButton: true,
 				buttons: [
 					{
-						label: localize('chat.startEditing.confirmation.acceptEdits', "Accept & Continue"),
+						label: localize('chat.startEditing.confirmation.acceptEdits', "Keep & Continue"),
 						run: async () => {
 							await currentEditingSession.accept();
 							return true;
 						}
 					},
 					{
-						label: localize('chat.startEditing.confirmation.discardEdits', "Discard & Continue"),
+						label: localize('chat.startEditing.confirmation.discardEdits', "Undo & Continue"),
 						run: async () => {
 							await currentEditingSession.reject();
 							return true;
