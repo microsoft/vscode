@@ -340,7 +340,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 		const chatModel = this._chatService.startSession(ChatAgentLocation.EditingSession, token);
 
-		const editingSession = await this._chatEditingService.createEditingSession(chatModel.sessionId);
+		const editingSession = await this._chatEditingService.createEditingSession(chatModel);
 		const widget = this._chatWidgetService.getWidgetBySessionId(chatModel.sessionId);
 		widget?.attachmentModel.addFile(uri);
 

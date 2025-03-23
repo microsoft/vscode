@@ -505,7 +505,7 @@ class SendToChatEditingAction extends Action2 {
 		if (!editingWidget.viewModel?.sessionId) {
 			return;
 		}
-		const chatEditingSession = await chatEditingService.startOrContinueGlobalEditingSession(editingWidget.viewModel.sessionId);
+		const chatEditingSession = editingWidget.viewModel.model.editingSession;
 		if (!chatEditingSession) {
 			return;
 		}

@@ -236,8 +236,7 @@ export function registerChatTitleActions() {
 			if (chatModel?.initialLocation === ChatAgentLocation.EditingSession || chatModel && (mode === ChatMode.Edit || mode === ChatMode.Agent)) {
 				const configurationService = accessor.get(IConfigurationService);
 				const dialogService = accessor.get(IDialogService);
-				const chatEditingService = accessor.get(IChatEditingService);
-				const currentEditingSession = chatEditingService.getEditingSession(chatModel.sessionId);
+				const currentEditingSession = widget?.viewModel?.model.editingSession;
 				if (!currentEditingSession) {
 					return;
 				}

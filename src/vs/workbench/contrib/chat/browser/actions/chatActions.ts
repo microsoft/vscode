@@ -43,7 +43,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/brow
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { EXTENSIONS_CATEGORY, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { IChatEditingSession, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { ChatEntitlement, ChatSentiment, IChatEntitlementService } from '../../common/chatEntitlementService.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
@@ -241,7 +241,6 @@ export function registerChatActions() {
 			const viewsService = accessor.get(IViewsService);
 			const editorService = accessor.get(IEditorService);
 			const dialogService = accessor.get(IDialogService);
-			const chatEditingService = accessor.get(IChatEditingService);
 
 			const view = await viewsService.openView<ChatViewPane>(ChatViewId);
 			if (!view) {
@@ -253,7 +252,7 @@ export function registerChatActions() {
 				return;
 			}
 
-			const editingSession = chatEditingService.getEditingSession(chatSessionId);
+			const editingSession = view.widget.viewModel?.model.editingSession;
 			if (editingSession) {
 				const phrase = localize('switchChat.confirmPhrase', "Switching chats will end your current edit session.");
 				await handleCurrentEditingSession(editingSession, phrase, dialogService);

@@ -1424,7 +1424,7 @@ export async function reviewEdits(accessor: ServicesAccessor, editor: ICodeEdito
 	const uri = editor.getModel().uri;
 	const chatModel = chatService.startSession(ChatAgentLocation.Editor, token);
 
-	const editSession = await chatEditingService.createEditingSession(chatModel.sessionId);
+	const editSession = await chatEditingService.createEditingSession(chatModel);
 
 	const store = new DisposableStore();
 	store.add(chatModel);
