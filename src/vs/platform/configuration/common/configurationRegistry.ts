@@ -12,7 +12,6 @@ import * as nls from '../../../nls.js';
 import { getLanguageTagSettingPlainKey } from './configuration.js';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../jsonschemas/common/jsonContributionRegistry.js';
 import { Registry } from '../../registry/common/platform.js';
-import product from '../../product/common/product.js';
 import { IPolicy, PolicyName } from '../../../base/common/policy.js';
 
 export enum EditPresentationTypes {
@@ -633,7 +632,6 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	private validateAndRegisterProperties(configuration: IConfigurationNode, validate: boolean = true, extensionInfo: IExtensionInfo | undefined, restrictedProperties: string[] | undefined, scope: ConfigurationScope = ConfigurationScope.WINDOW, bucket: Set<string>): void {
 		scope = types.isUndefinedOrNull(configuration.scope) ? scope : configuration.scope;
 		const properties = configuration.properties;
-		const extensionConfigurationPolicy = product.extensionConfigurationPolicy;
 		if (properties) {
 			for (const key in properties) {
 				const property: IRegisteredConfigurationPropertySchema = properties[key];
@@ -657,15 +655,6 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 				}
 
 				const excluded = properties[key].hasOwnProperty('included') && !properties[key].included;
-
-				// Register extension policy configuration
-				if (!properties[key].policy && extensionConfigurationPolicy) {
-					const extPolicy = extensionConfigurationPolicy[key];
-					if (extPolicy) {
-						properties[key].policy = extPolicy;
-					}
-				}
-
 				const policyName = properties[key].policy?.name;
 
 				if (excluded) {

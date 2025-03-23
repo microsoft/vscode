@@ -18,6 +18,7 @@ import { Extensions as ExtensionFeaturesExtensions, IExtensionFeatureTableRender
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { SyncDescriptor } from '../../../platform/instantiation/common/descriptors.js';
 import { MarkdownString } from '../../../base/common/htmlContent.js';
+import product from '../../../platform/product/common/product.js';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
@@ -243,6 +244,7 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 
 	function validateProperties(configuration: IConfigurationNode, extension: IExtensionPointUser<any>): void {
 		const properties = configuration.properties;
+		const extensionConfigurationPolicy = product.extensionConfigurationPolicy;
 		if (properties) {
 			if (typeof properties !== 'object') {
 				extension.collector.error(nls.localize('invalid.properties', "'configuration.properties' must be an object"));
@@ -265,6 +267,12 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 					delete properties[key];
 					extension.collector.error(nls.localize('invalid.property', "configuration.properties property '{0}' must be an object", key));
 					continue;
+				}
+				if (extensionConfigurationPolicy && !properties[key].policy) {
+					const extPolicy = extensionConfigurationPolicy[key];
+					if (extPolicy) {
+						properties[key].policy = extPolicy;
+					}
 				}
 				seenProperties.add(key);
 				propertyConfiguration.scope = propertyConfiguration.scope ? parseScope(propertyConfiguration.scope.toString()) : ConfigurationScope.WINDOW;
