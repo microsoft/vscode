@@ -395,7 +395,7 @@ export class ChatService extends Disposable implements IChatService {
 	async getHistory(): Promise<IChatDetail[]> {
 		if (this.useFileStorage) {
 			const liveSessionItems = Array.from(this._sessionModels.values())
-				.filter(session => !session.isImported && session.initialLocation !== ChatAgentLocation.EditingSession)
+				.filter(session => !session.isImported && (session.initialLocation !== ChatAgentLocation.EditingSession || this.unifiedViewEnabled))
 				.map(session => {
 					const title = session.title || localize('newChat', "New Chat");
 					return {
