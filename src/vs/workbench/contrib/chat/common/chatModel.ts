@@ -1339,6 +1339,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		if (this._initialLocation === ChatAgentLocation.EditingSession || (configurationService.getValue(ChatConfiguration.UnifiedChatView) && this._initialLocation === ChatAgentLocation.Panel)) {
 			this._editingSession = new ObservablePromise(chatEditingService.startOrContinueGlobalEditingSession(this));
+			this._editingSession.promise.then(editingSession => this._register(editingSession));
 		}
 	}
 
