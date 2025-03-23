@@ -76,7 +76,7 @@ import { IChatFollowup, IChatService } from '../common/chatService.js';
 import { IChatVariablesService } from '../common/chatVariables.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { ChatInputHistoryMaxEntries, IChatHistoryEntry, IChatInputState, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
-import { ChatAgentLocation, ChatMode } from '../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatMode } from '../common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { CancelAction, ChatEditingSessionSubmitAction, ChatSubmitAction, ChatSwitchToNextModelActionId, IChatExecuteActionContext, IToggleChatModeArgs, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
 import { AttachToolsAction } from './actions/chatToolActions.js';
@@ -437,6 +437,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._register(this._onDidChangeCurrentChatMode.event(() => {
 			this.checkModelSupported();
 		}));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.Edits2Enabled)) {
+				this.checkModelSupported();
+			}
+		}));
 	}
 
 	public switchToNextModel(): void {
@@ -470,7 +475,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private modelSupportedForDefaultAgent(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 		// Probably this logic could live in configuration on the agent, or somewhere else, if it gets more complex
-		if (this.currentMode === ChatMode.Agent || (this.currentMode === ChatMode.Edit && this.chatService.unifiedViewEnabled)) {
+		if (this.currentMode === ChatMode.Agent || (this.currentMode === ChatMode.Edit && this.configurationService.getValue(ChatConfiguration.Edits2Enabled))) {
 			if (this.configurationService.getValue('chat.agent.allModels')) {
 				return true;
 			}
