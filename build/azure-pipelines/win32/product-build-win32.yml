@@ -230,9 +230,9 @@ steps:
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
-          mv $(CodeSigningFolderPath)\tools\inno_updater.exe $(CodeSigningFolderPath)\tools\inno_updater.exe.already_signed
+          mv $(Agent.BuildDirectory)\VSCode-win32-$(VSCODE_ARCH)\tools\inno_updater.exe $(Agent.BuildDirectory)\VSCode-win32-$(VSCODE_ARCH)\tools\inno_updater.exe.already_signed
           node build\azure-pipelines\common\sign $env:EsrpCliDllPath sign-windows $(CodeSigningFolderPath) '*.dll,*.exe,*.node'
-          mv $(CodeSigningFolderPath)\tools\inno_updater.exe.already_signed $(CodeSigningFolderPath)\tools\inno_updater.exe
+          mv $(Agent.BuildDirectory)\VSCode-win32-$(VSCODE_ARCH)\tools\inno_updater.exe.already_signed $(Agent.BuildDirectory)\VSCode-win32-$(VSCODE_ARCH)\tools\inno_updater.exe
         env:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         displayName: Codesign executables and shared libraries
