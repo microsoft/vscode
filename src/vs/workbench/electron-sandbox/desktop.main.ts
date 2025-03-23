@@ -210,11 +210,13 @@ export class DesktopMain extends Disposable {
 		serviceCollection.set(IDefaultAccountService, defaultAccountService);
 
 		// Policies
-		let policyService: IPolicyService = new NullPolicyService();
+		let policyService: IPolicyService;
+		const accountPolicy = new AccountPolicyService(logService, defaultAccountService);
 		if (this.configuration.policiesData) {
 			const policyChannel = new PolicyChannelClient(this.configuration.policiesData, mainProcessService.getChannel('policy'));
-			const accountPolicy = new AccountPolicyService(logService, defaultAccountService);
 			policyService = new MultiplexPolicyService([policyChannel, accountPolicy], logService);
+		} else {
+			policyService = accountPolicy;
 		}
 		serviceCollection.set(IPolicyService, policyService);
 
