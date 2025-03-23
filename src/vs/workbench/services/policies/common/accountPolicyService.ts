@@ -16,7 +16,7 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 	) {
 		super();
 		this._register(this.defaultAccountService.onDidChangeDefaultAccount((account) => {
-			this.logService.info(`account?=${account?.sessionId} previewFeatures=${account?.editor_preview_features_enabled}`);
+			this.logService.info(`account?=${account?.sessionId} previewFeatures=${account?.chat_preview_features_enabled}`);
 			// this.editorPreviewFeaturesEnabled = !!account?.editor_preview_features_enabled;
 		}));
 	}

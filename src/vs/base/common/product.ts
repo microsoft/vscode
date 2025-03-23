@@ -191,8 +191,8 @@ export interface IProductConfiguration {
 			readonly enterpriseProviderConfig: string;
 			readonly scopes: string[];
 		};
-		readonly entitlementUrl: string;
-		readonly chatUrl: string;
+		readonly tokenEntitlementUrl: string;
+		readonly chatEntitlementUrl: string;
 	};
 
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
