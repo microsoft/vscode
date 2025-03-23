@@ -25,12 +25,19 @@ steps:
       - powershell: .\scripts\test.bat --tfs "Unit Tests"
         displayName: Run unit tests (Electron)
         timeoutInMinutes: 15
-      - powershell: npm run test-node
-        displayName: Run unit tests (node.js)
-        timeoutInMinutes: 15
-      - powershell: npm run test-browser-no-install -- --sequential --browser chromium --tfs "Browser Unit Tests"
-        displayName: Run unit tests (Browser, Chromium)
+      - powershell: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
+          exec { npm exec -- npm-run-all -lp "npm run test-node" "npm run test-browser-no-install -- --sequential --browser chromium --tfs "Browser Unit Tests"  }
+        displayName: Run unit tests (node.js, browser)
         timeoutInMinutes: 20
+
+      # - powershell: npm run test-node
+      #   displayName: Run unit tests (node.js)
+      #   timeoutInMinutes: 15
+      # - powershell: npm run test-browser-no-install -- --sequential --browser chromium --tfs "Browser Unit Tests"
+      #   displayName: Run unit tests (Browser, Chromium)
+      #   timeoutInMinutes: 20
 
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
       - powershell: .\scripts\test.bat --build --tfs "Unit Tests"
