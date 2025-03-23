@@ -32,9 +32,9 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IMarkdownVulnerability } from '../../common/annotations.js';
-import { IChatEditingService, IEditSessionEntryDiff } from '../../common/chatEditingService.js';
+import { IEditSessionEntryDiff } from '../../common/chatEditingService.js';
 import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
-import { IChatMarkdownContent, IChatUndoStop } from '../../common/chatService.js';
+import { IChatMarkdownContent, IChatService, IChatUndoStop } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { CodeBlockEntry, CodeBlockModelCollection } from '../../common/codeBlockModelCollection.js';
 import { IChatCodeBlockInfo } from '../chat.js';
@@ -50,7 +50,6 @@ const $ = dom.$;
 
 export interface IChatMarkdownContentPartOptions {
 	readonly codeBlockRenderOptions?: ICodeBlockRenderOptions;
-	readonly renderCodeBlockPills?: boolean;
 }
 
 export class ChatMarkdownContentPart extends Disposable implements IChatContentPart {
@@ -94,7 +93,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			fillInIncompleteTokens,
 			codeBlockRendererSync: (languageId, text, raw) => {
 				const isCodeBlockComplete = !isResponseVM(context.element) || context.element.isComplete || !raw || codeblockHasClosingBackticks(raw);
-				if ((!text || (text.startsWith('<vscode_codeblock_uri') && !text.includes('\n'))) && !isCodeBlockComplete && rendererOptions.renderCodeBlockPills) {
+				if ((!text || (text.startsWith('<vscode_codeblock_uri') && !text.includes('\n'))) && !isCodeBlockComplete) {
 					const hideEmptyCodeblock = $('div');
 					hideEmptyCodeblock.style.display = 'none';
 					return hideEmptyCodeblock;
@@ -131,7 +130,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				}
 				const codeBlockInfo: ICodeBlockData = { languageId, textModel, codeBlockIndex: globalIndex, codeBlockPartIndex: thisPartIndex, element, range, parentContextKeyService: contextKeyService, vulns, codemapperUri: codeblockEntry?.codemapperUri, renderOptions };
 
-				if (!rendererOptions.renderCodeBlockPills || element.isCompleteAddedRequest || !codeblockEntry?.codemapperUri || !codeblockEntry.isEdit) {
+				if (element.isCompleteAddedRequest || !codeblockEntry?.codemapperUri || !codeblockEntry.isEdit) {
 					const ref = this.renderCodeBlock(codeBlockInfo, text, isCodeBlockComplete, currentWidth);
 					this.allRefs.push(ref);
 
@@ -144,7 +143,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 						readonly ownerMarkdownPartId = ownerMarkdownPartId;
 						readonly codeBlockIndex = globalIndex;
 						readonly elementId = element.id;
-						readonly isStreaming = !rendererOptions.renderCodeBlockPills;
+						readonly isStreaming = false;
 						codemapperUri = undefined; // will be set async
 						public get uri() {
 							// here we must do a getter because the ref.object is rendered
@@ -192,6 +191,9 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				}
 			},
 			asyncRenderCallback: () => this._onDidChangeHeight.fire(),
+		}, {
+			gfm: isRequestVM(element),
+			breaks: isRequestVM(element),
 		}));
 
 		const markdownDecorationsRenderer = instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
@@ -231,7 +233,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 	hasSameContent(other: IChatProgressRenderableResponseContent): boolean {
 		return other.kind === 'markdownContent' && !!(other.content.value === this.markdown.content.value
-			|| this.rendererOptions.renderCodeBlockPills && this.codeblocks.at(-1)?.isStreaming && this.codeblocks.at(-1)?.codemapperUri !== undefined && other.content.value.lastIndexOf('```') === this.markdown.content.value.lastIndexOf('```'));
+			|| this.codeblocks.at(-1)?.isStreaming && this.codeblocks.at(-1)?.codemapperUri !== undefined && other.content.value.lastIndexOf('```') === this.markdown.content.value.lastIndexOf('```'));
 	}
 
 	layout(width: number): void {
@@ -319,8 +321,8 @@ class CollapsedCodeBlock extends Disposable {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IChatEditingService private readonly chatEditingService: IChatEditingService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IChatService private readonly chatService: IChatService,
 	) {
 		super();
 		this.element = $('.chat-codeblock-pill-widget');
@@ -356,58 +358,60 @@ class CollapsedCodeBlock extends Disposable {
 
 		this._uri = uri;
 
+		const session = this.chatService.getSession(this.sessionId);
 		const iconText = this.labelService.getUriBasenameLabel(uri);
-		const editSession = this.chatEditingService.getEditingSession(this.sessionId);
-		const modifiedEntry = editSession?.getEntry(uri);
-		const isComplete = !modifiedEntry?.isCurrentlyBeingModifiedBy.get();
-
-		let iconClasses: string[] = [];
-		if (isStreaming || !isComplete) {
-			const codicon = ThemeIcon.modify(Codicon.loading, 'spin');
-			iconClasses = ThemeIcon.asClassNameArray(codicon);
-		} else {
-			const fileKind = uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
-			iconClasses = getIconClasses(this.modelService, this.languageService, uri, fileKind);
-		}
-
-		const iconEl = dom.$('span.icon');
-		iconEl.classList.add(...iconClasses);
-
-		const children = [dom.$('span.icon-label', {}, iconText)];
-		const labelDetail = dom.$('span.label-detail', {}, '');
-		children.push(labelDetail);
-		if (isStreaming) {
-			labelDetail.textContent = localize('chat.codeblock.generating', "Generating edits...");
-		}
-
-		this.element.replaceChildren(iconEl, ...children);
-		this.updateTooltip(this.labelService.getUriLabel(uri, { relative: false }));
-
-		const renderDiff = (changes: IEditSessionEntryDiff | undefined) => {
-			const labelAdded = this.element.querySelector('.label-added') ?? this.element.appendChild(dom.$('span.label-added'));
-			const labelRemoved = this.element.querySelector('.label-removed') ?? this.element.appendChild(dom.$('span.label-removed'));
-			if (changes && !changes?.identical && !changes?.quitEarly) {
-				this._currentDiff = changes;
-				labelAdded.textContent = `+${changes.added}`;
-				labelRemoved.textContent = `-${changes.removed}`;
-				const insertionsFragment = changes.added === 1 ? localize('chat.codeblock.insertions.one', "1 insertion") : localize('chat.codeblock.insertions', "{0} insertions", changes.added);
-				const deletionsFragment = changes.removed === 1 ? localize('chat.codeblock.deletions.one', "1 deletion") : localize('chat.codeblock.deletions', "{0} deletions", changes.removed);
-				const summary = localize('summary', 'Edited {0}, {1}, {2}', iconText, insertionsFragment, deletionsFragment);
-				this.element.ariaLabel = summary;
-				this.updateTooltip(summary);
-			}
-		};
-
-		const diffBetweenStops = modifiedEntry && editSession
-			? editSession.getEntryDiffBetweenStops(modifiedEntry.modifiedURI, this.requestId, this.inUndoStop)
-			: undefined;
-
-		// Show a percentage progress that is driven by the rewrite
-
 		this._progressStore.add(autorun(r => {
+			const editSession = session?.editingSessionObs?.promiseResult.read(r)?.data;
+			const modifiedEntry = editSession?.getEntry(uri);
+			const modifiedByRequest = modifiedEntry?.isCurrentlyBeingModifiedBy.read(r);
+			const isComplete = !modifiedByRequest || modifiedByRequest.id !== this.requestId;
+
+			let iconClasses: string[] = [];
+			if (isStreaming || !isComplete) {
+				const codicon = ThemeIcon.modify(Codicon.loading, 'spin');
+				iconClasses = ThemeIcon.asClassNameArray(codicon);
+			} else {
+				const fileKind = uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
+				iconClasses = getIconClasses(this.modelService, this.languageService, uri, fileKind);
+			}
+
+			const iconEl = dom.$('span.icon');
+			iconEl.classList.add(...iconClasses);
+
+			const children = [dom.$('span.icon-label', {}, iconText)];
+			const labelDetail = dom.$('span.label-detail', {}, '');
+			children.push(labelDetail);
+			if (isStreaming) {
+				labelDetail.textContent = localize('chat.codeblock.generating', "Generating edits...");
+			}
+
+			this.element.replaceChildren(iconEl, ...children);
+			this.updateTooltip(this.labelService.getUriLabel(uri, { relative: false }));
+
+			const renderDiff = (changes: IEditSessionEntryDiff | undefined) => {
+				const labelAdded = this.element.querySelector('.label-added') ?? this.element.appendChild(dom.$('span.label-added'));
+				const labelRemoved = this.element.querySelector('.label-removed') ?? this.element.appendChild(dom.$('span.label-removed'));
+				if (changes && !changes?.identical && !changes?.quitEarly) {
+					this._currentDiff = changes;
+					labelAdded.textContent = `+${changes.added}`;
+					labelRemoved.textContent = `-${changes.removed}`;
+					const insertionsFragment = changes.added === 1 ? localize('chat.codeblock.insertions.one', "1 insertion") : localize('chat.codeblock.insertions', "{0} insertions", changes.added);
+					const deletionsFragment = changes.removed === 1 ? localize('chat.codeblock.deletions.one', "1 deletion") : localize('chat.codeblock.deletions', "{0} deletions", changes.removed);
+					const summary = localize('summary', 'Edited {0}, {1}, {2}', iconText, insertionsFragment, deletionsFragment);
+					this.element.ariaLabel = summary;
+					this.updateTooltip(summary);
+				}
+			};
+
+			const diffBetweenStops = modifiedEntry && editSession
+				? editSession.getEntryDiffBetweenStops(modifiedEntry.modifiedURI, this.requestId, this.inUndoStop)
+				: undefined;
+
+			// Show a percentage progress that is driven by the rewrite
+
+
 			const rewriteRatio = modifiedEntry?.rewriteRatio.read(r);
 
-			const isComplete = !modifiedEntry?.isCurrentlyBeingModifiedBy.read(r);
 			if (!isStreaming && !isComplete) {
 				const value = rewriteRatio;
 				labelDetail.textContent = value === 0 || !value ? localize('chat.codeblock.generating', "Generating edits...") : localize('chat.codeblock.applyingPercentage', "Applying edits ({0}%)...", Math.round(value * 100));

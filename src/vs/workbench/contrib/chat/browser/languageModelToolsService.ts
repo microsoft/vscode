@@ -212,6 +212,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 				const request = model.getRequests().at(-1)!;
 				requestId = request.id;
+				dto.modelId = request.modelId;
 
 				// Replace the token with a new token that we can cancel when cancelToolCallsForRequest is called
 				if (!this._callsByRequestId.has(requestId)) {
@@ -236,7 +237,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					await tool.impl.prepareToolInvocation(dto.parameters, token)
 					: undefined;
 
-				toolInvocation = new ChatToolInvocation(prepared, tool.data);
+				toolInvocation = new ChatToolInvocation(prepared, tool.data, dto.callId);
 				if (this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace)) {
 					toolInvocation.confirmed.complete(true);
 				}

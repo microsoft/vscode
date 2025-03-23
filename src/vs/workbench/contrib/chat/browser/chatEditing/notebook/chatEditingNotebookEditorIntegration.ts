@@ -506,10 +506,10 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 					}
 
 					const isFirstChangeInCell = currentChange.index === 0;
-					const index = isFirstChangeInCell ? 0 : currentChange.index - 1;
 					const change = isFirstChangeInCell ? changes[changes.indexOf(currentChange.change) - 1] : currentChange.change;
 
 					if (change) {
+						const index = isFirstChangeInCell ? lastChangeIndex(change) : currentChange.index - 1;
 						return this._revealChange(change, index);
 					}
 				}

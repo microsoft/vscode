@@ -7,7 +7,7 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
@@ -51,7 +51,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 	private subPart!: ChatToolInvocationSubPart;
 
 	constructor(
-		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
+		private readonly toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
 		context: IChatContentPartRenderContext,
 		renderer: MarkdownRenderer,
 		listPool: CollapsibleListPool,
@@ -88,7 +88,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
-		return other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized';
+		return (other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized') && this.toolInvocation.toolCallId === other.toolCallId;
 	}
 
 	addDisposable(disposable: IDisposable): void {
@@ -291,6 +291,9 @@ class ChatToolInvocationSubPart extends Disposable {
 			));
 		}
 
+		const hasToolConfirmation = ChatContextKeys.Editing.hasToolConfirmation.bindTo(this.contextKeyService);
+		hasToolConfirmation.set(true);
+
 		this._register(confirmWidget.onDidClick(button => {
 			switch (button.data as ConfirmationOutcome) {
 				case ConfirmationOutcome.AllowGlobally:
@@ -314,7 +317,9 @@ class ChatToolInvocationSubPart extends Disposable {
 			}
 		}));
 		this._register(confirmWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+		this._register(toDisposable(() => hasToolConfirmation.reset()));
 		toolInvocation.confirmed.p.then(() => {
+			hasToolConfirmation.reset();
 			this._onNeedsRerender.fire();
 		});
 		return confirmWidget.domNode;

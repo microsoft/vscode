@@ -61,7 +61,7 @@ import { ElectronRemoteResourceLoader } from '../../platform/remote/electron-san
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { applyZoom } from '../../platform/window/electron-sandbox/window.js';
 import { mainWindow } from '../../base/browser/window.js';
-import { DefaultAccountManagementContribution, DefaultAccountService, IDefaultAccountService } from '../services/accounts/common/defaultAccount.js';
+import { DefaultAccountService, IDefaultAccountService } from '../services/accounts/common/defaultAccount.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contributions.js';
 import { AccountPolicyService } from '../services/policies/common/accountPolicyService.js';
 import { MultiplexPolicyService } from '../services/policies/common/multiplexPolicyService.js';
@@ -209,8 +209,7 @@ export class DesktopMain extends Disposable {
 		// Default Account
 		const defaultAccountService = this._register(new DefaultAccountService());
 		serviceCollection.set(IDefaultAccountService, defaultAccountService);
-		registerWorkbenchContribution2('workbench.contributions.defaultAccountManagement', DefaultAccountManagementContribution, WorkbenchPhase.AfterRestored);
-
+    
 		// Policies
 		let policyService: IPolicyService = new NullPolicyService();
 		if (this.configuration.policiesData) {

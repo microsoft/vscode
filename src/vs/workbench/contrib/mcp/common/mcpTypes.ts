@@ -359,6 +359,21 @@ export namespace McpConnectionState {
 		}
 	};
 
+	export const toKindString = (s: McpConnectionState.Kind): string => {
+		switch (s) {
+			case Kind.Stopped:
+				return 'stopped';
+			case Kind.Starting:
+				return 'starting';
+			case Kind.Running:
+				return 'running';
+			case Kind.Error:
+				return 'error';
+			default:
+				assertNever(s);
+		}
+	};
+
 	/** Returns if the MCP state is one where starting a new server is valid */
 	export const canBeStarted = (s: Kind) => s === Kind.Error || s === Kind.Stopped;
 

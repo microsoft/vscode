@@ -8,7 +8,7 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { ILogger } from '../../../../platform/log/common/log.js';
+import { ILogger, LogLevel } from '../../../../platform/log/common/log.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { IResolvedValue } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
@@ -20,7 +20,7 @@ export const IMcpRegistry = createDecorator<IMcpRegistry>('mcpRegistry');
 /** Message transport to a single MCP server. */
 export interface IMcpMessageTransport extends IDisposable {
 	readonly state: IObservable<McpConnectionState>;
-	readonly onDidLog: Event<string>;
+	readonly onDidLog: Event<{ level: LogLevel; message: string }>;
 	readonly onDidReceiveMessage: Event<MCP.JSONRPCMessage>;
 	send(message: MCP.JSONRPCMessage): void;
 	stop(): void;

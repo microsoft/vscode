@@ -18,7 +18,6 @@ import { ITextFileService } from '../../../../services/textfile/common/textfiles
 import { CellUri } from '../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { ICodeMapperService } from '../../common/chatCodeMapperService.js';
-import { IChatEditingService } from '../../common/chatEditingService.js';
 import { ChatModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
@@ -75,7 +74,6 @@ export class EditTool implements IToolImpl {
 
 	constructor(
 		@IChatService private readonly chatService: IChatService,
-		@IChatEditingService private readonly chatEditingService: IChatEditingService,
 		@ICodeMapperService private readonly codeMapperService: ICodeMapperService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ILanguageModelIgnoredFilesService private readonly ignoredFilesService: ILanguageModelIgnoredFilesService,
@@ -151,7 +149,7 @@ export class EditTool implements IToolImpl {
 			});
 		}
 
-		const editSession = this.chatEditingService.getEditingSession(model.sessionId);
+		const editSession = model.editingSession;
 		if (!editSession) {
 			throw new Error('This tool must be called from within an editing session');
 		}

@@ -42,6 +42,7 @@ export interface IChatAgentData {
 	name: string;
 	fullName?: string;
 	description?: string;
+	/** This is string, not ContextKeyExpression, because dealing with serializing/deserializing is hard and need a better pattern for this */
 	when?: string;
 	extensionId: ExtensionIdentifier;
 	extensionPublisherId: string;

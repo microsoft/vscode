@@ -433,4 +433,8 @@ declare module 'vscode' {
 		Medium = 2,
 		Full = 3
 	}
+
+	export interface LanguageModelToolInvocationOptions<T> {
+		model?: LanguageModelChat;
+	}
 }
