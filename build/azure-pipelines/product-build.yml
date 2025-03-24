@@ -157,6 +157,11 @@ resources:
       source: 'VS Code 7PM Kick-Off'
       trigger: true
   repositories:
+    - repository: distro
+      name: microsoft/vscode-distro
+      ref: refs/heads/main
+      endpoint: Monaco
+      type: github
     - repository: 1ESPipelines
       type: git
       name: 1ESPipelineTemplates/1ESPipelineTemplates
@@ -183,6 +188,9 @@ extends:
         enableExclusions: true
         exclusionsFilePath: $(Build.SourcesDirectory)/.eslint-ignore
       sourceAnalysisPool: 1es-windows-2022-x64
+      sourceRepositoriesToScan:
+        exclude:
+          - repository: distro
       createAdoIssuesForJustificationsForDisablement: false
     containers:
       snapcraft:
