@@ -313,6 +313,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			}
 		}
 
+		// Only search for inline completion with non string labels as those are considered rich
 		const inlineCompletionMatchIndex = completions.findIndex(c => typeof c.label !== 'string' && c.label.label === this._inlineCompletionItem.completion.label);
 		if (inlineCompletionMatchIndex !== -1) {
 			// Remove the existing inline completion item from the completions list
