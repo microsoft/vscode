@@ -12,6 +12,7 @@ import { PromptAtMention } from '../../../../common/promptSyntax/codecs/tokens/p
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { MarkdownLink } from '../../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
 import { ChatPromptDecoder, TChatPromptToken } from '../../../../common/promptSyntax/codecs/chatPromptDecoder.js';
+import { PromptVariable, PromptVariableWithData } from '../../../../common/promptSyntax/codecs/tokens/promptVariable.js';
 
 /**
  * A reusable test utility that asserts that a `ChatPromptDecoder` instance
@@ -60,7 +61,8 @@ suite('ChatPromptDecoder', () => {
 			'## Heading Title',
 			' \t#file:a/b/c/filename2.md\t🖖\t#file:other-file.md',
 			' [#file:reference.md](./reference.md)some text #file:/some/file/with/absolute/path.md',
-			'text text #file: another @github text',
+			'text text #file: another @github text #selection even more text',
+			'\t\v#my-name:metadata:1:20 \t\t\t',
 		];
 
 		await test.run(
@@ -99,6 +101,15 @@ suite('ChatPromptDecoder', () => {
 				new PromptAtMention(
 					new Range(8, 26, 8, 33),
 					'github',
+				),
+				new PromptVariable(
+					new Range(8, 39, 8, 49),
+					'selection',
+				),
+				new PromptVariableWithData(
+					new Range(9, 3, 9, 3 + 22),
+					'my-name',
+					'metadata:1:20',
 				),
 			],
 		);
