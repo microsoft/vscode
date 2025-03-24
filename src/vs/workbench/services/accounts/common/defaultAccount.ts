@@ -48,7 +48,7 @@ export interface IDefaultAccount {
 	readonly limited_user_reset_date?: string;
 }
 
-interface IEntitlementsResponse {
+interface IChatEntitlementsResponse {
 	readonly access_type_sku: string;
 	readonly assigned_date: string;
 	readonly can_signup_for_limited: boolean;
@@ -65,12 +65,8 @@ interface IEntitlementsResponse {
 	readonly limited_user_reset_date: string;
 }
 
-interface IChatResponse {
+interface ITokenEntitlementsResponse {
 	token: string;
-}
-
-interface IChatEntitlementsResponse {
-	readonly chat_preview_features_enabled?: boolean;
 }
 
 export const IDefaultAccountService = createDecorator<IDefaultAccountService>('defaultAccountService');
@@ -213,16 +209,16 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 			return null;
 		}
 
-		const [entitlements, chatEntitlements] = await Promise.all([
-			this.getEntitlements(session.accessToken, tokenEntitlementUrl),
-			this.getChatEntitlements(session.accessToken, chatEntitlementUrl)
+		const [chatEntitlements, tokenEntitlements] = await Promise.all([
+			this.getChatEntitlements(session.accessToken, chatEntitlementUrl),
+			this.getTokenEntitlements(session.accessToken, tokenEntitlementUrl)
 		]);
 
 		return {
 			sessionId: session.id,
 			enterprise: id === enterpriseAuthProviderId || session.account.label.includes('_'),
-			...entitlements,
 			...chatEntitlements,
+			...tokenEntitlements,
 		};
 	}
 
@@ -230,21 +226,21 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 		return scopes.length === expectedScopes.length && expectedScopes.every(scope => scopes.includes(scope));
 	}
 
-	private async getChatEntitlements(accessToken: string, chatEntitlementUrl: string): Promise<IChatEntitlementsResponse> {
-		if (!chatEntitlementUrl) {
+	private async getTokenEntitlements(accessToken: string, tokenEntitlementsUrl: string): Promise<Partial<IDefaultAccount>> {
+		if (!tokenEntitlementsUrl) {
 			return {};
 		}
 
 		const chatContext = await this.requestService.request({
 			type: 'GET',
-			url: chatEntitlementUrl,
+			url: tokenEntitlementsUrl,
 			disableCache: true,
 			headers: {
 				'Authorization': `Bearer ${accessToken}`
 			}
 		}, CancellationToken.None);
 
-		const chatData = await asJson<IChatResponse>(chatContext);
+		const chatData = await asJson<ITokenEntitlementsResponse>(chatContext);
 		if (chatData) {
 			return {
 				// Editor preview features are disabled if the flag is present and set to 0
@@ -254,18 +250,18 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 		return {};
 	}
 
-	private async getEntitlements(accessToken: string, tokenEntitlementUrl: string): Promise<Partial<IEntitlementsResponse>> {
+	private async getChatEntitlements(accessToken: string, chatEntitlementsUrl: string): Promise<Partial<IChatEntitlementsResponse>> {
 		try {
 			const context = await this.requestService.request({
 				type: 'GET',
-				url: tokenEntitlementUrl,
+				url: chatEntitlementsUrl,
 				disableCache: true,
 				headers: {
 					'Authorization': `Bearer ${accessToken}`
 				}
 			}, CancellationToken.None);
 
-			const data = await asJson<IEntitlementsResponse>(context);
+			const data = await asJson<IChatEntitlementsResponse>(context);
 			if (data) {
 				return data;
 			}
