@@ -23,7 +23,7 @@ steps:
       - script: npm run test-node
         displayName: Run unit tests (node.js)
         timeoutInMinutes: 15
-      - script: npm run test-browser-no-install -- --sequential --browser webkit --tfs "Browser Unit Tests"
+      - script: npm run test-browser-no-install -- --browser webkit --tfs "Browser Unit Tests"
         env:
           DEBUG: "*browser*"
         displayName: Run unit tests (Browser, Webkit)
@@ -36,7 +36,7 @@ steps:
       - script: npm run test-node -- --build
         displayName: Run unit tests (node.js)
         timeoutInMinutes: 15
-      - script: npm run test-browser-no-install -- --sequential --build --browser webkit --tfs "Browser Unit Tests"
+      - script: npm run test-browser-no-install -- --build --browser webkit --tfs "Browser Unit Tests"
         env:
           DEBUG: "*browser*"
         displayName: Run unit tests (Browser, Webkit)
