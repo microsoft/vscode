@@ -20,7 +20,7 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 			.then(account => {
 				this._update(account?.chat_preview_features_enabled ?? true);
 				this._register(this.defaultAccountService.onDidChangeDefaultAccount(account => this._update(account?.chat_preview_features_enabled ?? true)));
-		});
+			});
 	}
 
 	private _update(chatPreviewFeaturesEnabled: boolean | undefined) {
