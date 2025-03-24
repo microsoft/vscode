@@ -631,9 +631,10 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 				await context.update({ hidden: false });
 
+				showCopilotView(viewsService, layoutService);
+
 				const setupFromDialog = configurationService.getValue('chat.experimental.setupFromDialog');
 				if (!setupFromDialog) {
-					showCopilotView(viewsService, layoutService);
 					ensureSideBarChatViewSize(viewDescriptorService, layoutService, viewsService);
 				}
 
