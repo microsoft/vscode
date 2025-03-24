@@ -154,7 +154,7 @@ export class LineCommentCommand implements ICommand {
 			lineData.ignore = false;
 			lineData.commentStrOffset = lineCommentTokenFirstColumn ? 0 : lineContentStartOffset;
 
-			if (shouldRemoveComments && !BlockCommentCommand._haystackHasNeedleAtOffset(lineContent, lineData.commentStr, lineContentStartOffset)) {
+			if (shouldRemoveComments && !BlockCommentCommand._haystackHasNeedleAtOffset(lineContent, lineData.commentStr, lineCommentTokenFirstColumn ? 0 : lineContentStartOffset)) {
 				if (type === Type.Toggle) {
 					// Every line so far has been a line comment, but this one is not
 					shouldRemoveComments = false;
