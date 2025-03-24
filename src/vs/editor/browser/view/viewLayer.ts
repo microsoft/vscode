@@ -256,8 +256,8 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 	private readonly _linesCollection: RenderedLinesCollection<T> = new RenderedLinesCollection<T>(this._lineFactory);
 
 	constructor(
+		private readonly _viewContext: ViewContext,
 		private readonly _lineFactory: ILineFactory<T>,
-		private readonly _viewContext: ViewContext
 	) {
 	}
 

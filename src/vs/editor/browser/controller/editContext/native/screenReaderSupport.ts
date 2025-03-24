@@ -131,9 +131,12 @@ export class ScreenReaderSupport {
 			return;
 		}
 
+		// The <div> where we render the screen reader content does not support variable line heights,
+		// all the lines must have the same height. We use the line height of the cursor position as the
+		// line height for all lines.
 		const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(positionLineNumber);
-		const lineNumberWithinState = positionLineNumber - this._screenReaderContentState.startPositionWithinEditor.lineNumber;
-		const scrollTop = lineNumberWithinState * lineHeight;
+		const lineNumberWithinStateAboveCursor = positionLineNumber - this._screenReaderContentState.startPositionWithinEditor.lineNumber;
+		const scrollTop = lineNumberWithinStateAboveCursor * lineHeight;
 		this._doRender(scrollTop, top, this._contentLeft, this._divWidth, lineHeight);
 	}
 

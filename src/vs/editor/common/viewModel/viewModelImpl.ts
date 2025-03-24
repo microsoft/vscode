@@ -36,7 +36,7 @@ import { ILineBreaksComputer, ILineBreaksComputerFactory, InjectedText } from '.
 import { ViewEventHandler } from '../viewEventHandler.js';
 import { ICoordinatesConverter, InlineDecoration, ISpecialLineHeightChangeAccessor, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
 import { ViewModelDecorations } from './viewModelDecorations.js';
-import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent, WidgetFocusChangedEvent } from '../viewModelEventDispatcher.js';
+import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelLineHeightChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent, WidgetFocusChangedEvent } from '../viewModelEventDispatcher.js';
 import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from './viewModelLines.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { GlyphMarginLanesModel } from './glyphLanesModel.js';
@@ -420,10 +420,9 @@ export class ViewModel extends Disposable implements IViewModel {
 		}));
 
 		this._register(this.model.onDidChangeLineHeight((e) => {
-			e.changes.forEach((change) => {
-				if (change.ownerId !== this._editorId && change.ownerId !== 0) {
-					return;
-				}
+			const filteredChanges = e.changes.filter((change) => change.ownerId === this._editorId || change.ownerId === 0);
+
+			for (const change of filteredChanges) {
 				const lineNumber = change.lineNumber;
 				const lineHeight = change.lineHeight;
 				const decorationId = change.decorationId;
@@ -441,7 +440,13 @@ export class ViewModel extends Disposable implements IViewModel {
 						});
 					}
 				}
-			});
+			}
+
+			// recreate the model event using the filtered changes
+			if (filteredChanges.length > 0) {
+				const filteredEvent = new textModelEvents.ModelLineHeightChangedEvent(filteredChanges);
+				this._eventDispatcher.emitOutgoingEvent(new ModelLineHeightChangedEvent(filteredEvent));
+			}
 		}));
 
 		this._register(this.model.onDidChangeTokens((e) => {

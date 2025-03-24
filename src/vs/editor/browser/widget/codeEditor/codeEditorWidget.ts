@@ -1686,10 +1686,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		// Someone might destroy the model from under the editor, so prevent any exceptions by setting a null model
 		listenersToRemove.push(model.onWillDispose(() => this.setModel(null)));
-		listenersToRemove.push(model.onDidChangeLineHeight((e) => {
-			const changes = e.changes.filter((change) => change.ownerId === this._id || change.ownerId === 0);
-			this._onDidChangeLineHeight.fire(new ModelLineHeightChangedEvent(changes));
-		}));
+
 		listenersToRemove.push(viewModel.onEvent((e) => {
 			switch (e.kind) {
 				case OutgoingViewModelEventKind.ContentSizeChanged:
@@ -1780,6 +1777,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 					break;
 				case OutgoingViewModelEventKind.ModelTokensChanged:
 					this._onDidChangeModelTokens.fire(e.event);
+					break;
+				case OutgoingViewModelEventKind.ModelLineHeightChanged:
+					this._onDidChangeLineHeight.fire(e.event);
 					break;
 
 			}

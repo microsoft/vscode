@@ -537,7 +537,7 @@ export class LinesLayout {
 	}
 
 	/**
-	 * Get the vertical offset (the sum of heights for all objects above) a certain line number.
+	 * Get the vertical offset (the sum of heights for all objects above) a certain line number and also the line height of the line.
 	 *
 	 * @param lineNumber The line number
 	 * @return The sum of heights for all objects above `lineNumber`.

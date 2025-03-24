@@ -451,10 +451,8 @@ export class NativeEditContext extends AbstractEditContext {
 		const verticalOffsetStart = this._context.viewLayout.getVerticalOffsetForLineNumber(viewSelection.startLineNumber);
 
 		const top = parentBounds.top + verticalOffsetStart - this._scrollTop;
-		let height = 0;
-		for (let line = viewSelection.startLineNumber; line <= viewSelection.endLineNumber; line++) {
-			height += this._context.viewLayout.getLineHeightForLineNumber(line);
-		}
+		const verticalOffsetEnd = this._context.viewLayout.getVerticalOffsetAfterLineNumber(viewSelection.endLineNumber);
+		const height = verticalOffsetEnd - verticalOffsetStart;
 		let left = parentBounds.left + contentLeft - this._scrollLeft;
 		let width: number;
 

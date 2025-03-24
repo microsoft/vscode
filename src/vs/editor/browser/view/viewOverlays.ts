@@ -24,9 +24,9 @@ export class ViewOverlays extends ViewPart {
 	constructor(context: ViewContext) {
 		super(context);
 
-		this._visibleLines = new VisibleLinesCollection({
+		this._visibleLines = new VisibleLinesCollection(this._context, {
 			createLine: () => new ViewOverlayLine(this._dynamicOverlays)
-		}, this._context);
+		});
 		this.domNode = this._visibleLines.domNode;
 
 		const options = this._context.configuration.options;
