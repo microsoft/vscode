@@ -67,7 +67,12 @@ class PerformanceError extends Error {
 	readonly selfTime: number;
 
 	constructor(data: SampleData) {
+		// Since the stacks are available via the sample
+		// we can avoid collecting them when constructing the error.
+		const stackTraceLimit = Error.stackTraceLimit;
+		Error.stackTraceLimit = 0;
 		super(`PerfSampleError: by ${data.source} in ${data.sample.location}`);
+		Error.stackTraceLimit = stackTraceLimit;
 		this.name = 'PerfSampleError';
 		this.selfTime = data.sample.selfTime;
 
