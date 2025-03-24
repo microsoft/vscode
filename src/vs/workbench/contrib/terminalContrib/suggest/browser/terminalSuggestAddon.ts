@@ -535,7 +535,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._suggestWidget.setLineContext(lineContext);
 		}
 
-		this._refreshInlineCompletion(this._model?.items.map(i => i.completion) || [], lineContext);
+		this._refreshInlineCompletion(this._model?.items.map(i => i.completion) || []);
 
 		// Hide and clear model if there are no more items
 		if (!this._suggestWidget.hasCompletions()) {
@@ -555,7 +555,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		});
 	}
 
-	private _refreshInlineCompletion(completions: ITerminalCompletion[], lineContext?: LineContext): void {
+	private _refreshInlineCompletion(completions: ITerminalCompletion[]): void {
 		const oldIsInvalid = this._inlineCompletionItem.isInvalid;
 		if (!this._currentPromptInputState || this._currentPromptInputState.ghostTextIndex === -1) {
 			this._inlineCompletionItem.isInvalid = true;
