@@ -10,7 +10,7 @@ import { IPromptInputModel } from '../../../../../platform/terminal/common/capab
 import { ITerminalCompletion } from './terminalCompletionItem.js';
 
 export class TerminalSuggestTelemetry extends Disposable {
-	private _acceptedCompletions: Array<{ label: string; kindLabel?: string }> | undefined;
+	private _acceptedCompletions: Array<{ label: string; type?: string }> | undefined;
 
 	constructor(
 		commandDetection: ICommandDetectionCapability,
@@ -33,38 +33,38 @@ export class TerminalSuggestTelemetry extends Disposable {
 			return;
 		}
 		this._acceptedCompletions = this._acceptedCompletions || [];
-		this._acceptedCompletions.push({ label: typeof completion.label === 'string' ? completion.label : completion.label.label, kindLabel: completion.kindLabel });
+		this._acceptedCompletions.push({ label: typeof completion.label === 'string' ? completion.label : completion.label.label, type: completion.type });
 	}
 	private _sendTelemetryInfo(fromInterrupt?: boolean, exitCode?: number): void {
 		const commandLine = this._promptInputModel?.value;
 		for (const completion of this._acceptedCompletions || []) {
 			const label = completion?.label;
-			const kind = completion?.kindLabel;
-			if (label === undefined || commandLine === undefined || kind === undefined) {
+			const type = completion?.type;
+			if (label === undefined || commandLine === undefined || type === undefined) {
 				return;
 			}
 
-			let outcome: CompletionOutcome;
+			let outcome: string;
 			if (fromInterrupt) {
-				outcome = CompletionOutcome.Interrupted;
+				outcome = 'Interrupted';
 			} else if (commandLine.trim() && commandLine.includes(label)) {
-				outcome = CompletionOutcome.Accepted;
+				outcome = 'Accepted';
 			} else if (inputContainsFirstHalfOfLabel(commandLine, label)) {
-				outcome = CompletionOutcome.AcceptedWithEdit;
+				outcome = 'AcceptedWithEdit';
 			} else {
-				outcome = CompletionOutcome.Deleted;
+				outcome = 'Deleted';
 			}
 			this._telemetryService.publicLog2<{
-				kind: string | undefined;
-				outcome: CompletionOutcome;
+				type: string | undefined;
+				outcome: string;
 				exitCode: number | undefined;
 			}, {
 				owner: 'meganrogge';
 				comment: 'This data is collected to understand the outcome of a terminal completion acceptance.';
-				kind: {
+				type: {
 					classification: 'SystemMetaData';
 					purpose: 'FeatureInsight';
-					comment: 'The completion item\'s kind';
+					comment: 'The completion item\'s type';
 				};
 				outcome: {
 					classification: 'SystemMetaData';
@@ -77,7 +77,7 @@ export class TerminalSuggestTelemetry extends Disposable {
 					comment: 'The exit code from the command';
 				};
 			}>('terminal.suggest.acceptedCompletion', {
-				kind,
+				type,
 				outcome,
 				exitCode
 			});
@@ -87,11 +87,4 @@ export class TerminalSuggestTelemetry extends Disposable {
 
 function inputContainsFirstHalfOfLabel(commandLine: string, label: string): boolean {
 	return commandLine.includes(label.substring(0, Math.ceil(label.length / 2)));
-}
-
-const enum CompletionOutcome {
-	Accepted = 'Accepted',
-	Deleted = 'Deleted',
-	AcceptedWithEdit = 'AcceptedWithEdit',
-	Interrupted = 'Interrupted'
 }

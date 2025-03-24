@@ -103,7 +103,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		[TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop, terminalSymbolInlineSuggestionIcon],
 	]);
 
-	private _kindToTypeMap = new Map<number, string>([
+	private _kindToKindLabelMap = new Map<number, string>([
 		[TerminalCompletionItemKind.File, localize('file', 'File')],
 		[TerminalCompletionItemKind.Folder, localize('folder', 'Folder')],
 		[TerminalCompletionItemKind.Method, localize('method', 'Method')],
@@ -114,6 +114,19 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		[TerminalCompletionItemKind.Flag, localize('flag', 'Flag')],
 		[TerminalCompletionItemKind.InlineSuggestion, localize('inlineSuggestion', 'Inline Suggestion')],
 		[TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop, localize('inlineSuggestionAlwaysOnTop', 'Inline Suggestion')],
+	]);
+
+	private _kindToTypeMap = new Map<number, string>([
+		[TerminalCompletionItemKind.File, 'File'],
+		[TerminalCompletionItemKind.Folder, 'Folder'],
+		[TerminalCompletionItemKind.Method, 'Method'],
+		[TerminalCompletionItemKind.Alias, 'Alias'],
+		[TerminalCompletionItemKind.Argument, 'Argument'],
+		[TerminalCompletionItemKind.Option, 'Option'],
+		[TerminalCompletionItemKind.OptionValue, 'Option Value'],
+		[TerminalCompletionItemKind.Flag, 'Flag'],
+		[TerminalCompletionItemKind.InlineSuggestion, 'Inline Suggestion'],
+		[TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop, 'Inline Suggestion'],
 	]);
 
 	private readonly _inlineCompletion: ITerminalCompletion = {
@@ -127,6 +140,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		detail: 'Inline suggestion',
 		kind: TerminalCompletionItemKind.InlineSuggestion,
 		kindLabel: 'Inline suggestion',
+		type: 'inlineSuggestion',
 		icon: this._kindToIconMap.get(TerminalCompletionItemKind.InlineSuggestion),
 	};
 	private readonly _inlineCompletionItem = new TerminalCompletionItem(this._inlineCompletion);
@@ -309,7 +323,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		for (const completion of completions) {
 			if (!completion.icon && completion.kind !== undefined) {
 				completion.icon = this._kindToIconMap.get(completion.kind);
-				completion.kindLabel = this._kindToTypeMap.get(completion.kind);
+				completion.kindLabel = this._kindToKindLabelMap.get(completion.kind);
+				completion.type = this._kindToTypeMap.get(completion.kind);
 			}
 		}
 
