@@ -639,7 +639,7 @@ export class SettingsTreeModel implements IDisposable {
 			this._userDataProfileService,
 			this._configurationService);
 
-		const nameElements = this._treeElementsBySettingName.get(setting.key) || [];
+		const nameElements = this._treeElementsBySettingName.get(setting.key) ?? [];
 		nameElements.push(element);
 		this._treeElementsBySettingName.set(setting.key, nameElements);
 		return element;
@@ -1033,14 +1033,14 @@ export class SearchResultModel extends SettingsTreeModel {
 	}
 
 	getRawResults(): ISearchResult[] {
-		return this.rawSearchResults || [];
+		return this.rawSearchResults ?? [];
 	}
 
 	setResult(order: SearchResultIdx, result: ISearchResult | null): void {
 		this.cachedUniqueSearchResults = null;
 		this.newExtensionSearchResults = null;
 
-		this.rawSearchResults = this.rawSearchResults || [];
+		this.rawSearchResults ??= [];
 		if (!result) {
 			delete this.rawSearchResults[order];
 			return;
