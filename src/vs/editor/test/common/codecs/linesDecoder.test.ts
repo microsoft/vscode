@@ -146,6 +146,24 @@ function testLinesDecoder(
 				const test = disposables.add(new TestLinesDecoder());
 
 				await test.run(
+					' hello world\nhow are you doing?\n\n 😊 \r',
+					[
+						new Line(1, ' hello world'),
+						new NewLine(new Range(1, 13, 1, 14)),
+						new Line(2, 'how are you doing?'),
+						new NewLine(new Range(2, 19, 2, 20)),
+						new Line(3, ''),
+						new NewLine(new Range(3, 1, 3, 2)),
+						new Line(4, ' 😊 '),
+						new NewLine(new Range(4, 5, 4, 6)),
+					],
+				);
+			});
+
+			test('standalone \\r is treated as new line', async () => {
+				const test = disposables.add(new TestLinesDecoder());
+
+				await test.run(
 					' hello world\nhow are you doing?\n\n 😊 \r ',
 					[
 						new Line(1, ' hello world'),
@@ -155,7 +173,7 @@ function testLinesDecoder(
 						new Line(3, ''),
 						new NewLine(new Range(3, 1, 3, 2)),
 						new Line(4, ' 😊 '),
-						new CarriageReturn(new Range(4, 5, 4, 6)),
+						new NewLine(new Range(4, 5, 4, 6)),
 						new Line(5, ' '),
 					],
 				);
@@ -218,11 +236,11 @@ function testLinesDecoder(
 					'\r\rhaalo! 💥💥 how\'re you?\r ?!\r\n\r\n ',
 					[
 						new Line(1, ''),
-						new CarriageReturn(new Range(1, 1, 1, 2)),
+						new NewLine(new Range(1, 1, 1, 2)),
 						new Line(2, ''),
-						new CarriageReturn(new Range(2, 1, 2, 2)),
+						new NewLine(new Range(2, 1, 2, 2)),
 						new Line(3, 'haalo! 💥💥 how\'re you?'),
-						new CarriageReturn(new Range(3, 24, 3, 25)),
+						new NewLine(new Range(3, 24, 3, 25)),
 						new Line(4, ' ?!'),
 						new CarriageReturn(new Range(4, 4, 4, 5)),
 						new NewLine(new Range(4, 5, 4, 6)),
