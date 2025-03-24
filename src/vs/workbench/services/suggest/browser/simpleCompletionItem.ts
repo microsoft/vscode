@@ -35,11 +35,6 @@ export interface ISimpleCompletion {
 	kindLabel?: string;
 
 	/**
-	 * The completion item's type that will be used for telemetry.
-	 */
-	type?: string;
-
-	/**
 	 * The completion's detail which appears on the right of the list.
 	 */
 	detail?: string;

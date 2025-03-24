@@ -127,7 +127,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		detail: 'Inline suggestion',
 		kind: TerminalCompletionItemKind.InlineSuggestion,
 		kindLabel: 'Inline suggestion',
-		type: 'inlineSuggestion',
 		icon: this._kindToIconMap.get(TerminalCompletionItemKind.InlineSuggestion),
 	};
 	private readonly _inlineCompletionItem = new TerminalCompletionItem(this._inlineCompletion);
