@@ -11,8 +11,8 @@ import * as types from '../../../base/common/types.js';
 import * as nls from '../../../nls.js';
 import { getLanguageTagSettingPlainKey } from './configuration.js';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../jsonschemas/common/jsonContributionRegistry.js';
-import { PolicyName } from '../../policy/common/policy.js';
 import { Registry } from '../../registry/common/platform.js';
+import { IPolicy, PolicyName } from '../../../base/common/policy.js';
 
 export enum EditPresentationTypes {
 	Multiline = 'multilineText',
@@ -155,23 +155,6 @@ export const enum ConfigurationScope {
 	MACHINE_OVERRIDABLE,
 }
 
-export interface IPolicy {
-
-	/**
-	 * The policy name.
-	 */
-	readonly name: PolicyName;
-
-	/**
-	 * The Code version in which this policy was introduced.
-	*/
-	readonly minimumVersion: `${number}.${number}`;
-
-	/**
-	 * The policy description (optional).
-	 */
-	readonly description?: string;
-}
 
 export interface IConfigurationPropertySchema extends IJSONSchema {
 
