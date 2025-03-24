@@ -22,13 +22,14 @@ import { LeftBracket, RightBracket, TBracket } from './tokens/brackets.js';
 import { BaseDecoder } from '../../../../base/common/codecs/baseDecoder.js';
 import { LeftParenthesis, RightParenthesis, TParenthesis } from './tokens/parentheses.js';
 import { LeftAngleBracket, RightAngleBracket, TAngleBracket } from './tokens/angleBrackets.js';
+import { Slash } from './tokens/slash.js';
 
 /**
  * A token type that this decoder can handle.
  */
 export type TSimpleToken = Word | Space | Tab | VerticalTab | At | NewLine | FormFeed
 	| CarriageReturn | TBracket | TAngleBracket | TParenthesis
-	| Colon | Hash | Dash | ExclamationMark;
+	| Colon | Hash | Dash | ExclamationMark | Slash;
 
 /**
  * List of well-known distinct tokens that this decoder emits (excluding
@@ -38,7 +39,7 @@ export type TSimpleToken = Word | Space | Tab | VerticalTab | At | NewLine | For
 const WELL_KNOWN_TOKENS = Object.freeze([
 	Space, Tab, VerticalTab, FormFeed,
 	LeftBracket, RightBracket, LeftAngleBracket, RightAngleBracket,
-	LeftParenthesis, RightParenthesis, Colon, Hash, Dash, ExclamationMark, At,
+	LeftParenthesis, RightParenthesis, Colon, Hash, Dash, ExclamationMark, At, Slash,
 ]);
 
 /**
@@ -47,11 +48,11 @@ const WELL_KNOWN_TOKENS = Object.freeze([
  * 	     already handles the `carriagereturn`/`newline` cases and emits lines that don't contain them.
  */
 const WORD_STOP_CHARACTERS: readonly string[] = Object.freeze([
-	Space.symbol, Tab.symbol, VerticalTab.symbol, FormFeed.symbol, At.symbol,
+	Space.symbol, Tab.symbol, VerticalTab.symbol, FormFeed.symbol, At.symbol, Slash.symbol,
+	Colon.symbol, Hash.symbol, Dash.symbol, ExclamationMark.symbol,
 	LeftBracket.symbol, RightBracket.symbol,
 	LeftParenthesis.symbol, RightParenthesis.symbol,
 	LeftAngleBracket.symbol, RightAngleBracket.symbol,
-	Colon.symbol, Hash.symbol, Dash.symbol, ExclamationMark.symbol,
 ]);
 
 /**
