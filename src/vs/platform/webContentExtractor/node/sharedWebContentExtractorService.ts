@@ -11,8 +11,8 @@ import { ISharedWebContentExtractorService } from '../common/webContentExtractor
 export class SharedWebContentExtractorService implements ISharedWebContentExtractorService {
 	_serviceBrand: undefined;
 
-	async readImage(uri: URI, token?: CancellationToken): Promise<VSBuffer | undefined> {
-		if (token?.isCancellationRequested) {
+	async readImage(uri: URI, token: CancellationToken): Promise<VSBuffer | undefined> {
+		if (token.isCancellationRequested) {
 			return undefined;
 		}
 

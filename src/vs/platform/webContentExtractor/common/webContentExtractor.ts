@@ -40,7 +40,7 @@ export class NullWebContentExtractorService implements IWebContentExtractorServi
 
 export class NullSharedWebContentExtractorService implements ISharedWebContentExtractorService {
 	_serviceBrand: undefined;
-	readImage(_uri: URI, token: CancellationToken): Promise<VSBuffer | undefined> {
+	readImage(_uri: URI, _token: CancellationToken): Promise<VSBuffer | undefined> {
 		throw new Error('Not implemented');
 	}
 }
