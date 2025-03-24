@@ -381,6 +381,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._inlineCompletionItem.completion.detail = richCompletionMatchingInline.detail;
 			this._inlineCompletionItem.completion.documentation = richCompletionMatchingInline.documentation;
 			return completions.filter(c => !!c.label).map(c => new TerminalCompletionItem(c));
+		} else if (this._inlineCompletionItem.completion) {
+			this._inlineCompletionItem.completion.detail = undefined;
+			this._inlineCompletionItem.completion.documentation = undefined;
 		}
 		return undefined;
 	}
