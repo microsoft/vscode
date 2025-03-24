@@ -1,12 +1,4 @@
 steps:
-  - pwsh: mkdir .build -ea 0
-    condition: and(succeeded(), contains(variables['Agent.OS'], 'windows'))
-    displayName: Create .build folder
-
-  - script: mkdir -p .build
-    condition: and(succeeded(), not(contains(variables['Agent.OS'], 'windows')))
-    displayName: Create .build folder
-
   - script: node build/azure-pipelines/common/computeBuiltInDepsCacheKey.js > .build/builtindepshash
     displayName: Prepare built-in extensions cache key
 
