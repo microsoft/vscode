@@ -44,6 +44,7 @@ import { IUserDataProfilesMainService } from '../../userDataProfile/electron-mai
 import { ILoggerMainService } from '../../log/electron-main/loggerService.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { errorHandler } from '../../../base/common/errors.js';
 
 export interface IWindowCreationOptions {
 	readonly state: IWindowState;
@@ -541,6 +542,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	private wasLoaded = false;
 
 	private readonly jsCallStackMap: Map<string, number>;
+	private readonly jsCallStackEffectiveSampleCount: number;
 	private readonly jsCallStackCollector: Delayer<void>;
 	private readonly jsCallStackCollectorStopScheduler: RunOnceScheduler;
 
@@ -610,6 +612,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		}
 
 		this.jsCallStackMap = new Map<string, number>();
+		this.jsCallStackEffectiveSampleCount = Math.round(sampleInterval / samplePeriod);
 		this.jsCallStackCollector = this._register(new Delayer<void>(sampleInterval));
 		this.jsCallStackCollectorStopScheduler = this._register(new RunOnceScheduler(() => {
 			this.stopCollectingJScallStacks(); // Stop collecting after 15s max
@@ -1515,6 +1518,12 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 			for (const [stack, count] of sortedEntries) {
 				samples += count;
+				// If the stack appears more than 20 percent of the time, log it
+				// to the error telemetry as UnresponsiveSampleError.
+				if (Math.round((count * 100) / this.jsCallStackEffectiveSampleCount) > 20) {
+					const fakeError = new UnresponsiveError(stack, this.id, this.win?.webContents.getOSProcessId());
+					errorHandler.onUnexpectedError(fakeError);
+				}
 				logMessage += `<${count}> ${stack}\n`;
 			}
 
@@ -1535,5 +1544,14 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 		// Deregister the loggers for this window
 		this.loggerMainService.deregisterLoggers(this.id);
+	}
+}
+
+class UnresponsiveError extends Error {
+
+	constructor(sample: string, windowId: number, pid: number = 0) {
+		super(`UnresponsiveSampleError: by ${windowId} from ${pid}`);
+		this.name = 'UnresponsiveSampleError';
+		this.stack = sample;
 	}
 }
