@@ -10,21 +10,22 @@ import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { chatVariableLeader } from '../../common/chatParserTypes.js';
 import { IChatService } from '../../common/chatService.js';
-import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatMode } from '../../common/constants.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { EditsViewId, IChatWidget, IChatWidgetService } from '../chat.js';
-import { discardAllEditsWithConfirmation, getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
+import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ChatViewPane } from '../chatViewPane.js';
-import { CHAT_CATEGORY } from './chatActions.js';
+import { CHAT_CATEGORY, handleCurrentEditingSession } from './chatActions.js';
 import { ACTION_ID_NEW_CHAT, ChatDoneActionId } from './chatClearActions.js';
 
 export interface IVoiceChatExecuteActionContext {
@@ -146,6 +147,7 @@ class ToggleChatModeAction extends Action2 {
 	async run(accessor: ServicesAccessor, ...args: any[]) {
 		const chatService = accessor.get(IChatService);
 		const commandService = accessor.get(ICommandService);
+		const configurationService = accessor.get(IConfigurationService);
 		const dialogService = accessor.get(IDialogService);
 
 		const context = getEditingSessionContext(accessor, args);
@@ -154,51 +156,61 @@ class ToggleChatModeAction extends Action2 {
 		}
 
 		const arg = args.at(0) as IToggleChatModeArgs | undefined;
-		if (arg?.mode === context.chatWidget.input.currentMode) {
+		const chatSession = context.chatWidget.viewModel?.model;
+		const requestCount = chatSession?.getRequests().length ?? 0;
+		const switchToMode = arg?.mode ?? this.getNextMode(context.chatWidget, requestCount, configurationService);
+		const needToClearEdits = (!chatService.unifiedViewEnabled || (!configurationService.getValue(ChatConfiguration.Edits2Enabled) && (context.chatWidget.input.currentMode === ChatMode.Edit || switchToMode === ChatMode.Edit))) && requestCount > 0;
+
+		if (switchToMode === context.chatWidget.input.currentMode) {
 			return;
 		}
 
-		if (!chatService.unifiedViewEnabled) {
-			// TODO will not require discarding the session when we are able to switch modes mid-session
-			const entries = context.editingSession?.entries.get();
-			if (context.editingSession && entries && entries.length > 0 && entries.some(entry => entry.state.get() === WorkingSetEntryState.Modified)) {
-				if (!await discardAllEditsWithConfirmation(accessor, context.editingSession)) {
-					// User cancelled
+		if (needToClearEdits) {
+			// If not in unified view, or not using edits2 and switching into or out of edit mode, ask to discard the session
+			const phrase = localize('switchMode.confirmPhrase', "Switching chat modes will end your current edit session.");
+			if (!context.editingSession) {
+				return;
+			}
+
+			const currentEdits = context.editingSession.entries.get();
+			const undecidedEdits = currentEdits.filter((edit) => edit.state.get() === WorkingSetEntryState.Modified);
+			if (undecidedEdits.length > 0) {
+				if (!await handleCurrentEditingSession(context.editingSession, phrase, dialogService)) {
 					return;
 				}
 			} else {
-				const chatSession = context.chatWidget.viewModel?.model;
-				if (chatSession?.getRequests().length) {
-					const confirmation = await dialogService.confirm({
-						title: localize('agent.newSession', "Start new session?"),
-						message: localize('agent.newSessionMessage', "Changing the chat mode will start a new session. Would you like to continue?"),
-						primaryButton: localize('agent.newSession.confirm', "Yes"),
-						type: 'info'
-					});
-					if (!confirmation.confirmed) {
-						return;
-					}
+				const confirmation = await dialogService.confirm({
+					title: localize('agent.newSession', "Start new session?"),
+					message: localize('agent.newSessionMessage', "Changing the chat mode will end your current edit session. Would you like to continue?"),
+					primaryButton: localize('agent.newSession.confirm', "Yes"),
+					type: 'info'
+				});
+				if (!confirmation.confirmed) {
+					return;
 				}
 			}
 		}
 
-		if (arg?.mode) {
-			context.chatWidget.input.setChatMode(arg.mode);
-		} else {
-			const modes = [ChatMode.Agent, ChatMode.Edit];
-			if (context.chatWidget.location === ChatAgentLocation.Panel) {
-				modes.push(ChatMode.Ask);
-			}
+		context.chatWidget.input.setChatMode(switchToMode);
 
-			const modeIndex = modes.indexOf(context.chatWidget.input.currentMode);
-			const newMode = modes[(modeIndex + 1) % modes.length];
-			context.chatWidget.input.setChatMode(newMode);
-		}
-
-		if (!chatService.unifiedViewEnabled && context.chatWidget.viewModel?.model.getRequests().length) {
+		if (needToClearEdits) {
 			const clearAction = chatService.unifiedViewEnabled ? ACTION_ID_NEW_CHAT : ChatDoneActionId;
 			await commandService.executeCommand(clearAction);
 		}
+	}
+
+	private getNextMode(chatWidget: IChatWidget, requestCount: number, configurationService: IConfigurationService): ChatMode {
+		const modes = [ChatMode.Agent];
+		if (configurationService.getValue(ChatConfiguration.Edits2Enabled) || requestCount === 0) {
+			modes.push(ChatMode.Edit);
+		}
+		if (chatWidget.location === ChatAgentLocation.Panel) {
+			modes.push(ChatMode.Ask);
+		}
+
+		const modeIndex = modes.indexOf(chatWidget.input.currentMode);
+		const newMode = modes[(modeIndex + 1) % modes.length];
+		return newMode;
 	}
 }
 
@@ -480,8 +492,14 @@ class SendToChatEditingAction extends Action2 {
 
 		const viewsService = accessor.get(IViewsService);
 		const dialogService = accessor.get(IDialogService);
-		const chatEditingService = accessor.get(IChatEditingService);
-		const currentEditingSession: IChatEditingSession | undefined = chatEditingService.editingSessionsObs.get().at(0);
+		const { widget: editingWidget } = await viewsService.openView(EditsViewId) as ChatViewPane;
+		if (!editingWidget.viewModel?.sessionId) {
+			return;
+		}
+		const currentEditingSession = editingWidget.viewModel.model.editingSession;
+		if (!currentEditingSession) {
+			return;
+		}
 
 		const currentEditCount = currentEditingSession?.entries.get().length;
 		if (currentEditCount) {
@@ -498,17 +516,10 @@ class SendToChatEditingAction extends Action2 {
 				return;
 			}
 
-			await currentEditingSession?.stop();
+			await currentEditingSession.stop(true);
+			editingWidget.clear();
 		}
 
-		const { widget: editingWidget } = await viewsService.openView(EditsViewId) as ChatViewPane;
-		if (!editingWidget.viewModel?.sessionId) {
-			return;
-		}
-		const chatEditingSession = await chatEditingService.startOrContinueGlobalEditingSession(editingWidget.viewModel.sessionId);
-		if (!chatEditingSession) {
-			return;
-		}
 		for (const attachment of widget.attachmentModel.attachments) {
 			editingWidget.attachmentModel.addContext(attachment);
 		}

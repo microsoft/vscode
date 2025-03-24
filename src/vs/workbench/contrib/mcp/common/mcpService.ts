@@ -43,7 +43,6 @@ export class McpService extends Disposable implements IMcpService {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
-		@IProductService productService: IProductService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -98,6 +97,7 @@ export class McpService extends Disposable implements IMcpService {
 				const collection = this._mcpRegistry.collections.get().find(c => c.id === server.collection.id);
 				const toolData: IToolData = {
 					id: tool.id,
+					source: { type: 'mcp', collectionId: server.collection.id },
 					displayName: tool.definition.name,
 					toolReferenceName: tool.definition.name,
 					modelDescription: tool.definition.description ?? '',

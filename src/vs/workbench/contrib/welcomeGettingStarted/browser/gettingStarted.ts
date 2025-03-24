@@ -280,12 +280,14 @@ export class GettingStartedPage extends EditorPane {
 						badgeelement.parentElement?.setAttribute('aria-checked', 'true');
 						badgeelement.classList.remove(...ThemeIcon.asClassNameArray(gettingStartedUncheckedCodicon));
 						badgeelement.classList.add('complete', ...ThemeIcon.asClassNameArray(gettingStartedCheckedCodicon));
+						badgeelement.setAttribute('aria-label', localize('stepDone', "Checkbox for Step {0}: Completed", step.title));
 					}
 					else {
 						badgeelement.setAttribute('aria-checked', 'false');
 						badgeelement.parentElement?.setAttribute('aria-checked', 'false');
 						badgeelement.classList.remove('complete', ...ThemeIcon.asClassNameArray(gettingStartedCheckedCodicon));
 						badgeelement.classList.add(...ThemeIcon.asClassNameArray(gettingStartedUncheckedCodicon));
+						badgeelement.setAttribute('aria-label', localize('stepNotDone', "Checkbox for Step {0}: Not completed", step.title));
 					}
 				});
 			}
@@ -1462,7 +1464,10 @@ export class GettingStartedPage extends EditorPane {
 							'data-done-step-id': step.id,
 							'x-dispatch': 'toggleStepCompletion:' + step.id,
 							'role': 'checkbox',
-							'aria-checked': step.done ? 'true' : 'false'
+							'aria-checked': step.done ? 'true' : 'false',
+							'aria-label': step.done
+								? localize('stepDone', "Checkbox for Step {0}: Completed", step.title)
+								: localize('stepNotDone', "Checkbox for Step {0}: Not completed", step.title),
 						});
 
 					const container = $('.step-description-container', { 'x-step-description-for': step.id });

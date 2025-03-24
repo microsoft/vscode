@@ -18,6 +18,7 @@ import * as typeConvert from './extHostTypeConverters.js';
 import { InternalFetchWebPageToolId, IToolInputProcessor } from '../../contrib/chat/common/tools/tools.js';
 import { EditToolData, InternalEditToolId, EditToolInputProcessor, ExtensionEditToolId } from '../../contrib/chat/common/tools/editFileTool.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
+import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 
 export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape {
 	/** A map of tools that were registered in this EH */
@@ -30,7 +31,10 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 
 	private readonly _toolInputProcessors = new Map<string, IToolInputProcessor>();
 
-	constructor(mainContext: IMainContext) {
+	constructor(
+		mainContext: IMainContext,
+		private readonly _languageModels: ExtHostLanguageModels,
+	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadLanguageModelTools);
 
 		this._proxy.$getTools().then(tools => {
@@ -125,6 +129,10 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			}
 		}
 
+		if (isProposedApiEnabled(item.extension, 'chatParticipantAdditions') && dto.modelId) {
+			options.model = await this.getModel(dto.modelId, item.extension);
+		}
+
 		if (dto.tokenBudget !== undefined) {
 			options.tokenizationOptions = {
 				tokenBudget: dto.tokenBudget,
@@ -139,6 +147,21 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		}
 
 		return typeConvert.LanguageModelToolResult.from(extensionResult, item.extension);
+	}
+
+	private async getModel(modelId: string, extension: IExtensionDescription): Promise<vscode.LanguageModelChat> {
+		let model: vscode.LanguageModelChat | undefined;
+		if (modelId) {
+			model = await this._languageModels.getLanguageModelByIdentifier(extension, modelId);
+		}
+		if (!model) {
+			model = await this._languageModels.getDefaultLanguageModel(extension);
+			if (!model) {
+				throw new Error('Language model unavailable');
+			}
+		}
+
+		return model;
 	}
 
 	async $prepareToolInvocation(toolId: string, input: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {

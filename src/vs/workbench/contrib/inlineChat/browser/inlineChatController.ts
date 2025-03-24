@@ -1237,7 +1237,6 @@ export class InlineChatController2 implements IEditorContribution {
 				{
 					enableWorkingSet: 'implicit',
 					rendererOptions: {
-						renderCodeBlockPills: true,
 						renderTextEditsAsSummary: uri => isEqual(uri, _editor.getModel()?.uri)
 					}
 				},
@@ -1423,9 +1422,9 @@ export async function reviewEdits(accessor: ServicesAccessor, editor: ICodeEdito
 	const chatEditingService = accessor.get(IChatEditingService);
 
 	const uri = editor.getModel().uri;
-	const chatModel = chatService.startSession(ChatAgentLocation.Editor, token);
+	const chatModel = chatService.startSession(ChatAgentLocation.Editor, token, false);
 
-	const editSession = await chatEditingService.createEditingSession(chatModel.sessionId);
+	const editSession = await chatEditingService.createEditingSession(chatModel);
 
 	const store = new DisposableStore();
 	store.add(chatModel);

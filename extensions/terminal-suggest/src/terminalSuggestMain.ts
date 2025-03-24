@@ -324,7 +324,8 @@ export async function getCompletionItemsFromSpecs(
 					prefix,
 					command,
 					command.detail,
-					command.documentation
+					command.documentation,
+					vscode.TerminalCompletionItemKind.Method
 				));
 				labels.add(commandTextLabel);
 			} else {

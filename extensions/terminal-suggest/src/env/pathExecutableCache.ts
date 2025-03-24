@@ -101,7 +101,7 @@ export class PathExecutableCache implements vscode.Disposable {
 			for (const [file, fileType] of files) {
 				const formattedPath = getFriendlyResourcePath(vscode.Uri.joinPath(fileResource, file), pathSeparator);
 				if (!labels.has(file) && fileType !== vscode.FileType.Unknown && fileType !== vscode.FileType.Directory && await isExecutable(formattedPath, this._cachedWindowsExeExtensions)) {
-					result.add({ label: file, detail: formattedPath });
+					result.add({ label: file, documentation: formattedPath });
 					labels.add(file);
 				}
 			}

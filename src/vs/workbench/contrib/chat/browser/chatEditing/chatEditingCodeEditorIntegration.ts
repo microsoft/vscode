@@ -36,7 +36,7 @@ import { EditorsOrder, IEditorIdentifier, isDiffEditorInput } from '../../../../
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { overviewRulerModifiedForeground, minimapGutterModifiedBackground, overviewRulerAddedForeground, minimapGutterAddedBackground, overviewRulerDeletedForeground, minimapGutterDeletedBackground } from '../../../scm/common/quickDiff.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
-import { IChatEditingService, IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { isTextDiffEditorForEntry } from './chatEditing.js';
 import { IEditorDecorationsCollection } from '../../../../../editor/common/editorCommon.js';
 import { ChatAgentLocation } from '../../common/constants.js';
@@ -70,7 +70,6 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		private readonly _entry: IModifiedFileEntry,
 		private readonly _editor: ICodeEditor,
 		documentDiffInfo: IObservable<IDocumentDiff2>,
-		@IChatEditingService chatEditingService: IChatEditingService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalsService: IAccessibilitySignalService,
@@ -224,22 +223,24 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 
 		this._store.add(toDisposable(restoreActualOptions));
 
-		const shouldBeReadOnly = derived(this, r => {
+		const renderAsBeingModified = derived(this, r => {
 			return enabledObs.read(r) && Boolean(_entry.isCurrentlyBeingModifiedBy.read(r));
 		});
 
 		this._store.add(autorun(r => {
-			const value = shouldBeReadOnly.read(r);
+			const value = renderAsBeingModified.read(r);
 			if (value) {
 
 				actualOptions ??= {
 					readOnly: this._editor.getOption(EditorOption.readOnly),
-					stickyScroll: this._editor.getOption(EditorOption.stickyScroll)
+					stickyScroll: this._editor.getOption(EditorOption.stickyScroll),
+					codeLens: this._editor.getOption(EditorOption.codeLens)
 				};
 
 				this._editor.updateOptions({
 					readOnly: true,
-					stickyScroll: { enabled: false }
+					stickyScroll: { enabled: false },
+					codeLens: false
 				});
 			} else {
 				restoreActualOptions();

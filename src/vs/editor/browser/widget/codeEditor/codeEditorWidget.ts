@@ -498,8 +498,16 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			const hasTextFocus = this.hasTextFocus();
 			const detachedModel = this._detachModel();
 			this._attachModel(model);
-			if (hasTextFocus && this.hasModel()) {
-				this.focus();
+			if (this.hasModel()) {
+				// we have a new model (with a new view)!
+				if (hasTextFocus) {
+					this.focus();
+				}
+			} else {
+				// we have no model (and no view) anymore
+				// make sure the outside world knows we are not focused
+				this._editorTextFocus.setValue(false);
+				this._editorWidgetFocus.setValue(false);
 			}
 
 			this._removeDecorationTypes();
