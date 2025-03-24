@@ -345,36 +345,31 @@ export class ChatDragAndDrop extends Themable {
 			finalDisplayName = `${displayName} ${appendValue}`;
 		}
 
-		const { src, alt } = extractImageAttributes(e);
-		finalDisplayName = alt ?? finalDisplayName;
+		const src = await extractImageAttributes(e);
+		const isString = typeof src === 'string';
 
-		if (/^data:image\/[a-z]+;base64,/.test(src)) {
-			const resizedImage = await resizeImage(src);
-			return [{
-				id: await imageToHash(resizedImage),
-				name: finalDisplayName,
-				value: resizedImage,
-				isImage: true,
-				isFile: false,
-				isDirectory: false
-			}];
-		} else if (/^https?:\/\/.+/.test(src)) {
+		if ((src instanceof Uint8Array && src.length > 0) || (isString && /^data:image\/[a-z]+;base64,/.test(src))) {
+			return [await this.createImageVariable(await resizeImage(src), finalDisplayName)];
+		} else if (isString && /^https?:\/\/.+/.test(src)) {
 			const url = new URL(src);
 			const imageData = await this.downloadImageAsUint8Array(url.toString());
 			if (imageData) {
-				const resizedImage = await resizeImage(imageData);
-				return [{
-					kind: 'image',
-					id: url.toString(),
-					name: finalDisplayName,
-					value: resizedImage,
-					isImage: true,
-					isFile: false,
-					isDirectory: false,
-				}];
+				return [await this.createImageVariable(await resizeImage(imageData), finalDisplayName, url.toString())];
 			}
 		}
+
 		return [];
+	}
+
+	private async createImageVariable(data: Uint8Array, name: string, id?: string) {
+		return {
+			id: id || await imageToHash(data),
+			name: name,
+			value: data,
+			isImage: true,
+			isFile: false,
+			isDirectory: false
+		};
 	}
 
 	private resolveMarkerAttachContext(markers: MarkerTransferData[]): IDiagnosticVariableEntry[] {
@@ -496,25 +491,18 @@ function symbolId(resource: URI, range?: IRange): string {
 	return resource.fsPath + rangePart;
 }
 
-function extractImageAttributes(e: DragEvent): { src: string; alt?: string } {
-	const html = e.dataTransfer?.getData('text/html');
-	if (html) {
-		const imgTagRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/;
-		const altRegex = /alt=["']([^"']+)["']/;
-
-		const match = imgTagRegex.exec(html);
-		if (match) {
-			const src = match[1];
-			const altMatch = match[0].match(altRegex);
-			return { src, alt: altMatch ? altMatch[1] : undefined };
-		}
+async function extractImageAttributes(e: DragEvent): Promise<string | Uint8Array> {
+	const files = e.dataTransfer?.files;
+	if (files && files.length > 0) {
+		const dataTransferFiles = await files[0].bytes();
+		return dataTransferFiles;
 	}
 
-	const text = e.dataTransfer?.getData('text/uri-list');
-	if (text) {
-		return { src: text, alt: undefined };
+	const textUrl = e.dataTransfer?.getData('text/uri-list');
+	if (textUrl) {
+		return textUrl;
 	}
 
-	return { src: '', alt: undefined };
+	return new Uint8Array();
 }
 
