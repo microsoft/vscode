@@ -867,6 +867,16 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private registerTabListeners(tab: HTMLElement, tabIndex: number, tabsContainer: HTMLElement, tabsScrollbar: ScrollableElement): IDisposable {
 		const disposables = new DisposableStore();
 
+		disposables.add(addDisposableListener(tab, EventType.MOUSE_DOWN, e => {
+			if (e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
+				const editor = this.tabsModel.getEditorByIndex(tabIndex);
+				if (editor && this.tabsModel.isActive(editor)) {
+					// If the tab is alreaady active prevents a flicker of focus outline on tab
+					e.preventDefault();
+				}
+			}
+		}));
+
 		const handleClickOrTouch = async (e: MouseEvent | GestureEvent, preserveFocus: boolean): Promise<void> => {
 			tab.blur(); // prevent flicker of focus outline on tab until editor got focus
 
@@ -905,6 +915,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 						this.lastSingleSelectSelectedEditor = editor;
 					}
 				} else {
+					if (this.tabsModel.isActive(editor)) {
+						// If the tab is already active return early
+						return;
+					}
 					// Even if focus is preserved make sure to activate the group.
 					// If a new active editor is selected, keep the current selection on key
 					// down such that drag and drop can operate over the selection. The selection
