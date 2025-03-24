@@ -225,7 +225,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-atom/language-sass 0.62.1 - MIT
+atom/language-sass 0.61.4 - MIT
 https://github.com/atom/language-sass
 
 The MIT License (MIT)
@@ -1203,6 +1203,33 @@ to the base-name name of the original file, and an extension of txt, html, or si
 
 ---------------------------------------------------------
 
+fish-shell 3.7.1
+https://github.com/fish-shell/fish-shell
+
+Fish is a smart and user-friendly command line shell.
+
+Copyright (C) 2005-2009 Axel Liljencrantz
+Copyright (C) 2009- fish-shell contributors
+
+fish is free software.
+
+Most of fish is licensed under the GNU General Public License version 2, and
+you can redistribute it and/or modify it under the terms of the GNU GPL as
+published by the Free Software Foundation.
+
+fish also includes software licensed under the Python Software Foundation License version 2, the MIT
+license, and the GNU Library General Public License version 2.
+
+Full licensing information is contained in doc_src/license.rst.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+more details.
+---------------------------------------------------------
+
+---------------------------------------------------------
+
 go-syntax 0.7.9 - MIT
 https://github.com/worlpaker/go-syntax
 
@@ -1519,7 +1546,7 @@ SOFTWARE.
 
 ---------------------------------------------------------
 
-jlelong/vscode-latex-basics 1.10.0 - MIT
+jlelong/vscode-latex-basics 1.9.0 - MIT
 https://github.com/jlelong/vscode-latex-basics
 
 Copyright (c) vscode-latex-basics authors
@@ -2101,7 +2128,7 @@ SOFTWARE.
 
 ---------------------------------------------------------
 
-microsoft/vscode-mssql 1.23.0 - MIT
+microsoft/vscode-mssql 1.29.0 - MIT
 https://github.com/microsoft/vscode-mssql
 
 ------------------------------------------ START OF LICENSE -----------------------------------------
@@ -3485,4 +3512,24 @@ Apache License
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
+---------------------------------------------------------
+
+---------------------------------------------------------
+
+zsh 5.9
+https://github.com/zsh-users/zsh
+
+Unless otherwise noted in the header of specific files, files in this distribution have the licence shown below.
+
+However, note that certain shell functions are licensed under versions of the GNU General Public Licence.  Anyone distributing the shell as a binary including those files needs to take account of this.  Search shell functions for "Copyright" for specific copyright information. None of the core functions are affected by this, so those files may simply be omitted.
+
+--
+
+The Z Shell is copyright (c) 1992-2017 Paul Falstad, Richard Coleman, Zoltán Hidvégi, Andrew Main, Peter Stephenson, Sven Wischnowsky, and others.  All rights reserved.  Individual authors, whether or not specifically named, retain copyright in all changes; in what follows, they are referred to as `the Zsh Development Group'.  This is for convenience only and this body has no legal status.  The Z shell is distributed under the following licence; any provisions made in individual files take precedence.
+
+Permission is hereby granted, without written agreement and without licence or royalty fees, to use, copy, modify, and distribute this software and to distribute modified versions of this software for any purpose, provided that the above copyright notice and the following two paragraphs appear in all copies of this software.
+
+In no event shall the Zsh Development Group be liable to any party for direct, indirect, special, incidental, or consequential damages arising out of the use of this software and its documentation, even if the Zsh Development Group have been advised of the possibility of such damage.
+
+The Zsh Development Group specifically disclaim any warranties, including, but not limited to, the implied warranties of merchantability and fitness for a particular purpose.  The software provided hereunder is on an "as is" basis, and the Zsh Development Group have no obligation to provide maintenance, support, updates, enhancements, or modifications.
 ---------------------------------------------------------
