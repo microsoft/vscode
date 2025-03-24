@@ -342,7 +342,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		// so we reset the default value source to the non-language-specific default value source for now.
 		this.defaultValueSource = this.setting.nonLanguageSpecificDefaultValueSource;
 
-		if (inspected.policyValue) {
+		if (inspected.policyValue !== undefined) {
 			this.hasPolicyValue = true;
 			isConfigured = false; // The user did not manually configure the setting themselves.
 			displayValue = inspected.policyValue;
