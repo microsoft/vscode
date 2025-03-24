@@ -47,15 +47,11 @@ const WELL_KNOWN_TOKENS = Object.freeze([
  * 	     already handles the `carriagereturn`/`newline` cases and emits lines that don't contain them.
  */
 const WORD_STOP_CHARACTERS: readonly string[] = Object.freeze([
-	Space.symbol, Tab.symbol, VerticalTab.symbol, FormFeed.symbol,
+	Space.symbol, Tab.symbol, VerticalTab.symbol, FormFeed.symbol, At.symbol,
 	LeftBracket.symbol, RightBracket.symbol,
 	LeftParenthesis.symbol, RightParenthesis.symbol,
 	LeftAngleBracket.symbol, RightAngleBracket.symbol,
 	Colon.symbol, Hash.symbol, Dash.symbol, ExclamationMark.symbol,
-	CarriageReturn.symbol,
-	/**
-	 * TODO: @legomushroom - add `@` token here?
-	 */
 ]);
 
 /**
