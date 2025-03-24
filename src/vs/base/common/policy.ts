@@ -30,5 +30,5 @@ export interface IPolicy {
 	/**
 	 * Default value when enabled. Default is `false`.
 	 */
-	readonly defaultValue?: 'string' | 'number' | 'boolean';
+	readonly defaultValue?: string | number | boolean;
 }
