@@ -524,14 +524,13 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				return;
 			}
 		}
-		let lineContext;
 		if (this._terminalSuggestWidgetVisibleContextKey.get()) {
 			this._cursorIndexDelta = this._currentPromptInputState.cursorIndex - (this._requestedCompletionsIndex);
 			let normalizedLeadingLineContent = this._currentPromptInputState.value.substring(0, this._requestedCompletionsIndex + this._cursorIndexDelta);
 			if (this._isFilteringDirectories) {
 				normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
 			}
-			lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
+			const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
 			this._suggestWidget.setLineContext(lineContext);
 		}
 
