@@ -21,7 +21,9 @@ import {
 	TargetPlatformToString,
 	IAllowedExtensionsService,
 	AllowedExtensionsConfigKey,
-	EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT
+	EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT,
+	ExtensionManagementError,
+	ExtensionManagementErrorCode
 } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, DefaultIconPath, IResourceExtension } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, getGalleryExtensionId, isMalicious } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
@@ -66,7 +68,7 @@ import { ShowCurrentReleaseNotesActionId } from '../../update/common/update.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
-import { IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { ExtensionGalleryResourceType, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -657,7 +659,7 @@ class Extensions extends Disposable {
 		const extensions = await this.mapInstalledExtensionWithCompatibleGalleryExtension(galleryExtensions, productVersion);
 		for (const [extension, gallery] of extensions) {
 			// update metadata of the extension if it does not exist
-			if (extension.local && !extension.local.identifier.uuid) {
+			if (extension.local && extension.local.identifier.uuid !== gallery.identifier.uuid) {
 				extension.local = await this.updateMetadata(extension.local, gallery);
 			}
 			if (!extension.gallery || extension.gallery.version !== gallery.version || extension.gallery.properties.targetPlatform !== gallery.properties.targetPlatform) {
@@ -2389,10 +2391,15 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				if (!installable) {
 					if (!gallery) {
 						const id = isString(arg) ? arg : (<IExtension>arg).identifier.id;
+						const manifest = await this.extensionGalleryManifestService.getExtensionGalleryManifest();
+						const reportIssueUri = manifest ? getExtensionGalleryManifestResourceUri(manifest, ExtensionGalleryResourceType.ReportIssueUri) : undefined;
+						const reportIssueMessage = reportIssueUri ? nls.localize('report issue', "If this issue persists, please report it at {0}", reportIssueUri.toString()) : '';
 						if (installOptions.version) {
-							throw new Error(nls.localize('not found version', "Unable to install extension '{0}' because the requested version '{1}' is not found.", id, installOptions.version));
+							const message = nls.localize('not found version', "The extension '{0}' cannot be installed because the requested version '{1}' was not found.", id, installOptions.version);
+							throw new ExtensionManagementError(reportIssueMessage ? `${message} ${reportIssueMessage}` : message, ExtensionManagementErrorCode.NotFound);
 						} else {
-							throw new Error(nls.localize('not found', "Unable to install extension '{0}' because it is not found.", id));
+							const message = nls.localize('not found', "The extension '{0}' cannot be installed because it was not found.", id);
+							throw new ExtensionManagementError(reportIssueMessage ? `${message} ${reportIssueMessage}` : message, ExtensionManagementErrorCode.NotFound);
 						}
 					}
 					installable = gallery;
@@ -2472,7 +2479,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return extension;
 	}
 
-	async installInServer(extension: IExtension, server: IExtensionManagementServer): Promise<void> {
+	async installInServer(extension: IExtension, server: IExtensionManagementServer, installOptions?: InstallOptions): Promise<void> {
 		await this.doInstall(extension, async () => {
 			const local = extension.local;
 			if (!local) {
@@ -2482,7 +2489,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				extension = (await this.getExtensions([{ ...extension.identifier, preRelease: local.preRelease }], CancellationToken.None))[0] ?? extension;
 			}
 			if (extension.gallery) {
-				return server.extensionManagementService.installFromGallery(extension.gallery, { installPreReleaseVersion: local.preRelease });
+				return server.extensionManagementService.installFromGallery(extension.gallery, { installPreReleaseVersion: local.preRelease, ...installOptions });
 			}
 
 			const targetPlatform = await server.extensionManagementService.getTargetPlatform();

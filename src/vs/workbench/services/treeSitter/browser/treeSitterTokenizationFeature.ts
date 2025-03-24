@@ -22,11 +22,10 @@ import { ITreeSitterTokenizationStoreService } from '../../../../editor/common/m
 import { LanguageId } from '../../../../editor/common/encodedTokenAttributes.js';
 import { TokenQuality, TokenUpdate } from '../../../../editor/common/model/tokenStore.js';
 import { Range } from '../../../../editor/common/core/range.js';
-import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { setTimeout0 } from '../../../../base/common/platform.js';
 import { findLikelyRelevantLines } from '../../../../editor/common/model/textModelTokens.js';
 import { TreeSitterCodeEditors } from './treeSitterCodeEditors.js';
-import { IWorkbenchThemeChangeEvent, IWorkbenchThemeService } from '../../themes/common/workbenchThemeService.js';
+import { IWorkbenchColorTheme, IWorkbenchThemeService } from '../../themes/common/workbenchThemeService.js';
 import { Position } from '../../../../editor/common/core/position.js';
 
 type TreeSitterQueries = string;
@@ -52,6 +51,13 @@ interface EndOffsetAndScopes {
 interface EndOffsetWithMeta extends EndOffsetAndScopes {
 	metadata?: number;
 }
+
+export const TREESITTER_BASE_SCOPES: Record<string, string> = {
+	'css': 'source.css',
+	'typescript': 'source.ts',
+	'ini': 'source.ini',
+	'regex': 'source.regex',
+};
 
 const BRACKETS = /[\{\}\[\]\<\>\(\)]/g;
 
@@ -121,7 +127,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 	private _colorThemeData!: ColorThemeData;
 	private _languageAddedListener: IDisposable | undefined;
 	private _codeEditors: TreeSitterCodeEditors;
-	private _encodedLanguageId: LanguageId;
+	private _encodedLanguage: LanguageId | undefined;
 
 	constructor(
 		private readonly _queries: TreeSitterQueries,
@@ -131,17 +137,12 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		@ITreeSitterParserService private readonly _treeSitterService: ITreeSitterParserService,
 		@IWorkbenchThemeService private readonly _themeService: IWorkbenchThemeService,
 		@ITreeSitterTokenizationStoreService private readonly _tokenizationStoreService: ITreeSitterTokenizationStoreService,
-		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
-		this._encodedLanguageId = this._languageIdCodec.encodeLanguageId(this._languageId);
 		this._codeEditors = this._instantiationService.createInstance(TreeSitterCodeEditors, this._languageId);
 		this._register(this._codeEditors.onDidChangeViewport(e => {
 			this._parseAndTokenizeViewPort(e.model, e.ranges);
-		}));
-		this._register(this._codeEditors.onDidRemoveEditor(e => {
-			this._tokenizationStoreService.delete(e);
 		}));
 		this._codeEditors.getInitialViewPorts().then(async (viewports) => {
 			for (const viewport of viewports) {
@@ -171,6 +172,13 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 				this._handleTreeUpdate(e.ranges, e.textModel, e.versionId, e.tree);
 			}
 		}));
+	}
+
+	private get _encodedLanguageId(): LanguageId {
+		if (!this._encodedLanguage) {
+			this._encodedLanguage = this._languageIdCodec.encodeLanguageId(this._languageId);
+		}
+		return this._encodedLanguage;
 	}
 
 	private _setInitialTokens(textModel: ITextModel) {
@@ -288,14 +296,10 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		return this._setViewPortTokens(textModel, versionId, tree);
 	}
 
-	private _codeEditorForModel(textModel: ITextModel) {
-		return this._codeEditorService.listCodeEditors().find(editor => editor.getModel() === textModel);
-	}
-
 	private _setViewPortTokens(textModel: ITextModel, versionId: number, tree: ITextModelTreeSitter) {
 		const maxLine = textModel.getLineCount();
 		let rangeChanges: RangeChange[];
-		const editor = this._codeEditorForModel(textModel);
+		const editor = this._codeEditors.getEditorForModel(textModel);
 		if (editor) {
 			const viewPort = editor.getVisibleRangesPlusViewportAboveBelow();
 			const ranges: { readonly fromLineNumber: number; readonly toLineNumber: number }[] = new Array(viewPort.length);
@@ -491,27 +495,14 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		return this._query;
 	}
 
-	private _updateTheme(e: IWorkbenchThemeChangeEvent | undefined) {
+	private _updateTheme(e: IWorkbenchColorTheme | undefined) {
 		this._colorThemeData = this._themeService.getColorTheme() as ColorThemeData;
-		for (const editor of this._codeEditors.editors) {
-			const model = editor.getModel();
-			if (model) {
-				const modelRange = model.getFullModelRange();
-				this._tokenizationStoreService.markForRefresh(model, modelRange);
+		for (const model of this._codeEditors.textModels) {
+			const modelRange = model.getFullModelRange();
+			this._tokenizationStoreService.markForRefresh(model, modelRange);
+			const editor = this._codeEditors.getEditorForModel(model);
+			if (editor) {
 				this._parseAndTokenizeViewPort(model, editor.getVisibleRangesPlusViewportAboveBelow());
-				const tree = this._getTree(model);
-				if (e?.target !== 'preview' && tree?.parseResult?.tree) {
-					this._handleTreeUpdate(
-						[{
-							newRange: modelRange,
-							newRangeStartOffset: 0,
-							newRangeEndOffset: model.getValueLength()
-						}],
-						model,
-						model.getVersionId(),
-						tree
-					);
-				}
 			}
 		}
 	}
@@ -634,6 +625,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		const stopwatch = StopWatch.create();
 		const rangeLength = rangeEndOffset - rangeStartOffset;
 		const encodedLanguageId = this._languageIdCodec.encodeLanguageId(this._languageId);
+		const baseScope: string = TREESITTER_BASE_SCOPES[this._languageId] || 'source';
 
 		if (captures.length === 0) {
 			if (tree) {
@@ -645,11 +637,11 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		}
 
 		const endOffsetsAndScopes: EndOffsetAndScopes[] = Array(captures.length);
-		endOffsetsAndScopes.fill({ endOffset: 0, scopes: [], encodedLanguageId });
+		endOffsetsAndScopes.fill({ endOffset: 0, scopes: [baseScope], encodedLanguageId });
 		let tokenIndex = 0;
 
 		const increaseSizeOfTokensByOneToken = () => {
-			endOffsetsAndScopes.push({ endOffset: 0, scopes: [], encodedLanguageId });
+			endOffsetsAndScopes.push({ endOffset: 0, scopes: [baseScope], encodedLanguageId });
 		};
 
 		const brackets = (capture: QueryCapture, startOffset: number): number[] | undefined => {
@@ -694,7 +686,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 				endOffsetsAndScopes.splice(position, 0, { endOffset: endOffset, scopes: [...oldScopes, capture.name], bracket: brackets(capture, startOffset), encodedLanguageId: capture.encodedLanguageId });
 				endOffsetsAndScopes[tokenIndex].bracket = oldBracket;
 			} else {
-				endOffsetsAndScopes[tokenIndex] = { endOffset: endOffset, scopes: [capture.name], bracket: brackets(capture, startOffset), encodedLanguageId: capture.encodedLanguageId };
+				endOffsetsAndScopes[tokenIndex] = { endOffset: endOffset, scopes: [baseScope, capture.name], bracket: brackets(capture, startOffset), encodedLanguageId: capture.encodedLanguageId };
 			}
 			tokenIndex++;
 		};
@@ -718,7 +710,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 			const startOffset = endOffset - currentTokenLength;
 			if ((previousEndOffset >= 0) && (previousEndOffset < startOffset)) {
 				// Add en empty token to cover the space where there were no captures
-				endOffsetsAndScopes[tokenIndex] = { endOffset: startOffset, scopes: [], encodedLanguageId: this._encodedLanguageId };
+				endOffsetsAndScopes[tokenIndex] = { endOffset: startOffset, scopes: [baseScope], encodedLanguageId: this._encodedLanguageId };
 				tokenIndex++;
 
 				increaseSizeOfTokensByOneToken();

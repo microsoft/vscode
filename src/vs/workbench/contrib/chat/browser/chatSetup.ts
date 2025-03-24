@@ -63,7 +63,7 @@ import { CHAT_CATEGORY, CHAT_OPEN_ACTION_ID, CHAT_SETUP_ACTION_ID } from './acti
 import { ChatViewId, EditsViewId, ensureSideBarChatViewSize, IChatWidgetService, preferCopilotEditsView, showCopilotView } from './chat.js';
 import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
 import { ChatViewsWelcomeExtensions, IChatViewsWelcomeContributionRegistry } from './viewsWelcome/chatViewsWelcome.js';
-import { ChatAgentLocation } from '../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration } from '../common/constants.js';
 import { ILanguageModelsService } from '../common/languageModels.js';
 import { Dialog } from '../../../../base/browser/ui/dialog/dialog.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
@@ -93,6 +93,12 @@ const defaultChat = {
 };
 
 //#region Contribution
+
+const ToolsAgentWhen = ContextKeyExpr.and(
+	ContextKeyExpr.equals(`config.${ChatConfiguration.AgentEnabled}`, true),
+	ChatContextKeys.Editing.agentModeDisallowed.negate(),
+	ContextKeyExpr.not(`previewFeaturesDisabled`) // Set by extension
+);
 
 class SetupChatAgentImplementation extends Disposable implements IChatAgentImplementation {
 
@@ -142,10 +148,11 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 
 			disposable.add(chatAgentService.registerAgent(id, {
 				id,
-				name: 'Copilot', // intentionally not using exact same name as extension to avoid conflict with IChatAgentService.getAgentsByName()
+				name: `${defaultChat.providerName} Copilot`,
 				isDefault: true,
 				isCore: true,
 				isToolsAgent,
+				when: isToolsAgent ? ToolsAgentWhen?.serialize() : undefined,
 				slashCommands: [],
 				disambiguation: [],
 				locations: [location],
@@ -178,7 +185,7 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 	}
@@ -214,12 +221,19 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 			content: new MarkdownString(localize('waitingCopilot', "Getting Copilot ready.")),
 		});
 
-		await this.forwardRequestToCopilot(requestModel, progress, chatService, languageModelsService, chatAgentService);
+		await this.forwardRequestToCopilot(requestModel, progress, chatService, languageModelsService, chatAgentService, chatWidgetService);
 
 		return {};
 	}
 
-	private async forwardRequestToCopilot(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService): Promise<void> {
+	private _handlingForwardedRequest: string | undefined;
+	private async forwardRequestToCopilot(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService): Promise<void> {
+
+		if (this._handlingForwardedRequest === requestModel.message.text) {
+			throw new Error('Already handling this request');
+		}
+
+		this._handlingForwardedRequest = requestModel.message.text;
 
 		// We need a signal to know when we can resend the request to
 		// Copilot. Waiting for the registration of the agent is not
@@ -229,25 +243,40 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 		const whenAgentReady = this.whenAgentReady(chatAgentService);
 
 		if (whenLanguageModelReady instanceof Promise || whenAgentReady instanceof Promise) {
-			const ready = await Promise.race([
-				timeout(10000).then(() => 'timedout'),
-				Promise.allSettled([whenLanguageModelReady, whenAgentReady])
-			]);
-
-			if (ready === 'timedout') {
+			const timeoutHandle = setTimeout(() => {
 				progress({
-					kind: 'warning',
-					content: new MarkdownString(localize('copilotTookLongWarning', "Copilot took too long to get ready. Please try again later."))
+					kind: 'progressMessage',
+					content: new MarkdownString(localize('waitingCopilot2', "Copilot is almost ready.")),
 				});
+			}, 10000);
 
-				// This means Copilot is unhealthy and we cannot retry the
-				// request. Signal this to the outside via an event.
-				this._onUnresolvableError.fire();
-				return;
+			try {
+				const ready = await Promise.race([
+					timeout(20000).then(() => 'timedout'),
+					Promise.allSettled([whenLanguageModelReady, whenAgentReady])
+				]);
+
+				if (ready === 'timedout') {
+					progress({
+						kind: 'warning',
+						content: new MarkdownString(localize('copilotTookLongWarning', "Copilot took too long to get ready. Please try again."))
+					});
+
+					// This means Copilot is unhealthy and we cannot retry the
+					// request. Signal this to the outside via an event.
+					this._onUnresolvableError.fire();
+					return;
+				}
+			} finally {
+				clearTimeout(timeoutHandle);
 			}
 		}
 
-		chatService.resendRequest(requestModel);
+		const widget = chatWidgetService.getWidgetBySessionId(requestModel.session.sessionId);
+		chatService.resendRequest(requestModel, {
+			mode: widget?.input.currentMode,
+			userSelectedModelId: widget?.input.currentLanguageModel,
+		});
 	}
 
 	private whenLanguageModelReady(languageModelsService: ILanguageModelsService): Promise<unknown> | void {
@@ -308,7 +337,7 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 		if (typeof success === 'boolean') {
 			if (success) {
 				if (requestModel) {
-					await this.forwardRequestToCopilot(requestModel, progress, chatService, languageModelsService, chatAgentService);
+					await this.forwardRequestToCopilot(requestModel, progress, chatService, languageModelsService, chatAgentService, chatWidgetService);
 				}
 			} else {
 				progress({
@@ -486,7 +515,7 @@ class ChatSetup {
 
 export class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
 
-	static readonly ID = 'workbench.chat.setup';
+	static readonly ID = 'workbench.contrib.chatSetup';
 
 	constructor(
 		@IProductService private readonly productService: IProductService,
@@ -709,11 +738,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 			override async run(accessor: ServicesAccessor, from?: string): Promise<void> {
 				const openerService = accessor.get(IOpenerService);
-				const telemetryService = accessor.get(ITelemetryService);
 				const hostService = accessor.get(IHostService);
 				const commandService = accessor.get(ICommandService);
-
-				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: from ?? 'chat' });
 
 				openerService.open(URI.parse(defaultChat.upgradePlanUrl));
 
@@ -772,7 +798,7 @@ type InstallChatClassification = {
 	setupFromDialog: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the setup was triggered from the dialog or not.' };
 };
 type InstallChatEvent = {
-	installResult: 'installed' | 'cancelled' | 'failedInstall' | 'failedNotSignedIn' | 'failedSignUp' | 'failedNotTrusted' | 'failedNoSession';
+	installResult: 'installed' | 'alreadyInstalled' | 'cancelled' | 'failedInstall' | 'failedNotSignedIn' | 'failedSignUp' | 'failedNotTrusted' | 'failedNoSession';
 	installDuration: number;
 	signUpErrorCode: number | undefined;
 	setupFromDialog: boolean;
@@ -969,7 +995,7 @@ class ChatSetupController extends Disposable {
 			return false;
 		}
 
-		this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'installed', installDuration: watch.elapsed(), signUpErrorCode: undefined, setupFromDialog: Boolean(options.setupFromDialog) });
+		this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: wasInstalled ? 'alreadyInstalled' : 'installed', installDuration: watch.elapsed(), signUpErrorCode: undefined, setupFromDialog: Boolean(options.setupFromDialog) });
 
 		if (wasInstalled && signUpResult === true) {
 			refreshTokens(this.commandService);

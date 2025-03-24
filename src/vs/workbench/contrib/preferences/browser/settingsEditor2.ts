@@ -1637,8 +1637,7 @@ export class SettingsEditor2 extends EditorPane {
 
 			this.searchDelayer.cancel();
 			if (this.searchInProgress) {
-				this.searchInProgress.cancel();
-				this.searchInProgress.dispose();
+				this.searchInProgress.dispose(true);
 				this.searchInProgress = null;
 			}
 
@@ -1689,23 +1688,24 @@ export class SettingsEditor2 extends EditorPane {
 
 	private async triggerFilterPreferences(query: string): Promise<void> {
 		if (this.searchInProgress) {
-			this.searchInProgress.cancel();
+			this.searchInProgress.dispose(true);
 			this.searchInProgress = null;
 		}
 
 		// Trigger the local search. If it didn't find an exact match, trigger the remote search.
 		const searchInProgress = this.searchInProgress = new CancellationTokenSource();
 		return this.searchDelayer.trigger(async () => {
-			if (!searchInProgress.token.isCancellationRequested) {
-				const localResults = await this.localFilterPreferences(query, searchInProgress.token);
-				if (localResults && !localResults.exactMatch && !searchInProgress.token.isCancellationRequested) {
-					await this.remoteSearchPreferences(query, searchInProgress.token);
-				}
-
-				// Update UI only after all the search results are in
-				// ref https://github.com/microsoft/vscode/issues/224946
-				this.onDidFinishSearch();
+			if (searchInProgress.token.isCancellationRequested) {
+				return;
 			}
+			const localResults = await this.localFilterPreferences(query, searchInProgress.token);
+			if (localResults && !localResults.exactMatch && !searchInProgress.token.isCancellationRequested) {
+				await this.remoteSearchPreferences(query, searchInProgress.token);
+			}
+
+			// Update UI only after all the search results are in
+			// ref https://github.com/microsoft/vscode/issues/224946
+			this.onDidFinishSearch();
 		});
 	}
 
@@ -1720,19 +1720,22 @@ export class SettingsEditor2 extends EditorPane {
 		this.renderTree(undefined, true);
 	}
 
-	private localFilterPreferences(query: string, token?: CancellationToken): Promise<ISearchResult | null> {
+	private localFilterPreferences(query: string, token: CancellationToken): Promise<ISearchResult | null> {
 		const localSearchProvider = this.preferencesSearchService.getLocalSearchProvider(query);
-		return this.filterOrSearchPreferences(query, SearchResultIdx.Local, localSearchProvider, token);
+		return this.searchWithProvider(SearchResultIdx.Local, localSearchProvider, token);
 	}
 
-	private remoteSearchPreferences(query: string, token?: CancellationToken): Promise<ISearchResult | null> {
+	private remoteSearchPreferences(query: string, token: CancellationToken): Promise<ISearchResult | null> {
 		const remoteSearchProvider = this.preferencesSearchService.getRemoteSearchProvider(query);
-		return this.filterOrSearchPreferences(query, SearchResultIdx.Remote, remoteSearchProvider, token);
+		if (!remoteSearchProvider) {
+			return Promise.resolve(null);
+		}
+		return this.searchWithProvider(SearchResultIdx.Remote, remoteSearchProvider, token);
 	}
 
-	private async filterOrSearchPreferences(query: string, type: SearchResultIdx, searchProvider?: ISearchProvider, token?: CancellationToken): Promise<ISearchResult | null> {
-		const result = await this._filterOrSearchPreferencesModel(query, this.defaultSettingsEditorModel, searchProvider, token);
-		if (token?.isCancellationRequested) {
+	private async searchWithProvider(type: SearchResultIdx, searchProvider: ISearchProvider, token: CancellationToken): Promise<ISearchResult | null> {
+		const result = await this._searchPreferencesModel(this.defaultSettingsEditorModel, searchProvider, token);
+		if (token.isCancellationRequested) {
 			// Handle cancellation like this because cancellation is lost inside the search provider due to async/await
 			return null;
 		}
@@ -1785,31 +1788,16 @@ export class SettingsEditor2 extends EditorPane {
 		}
 	}
 
-	private _filterOrSearchPreferencesModel(filter: string, model: ISettingsEditorModel, provider?: ISearchProvider, token?: CancellationToken): Promise<ISearchResult | null> {
-		const searchP = provider ? provider.searchModel(model, token) : Promise.resolve(null);
-		return searchP
-			.then<ISearchResult, ISearchResult | null>(undefined, err => {
-				if (isCancellationError(err)) {
-					return Promise.reject(err);
-				} else {
-					// type SettingsSearchErrorEvent = {
-					// 	'message': string;
-					// };
-					// type SettingsSearchErrorClassification = {
-					// 	owner: 'rzhao271';
-					// 	comment: 'Helps understand when settings search errors out';
-					// 	'message': { 'classification': 'CallstackOrException'; 'purpose': 'FeatureInsight'; 'owner': 'rzhao271'; 'comment': 'The error message of the search error.' };
-					// };
-
-					// const message = getErrorMessage(err).trim();
-					// if (message && message !== 'Error') {
-					// 	// "Error" = any generic network error
-					// 	this.telemetryService.publicLogError2<SettingsSearchErrorEvent, SettingsSearchErrorClassification>('settingsEditor.searchError', { message });
-					// 	this.logService.info('Setting search error: ' + message);
-					// }
-					return null;
-				}
-			});
+	private async _searchPreferencesModel(model: ISettingsEditorModel, provider: ISearchProvider, token: CancellationToken): Promise<ISearchResult | null> {
+		try {
+			return await provider.searchModel(model, token);
+		} catch (err) {
+			if (isCancellationError(err)) {
+				return Promise.reject(err);
+			} else {
+				return null;
+			}
+		}
 	}
 
 	private layoutSplitView(dimension: DOM.Dimension): void {

@@ -5,11 +5,16 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { autorun } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { assertType } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IActiveCodeEditor, ICodeEditor, isCodeEditor, isCompositeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { Range } from '../../../../editor/common/core/range.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { IValidEditOperation } from '../../../../editor/common/model.js';
 import { createTextBufferFactoryFromSnapshot } from '../../../../editor/common/model/textModel.js';
 import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
@@ -20,22 +25,17 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { DEFAULT_EDITOR_ASSOCIATION } from '../../../common/editor.js';
-import { IChatAgentService } from '../../chat/common/chatAgents.js';
-import { IChatService } from '../../chat/common/chatService.js';
-import { CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_HAS_AGENT2, CTX_INLINE_CHAT_POSSIBLE } from '../common/inlineChat.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { UntitledTextEditorInput } from '../../../services/untitled/common/untitledTextEditorInput.js';
+import { IChatWidgetService } from '../../chat/browser/chat.js';
+import { IChatAgentService } from '../../chat/common/chatAgents.js';
+import { WorkingSetEntryState } from '../../chat/common/chatEditingService.js';
+import { IChatService } from '../../chat/common/chatService.js';
+import { ChatAgentLocation } from '../../chat/common/constants.js';
+import { CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_HAS_AGENT2, CTX_INLINE_CHAT_POSSIBLE } from '../common/inlineChat.js';
 import { HunkData, Session, SessionWholeRange, StashedSession, TelemetryData, TelemetryDataClassification } from './inlineChatSession.js';
 import { IInlineChatSession2, IInlineChatSessionEndEvent, IInlineChatSessionEvent, IInlineChatSessionService, ISessionKeyComputer } from './inlineChatSessionService.js';
-import { isEqual } from '../../../../base/common/resources.js';
-import { ILanguageService } from '../../../../editor/common/languages/language.js';
-import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
-import { IChatEditingService, WorkingSetEntryState } from '../../chat/common/chatEditingService.js';
-import { assertType } from '../../../../base/common/types.js';
-import { autorun } from '../../../../base/common/observable.js';
-import { ResourceMap } from '../../../../base/common/map.js';
-import { IChatWidgetService } from '../../chat/browser/chat.js';
-import { ChatAgentLocation } from '../../chat/common/constants.js';
 
 
 type SessionData = {
@@ -86,7 +86,6 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IChatService private readonly _chatService: IChatService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
-		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 	) { }
 
@@ -338,9 +337,9 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 		this._onWillStartSession.fire(editor as IActiveCodeEditor);
 
-		const chatModel = this._chatService.startSession(ChatAgentLocation.EditingSession, token);
+		const chatModel = this._chatService.startSession(ChatAgentLocation.EditingSession, token, false);
 
-		const editingSession = await this._chatEditingService.createEditingSession(chatModel.sessionId);
+		const editingSession = await chatModel.editingSessionObs?.promise!;
 		const widget = this._chatWidgetService.getWidgetBySessionId(chatModel.sessionId);
 		widget?.attachmentModel.addFile(uri);
 
@@ -351,7 +350,6 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			this._sessions2.delete(uri);
 			this._onDidChangeSessions.fire(this);
 		}));
-		store.add(editingSession);
 		store.add(chatModel);
 
 		store.add(autorun(r => {
@@ -361,9 +359,14 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 				return;
 			}
 
+			if (chatModel.requestInProgress) {
+				return;
+			}
+
 			const allSettled = entries.every(entry => {
 				const state = entry.state.read(r);
-				return state === WorkingSetEntryState.Accepted || state === WorkingSetEntryState.Rejected;
+				return (state === WorkingSetEntryState.Accepted || state === WorkingSetEntryState.Rejected)
+					&& !entry.isCurrentlyBeingModifiedBy.read(r);
 			});
 
 			if (allSettled) {

@@ -89,7 +89,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					this.viewState.inputValue = lastEditsState.inputValue;
 					this.viewState.inputState = {
 						...lastEditsState.inputState,
-						chatMode: lastEditsState.inputState?.chatMode ?? ChatMode.Agent
+						chatMode: lastEditsState.inputState?.chatMode ?? ChatMode.Edit
 					};
 					this.viewState.hasMigratedCurrentSession = true;
 				}
@@ -203,7 +203,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					supportsFileReferences: true,
 					supportsAdditionalParticipants: this.chatOptions.location === ChatAgentLocation.Panel,
 					rendererOptions: {
-						renderCodeBlockPills: mode => mode !== ChatMode.Ask,
 						renderTextEditsAsSummary: (uri) => {
 							return this.chatService.isEditingLocation(this.chatOptions.location);
 						},

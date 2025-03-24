@@ -175,6 +175,14 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		return scope === StorageScope.WORKSPACE ? this._workspaceStorage.value : this._profileStorage.value;
 	}
 
+	private _getInputStorageInConfigTarget(configTarget: ConfigurationTarget): McpRegistryInputStorage {
+		return this._getInputStorage(
+			configTarget === ConfigurationTarget.WORKSPACE || configTarget === ConfigurationTarget.WORKSPACE_FOLDER
+				? StorageScope.WORKSPACE
+				: StorageScope.PROFILE
+		);
+	}
+
 	public async clearSavedInputs(scope: StorageScope, inputId?: string) {
 		const storage = this._getInputStorage(scope);
 		if (inputId) {
@@ -187,12 +195,12 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 	}
 
 	public async editSavedInput(inputId: string, folderData: IWorkspaceFolderData | undefined, configSection: string, target: ConfigurationTarget): Promise<void> {
-		const storage = this._getInputStorage(target === ConfigurationTarget.WORKSPACE || target === ConfigurationTarget.WORKSPACE_FOLDER ? StorageScope.WORKSPACE : StorageScope.PROFILE);
+		const storage = this._getInputStorageInConfigTarget(target);
 		const expr = ConfigurationResolverExpression.parse(inputId);
 
 		const stored = await storage.getMap();
 		const previous = stored[inputId].value;
-		await this._configurationResolverService.resolveWithInteraction(folderData, expr, configSection, previous ? { [inputId]: previous } : {}, target);
+		await this._configurationResolverService.resolveWithInteraction(folderData, expr, configSection, previous ? { [inputId.slice(2, -1)]: previous } : {}, target);
 		await this._updateStorageWithExpressionInputs(storage, expr);
 	}
 
@@ -273,7 +281,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		}
 
 		const { section, target, folder } = definition.variableReplacement;
-		const inputStorage = target === ConfigurationTarget.WORKSPACE ? this._workspaceStorage.value : this._profileStorage.value;
+		const inputStorage = this._getInputStorageInConfigTarget(target);
 		const previouslyStored = await inputStorage.getMap();
 
 		// pre-fill the variables we already resolved to avoid extra prompting

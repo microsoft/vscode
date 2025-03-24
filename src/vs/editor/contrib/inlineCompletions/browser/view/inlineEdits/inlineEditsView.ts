@@ -20,10 +20,10 @@ import { TextLength } from '../../../../../common/core/textLength.js';
 import { DetailedLineRangeMapping, lineRangeMappingFromRangeMappings, RangeMapping } from '../../../../../common/diff/rangeMapping.js';
 import { TextModel } from '../../../../../common/model/textModel.js';
 import { InlineEditsGutterIndicator } from './components/gutterIndicatorView.js';
-import { InlineEditsIndicator } from './components/indicatorView.js';
 import { InlineEditWithChanges } from './inlineEditWithChanges.js';
-import { GhostTextIndicator, InlineEditModel } from './inlineEditsModel.js';
+import { GhostTextIndicator, InlineEditHost, InlineEditModel } from './inlineEditsModel.js';
 import { IInlineEditModel, InlineEditTabAction } from './inlineEditsViewInterface.js';
+import { InlineEditsCollapsedView } from './inlineEditsViews/inlineEditsCollapsedView.js';
 import { InlineEditsDeletionView } from './inlineEditsViews/inlineEditsDeletionView.js';
 import { InlineEditsInsertionView } from './inlineEditsViews/inlineEditsInsertionView.js';
 import { InlineEditsLineReplacementView } from './inlineEditsViews/inlineEditsLineReplacementView.js';
@@ -51,6 +51,7 @@ export class InlineEditsView extends Disposable {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
+		private readonly _host: IObservable<InlineEditHost | undefined>,
 		private readonly _model: IObservable<InlineEditModel | undefined>,
 		private readonly _ghostTextIndicator: IObservable<GhostTextIndicator | undefined>,
 		private readonly _focusIsInMenu: ISettableObservable<boolean>,
@@ -143,7 +144,7 @@ export class InlineEditsView extends Disposable {
 		}
 
 		if (model.showCollapsed.read(reader) && !this._indicator.read(reader)?.isHoverVisible.read(reader)) {
-			state = { kind: 'hidden' };
+			state = { kind: 'collapsed' };
 		}
 
 		return {
@@ -166,7 +167,7 @@ export class InlineEditsView extends Disposable {
 
 	private readonly _indicatorCyclicDependencyCircuitBreaker = observableValue(this, false);
 
-	protected readonly _indicator = derivedWithStore<InlineEditsGutterIndicator | InlineEditsIndicator | undefined>(this, (reader, store) => {
+	protected readonly _indicator = derivedWithStore<InlineEditsGutterIndicator | undefined>(this, (reader, store) => {
 		if (!this._indicatorCyclicDependencyCircuitBreaker.read(reader)) {
 			return undefined;
 		}
@@ -203,6 +204,7 @@ export class InlineEditsView extends Disposable {
 			this._editorObs,
 			indicatorDisplayRange,
 			this._gutterIndicatorOffset,
+			this._host,
 			modelWithGhostTextSupport,
 			this._inlineEditsIsHovered,
 			this._focusIsInMenu,
@@ -260,7 +262,7 @@ export class InlineEditsView extends Disposable {
 	private readonly _inlineDiffViewState = derived<IOriginalEditorInlineDiffViewState | undefined>(this, reader => {
 		const e = this._uiState.read(reader);
 		if (!e || !e.state) { return undefined; }
-		if (e.state.kind === 'wordReplacements' || e.state.kind === 'lineReplacement' || e.state.kind === 'insertionMultiLine' || e.state.kind === 'hidden') {
+		if (e.state.kind === 'wordReplacements' || e.state.kind === 'lineReplacement' || e.state.kind === 'insertionMultiLine' || e.state.kind === 'collapsed') {
 			return undefined;
 		}
 		return {
@@ -270,6 +272,11 @@ export class InlineEditsView extends Disposable {
 			modifiedCodeEditor: this._sideBySide.previewEditor,
 		};
 	});
+
+	protected readonly _inlineCollapsedView = this._register(this._instantiationService.createInstance(InlineEditsCollapsedView,
+		this._editor,
+		this._model.map((m, reader) => this._uiState.read(reader)?.state?.kind === 'collapsed' ? m?.inlineEdit : undefined)
+	));
 
 	protected readonly _inlineDiffView = this._register(new OriginalEditorInlineDiffView(this._editor, this._inlineDiffViewState, this._previewTextModel));
 
@@ -290,7 +297,7 @@ export class InlineEditsView extends Disposable {
 
 	private getCacheId(model: IInlineEditModel) {
 		const inlineEdit = model.inlineEdit;
-		if (model.inPartialAcceptFlow.get()) {
+		if (this._host.get()?.inPartialAcceptFlow.get()) {
 			return `${inlineEdit.inlineCompletion.id}_${inlineEdit.edit.edits.map(innerEdit => innerEdit.range.toString() + innerEdit.text).join(',')}`;
 		}
 
@@ -365,7 +372,7 @@ export class InlineEditsView extends Disposable {
 		switch (view) {
 			case 'insertionInline': return { kind: 'insertionInline' as const };
 			case 'sideBySide': return { kind: 'sideBySide' as const };
-			case 'hidden': return { kind: 'hidden' as const };
+			case 'collapsed': return { kind: 'collapsed' as const };
 		}
 
 		const inner = diff.flatMap(d => d.innerChanges ?? []);

@@ -15,10 +15,11 @@ import { ExtensionIdentifier } from '../../../../platform/extensions/common/exte
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { Location } from '../../../../editor/common/languages.js';
 import { IChatTerminalToolInvocationData, IChatToolInputInvocationData } from './chatService.js';
+import { Schemas } from '../../../../base/common/network.js';
 
 export interface IToolData {
 	id: string;
-	extensionId?: ExtensionIdentifier;
+	source: ToolDataSource;
 	toolReferenceName?: string;
 	icon?: { dark: URI; light?: URI } | ThemeIcon;
 	when?: ContextKeyExpression;
@@ -28,6 +29,26 @@ export interface IToolData {
 	modelDescription: string;
 	inputSchema?: IJSONSchema;
 	canBeReferencedInPrompt?: boolean;
+	/**
+	 * True if the tool runs in the (possibly remote) workspace, false if it runs
+	 * on the host, undefined if known.
+	 */
+	runsInWorkspace?: boolean;
+}
+
+export type ToolDataSource =
+	| { type: 'extension'; extensionId: ExtensionIdentifier }
+	| { type: 'mcp'; collectionId: string }
+	| { type: 'internal' };
+
+export namespace ToolDataSource {
+	export function toKey(source: ToolDataSource): string {
+		switch (source.type) {
+			case 'extension': return `extension:${source.extensionId.value}`;
+			case 'mcp': return `mcp:${source.collectionId}`;
+			case 'internal': return 'internal';
+		}
+	}
 }
 
 export interface IToolInvocation {
@@ -39,6 +60,7 @@ export interface IToolInvocation {
 	chatRequestId?: string;
 	chatInteractionId?: string;
 	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData;
+	modelId?: string;
 }
 
 export interface IToolInvocationContext {
@@ -109,4 +131,11 @@ export interface ILanguageModelToolsService {
 	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile' | 'memory', autoConfirm?: boolean): void;
 	resetToolAutoConfirmation(): void;
 	cancelToolCallsForRequest(requestId: string): void;
+}
+
+export function createToolInputUri(toolOrId: IToolData | string): URI {
+	if (typeof toolOrId !== 'string') {
+		toolOrId = toolOrId.id;
+	}
+	return URI.from({ scheme: Schemas.inMemory, path: `/lm/tool/${toolOrId}/tool_input.json` });
 }

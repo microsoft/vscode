@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { create } from './editorSimpleWorker.js';
-import { bootstrapSimpleEditorWorker } from './editorWorkerBootstrap.js';
+import { bootstrapWebWorker } from '../../../base/common/worker/webWorkerBootstrap.js';
+import { EditorWorker } from './editorWebWorker.js';
 
-bootstrapSimpleEditorWorker(create);
+bootstrapWebWorker(() => new EditorWorker(null));

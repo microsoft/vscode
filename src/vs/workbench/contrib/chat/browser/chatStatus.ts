@@ -28,6 +28,8 @@ import { isObject } from '../../../../base/common/types.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../base/common/actions.js';
 
 //#region --- colors
 
@@ -90,9 +92,7 @@ const defaultChat = {
 
 export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribution {
 
-	static readonly ID = 'chat.statusBarEntry';
-
-	private static readonly SETTING = 'chat.experimental.statusIndicator.enabled';
+	static readonly ID = 'workbench.contrib.chatStatusBarEntry';
 
 	private entry: IStatusbarEntryAccessor | undefined = undefined;
 
@@ -101,7 +101,6 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	constructor(
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
@@ -112,9 +111,8 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 	private async create(): Promise<void> {
 		const hidden = this.chatEntitlementService.sentiment === ChatSentiment.Disabled;
-		const disabled = this.configurationService.getValue<boolean>(ChatStatusBarEntry.SETTING) === false;
 
-		if (!hidden && !disabled) {
+		if (!hidden) {
 			this.entry ||= this.statusbarService.addEntry(this.getEntryProps(), ChatStatusBarEntry.ID, StatusbarAlignment.RIGHT, { location: { id: 'status.editor.mode', priority: 100.1 }, alignment: StatusbarAlignment.RIGHT });
 
 			// TODO@bpasero: remove this eventually
@@ -128,12 +126,6 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	}
 
 	private registerListeners(): void {
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatStatusBarEntry.SETTING)) {
-				this.create();
-			}
-		}));
-
 		this._register(this.chatEntitlementService.onDidChangeQuotaExceeded(() => this.entry?.update(this.getEntryProps())));
 		this._register(this.chatEntitlementService.onDidChangeSentiment(() => this.entry?.update(this.getEntryProps())));
 		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => this.entry?.update(this.getEntryProps())));
@@ -223,7 +215,8 @@ class ChatStatusDashboard extends Disposable {
 		@IHoverService private readonly hoverService: IHoverService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ILanguageService private readonly languageService: ILanguageService,
-		@ICommandService private readonly commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 	}
@@ -262,7 +255,7 @@ class ChatStatusDashboard extends Disposable {
 			if (chatQuotaExceeded || completionsQuotaExceeded) {
 				const upgradePlanButton = disposables.add(new Button(this.element, { ...defaultButtonStyles, secondary: canUseCopilot(this.chatEntitlementService) /* use secondary color when copilot can still be used */ }));
 				upgradePlanButton.label = localize('upgradeToCopilotPro', "Upgrade to Copilot Pro");
-				disposables.add(upgradePlanButton.onDidClick(() => this.runCommandAndClose({ id: 'workbench.action.chat.upgradePlan', args: ['chat-status'] })));
+				disposables.add(upgradePlanButton.onDidClick(() => this.runCommandAndClose('workbench.action.chat.upgradePlan')));
 			}
 
 			(async () => {
@@ -296,18 +289,19 @@ class ChatStatusDashboard extends Disposable {
 
 				const button = disposables.add(new Button(this.element, { ...defaultButtonStyles }));
 				button.label = newUser ? localize('activateCopilotButton', "Set up Copilot") : localize('signInToUseCopilotButton', "Sign in to use Copilot");
-				disposables.add(button.onDidClick(() => this.runCommandAndClose(newUser ? { id: 'workbench.action.chat.triggerSetup' } : () => this.chatEntitlementService.requests?.value.signIn())));
+				disposables.add(button.onDidClick(() => this.runCommandAndClose(newUser ? 'workbench.action.chat.triggerSetup' : () => this.chatEntitlementService.requests?.value.signIn())));
 			}
 		}
 
 		return this.element;
 	}
 
-	private runCommandAndClose(command: { id: string; args?: unknown[] } | Function): void {
-		if (typeof command === 'function') {
-			command();
+	private runCommandAndClose(commandOrFn: string | Function): void {
+		if (typeof commandOrFn === 'function') {
+			commandOrFn();
 		} else {
-			this.commandService.executeCommand(command.id, ...(command.args ?? []));
+			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: commandOrFn, from: 'chat-status' });
+			this.commandService.executeCommand(commandOrFn);
 		}
 		this.hoverService.hideHover(true);
 	}

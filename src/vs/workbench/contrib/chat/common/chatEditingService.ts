@@ -14,7 +14,7 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorPane } from '../../../common/editor.js';
 import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
-import { IChatResponseModel } from './chatModel.js';
+import { ChatModel, IChatResponseModel } from './chatModel.js';
 
 export const IChatEditingService = createDecorator<IChatEditingService>('chatEditingService');
 
@@ -22,7 +22,7 @@ export interface IChatEditingService {
 
 	_serviceBrand: undefined;
 
-	startOrContinueGlobalEditingSession(chatSessionId: string): Promise<IChatEditingSession>;
+	startOrContinueGlobalEditingSession(chatModel: ChatModel): Promise<IChatEditingSession>;
 
 	getEditingSession(chatSessionId: string): IChatEditingSession | undefined;
 
@@ -34,7 +34,7 @@ export interface IChatEditingService {
 	/**
 	 * Creates a new short lived editing session
 	 */
-	createEditingSession(chatSessionId: string): Promise<IChatEditingSession>;
+	createEditingSession(chatModel: ChatModel): Promise<IChatEditingSession>;
 
 	//#region related files
 

@@ -804,7 +804,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			constructor() {
 				super({
 					id: 'workbench.userData.actions.turningOn',
-					title: localize('turnin on sync', "Turning on Settings Sync..."),
+					title: localize('turning on sync', "Turning on Settings Sync..."),
 					precondition: ContextKeyExpr.false(),
 					menu: [{
 						group: '3_configuration',

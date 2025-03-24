@@ -127,10 +127,10 @@ class ChatAgentResponseStream {
 					_report(dto);
 					return this;
 				},
-				codeblockUri(value) {
+				codeblockUri(value, isEdit) {
 					throwIfDone(this.codeblockUri);
 					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
-					const part = new extHostTypes.ChatResponseCodeblockUriPart(value);
+					const part = new extHostTypes.ChatResponseCodeblockUriPart(value, isEdit);
 					const dto = typeConvert.ChatResponseCodeblockUriPart.from(part);
 					_report(dto);
 					return this;
