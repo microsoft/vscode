@@ -13,7 +13,7 @@ import codeInsidersCompletionSpec from './completions/code-insiders';
 import npxCompletionSpec from './completions/npx';
 import setLocationSpec from './completions/set-location';
 import { upstreamSpecs } from './constants';
-import { PathExecutableCache } from './env/pathExecutableCache';
+import { ITerminalEnvironment, PathExecutableCache, watchPathDirectories } from './env/pathExecutableCache';
 import { osIsWindows } from './helpers/os';
 import { getFriendlyResourcePath } from './helpers/uri';
 import { getBashGlobals } from './shell/bash';
@@ -83,13 +83,15 @@ async function getShellGlobals(shellType: TerminalShellType, existingCommands?: 
 	}
 }
 
+
 export async function activate(context: vscode.ExtensionContext) {
 	pathExecutableCache = new PathExecutableCache();
 	context.subscriptions.push(pathExecutableCache);
-
+	let currentTerminalEnv: ITerminalEnvironment = process.env;
 	context.subscriptions.push(vscode.window.registerTerminalCompletionProvider({
 		id: 'terminal-suggest',
 		async provideTerminalCompletions(terminal: vscode.Terminal, terminalContext: vscode.TerminalCompletionContext, token: vscode.CancellationToken): Promise<vscode.TerminalCompletionItem[] | vscode.TerminalCompletionList | undefined> {
+			currentTerminalEnv = terminal.shellIntegration?.env?.value ?? process.env;
 			if (token.isCancellationRequested) {
 				console.debug('#terminalCompletions token cancellation requested');
 				return;
@@ -121,7 +123,7 @@ export async function activate(context: vscode.ExtensionContext) {
 					prefix,
 					tokenType,
 					terminal.shellIntegration?.cwd,
-					getEnvAsRecord(terminal.shellIntegration?.env?.value),
+					getEnvAsRecord(currentTerminalEnv),
 					terminal.name,
 					token
 				),
@@ -145,6 +147,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			return result.items;
 		}
 	}, '/', '\\'));
+	await watchPathDirectories(context, currentTerminalEnv, pathExecutableCache);
 }
 
 /**
@@ -316,7 +319,7 @@ function compareItems(existingItem: vscode.TerminalCompletionItem, command: ICom
 	}
 }
 
-function getEnvAsRecord(shellIntegrationEnv: { [key: string]: string | undefined } | undefined): Record<string, string> {
+function getEnvAsRecord(shellIntegrationEnv: ITerminalEnvironment): Record<string, string> {
 	const env: Record<string, string> = {};
 	for (const [key, value] of Object.entries(shellIntegrationEnv ?? process.env)) {
 		if (typeof value === 'string') {
