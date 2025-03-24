@@ -26,14 +26,14 @@ suite('LinesDecoder', () => {
 	 * Test the core logic with specific method of consuming
 	 * tokens that are produced by a lines decoder instance.
 	 */
-	suite('core logic', () => {
+	suite('• core logic', () => {
 		testLinesDecoder('async-generator', disposables);
 		testLinesDecoder('consume-all-method', disposables);
 		testLinesDecoder('on-data-event', disposables);
 	});
 
-	suite('settled promise', () => {
-		test('throws if accessed on not-yet-started decoder instance', () => {
+	suite('• settled promise', () => {
+		test('• throws if accessed on not-yet-started decoder instance', () => {
 			const test = disposables.add(new TestLinesDecoder());
 
 			assert.throws(
@@ -51,8 +51,8 @@ suite('LinesDecoder', () => {
 		});
 	});
 
-	suite('start', () => {
-		test('throws if the decoder object is already `disposed`', () => {
+	suite('• start', () => {
+		test('• throws if the decoder object is already `disposed`', () => {
 			const test = disposables.add(new TestLinesDecoder());
 			const { decoder } = test;
 			decoder.dispose();
@@ -63,7 +63,7 @@ suite('LinesDecoder', () => {
 			);
 		});
 
-		test('throws if the decoder object is already `ended`', async () => {
+		test('• throws if the decoder object is already `ended`', async () => {
 			const inputStream = newWriteableStream<VSBuffer>(null);
 			const test = disposables.add(new TestLinesDecoder(inputStream));
 			const { decoder } = test;
@@ -141,8 +141,8 @@ function testLinesDecoder(
 	disposables: Pick<DisposableStore, "add">,
 ) {
 	suite(tokensConsumeMethod, () => {
-		suite('produces expected tokens', () => {
-			test('input starts with line data', async () => {
+		suite('• produces expected tokens', () => {
+			test('• input starts with line data', async () => {
 				const test = disposables.add(new TestLinesDecoder());
 
 				await test.run(
@@ -160,7 +160,7 @@ function testLinesDecoder(
 				);
 			});
 
-			test('standalone \\r is treated as new line', async () => {
+			test('• standalone \\r is treated as new line', async () => {
 				const test = disposables.add(new TestLinesDecoder());
 
 				await test.run(
@@ -179,7 +179,7 @@ function testLinesDecoder(
 				);
 			});
 
-			test('input starts with a new line', async () => {
+			test('• input starts with a new line', async () => {
 				const test = disposables.add(new TestLinesDecoder());
 
 				await test.run(
@@ -202,7 +202,7 @@ function testLinesDecoder(
 				);
 			});
 
-			test('input starts and ends with multiple new lines', async () => {
+			test('• input starts and ends with multiple new lines', async () => {
 				const test = disposables.add(new TestLinesDecoder());
 
 				await test.run(
@@ -229,7 +229,7 @@ function testLinesDecoder(
 				);
 			});
 
-			test('single carriage return is treated as new line', async () => {
+			test('• single carriage return is treated as new line', async () => {
 				const test = disposables.add(new TestLinesDecoder());
 
 				await test.run(
