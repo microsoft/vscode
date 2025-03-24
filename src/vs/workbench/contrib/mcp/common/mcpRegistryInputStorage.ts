@@ -147,7 +147,7 @@ export class McpRegistryInputStorage extends Disposable {
 			const encrypted = await crypto.subtle.encrypt(
 				{ name: MCP_ENCRYPTION_KEY_ALGORITHM, iv: iv.buffer },
 				key,
-				new TextEncoder().encode(toSeal).buffer,
+				new TextEncoder().encode(toSeal).buffer as ArrayBuffer,
 			);
 
 			const enc = encodeBase64(VSBuffer.wrap(new Uint8Array(encrypted)));

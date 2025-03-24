@@ -1577,7 +1577,7 @@ export class TestHostService implements IHostService {
 
 	async toggleFullScreen(): Promise<void> { }
 
-	async getScreenshot(): Promise<ArrayBufferLike | undefined> { return undefined; }
+	async getScreenshot(): Promise<VSBuffer | undefined> { return undefined; }
 
 	async getNativeWindowHandle(_windowId: number): Promise<VSBuffer | undefined> { return undefined; }
 
