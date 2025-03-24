@@ -15,13 +15,27 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		@IDefaultAccountService private readonly defaultAccountService: DefaultAccountService
 	) {
 		super();
+
+		this.defaultAccountService.getDefaultAccount().then((account) => {
+			if (!account) {
+				return;
+			}
+			this._update(account.chat_preview_features_enabled);
+		});
 		this._register(this.defaultAccountService.onDidChangeDefaultAccount((account) => {
 			if (!account) {
 				return;
 			}
-			this.chatPreviewFeaturesEnabled = (account.chat_preview_features_enabled === undefined) || account.chat_preview_features_enabled;
-			this._updatePolicyDefinitions(this.policyDefinitions);
+			this._update(account.chat_preview_features_enabled);
 		}));
+	}
+
+	private _update(chatPreviewFeaturesEnabled: boolean | undefined) {
+		const newValue = (chatPreviewFeaturesEnabled === undefined) || chatPreviewFeaturesEnabled;
+		if (this.chatPreviewFeaturesEnabled !== newValue) {
+			this.chatPreviewFeaturesEnabled = newValue;
+			this._updatePolicyDefinitions(this.policyDefinitions);
+		}
 	}
 
 	protected async _updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<void> {
