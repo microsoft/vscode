@@ -39,7 +39,7 @@ import './cellChatActions.js';
 import { CTX_NOTEBOOK_CHAT_HAS_AGENT } from './notebookChatContext.js';
 
 const NotebookKernelVariableKey = 'kernelVariable';
-const NOTEBOOK_TEXT_ATTACH_LIST_FOR_CHAT = ['text/plain', 'text/html',
+const NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT_CONST = ['text/plain', 'text/html',
 	'application/vnd.code.notebook.error',
 	'application/vnd.code.notebook.stdout',
 	'application/x.notebook.stdout',
@@ -113,7 +113,7 @@ class NotebookChatContribution extends Disposable implements IWorkbenchContribut
 		}));
 
 		// output context
-		NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT.bindTo(contextKeyService).set(['image/png'].concat(NOTEBOOK_TEXT_ATTACH_LIST_FOR_CHAT));
+		NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT.bindTo(contextKeyService).set(['image/png'].concat(NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT_CONST));
 	}
 
 	private async addKernelVariableCompletion(widget: IChatWidget, result: CompletionList, info: { insert: Range; replace: Range; varWord: IWordAtPosition | null }, token: CancellationToken) {
@@ -317,7 +317,7 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 			}
 			widget = widgets[0];
 		}
-		if (mimeType && NOTEBOOK_TEXT_ATTACH_LIST_FOR_CHAT.includes(mimeType)) {
+		if (mimeType && NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT_CONST.includes(mimeType)) {
 
 			// get the cell index
 			const cellFromViewModelHandle = outputViewModel.cellViewModel.handle;

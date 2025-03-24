@@ -509,7 +509,6 @@ class ModelData implements IDisposable, INotebookDocument {
 		return this.model.cells.findIndex(cell => isEqual(cell.uri, cellUri));
 	}
 
-
 	dispose(): void {
 		this._modelEventListeners.dispose();
 	}
