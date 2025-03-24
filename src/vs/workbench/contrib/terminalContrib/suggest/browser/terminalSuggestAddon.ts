@@ -304,6 +304,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// editor and how it interacts with inline completions. This object is tracked and reused as
 		// it may change on input.
 		this._refreshInlineCompletion();
+		this._addPropertiesToInlineCompletionItem(completions);
 
 		// Add any missing icons based on the completion item kind
 		for (const completion of completions) {
@@ -311,17 +312,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				completion.icon = this._kindToIconMap.get(completion.kind);
 				completion.kindLabel = this._kindToTypeMap.get(completion.kind);
 			}
-		}
-
-		const inlineCompletionLabel = typeof this._inlineCompletionItem.completion.label === 'string' ? this._inlineCompletionItem.completion.label : this._inlineCompletionItem.completion.label.label;
-		const inlineCompletionMatchIndex = completions.findIndex(c => typeof c.label === 'string' ? c.label === inlineCompletionLabel : c.label.label === inlineCompletionLabel);
-		if (inlineCompletionMatchIndex !== -1) {
-			// Remove the existing inline completion item from the completions list
-			const richCompletionMatchingInline = completions.splice(inlineCompletionMatchIndex, 1)[0];
-			// Apply its properties to the inline completion item
-			this._inlineCompletionItem.completion.label = richCompletionMatchingInline.label;
-			this._inlineCompletionItem.completion.detail = richCompletionMatchingInline.detail;
-			this._inlineCompletionItem.completion.documentation = richCompletionMatchingInline.documentation;
 		}
 
 		const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
@@ -378,6 +368,19 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._cancellationTokenSource = new CancellationTokenSource();
 		const token = this._cancellationTokenSource.token;
 		await this._handleCompletionProviders(this._terminal, token, explicitlyInvoked);
+	}
+
+	private _addPropertiesToInlineCompletionItem(completions: ITerminalCompletion[]): void {
+		const inlineCompletionLabel = typeof this._inlineCompletionItem.completion.label === 'string' ? this._inlineCompletionItem.completion.label : this._inlineCompletionItem.completion.label.label;
+		const inlineCompletionMatchIndex = completions.findIndex(c => typeof c.label === 'string' ? c.label === inlineCompletionLabel : c.label.label === inlineCompletionLabel);
+		if (inlineCompletionMatchIndex !== -1) {
+			// Remove the existing inline completion item from the completions list
+			const richCompletionMatchingInline = completions.splice(inlineCompletionMatchIndex, 1)[0];
+			// Apply its properties to the inline completion item
+			this._inlineCompletionItem.completion.label = richCompletionMatchingInline.label;
+			this._inlineCompletionItem.completion.detail = richCompletionMatchingInline.detail;
+			this._inlineCompletionItem.completion.documentation = richCompletionMatchingInline.documentation;
+		}
 	}
 
 	private _requestTriggerCharQuickSuggestCompletions(): boolean {
@@ -531,6 +534,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 
 		this._refreshInlineCompletion();
+		this._addPropertiesToInlineCompletionItem(this._model?.items.map(i => i.completion) || []);
 
 		// Hide and clear model if there are no more items
 		if (!this._suggestWidget.hasCompletions()) {
