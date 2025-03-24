@@ -303,8 +303,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// Add any "ghost text" suggestion suggested by the shell. This aligns with behavior of the
 		// editor and how it interacts with inline completions. This object is tracked and reused as
 		// it may change on input.
-		this._refreshInlineCompletion();
-		this._addPropertiesToInlineCompletionItem(completions);
+		this._refreshInlineCompletion(completions);
 
 		// Add any missing icons based on the completion item kind
 		for (const completion of completions) {
@@ -538,18 +537,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._suggestWidget.setLineContext(lineContext);
 		}
 
-		this._refreshInlineCompletion();
-		const completionItems = this._addPropertiesToInlineCompletionItem(this._model?.items.map(i => i.completion) || []);
-		if (lineContext && completionItems) {
-			const model = new TerminalCompletionModel(
-				[
-					...completionItems,
-					this._inlineCompletionItem,
-				],
-				lineContext
-			);
-			this._showCompletions(model, false);
-		}
+		this._refreshInlineCompletion(this._model?.items.map(i => i.completion) || [], lineContext);
 
 		// Hide and clear model if there are no more items
 		if (!this._suggestWidget.hasCompletions()) {
@@ -569,7 +557,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		});
 	}
 
-	private _refreshInlineCompletion() {
+	private _refreshInlineCompletion(completions: ITerminalCompletion[], lineContext?: LineContext): void {
 		const oldIsInvalid = this._inlineCompletionItem.isInvalid;
 		if (!this._currentPromptInputState || this._currentPromptInputState.ghostTextIndex === -1) {
 			this._inlineCompletionItem.isInvalid = true;
@@ -603,6 +591,18 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// Force a filter all in order to re-evaluate the inline completion
 		if (this._inlineCompletionItem.isInvalid !== oldIsInvalid) {
 			this._model?.forceRefilterAll();
+		}
+
+		const completionItems = this._addPropertiesToInlineCompletionItem(this._model?.items.map(i => i.completion) || []);
+		if (lineContext && completionItems) {
+			const model = new TerminalCompletionModel(
+				[
+					...completionItems,
+					this._inlineCompletionItem,
+				],
+				lineContext
+			);
+			this._showCompletions(model, false);
 		}
 	}
 
