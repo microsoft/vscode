@@ -313,6 +313,16 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			}
 		}
 
+		const inlineCompletionMatchIndex = completions.findIndex(c => typeof c.label !== 'string' && c.label.label === this._inlineCompletionItem.completion.label);
+		if (inlineCompletionMatchIndex !== -1) {
+			// Remove the existing inline completion item from the completions list
+			const richCompletionMatchingInline = completions.splice(inlineCompletionMatchIndex, 1)[0];
+			// Apply its properties to the inline completion item
+			this._inlineCompletionItem.completion.label = richCompletionMatchingInline.label;
+			this._inlineCompletionItem.completion.detail = richCompletionMatchingInline.detail;
+			this._inlineCompletionItem.completion.documentation = richCompletionMatchingInline.documentation;
+		}
+
 		const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
 		const model = new TerminalCompletionModel(
 			[
