@@ -1,0 +1,26 @@
+parameters:
+  - name: VSCODE_QUALITY
+    type: string
+
+steps:
+  - checkout: self
+    clean: true
+    fetchDepth: 1
+    workspaceRepo: true
+    displayName: Checkout microsoft/vscode
+
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - checkout: distro
+      clean: true
+      path: s/.build/distro
+      workspaceRepo: false
+      displayName: Checkout microsoft/vscode-distro
+
+    - pwsh: |
+        $ErrorActionPreference = "Stop"
+        $PackageJson = Get-Content -Path package.json -Raw | ConvertFrom-Json
+        $DistroVersion = $PackageJson.distro
+
+        cd "$(Build.SourcesDirectory)/.build/distro"
+        git checkout $DistroVersion
+      displayName: Checkout microsoft/vscode-distro version

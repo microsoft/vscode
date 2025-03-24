@@ -3,15 +3,11 @@ parameters:
     type: string
 
 steps:
-  - checkout: self
-    clean: true
-    fetchDepth: 1
-    workspaceRepo: true
-    displayName: Checkout microsoft/vscode
+  - template: ./distro/checkout.yml@self
+    parameters:
+      VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - template: ./distro/download-distro.yml@self
-
     - task: AzureKeyVault@2
       displayName: "Azure Key Vault: Get Secrets"
       inputs:
