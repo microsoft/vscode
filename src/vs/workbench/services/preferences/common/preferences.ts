@@ -109,7 +109,7 @@ export interface IExtensionSetting extends ISetting {
 
 export interface ISearchResult {
 	filterMatches: ISettingMatch[];
-	exactMatch?: boolean;
+	exactMatch: boolean;
 	metadata?: IFilterMetadata;
 }
 

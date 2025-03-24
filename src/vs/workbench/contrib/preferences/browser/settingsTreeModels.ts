@@ -1026,7 +1026,7 @@ export class SearchResultModel extends SettingsTreeModel {
 
 		this.cachedUniqueSearchResults = {
 			filterMatches: combinedFilterMatches,
-			exactMatch: localResult?.exactMatch || remoteResult?.exactMatch
+			exactMatch: localResult.exactMatch // remote results should never have an exact match
 		};
 
 		return this.cachedUniqueSearchResults;
@@ -1044,10 +1044,6 @@ export class SearchResultModel extends SettingsTreeModel {
 		if (!result) {
 			delete this.rawSearchResults[order];
 			return;
-		}
-
-		if (result.exactMatch) {
-			this.rawSearchResults = [];
 		}
 
 		this.rawSearchResults[order] = result;
