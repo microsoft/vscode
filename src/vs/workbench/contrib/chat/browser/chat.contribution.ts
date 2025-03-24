@@ -222,6 +222,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.mcp.enabled', "Enables integration with Model Context Protocol servers to provide additional tools and functionality."),
 			default: true,
+			tags: ['preview'],
 			policy: {
 				name: 'ChatMCP',
 				minimumVersion: '1.99',
