@@ -369,7 +369,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		await this._handleCompletionProviders(this._terminal, token, explicitlyInvoked);
 	}
 
-	private _addPropertiesToInlineCompletionItem(completions: ITerminalCompletion[]): TerminalCompletionItem[] | undefined {
+	private _addPropertiesToInlineCompletionItem(completions: ITerminalCompletion[]): void {
 		const inlineCompletionLabel = (typeof this._inlineCompletionItem.completion.label === 'string' ? this._inlineCompletionItem.completion.label : this._inlineCompletionItem.completion.label.label).trim();
 		const inlineCompletionMatchIndex = completions.findIndex(c => typeof c.label === 'string' ? c.label === inlineCompletionLabel : c.label.label === inlineCompletionLabel);
 		if (inlineCompletionMatchIndex !== -1) {
@@ -379,12 +379,12 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._inlineCompletionItem.completion.label = richCompletionMatchingInline.label;
 			this._inlineCompletionItem.completion.detail = richCompletionMatchingInline.detail;
 			this._inlineCompletionItem.completion.documentation = richCompletionMatchingInline.documentation;
-			return completions.filter(c => !!c.label).map(c => new TerminalCompletionItem(c));
+			return;
 		} else if (this._inlineCompletionItem.completion) {
 			this._inlineCompletionItem.completion.detail = undefined;
 			this._inlineCompletionItem.completion.documentation = undefined;
 		}
-		return undefined;
+		return;
 	}
 
 	private _requestTriggerCharQuickSuggestCompletions(): boolean {
@@ -575,17 +575,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			// Reset the completion item as the object reference must remain the same but its
 			// contents will differ across syncs. This is done so we don't need to reassign the
 			// model and the slowdown/flickering that could potentially cause.
-			const completionItems = this._addPropertiesToInlineCompletionItem(completions);
-			if (lineContext && completionItems) {
-				this._model = new TerminalCompletionModel(
-					[
-						...completionItems,
-						this._inlineCompletionItem,
-					],
-					lineContext
-				);
-				this._showCompletions(this._model, false);
-			}
+			this._addPropertiesToInlineCompletionItem(completions);
+
 			const x = new TerminalCompletionItem(this._inlineCompletion);
 			this._inlineCompletionItem.idx = x.idx;
 			this._inlineCompletionItem.score = x.score;
