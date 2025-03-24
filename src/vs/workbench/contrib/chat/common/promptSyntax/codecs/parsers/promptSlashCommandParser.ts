@@ -26,13 +26,13 @@ import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../../../.
 /**
  * List of characters that terminate the prompt at-mention sequence.
  */
-export const STOP_CHARACTERS: readonly string[] = [Space, Tab, NewLine, CarriageReturn, VerticalTab, FormFeed, At, Colon, Hash, Slash]
+export const STOP_CHARACTERS: readonly string[] = [Space, Tab, NewLine, CarriageReturn, VerticalTab, FormFeed, Colon, At, Hash, Slash]
 	.map((token) => { return token.symbol; });
 
 /**
  * List of characters that cannot be in an at-mention name (excluding the {@link STOP_CHARACTERS}).
  */
-export const INVALID_NAME_CHARACTERS: readonly string[] = [Hash, At, Slash, Colon, ExclamationMark, LeftAngleBracket, RightAngleBracket, LeftBracket, RightBracket]
+export const INVALID_NAME_CHARACTERS: readonly string[] = [ExclamationMark, LeftAngleBracket, RightAngleBracket, LeftBracket, RightBracket]
 	.map((token) => { return token.symbol; });
 
 /**
