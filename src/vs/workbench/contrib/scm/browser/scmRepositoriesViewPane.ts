@@ -92,6 +92,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 
 		this._register(this.list);
 		this._register(this.list.onDidChangeSelection(this.onListSelectionChange, this));
+		this._register(this.list.onDidChangeFocus(this.onDidChangeFocus, this));
 		this._register(this.list.onContextMenu(this.onListContextMenu, this));
 
 		this._register(this.scmViewService.onDidChangeRepositories(this.onDidChangeRepositories, this));
@@ -166,6 +167,12 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			const scrollTop = this.list.scrollTop;
 			this.scmViewService.visibleRepositories = e.elements;
 			this.list.scrollTop = scrollTop;
+		}
+	}
+
+	private onDidChangeFocus(e: IListEvent<ISCMRepository>): void {
+		if (e.browserEvent && e.elements.length > 0) {
+			this.scmViewService.focus(e.elements[0]);
 		}
 	}
 

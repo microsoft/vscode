@@ -476,14 +476,13 @@ registerAction2(class RemoveAction extends Action2 {
 
 		const configurationService = accessor.get(IConfigurationService);
 		const dialogService = accessor.get(IDialogService);
-		const chatEditingService = accessor.get(IChatEditingService);
 		const chatService = accessor.get(IChatService);
 		const chatModel = chatService.getSession(item.sessionId);
 		if (!chatModel) {
 			return;
 		}
 
-		const session = chatEditingService.getEditingSession(chatModel.sessionId);
+		const session = chatModel.editingSession;
 		if (!session) {
 			return;
 		}

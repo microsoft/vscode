@@ -21,7 +21,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import product from '../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { PromptsConfig } from '../../../../platform/prompts/common/config.js';
-import { PROMPT_FILE_EXTENSION } from '../../../../platform/prompts/common/constants.js';
+import { DEFAULT_SOURCE_FOLDER as PROMPT_FILES_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../platform/prompts/common/constants.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
@@ -30,7 +30,7 @@ import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { mcpSchemaId } from '../../../services/configuration/common/configuration.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
-import { mcpConfigurationSection, mcpDiscoverySection, mcpSchemaExampleServers } from '../../mcp/common/mcpConfiguration.js';
+import { allDiscoverySources, discoverySourceLabel, mcpConfigurationSection, mcpDiscoverySection, mcpSchemaExampleServers } from '../../mcp/common/mcpConfiguration.js';
 import { ChatAgentNameService, ChatAgentService, IChatAgentNameService, IChatAgentService } from '../common/chatAgents.js';
 import { CodeMapperService, ICodeMapperService } from '../common/chatCodeMapperService.js';
 import '../common/chatColors.js';
@@ -240,11 +240,20 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 		},
 		[mcpDiscoverySection]: {
-			type: 'boolean',
-			default: false,
-			description: nls.localize('mpc.discovery.enabled', "Enable discovery of Model Context Protocol servers on the machine."),
+			oneOf: [
+				{ type: 'boolean' },
+				{
+					type: 'object',
+					default: Object.fromEntries(allDiscoverySources.map(k => [k, true])),
+					properties: Object.fromEntries(allDiscoverySources.map(k => [
+						k,
+						{ type: 'boolean', description: nls.localize('mcp.discovery.source', "Enables discovery of {0} servers", discoverySourceLabel[k]) }
+					])),
+				}
+			],
+			markdownDescription: nls.localize('mpc.discovery.enabled', "Configures discovery of Model Context Protocol servers on the machine. It may be set to `true` or `false` to disable or enable all sources, and an mapping sources you wish to enable."),
 		},
-		[PromptsConfig.CONFIG_KEY]: {
+		[PromptsConfig.KEY]: {
 			type: 'boolean',
 			title: nls.localize(
 				'chat.reusablePrompts.config.enabled.title',
@@ -261,7 +270,7 @@ configurationRegistry.registerConfiguration({
 			disallowConfigurationDefault: true,
 			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
 		},
-		[PromptsConfig.LOCATIONS_CONFIG_KEY]: {
+		[PromptsConfig.LOCATIONS_KEY]: {
 			type: 'object',
 			title: nls.localize(
 				'chat.reusablePrompts.config.locations.title',
@@ -274,7 +283,7 @@ configurationRegistry.registerConfiguration({
 				DOCUMENTATION_URL,
 			),
 			default: {
-				[PromptsConfig.DEFAULT_SOURCE_FOLDER]: true,
+				[PROMPT_FILES_DEFAULT_SOURCE_FOLDER]: true,
 			},
 			additionalProperties: { type: 'boolean' },
 			unevaluatedProperties: { type: 'boolean' },
@@ -282,10 +291,10 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
 			examples: [
 				{
-					[PromptsConfig.DEFAULT_SOURCE_FOLDER]: true,
+					[PROMPT_FILES_DEFAULT_SOURCE_FOLDER]: true,
 				},
 				{
-					[PromptsConfig.DEFAULT_SOURCE_FOLDER]: true,
+					[PROMPT_FILES_DEFAULT_SOURCE_FOLDER]: true,
 					'/Users/vscode/repos/prompts': true,
 				},
 			],
@@ -365,8 +374,9 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 			if (enabled) {
 				this.registerEnablementSetting();
 				expDisabledKey.set(false);
-			} else if (this.productService.quality === 'stable') {
-				// undefined treatment- on stable, fall back to disabled
+			} else if (this.productService.quality === 'stable' || typeof enabled === 'boolean') {
+				// If undefined treatment, on stable, fall back to disabled.
+				// Other qualities fall back to enabled.
 				this.deregisterSetting();
 				expDisabledKey.set(true);
 			}
@@ -385,7 +395,7 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 			title: nls.localize('interactiveSessionConfigurationTitle', "Chat"),
 			type: 'object',
 			properties: {
-				'chat.agent.enabled': {
+				[ChatConfiguration.AgentEnabled]: {
 					type: 'boolean',
 					description: nls.localize('chat.agent.enabled.description', "Enable agent mode for {0}. When this is enabled, a dropdown appears in the {0} view to toggle agent mode.", 'Copilot Edits'),
 					default: this.productService.quality !== 'stable',

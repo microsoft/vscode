@@ -1315,7 +1315,7 @@ export class SearchView extends ViewPane {
 	}
 
 	cancelSearch(focus: boolean = true): boolean {
-		if (this.viewModel.cancelSearch()) {
+		if (this.viewModel.cancelSearch() && this.viewModel.cancelAISearch()) {
 			if (focus) { this.searchWidget.focus(); }
 			return true;
 		}
@@ -1468,7 +1468,7 @@ export class SearchView extends ViewPane {
 		this.searchWidget.focus(false);
 	}
 
-	triggerQueryChange(_options?: { preserveFocus?: boolean; triggeredOnType?: boolean; delay?: number; shouldKeepAIResults?: boolean }): void {
+	triggerQueryChange(_options?: { preserveFocus?: boolean; triggeredOnType?: boolean; delay?: number; shouldKeepAIResults?: boolean; shouldUpdateAISearch?: boolean }): void {
 		const options = { preserveFocus: true, triggeredOnType: false, delay: 0, ..._options };
 
 		if (options.triggeredOnType && !this.searchConfig.searchOnType) { return; }
@@ -1477,7 +1477,7 @@ export class SearchView extends ViewPane {
 
 			const delay = options.triggeredOnType ? options.delay : 0;
 			this.triggerQueryDelayer.trigger(() => {
-				this._onQueryChanged(options.preserveFocus, options.triggeredOnType, options.shouldKeepAIResults);
+				this._onQueryChanged(options.preserveFocus, options.triggeredOnType, options.shouldKeepAIResults, options.shouldUpdateAISearch);
 			}, delay);
 		}
 	}
@@ -1490,7 +1490,7 @@ export class SearchView extends ViewPane {
 		return this.inputPatternIncludes.getValue().trim();
 	}
 
-	private _onQueryChanged(preserveFocus: boolean, triggeredOnType = false, shouldKeepAIResults = false): void {
+	private _onQueryChanged(preserveFocus: boolean, triggeredOnType = false, shouldKeepAIResults = false, shouldUpdateAISearch = false): void {
 		if (!(this.searchWidget.searchInput?.inputBox.isInputValid())) {
 			return;
 		}
@@ -1569,11 +1569,11 @@ export class SearchView extends ViewPane {
 
 		this.validateQuery(query).then(() => {
 			// ensure that the node is closed when a new search is triggered
-			if (!shouldKeepAIResults && this.tree.hasNode(this.searchResult.aiTextSearchResult)) {
+			if (!shouldKeepAIResults && !shouldUpdateAISearch && this.tree.hasNode(this.searchResult.aiTextSearchResult)) {
 				this.tree.collapse(this.searchResult.aiTextSearchResult);
 			}
 
-			this.onQueryTriggered(query, options, excludePatternText, includePatternText, triggeredOnType, shouldKeepAIResults);
+			this.onQueryTriggered(query, options, excludePatternText, includePatternText, triggeredOnType, shouldKeepAIResults, shouldUpdateAISearch);
 
 			if (!preserveFocus) {
 				this.searchWidget.focus(false, undefined, true); // focus back to input field
@@ -1603,7 +1603,7 @@ export class SearchView extends ViewPane {
 		});
 	}
 
-	private onQueryTriggered(query: ITextQuery, options: ITextQueryBuilderOptions, excludePatternText: string, includePatternText: string, triggeredOnType: boolean, shouldKeepAIResults: boolean): void {
+	private onQueryTriggered(query: ITextQuery, options: ITextQueryBuilderOptions, excludePatternText: string, includePatternText: string, triggeredOnType: boolean, shouldKeepAIResults: boolean, shouldUpdateAISearch: boolean): void {
 		this.addToSearchHistoryDelayer.trigger(() => {
 			this.searchWidget.searchInput?.onSearchSubmit();
 			this.inputPatternExcludes.onSearchSubmit();
@@ -1614,7 +1614,7 @@ export class SearchView extends ViewPane {
 		this.viewModel.cancelAISearch(true);
 
 		this.currentSearchQ = this.currentSearchQ
-			.then(() => this.doSearch(query, excludePatternText, includePatternText, triggeredOnType, shouldKeepAIResults))
+			.then(() => this.doSearch(query, excludePatternText, includePatternText, triggeredOnType, shouldKeepAIResults, shouldUpdateAISearch))
 			.then(() => undefined, () => undefined);
 	}
 
@@ -1828,7 +1828,7 @@ export class SearchView extends ViewPane {
 		});
 	}
 
-	private doSearch(query: ITextQuery, excludePatternText: string, includePatternText: string, triggeredOnType: boolean, shouldKeepAIResults: boolean): Thenable<void> {
+	private doSearch(query: ITextQuery, excludePatternText: string, includePatternText: string, triggeredOnType: boolean, shouldKeepAIResults: boolean, shouldUpdateAISearch: boolean): Thenable<void> {
 		let progressComplete: () => void;
 		this.progressService.withProgress({ location: this.getProgressLocation(), delay: triggeredOnType ? 300 : 0 }, _progress => {
 			return new Promise<void>(resolve => progressComplete = resolve);
@@ -1837,7 +1837,7 @@ export class SearchView extends ViewPane {
 		this.searchWidget.searchInput?.clearMessage();
 		this.state = SearchUIState.Searching;
 		this.showEmptyStage();
-		this.model.searchResult.aiTextSearchResult.hidden = true;
+		this.model.searchResult.aiTextSearchResult.hidden = !shouldKeepAIResults && !shouldUpdateAISearch;
 
 		const slowTimer = setTimeout(() => {
 			this.state = SearchUIState.SlowSearch;
@@ -1855,9 +1855,14 @@ export class SearchView extends ViewPane {
 		this.viewModel.replaceString = this.searchWidget.getReplaceValue();
 		const result = this.viewModel.search(query);
 
-		if (!shouldKeepAIResults) {
+		if (!shouldKeepAIResults || shouldUpdateAISearch) {
 			this.viewModel.searchResult.setAIQueryUsingTextQuery(query);
 		}
+
+		if (shouldUpdateAISearch) {
+			this.tree.updateChildren(this.searchResult.aiTextSearchResult);
+		}
+
 		return result.asyncResults.then((complete) => {
 			clearTimeout(slowTimer);
 			return this.onSearchComplete(progressComplete, excludePatternText, includePatternText, complete);
@@ -2379,7 +2384,7 @@ class SearchViewDataSource implements IAsyncDataSource<ISearchResult, Renderable
 		}
 
 		if (!searchResult.plainTextSearchResult.isEmpty()) {
-			if (!this.searchView.shouldShowAIResults()) {
+			if (!this.searchView.shouldShowAIResults() || searchResult.aiTextSearchResult.hidden) {
 				// only one root, so just return the children
 				return this.createTextSearchResultIterator(searchResult.plainTextSearchResult);
 			}

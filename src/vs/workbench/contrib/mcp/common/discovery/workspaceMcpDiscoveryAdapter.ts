@@ -12,13 +12,14 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
+import { DiscoverySource } from '../mcpConfiguration.js';
 import { IMcpRegistry } from '../mcpRegistryTypes.js';
 import { McpCollectionSortOrder } from '../mcpTypes.js';
 import { IMcpDiscovery } from './mcpDiscovery.js';
-import { FilesytemMcpDiscovery, WritableMcpCollectionDefinition } from './nativeMcpDiscoveryAbstract.js';
+import { FilesystemMcpDiscovery, WritableMcpCollectionDefinition } from './nativeMcpDiscoveryAbstract.js';
 import { claudeConfigToServerDefinition } from './nativeMcpDiscoveryAdapters.js';
 
-export class CursorWorkspaceMcpDiscoveryAdapter extends FilesytemMcpDiscovery implements IMcpDiscovery {
+export class CursorWorkspaceMcpDiscoveryAdapter extends FilesystemMcpDiscovery implements IMcpDiscovery {
 	private readonly _collections = this._register(new DisposableMap<string, IDisposable>());
 
 	constructor(
@@ -33,10 +34,6 @@ export class CursorWorkspaceMcpDiscoveryAdapter extends FilesytemMcpDiscovery im
 
 	start(): void {
 		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(e => {
-			if (!this._fsDiscoveryEnabled.get()) {
-				return;
-			}
-
 			for (const removed of e.removed) {
 				this._collections.deleteAndDispose(removed.uri.toString());
 			}
@@ -65,14 +62,15 @@ export class CursorWorkspaceMcpDiscoveryAdapter extends FilesytemMcpDiscovery im
 			},
 		};
 
-		return this.watchFile(
+		this._collections.set(folder.uri.toString(), this.watchFile(
 			URI.joinPath(folder.uri, '.cursor', 'mcp.json'),
 			collection,
+			DiscoverySource.CursorWorkspace,
 			contents => {
 				const defs = claudeConfigToServerDefinition(collection.id, contents, folder.uri);
 				defs?.forEach(d => d.roots = [folder.uri]);
 				return defs;
 			}
-		);
+		));
 	}
 }

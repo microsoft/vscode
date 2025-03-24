@@ -715,6 +715,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	gap: 4px;
 	margin-top: 6px;
 	flex-wrap: wrap;
+	cursor: default;
 }
 
 .chat-related-files {
@@ -1137,10 +1138,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding: 8px 0 0 0
 }
 
-.chat-attachment-toolbar .action-item:not(:last-child) {
-	margin-right: 4px;
-}
-
 .action-item.chat-attached-context-attachment.chat-add-files {
 	height: 20px;
 	color: var(--vscode-descriptionForeground);
@@ -1260,12 +1257,19 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: 100% !important;
 }
 
+.interactive-session .chat-input-container .chat-attached-context {
+	display: contents;
+}
+
 .interactive-session .chat-attached-context {
 	display: flex;
 	flex-wrap: wrap;
-	cursor: default;
 	gap: 4px;
-	max-width: 100%;
+}
+
+.interactive-session .chat-attachment-toolbar .actions-container {
+	gap: 4px;
+	flex-wrap: wrap;
 }
 
 .interactive-session .interactive-input-part.compact .chat-attached-context {

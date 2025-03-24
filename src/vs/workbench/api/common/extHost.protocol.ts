@@ -2980,7 +2980,7 @@ export interface ExtHostMcpShape {
 
 export interface MainThreadMcpShape {
 	$onDidChangeState(id: number, state: McpConnectionState): void;
-	$onDidPublishLog(id: number, log: string): void;
+	$onDidPublishLog(id: number, level: LogLevel, log: string): void;
 	$onDidReceiveMessage(id: number, message: string): void;
 	$upsertMcpCollection(collection: McpCollectionDefinition.FromExtHost, servers: Dto<McpServerDefinition>[]): void;
 	$deleteMcpCollection(collectionId: string): void;

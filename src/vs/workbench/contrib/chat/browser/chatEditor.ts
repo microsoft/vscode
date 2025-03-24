@@ -74,7 +74,6 @@ export class ChatEditor extends EditorPane {
 					supportsFileReferences: true,
 					supportsAdditionalParticipants: true,
 					rendererOptions: {
-						renderCodeBlockPills: mode => mode !== ChatMode.Ask,
 						renderTextEditsAsSummary: (uri) => {
 							return this.chatService.isEditingLocation(ChatAgentLocation.Panel);
 						},
