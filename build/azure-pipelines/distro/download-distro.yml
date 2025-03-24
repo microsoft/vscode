@@ -1,4 +1,12 @@
 steps:
+  - checkout: distro
+    clean: true
+    fetchDepth: 1
+    path: $(Build.SourcesDirectory)/.build/distro
+    persistCredentials: true
+    workspaceRepo: false
+    displayName: Checkout distro
+
   - task: AzureKeyVault@2
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
