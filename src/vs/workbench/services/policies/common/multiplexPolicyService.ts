@@ -17,24 +17,36 @@ export class MultiplexPolicyService extends AbstractPolicyService implements IPo
 		super();
 
 		// Forward policy changes from child services
+		const updated: string[] = [];
 		for (const service of policyServices) {
+			const definitions = service.policyDefinitions;
+			for (const name in definitions) {
+				const value = service.getPolicyValue(name);
+				this.policyDefinitions[name] = definitions[name];
+				if (value !== undefined) {
+					updated.push(name);
+					this.policies.set(name, value);
+				}
+			}
 			this._register(service.onDidChange(names => this.onDidChangePolicies(names, service)));
+		}
+		this.detectDuplicates(updated);
+	}
+
+	private detectDuplicates(keys: string[]): void {
+		// Check that no results have overlapping keys
+		const changed = new Set<string>();
+		for (const key of keys) {
+			if (changed.has(key)) {
+				this.logService.warn(`MultiplexPolicyService#_updatePolicyDefinitions - Found overlapping keys in policy services: ${key}`);
+			}
+			changed.add(key);
 		}
 	}
 
 	protected async _updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<void> {
-		// Update all policy services with the new definitions
 		const results = await Promise.all(this.policyServices.map(service => service.updatePolicyDefinitions(policyDefinitions)));
-		// Check that no results have overlapping keys
-		const changed = new Set<string>();
-		for (const result of results) {
-			for (const key in result) {
-				if (changed.has(key)) {
-					this.logService.warn(`MultiplexPolicyService#_updatePolicyDefinitions - Found overlapping keys in policy services: ${key}`);
-				}
-				changed.add(key);
-			}
-		}
+		this.detectDuplicates(results.flatMap(result => Object.keys(result)));
 	}
 
 	private onDidChangePolicies(names: readonly PolicyName[], service: IPolicyService): void {

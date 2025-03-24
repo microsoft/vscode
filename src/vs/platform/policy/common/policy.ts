@@ -22,12 +22,13 @@ export interface IPolicyService {
 	updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<IStringDictionary<PolicyValue>>;
 	getPolicyValue(name: PolicyName): PolicyValue | undefined;
 	serialize(): IStringDictionary<{ definition: PolicyDefinition; value: PolicyValue }> | undefined;
+	readonly policyDefinitions: IStringDictionary<PolicyDefinition>;
 }
 
 export abstract class AbstractPolicyService extends Disposable implements IPolicyService {
 	readonly _serviceBrand: undefined;
 
-	protected policyDefinitions: IStringDictionary<PolicyDefinition> = {};
+	public policyDefinitions: IStringDictionary<PolicyDefinition> = {};
 	protected policies = new Map<PolicyName, PolicyValue>();
 
 	protected readonly _onDidChange = this._register(new Emitter<readonly PolicyName[]>());
@@ -61,4 +62,5 @@ export class NullPolicyService implements IPolicyService {
 	async updatePolicyDefinitions() { return {}; }
 	getPolicyValue() { return undefined; }
 	serialize() { return undefined; }
+	policyDefinitions: IStringDictionary<PolicyDefinition> = {};
 }

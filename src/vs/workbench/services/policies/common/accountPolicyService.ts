@@ -47,6 +47,7 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 			if (policy.previewFeature) {
 				if (this.chatPreviewFeaturesEnabled) {
 					this.policies.delete(key);
+					update.push(key);
 					continue;
 				}
 				const defaultValue = policy.defaultValue;
@@ -58,6 +59,9 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 				update.push(key);
 			}
 		}
-		this._onDidChange.fire(update);
+
+		if (update) {
+			this._onDidChange.fire(update);
+		}
 	}
 }
