@@ -31,6 +31,7 @@ import { NotebookCellTextModel } from './notebookCellTextModel.js';
 
 class StackOperation implements IWorkspaceUndoRedoElement {
 	type: UndoRedoElementType.Workspace;
+	tag = 'notebookUndoRedoElement';
 
 	public get code() {
 		return this._operations.length === 1 ? this._operations[0].code : 'undoredo.notebooks.stackOperation';
@@ -149,12 +150,14 @@ class NotebookOperationManager {
 		return this._pendingStackOperation ??= new StackOperation(this._textModel, undoRedoGroup, this._pauseableEmitter, this._postUndoRedo, beginSelectionState, alternativeVersionId || '');
 	}
 
-	appendPreviousOperation() {
+	appendPreviousOperation(): boolean {
 		const previous = this._undoService.getLastElement(this._textModel.uri) as StackOperation;
-		if (previous) {
+		if (previous && previous.tag === 'notebookUndoRedoElement') {
 			this._pendingStackOperation = previous;
 			this._isAppending = true;
+			return true;
 		}
+		return false;
 	}
 
 	pushEditOperation(element: IUndoRedoElement, beginSelectionState: ISelectionState | undefined, resultSelectionState: ISelectionState | undefined, alternativeVersionId: string, undoRedoGroup: UndoRedoGroup | undefined) {
@@ -621,8 +624,11 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._operationManager.pushStackElement(this._alternativeVersionId, undefined);
 
 		if (computeUndoRedo && this.isOnlyEditingMetadataOnNewCells(rawEdits)) {
-			this._operationManager.appendPreviousOperation();
-		} else {
+			if (!this._operationManager.appendPreviousOperation()) {
+				// we can't append the previous operation, so just don't compute undo/redo
+				computeUndoRedo = false;
+			}
+		} else if (computeUndoRedo) {
 			this.newCellsFromLastEdit.clear();
 		}
 
@@ -857,10 +863,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				this._bindCellContentHandler(cell, e);
 			});
 
-			if (computeUndoRedo) {
-				this.newCellsFromLastEdit.add(cell.handle);
-			}
-
+			this.newCellsFromLastEdit.add(cell.handle);
 			this._cellListeners.set(cell.handle, dirtyStateListener);
 			this._register(cell);
 			return cell;

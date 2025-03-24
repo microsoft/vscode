@@ -129,6 +129,12 @@ export function panelOpensMaximizedFromString(str: string): PanelOpensMaximizedO
 export type MULTI_WINDOW_PARTS = Parts.EDITOR_PART | Parts.STATUSBAR_PART | Parts.TITLEBAR_PART;
 export type SINGLE_WINDOW_PARTS = Exclude<Parts, MULTI_WINDOW_PARTS>;
 
+export function isMultiWindowPart(part: Parts): part is MULTI_WINDOW_PARTS {
+	return part === Parts.EDITOR_PART ||
+		part === Parts.STATUSBAR_PART ||
+		part === Parts.TITLEBAR_PART;
+}
+
 export interface IWorkbenchLayoutService extends ILayoutService {
 
 	readonly _serviceBrand: undefined;

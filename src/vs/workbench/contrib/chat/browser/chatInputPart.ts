@@ -76,7 +76,7 @@ import { IChatFollowup, IChatService } from '../common/chatService.js';
 import { IChatVariablesService } from '../common/chatVariables.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { ChatInputHistoryMaxEntries, IChatHistoryEntry, IChatInputState, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
-import { ChatAgentLocation, ChatMode } from '../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatMode } from '../common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { CancelAction, ChatEditingSessionSubmitAction, ChatSubmitAction, ChatSwitchToNextModelActionId, IChatExecuteActionContext, IToggleChatModeArgs, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
 import { AttachToolsAction } from './actions/chatToolActions.js';
@@ -400,6 +400,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		});
 
 		this.initSelectedModel();
+
+		this._register(agentService.onDidChangeAgents(() => {
+			if (!agentService.hasToolsAgent && this._currentMode === ChatMode.Agent) {
+				this.setChatMode(ChatMode.Edit);
+			}
+		}));
 	}
 
 	private getSelectedModelStorageKey(): string {
@@ -431,6 +437,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._register(this._onDidChangeCurrentChatMode.event(() => {
 			this.checkModelSupported();
 		}));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.Edits2Enabled)) {
+				this.checkModelSupported();
+			}
+		}));
 	}
 
 	public switchToNextModel(): void {
@@ -453,6 +464,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 
+		if (mode === ChatMode.Agent && !this.agentService.hasToolsAgent) {
+			mode = ChatMode.Edit;
+		}
+
 		this._currentMode = mode;
 		this.chatMode.set(mode);
 		this._onDidChangeCurrentChatMode.fire();
@@ -460,7 +475,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private modelSupportedForDefaultAgent(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 		// Probably this logic could live in configuration on the agent, or somewhere else, if it gets more complex
-		if (this.currentMode === ChatMode.Agent || (this.currentMode === ChatMode.Edit && this.chatService.unifiedViewEnabled)) {
+		if (this.currentMode === ChatMode.Agent || (this.currentMode === ChatMode.Edit && this.configurationService.getValue(ChatConfiguration.Edits2Enabled))) {
 			if (this.configurationService.getValue('chat.agent.allModels')) {
 				return true;
 			}
@@ -546,8 +561,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		} else if (this.location === ChatAgentLocation.EditingSession) {
 			this.setChatMode(ChatMode.Edit);
 		}
-
-		this.selectedToolsModel.reset();
 	}
 
 	logInputHistory(): void {
@@ -1016,14 +1029,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.addFilesToolbar.context = { widget, placeholder: localize('chatAttachFiles', 'Search for files and context to add to your request') };
 		this._register(this.addFilesToolbar.onDidChangeMenuItems(() => {
 			if (this.cachedDimensions) {
-				this.layout(this.cachedDimensions.height, this.cachedDimensions.width);
+				this._onDidChangeHeight.fire();
 			}
 		}));
 	}
 
 	private renderAttachedContext() {
 		const container = this.attachedContextContainer;
-		const oldHeight = container.offsetHeight;
+		// Note- can't measure attachedContextContainer, because it has `display: contents`, so measure the parent to check for height changes
+		const oldHeight = this.attachmentsContainer.offsetHeight;
 		const store = new DisposableStore();
 		this.attachedContextDisposables.value = store;
 
@@ -1067,7 +1081,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}));
 		}
 
-		if (oldHeight !== container.offsetHeight) {
+		if (oldHeight !== this.attachmentsContainer.offsetHeight) {
 			this._onDidChangeHeight.fire();
 		}
 	}
@@ -1368,7 +1382,6 @@ class ChatSubmitDropdownActionItem extends DropdownWithPrimaryActionViewItem {
 		options: IDropdownWithPrimaryActionViewItemOptions,
 		@IMenuService menuService: IMenuService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IChatAgentService chatAgentService: IChatAgentService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@INotificationService notificationService: INotificationService,
@@ -1493,6 +1506,7 @@ class ToggleChatModeActionViewItem extends DropdownMenuActionViewItemWithKeybind
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatService chatService: IChatService,
+		@IChatAgentService chatAgentService: IChatAgentService,
 	) {
 		const makeAction = (mode: ChatMode): IAction => ({
 			...action,
@@ -1512,8 +1526,11 @@ class ToggleChatModeActionViewItem extends DropdownMenuActionViewItemWithKeybind
 			getActions: () => {
 				const agentStateActions = [
 					makeAction(ChatMode.Edit),
-					makeAction(ChatMode.Agent),
 				];
+				if (chatAgentService.hasToolsAgent) {
+					agentStateActions.push(makeAction(ChatMode.Agent));
+				}
+
 				if (chatService.unifiedViewEnabled) {
 					agentStateActions.unshift(makeAction(ChatMode.Ask));
 				}

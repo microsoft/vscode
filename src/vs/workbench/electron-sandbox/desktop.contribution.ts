@@ -28,6 +28,8 @@ import { NativeWindow } from './window.js';
 import { ModifierKeyEmitter } from '../../base/browser/dom.js';
 import { applicationConfigurationNodeBase, securityConfigurationNodeBase } from '../common/configuration.js';
 import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from '../../platform/window/electron-sandbox/window.js';
+import { DefaultAccountManagementContribution } from '../services/accounts/common/defaultAccount.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contributions.js';
 
 // Actions
 (function registerActions(): void {
@@ -422,4 +424,8 @@ import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from '../../platform/window/electron-s
 	}
 
 	jsonRegistry.registerSchema(argvDefinitionFileSchemaId, schema);
+})();
+
+(function registerWorkbenchContributions(): void {
+	registerWorkbenchContribution2('workbench.contributions.defaultAccountManagement', DefaultAccountManagementContribution, WorkbenchPhase.AfterRestored);
 })();

@@ -62,7 +62,7 @@ import { ChatCodeCitationContentPart } from './chatContentParts/chatCodeCitation
 import { ChatCommandButtonContentPart } from './chatContentParts/chatCommandContentPart.js';
 import { ChatConfirmationContentPart } from './chatContentParts/chatConfirmationContentPart.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts/chatContentParts.js';
-import { ChatMarkdownContentPart, EditorPool, IChatMarkdownContentPartOptions } from './chatContentParts/chatMarkdownContentPart.js';
+import { ChatMarkdownContentPart, EditorPool } from './chatContentParts/chatMarkdownContentPart.js';
 import { ChatProgressContentPart, ChatWorkingProgressContentPart } from './chatContentParts/chatProgressContentPart.js';
 import { ChatQuotaExceededPart } from './chatContentParts/chatQuotaExceededPart.js';
 import { ChatCollapsibleListContentPart, ChatUsedReferencesListContentPart, CollapsibleListPool } from './chatContentParts/chatReferencesContentPart.js';
@@ -761,9 +761,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.traceLayout('getNextProgressiveRenderContent', `Want to render ${data.numWordsToRender} at ${data.rate} words/s, counting...`);
 		let numNeededWords = data.numWordsToRender;
 		const partsToRender: IChatRendererContent[] = [];
-		if (element.contentReferences.length) {
-			partsToRender.push({ kind: 'references', references: element.contentReferences });
-		}
+
+		// Always add the references to avoid shifting the content parts when a reference is added, and having to re-diff all the content.
+		// The part will hide itself if the list is empty.
+		partsToRender.push({ kind: 'references', references: element.contentReferences });
 
 		let moreContentAvailable = false;
 		for (let i = 0; i < renderableResponse.length; i++) {
@@ -831,7 +832,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		// Show if no content, only "used references", ends with a complete tool call, or ends with complete text edits and there is no incomplete tool call (edits are still being applied some time after they are all generated)
 		const lastPart = partsToRender.at(-1);
-		if (!lastPart || lastPart.kind === 'references' || (lastPart.kind === 'toolInvocation' && lastPart.isComplete) || (lastPart.kind === 'textEditGroup' && lastPart.done && !partsToRender.some(part => part.kind === 'toolInvocation' && !part.isComplete))) {
+		if (
+			!lastPart ||
+			lastPart.kind === 'references' ||
+			(lastPart.kind === 'toolInvocation' && (lastPart.isComplete || lastPart.presentation === 'hidden')) ||
+			(lastPart.kind === 'textEditGroup' && lastPart.done && !partsToRender.some(part => part.kind === 'toolInvocation' && !part.isComplete))) {
 			return true;
 		}
 
@@ -1054,10 +1059,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const element = context.element;
 		const fillInIncompleteTokens = isResponseVM(element) && (!element.isComplete || element.isCanceled || element.errorDetails?.responseIsFiltered || element.errorDetails?.responseIsIncomplete || !!element.renderData);
 		const codeBlockStartIndex = this.getCodeBlockStartIndex(context);
-		const options: IChatMarkdownContentPartOptions = {
-			renderCodeBlockPills: checkModeOption(this.delegate.currentChatMode(), this.rendererOptions.renderCodeBlockPills),
-		};
-		const markdownPart = templateData.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.renderer, this._currentLayoutWidth, this.codeBlockModelCollection, options);
+		const markdownPart = templateData.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.renderer, this._currentLayoutWidth, this.codeBlockModelCollection, {});
 		markdownPart.addDisposable(markdownPart.onDidChangeHeight(() => {
 			markdownPart.layout(this._currentLayoutWidth);
 			this.updateItemHeight(templateData);

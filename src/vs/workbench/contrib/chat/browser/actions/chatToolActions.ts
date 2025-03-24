@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { assertNever } from '../../../../../base/common/assert.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { diffSets } from '../../../../../base/common/collections.js';
 import { Event } from '../../../../../base/common/event.js';
+import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
@@ -15,15 +17,28 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IMcpService, IMcpServer, McpConnectionState } from '../../../mcp/common/mcpTypes.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatToolInvocation } from '../../common/chatService.js';
 import { isResponseVM } from '../../common/chatViewModel.js';
 import { ChatMode } from '../../common/constants.js';
-import { ILanguageModelToolsService, IToolData } from '../../common/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../common/languageModelToolsService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { CHAT_CATEGORY } from './chatActions.js';
+
+
+type SelectedToolData = {
+	enabled: number;
+	total: number;
+};
+type SelectedToolClassification = {
+	owner: 'connor4312';
+	comment: 'Details the capabilities of the MCP server';
+	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of enabled chat tools' };
+	total: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of total chat tools' };
+};
 
 export const AcceptToolConfirmationActionId = 'workbench.action.chat.acceptTool';
 
@@ -100,6 +115,7 @@ export class AttachToolsAction extends Action2 {
 		const toolsService = accessor.get(ILanguageModelToolsService);
 		const extensionService = accessor.get(IExtensionService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
+		const telemetryService = accessor.get(ITelemetryService);
 
 		let widget = chatWidgetService.lastFocusedWidget;
 		if (!widget) {
@@ -125,7 +141,7 @@ export class AttachToolsAction extends Action2 {
 		}
 
 		const enum BucketOrdinal { Extension, Mcp, Other }
-		type BucketPick = IQuickPickItem & { picked: boolean; ordinal: BucketOrdinal; status?: string; children: ToolPick[] };
+		type BucketPick = IQuickPickItem & { picked: boolean; ordinal: BucketOrdinal; status?: string; children: ToolPick[]; source: ToolDataSource };
 		type ToolPick = IQuickPickItem & { picked: boolean; tool: IToolData; parent: BucketPick };
 		type MyPick = ToolPick | BucketPick;
 
@@ -133,6 +149,7 @@ export class AttachToolsAction extends Action2 {
 			type: 'item',
 			children: [],
 			label: localize('defaultBucketLabel', "Other Tools"),
+			source: { type: 'internal' },
 			ordinal: BucketOrdinal.Other,
 			picked: true,
 		};
@@ -141,36 +158,47 @@ export class AttachToolsAction extends Action2 {
 		const toolBuckets = new Map<string, BucketPick>();
 
 		for (const tool of toolsService.getTools()) {
-
 			if (!tool.canBeReferencedInPrompt) {
 				continue;
 			}
 
 			let bucket: BucketPick;
 
-			const mcpServer = mcpServerByTool.get(tool.id);
-			const ext = extensionService.extensions.find(value => ExtensionIdentifier.equals(value.identifier, tool.extensionId));
-			if (mcpServer) {
-				bucket = toolBuckets.get(mcpServer.definition.id) ?? {
+			if (tool.source.type === 'mcp') {
+				const mcpServer = mcpServerByTool.get(tool.id);
+				if (!mcpServer) {
+					continue;
+				}
+				bucket = toolBuckets.get(tool.source.collectionId) ?? {
 					type: 'item',
-					label: localize('mcplabel', "MCP Server: {0}", mcpServer.definition.label),
+					label: localize('mcplabel', "MCP Server: {0}", mcpServer?.definition.label),
 					status: localize('mcpstatus', "From {0} ({1})", mcpServer.collection.label, McpConnectionState.toString(mcpServer.connectionState.get())),
 					ordinal: BucketOrdinal.Mcp,
+					source: tool.source,
 					picked: false,
 					children: []
 				};
-				toolBuckets.set(mcpServer.definition.id, bucket);
-			} else if (ext) {
-				bucket = toolBuckets.get(ExtensionIdentifier.toKey(ext.identifier)) ?? {
+				toolBuckets.set(tool.source.collectionId, bucket);
+			} else if (tool.source.type === 'extension') {
+				const extensionId = tool.source.extensionId;
+				const ext = extensionService.extensions.find(value => ExtensionIdentifier.equals(value.identifier, extensionId));
+				if (!ext) {
+					continue;
+				}
+
+				bucket = toolBuckets.get(ExtensionIdentifier.toKey(extensionId)) ?? {
 					type: 'item',
 					label: ext.displayName ?? ext.name,
 					ordinal: BucketOrdinal.Extension,
 					picked: false,
+					source: tool.source,
 					children: []
 				};
 				toolBuckets.set(ExtensionIdentifier.toKey(ext.identifier), bucket);
-			} else {
+			} else if (tool.source.type === 'internal') {
 				bucket = defaultBucket;
+			} else {
+				assertNever(tool.source);
 			}
 
 			const picked = nowSelectedTools.has(tool);
@@ -228,8 +256,19 @@ export class AttachToolsAction extends Action2 {
 				lastSelectedItems = new Set(items);
 				picker.selectedItems = items;
 
-				widget.input.selectedToolsModel.update(items.filter(isToolPick).map(tool => tool.tool));
+				const disableBuckets: ToolDataSource[] = [];
+				const disableTools: IToolData[] = [];
+				for (const item of picks) {
+					if (item.type === 'item' && !item.picked) {
+						if (isBucketPick(item)) {
+							disableBuckets.push(item.source);
+						} else if (isToolPick(item) && item.parent.picked) {
+							disableTools.push(item.tool);
+						}
+					}
+				}
 
+				widget.input.selectedToolsModel.update(disableBuckets, disableTools);
 			} finally {
 				ignoreEvent = false;
 			}
@@ -278,6 +317,10 @@ export class AttachToolsAction extends Action2 {
 		}));
 
 		await Promise.race([Event.toPromise(Event.any(picker.onDidAccept, picker.onDidHide))]);
+		telemetryService.publicLog2<SelectedToolData, SelectedToolClassification>('chat/selectedTools', {
+			enabled: widget.input.selectedToolsModel.tools.get().length,
+			total: Iterable.length(toolsService.getTools()),
+		});
 		store.dispose();
 	}
 }

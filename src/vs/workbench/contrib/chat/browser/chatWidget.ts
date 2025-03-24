@@ -355,24 +355,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.renderChatEditingSessionState();
 		}));
 
-		if (this._location.location === ChatAgentLocation.EditingSession || this.chatService.unifiedViewEnabled) {
-			let currentEditSession: IChatEditingSession | undefined = undefined;
-			this._register(this.onDidChangeViewModel(async () => {
-				const sessionId = this._viewModel?.sessionId;
-				if (sessionId) {
-					if (sessionId !== currentEditSession?.chatSessionId) {
-						currentEditSession = await chatEditingService.startOrContinueGlobalEditingSession(sessionId);
-					}
-				} else {
-					if (currentEditSession) {
-						const session = currentEditSession;
-						currentEditSession = undefined;
-						await session.stop();
-					}
-				}
-			}));
-		}
-
 		this._register(codeEditorService.registerCodeEditorOpenHandler(async (input: ITextResourceEditorInput, _source: ICodeEditor | null, _sideBySide?: boolean): Promise<ICodeEditor | null> => {
 			const resource = input.resource;
 			if (resource.scheme !== Schemas.vscodeChatCodeBlock) {
@@ -1107,9 +1089,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (this.viewModel) {
 			this._onDidAcceptInput.fire();
-			if (!checkModeOption(this.input.currentMode, this.viewOptions.autoScroll)) {
-				this.scrollLock = false;
-			}
+			this.scrollLock = !!checkModeOption(this.input.currentMode, this.viewOptions.autoScroll);
 
 			const editorValue = this.getInput();
 			const requestId = this.chatAccessibilityService.acceptRequest();
@@ -1238,11 +1218,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight - 2;
 
 		const listHeight = Math.max(0, height - inputPartHeight);
-		if (!checkModeOption(this.input.currentMode, this.viewOptions.autoScroll)) {
-			this.listContainer.style.setProperty('--chat-current-response-min-height', listHeight * .75 + 'px');
-		} else {
-			this.listContainer.style.removeProperty('--chat-current-response-min-height');
-		}
+		this.listContainer.style.setProperty('--chat-current-response-min-height', listHeight * .75 + 'px');
 
 		this.tree.layout(listHeight, width);
 		this.tree.getHTMLElement().style.height = `${listHeight}px`;

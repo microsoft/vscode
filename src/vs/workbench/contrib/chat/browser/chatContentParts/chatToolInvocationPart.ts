@@ -4,12 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, observableValue } from '../../../../../base/common/observable.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
@@ -29,6 +27,7 @@ import { CancelChatActionId } from '../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../actions/chatToolActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../chat.js';
 import { ICodeBlockRenderOptions } from '../codeBlockPart.js';
+import { ChatCollapsibleEditorContentPart } from './chatCollapsibleContentPart.js';
 import { ChatConfirmationWidget, ChatCustomConfirmationWidget, IChatConfirmationButton } from './chatConfirmationWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatMarkdownContentPart, EditorPool } from './chatMarkdownContentPart.js';
@@ -52,7 +51,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 	private subPart!: ChatToolInvocationSubPart;
 
 	constructor(
-		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
+		private readonly toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
 		context: IChatContentPartRenderContext,
 		renderer: MarkdownRenderer,
 		listPool: CollapsibleListPool,
@@ -89,7 +88,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
-		return other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized';
+		return (other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized') && this.toolInvocation.toolCallId === other.toolCallId;
 	}
 
 	addDisposable(disposable: IDisposable): void {
@@ -134,7 +133,7 @@ class ChatToolInvocationSubPart extends Disposable {
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
+		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService
 	) {
 		super();
 
@@ -292,6 +291,9 @@ class ChatToolInvocationSubPart extends Disposable {
 			));
 		}
 
+		const hasToolConfirmation = ChatContextKeys.Editing.hasToolConfirmation.bindTo(this.contextKeyService);
+		hasToolConfirmation.set(true);
+
 		this._register(confirmWidget.onDidClick(button => {
 			switch (button.data as ConfirmationOutcome) {
 				case ConfirmationOutcome.AllowGlobally:
@@ -315,7 +317,9 @@ class ChatToolInvocationSubPart extends Disposable {
 			}
 		}));
 		this._register(confirmWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+		this._register(toDisposable(() => hasToolConfirmation.reset()));
 		toolInvocation.confirmed.p.then(() => {
+			hasToolConfirmation.reset();
 			this._onNeedsRerender.fire();
 		});
 		return confirmWidget.domNode;
@@ -461,14 +465,39 @@ class ChatToolInvocationSubPart extends Disposable {
 
 	private createInputOutputMarkdownProgressPart(message: string | IMarkdownString, inputOutputData: IToolResultInputOutputDetails): HTMLElement {
 
-		const part = this._register(this.instantiationService.createInstance(ChatToolInputOutputInvocationPart, message, inputOutputData, this.editorPool, this.codeBlockStartIndex, () => this.currentWidthDelegate(), this.renderer));
-		this._register(part.onDidChangeHeight(() => this._onDidChangeHeight.fire(), this));
-		const icon = !this.toolInvocation.isConfirmed ?
-			Codicon.error :
-			this.toolInvocation.isComplete ?
-				Codicon.check : ThemeIcon.modify(Codicon.loading, 'spin');
-		const progressPart = this.instantiationService.createInstance(ChatCustomProgressPart, part.domNode, icon);
-		return progressPart.domNode;
+		const model = this._register(this.modelService.createModel(
+			`${inputOutputData.input}\n\n${inputOutputData.output}`,
+			this.languageService.createById('json')
+		));
+
+		const collapsibleListPart = this._register(this.instantiationService.createInstance(
+			ChatCollapsibleEditorContentPart,
+			message,
+			this.context,
+			this.editorPool,
+			Promise.resolve(model),
+			model.getLanguageId(),
+			{
+				hideToolbar: true,
+				reserveWidth: 19,
+				verticalPadding: 5,
+				editorOptions: {
+					wordWrap: 'on'
+				}
+			},
+			{
+				codeBlockIndex: this.codeBlockStartIndex,
+				codemapperUri: undefined,
+				elementId: this.context.element.id,
+				focus: () => { },
+				isStreaming: false,
+				ownerMarkdownPartId: this.codeblocksPartId,
+				uri: model.uri,
+				uriPromise: Promise.resolve(model.uri)
+			}
+		));
+		this._register(collapsibleListPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+		return collapsibleListPart.domNode;
 	}
 
 	private createResultList(
@@ -487,88 +516,5 @@ class ChatToolInvocationSubPart extends Disposable {
 		));
 		this._register(collapsibleListPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		return collapsibleListPart.domNode;
-	}
-}
-
-
-class ChatToolInputOutputInvocationPart extends Disposable {
-
-	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
-	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
-
-	public readonly domNode: HTMLElement;
-
-	constructor(
-		message: string | IMarkdownString,
-		inputOutputData: IToolResultInputOutputDetails,
-		editorPool: EditorPool,
-		codeBlockIndex: number,
-		currentWidthDelegate: () => number,
-		renderer: MarkdownRenderer,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IModelService modelService: IModelService,
-		@ILanguageService languageService: ILanguageService,
-	) {
-		super();
-
-		const elements = dom.h('div.tool-input-output-part', [
-			dom.h('div.message@message'),
-			dom.h('div.expando@expando'),
-			dom.h('div.input-output@inputOutput'),
-		]);
-
-		this.domNode = elements.root;
-
-		// TITLE
-		if (typeof message === 'string') {
-			message = new MarkdownString().appendText(message);
-		}
-		const renderResult = this._store.add(renderer.render(message));
-		dom.reset(elements.message, renderResult.element);
-
-		const btn = this._store.add(new Button(elements.expando, { supportIcons: true }));
-		const expanded = observableValue(this, false);
-
-		this._store.add(autorun(r => {
-			const value = expanded.read(r);
-			elements.root.classList.toggle('expanded', value);
-			if (value) {
-				btn.icon = Codicon.chevronDown;
-				btn.setTitle(localize('hide', "Hide Tool Input & Output"));
-			} else {
-				btn.icon = Codicon.chevronRight;
-				btn.setTitle(localize('show', "Show Tool Input & Output"));
-			}
-			this._onDidChangeHeight.fire();
-		}));
-
-		this._store.add(btn.onDidClick(() => {
-			const value = expanded.get();
-			expanded.set(!value, undefined);
-		}));
-
-		// INPUT/OUTPUT
-		const editorInfo = this._store.add(editorPool.get().object);
-		dom.reset(elements.inputOutput, editorInfo.element);
-		this._store.add(editorInfo.onDidChangeContentHeight(this._onDidChangeHeight.fire, this));
-
-		const model = this._store.add(modelService.createModel(
-			`${inputOutputData.input}\n\n${inputOutputData.output}`,
-			languageService.createById('json')
-		));
-
-		editorInfo.render({
-			textModel: Promise.resolve(model),
-			languageId: model.getLanguageId(),
-			element: undefined,
-			codeBlockIndex,
-			codeBlockPartIndex: 0,
-			parentContextKeyService: contextKeyService,
-			renderOptions: {
-				hideToolbar: true,
-				reserveWidth: 19,
-				verticalPadding: 5,
-			}
-		}, currentWidthDelegate());
 	}
 }

@@ -41,7 +41,7 @@ export abstract class BaseDecoder<
 	private readonly _listeners: Map<TStreamListenerNames, Map<Function, IDisposable>> = new Map();
 
 	/**
-	 * This method is called when a new incomming data
+	 * This method is called when a new incoming data
 	 * is received from the input stream.
 	 */
 	protected abstract onStreamData(data: K): void;
@@ -97,7 +97,7 @@ export abstract class BaseDecoder<
 	}
 
 	/**
-	 * Start receiveing data from the stream.
+	 * Start receiving data from the stream.
 	 * @throws if the decoder stream has already ended.
 	 */
 	public start(): this {
@@ -121,7 +121,7 @@ export abstract class BaseDecoder<
 		this.stream.on('end', this.onStreamEnd);
 
 		// this allows to compose decoders together, - if a decoder
-		// instance is passed as a readble stream to this decoder,
+		// instance is passed as a readable stream to this decoder,
 		// then we need to call `start` on it too
 		if (this.stream instanceof BaseDecoder) {
 			this.stream.start();

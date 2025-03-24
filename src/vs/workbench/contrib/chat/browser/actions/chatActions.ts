@@ -43,7 +43,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/brow
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { EXTENSIONS_CATEGORY, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { IChatEditingSession, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { ChatEntitlement, ChatSentiment, IChatEntitlementService } from '../../common/chatEntitlementService.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
@@ -241,7 +241,6 @@ export function registerChatActions() {
 			const viewsService = accessor.get(IViewsService);
 			const editorService = accessor.get(IEditorService);
 			const dialogService = accessor.get(IDialogService);
-			const chatEditingService = accessor.get(IChatEditingService);
 
 			const view = await viewsService.openView<ChatViewPane>(ChatViewId);
 			if (!view) {
@@ -253,7 +252,7 @@ export function registerChatActions() {
 				return;
 			}
 
-			const editingSession = chatEditingService.getEditingSession(chatSessionId);
+			const editingSession = view.widget.viewModel?.model.editingSession;
 			if (editingSession) {
 				const phrase = localize('switchChat.confirmPhrase', "Switching chats will end your current edit session.");
 				await handleCurrentEditingSession(editingSession, phrase, dialogService);
@@ -717,7 +716,7 @@ registerAction2(class ResetTrustedToolsAction extends Action2 {
 
 export class CopilotTitleBarMenuRendering extends Disposable implements IWorkbenchContribution {
 
-	static readonly ID = 'copilot.titleBarMenuRendering';
+	static readonly ID = 'workbench.contrib.copilotTitleBarMenuRendering';
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
@@ -744,15 +743,14 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 			const signedOut = chatEntitlementService.entitlement === ChatEntitlement.Unknown;
 			const setupFromDialog = configurationService.getValue('chat.experimental.setupFromDialog');
 
-			let primaryActionId: string;
-			let primaryActionTitle: string;
-			let primaryActionIcon: ThemeIcon;
+			let primaryActionId = TOGGLE_CHAT_ACTION_ID;
+			let primaryActionTitle = localize('toggleChat', "Toggle Chat");
+			let primaryActionIcon = Codicon.copilot;
 			if (!chatExtensionInstalled && (!setupFromDialog || chatHidden)) {
 				primaryActionId = CHAT_SETUP_ACTION_ID;
 				primaryActionTitle = localize('triggerChatSetup', "Use AI Features with Copilot for free...");
-				primaryActionIcon = Codicon.copilot;
 			} else if (chatExtensionInstalled && signedOut) {
-				primaryActionId = TOGGLE_CHAT_ACTION_ID;
+				primaryActionId = setupFromDialog ? CHAT_SETUP_ACTION_ID : TOGGLE_CHAT_ACTION_ID;
 				primaryActionTitle = localize('signInToChatSetup', "Sign in to use Copilot...");
 				primaryActionIcon = Codicon.copilotNotConnected;
 			} else if (chatExtensionInstalled && (chatQuotaExceeded || completionsQuotaExceeded)) {
@@ -765,10 +763,6 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 					primaryActionTitle = localize('chatAndCompletionsQuotaExceededButton', "Copilot Free plan limit reached. Click for details.");
 				}
 				primaryActionIcon = Codicon.copilotWarning;
-			} else {
-				primaryActionId = TOGGLE_CHAT_ACTION_ID;
-				primaryActionTitle = localize('toggleChat', "Toggle Chat");
-				primaryActionIcon = Codicon.copilot;
 			}
 			return instantiationService.createInstance(DropdownWithPrimaryActionViewItem, instantiationService.createInstance(MenuItemAction, {
 				id: primaryActionId,
@@ -806,19 +800,19 @@ export async function handleCurrentEditingSession(currentEditingSession: IChatEd
 			phrase = phrase ?? defaultPhrase;
 			const { result } = await dialogService.prompt({
 				title: localize('chat.startEditing.confirmation.title', "Start new chat?"),
-				message: phrase + ' ' + localize('chat.startEditing.confirmation.pending.message.2', "Do you want to accept pending edits to {0} files?", undecidedEdits.length),
+				message: phrase + ' ' + localize('chat.startEditing.confirmation.pending.message.2', "Do you want to keep pending edits to {0} files?", undecidedEdits.length),
 				type: 'info',
 				cancelButton: true,
 				buttons: [
 					{
-						label: localize('chat.startEditing.confirmation.acceptEdits', "Accept & Continue"),
+						label: localize('chat.startEditing.confirmation.acceptEdits', "Keep & Continue"),
 						run: async () => {
 							await currentEditingSession.accept();
 							return true;
 						}
 					},
 					{
-						label: localize('chat.startEditing.confirmation.discardEdits', "Discard & Continue"),
+						label: localize('chat.startEditing.confirmation.discardEdits', "Undo & Continue"),
 						run: async () => {
 							await currentEditingSession.reject();
 							return true;
