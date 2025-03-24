@@ -6,13 +6,16 @@
 import { PromptToken } from './tokens/promptToken.js';
 import { PromptAtMention } from './tokens/promptAtMention.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { PromptSlashCommand } from './tokens/promptSlashCommand.js';
 import { assertNever } from '../../../../../../base/common/assert.js';
 import { ReadableStream } from '../../../../../../base/common/stream.js';
 import { PartialPromptAtMention } from './parsers/promptAtMentionParser.js';
+import { PartialPromptSlashCommand } from './parsers/promptSlashCommandParser.js';
 import { BaseDecoder } from '../../../../../../base/common/codecs/baseDecoder.js';
 import { PromptVariable, PromptVariableWithData } from './tokens/promptVariable.js';
 import { At } from '../../../../../../editor/common/codecs/simpleCodec/tokens/at.js';
 import { Hash } from '../../../../../../editor/common/codecs/simpleCodec/tokens/hash.js';
+import { Slash } from '../../../../../../editor/common/codecs/simpleCodec/tokens/slash.js';
 import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
 import { PartialPromptVariableName, PartialPromptVariableWithData } from './parsers/promptVariableParser.js';
 import { MarkdownDecoder, TMarkdownToken } from '../../../../../../editor/common/codecs/markdownCodec/markdownDecoder.js';
@@ -20,7 +23,7 @@ import { MarkdownDecoder, TMarkdownToken } from '../../../../../../editor/common
 /**
  * Tokens produced by this decoder.
  */
-export type TChatPromptToken = MarkdownLink | (PromptVariable | PromptVariableWithData) | PromptAtMention;
+export type TChatPromptToken = MarkdownLink | (PromptVariable | PromptVariableWithData) | PromptAtMention | PromptSlashCommand;
 
 /**
  * Decoder for the common chatbot prompt message syntax.
@@ -32,7 +35,7 @@ export class ChatPromptDecoder extends BaseDecoder<TChatPromptToken, TMarkdownTo
 	 * tokens, for instance, a `#file:/path/to/file.md` link that consists of `hash`,
 	 * `word`, and `colon` tokens sequence plus the `file path` part that follows.
 	 */
-	private current?: (PartialPromptVariableName | PartialPromptVariableWithData) | PartialPromptAtMention;
+	private current?: (PartialPromptVariableName | PartialPromptVariableWithData) | PartialPromptAtMention | PartialPromptSlashCommand;
 
 	constructor(
 		stream: ReadableStream<VSBuffer>,
@@ -55,6 +58,15 @@ export class ChatPromptDecoder extends BaseDecoder<TChatPromptToken, TMarkdownTo
 		// there is no active parser object present at the moment
 		if ((token instanceof At) && !this.current) {
 			this.current = new PartialPromptAtMention(token);
+
+			return;
+		}
+
+		// prompt /commands always start with the `/` character, hence
+		// initiate a parser object if we encounter respective token and
+		// there is no active parser object present at the moment
+		if ((token instanceof Slash) && !this.current) {
+			this.current = new PartialPromptSlashCommand(token);
 
 			return;
 		}
@@ -137,6 +149,10 @@ export class ChatPromptDecoder extends BaseDecoder<TChatPromptToken, TMarkdownTo
 
 			if (this.current instanceof PartialPromptAtMention) {
 				return this._onData.fire(this.current.asPromptAtMention());
+			}
+
+			if (this.current instanceof PartialPromptSlashCommand) {
+				return this._onData.fire(this.current.asPromptSlashCommand());
 			}
 
 			assertNever(
