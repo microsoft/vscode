@@ -303,7 +303,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// Add any "ghost text" suggestion suggested by the shell. This aligns with behavior of the
 		// editor and how it interacts with inline completions. This object is tracked and reused as
 		// it may change on input.
-		this._refreshInlineCompletion();
+		this._refreshInlineCompletion(completions);
 
 		// Add any missing icons based on the completion item kind
 		for (const completion of completions) {
@@ -367,6 +367,22 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._cancellationTokenSource = new CancellationTokenSource();
 		const token = this._cancellationTokenSource.token;
 		await this._handleCompletionProviders(this._terminal, token, explicitlyInvoked);
+	}
+
+	private _addPropertiesToInlineCompletionItem(completions: ITerminalCompletion[]): void {
+		const inlineCompletionLabel = (typeof this._inlineCompletionItem.completion.label === 'string' ? this._inlineCompletionItem.completion.label : this._inlineCompletionItem.completion.label.label).trim();
+		const inlineCompletionMatchIndex = completions.findIndex(c => typeof c.label === 'string' ? c.label === inlineCompletionLabel : c.label.label === inlineCompletionLabel);
+		if (inlineCompletionMatchIndex !== -1) {
+			// Remove the existing inline completion item from the completions list
+			const richCompletionMatchingInline = completions.splice(inlineCompletionMatchIndex, 1)[0];
+			// Apply its properties to the inline completion item
+			this._inlineCompletionItem.completion.label = richCompletionMatchingInline.label;
+			this._inlineCompletionItem.completion.detail = richCompletionMatchingInline.detail;
+			this._inlineCompletionItem.completion.documentation = richCompletionMatchingInline.documentation;
+		} else if (this._inlineCompletionItem.completion) {
+			this._inlineCompletionItem.completion.detail = undefined;
+			this._inlineCompletionItem.completion.documentation = undefined;
+		}
 	}
 
 	private _requestTriggerCharQuickSuggestCompletions(): boolean {
@@ -519,7 +535,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._suggestWidget.setLineContext(lineContext);
 		}
 
-		this._refreshInlineCompletion();
+		this._refreshInlineCompletion(this._model?.items.map(i => i.completion) || []);
 
 		// Hide and clear model if there are no more items
 		if (!this._suggestWidget.hasCompletions()) {
@@ -539,7 +555,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		});
 	}
 
-	private _refreshInlineCompletion() {
+	private _refreshInlineCompletion(completions: ITerminalCompletion[]): void {
 		const oldIsInvalid = this._inlineCompletionItem.isInvalid;
 		if (!this._currentPromptInputState || this._currentPromptInputState.ghostTextIndex === -1) {
 			this._inlineCompletionItem.isInvalid = true;
@@ -557,6 +573,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			// Reset the completion item as the object reference must remain the same but its
 			// contents will differ across syncs. This is done so we don't need to reassign the
 			// model and the slowdown/flickering that could potentially cause.
+			this._addPropertiesToInlineCompletionItem(completions);
+
 			const x = new TerminalCompletionItem(this._inlineCompletion);
 			this._inlineCompletionItem.idx = x.idx;
 			this._inlineCompletionItem.score = x.score;

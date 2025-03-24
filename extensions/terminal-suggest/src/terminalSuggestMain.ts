@@ -282,6 +282,7 @@ export async function getCompletionItemsFromSpecs(
 				}
 				const preferredItem = compareItems(existingItem, command);
 				if (preferredItem) {
+					preferredItem.kind = vscode.TerminalCompletionItemKind.Method;
 					items.splice(items.indexOf(existingItem), 1, preferredItem);
 				}
 			}
