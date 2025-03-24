@@ -1394,6 +1394,114 @@ suite('ChatEditingModifiedNotebookEntry', function () {
 				},
 			]);
 		});
+		test('Insert 1 cell at the bottom via chat, then user creats anew cells above the previous new cell', async function () {
+			const cellsDiffInfo: ICellDiffInfo[] = [
+				{
+					diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('0'), originalCellIndex: 0,
+					modifiedCellIndex: 0, modifiedModel: createModifiedModel('0'),
+				},
+				{
+					diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('1'), originalCellIndex: 1,
+					modifiedCellIndex: 1, modifiedModel: createModifiedModel('1'),
+				},
+				{
+					diff, keep, undo, type: 'insert', originalModel: createOriginalModel('null'), originalCellIndex: undefined,
+					modifiedCellIndex: 2, modifiedModel: createModifiedModel('New1'),
+				},
+			];
+			const cell1 = createICell(CellKind.Code, 'print("Hello World")');
+			const result = adjustCellDiffAndOriginalModelBasedOnCellAddDelete([2, 0, [cell1]],
+				cellsDiffInfo, 3, 2, applyEdits, createModifiedCellDiffInfo);
+
+			assert.deepStrictEqual(appliedEdits, [
+				{
+					editType: CellEditType.Replace,
+					index: 2,
+					cells: [{
+						cellKind: CellKind.Code,
+						language: 'python',
+						outputs: [],
+						mime: undefined,
+						metadata: {},
+						internalMetadata: {},
+						source: cell1.getValue(),
+					}], count: 0
+				}
+			]);
+
+			assert.deepStrictEqual(result, [
+				{
+					diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('0'), originalCellIndex: 0,
+					modifiedCellIndex: 0, modifiedModel: createModifiedModel('0'),
+				},
+				{
+					diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('1'), originalCellIndex: 1,
+					modifiedCellIndex: 1, modifiedModel: createModifiedModel('1'),
+				},
+				{
+					diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('InsertedOriginal:2'), originalCellIndex: 2,
+					modifiedCellIndex: 2, modifiedModel: createModifiedModel('InsertedModified:2'),
+				},
+				{
+					diff, keep, undo, type: 'insert', originalModel: createOriginalModel('null'), originalCellIndex: undefined,
+					modifiedCellIndex: 3, modifiedModel: createModifiedModel('New1'),
+				},
+			]);
+		});
+		test('Insert 1 cell at the bottom via chat, then user inserts a new cells below the  previous new cell', async function () {
+			const cellsDiffInfo: ICellDiffInfo[] = [
+				{
+					diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('0'), originalCellIndex: 0,
+					modifiedCellIndex: 0, modifiedModel: createModifiedModel('0'),
+				},
+				{
+					diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('1'), originalCellIndex: 1,
+					modifiedCellIndex: 1, modifiedModel: createModifiedModel('1'),
+				},
+				{
+					diff, keep, undo, type: 'insert', originalModel: createOriginalModel('null'), originalCellIndex: undefined,
+					modifiedCellIndex: 2, modifiedModel: createModifiedModel('New1'),
+				},
+			];
+			const cell1 = createICell(CellKind.Code, 'print("Hello World")');
+			const result = adjustCellDiffAndOriginalModelBasedOnCellAddDelete([3, 0, [cell1]],
+				cellsDiffInfo, 3, 2, applyEdits, createModifiedCellDiffInfo);
+
+			assert.deepStrictEqual(appliedEdits, [
+				{
+					editType: CellEditType.Replace,
+					index: 2,
+					cells: [{
+						cellKind: CellKind.Code,
+						language: 'python',
+						outputs: [],
+						mime: undefined,
+						metadata: {},
+						internalMetadata: {},
+						source: cell1.getValue(),
+					}], count: 0
+				}
+			]);
+
+			assert.deepStrictEqual(result, [
+				{
+					diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('0'), originalCellIndex: 0,
+					modifiedCellIndex: 0, modifiedModel: createModifiedModel('0'),
+				},
+				{
+					diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('1'), originalCellIndex: 1,
+					modifiedCellIndex: 1, modifiedModel: createModifiedModel('1'),
+				},
+				{
+					diff, keep, undo, type: 'insert', originalModel: createOriginalModel('null'), originalCellIndex: undefined,
+					modifiedCellIndex: 2, modifiedModel: createModifiedModel('New1'),
+				},
+				{
+					diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('InsertedOriginal:2'), originalCellIndex: 2,
+					modifiedCellIndex: 3, modifiedModel: createModifiedModel('InsertedModified:3'),
+				},
+			]);
+		});
 	});
 
 	suite('Cell Movements', function () {

@@ -169,12 +169,10 @@ export function adjustCellDiffAndOriginalModelBasedOnCellAddDelete(change: Noteb
 				break;
 			}
 			if (typeof diff.originalCellIndex === 'number') {
-				indexToInsertInOriginalModel = diff.originalCellIndex;
+				indexToInsertInOriginalModel = diff.originalCellIndex + 1;
 			}
 		}
-		if (!found && originalModelCellCount > 0 && typeof indexToInsertInOriginalModel === 'number') {
-			indexToInsertInOriginalModel++;
-		}
+
 		const edit: ICellEditOperation = {
 			editType: CellEditType.Replace,
 			cells,
