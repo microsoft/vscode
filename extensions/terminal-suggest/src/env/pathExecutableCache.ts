@@ -118,22 +118,10 @@ export class PathExecutableCache implements vscode.Disposable {
 export async function watchPathDirectories(context: vscode.ExtensionContext, env: ITerminalEnvironment, pathExecutableCache: PathExecutableCache | undefined): Promise<void> {
 	const pathDirectories = new Set<string>();
 
-	// Common global bin paths
-	const commonPaths = isWindows ? [
-		process.env.APPDATA ? path.join(process.env.APPDATA, 'npm') : undefined,
-		process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, 'npm') : undefined
-	] : [
-		'/usr/local/bin',
-		'/opt/homebrew/bin',
-		'/usr/bin',
-		process.env.HOME ? path.join(process.env.HOME, '.npm-global/bin') : undefined
-	];
 	const envPath = env.PATH;
 	if (envPath) {
 		envPath.split(path.delimiter).forEach(p => pathDirectories.add(p));
 	}
-
-	commonPaths.filter((p): p is string => p !== undefined).forEach(p => pathDirectories.add(p));
 
 	const activeWatchers = new Set<string>();
 
