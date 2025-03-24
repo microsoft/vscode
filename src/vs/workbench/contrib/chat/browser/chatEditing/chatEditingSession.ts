@@ -208,7 +208,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			}
 			await asyncTransaction(async tx => {
 				this._pendingSnapshot = restoredSessionState.pendingSnapshot;
-				await this._restoreSnapshot(restoredSessionState.recentSnapshot, tx, true);
+				await this._restoreSnapshot(restoredSessionState.recentSnapshot, tx, false);
 				this._linearHistory.set(restoredSessionState.linearHistory, tx);
 				this._linearHistoryIndex.set(restoredSessionState.linearHistoryIndex, tx);
 				this._state.set(ChatEditingSessionState.Idle, tx);
