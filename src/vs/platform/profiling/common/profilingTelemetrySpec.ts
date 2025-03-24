@@ -69,10 +69,15 @@ class PerformanceError extends Error {
 	constructor(data: SampleData) {
 		// Since the stacks are available via the sample
 		// we can avoid collecting them when constructing the error.
-		const stackTraceLimit = Error.stackTraceLimit;
-		Error.stackTraceLimit = 0;
-		super(`PerfSampleError: by ${data.source} in ${data.sample.location}`);
-		Error.stackTraceLimit = stackTraceLimit;
+		if (Error.hasOwnProperty('stackTraceLimit')) {
+			const Err = Error as any as { stackTraceLimit: number }; // For the monaco editor checks.
+			const stackTraceLimit = Err.stackTraceLimit;
+			Err.stackTraceLimit = 0;
+			super(`PerfSampleError: by ${data.source} in ${data.sample.location}`);
+			Err.stackTraceLimit = stackTraceLimit;
+		} else {
+			super(`PerfSampleError: by ${data.source} in ${data.sample.location}`);
+		}
 		this.name = 'PerfSampleError';
 		this.selfTime = data.sample.selfTime;
 
