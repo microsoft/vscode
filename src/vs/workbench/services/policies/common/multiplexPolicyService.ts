@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IStringDictionary } from '../../../../base/common/collections.js';
+import { Iterable } from '../../../../base/common/iterator.js';
 import { PolicyName } from '../../../../base/common/policy.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { AbstractPolicyService, IPolicyService, PolicyDefinition } from '../../../../platform/policy/common/policy.js';
+import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyValue } from '../../../../platform/policy/common/policy.js';
 
 export class MultiplexPolicyService extends AbstractPolicyService implements IPolicyService {
 
@@ -42,6 +43,11 @@ export class MultiplexPolicyService extends AbstractPolicyService implements IPo
 			}
 			changed.add(key);
 		}
+	}
+
+	override async updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<IStringDictionary<PolicyValue>> {
+		await this._updatePolicyDefinitions(policyDefinitions);
+		return Iterable.reduce(this.policies.entries(), (r, [name, value]) => ({ ...r, [name]: value }), {});
 	}
 
 	protected async _updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<void> {

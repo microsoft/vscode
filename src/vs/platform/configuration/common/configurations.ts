@@ -7,7 +7,7 @@ import { coalesce } from '../../../base/common/arrays.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { equals } from '../../../base/common/objects.js';
+import { deepClone, equals } from '../../../base/common/objects.js';
 import { isEmptyObject, isString } from '../../../base/common/types.js';
 import { ConfigurationModel } from './configurationModels.js';
 import { Extensions, IConfigurationRegistry, IRegisteredConfigurationPropertySchema } from './configurationRegistry.js';
@@ -66,7 +66,7 @@ export class DefaultConfiguration extends Disposable {
 			if (defaultOverrideValue !== undefined) {
 				this._configurationModel.setValue(key, defaultOverrideValue);
 			} else if (propertySchema) {
-				this._configurationModel.setValue(key, propertySchema.default);
+				this._configurationModel.setValue(key, deepClone(propertySchema.default));
 			} else {
 				this._configurationModel.removeValue(key);
 			}
