@@ -35,14 +35,8 @@ export const INVALID_NAME_CHARACTERS: readonly string[] = [Hash, At, Colon, Excl
 	.map((token) => { return token.symbol; });
 
 /**
- * TODO: @legomushroom - update the comment
- */
-/**
  * The parser responsible for parsing a `prompt @mention` sequences.
- * E.g., `@workspace` or `#workspace` variable. If the `:` character follows
- * the variable name, the parser transitions to {@link PartialPromptVariableWithData}
- * that is also able to parse the `data` part of the variable. E.g., the `#file` part
- * of the `#file:/path/to/something.md` sequence.
+ * E.g., `@workspace` or `@github` participant mention.
  */
 export class PartialPromptAtMention extends ParserBase<TSimpleToken, PartialPromptAtMention | PromptAtMention> {
 	constructor(token: At) {

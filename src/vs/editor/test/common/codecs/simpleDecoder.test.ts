@@ -55,10 +55,6 @@ export class TestSimpleDecoder extends TestDecoder<TSimpleToken, SimpleDecoder> 
 	}
 }
 
-/**
- * TODO: @legomushroom - test `\r` in the middle of a line
- */
-
 suite('SimpleDecoder', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
