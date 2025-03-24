@@ -6,6 +6,7 @@ steps:
   - checkout: self
     clean: true
     fetchDepth: 1
+    workspaceRepo: true
     displayName: Checkout microsoft/vscode
 
   - task: NodeTool@0
