@@ -268,11 +268,8 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 					extension.collector.error(nls.localize('invalid.property', "configuration.properties property '{0}' must be an object", key));
 					continue;
 				}
-				if (extensionConfigurationPolicy && !properties[key].policy) {
-					const extPolicy = extensionConfigurationPolicy[key];
-					if (extPolicy) {
-						properties[key].policy = extPolicy;
-					}
+				if (extensionConfigurationPolicy?.[key]) {
+					propertyConfiguration.policy = extensionConfigurationPolicy?.[key];
 				}
 				seenProperties.add(key);
 				propertyConfiguration.scope = propertyConfiguration.scope ? parseScope(propertyConfiguration.scope.toString()) : ConfigurationScope.WINDOW;
