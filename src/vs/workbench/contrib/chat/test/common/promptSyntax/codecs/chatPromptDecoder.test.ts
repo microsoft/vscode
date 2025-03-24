@@ -134,7 +134,7 @@ suite('ChatPromptDecoder', () => {
 				'',
 				'\t\v#variable@',
 				' #selection#your-variable',
-				'some-text #var:12:67# some text',
+				'some-text #var:12-67# some text',
 			];
 
 			await test.run(
@@ -155,16 +155,13 @@ suite('ChatPromptDecoder', () => {
 					new PromptVariableWithData(
 						new Range(4, 11, 4, 11 + 10),
 						'var',
-						'12:67',
+						'12-67',
 					),
 				],
 			);
 		});
 	});
 
-	/**
-	 * TODO: @legomushroom - add more unit tests
-	 */
 	suite('• commands', () => {
 		test('• produces expected tokens', async () => {
 			const test = testDisposables.add(
@@ -173,14 +170,41 @@ suite('ChatPromptDecoder', () => {
 
 			const contents = [
 				'my command is \t/run',
+				'your /command\v is done',
+				'/their#command is a pun',
+				'and the /none@cmd made by a nun',
 			];
 
 			await test.run(
 				contents,
 				[
+					// first line
 					new PromptSlashCommand(
 						new Range(1, 16, 1, 16 + 4),
 						'run',
+					),
+					// second line
+					new PromptSlashCommand(
+						new Range(2, 6, 2, 6 + 8),
+						'command',
+					),
+					// third line
+					new PromptSlashCommand(
+						new Range(3, 1, 3, 1 + 6),
+						'their',
+					),
+					new PromptVariable(
+						new Range(3, 7, 3, 7 + 8),
+						'command',
+					),
+					// forth line
+					new PromptSlashCommand(
+						new Range(4, 9, 4, 9 + 5),
+						'none',
+					),
+					new PromptAtMention(
+						new Range(4, 14, 4, 14 + 4),
+						'cmd',
 					),
 				],
 			);
