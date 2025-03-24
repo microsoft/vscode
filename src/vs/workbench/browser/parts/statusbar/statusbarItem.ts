@@ -120,7 +120,6 @@ export class StatusbarEntryItem extends Disposable {
 			if (isTooltipWithCommands(entry.tooltip)) {
 				hoverTooltip = entry.tooltip.content;
 				hoverOptions = {
-					trapFocus: true,
 					actions: entry.tooltip.commands.map(command => ({
 						commandId: command.id,
 						label: command.title,
