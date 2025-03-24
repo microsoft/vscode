@@ -101,6 +101,7 @@ steps:
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: node build/azure-pipelines/distro/mixin-quality
+      workingDirectory: $(Build.SourcesDirectory)
       displayName: Mixin distro quality
 
   - template: common/install-builtin-extensions.yml@self
