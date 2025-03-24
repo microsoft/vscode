@@ -9,12 +9,6 @@ steps:
     workspaceRepo: true
     displayName: Checkout microsoft/vscode
 
-  - task: NodeTool@0
-    inputs:
-      versionSource: fromFile
-      versionFilePath: .nvmrc
-      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
-
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - template: ./distro/download-distro.yml@self
 
@@ -24,6 +18,12 @@ steps:
         azureSubscription: vscode
         KeyVaultName: vscode-build-secrets
         SecretsFilter: "github-distro-mixin-password"
+
+  - task: NodeTool@0
+    inputs:
+      versionSource: fromFile
+      versionFilePath: .nvmrc
+      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - script: node build/setup-npm-registry.js $NPM_REGISTRY
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
