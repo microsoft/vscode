@@ -114,4 +114,42 @@ suite('ChatPromptDecoder', () => {
 			],
 		);
 	});
+
+	suite('variables', () => {
+		test('• produces expected tokens', async () => {
+			const test = testDisposables.add(
+				new TestChatPromptDecoder(),
+			);
+
+			const contents = [
+				'',
+				'\t\v#variable@',
+				' #selection#your-variable',
+				'some-text #var:12:67# some text',
+			];
+
+			await test.run(
+				contents,
+				[
+					new PromptVariable(
+						new Range(2, 3, 2, 3 + 9),
+						'variable',
+					),
+					new PromptVariable(
+						new Range(3, 2, 3, 2 + 10),
+						'selection',
+					),
+					new PromptVariable(
+						new Range(3, 12, 3, 12 + 14),
+						'your-variable',
+					),
+					new PromptVariableWithData(
+						new Range(4, 11, 4, 11 + 10),
+						'var',
+						'12:67',
+					),
+				],
+			);
+		});
+	});
 });
