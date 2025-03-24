@@ -6,6 +6,7 @@ steps:
   - checkout: self
     clean: true
     fetchDepth: 1
+    path: s
     workspaceRepo: true
     displayName: Checkout microsoft/vscode
 
