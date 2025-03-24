@@ -284,6 +284,20 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 				}
 				case NotebookCellsChangeType.ModelChange: {
 					let cellDiffs = sortCellChanges(this._cellsDiffInfo.get());
+					// Ensure the new notebook cells have internalIds
+					event.changes.forEach(change => {
+						change[2].forEach((cell, i) => {
+							if (cell.internalMetadata.internalId) {
+								return;
+							}
+							const index = change[0] + i;
+							const internalId = generateCellHash(cell.uri);
+							const edits: ICellEditOperation[] = [{ editType: CellEditType.PartialInternalMetadata, index, internalMetadata: { internalId } }];
+							this.modifiedModel.applyEdits(edits, true, undefined, () => undefined, undefined, false);
+							cell.internalMetadata ??= {};
+							cell.internalMetadata.internalId = internalId;
+						});
+					});
 					event.changes.forEach(change => {
 						cellDiffs = adjustCellDiffAndOriginalModelBasedOnCellAddDelete(change,
 							cellDiffs,
