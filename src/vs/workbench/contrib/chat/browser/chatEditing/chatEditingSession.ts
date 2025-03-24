@@ -469,7 +469,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		}
 	}
 
-	private async _restoreSnapshot({ workingSet, entries }: IChatEditingSessionStop, tx: ITransaction | undefined, restoreToDisk = true): Promise<void> {
+	private async _restoreSnapshot({ workingSet, entries }: IChatEditingSessionStop, tx: ITransaction | undefined, restoreResolvedToDisk = true): Promise<void> {
 		this._workingSet = new ResourceMap(workingSet);
 
 		// Reset all the files which are modified in this session state
@@ -486,6 +486,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		// Restore all entries from the snapshot
 		for (const snapshotEntry of entries.values()) {
 			const entry = await this._getOrCreateModifiedFileEntry(snapshotEntry.resource, snapshotEntry.telemetryInfo);
+			const restoreToDisk = snapshotEntry.state === WorkingSetEntryState.Modified || restoreResolvedToDisk;
 			entry.restoreFromSnapshot(snapshotEntry, restoreToDisk);
 			entriesArr.push(entry);
 		}
