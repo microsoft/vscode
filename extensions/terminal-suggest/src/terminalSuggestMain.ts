@@ -84,7 +84,7 @@ async function getShellGlobals(shellType: TerminalShellType, existingCommands?: 
 	}
 }
 
-async function watchPathDirectories(context: vscode.ExtensionContext, env: ITerminalEnvironment = process.env) {
+async function watchPathDirectories(context: vscode.ExtensionContext, env: ITerminalEnvironment) {
 	const pathDirectories = new Set<string>();
 
 	// Common global bin paths
@@ -97,7 +97,7 @@ async function watchPathDirectories(context: vscode.ExtensionContext, env: ITerm
 		'/usr/bin',
 		process.env.HOME ? path.join(process.env.HOME, '.npm-global/bin') : undefined
 	];
-	const envPath = env?.PATH;
+	const envPath = env.PATH;
 	if (envPath) {
 		envPath.split(path.delimiter).forEach(p => pathDirectories.add(p));
 	}
@@ -140,11 +140,11 @@ async function watchPathDirectories(context: vscode.ExtensionContext, env: ITerm
 export async function activate(context: vscode.ExtensionContext) {
 	pathExecutableCache = new PathExecutableCache();
 	context.subscriptions.push(pathExecutableCache);
-	let currentTerminalEnv: ITerminalEnvironment;
+	let currentTerminalEnv: ITerminalEnvironment = process.env;
 	context.subscriptions.push(vscode.window.registerTerminalCompletionProvider({
 		id: 'terminal-suggest',
 		async provideTerminalCompletions(terminal: vscode.Terminal, terminalContext: vscode.TerminalCompletionContext, token: vscode.CancellationToken): Promise<vscode.TerminalCompletionItem[] | vscode.TerminalCompletionList | undefined> {
-			currentTerminalEnv = terminal.shellIntegration?.env?.value;
+			currentTerminalEnv = terminal.shellIntegration?.env?.value ?? process.env;
 			if (token.isCancellationRequested) {
 				console.debug('#terminalCompletions token cancellation requested');
 				return;
@@ -176,7 +176,7 @@ export async function activate(context: vscode.ExtensionContext) {
 					prefix,
 					tokenType,
 					terminal.shellIntegration?.cwd,
-					getEnvAsRecord(terminal.shellIntegration?.env?.value),
+					getEnvAsRecord(currentTerminalEnv),
 					terminal.name,
 					token
 				),

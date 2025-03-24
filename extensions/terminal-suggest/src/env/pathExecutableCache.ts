@@ -113,4 +113,4 @@ export class PathExecutableCache implements vscode.Disposable {
 	}
 }
 
-export type ITerminalEnvironment = { [key: string]: string | undefined } | undefined;
+export type ITerminalEnvironment = { [key: string]: string | undefined };
