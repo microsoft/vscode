@@ -66,9 +66,10 @@ export class LinesDecoder extends BaseDecoder<TLineToken, VSBuffer> {
 			const endOfLineTokens = this.findEndOfLineTokens(lineNumber);
 			const firstToken = endOfLineTokens[0];
 
-			// if no end-of-the-line tokens found, stop processing because we
-			// either (1)need more data to arraive or (2)the stream has ended
-			// in the case (2) remaining data must be emitted as the last line
+			// if no end-of-the-line tokens found, stop the current processing
+			// attempt because we either (1) need more data to be received or
+			// (2) the stream has ended; in the case (2) remaining data must
+			// be emitted as the last line
 			if (!firstToken) {
 				// (2) if `streamEnded`, we need to emit the whole remaining
 				// data as the last line immediately

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { At } from './tokens/at.js';
 import { Hash } from './tokens/hash.js';
 import { Dash } from './tokens/dash.js';
 import { Colon } from './tokens/colon.js';
@@ -25,7 +26,7 @@ import { LeftAngleBracket, RightAngleBracket, TAngleBracket } from './tokens/ang
 /**
  * A token type that this decoder can handle.
  */
-export type TSimpleToken = Word | Space | Tab | VerticalTab | NewLine | FormFeed
+export type TSimpleToken = Word | Space | Tab | VerticalTab | At | NewLine | FormFeed
 	| CarriageReturn | TBracket | TAngleBracket | TParenthesis
 	| Colon | Hash | Dash | ExclamationMark;
 
@@ -37,7 +38,7 @@ export type TSimpleToken = Word | Space | Tab | VerticalTab | NewLine | FormFeed
 const WELL_KNOWN_TOKENS = Object.freeze([
 	Space, Tab, VerticalTab, FormFeed,
 	LeftBracket, RightBracket, LeftAngleBracket, RightAngleBracket,
-	LeftParenthesis, RightParenthesis, Colon, Hash, Dash, ExclamationMark,
+	LeftParenthesis, RightParenthesis, Colon, Hash, Dash, ExclamationMark, At,
 ]);
 
 /**
@@ -47,9 +48,14 @@ const WELL_KNOWN_TOKENS = Object.freeze([
  */
 const WORD_STOP_CHARACTERS: readonly string[] = Object.freeze([
 	Space.symbol, Tab.symbol, VerticalTab.symbol, FormFeed.symbol,
-	LeftBracket.symbol, RightBracket.symbol, LeftAngleBracket.symbol, RightAngleBracket.symbol,
+	LeftBracket.symbol, RightBracket.symbol,
 	LeftParenthesis.symbol, RightParenthesis.symbol,
+	LeftAngleBracket.symbol, RightAngleBracket.symbol,
 	Colon.symbol, Hash.symbol, Dash.symbol, ExclamationMark.symbol,
+	CarriageReturn.symbol,
+	/**
+	 * TODO: @legomushroom - add `@` token here?
+	 */
 ]);
 
 /**
@@ -63,29 +69,29 @@ export class SimpleDecoder extends BaseDecoder<TSimpleToken, TLineToken> {
 		super(new LinesDecoder(stream));
 	}
 
-	protected override onStreamData(token: TLineToken): void {
+	protected override onStreamData(line: TLineToken): void {
 		// re-emit new line tokens immediately
-		if (token instanceof CarriageReturn || token instanceof NewLine) {
-			this._onData.fire(token);
+		if (line instanceof CarriageReturn || line instanceof NewLine) {
+			this._onData.fire(line);
 
 			return;
 		}
 
 		// loop through the text separating it into `Word` and `Space` tokens
 		let i = 0;
-		while (i < token.text.length) {
+		while (i < line.text.length) {
 			// index is 0-based, but column numbers are 1-based
 			const columnNumber = i + 1;
 
 			// check if the current character is a well-known token
 			const tokenConstructor = WELL_KNOWN_TOKENS
 				.find((wellKnownToken) => {
-					return wellKnownToken.symbol === token.text[i];
+					return wellKnownToken.symbol === line.text[i];
 				});
 
 			// if it is a well-known token, emit it and continue to the next one
 			if (tokenConstructor) {
-				this._onData.fire(tokenConstructor.newOnLine(token, columnNumber));
+				this._onData.fire(tokenConstructor.newOnLine(line, columnNumber));
 
 				i++;
 				continue;
@@ -95,14 +101,14 @@ export class SimpleDecoder extends BaseDecoder<TSimpleToken, TLineToken> {
 			// that needs to be collected into a single `Word` token, hence
 			// read all the characters until a stop character is encountered
 			let word = '';
-			while (i < token.text.length && !(WORD_STOP_CHARACTERS.includes(token.text[i]))) {
-				word += token.text[i];
+			while (i < line.text.length && !(WORD_STOP_CHARACTERS.includes(line.text[i]))) {
+				word += line.text[i];
 				i++;
 			}
 
 			// emit a "text" sequence of characters as a single `Word` token
 			this._onData.fire(
-				Word.newOnLine(word, token, columnNumber),
+				Word.newOnLine(word, line, columnNumber),
 			);
 		}
 	}
