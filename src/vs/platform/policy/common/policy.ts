@@ -11,7 +11,7 @@ import { PolicyName } from '../../../base/common/policy.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export type PolicyValue = string | number | boolean;
-export type PolicyDefinition = { type: 'string' | 'number' | 'boolean'; previewFeature?: boolean; defaultValue?: 'string' | 'number' | 'boolean' };
+export type PolicyDefinition = { type: 'string' | 'number' | 'boolean'; previewFeature?: boolean; defaultValue?: string | number | boolean };
 
 export const IPolicyService = createDecorator<IPolicyService>('policy');
 
