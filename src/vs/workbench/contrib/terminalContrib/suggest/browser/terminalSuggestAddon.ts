@@ -575,6 +575,17 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			// Reset the completion item as the object reference must remain the same but its
 			// contents will differ across syncs. This is done so we don't need to reassign the
 			// model and the slowdown/flickering that could potentially cause.
+			const completionItems = this._addPropertiesToInlineCompletionItem(completions);
+			if (lineContext && completionItems) {
+				this._model = new TerminalCompletionModel(
+					[
+						...completionItems,
+						this._inlineCompletionItem,
+					],
+					lineContext
+				);
+				this._showCompletions(this._model, false);
+			}
 			const x = new TerminalCompletionItem(this._inlineCompletion);
 			this._inlineCompletionItem.idx = x.idx;
 			this._inlineCompletionItem.score = x.score;
@@ -591,18 +602,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// Force a filter all in order to re-evaluate the inline completion
 		if (this._inlineCompletionItem.isInvalid !== oldIsInvalid) {
 			this._model?.forceRefilterAll();
-		}
-
-		const completionItems = this._addPropertiesToInlineCompletionItem(this._model?.items.map(i => i.completion) || []);
-		if (lineContext && completionItems) {
-			const model = new TerminalCompletionModel(
-				[
-					...completionItems,
-					this._inlineCompletionItem,
-				],
-				lineContext
-			);
-			this._showCompletions(model, false);
 		}
 	}
 
