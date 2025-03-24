@@ -1606,3 +1606,25 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 		quickPick.show();
 	}
 });
+
+registerAction2(class PearAISettingsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.pearaiSettings',
+			title: localize2('pearaiSettings', "PearAI Settings"),
+			f1: true,
+			icon: Codicon.settingsGear,
+			menu: [
+				{
+					id: MenuId.LayoutControlMenu,
+					group: '0_Actions'
+				}
+			]
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const commandService = accessor.get(ICommandService);
+		commandService.executeCommand("pearai.toggleOverlay")
+	}
+});

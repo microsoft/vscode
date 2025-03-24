@@ -652,7 +652,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				if (isAccountsActionVisible(this.storageService)) {
 					actions.primary.push(ACCOUNTS_ACTIVITY_TILE_ACTION);
 				}
-				actions.primary.push(GLOBAL_ACTIVITY_TITLE_ACTION);
+				// this is settings icon, replaced by pearai settings icon in layout actions.
+				// actions.primary.push(GLOBAL_ACTIVITY_TITLE_ACTION);
 			}
 
 			// --- Layout Actions
