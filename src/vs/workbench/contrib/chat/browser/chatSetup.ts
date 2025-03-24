@@ -148,7 +148,7 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 
 			disposable.add(chatAgentService.registerAgent(id, {
 				id,
-				name: 'Copilot', // intentionally not using exact same name as extension to avoid conflict with IChatAgentService.getAgentsByName()
+				name: `${defaultChat.providerName} Copilot`,
 				isDefault: true,
 				isCore: true,
 				isToolsAgent,
@@ -631,9 +631,10 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 				await context.update({ hidden: false });
 
+				showCopilotView(viewsService, layoutService);
+
 				const setupFromDialog = configurationService.getValue('chat.experimental.setupFromDialog');
 				if (!setupFromDialog) {
-					showCopilotView(viewsService, layoutService);
 					ensureSideBarChatViewSize(viewDescriptorService, layoutService, viewsService);
 				}
 
@@ -738,11 +739,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 			override async run(accessor: ServicesAccessor, from?: string): Promise<void> {
 				const openerService = accessor.get(IOpenerService);
-				const telemetryService = accessor.get(ITelemetryService);
 				const hostService = accessor.get(IHostService);
 				const commandService = accessor.get(ICommandService);
-
-				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: from ?? 'chat' });
 
 				openerService.open(URI.parse(defaultChat.upgradePlanUrl));
 
@@ -801,7 +799,7 @@ type InstallChatClassification = {
 	setupFromDialog: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the setup was triggered from the dialog or not.' };
 };
 type InstallChatEvent = {
-	installResult: 'installed' | 'cancelled' | 'failedInstall' | 'failedNotSignedIn' | 'failedSignUp' | 'failedNotTrusted' | 'failedNoSession';
+	installResult: 'installed' | 'alreadyInstalled' | 'cancelled' | 'failedInstall' | 'failedNotSignedIn' | 'failedSignUp' | 'failedNotTrusted' | 'failedNoSession';
 	installDuration: number;
 	signUpErrorCode: number | undefined;
 	setupFromDialog: boolean;
@@ -998,7 +996,7 @@ class ChatSetupController extends Disposable {
 			return false;
 		}
 
-		this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'installed', installDuration: watch.elapsed(), signUpErrorCode: undefined, setupFromDialog: Boolean(options.setupFromDialog) });
+		this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: wasInstalled ? 'alreadyInstalled' : 'installed', installDuration: watch.elapsed(), signUpErrorCode: undefined, setupFromDialog: Boolean(options.setupFromDialog) });
 
 		if (wasInstalled && signUpResult === true) {
 			refreshTokens(this.commandService);

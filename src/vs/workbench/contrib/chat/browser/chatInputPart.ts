@@ -14,7 +14,7 @@ import { Button } from '../../../../base/browser/ui/button/button.js';
 import { IActionProvider } from '../../../../base/browser/ui/dropdown/dropdown.js';
 import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { IAction, Separator, toAction } from '../../../../base/common/actions.js';
+import { IAction, Separator, toAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { HistoryNavigator2 } from '../../../../base/common/history.js';
@@ -61,6 +61,7 @@ import { WorkbenchList } from '../../../../platform/list/browser/listService.js'
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ResourceLabels } from '../../../browser/labels.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
@@ -1430,6 +1431,7 @@ class ModelPickerActionViewItem extends DropdownMenuActionViewItemWithKeybinding
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@ICommandService commandService: ICommandService,
 		@IMenuService menuService: IMenuService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		const modelActionsProvider: IActionProvider = {
 			getActions: () => {
@@ -1460,7 +1462,13 @@ class ModelPickerActionViewItem extends DropdownMenuActionViewItemWithKeybinding
 				}
 				actions.push(...menuContributions);
 				if (chatEntitlementService.entitlement === ChatEntitlement.Limited) {
-					actions.push(toAction({ id: 'moreModels', label: localize('chat.moreModels', "Add More Models..."), run: () => commandService.executeCommand('workbench.action.chat.upgradePlan', 'chat-models') }));
+					actions.push(toAction({
+						id: 'moreModels', label: localize('chat.moreModels', "Add more Models"), run: () => {
+							const commandId = 'workbench.action.chat.upgradePlan';
+							telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: commandId, from: 'chat-models' });
+							commandService.executeCommand(commandId);
+						}
+					}));
 				}
 				return actions;
 			}

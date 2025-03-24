@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { toAction } from '../../../../../base/common/actions.js';
+import { toAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { fromNowByDay, safeIntl } from '../../../../../base/common/date.js';
@@ -33,6 +33,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import product from '../../../../../platform/product/common/product.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
@@ -602,6 +603,7 @@ export function registerChatActions() {
 			const chatEntitlementService = accessor.get(IChatEntitlementService);
 			const commandService = accessor.get(ICommandService);
 			const dialogService = accessor.get(IDialogService);
+			const telemetryService = accessor.get(ITelemetryService);
 
 			const dateFormatter = safeIntl.DateTimeFormat(language, { year: 'numeric', month: 'long', day: 'numeric' });
 
@@ -627,7 +629,11 @@ export function registerChatActions() {
 				buttons: [
 					{
 						label: localize('upgradePro', "Upgrade to Copilot Pro"),
-						run: () => commandService.executeCommand('workbench.action.chat.upgradePlan', 'chat-dialog')
+						run: () => {
+							const commandId = 'workbench.action.chat.upgradePlan';
+							telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: commandId, from: 'chat-dialog' });
+							commandService.executeCommand(commandId);
+						}
 					},
 				],
 				custom: {
@@ -743,15 +749,14 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 			const signedOut = chatEntitlementService.entitlement === ChatEntitlement.Unknown;
 			const setupFromDialog = configurationService.getValue('chat.experimental.setupFromDialog');
 
-			let primaryActionId: string;
-			let primaryActionTitle: string;
-			let primaryActionIcon: ThemeIcon;
+			let primaryActionId = TOGGLE_CHAT_ACTION_ID;
+			let primaryActionTitle = localize('toggleChat', "Toggle Chat");
+			let primaryActionIcon = Codicon.copilot;
 			if (!chatExtensionInstalled && (!setupFromDialog || chatHidden)) {
 				primaryActionId = CHAT_SETUP_ACTION_ID;
 				primaryActionTitle = localize('triggerChatSetup', "Use AI Features with Copilot for free...");
-				primaryActionIcon = Codicon.copilot;
 			} else if (chatExtensionInstalled && signedOut) {
-				primaryActionId = TOGGLE_CHAT_ACTION_ID;
+				primaryActionId = setupFromDialog ? CHAT_SETUP_ACTION_ID : TOGGLE_CHAT_ACTION_ID;
 				primaryActionTitle = localize('signInToChatSetup', "Sign in to use Copilot...");
 				primaryActionIcon = Codicon.copilotNotConnected;
 			} else if (chatExtensionInstalled && (chatQuotaExceeded || completionsQuotaExceeded)) {
@@ -764,10 +769,6 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 					primaryActionTitle = localize('chatAndCompletionsQuotaExceededButton', "Copilot Free plan limit reached. Click for details.");
 				}
 				primaryActionIcon = Codicon.copilotWarning;
-			} else {
-				primaryActionId = TOGGLE_CHAT_ACTION_ID;
-				primaryActionTitle = localize('toggleChat', "Toggle Chat");
-				primaryActionIcon = Codicon.copilot;
 			}
 			return instantiationService.createInstance(DropdownWithPrimaryActionViewItem, instantiationService.createInstance(MenuItemAction, {
 				id: primaryActionId,

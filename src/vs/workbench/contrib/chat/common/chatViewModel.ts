@@ -583,7 +583,7 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		}
 
 		this._register(_model.onDidChange(() => {
-			// This should be true, if the model is changing
+			// This is set when the response is loading, but the model can change later for other reasons
 			if (this._contentUpdateTimings) {
 				const now = Date.now();
 				const wordCount = countWords(_model.entireResponse.getMarkdown());
@@ -608,9 +608,6 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 						lastWordCount: wordCount
 					};
 				}
-
-			} else {
-				this.logService.warn('ChatResponseViewModel#onDidChange: got model update but contentUpdateTimings is not initialized');
 			}
 
 			// new data -> new id, new content to render

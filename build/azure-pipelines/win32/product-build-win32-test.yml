@@ -28,7 +28,7 @@ steps:
       - powershell: npm run test-node
         displayName: Run unit tests (node.js)
         timeoutInMinutes: 15
-      - powershell: node test/unit/browser/index.js --sequential --browser chromium --tfs "Browser Unit Tests"
+      - powershell: node test/unit/browser/index.js --browser chromium --tfs "Browser Unit Tests"
         displayName: Run unit tests (Browser, Chromium)
         timeoutInMinutes: 20
 
@@ -39,7 +39,7 @@ steps:
       - powershell: npm run test-node -- --build
         displayName: Run unit tests (node.js)
         timeoutInMinutes: 15
-      - powershell: npm run test-browser-no-install -- --sequential --build --browser chromium --tfs "Browser Unit Tests"
+      - powershell: npm run test-browser-no-install -- --build --browser chromium --tfs "Browser Unit Tests"
         displayName: Run unit tests (Browser, Chromium)
         timeoutInMinutes: 20
 

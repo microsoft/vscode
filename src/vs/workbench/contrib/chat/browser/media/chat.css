@@ -1257,8 +1257,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: 100% !important;
 }
 
-.interactive-session .chat-attached-context {
+.interactive-session .chat-input-container .chat-attached-context {
 	display: contents;
+}
+
+.interactive-session .chat-attached-context {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
 }
 
 .interactive-session .chat-attachment-toolbar .actions-container {

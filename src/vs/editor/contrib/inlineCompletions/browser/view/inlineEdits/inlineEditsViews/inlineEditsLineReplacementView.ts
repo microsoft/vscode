@@ -111,7 +111,6 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 		const scrollLeft = this._editor.scrollLeft.read(reader);
 		const scrollTop = this._editor.scrollTop.read(reader);
 		const editorLeftOffset = contentLeft - scrollLeft;
-		const PADDING = 4;
 
 		const textModel = this._editor.editor.getModel()!;
 
@@ -128,18 +127,18 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 			editorLeftOffset + prefixLeftOffset,
 			topOfOriginalLines,
 			maxLineWidth,
-			bottomOfOriginalLines - topOfOriginalLines + PADDING
+			bottomOfOriginalLines - topOfOriginalLines
 		);
 		const modifiedLinesOverlay = Rect.fromLeftTopWidthHeight(
 			originalLinesOverlay.left,
-			originalLinesOverlay.bottom + PADDING,
+			originalLinesOverlay.bottom,
 			originalLinesOverlay.width,
 			edit.modifiedRange.length * lineHeight
 		);
-		const background = Rect.hull([originalLinesOverlay, modifiedLinesOverlay]).withMargin(PADDING);
+		const background = Rect.hull([originalLinesOverlay, modifiedLinesOverlay]);
 
 		const lowerBackground = background.intersectVertical(new OffsetRange(originalLinesOverlay.bottom, Number.MAX_SAFE_INTEGER));
-		const lowerText = new Rect(lowerBackground.left + PADDING, lowerBackground.top + PADDING, lowerBackground.right, lowerBackground.bottom);
+		const lowerText = new Rect(lowerBackground.left, lowerBackground.top, lowerBackground.right, lowerBackground.bottom);
 
 		return {
 			originalLinesOverlay,
@@ -147,8 +146,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 			background,
 			lowerBackground,
 			lowerText,
-			padding: PADDING,
-			minContentWidthRequired: prefixLeftOffset + maxLineWidth + PADDING * 2 + verticalScrollbarWidth,
+			minContentWidthRequired: prefixLeftOffset + maxLineWidth + verticalScrollbarWidth,
 		};
 	});
 
@@ -164,7 +162,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 			return undefined;
 		}
 
-		const viewZoneHeight = layout.lowerBackground.height + 2 * layout.padding;
+		const viewZoneHeight = layout.lowerBackground.height;
 		const viewZoneLineNumber = edit.originalRange.endLineNumberExclusive;
 		return { height: viewZoneHeight, lineNumber: viewZoneLineNumber };
 	});
@@ -180,19 +178,13 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 			}
 
 			const layoutProps = layout.read(reader);
-			const scrollLeft = this._editor.scrollLeft.read(reader);
-			let contentLeft = this._editor.layoutInfoContentLeft.read(reader);
-			let contentWidth = this._editor.contentWidth.read(reader);
+			const contentLeft = this._editor.layoutInfoContentLeft.read(reader);
+			const contentWidth = this._editor.contentWidth.read(reader);
 			const contentHeight = this._editor.editor.getContentHeight();
-
-			if (scrollLeft === 0) {
-				contentLeft -= layoutProps.padding;
-				contentWidth += layoutProps.padding;
-			}
 
 			const lineHeight = this._editor.getOption(EditorOption.lineHeight).read(reader);
 			modifiedLineElements.lines.forEach(l => {
-				l.style.width = `${layout.read(reader).lowerText.width}px`;
+				l.style.width = `${layoutProps.lowerText.width}px`;
 				l.style.height = `${lineHeight}px`;
 				l.style.position = 'relative';
 			});
@@ -212,16 +204,6 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 						pointerEvents: 'none',
 					}
 				}, [
-					n.div({
-						style: {
-							position: 'absolute',
-							top: layoutProps.lowerBackground.top - layoutProps.padding,
-							left: layoutProps.lowerBackground.left - contentLeft,
-							width: layoutProps.lowerBackground.width,
-							height: layoutProps.padding * 2,
-							background: asCssVariable(editorBackground),
-						},
-					}),
 					n.div({
 						class: 'originalOverlayLineReplacement',
 						style: {
@@ -265,7 +247,6 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 						class: 'modifiedLinesLineReplacement',
 						style: {
 							position: 'absolute',
-							padding: '0px',
 							boxSizing: 'border-box',
 							...rectToProps(reader => layout.read(reader).lowerText.translateX(-contentLeft)),
 							fontFamily: this._editor.getOption(EditorOption.fontFamily),

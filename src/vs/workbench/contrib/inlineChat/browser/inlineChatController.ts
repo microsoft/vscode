@@ -1422,7 +1422,7 @@ export async function reviewEdits(accessor: ServicesAccessor, editor: ICodeEdito
 	const chatEditingService = accessor.get(IChatEditingService);
 
 	const uri = editor.getModel().uri;
-	const chatModel = chatService.startSession(ChatAgentLocation.Editor, token);
+	const chatModel = chatService.startSession(ChatAgentLocation.Editor, token, false);
 
 	const editSession = await chatEditingService.createEditingSession(chatModel);
 

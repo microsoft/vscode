@@ -28,6 +28,8 @@ import { isObject } from '../../../../base/common/types.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../base/common/actions.js';
 
 //#region --- colors
 
@@ -213,7 +215,8 @@ class ChatStatusDashboard extends Disposable {
 		@IHoverService private readonly hoverService: IHoverService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ILanguageService private readonly languageService: ILanguageService,
-		@ICommandService private readonly commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 	}
@@ -252,7 +255,7 @@ class ChatStatusDashboard extends Disposable {
 			if (chatQuotaExceeded || completionsQuotaExceeded) {
 				const upgradePlanButton = disposables.add(new Button(this.element, { ...defaultButtonStyles, secondary: canUseCopilot(this.chatEntitlementService) /* use secondary color when copilot can still be used */ }));
 				upgradePlanButton.label = localize('upgradeToCopilotPro', "Upgrade to Copilot Pro");
-				disposables.add(upgradePlanButton.onDidClick(() => this.runCommandAndClose({ id: 'workbench.action.chat.upgradePlan', args: ['chat-status'] })));
+				disposables.add(upgradePlanButton.onDidClick(() => this.runCommandAndClose('workbench.action.chat.upgradePlan')));
 			}
 
 			(async () => {
@@ -286,18 +289,19 @@ class ChatStatusDashboard extends Disposable {
 
 				const button = disposables.add(new Button(this.element, { ...defaultButtonStyles }));
 				button.label = newUser ? localize('activateCopilotButton', "Set up Copilot") : localize('signInToUseCopilotButton', "Sign in to use Copilot");
-				disposables.add(button.onDidClick(() => this.runCommandAndClose(newUser ? { id: 'workbench.action.chat.triggerSetup' } : () => this.chatEntitlementService.requests?.value.signIn())));
+				disposables.add(button.onDidClick(() => this.runCommandAndClose(newUser ? 'workbench.action.chat.triggerSetup' : () => this.chatEntitlementService.requests?.value.signIn())));
 			}
 		}
 
 		return this.element;
 	}
 
-	private runCommandAndClose(command: { id: string; args?: unknown[] } | Function): void {
-		if (typeof command === 'function') {
-			command();
+	private runCommandAndClose(commandOrFn: string | Function): void {
+		if (typeof commandOrFn === 'function') {
+			commandOrFn();
 		} else {
-			this.commandService.executeCommand(command.id, ...(command.args ?? []));
+			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: commandOrFn, from: 'chat-status' });
+			this.commandService.executeCommand(commandOrFn);
 		}
 		this.hoverService.hideHover(true);
 	}

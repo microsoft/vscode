@@ -17,7 +17,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { chatVariableLeader } from '../../common/chatParserTypes.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatMode } from '../../common/constants.js';
@@ -492,8 +492,14 @@ class SendToChatEditingAction extends Action2 {
 
 		const viewsService = accessor.get(IViewsService);
 		const dialogService = accessor.get(IDialogService);
-		const chatEditingService = accessor.get(IChatEditingService);
-		const currentEditingSession: IChatEditingSession | undefined = chatEditingService.editingSessionsObs.get().at(0);
+		const { widget: editingWidget } = await viewsService.openView(EditsViewId) as ChatViewPane;
+		if (!editingWidget.viewModel?.sessionId) {
+			return;
+		}
+		const currentEditingSession = editingWidget.viewModel.model.editingSession;
+		if (!currentEditingSession) {
+			return;
+		}
 
 		const currentEditCount = currentEditingSession?.entries.get().length;
 		if (currentEditCount) {
@@ -510,17 +516,10 @@ class SendToChatEditingAction extends Action2 {
 				return;
 			}
 
-			await currentEditingSession?.stop();
+			await currentEditingSession.stop(true);
+			editingWidget.clear();
 		}
 
-		const { widget: editingWidget } = await viewsService.openView(EditsViewId) as ChatViewPane;
-		if (!editingWidget.viewModel?.sessionId) {
-			return;
-		}
-		const chatEditingSession = editingWidget.viewModel.model.editingSession;
-		if (!chatEditingSession) {
-			return;
-		}
 		for (const attachment of widget.attachmentModel.attachments) {
 			editingWidget.attachmentModel.addContext(attachment);
 		}
