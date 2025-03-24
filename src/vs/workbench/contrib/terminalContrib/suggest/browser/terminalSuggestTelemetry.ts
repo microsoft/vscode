@@ -60,13 +60,13 @@ export class TerminalSuggestTelemetry extends Disposable {
 
 			let outcome: string;
 			if (fromInterrupt) {
-				outcome = 'Interrupted';
+				outcome = CompletionOutcome.Interrupted;
 			} else if (commandLine.trim() && commandLine.includes(label)) {
-				outcome = 'Accepted';
+				outcome = CompletionOutcome.Accepted;
 			} else if (inputContainsFirstHalfOfLabel(commandLine, label)) {
-				outcome = 'AcceptedWithEdit';
+				outcome = CompletionOutcome.AcceptedWithEdit;
 			} else {
-				outcome = 'Deleted';
+				outcome = CompletionOutcome.Deleted;
 			}
 			this._telemetryService.publicLog2<{
 				kind: string | undefined;
@@ -97,6 +97,13 @@ export class TerminalSuggestTelemetry extends Disposable {
 			});
 		}
 	}
+}
+
+const enum CompletionOutcome {
+	Accepted = 'Accepted',
+	Deleted = 'Deleted',
+	AcceptedWithEdit = 'AcceptedWithEdit',
+	Interrupted = 'Interrupted'
 }
 
 function inputContainsFirstHalfOfLabel(commandLine: string, label: string): boolean {
