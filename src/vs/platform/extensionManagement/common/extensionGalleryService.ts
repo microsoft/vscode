@@ -1377,7 +1377,8 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 	}
 
 	private getHeaderValue(headers: IHeaders | undefined, name: string): string | undefined {
-		return Array.isArray(headers?.[name]) ? headers![name][0] : headers?.[name];
+		const value = headers?.[name.toLowerCase()];
+		return Array.isArray(value) ? value[0] : value;
 	}
 
 	private async getLatestRawGalleryExtension(extension: string, uri: URI, token: CancellationToken): Promise<IRawGalleryExtension | null> {
