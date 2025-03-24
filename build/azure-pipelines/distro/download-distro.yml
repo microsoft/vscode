@@ -2,7 +2,7 @@ steps:
   - checkout: distro
     clean: true
     fetchDepth: 1
-    path: $(Build.SourcesDirectory)/.build/distro
+    path: s/.build/distro
     persistCredentials: true
     workspaceRepo: false
     displayName: Checkout microsoft/vscode-distro
