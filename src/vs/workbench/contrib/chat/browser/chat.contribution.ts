@@ -223,6 +223,12 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.mcp.enabled', "Enables integration with Model Context Protocol servers to provide additional tools and functionality."),
 			default: true,
 			tags: ['preview'],
+			policy: {
+				name: 'ChatMCP',
+				minimumVersion: '1.99',
+				previewFeature: true,
+				defaultValue: false
+			}
 		},
 		[mcpConfigurationSection]: {
 			type: 'object',
@@ -275,6 +281,12 @@ configurationRegistry.registerConfiguration({
 			restricted: true,
 			disallowConfigurationDefault: true,
 			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
+			policy: {
+				name: 'ChatPromptFiles',
+				minimumVersion: '1.99',
+				previewFeature: true,
+				defaultValue: false
+			}
 		},
 		[PromptsConfig.LOCATIONS_KEY]: {
 			type: 'object',
@@ -406,6 +418,12 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 					description: nls.localize('chat.agent.enabled.description', "Enable agent mode for {0}. When this is enabled, a dropdown appears in the {0} view to toggle agent mode.", 'Copilot Edits'),
 					default: this.productService.quality !== 'stable',
 					tags: ['experimental', 'onExp'],
+					policy: {
+						name: 'ChatAgentMode',
+						minimumVersion: '1.99',
+						previewFeature: true,
+						defaultValue: false
+					}
 				},
 			}
 		};
