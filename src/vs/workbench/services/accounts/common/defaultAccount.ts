@@ -213,8 +213,10 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 			return null;
 		}
 
-		const entitlements = await this.getEntitlements(session.accessToken, tokenEntitlementUrl);
-		const chatEntitlements = await this.getChatEntitlements(session.accessToken, chatEntitlementUrl);
+		const [entitlements, chatEntitlements] = await Promise.all([
+			this.getEntitlements(session.accessToken, tokenEntitlementUrl),
+			this.getChatEntitlements(session.accessToken, chatEntitlementUrl)
+		]);
 
 		return {
 			sessionId: session.id,
