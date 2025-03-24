@@ -16,18 +16,11 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 	) {
 		super();
 
-		this.defaultAccountService.getDefaultAccount().then((account) => {
-			if (!account) {
-				return;
-			}
-			this._update(account.chat_preview_features_enabled);
+		this.defaultAccountService.getDefaultAccount()
+			.then(account => {
+				this._update(account?.chat_preview_features_enabled ?? true);
+				this._register(this.defaultAccountService.onDidChangeDefaultAccount(account => this._update(account?.chat_preview_features_enabled ?? true)));
 		});
-		this._register(this.defaultAccountService.onDidChangeDefaultAccount((account) => {
-			if (!account) {
-				return;
-			}
-			this._update(account.chat_preview_features_enabled);
-		}));
 	}
 
 	private _update(chatPreviewFeaturesEnabled: boolean | undefined) {
@@ -60,7 +53,7 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 			}
 		}
 
-		if (update) {
+		if (update.length) {
 			this._onDidChange.fire(update);
 		}
 	}
