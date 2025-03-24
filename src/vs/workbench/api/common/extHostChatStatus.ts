@@ -29,7 +29,7 @@ export class ExtHostChatStatus {
 			id: internalId,
 			title: '',
 			description: '',
-			details: '',
+			detail: '',
 		};
 
 		let disposed = false;
@@ -57,19 +57,19 @@ export class ExtHostChatStatus {
 				syncState();
 			},
 
-			get details(): string | undefined {
-				return state.details;
+			get description(): string {
+				return state.description;
 			},
-			set details(value: string | undefined) {
-				state.details = value;
+			set description(value: string) {
+				state.description = value;
 				syncState();
 			},
 
-			get description(): string | undefined {
-				return state.description;
+			get detail(): string | undefined {
+				return state.detail;
 			},
-			set description(value: string | undefined) {
-				state.description = value;
+			set detail(value: string | undefined) {
+				state.detail = value;
 				syncState();
 			},
 

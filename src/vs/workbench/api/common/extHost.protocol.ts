@@ -3064,8 +3064,8 @@ export interface MainThreadTestingShape {
 export type ChatStatusItemDto = {
 	id: string;
 	title: string;
-	description: string | undefined;
-	details: string | undefined;
+	description: string;
+	detail: string | undefined;
 };
 
 export interface MainThreadChatStatusShape {

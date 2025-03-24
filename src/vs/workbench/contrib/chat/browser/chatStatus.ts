@@ -329,16 +329,18 @@ class ChatStatusDashboard extends Disposable {
 
 		const entryEl = $('div.contribution');
 
-		const headerEl = entryEl.appendChild($('div.header', undefined, item.label));
-		if (item.description) {
-			const descriptionEl = headerEl.appendChild($('span.description'));
-			this._renderTextPlus(descriptionEl, item.description, disposables);
+		entryEl.appendChild($('div.header', undefined, item.label));
+
+		const bodyEl = entryEl.appendChild($('div.body'));
+
+		const descriptionEl = bodyEl.appendChild($('span.description'));
+		this._renderTextPlus(descriptionEl, item.description, disposables);
+
+		if (item.detail) {
+			const itemElement = bodyEl.appendChild($('div.detail-item'));
+			this._renderTextPlus(itemElement, item.detail, disposables);
 		}
 
-		if (item.details) {
-			const itemElement = entryEl.appendChild($('div.detail-item'));
-			this._renderTextPlus(itemElement, item.details, disposables);
-		}
 		return { element: entryEl, disposables };
 	}
 

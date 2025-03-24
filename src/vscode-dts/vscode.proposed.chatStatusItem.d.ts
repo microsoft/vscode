@@ -19,18 +19,18 @@ declare module 'vscode' {
 		/**
 		 * Optional additional description of the entry.
 		 *
-		 * This is rendered less prominent on the same line as the title. Supports Markdown style links and rendering of
+		 * This is rendered after the title. Supports Markdown style links (`[text](http://example.com)`) and rendering of
 		 * {@link ThemeIcon theme icons} via the `$(<name>)`-syntax.
 		 */
-		description: string | undefined;
+		description: string;
 
 		/**
 		 * Optional additional details of the entry.
 		 *
-		 * This is rendered less prominent in a separate line. Supports Markdown style links and rendering of
+		 * This is rendered less prominently after the title. Supports Markdown style links (`[text](http://example.com)`) and rendering of
 		 * {@link ThemeIcon theme icons} via the `$(<name>)`-syntax.
 		 */
-		details: string | undefined;
+		detail: string | undefined;
 
 		/**
 		 * Shows the entry in the chat status.

@@ -23,7 +23,7 @@ export class MainThreadChatStatus extends Disposable implements MainThreadChatSt
 			id,
 			label: entry.title,
 			description: entry.description,
-			details: entry.details,
+			detail: entry.detail,
 		});
 	}
 
