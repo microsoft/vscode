@@ -810,19 +810,13 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	public getLineContent(lineNumber: number): string {
 		this._assertNotDisposed();
-		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
-			throw new BugIndicatingError('Illegal value for lineNumber');
-		}
-
+		lineNumber = this._validateLineNumber(lineNumber);
 		return this._buffer.getLineContent(lineNumber);
 	}
 
 	public getLineLength(lineNumber: number): number {
 		this._assertNotDisposed();
-		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
-			throw new BugIndicatingError('Illegal value for lineNumber');
-		}
-
+		lineNumber = this._validateLineNumber(lineNumber);
 		return this._buffer.getLineLength(lineNumber);
 	}
 
@@ -856,25 +850,19 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	public getLineMaxColumn(lineNumber: number): number {
 		this._assertNotDisposed();
-		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
-			throw new BugIndicatingError('Illegal value for lineNumber');
-		}
+		lineNumber = this._validateLineNumber(lineNumber);
 		return this._buffer.getLineLength(lineNumber) + 1;
 	}
 
 	public getLineFirstNonWhitespaceColumn(lineNumber: number): number {
 		this._assertNotDisposed();
-		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
-			throw new BugIndicatingError('Illegal value for lineNumber');
-		}
+		lineNumber = this._validateLineNumber(lineNumber);
 		return this._buffer.getLineFirstNonWhitespaceColumn(lineNumber);
 	}
 
 	public getLineLastNonWhitespaceColumn(lineNumber: number): number {
 		this._assertNotDisposed();
-		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
-			throw new BugIndicatingError('Illegal value for lineNumber');
-		}
+		lineNumber = this._validateLineNumber(lineNumber);
 		return this._buffer.getLineLastNonWhitespaceColumn(lineNumber);
 	}
 
@@ -983,6 +971,18 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		}
 
 		return true;
+	}
+
+	private _validateLineNumber(_lineNumber: number): number {
+		const lineNumber = Math.floor((typeof _lineNumber === 'number' && !isNaN(_lineNumber)) ? _lineNumber : 1);
+		const lineCount = this._buffer.getLineCount();
+		if (lineNumber < 1) {
+			return 1;
+		}
+		if (lineNumber > lineCount) {
+			return lineCount;
+		}
+		return lineNumber;
 	}
 
 	private _validatePosition(_lineNumber: number, _column: number, validationType: StringOffsetValidationType): Position {
