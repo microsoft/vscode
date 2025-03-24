@@ -24,6 +24,4 @@ steps:
 
         cd "$(Build.SourcesDirectory)/.build/distro"
         git checkout $DistroVersion
-
-        lr -R
       displayName: Checkout microsoft/vscode-distro version
