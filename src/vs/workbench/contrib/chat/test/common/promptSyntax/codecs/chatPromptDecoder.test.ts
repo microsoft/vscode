@@ -8,6 +8,7 @@ import { Range } from '../../../../../../../editor/common/core/range.js';
 import { newWriteableStream } from '../../../../../../../base/common/stream.js';
 import { TestDecoder } from '../../../../../../../editor/test/common/utils/testDecoder.js';
 import { FileReference } from '../../../../common/promptSyntax/codecs/tokens/fileReference.js';
+import { PromptAtMention } from '../../../../common/promptSyntax/codecs/tokens/promptAtMention.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { MarkdownLink } from '../../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
 import { ChatPromptDecoder, TChatPromptToken } from '../../../../common/promptSyntax/codecs/chatPromptDecoder.js';
@@ -53,18 +54,22 @@ suite('ChatPromptDecoder', () => {
 
 		const contents = [
 			'',
-			'haalo!',
+			'haalo! @workspace',
 			' message 👾 message #file:./path/to/file1.md',
 			'',
 			'## Heading Title',
 			' \t#file:a/b/c/filename2.md\t🖖\t#file:other-file.md',
 			' [#file:reference.md](./reference.md)some text #file:/some/file/with/absolute/path.md',
-			'text text #file: another text',
+			'text text #file: another @github text',
 		];
 
 		await test.run(
 			contents,
 			[
+				new PromptAtMention(
+					new Range(2, 8, 2, 18),
+					'workspace',
+				),
 				new FileReference(
 					new Range(3, 21, 3, 21 + 24),
 					'./path/to/file1.md',
@@ -90,6 +95,10 @@ suite('ChatPromptDecoder', () => {
 				new FileReference(
 					new Range(8, 11, 8, 11 + 6),
 					'',
+				),
+				new PromptAtMention(
+					new Range(8, 26, 8, 33),
+					'github',
 				),
 			],
 		);

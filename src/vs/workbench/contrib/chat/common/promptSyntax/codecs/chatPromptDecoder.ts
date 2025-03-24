@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { PromptToken } from './tokens/promptToken.js';
+import { PromptAtMention } from './tokens/promptAtMention.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { assertNever } from '../../../../../../base/common/assert.js';
 import { ReadableStream } from '../../../../../../base/common/stream.js';
+import { PartialPromptAtMention } from './parsers/promptAtMentionParser.js';
 import { BaseDecoder } from '../../../../../../base/common/codecs/baseDecoder.js';
 import { PromptVariable, PromptVariableWithData } from './tokens/promptVariable.js';
+import { At } from '../../../../../../editor/common/codecs/simpleCodec/tokens/at.js';
 import { Hash } from '../../../../../../editor/common/codecs/simpleCodec/tokens/hash.js';
 import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
 import { PartialPromptVariableName, PartialPromptVariableWithData } from './parsers/promptVariableParser.js';
@@ -17,7 +20,7 @@ import { MarkdownDecoder, TMarkdownToken } from '../../../../../../editor/common
 /**
  * Tokens produced by this decoder.
  */
-export type TChatPromptToken = MarkdownLink | PromptVariable | PromptVariableWithData;
+export type TChatPromptToken = MarkdownLink | (PromptVariable | PromptVariableWithData) | PromptAtMention;
 
 /**
  * Decoder for the common chatbot prompt message syntax.
@@ -29,7 +32,7 @@ export class ChatPromptDecoder extends BaseDecoder<TChatPromptToken, TMarkdownTo
 	 * tokens, for instance, a `#file:/path/to/file.md` link that consists of `hash`,
 	 * `word`, and `colon` tokens sequence plus the `file path` part that follows.
 	 */
-	private current?: PartialPromptVariableName | PartialPromptVariableWithData;
+	private current?: (PartialPromptVariableName | PartialPromptVariableWithData) | PartialPromptAtMention;
 
 	constructor(
 		stream: ReadableStream<VSBuffer>,
@@ -41,14 +44,23 @@ export class ChatPromptDecoder extends BaseDecoder<TChatPromptToken, TMarkdownTo
 		// prompt variables always start with the `#` character, hence
 		// initiate a parser object if we encounter respective token and
 		// there is no active parser object present at the moment
-		if (token instanceof Hash && !this.current) {
+		if ((token instanceof Hash) && !this.current) {
 			this.current = new PartialPromptVariableName(token);
 
 			return;
 		}
 
-		// if current parser was not yet initiated, - we are in the general
-		// "text" parsing mode, therefore re-emit the token immediately and return
+		// prompt @mentions always start with the `@` character, hence
+		// initiate a parser object if we encounter respective token and
+		// there is no active parser object present at the moment
+		if ((token instanceof At) && !this.current) {
+			this.current = new PartialPromptAtMention(token);
+
+			return;
+		}
+
+		// if current parser was not yet initiated, - we are in the general "text"
+		// parsing mode, therefore re-emit the token immediately and continue
 		if (!this.current) {
 			// at the moment, the decoder outputs only specific markdown tokens, like
 			// the `markdown link` one, so re-emit only these tokens ignoring the rest
@@ -121,6 +133,10 @@ export class ChatPromptDecoder extends BaseDecoder<TChatPromptToken, TMarkdownTo
 
 			if (this.current instanceof PartialPromptVariableWithData) {
 				return this._onData.fire(this.current.asPromptVariableWithData());
+			}
+
+			if (this.current instanceof PartialPromptAtMention) {
+				return this._onData.fire(this.current.asPromptAtMention());
 			}
 
 			assertNever(

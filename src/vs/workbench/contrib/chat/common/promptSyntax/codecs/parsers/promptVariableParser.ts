@@ -22,6 +22,10 @@ import { LeftAngleBracket, RightAngleBracket } from '../../../../../../../editor
 import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../../../../../../editor/common/codecs/simpleCodec/parserBase.js';
 
 /**
+ * TODO: @legomushroom - the new @ character should stop variable parsing
+ */
+
+/**
  * List of characters that terminate the prompt variable sequence.
  */
 export const STOP_CHARACTERS: readonly string[] = [Space, Tab, NewLine, CarriageReturn, VerticalTab, FormFeed]
@@ -35,7 +39,7 @@ export const INVALID_NAME_CHARACTERS: readonly string[] = [Hash, Colon, Exclamat
 
 /**
  * The parser responsible for parsing a `prompt variable name`.
- * E.g., `#selection` or `#workspace` variable. If the `:` character follows
+ * E.g., `#selection` or `#codebase` variable. If the `:` character follows
  * the variable name, the parser transitions to {@link PartialPromptVariableWithData}
  * that is also able to parse the `data` part of the variable. E.g., the `#file` part
  * of the `#file:/path/to/something.md` sequence.
