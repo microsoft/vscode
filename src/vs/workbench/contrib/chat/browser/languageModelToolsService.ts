@@ -14,6 +14,7 @@ import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 
 import { LRUCache } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -244,7 +245,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 				model.acceptResponseProgress(request, toolInvocation);
 				if (prepared?.confirmationMessages) {
-					this._accessibilityService.alert(prepared.confirmationMessages.title);
+					this._accessibilityService.alert(localize('toolConfirmationMessage', "Action required: {0}", prepared.confirmationMessages.title));
 					const userConfirmed = await toolInvocation.confirmed.p;
 					if (!userConfirmed) {
 						throw new CancellationError();
