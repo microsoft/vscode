@@ -9,6 +9,7 @@ import { newWriteableStream } from '../../../../../../../base/common/stream.js';
 import { TestDecoder } from '../../../../../../../editor/test/common/utils/testDecoder.js';
 import { FileReference } from '../../../../common/promptSyntax/codecs/tokens/fileReference.js';
 import { PromptAtMention } from '../../../../common/promptSyntax/codecs/tokens/promptAtMention.js';
+import { PromptSlashCommand } from '../../../../common/promptSyntax/codecs/tokens/promptSlashCommand.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { MarkdownLink } from '../../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
 import { ChatPromptDecoder, TChatPromptToken } from '../../../../common/promptSyntax/codecs/chatPromptDecoder.js';
@@ -61,8 +62,8 @@ suite('ChatPromptDecoder', () => {
 			'## Heading Title',
 			' \t#file:a/b/c/filename2.md\t🖖\t#file:other-file.md',
 			' [#file:reference.md](./reference.md)some text #file:/some/file/with/absolute/path.md',
-			'text text #file: another @github text #selection even more text',
-			'\t\v#my-name:metadata:1:20 \t\t\t',
+			'text /run text #file: another @github text #selection even more text',
+			'\t\v#my-name:metadata:1:20 \t\t/command\t',
 		];
 
 		await test.run(
@@ -94,16 +95,20 @@ suite('ChatPromptDecoder', () => {
 					new Range(7, 48, 7, 48 + 38),
 					'/some/file/with/absolute/path.md',
 				),
+				new PromptSlashCommand(
+					new Range(8, 6, 8, 6 + 4),
+					'run',
+				),
 				new FileReference(
-					new Range(8, 11, 8, 11 + 6),
+					new Range(8, 16, 8, 16 + 6),
 					'',
 				),
 				new PromptAtMention(
-					new Range(8, 26, 8, 33),
+					new Range(8, 31, 8, 32 + 6),
 					'github',
 				),
 				new PromptVariable(
-					new Range(8, 39, 8, 49),
+					new Range(8, 44, 8, 44 + 10),
 					'selection',
 				),
 				new PromptVariableWithData(
@@ -111,11 +116,15 @@ suite('ChatPromptDecoder', () => {
 					'my-name',
 					'metadata:1:20',
 				),
+				new PromptSlashCommand(
+					new Range(9, 28, 9, 28 + 8),
+					'command',
+				),
 			],
 		);
 	});
 
-	suite('variables', () => {
+	suite('• variables', () => {
 		test('• produces expected tokens', async () => {
 			const test = testDisposables.add(
 				new TestChatPromptDecoder(),
@@ -147,6 +156,31 @@ suite('ChatPromptDecoder', () => {
 						new Range(4, 11, 4, 11 + 10),
 						'var',
 						'12:67',
+					),
+				],
+			);
+		});
+	});
+
+	/**
+	 * TODO: @legomushroom - add more unit tests
+	 */
+	suite('• commands', () => {
+		test('• produces expected tokens', async () => {
+			const test = testDisposables.add(
+				new TestChatPromptDecoder(),
+			);
+
+			const contents = [
+				'my command is \t/run',
+			];
+
+			await test.run(
+				contents,
+				[
+					new PromptSlashCommand(
+						new Range(1, 16, 1, 16 + 4),
+						'run',
 					),
 				],
 			);

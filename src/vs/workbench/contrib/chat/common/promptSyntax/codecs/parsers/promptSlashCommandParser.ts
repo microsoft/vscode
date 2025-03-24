@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PromptAtMention } from '../tokens/promptAtMention.js';
 import { pick } from '../../../../../../../base/common/arrays.js';
 import { assert } from '../../../../../../../base/common/assert.js';
+import { PromptSlashCommand } from '../tokens/promptSlashCommand.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { At } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/at.js';
 import { Tab } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/tab.js';
 import { Hash } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/hash.js';
+import { Slash } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/slash.js';
 import { Space } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/space.js';
 import { Colon } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/colon.js';
 import { NewLine } from '../../../../../../../editor/common/codecs/linesCodec/tokens/newLine.js';
@@ -23,45 +24,35 @@ import { LeftAngleBracket, RightAngleBracket } from '../../../../../../../editor
 import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../../../../../../editor/common/codecs/simpleCodec/parserBase.js';
 
 /**
- * TODO: @legomushroom - implement this
- */
-
-/**
  * List of characters that terminate the prompt at-mention sequence.
  */
-export const STOP_CHARACTERS: readonly string[] = [Space, Tab, NewLine, CarriageReturn, VerticalTab, FormFeed, At, Colon]
+export const STOP_CHARACTERS: readonly string[] = [Space, Tab, NewLine, CarriageReturn, VerticalTab, FormFeed, At, Colon, Hash, Slash]
 	.map((token) => { return token.symbol; });
 
 /**
  * List of characters that cannot be in an at-mention name (excluding the {@link STOP_CHARACTERS}).
  */
-export const INVALID_NAME_CHARACTERS: readonly string[] = [Hash, At, Colon, ExclamationMark, LeftAngleBracket, RightAngleBracket, LeftBracket, RightBracket]
+export const INVALID_NAME_CHARACTERS: readonly string[] = [Hash, At, Slash, Colon, ExclamationMark, LeftAngleBracket, RightAngleBracket, LeftBracket, RightBracket]
 	.map((token) => { return token.symbol; });
 
 /**
- * TODO: @legomushroom - update the comment
+ * The parser responsible for parsing a `prompt /command` sequences.
+ * E.g., `/search` or `/explain` command.
  */
-/**
- * The parser responsible for parsing a `prompt @mention` sequences.
- * E.g., `@workspace` or `#workspace` variable. If the `:` character follows
- * the variable name, the parser transitions to {@link PartialPromptVariableWithData}
- * that is also able to parse the `data` part of the variable. E.g., the `#file` part
- * of the `#file:/path/to/something.md` sequence.
- */
-export class PartialPromptSlashCommand extends ParserBase<TSimpleToken, PartialPromptSlashCommand | PromptAtMention> {
+export class PartialPromptSlashCommand extends ParserBase<TSimpleToken, PartialPromptSlashCommand | PromptSlashCommand> {
 	constructor(token: At) {
 		super([token]);
 	}
 
 	@assertNotConsumed
-	public accept(token: TSimpleToken): TAcceptTokenResult<PartialPromptSlashCommand | PromptAtMention> {
+	public accept(token: TSimpleToken): TAcceptTokenResult<PartialPromptSlashCommand | PromptSlashCommand> {
 		// if a `stop` character is encountered, finish the parsing process
 		if (STOP_CHARACTERS.includes(token.text)) {
 			try {
-				// if it is possible to convert current parser to `PromptAtMention`, return success result
+				// if it is possible to convert current parser to `PromptSlashCommand`, return success result
 				return {
 					result: 'success',
-					nextParser: this.asPromptAtMention(),
+					nextParser: this.asPromptSlashCommand(),
 					wasTokenConsumed: false,
 				};
 			} catch (error) {
@@ -98,27 +89,27 @@ export class PartialPromptSlashCommand extends ParserBase<TSimpleToken, PartialP
 	}
 
 	/**
-	 * Try to convert current parser instance into a fully-parsed {@link PromptAtMention} token.
+	 * Try to convert current parser instance into a fully-parsed {@link PromptSlashCommand} token.
 	 *
 	 * @throws if sequence of tokens received so far do not constitute a valid prompt variable,
-	 *        for instance, if there is only `1` starting `@` token is available.
+	 *        for instance, if there is only `1` starting `/` token is available.
 	 */
-	public asPromptAtMention(): PromptAtMention {
+	public asPromptSlashCommand(): PromptSlashCommand {
 		// if there is only one token before the stop character
-		// must be the starting `@` one), then fail
+		// must be the starting `/` one), then fail
 		assert(
 			this.currentTokens.length > 1,
-			'Cannot create a prompt @mention out of incomplete token sequence.',
+			'Cannot create a prompt /command out of incomplete token sequence.',
 		);
 
 		const firstToken = this.currentTokens[0];
 		const lastToken = this.currentTokens[this.currentTokens.length - 1];
 
-		// render the characters above into strings, excluding the starting `@` character
+		// render the characters above into strings, excluding the starting `/` character
 		const nameTokens = this.currentTokens.slice(1);
 		const atMentionName = nameTokens.map(pick('text')).join('');
 
-		return new PromptAtMention(
+		return new PromptSlashCommand(
 			new Range(
 				firstToken.range.startLineNumber,
 				firstToken.range.startColumn,
