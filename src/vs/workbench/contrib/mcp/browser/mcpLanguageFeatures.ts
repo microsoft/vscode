@@ -17,9 +17,10 @@ import { localize } from '../../../../nls.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ConfigurationResolverExpression, IResolvedValue } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { IMcpConfigPathsService } from '../common/mcpConfigPathsService.js';
+import { mcpConfigurationSection } from '../common/mcpConfiguration.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
 import { IMcpService, McpConnectionState } from '../common/mcpTypes.js';
-import { EditStoredInput, RemoveStoredInput, ShowOutput, StartServer, StopServer } from './mcpCommands.js';
+import { EditStoredInput, RemoveStoredInput, RestartServer, ShowOutput, StartServer, StopServer } from './mcpCommands.js';
 
 export class McpLanguageFeatures extends Disposable implements IWorkbenchContribution {
 	private readonly _cachedMcpSection = this._register(new MutableDisposable<{ model: ITextModel; node: Node } & IDisposable>());
@@ -32,7 +33,11 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 	) {
 		super();
 
-		const patterns = [{ pattern: '**/.vscode/mcp.json' }, { pattern: '**/settings.json' }];
+		const patterns = [
+			{ pattern: '**/.vscode/mcp.json' },
+			{ pattern: '**/settings.json' },
+			{ pattern: '**/workspace.json' },
+		];
 
 		const onDidChangeCodeLens = this._register(new Emitter<CodeLensProvider>());
 		const codeLensProvider: CodeLensProvider = {
@@ -60,14 +65,14 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 		return tree;
 	}
 
-	private async _provideCodeLenses(model: ITextModel, onDidChangeCodeLens: () => void): Promise<CodeLensList | undefined> {
-		const inConfig = this._mcpConfigPathsService.paths.find(u => isEqual(u.uri, model.uri));
+	private _provideCodeLenses(model: ITextModel, onDidChangeCodeLens: () => void): CodeLensList | undefined {
+		const inConfig = this._mcpConfigPathsService.paths.get().find(u => isEqual(u.uri, model.uri));
 		if (!inConfig) {
 			return undefined;
 		}
 
 		const tree = this._parseModel(model);
-		const serversNode = findNodeAtLocation(tree, inConfig.section ? [inConfig.section, 'servers'] : ['servers']);
+		const serversNode = findNodeAtLocation(tree, inConfig.section ? [...inConfig.section, 'servers'] : ['servers']);
 		if (!serversNode) {
 			return undefined;
 		}
@@ -109,7 +114,7 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 					}, {
 						range,
 						command: {
-							id: StartServer.ID,
+							id: RestartServer.ID,
 							title: localize('mcp.restart', "Restart"),
 							arguments: [server.definition.id],
 						},
@@ -143,19 +148,19 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 					}, {
 						range,
 						command: {
-							id: StartServer.ID,
+							id: RestartServer.ID,
 							title: localize('mcp.restart', "Restart"),
 							arguments: [server.definition.id],
 						},
 					}, {
 						range,
 						command: {
-							id: 'workbench.action.chat.attachTools',
+							id: '',
 							title: localize('server.toolCount', '{0} tools', read(server.tools).length),
 						},
 					});
 					break;
-				case McpConnectionState.Kind.Stopped:
+				case McpConnectionState.Kind.Stopped: {
 					lenses.lenses.push({
 						range,
 						command: {
@@ -164,6 +169,17 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 							arguments: [server.definition.id],
 						},
 					});
+					const toolCount = read(server.tools).length;
+					if (toolCount) {
+						lenses.lenses.push({
+							range,
+							command: {
+								id: '',
+								title: localize('server.toolCountCached', '{0} cached tools', toolCount),
+							}
+						});
+					}
+				}
 			}
 		}
 
@@ -171,13 +187,13 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 	}
 
 	private async _provideInlayHints(model: ITextModel, range: Range): Promise<InlayHintList | undefined> {
-		const inConfig = this._mcpConfigPathsService.paths.find(u => isEqual(u.uri, model.uri));
+		const inConfig = this._mcpConfigPathsService.paths.get().find(u => isEqual(u.uri, model.uri));
 		if (!inConfig) {
 			return undefined;
 		}
 
 		const tree = this._parseModel(model);
-		const mcpSection = inConfig.section ? findNodeAtLocation(tree, [inConfig.section]) : tree;
+		const mcpSection = inConfig.section ? findNodeAtLocation(tree, [...inConfig.section]) : tree;
 		if (!mcpSection) {
 			return undefined;
 		}
@@ -204,7 +220,7 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 				for (const { id } of expr.unresolved()) {
 					const saved = inputs[id];
 					if (saved) {
-						pushAnnotation(id, node.offset + node.value.indexOf(id) + id.length, '', saved);
+						pushAnnotation(id, node.offset + node.value.indexOf(id) + id.length, saved);
 					}
 				}
 
@@ -239,23 +255,23 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 				const savedId = '${input:' + id.value + '}';
 				const saved = inputs[savedId];
 				if (saved) {
-					const hint = pushAnnotation(savedId, id.offset + 1 + id.length, localize('input', 'Value'), saved);
-					hint.paddingLeft = true;
+					pushAnnotation(savedId, id.offset + 1 + id.length, saved);
 				}
 			}
 		}
 
-		function pushAnnotation(savedId: string, offset: number, prefix: string, saved: IResolvedValue): InlayHint {
+		function pushAnnotation(savedId: string, offset: number, saved: IResolvedValue): InlayHint {
 			const tooltip = new MarkdownString([
-				markdownCommandLink({ id: EditStoredInput.ID, title: localize('edit', 'Edit'), arguments: [savedId, model.uri, inConfig!.section, inConfig!.target] }),
+				markdownCommandLink({ id: EditStoredInput.ID, title: localize('edit', 'Edit'), arguments: [savedId, model.uri, mcpConfigurationSection, inConfig!.target] }),
 				markdownCommandLink({ id: RemoveStoredInput.ID, title: localize('clear', 'Clear'), arguments: [inConfig!.scope, savedId] }),
 				markdownCommandLink({ id: RemoveStoredInput.ID, title: localize('clearAll', 'Clear All'), arguments: [inConfig!.scope] }),
 			].join(' | '), { isTrusted: true });
 
 			const hint: InlayHint = {
-				label: prefix + ': ' + (saved.input?.type === 'promptString' && saved.input.password ? '*'.repeat(10) : (saved.value || '')),
+				label: '= ' + (saved.input?.type === 'promptString' && saved.input.password ? '*'.repeat(10) : (saved.value || '')),
 				position: model.getPositionAt(offset),
 				tooltip,
+				paddingLeft: true,
 			};
 
 			hints.push(hint);

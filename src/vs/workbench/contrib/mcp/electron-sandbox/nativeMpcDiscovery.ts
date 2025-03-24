@@ -11,10 +11,10 @@ import { IMainProcessService } from '../../../../platform/ipc/common/mainProcess
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeMcpDiscoveryHelperService, NativeMcpDiscoveryHelperChannelName } from '../../../../platform/mcp/common/nativeMcpDiscoveryHelper.js';
-import { FilesystemMpcDiscovery } from '../common/discovery/nativeMcpDiscoveryAbstract.js';
+import { NativeFilesystemMcpDiscovery } from '../common/discovery/nativeMcpDiscoveryAbstract.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
 
-export class NativeMcpDiscovery extends FilesystemMpcDiscovery {
+export class NativeMcpDiscovery extends NativeFilesystemMcpDiscovery {
 	constructor(
 		@IMainProcessService private readonly mainProcess: IMainProcessService,
 		@ILogService private readonly logService: ILogService,

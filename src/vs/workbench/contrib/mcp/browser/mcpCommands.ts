@@ -8,12 +8,10 @@ import { assertNever } from '../../../../base/common/assert.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { groupBy } from '../../../../base/common/collections.js';
 import { Event } from '../../../../base/common/event.js';
-import { parse as jsoncParse } from '../../../../base/common/jsonc.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, derived } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IModelService } from '../../../../editor/common/services/model.js';
 import { ILocalizedString, localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -471,6 +469,26 @@ export class ShowOutput extends Action2 {
 	}
 }
 
+export class RestartServer extends Action2 {
+	static readonly ID = 'workbench.mcp.restartServer';
+
+	constructor() {
+		super({
+			id: RestartServer.ID,
+			title: localize2('mcp.command.restartServer', "Restart Server"),
+			category,
+			f1: false,
+		});
+	}
+
+	async run(accessor: ServicesAccessor, serverId: string) {
+		const s = accessor.get(IMcpService).servers.get().find(s => s.definition.id === serverId);
+		s?.showOutput();
+		await s?.stop();
+		await s?.start();
+	}
+}
+
 export class StartServer extends Action2 {
 	static readonly ID = 'workbench.mcp.startServer';
 
@@ -485,7 +503,6 @@ export class StartServer extends Action2 {
 
 	async run(accessor: ServicesAccessor, serverId: string) {
 		const s = accessor.get(IMcpService).servers.get().find(s => s.definition.id === serverId);
-		await s?.stop();
 		await s?.start();
 	}
 }
@@ -525,9 +542,7 @@ export class InstallFromActivation extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, uri: URI) {
-		const editorService = accessor.get(IModelService);
 		const addConfigHelper = accessor.get(IInstantiationService).createInstance(McpAddConfigurationCommand, undefined);
-
-		addConfigHelper.pickForUrlHandler(uri, jsoncParse(editorService.getModel(uri)!.getValue()));
+		addConfigHelper.pickForUrlHandler(uri);
 	}
 }

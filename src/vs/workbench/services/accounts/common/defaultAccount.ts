@@ -7,7 +7,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { AuthenticationProviderInformation, IAuthenticationService } from '../../authentication/common/authentication.js';
+import { IAuthenticationService } from '../../authentication/common/authentication.js';
 import { asJson, IRequestService } from '../../../../platform/request/common/request.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
@@ -15,9 +15,10 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { localize } from '../../../../nls.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { Barrier } from '../../../../base/common/async.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { getErrorMessage } from '../../../../base/common/errors.js';
 
 const enum DefaultAccountStatus {
 	Uninitialized = 'uninitialized',
@@ -29,12 +30,12 @@ const CONTEXT_DEFAULT_ACCOUNT_STATE = new RawContextKey<string>('defaultAccountS
 
 export interface IDefaultAccount {
 	readonly sessionId: string;
-	readonly sessionAccountLabel: string;
-	readonly access_type_sku: string;
-	readonly assigned_date: string;
-	readonly can_signup_for_limited: boolean;
-	readonly chat_enabled: boolean;
-	readonly analytics_tracking_id: string;
+	readonly enterprise: boolean;
+	readonly access_type_sku?: string;
+	readonly assigned_date?: string;
+	readonly can_signup_for_limited?: boolean;
+	readonly chat_enabled?: boolean;
+	readonly analytics_tracking_id?: string;
 	readonly limited_user_quotas?: {
 		readonly chat: number;
 		readonly completions: number;
@@ -43,7 +44,7 @@ export interface IDefaultAccount {
 		readonly chat: number;
 		readonly completions: number;
 	};
-	readonly limited_user_reset_date: string;
+	readonly limited_user_reset_date?: string;
 }
 
 interface IEntitlementsResponse {
@@ -78,38 +79,25 @@ export interface IDefaultAccountService {
 export class DefaultAccountService extends Disposable implements IDefaultAccountService {
 	declare _serviceBrand: undefined;
 
-	private defaultAccount: IDefaultAccount | null | undefined = undefined;
+	private _defaultAccount: IDefaultAccount | null | undefined = undefined;
+	get defaultAccount(): IDefaultAccount | null { return this._defaultAccount ?? null; }
+
 	private readonly initBarrier = new Barrier();
 
 	private readonly _onDidChangeDefaultAccount = this._register(new Emitter<IDefaultAccount | null>());
 	readonly onDidChangeDefaultAccount = this._onDidChangeDefaultAccount.event;
 
-	private readonly accountStatusContext: IContextKey<string>;
-
-	constructor(
-		@IContextKeyService contextKeyService: IContextKeyService,
-	) {
-		super();
-		this.accountStatusContext = CONTEXT_DEFAULT_ACCOUNT_STATE.bindTo(contextKeyService);
-	}
-
 	async getDefaultAccount(): Promise<IDefaultAccount | null> {
 		await this.initBarrier.wait();
-		return this.defaultAccount ?? null;
+		return this.defaultAccount;
 	}
 
 	setDefaultAccount(account: IDefaultAccount | null): void {
-		const oldAccount = this.defaultAccount;
-		this.defaultAccount = account;
+		const oldAccount = this._defaultAccount;
+		this._defaultAccount = account;
 
-		if (this.defaultAccount) {
-			this.accountStatusContext.set(DefaultAccountStatus.Available);
-		} else {
-			this.accountStatusContext.set(DefaultAccountStatus.Unavailable);
-		}
-
-		if (oldAccount !== this.defaultAccount) {
-			this._onDidChangeDefaultAccount.fire(this.defaultAccount);
+		if (oldAccount !== this._defaultAccount) {
+			this._onDidChangeDefaultAccount.fire(this._defaultAccount);
 		}
 
 		this.initBarrier.open();
@@ -117,22 +105,41 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 
 }
 
+export class NullDefaultAccountService extends Disposable implements IDefaultAccountService {
+
+	declare _serviceBrand: undefined;
+
+	readonly onDidChangeDefaultAccount = Event.None;
+
+	async getDefaultAccount(): Promise<IDefaultAccount | null> {
+		return null;
+	}
+
+	setDefaultAccount(account: IDefaultAccount | null): void {
+		// noop
+	}
+
+}
+
 export class DefaultAccountManagementContribution extends Disposable implements IWorkbenchContribution {
 
-	private defaultAccount: IDefaultAccount | null = null;
-	private readonly _onDidChangeDefaultAccount = this._register(new Emitter<IDefaultAccount | null>());
-	readonly onDidChangeDefaultAccount = this._onDidChangeDefaultAccount.event;
+	static ID = 'workbench.contributions.defaultAccountManagement';
 
+	private defaultAccount: IDefaultAccount | null = null;
+	private readonly accountStatusContext: IContextKey<string>;
 
 	constructor(
+		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IProductService private readonly productService: IProductService,
 		@IRequestService private readonly requestService: IRequestService,
-		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@ILogService private readonly logService: ILogService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
+		this.accountStatusContext = CONTEXT_DEFAULT_ACCOUNT_STATE.bindTo(contextKeyService);
 		this.initialize();
 	}
 
@@ -150,58 +157,85 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 			return;
 		}
 
-		this.registerSignInAction(declaredProvider, authenticationProvider.scopes);
-		this.defaultAccountService.setDefaultAccount(await this.getDefaultAccountFromAuthenticatedSessions(authenticationProvider.id, authenticationProvider.scopes, entitlementUrl));
+		this.registerSignInAction(authenticationProvider.id, declaredProvider.label, authenticationProvider.enterpriseProviderId, authenticationProvider.enterpriseProviderConfig, authenticationProvider.scopes);
+		this.setDefaultAccount(await this.getDefaultAccountFromAuthenticatedSessions(authenticationProvider.id, authenticationProvider.enterpriseProviderId, authenticationProvider.enterpriseProviderConfig, authenticationProvider.scopes, entitlementUrl));
 
-		this.authenticationService.onDidChangeSessions(async e => {
-			if (e.providerId !== authenticationProvider.id) {
+		this._register(this.authenticationService.onDidChangeSessions(async e => {
+			if (e.providerId !== authenticationProvider.id && e.providerId !== authenticationProvider.enterpriseProviderId) {
 				return;
 			}
 
 			if (this.defaultAccount && e.event.removed?.some(session => session.id === this.defaultAccount?.sessionId)) {
-				this.defaultAccountService.setDefaultAccount(null);
+				this.setDefaultAccount(null);
 				return;
 			}
 
-			this.defaultAccountService.setDefaultAccount(await this.getDefaultAccountFromAuthenticatedSessions(authenticationProvider.id, authenticationProvider.scopes, entitlementUrl));
-		});
+			this.setDefaultAccount(await this.getDefaultAccountFromAuthenticatedSessions(authenticationProvider.id, authenticationProvider.enterpriseProviderId, authenticationProvider.enterpriseProviderConfig, authenticationProvider.scopes, entitlementUrl));
+		}));
 
 	}
 
-	private async getDefaultAccountFromAuthenticatedSessions(id: string, scopes: string[], entitlementUrl: string): Promise<IDefaultAccount | null> {
-		const sessions = await this.authenticationService.getSessions(id, scopes, undefined, true);
-		if (sessions.length === 0) {
+	private setDefaultAccount(account: IDefaultAccount | null): void {
+		this.defaultAccount = account;
+		this.defaultAccountService.setDefaultAccount(this.defaultAccount);
+		if (this.defaultAccount) {
+			this.accountStatusContext.set(DefaultAccountStatus.Available);
+		} else {
+			this.accountStatusContext.set(DefaultAccountStatus.Unavailable);
+		}
+	}
+
+	private async getDefaultAccountFromAuthenticatedSessions(authProviderId: string, enterpriseAuthProviderId: string, enterpriseAuthProviderConfig: string, scopes: string[], entitlementUrl: string): Promise<IDefaultAccount | null> {
+		const id = this.configurationService.getValue(enterpriseAuthProviderConfig) ? enterpriseAuthProviderId : authProviderId;
+		const sessions = await this.authenticationService.getSessions(id, undefined, undefined, true);
+		const session = sessions.find(s => this.scopesMatch(s.scopes, scopes));
+
+		if (!session) {
 			return null;
 		}
 
-		const context = await this.requestService.request({
-			type: 'GET',
-			url: entitlementUrl,
-			disableCache: true,
-			headers: {
-				'Authorization': `Bearer ${sessions[0].accessToken}`
-			}
-		}, CancellationToken.None);
-
-		const data = await asJson<IEntitlementsResponse>(context);
-		if (!data) {
-			return null;
-		}
+		const entitlements = await this.getEntitlements(session.accessToken, entitlementUrl);
 
 		return {
-			sessionId: sessions[0].id,
-			sessionAccountLabel: sessions[0].account.label,
-			...data,
+			sessionId: session.id,
+			enterprise: id === enterpriseAuthProviderId || session.account.label.includes('_'),
+			...entitlements,
 		};
 	}
 
-	private registerSignInAction(authenticationProvider: AuthenticationProviderInformation, scopes: string[]): void {
+	private scopesMatch(scopes: ReadonlyArray<string>, expectedScopes: string[]): boolean {
+		return scopes.length === expectedScopes.length && expectedScopes.every(scope => scopes.includes(scope));
+	}
+
+	private async getEntitlements(accessToken: string, entitlementUrl: string): Promise<Partial<IEntitlementsResponse>> {
+		try {
+			const context = await this.requestService.request({
+				type: 'GET',
+				url: entitlementUrl,
+				disableCache: true,
+				headers: {
+					'Authorization': `Bearer ${accessToken}`
+				}
+			}, CancellationToken.None);
+
+			const data = await asJson<IEntitlementsResponse>(context);
+			if (data) {
+				return data;
+			}
+			this.logService.error('Failed to fetch entitlements', 'No data returned');
+		} catch (error) {
+			this.logService.error('Failed to fetch entitlements', getErrorMessage(error));
+		}
+		return {};
+	}
+
+	private registerSignInAction(authProviderId: string, authProviderLabel: string, enterpriseAuthProviderId: string, enterpriseAuthProviderConfig: string, scopes: string[]): void {
 		const that = this;
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.accounts.actions.signin',
-					title: localize('sign in', "Sign in to {0}", authenticationProvider.label),
+					title: localize('sign in', "Sign in to {0}", authProviderLabel),
 					menu: {
 						id: MenuId.AccountsContext,
 						when: CONTEXT_DEFAULT_ACCOUNT_STATE.isEqualTo(DefaultAccountStatus.Unavailable),
@@ -210,12 +244,10 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 				});
 			}
 			run(): Promise<any> {
-				return that.authenticationService.createSession(authenticationProvider.id, scopes);
+				const id = that.configurationService.getValue(enterpriseAuthProviderConfig) ? enterpriseAuthProviderId : authProviderId;
+				return that.authenticationService.createSession(id, scopes);
 			}
 		}));
 	}
 
 }
-
-registerWorkbenchContribution2('workbench.contributions.defaultAccountManagement', DefaultAccountManagementContribution, WorkbenchPhase.AfterRestored);
-registerSingleton(IDefaultAccountService, DefaultAccountService, InstantiationType.Delayed);

@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals } from '../../../../base/common/arrays.js';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, IntervalTimer } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ILogger } from '../../../../platform/log/common/log.js';
+import { canLog, ILogger, LogLevel } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IMcpMessageTransport } from './mcpRegistryTypes.js';
 import { McpConnectionState, MpcResponseError } from './mcpTypes.js';
@@ -81,7 +82,13 @@ export class McpServerRequestHandler extends Disposable {
 	 */
 	public static async create(instaService: IInstantiationService, launch: IMcpMessageTransport, logger: ILogger, token?: CancellationToken) {
 		const mcp = new McpServerRequestHandler(launch, logger);
+		const store = new DisposableStore();
 		try {
+			const timer = store.add(new IntervalTimer());
+			timer.cancelAndSet(() => {
+				logger.info('Waiting for server to respond to `initialize` request...');
+			}, 5000);
+
 			await instaService.invokeFunction(async accessor => {
 				const productService = accessor.get(IProductService);
 				const initialized = await mcp.sendRequest<MCP.InitializeRequest, MCP.InitializeResult>({
@@ -109,6 +116,8 @@ export class McpServerRequestHandler extends Disposable {
 		} catch (e) {
 			mcp.dispose();
 			throw e;
+		} finally {
+			store.dispose();
 		}
 	}
 
@@ -140,6 +149,10 @@ export class McpServerRequestHandler extends Disposable {
 		request: Pick<T, 'params' | 'method'>,
 		token: CancellationToken = CancellationToken.None
 	): Promise<R> {
+		if (this._store.isDisposed) {
+			return Promise.reject(new CancellationError());
+		}
+
 		const id = this._nextRequestId++;
 
 		// Create the full JSON-RPC request
@@ -152,7 +165,6 @@ export class McpServerRequestHandler extends Disposable {
 		const promise = new DeferredPromise<MCP.ServerResult>();
 		// Store the pending request
 		this._pendingRequests.set(id, { promise });
-
 		// Set up cancellation
 		const cancelListener = token.onCancellationRequested(() => {
 			if (!promise.isSettled) {
@@ -160,16 +172,25 @@ export class McpServerRequestHandler extends Disposable {
 				this.sendNotification({ method: 'notifications/cancelled', params: { requestId: id } });
 				promise.cancel();
 			}
+			cancelListener.dispose();
 		});
 
 		// Send the request
-		this.launch.send(jsonRpcRequest);
+		this.send(jsonRpcRequest);
 		const ret = promise.p.finally(() => {
 			cancelListener.dispose();
 			this._pendingRequests.delete(id);
 		});
 
 		return ret as Promise<R>;
+	}
+
+	private send(mcp: MCP.JSONRPCMessage) {
+		if (canLog(this.logger.getLevel(), LogLevel.Debug)) { // avoid building the string if we don't need to
+			this.logger.debug(`[editor -> server] ${JSON.stringify(mcp)}`);
+		}
+
+		this.launch.send(mcp);
 	}
 
 	/**
@@ -200,13 +221,17 @@ export class McpServerRequestHandler extends Disposable {
 	}
 
 	private sendNotification<N extends MCP.ClientNotification>(notification: N): void {
-		this.launch.send({ ...notification, jsonrpc: MCP.JSONRPC_VERSION });
+		this.send({ ...notification, jsonrpc: MCP.JSONRPC_VERSION });
 	}
 
 	/**
 	 * Handle incoming messages from the server
 	 */
 	private handleMessage(message: MCP.JSONRPCMessage): void {
+		if (canLog(this.logger.getLevel(), LogLevel.Debug)) { // avoid building the string if we don't need to
+			this.logger.debug(`[server <- editor] ${JSON.stringify(message)}`);
+		}
+
 		// Handle responses to our requests
 		if ('id' in message) {
 			if ('result' in message) {
@@ -268,7 +293,7 @@ export class McpServerRequestHandler extends Disposable {
 						message: `Method not found: ${request.method}`
 					}
 				};
-				this.launch.send(errorResponse);
+				this.send(errorResponse);
 				break;
 			}
 		}
@@ -347,7 +372,7 @@ export class McpServerRequestHandler extends Disposable {
 			id: request.id,
 			result
 		};
-		this.launch.send(response);
+		this.send(response);
 	}
 
 	/**

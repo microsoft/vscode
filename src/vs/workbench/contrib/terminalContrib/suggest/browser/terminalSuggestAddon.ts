@@ -5,7 +5,6 @@
 
 import type { ITerminalAddon, Terminal } from '@xterm/xterm';
 import * as dom from '../../../../../base/browser/dom.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { combinedDisposable, Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { sep } from '../../../../../base/common/path.js';
@@ -38,6 +37,7 @@ import { TerminalCompletionItem, TerminalCompletionItemKind, type ITerminalCompl
 import { IntervalTimer, TimeoutTimer } from '../../../../../base/common/async.js';
 import { localize } from '../../../../../nls.js';
 import { TerminalSuggestTelemetry } from './terminalSuggestTelemetry.js';
+import { terminalSymbolAliasIcon, terminalSymbolArgumentIcon, terminalSymbolEnumMember, terminalSymbolFileIcon, terminalSymbolFlagIcon, terminalSymbolInlineSuggestionIcon, terminalSymbolMethodIcon, terminalSymbolOptionIcon, terminalSymbolFolderIcon } from './terminalSymbolIcons.js';
 
 export interface ISuggestController {
 	isPasting: boolean;
@@ -91,16 +91,16 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	readonly onDidFontConfigurationChange = this._onDidFontConfigurationChange.event;
 
 	private _kindToIconMap = new Map<number, ThemeIcon>([
-		[TerminalCompletionItemKind.File, Codicon.file],
-		[TerminalCompletionItemKind.Folder, Codicon.folder],
-		[TerminalCompletionItemKind.Method, Codicon.symbolMethod],
-		[TerminalCompletionItemKind.Alias, Codicon.symbolMethodArrow],
-		[TerminalCompletionItemKind.Argument, Codicon.symbolVariable],
-		[TerminalCompletionItemKind.Option, Codicon.symbolEnum],
-		[TerminalCompletionItemKind.OptionValue, Codicon.symbolEnumMember],
-		[TerminalCompletionItemKind.Flag, Codicon.flag],
-		[TerminalCompletionItemKind.InlineSuggestion, Codicon.star],
-		[TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop, Codicon.star],
+		[TerminalCompletionItemKind.File, terminalSymbolFileIcon],
+		[TerminalCompletionItemKind.Folder, terminalSymbolFolderIcon],
+		[TerminalCompletionItemKind.Method, terminalSymbolMethodIcon],
+		[TerminalCompletionItemKind.Alias, terminalSymbolAliasIcon],
+		[TerminalCompletionItemKind.Argument, terminalSymbolArgumentIcon],
+		[TerminalCompletionItemKind.Option, terminalSymbolOptionIcon],
+		[TerminalCompletionItemKind.OptionValue, terminalSymbolEnumMember],
+		[TerminalCompletionItemKind.Flag, terminalSymbolFlagIcon],
+		[TerminalCompletionItemKind.InlineSuggestion, terminalSymbolInlineSuggestionIcon],
+		[TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop, terminalSymbolInlineSuggestionIcon],
 	]);
 
 	private _kindToTypeMap = new Map<number, string>([
@@ -220,6 +220,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._lastUserData = e.key;
 			this._lastUserDataTimestamp = Date.now();
 		}));
+		this._register(xterm.onScroll(() => this.hideSuggestWidget(true)));
 	}
 
 	private async _handleCompletionProviders(terminal: Terminal | undefined, token: CancellationToken, explicitlyInvoked?: boolean): Promise<void> {

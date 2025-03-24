@@ -550,14 +550,18 @@ export abstract class ViewPane extends Pane implements IView {
 		}
 
 		this.iconContainerHover = this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.iconContainer, calculatedTitle));
-		this.iconContainer.setAttribute('aria-label', this._getAriaLabel(calculatedTitle));
+		this.iconContainer.setAttribute('aria-label', this._getAriaLabel(calculatedTitle, this._titleDescription));
 	}
 
-	private _getAriaLabel(title: string): string {
+	private _getAriaLabel(title: string, description: string | undefined): string {
 		const viewHasAccessibilityHelpContent = this.viewDescriptorService.getViewDescriptorById(this.id)?.accessibilityHelpContent;
 		const accessibleViewHasShownForView = this.accessibleViewInformationService?.hasShownAccessibleView(this.id);
 		if (!viewHasAccessibilityHelpContent || accessibleViewHasShownForView) {
-			return title;
+			if (description) {
+				return `${title} - ${description}`;
+			} else {
+				return title;
+			}
 		}
 
 		return nls.localize('viewAccessibilityHelp', 'Use Alt+F1 for accessibility help {0}', title);
@@ -570,15 +574,19 @@ export abstract class ViewPane extends Pane implements IView {
 			this.titleContainerHover?.update(calculatedTitle);
 		}
 
-		const ariaLabel = this._getAriaLabel(calculatedTitle);
-		if (this.iconContainer) {
-			this.iconContainerHover?.update(calculatedTitle);
-			this.iconContainer.setAttribute('aria-label', ariaLabel);
-		}
-		this.ariaHeaderLabel = this.getAriaHeaderLabel(ariaLabel);
+		this.updateAriaHeaderLabel(calculatedTitle, this._titleDescription);
 
 		this._title = title;
 		this._onDidChangeTitleArea.fire();
+	}
+
+	private updateAriaHeaderLabel(title: string, description: string | undefined) {
+		const ariaLabel = this._getAriaLabel(title, description);
+		if (this.iconContainer) {
+			this.iconContainerHover?.update(title);
+			this.iconContainer.setAttribute('aria-label', ariaLabel);
+		}
+		this.ariaHeaderLabel = this.getAriaHeaderLabel(ariaLabel);
 	}
 
 	private setTitleDescription(description: string | undefined) {
@@ -594,7 +602,7 @@ export abstract class ViewPane extends Pane implements IView {
 
 	protected updateTitleDescription(description?: string | undefined): void {
 		this.setTitleDescription(description);
-
+		this.updateAriaHeaderLabel(this._title, description);
 		this._titleDescription = description;
 		this._onDidChangeTitleArea.fire();
 	}

@@ -14,7 +14,7 @@ import { Button } from '../../../../base/browser/ui/button/button.js';
 import { IActionProvider } from '../../../../base/browser/ui/dropdown/dropdown.js';
 import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { IAction, Separator, toAction } from '../../../../base/common/actions.js';
+import { IAction, Separator, toAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { HistoryNavigator2 } from '../../../../base/common/history.js';
@@ -61,6 +61,7 @@ import { WorkbenchList } from '../../../../platform/list/browser/listService.js'
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ResourceLabels } from '../../../browser/labels.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
@@ -76,7 +77,7 @@ import { IChatFollowup, IChatService } from '../common/chatService.js';
 import { IChatVariablesService } from '../common/chatVariables.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { ChatInputHistoryMaxEntries, IChatHistoryEntry, IChatInputState, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
-import { ChatAgentLocation, ChatMode } from '../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatMode } from '../common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { CancelAction, ChatEditingSessionSubmitAction, ChatSubmitAction, ChatSwitchToNextModelActionId, IChatExecuteActionContext, IToggleChatModeArgs, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
 import { AttachToolsAction } from './actions/chatToolActions.js';
@@ -400,6 +401,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		});
 
 		this.initSelectedModel();
+
+		this._register(agentService.onDidChangeAgents(() => {
+			if (!agentService.hasToolsAgent && this._currentMode === ChatMode.Agent) {
+				this.setChatMode(ChatMode.Edit);
+			}
+		}));
 	}
 
 	private getSelectedModelStorageKey(): string {
@@ -431,6 +438,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._register(this._onDidChangeCurrentChatMode.event(() => {
 			this.checkModelSupported();
 		}));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.Edits2Enabled)) {
+				this.checkModelSupported();
+			}
+		}));
 	}
 
 	public switchToNextModel(): void {
@@ -453,6 +465,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 
+		if (mode === ChatMode.Agent && !this.agentService.hasToolsAgent) {
+			mode = ChatMode.Edit;
+		}
+
 		this._currentMode = mode;
 		this.chatMode.set(mode);
 		this._onDidChangeCurrentChatMode.fire();
@@ -460,7 +476,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private modelSupportedForDefaultAgent(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 		// Probably this logic could live in configuration on the agent, or somewhere else, if it gets more complex
-		if (this.currentMode === ChatMode.Agent || (this.currentMode === ChatMode.Edit && this.chatService.unifiedViewEnabled)) {
+		if (this.currentMode === ChatMode.Agent || (this.currentMode === ChatMode.Edit && this.configurationService.getValue(ChatConfiguration.Edits2Enabled))) {
 			if (this.configurationService.getValue('chat.agent.allModels')) {
 				return true;
 			}
@@ -546,8 +562,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		} else if (this.location === ChatAgentLocation.EditingSession) {
 			this.setChatMode(ChatMode.Edit);
 		}
-
-		this.selectedToolsModel.reset();
 	}
 
 	logInputHistory(): void {
@@ -1016,14 +1030,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.addFilesToolbar.context = { widget, placeholder: localize('chatAttachFiles', 'Search for files and context to add to your request') };
 		this._register(this.addFilesToolbar.onDidChangeMenuItems(() => {
 			if (this.cachedDimensions) {
-				this.layout(this.cachedDimensions.height, this.cachedDimensions.width);
+				this._onDidChangeHeight.fire();
 			}
 		}));
 	}
 
 	private renderAttachedContext() {
 		const container = this.attachedContextContainer;
-		const oldHeight = container.offsetHeight;
+		// Note- can't measure attachedContextContainer, because it has `display: contents`, so measure the parent to check for height changes
+		const oldHeight = this.attachmentsContainer.offsetHeight;
 		const store = new DisposableStore();
 		this.attachedContextDisposables.value = store;
 
@@ -1067,7 +1082,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}));
 		}
 
-		if (oldHeight !== container.offsetHeight) {
+		if (oldHeight !== this.attachmentsContainer.offsetHeight) {
 			this._onDidChangeHeight.fire();
 		}
 	}
@@ -1368,7 +1383,6 @@ class ChatSubmitDropdownActionItem extends DropdownWithPrimaryActionViewItem {
 		options: IDropdownWithPrimaryActionViewItemOptions,
 		@IMenuService menuService: IMenuService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IChatAgentService chatAgentService: IChatAgentService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@INotificationService notificationService: INotificationService,
@@ -1417,6 +1431,7 @@ class ModelPickerActionViewItem extends DropdownMenuActionViewItemWithKeybinding
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@ICommandService commandService: ICommandService,
 		@IMenuService menuService: IMenuService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		const modelActionsProvider: IActionProvider = {
 			getActions: () => {
@@ -1447,7 +1462,13 @@ class ModelPickerActionViewItem extends DropdownMenuActionViewItemWithKeybinding
 				}
 				actions.push(...menuContributions);
 				if (chatEntitlementService.entitlement === ChatEntitlement.Limited) {
-					actions.push(toAction({ id: 'moreModels', label: localize('chat.moreModels', "Add More Models..."), run: () => commandService.executeCommand('workbench.action.chat.upgradePlan', 'chat-models') }));
+					actions.push(toAction({
+						id: 'moreModels', label: localize('chat.moreModels', "Add more Models"), run: () => {
+							const commandId = 'workbench.action.chat.upgradePlan';
+							telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: commandId, from: 'chat-models' });
+							commandService.executeCommand(commandId);
+						}
+					}));
 				}
 				return actions;
 			}
@@ -1493,6 +1514,7 @@ class ToggleChatModeActionViewItem extends DropdownMenuActionViewItemWithKeybind
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatService chatService: IChatService,
+		@IChatAgentService chatAgentService: IChatAgentService,
 	) {
 		const makeAction = (mode: ChatMode): IAction => ({
 			...action,
@@ -1512,8 +1534,11 @@ class ToggleChatModeActionViewItem extends DropdownMenuActionViewItemWithKeybind
 			getActions: () => {
 				const agentStateActions = [
 					makeAction(ChatMode.Edit),
-					makeAction(ChatMode.Agent),
 				];
+				if (chatAgentService.hasToolsAgent) {
+					agentStateActions.push(makeAction(ChatMode.Agent));
+				}
+
 				if (chatService.unifiedViewEnabled) {
 					agentStateActions.unshift(makeAction(ChatMode.Ask));
 				}

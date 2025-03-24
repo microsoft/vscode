@@ -15,6 +15,9 @@ type CellEditCountCache = {
 };
 
 type ICell = {
+	internalMetadata?: {
+		internalId?: string;
+	};
 	getValue(): string;
 	getLinesContent(): string[];
 	cellKind: CellKind;
@@ -283,6 +286,16 @@ export function matchCellBasedOnSimilarties(modifiedCells: ICell[], originalCell
 function computeClosestCell({ cell, index: cellIndex }: { cell: ICell; index: number }, arr: readonly ICell[], ignoreEmptyCells: boolean, cache: CellEditCountCache, canOriginalIndexBeMappedToModifiedIndex: (originalIndex: number, value: { editCount: EditCount }) => boolean): { index: number; editCount: number; percentage: number } {
 	let min_edits = Infinity;
 	let min_index = -1;
+
+	// Always give preference to internal Cell Id if found.
+	const internalId = cell.internalMetadata?.internalId;
+	if (internalId) {
+		const internalIdIndex = arr.findIndex(cell => cell.internalMetadata?.internalId === internalId);
+		if (internalIdIndex >= 0) {
+			return { index: internalIdIndex, editCount: 0, percentage: Number.MAX_SAFE_INTEGER };
+		}
+	}
+
 	for (let i = 0; i < arr.length; i++) {
 		// Skip cells that are not of the same kind.
 		if (arr[i].cellKind !== cell.cellKind) {

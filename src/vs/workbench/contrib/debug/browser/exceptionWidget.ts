@@ -10,7 +10,7 @@ import { ZoneWidget } from '../../../../editor/contrib/zoneWidget/browser/zoneWi
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IExceptionInfo, IDebugSession, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID } from '../common/debug.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
-import { IThemeService, IColorTheme, IThemeChangeEvent } from '../../../../platform/theme/common/themeService.js';
+import { IThemeService, IColorTheme } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Color } from '../../../../base/common/color.js';
 import { registerColor } from '../../../../platform/theme/common/colorRegistry.js';
@@ -41,16 +41,12 @@ export class ExceptionWidget extends ZoneWidget {
 		super(editor, { showFrame: true, showArrow: true, isAccessible: true, frameWidth: 1, className: 'exception-widget-container' });
 
 		this.applyTheme(themeService.getColorTheme());
-		this._disposables.add(themeService.onDidColorThemeChange(this.onDidColorThemeChange.bind(this)));
+		this._disposables.add(themeService.onDidColorThemeChange(this.applyTheme.bind(this)));
 
 		this.create();
 		const onDidLayoutChangeScheduler = new RunOnceScheduler(() => this._doLayout(undefined, undefined), 50);
 		this._disposables.add(this.editor.onDidLayoutChange(() => onDidLayoutChangeScheduler.schedule()));
 		this._disposables.add(onDidLayoutChangeScheduler);
-	}
-
-	private onDidColorThemeChange(e: IThemeChangeEvent): void {
-		this.applyTheme(e.theme);
 	}
 
 	private applyTheme(theme: IColorTheme): void {

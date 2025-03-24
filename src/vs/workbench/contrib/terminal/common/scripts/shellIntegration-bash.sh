@@ -310,12 +310,6 @@ __trackMissingEnvVars() {
 }
 
 __vsc_update_env() {
-	local __vsc_start_time
-	local __vsc_end_time
-
-	# REMOVE AFTER DEMO: Get start time - use perl for cross-platform millisecond precision
-	__vsc_start_time=$(perl -MTime::HiRes -e 'printf("%.0f\n",Time::HiRes::time()*1000)')
-
 	if [[ "$__vscode_shell_env_reporting" == "1" ]]; then
 		builtin printf '\e]633;EnvSingleStart;%s;%s\a' 0 $__vsc_nonce
 
@@ -371,11 +365,6 @@ __vsc_update_env() {
 		fi
 		builtin printf '\e]633;EnvSingleEnd;%s;\a' $__vsc_nonce
 	fi
-
-	# Get end time and calculate difference in milliseconds
-	__vsc_end_time=$(perl -MTime::HiRes -e 'printf("%.0f\n",Time::HiRes::time()*1000)')
-	local __vsc_total_time=$(( __vsc_end_time - __vsc_start_time ))
-	builtin printf 'vsc_update_env execution time: %s ms\n' "$__vsc_total_time"
 }
 
 __vsc_command_output_start() {

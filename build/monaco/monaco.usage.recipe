@@ -4,8 +4,7 @@
 import { IObservable } from './vs/base/common/observable';
 
 import { ServiceIdentifier } from './vs/platform/instantiation/common/instantiation';
-import { create as create1 } from './vs/base/common/worker/simpleWorker';
-import { create as create2 } from './vs/editor/common/services/editorSimpleWorker';
+import { start } from './vs/editor/editor.worker.start';
 import { SyncDescriptor0 } from './vs/platform/instantiation/common/descriptors';
 import * as editorAPI from './vs/editor/editor.api';
 
@@ -13,8 +12,7 @@ import * as editorAPI from './vs/editor/editor.api';
 	var a: any;
 	var b: any;
 	a = (<ServiceIdentifier<any>>b).type;
-	a = create1;
-	a = create2;
+	a = start;
 
 	// injection madness
 	a = (<SyncDescriptor0<any>>b).ctor;

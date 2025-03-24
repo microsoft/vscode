@@ -21,7 +21,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import product from '../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { PromptsConfig } from '../../../../platform/prompts/common/config.js';
-import { PROMPT_FILE_EXTENSION } from '../../../../platform/prompts/common/constants.js';
+import { DEFAULT_SOURCE_FOLDER as PROMPT_FILES_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../platform/prompts/common/constants.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
@@ -30,7 +30,7 @@ import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { mcpSchemaId } from '../../../services/configuration/common/configuration.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
-import { mcpConfigurationSection, mcpDiscoverySection, mcpSchemaExampleServers } from '../../mcp/common/mcpConfiguration.js';
+import { allDiscoverySources, discoverySourceLabel, mcpConfigurationSection, mcpDiscoverySection, mcpSchemaExampleServers } from '../../mcp/common/mcpConfiguration.js';
 import { ChatAgentNameService, ChatAgentService, IChatAgentNameService, IChatAgentService } from '../common/chatAgents.js';
 import { CodeMapperService, ICodeMapperService } from '../common/chatCodeMapperService.js';
 import '../common/chatColors.js';
@@ -199,17 +199,24 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.renderRelatedFiles', "Controls whether related files should be rendered in the chat input."),
 			default: false
 		},
-		'chat.experimental.statusIndicator.enabled': { // TODO@bpasero remove this eventually
-			type: 'boolean',
-			description: nls.localize('chat.statusIndicator', "Controls whether a Copilot related status indicator appears in the lower right corner."),
-			default: product.quality !== 'stable',
-			tags: ['experimental', 'onExp']
-		},
 		'chat.experimental.setupFromDialog': { // TODO@bpasero remove this eventually
 			type: 'boolean',
 			description: nls.localize('chat.setupFromChat', "Controls whether Copilot setup starts from a dialog or from the welcome view."),
 			default: product.quality !== 'stable',
 			tags: ['experimental', 'onExp']
+		},
+		'chat.focusWindowOnConfirmation': {
+			type: 'boolean',
+			description: nls.localize('chat.focusWindowOnConfirmation', "Controls whether the Copilot window should be focused when a confirmation is needed."),
+			default: true,
+		},
+		'chat.tools.autoApprove': {
+			default: false,
+			description: nls.localize('chat.tools.autoApprove', "Controls whether tool use should be automatically approved ('YOLO mode'). Can be set to `true`, or an array of tool names to automatically approve."),
+			oneOf: [
+				{ type: 'boolean' },
+				{ type: 'array', items: { type: 'string' } }
+			],
 		},
 		[mcpConfigurationSection]: {
 			type: 'object',
@@ -220,12 +227,12 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('workspaceConfig.mcp.description', "Model Context Protocol server configurations"),
 			$ref: mcpSchemaId
 		},
-		// [ChatConfiguration.UnifiedChatView]: {
-		// 	type: 'boolean',
-		// 	description: nls.localize('chat.experimental.unifiedChatView', "Enables the unified view with Chat, Edit, and Agent in one place."),
-		// 	default: false,
-		// 	tags: ['experimental'],
-		// },
+		[ChatConfiguration.UnifiedChatView]: {
+			type: 'boolean',
+			description: nls.localize('chat.unifiedChatView', "Enables the unified view with Ask, Edit, and Agent modes in one view."),
+			default: true,
+			tags: ['preview'],
+		},
 		[ChatConfiguration.UseFileStorage]: {
 			type: 'boolean',
 			description: nls.localize('chat.useFileStorage', "Enables storing chat sessions on disk instead of in the storage service. Enabling this does a one-time per-workspace migration of existing sessions to the new format."),
@@ -233,11 +240,20 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 		},
 		[mcpDiscoverySection]: {
-			type: 'boolean',
-			default: false,
-			description: nls.localize('mpc.discovery.enabled', "Enable discovery of Model Context Protocol servers on the machine."),
+			oneOf: [
+				{ type: 'boolean' },
+				{
+					type: 'object',
+					default: Object.fromEntries(allDiscoverySources.map(k => [k, true])),
+					properties: Object.fromEntries(allDiscoverySources.map(k => [
+						k,
+						{ type: 'boolean', description: nls.localize('mcp.discovery.source', "Enables discovery of {0} servers", discoverySourceLabel[k]) }
+					])),
+				}
+			],
+			markdownDescription: nls.localize('mpc.discovery.enabled', "Configures discovery of Model Context Protocol servers on the machine. It may be set to `true` or `false` to disable or enable all sources, and an mapping sources you wish to enable."),
 		},
-		[PromptsConfig.CONFIG_KEY]: {
+		[PromptsConfig.KEY]: {
 			type: 'boolean',
 			title: nls.localize(
 				'chat.reusablePrompts.config.enabled.title',
@@ -254,7 +270,7 @@ configurationRegistry.registerConfiguration({
 			disallowConfigurationDefault: true,
 			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
 		},
-		[PromptsConfig.LOCATIONS_CONFIG_KEY]: {
+		[PromptsConfig.LOCATIONS_KEY]: {
 			type: 'object',
 			title: nls.localize(
 				'chat.reusablePrompts.config.locations.title',
@@ -267,20 +283,18 @@ configurationRegistry.registerConfiguration({
 				DOCUMENTATION_URL,
 			),
 			default: {
-				[PromptsConfig.DEFAULT_SOURCE_FOLDER]: true,
+				[PROMPT_FILES_DEFAULT_SOURCE_FOLDER]: true,
 			},
-			required: [PromptsConfig.DEFAULT_SOURCE_FOLDER],
 			additionalProperties: { type: 'boolean' },
 			unevaluatedProperties: { type: 'boolean' },
 			restricted: true,
-			disallowConfigurationDefault: true,
 			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
 			examples: [
 				{
-					[PromptsConfig.DEFAULT_SOURCE_FOLDER]: true,
+					[PROMPT_FILES_DEFAULT_SOURCE_FOLDER]: true,
 				},
 				{
-					[PromptsConfig.DEFAULT_SOURCE_FOLDER]: true,
+					[PROMPT_FILES_DEFAULT_SOURCE_FOLDER]: true,
 					'/Users/vscode/repos/prompts': true,
 				},
 			],
@@ -360,8 +374,9 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 			if (enabled) {
 				this.registerEnablementSetting();
 				expDisabledKey.set(false);
-			} else if (this.productService.quality === 'stable') {
-				// undefined treatment- on stable, fall back to disabled
+			} else if (this.productService.quality === 'stable' || typeof enabled === 'boolean') {
+				// If undefined treatment, on stable, fall back to disabled.
+				// Other qualities fall back to enabled.
 				this.deregisterSetting();
 				expDisabledKey.set(true);
 			}
@@ -380,7 +395,7 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 			title: nls.localize('interactiveSessionConfigurationTitle', "Chat"),
 			type: 'object',
 			properties: {
-				'chat.agent.enabled': {
+				[ChatConfiguration.AgentEnabled]: {
 					type: 'boolean',
 					description: nls.localize('chat.agent.enabled.description', "Enable agent mode for {0}. When this is enabled, a dropdown appears in the {0} view to toggle agent mode.", 'Copilot Edits'),
 					default: this.productService.quality !== 'stable',

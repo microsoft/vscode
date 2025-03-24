@@ -39,7 +39,8 @@ suite('LanguageModelToolsService', () => {
 		const toolData: IToolData = {
 			id: 'testTool',
 			modelDescription: 'Test Tool',
-			displayName: 'Test Tool'
+			displayName: 'Test Tool',
+			source: { type: 'internal' },
 		};
 
 		const disposable = service.registerToolData(toolData);
@@ -52,7 +53,8 @@ suite('LanguageModelToolsService', () => {
 		const toolData: IToolData = {
 			id: 'testTool',
 			modelDescription: 'Test Tool',
-			displayName: 'Test Tool'
+			displayName: 'Test Tool',
+			source: { type: 'internal' },
 		};
 
 		store.add(service.registerToolData(toolData));
@@ -71,20 +73,23 @@ suite('LanguageModelToolsService', () => {
 			id: 'testTool1',
 			modelDescription: 'Test Tool 1',
 			when: ContextKeyEqualsExpr.create('testKey', false),
-			displayName: 'Test Tool'
+			displayName: 'Test Tool',
+			source: { type: 'internal' },
 		};
 
 		const toolData2: IToolData = {
 			id: 'testTool2',
 			modelDescription: 'Test Tool 2',
 			when: ContextKeyEqualsExpr.create('testKey', true),
-			displayName: 'Test Tool'
+			displayName: 'Test Tool',
+			source: { type: 'internal' },
 		};
 
 		const toolData3: IToolData = {
 			id: 'testTool3',
 			modelDescription: 'Test Tool 3',
-			displayName: 'Test Tool'
+			displayName: 'Test Tool',
+			source: { type: 'internal' },
 		};
 
 		store.add(service.registerToolData(toolData1));
@@ -101,7 +106,8 @@ suite('LanguageModelToolsService', () => {
 		const toolData: IToolData = {
 			id: 'testTool',
 			modelDescription: 'Test Tool',
-			displayName: 'Test Tool'
+			displayName: 'Test Tool',
+			source: { type: 'internal' },
 		};
 
 		store.add(service.registerToolData(toolData));
@@ -135,7 +141,8 @@ suite('LanguageModelToolsService', () => {
 		const toolData: IToolData = {
 			id: 'testTool',
 			modelDescription: 'Test Tool',
-			displayName: 'Test Tool'
+			displayName: 'Test Tool',
+			source: { type: 'internal' },
 		};
 
 		store.add(service.registerToolData(toolData));
