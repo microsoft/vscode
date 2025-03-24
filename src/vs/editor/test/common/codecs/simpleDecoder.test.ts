@@ -22,6 +22,7 @@ import { LeftBracket, RightBracket } from '../../../common/codecs/simpleCodec/to
 import { LeftParenthesis, RightParenthesis } from '../../../common/codecs/simpleCodec/tokens/parentheses.js';
 import { LeftAngleBracket, RightAngleBracket } from '../../../common/codecs/simpleCodec/tokens/angleBrackets.js';
 import { ExclamationMark } from '../../../common/codecs/simpleCodec/tokens/exclamationMark.js';
+import { At } from '../../../common/codecs/simpleCodec/tokens/at.js';
 
 /**
  * A reusable test utility that asserts that a `SimpleDecoder` instance
@@ -54,6 +55,10 @@ export class TestSimpleDecoder extends TestDecoder<TSimpleToken, SimpleDecoder> 
 	}
 }
 
+/**
+ * TODO: @legomushroom - test `\r` in the middle of a line
+ */
+
 suite('SimpleDecoder', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -63,7 +68,15 @@ suite('SimpleDecoder', () => {
 		);
 
 		await test.run(
-			' hello world!\nhow are\t you?\v\n\n   (test)  [!@#$%^🦄&*_+=-]\f  \n\t<hi 👋>\t🤗❤ \t\n hey\v-\tthere\r\n\r\n',
+			[
+				' hello world!',
+				'how are\t you?\v',
+				'',
+				'   (test)  [!@#$%^🦄&*_+=-]\f  ',
+				'\t<hi 👋>\t🤗❤ \t',
+				' hey\v-\tthere\r',
+				'',
+			],
 			[
 				// first line
 				new Space(new Range(1, 1, 1, 2)),
@@ -94,7 +107,7 @@ suite('SimpleDecoder', () => {
 				new Space(new Range(4, 11, 4, 12)),
 				new LeftBracket(new Range(4, 12, 4, 13)),
 				new ExclamationMark(new Range(4, 13, 4, 14)),
-				new Word(new Range(4, 14, 4, 15), '@'),
+				new At(new Range(4, 14, 4, 15)),
 				new Hash(new Range(4, 15, 4, 16)),
 				new Word(new Range(4, 16, 4, 16 + 10), '$%^🦄&*_+='),
 				new Dash(new Range(4, 26, 4, 27)),
@@ -124,9 +137,6 @@ suite('SimpleDecoder', () => {
 				new Word(new Range(6, 8, 6, 13), 'there'),
 				new CarriageReturn(new Range(6, 13, 6, 14)),
 				new NewLine(new Range(6, 14, 6, 15)),
-				// seventh line
-				new CarriageReturn(new Range(7, 1, 7, 2)),
-				new NewLine(new Range(7, 2, 7, 3)),
 			],
 		);
 	});
