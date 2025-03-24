@@ -8,6 +8,7 @@ import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -30,7 +31,7 @@ import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatModel } from '../common/chatModel.js';
 import { ChatToolInvocation } from '../common/chatProgressTypes/chatToolInvocation.js';
 import { IChatService } from '../common/chatService.js';
-import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../common/languageModelToolsService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../common/languageModelToolsService.js';
 
 const jsonSchemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
@@ -234,10 +235,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				}));
 				token = source.token;
 
-				const prepared = tool.impl.prepareToolInvocation ?
-					await tool.impl.prepareToolInvocation(dto.parameters, token)
-					: undefined;
-
+				const prepared = await this.prepareToolInvocation(tool, dto, token);
 				toolInvocation = new ChatToolInvocation(prepared, tool.data, dto.callId);
 				if (this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace)) {
 					toolInvocation.confirmed.complete(true);
@@ -259,10 +257,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					}
 				}
 			} else {
-				const prepared = tool.impl.prepareToolInvocation ?
-					await tool.impl.prepareToolInvocation(dto.parameters, token)
-					: undefined;
-
+				const prepared = await this.prepareToolInvocation(tool, dto, token);
 				if (prepared?.confirmationMessages) {
 					const result = await this._dialogService.confirm({ message: prepared.confirmationMessages.title, detail: renderStringAsPlaintext(prepared.confirmationMessages.message) });
 					if (!result.confirmed) {
@@ -305,6 +300,43 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				this.cleanupCallDisposables(requestId, store);
 			}
 		}
+	}
+
+	private async prepareToolInvocation(tool: IToolEntry, dto: IToolInvocation, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+		let prepared = tool.impl!.prepareToolInvocation ?
+			await tool.impl!.prepareToolInvocation(dto.parameters, token)
+			: undefined;
+
+		if (!prepared?.confirmationMessages && tool.data.requiresConfirmation && tool.data.source.type === 'extension') {
+			if (!prepared) {
+				prepared = {};
+			}
+
+			const toolWarning = localize(
+				'tool.warning',
+				"{0} This tool is from the extension `{1}`. Please carefully review any requested actions.",
+				'$(info)',
+				tool.data.source.extensionId.value,
+			);
+			prepared.confirmationMessages = {
+				title: localize('msg.title', "Run {0}", `"${tool.data.displayName}"`),
+				message: new MarkdownString((tool.data.userDescription ?? tool.data.modelDescription) + '\n\n' + toolWarning, { supportThemeIcons: true }),
+				allowAutoConfirm: true,
+			};
+		}
+
+		if (prepared?.toolSpecificData?.kind !== 'terminal' && prepared?.confirmationMessages) {
+			prepared.confirmationMessages!.allowAutoConfirm = true;
+		}
+
+		if (prepared?.confirmationMessages && !prepared.toolSpecificData) {
+			prepared.toolSpecificData = {
+				kind: 'input',
+				rawInput: dto.parameters,
+			};
+		}
+
+		return prepared;
 	}
 
 	private shouldAutoConfirm(toolId: string, runsInWorkspace: boolean | undefined): boolean {
