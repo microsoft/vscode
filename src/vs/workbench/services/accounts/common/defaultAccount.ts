@@ -160,7 +160,7 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 		this.registerSignInAction(authenticationProvider.id, declaredProvider.label, authenticationProvider.enterpriseProviderId, authenticationProvider.enterpriseProviderConfig, authenticationProvider.scopes);
 		this.setDefaultAccount(await this.getDefaultAccountFromAuthenticatedSessions(authenticationProvider.id, authenticationProvider.enterpriseProviderId, authenticationProvider.enterpriseProviderConfig, authenticationProvider.scopes, entitlementUrl));
 
-		this.authenticationService.onDidChangeSessions(async e => {
+		this._register(this.authenticationService.onDidChangeSessions(async e => {
 			if (e.providerId !== authenticationProvider.id && e.providerId !== authenticationProvider.enterpriseProviderId) {
 				return;
 			}
@@ -171,7 +171,7 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 			}
 
 			this.setDefaultAccount(await this.getDefaultAccountFromAuthenticatedSessions(authenticationProvider.id, authenticationProvider.enterpriseProviderId, authenticationProvider.enterpriseProviderConfig, authenticationProvider.scopes, entitlementUrl));
-		});
+		}));
 
 	}
 
