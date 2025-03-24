@@ -11,7 +11,8 @@ steps:
       $PackageJson = Get-Content -Path package.json -Raw | ConvertFrom-Json
       $DistroVersion = $PackageJson.distro
 
-      Invoke-Command -ScriptBlock { git checkout $DistroVersion } -WorkingDirectory "$(Build.SourcesDirectory)/.build/distro"
+      Invoke-Command -ScriptBlock { git checkout $DistroVersion } `
+        -WorkingDirectory "$(Build.SourcesDirectory)/.build/distro"
     displayName: Checkout microsoft/vscode-distro version
 
   # - task: AzureKeyVault@2
