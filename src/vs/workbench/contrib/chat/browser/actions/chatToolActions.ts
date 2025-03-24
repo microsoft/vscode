@@ -169,7 +169,7 @@ export class AttachToolsAction extends Action2 {
 				if (!mcpServer) {
 					continue;
 				}
-				bucket = toolBuckets.get(tool.source.collectionId) ?? {
+				bucket = toolBuckets.get(mcpServer.definition.id) ?? {
 					type: 'item',
 					label: localize('mcplabel', "MCP Server: {0}", mcpServer?.definition.label),
 					status: localize('mcpstatus', "From {0} ({1})", mcpServer.collection.label, McpConnectionState.toString(mcpServer.connectionState.get())),
@@ -178,7 +178,7 @@ export class AttachToolsAction extends Action2 {
 					picked: false,
 					children: []
 				};
-				toolBuckets.set(tool.source.collectionId, bucket);
+				toolBuckets.set(mcpServer.definition.id, bucket);
 			} else if (tool.source.type === 'extension') {
 				const extensionId = tool.source.extensionId;
 				const ext = extensionService.extensions.find(value => ExtensionIdentifier.equals(value.identifier, extensionId));
