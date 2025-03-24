@@ -1243,9 +1243,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			uriLabel.element.classList.add('monaco-icon-label');
 			uriLabel.element.title = localize('suggeste.title', "{0} - {1}", this.labelService.getUriLabel(uri, { relative: true }), description ?? '');
 
-			this._chatEditsActionsDisposables.add(uriLabel.onDidClick(() => {
+			this._chatEditsActionsDisposables.add(uriLabel.onDidClick(async () => {
 				group.remove(); // REMOVE asap
-				this._attachmentModel.addFile(uri);
+				await this._attachmentModel.addFile(uri);
 				this.relatedFiles?.remove(uri);
 			}));
 
@@ -1257,9 +1257,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}));
 			addButton.icon = Codicon.add;
 			addButton.setTitle(localize('chatEditingSession.addSuggested', 'Add suggestion'));
-			this._chatEditsActionsDisposables.add(addButton.onDidClick(() => {
+			this._chatEditsActionsDisposables.add(addButton.onDidClick(async () => {
 				group.remove(); // REMOVE asap
-				this._attachmentModel.addFile(uri);
+				await this._attachmentModel.addFile(uri);
 				this.relatedFiles?.remove(uri);
 			}));
 
