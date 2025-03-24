@@ -450,7 +450,16 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 	}
 
 	getAgentsByName(name: string): IChatAgentData[] {
-		return this.getAgents().filter(a => a.name === name);
+		return this._preferExtensionAgents(this.getAgents().filter(a => a.name === name));
+	}
+
+	private _preferExtensionAgents<T extends IChatAgentData>(agents: T[]): T[] {
+		// We potentially have multiple agents on the same location,
+		// contributed from core and from extensions.
+		// This method will prefer the extensions provided agents
+		// falling back to the original agents array extension agent is found.
+		const extensionAgents = agents.filter(a => !a.isCore);
+		return extensionAgents.length > 0 ? extensionAgents : agents;
 	}
 
 	agentHasDupeName(id: string): boolean {
