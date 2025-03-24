@@ -27,7 +27,7 @@ import { LanguageBracketsConfiguration } from './supports/languageBracketsConfig
  */
 export interface ICommentsConfiguration {
 	lineCommentToken?: string;
-	lineCommentTokenColumn?: number;
+	lineCommentTokenFirstColumn?: boolean;
 	blockCommentStartToken?: string;
 	blockCommentEndToken?: string;
 }
@@ -464,8 +464,8 @@ export class ResolvedLanguageConfiguration {
 			comments.blockCommentStartToken = blockStart;
 			comments.blockCommentEndToken = blockEnd;
 		}
-		if (typeof commentRule.lineCommentTokenColumn !== 'undefined' && commentRule.lineCommentTokenColumn !== null) {
-			comments.lineCommentTokenColumn = commentRule.lineCommentTokenColumn;
+		if (typeof commentRule.lineCommentTokenFirstColumn !== 'undefined' && commentRule.lineCommentTokenFirstColumn !== null) {
+			comments.lineCommentTokenFirstColumn = commentRule.lineCommentTokenFirstColumn;
 		}
 
 		return comments;

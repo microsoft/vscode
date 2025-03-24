@@ -115,10 +115,10 @@ export class LineCommentCommand implements ICommand {
 	public static _analyzeLines(type: Type, insertSpace: boolean, model: ISimpleModel, lines: ILinePreflightData[], startLineNumber: number, ignoreEmptyLines: boolean, ignoreFirstLine: boolean, languageConfigurationService: ILanguageConfigurationService, languageId: string): IPreflightData {
 		let onlyWhitespaceLines = true;
 
-		let lineCommentTokenColumn = undefined;
+		let lineCommentTokenFirstColumn = false;
 		const config = languageConfigurationService.getLanguageConfiguration(languageId).comments;
-		if (config) {
-			lineCommentTokenColumn = config.lineCommentTokenColumn;
+		if (config && config.lineCommentTokenFirstColumn !== undefined) {
+			lineCommentTokenFirstColumn = config.lineCommentTokenFirstColumn;
 		}
 
 		let shouldRemoveComments: boolean;
@@ -146,13 +146,13 @@ export class LineCommentCommand implements ICommand {
 			if (lineContentStartOffset === -1) {
 				// Empty or whitespace only line
 				lineData.ignore = ignoreEmptyLines;
-				lineData.commentStrOffset = (lineCommentTokenColumn !== undefined) ? lineCommentTokenColumn : lineContent.length;
+				lineData.commentStrOffset = lineCommentTokenFirstColumn ? 0 : lineContent.length;
 				continue;
 			}
 
 			onlyWhitespaceLines = false;
 			lineData.ignore = false;
-			lineData.commentStrOffset = (lineCommentTokenColumn !== undefined) ? lineCommentTokenColumn : lineContentStartOffset;
+			lineData.commentStrOffset = lineCommentTokenFirstColumn ? 0 : lineContentStartOffset;
 
 			if (shouldRemoveComments && !BlockCommentCommand._haystackHasNeedleAtOffset(lineContent, lineData.commentStr, lineContentStartOffset)) {
 				if (type === Type.Toggle) {

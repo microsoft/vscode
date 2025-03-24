@@ -48,8 +48,8 @@ suite('Editor Contrib - Line Comment Command', () => {
 		(accessor, sel) => new LineCommentCommand(accessor.get(ILanguageConfigurationService), sel, 4, Type.ForceAdd, true, true)
 	);
 
-	const testLineCommentCommandColumnFixed = createTestCommandHelper(
-		{ lineComment: '!@#', lineCommentTokenColumn: 0, blockComment: ['<!@#', '#@!>'] },
+	const testLineCommentCommandTokenFirstColumn = createTestCommandHelper(
+		{ lineComment: '!@#', lineCommentTokenFirstColumn: true, blockComment: ['<!@#', '#@!>'] },
 		(accessor, sel) => new LineCommentCommand(accessor.get(ILanguageConfigurationService), sel, 4, Type.Toggle, true, true)
 	);
 
@@ -87,7 +87,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 	});
 
 	test('comment with token column fixed', function () {
-		testLineCommentCommandColumnFixed(
+		testLineCommentCommandTokenFirstColumn(
 			[
 				'some text',
 				'\tsome more text'

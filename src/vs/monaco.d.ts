@@ -6705,7 +6705,7 @@ declare namespace monaco.languages {
 		/**
 		 * Where on the line the token should be placed.
 		 */
-		lineCommentTokenColumn?: number | null;
+		lineCommentTokenFirstColumn?: boolean | null;
 		/**
 		 * The block comment character pair, like `/* block comment *&#47;`
 		 */
