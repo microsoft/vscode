@@ -1243,7 +1243,9 @@ export interface ITextModel {
 	 */
 	readonly onDidChangeDecorations: Event<IModelDecorationsChangedEvent>;
 	/**
-	 * An event emitted when line heights from decorations changes
+	 * An event emitted when line heights from decorations changes.
+	 * This event is emitted only when adding, removing or changing a decoration
+	 * and not when doing edits in the model (i.e. when decoration ranges change)
 	 * @internal
 	 * @event
 	 */
