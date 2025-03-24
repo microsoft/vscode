@@ -3,6 +3,12 @@ parameters:
     type: string
 
 steps:
+  - checkout: self
+    clean: true
+    fetchDepth: 1
+    path: $(Build.SourcesDirectory)
+    displayName: Checkout microsoft/vscode
+
   - task: NodeTool@0
     inputs:
       versionSource: fromFile

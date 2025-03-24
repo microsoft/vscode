@@ -5,7 +5,7 @@ steps:
     path: $(Build.SourcesDirectory)/.build/distro
     persistCredentials: true
     workspaceRepo: false
-    displayName: Checkout distro
+    displayName: Checkout microsoft/vscode-distro
 
   - task: AzureKeyVault@2
     displayName: "Azure Key Vault: Get Secrets"
