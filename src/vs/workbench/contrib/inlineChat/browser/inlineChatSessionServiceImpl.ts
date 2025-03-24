@@ -359,9 +359,14 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 				return;
 			}
 
+			if (chatModel.requestInProgress) {
+				return;
+			}
+
 			const allSettled = entries.every(entry => {
 				const state = entry.state.read(r);
-				return state === WorkingSetEntryState.Accepted || state === WorkingSetEntryState.Rejected;
+				return (state === WorkingSetEntryState.Accepted || state === WorkingSetEntryState.Rejected)
+					&& !entry.isCurrentlyBeingModifiedBy.read(r);
 			});
 
 			if (allSettled) {
