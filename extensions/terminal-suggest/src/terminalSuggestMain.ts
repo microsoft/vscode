@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ExecOptionsWithStringEncoding } from 'child_process';
-import * as filesystem from 'fs';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as vscode from 'vscode';
@@ -14,7 +13,7 @@ import codeInsidersCompletionSpec from './completions/code-insiders';
 import npxCompletionSpec from './completions/npx';
 import setLocationSpec from './completions/set-location';
 import { upstreamSpecs } from './constants';
-import { ITerminalEnvironment, PathExecutableCache } from './env/pathExecutableCache';
+import { ITerminalEnvironment, PathExecutableCache, watchPathDirectories } from './env/pathExecutableCache';
 import { osIsWindows } from './helpers/os';
 import { getFriendlyResourcePath } from './helpers/uri';
 import { getBashGlobals } from './shell/bash';
@@ -84,59 +83,7 @@ async function getShellGlobals(shellType: TerminalShellType, existingCommands?: 
 	}
 }
 
-async function watchPathDirectories(context: vscode.ExtensionContext, env: ITerminalEnvironment) {
-	const pathDirectories = new Set<string>();
 
-	// Common global bin paths
-	const commonPaths = isWindows ? [
-		process.env.APPDATA ? path.join(process.env.APPDATA, 'npm') : undefined,
-		process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, 'npm') : undefined
-	] : [
-		'/usr/local/bin',
-		'/opt/homebrew/bin',
-		'/usr/bin',
-		process.env.HOME ? path.join(process.env.HOME, '.npm-global/bin') : undefined
-	];
-	const envPath = env.PATH;
-	if (envPath) {
-		envPath.split(path.delimiter).forEach(p => pathDirectories.add(p));
-	}
-
-	commonPaths.filter((p): p is string => p !== undefined).forEach(p => pathDirectories.add(p));
-
-	const activeWatchers = new Set<string>();
-
-	// Watch each directory
-	for (const dir of pathDirectories) {
-		try {
-			if (activeWatchers.has(dir)) {
-				// Skip if already watching or directory doesn't exist
-				continue;
-			}
-
-			const stat = await fs.stat(dir);
-			if (!stat.isDirectory()) {
-				continue;
-			}
-
-			const watcher = filesystem.watch(dir, { persistent: false }, () => {
-				if (pathExecutableCache) {
-					// Refresh cache when directory contents change
-					pathExecutableCache.refresh();
-				}
-			});
-
-			activeWatchers.add(dir);
-
-			context.subscriptions.push(new vscode.Disposable(() => {
-				try {
-					watcher.close();
-					activeWatchers.delete(dir);
-				} catch { } { }
-			}));
-		} catch { }
-	}
-}
 export async function activate(context: vscode.ExtensionContext) {
 	pathExecutableCache = new PathExecutableCache();
 	context.subscriptions.push(pathExecutableCache);
@@ -200,7 +147,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			return result.items;
 		}
 	}, '/', '\\'));
-	await watchPathDirectories(context, currentTerminalEnv);
+	await watchPathDirectories(context, currentTerminalEnv, pathExecutableCache);
 }
 
 /**

@@ -10,6 +10,8 @@ import { osIsWindows } from '../helpers/os';
 import type { ICompletionResource } from '../types';
 import { getFriendlyResourcePath } from '../helpers/uri';
 import { SettingsIds } from '../constants';
+import * as filesystem from 'fs';
+import * as path from 'path';
 
 const isWindows = osIsWindows();
 
@@ -110,6 +112,60 @@ export class PathExecutableCache implements vscode.Disposable {
 			// Ignore errors for directories that can't be read
 			return undefined;
 		}
+	}
+}
+
+export async function watchPathDirectories(context: vscode.ExtensionContext, env: ITerminalEnvironment, pathExecutableCache: PathExecutableCache | undefined): Promise<void> {
+	const pathDirectories = new Set<string>();
+
+	// Common global bin paths
+	const commonPaths = isWindows ? [
+		process.env.APPDATA ? path.join(process.env.APPDATA, 'npm') : undefined,
+		process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, 'npm') : undefined
+	] : [
+		'/usr/local/bin',
+		'/opt/homebrew/bin',
+		'/usr/bin',
+		process.env.HOME ? path.join(process.env.HOME, '.npm-global/bin') : undefined
+	];
+	const envPath = env.PATH;
+	if (envPath) {
+		envPath.split(path.delimiter).forEach(p => pathDirectories.add(p));
+	}
+
+	commonPaths.filter((p): p is string => p !== undefined).forEach(p => pathDirectories.add(p));
+
+	const activeWatchers = new Set<string>();
+
+	// Watch each directory
+	for (const dir of pathDirectories) {
+		try {
+			if (activeWatchers.has(dir)) {
+				// Skip if already watching or directory doesn't exist
+				continue;
+			}
+
+			const stat = await fs.stat(dir);
+			if (!stat.isDirectory()) {
+				continue;
+			}
+
+			const watcher = filesystem.watch(dir, { persistent: false }, () => {
+				if (pathExecutableCache) {
+					// Refresh cache when directory contents change
+					pathExecutableCache.refresh();
+				}
+			});
+
+			activeWatchers.add(dir);
+
+			context.subscriptions.push(new vscode.Disposable(() => {
+				try {
+					watcher.close();
+					activeWatchers.delete(dir);
+				} catch { } { }
+			}));
+		} catch { }
 	}
 }
 
