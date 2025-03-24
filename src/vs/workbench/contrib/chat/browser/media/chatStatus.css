@@ -119,9 +119,3 @@
 .chat-status-bar-entry-tooltip .settings .setting.disabled .setting-label {
 	color: var(--vscode-disabledForeground);
 }
-
-/* Contributions */
-
-.chat-status-bar-entry-tooltip .detail-item {
-
-}
