@@ -121,19 +121,24 @@ function getCurrentAndNextStop(requestId: string, stopId: string | undefined, hi
 	return { current, next };
 }
 
-function getFirstAndLastStop(history: readonly IChatEditingSessionSnapshot[]) {
-	const firstSnapshot = history.at(0);
+function getFirstAndLastStop(uri: URI, history: readonly IChatEditingSessionSnapshot[]) {
+	let firstStopWithUri: IChatEditingSessionStop | undefined;
+	for (const snapshot of history) {
+		const stop = snapshot.stops.find(s => s.entries.has(uri));
+		if (stop) {
+			firstStopWithUri = stop;
+			break;
+		}
+	}
 	const lastSnapshot = history.at(-1);
-	if (!firstSnapshot || !lastSnapshot) { return undefined; }
 
-	const first = firstSnapshot.stops.at(0)?.entries;
-	const last = lastSnapshot.postEdit ?? lastSnapshot.stops.at(-1)?.entries;
+	const last = lastSnapshot?.postEdit ?? lastSnapshot?.stops.at(-1)?.entries;
 
-	if (!first || !last) {
+	if (!firstStopWithUri || !last) {
 		return undefined;
 	}
 
-	return { current: first, next: last };
+	return { current: firstStopWithUri.entries, next: last };
 }
 
 export class ChatEditingSession extends Disposable implements IChatEditingSession {
@@ -364,7 +369,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			reader => {
 				const stops = requestId ?
 					getCurrentAndNextStop(requestId, stopId, this._linearHistory.read(reader)) :
-					getFirstAndLastStop(this._linearHistory.read(reader));
+					getFirstAndLastStop(uri, this._linearHistory.read(reader));
 				if (!stops) { return undefined; }
 				const before = stops.current.get(uri);
 				const after = stops.next.get(uri);
