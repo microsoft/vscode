@@ -1,7 +1,6 @@
 steps:
   - checkout: distro
     clean: true
-    fetchDepth: 1
     path: s/.build/distro
     persistCredentials: true
     workspaceRepo: false
