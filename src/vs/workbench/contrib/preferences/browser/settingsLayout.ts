@@ -236,7 +236,7 @@ export const tocData: ITOCEntry<string> = {
 				{
 					id: 'features/chat',
 					label: localize('chat', 'Chat'),
-					settings: ['chat.*', 'inlineChat.*']
+					settings: ['chat.*', 'inlineChat.*', 'mcp']
 				},
 				{
 					id: 'features/issueReporter',

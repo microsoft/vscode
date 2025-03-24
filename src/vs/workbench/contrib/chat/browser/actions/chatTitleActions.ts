@@ -501,7 +501,7 @@ export function registerChatTitleActions() {
 				await chatService.adoptRequest(editingSession.chatSessionId, request);
 				this._collectWorkingSetAdditions(request, workingSetAdditions);
 			}
-			workingSetAdditions.forEach(uri => editsView.widget.attachmentModel.addFile(uri));
+			await Promise.all(Array.from(workingSetAdditions, async uri => editsView.widget.attachmentModel.addFile(uri)));
 
 			// make request
 			await chatService.sendRequest(editingSession.chatSessionId, '', {
