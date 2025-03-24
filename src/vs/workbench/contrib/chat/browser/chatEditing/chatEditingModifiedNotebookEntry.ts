@@ -179,6 +179,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		@IUndoRedoService undoRedoService: IUndoRedoService,
 		@INotebookEditorWorkerService private readonly notebookEditorWorkerService: INotebookEditorWorkerService,
 		@INotebookLoggingService private readonly loggingService: INotebookLoggingService,
+		@INotebookEditorModelResolverService private readonly notebookResolver: INotebookEditorModelResolverService,
 	) {
 		super(modifiedResourceRef.object.notebook.uri, telemetryInfo, kind, configurationService, fileConfigService, chatService, fileService, undoRedoService, instantiationService);
 		this.initialContentComparer = new SnapshotComparer(initialContent);
@@ -406,6 +407,22 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		restoreSnapshot(this.originalModel, snapshot);
 		this.initializeModelsFromDiff();
 		await this._collapse(tx);
+
+		const config = this._fileConfigService.getAutoSaveConfiguration(this.modifiedURI);
+		if (this.modifiedModel.uri.scheme !== Schemas.untitled && (!config.autoSave || !this.notebookResolver.isDirty(this.modifiedURI))) {
+			// SAVE after accept for manual-savers, for auto-savers
+			// trigger explict save to get save participants going
+			await this._applyEdits(async () => {
+				try {
+					await this.modifiedResourceRef.object.save({
+						reason: SaveReason.EXPLICIT,
+						force: true,
+					});
+				} catch {
+					// ignored
+				}
+			});
+		}
 	}
 
 	protected override async _doReject(tx: ITransaction | undefined): Promise<void> {
