@@ -103,7 +103,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		[TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop, terminalSymbolInlineSuggestionIcon],
 	]);
 
-	private _kindToTypeMap = new Map<number, string>([
+	private _kindToKindLabelMap = new Map<number, string>([
 		[TerminalCompletionItemKind.File, localize('file', 'File')],
 		[TerminalCompletionItemKind.Folder, localize('folder', 'Folder')],
 		[TerminalCompletionItemKind.Method, localize('method', 'Method')],
@@ -309,7 +309,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		for (const completion of completions) {
 			if (!completion.icon && completion.kind !== undefined) {
 				completion.icon = this._kindToIconMap.get(completion.kind);
-				completion.kindLabel = this._kindToTypeMap.get(completion.kind);
+				completion.kindLabel = this._kindToKindLabelMap.get(completion.kind);
 			}
 		}
 
