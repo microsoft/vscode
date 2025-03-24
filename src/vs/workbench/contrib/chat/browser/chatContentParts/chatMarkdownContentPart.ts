@@ -382,7 +382,7 @@ class CollapsedCodeBlock extends Disposable {
 		const labelDetail = dom.$('span.label-detail', {}, '');
 		children.push(labelDetail);
 		if (isStreaming) {
-			labelDetail.textContent = localize('chat.codeblock.generating', "Generating edits...");
+			labelDetail.textContent = localize('chat.codeblock.generating', "Generating Edits...");
 		}
 
 		this.element.replaceChildren(iconEl, ...children);
@@ -419,7 +419,7 @@ class CollapsedCodeBlock extends Disposable {
 
 			if (!isStreaming && !isComplete) {
 				const value = rewriteRatio;
-				labelDetail.textContent = value === 0 || !value ? localize('chat.codeblock.generating', "Generating edits...") : localize('chat.codeblock.applyingPercentage', "Applying edits ({0}%)...", Math.round(value * 100));
+				labelDetail.textContent = value === 0 || !value ? localize('chat.codeblock.generating', "Generating Edits...") : localize('chat.codeblock.applyingPercentage', "Applying Edits ({0}%)...", Math.round(value * 100));
 			} else if (!isStreaming && isComplete) {
 				iconEl.classList.remove(...iconClasses);
 				const fileKind = uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
