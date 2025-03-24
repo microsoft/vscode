@@ -370,8 +370,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		await this._handleCompletionProviders(this._terminal, token, explicitlyInvoked);
 	}
 
-	private _addPropertiesToInlineCompletionItem(completions: ITerminalCompletion[]): void {
-		const inlineCompletionLabel = typeof this._inlineCompletionItem.completion.label === 'string' ? this._inlineCompletionItem.completion.label : this._inlineCompletionItem.completion.label.label;
+	private _addPropertiesToInlineCompletionItem(completions: ITerminalCompletion[]): TerminalCompletionItem[] | undefined {
+		const inlineCompletionLabel = (typeof this._inlineCompletionItem.completion.label === 'string' ? this._inlineCompletionItem.completion.label : this._inlineCompletionItem.completion.label.label).trim();
 		const inlineCompletionMatchIndex = completions.findIndex(c => typeof c.label === 'string' ? c.label === inlineCompletionLabel : c.label.label === inlineCompletionLabel);
 		if (inlineCompletionMatchIndex !== -1) {
 			// Remove the existing inline completion item from the completions list
@@ -380,7 +380,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._inlineCompletionItem.completion.label = richCompletionMatchingInline.label;
 			this._inlineCompletionItem.completion.detail = richCompletionMatchingInline.detail;
 			this._inlineCompletionItem.completion.documentation = richCompletionMatchingInline.documentation;
+			return completions.filter(c => !!c.label).map(c => new TerminalCompletionItem(c));
 		}
+		return undefined;
 	}
 
 	private _requestTriggerCharQuickSuggestCompletions(): boolean {
@@ -522,19 +524,29 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				return;
 			}
 		}
-
+		let lineContext;
 		if (this._terminalSuggestWidgetVisibleContextKey.get()) {
 			this._cursorIndexDelta = this._currentPromptInputState.cursorIndex - (this._requestedCompletionsIndex);
 			let normalizedLeadingLineContent = this._currentPromptInputState.value.substring(0, this._requestedCompletionsIndex + this._cursorIndexDelta);
 			if (this._isFilteringDirectories) {
 				normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
 			}
-			const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
+			lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
 			this._suggestWidget.setLineContext(lineContext);
 		}
 
 		this._refreshInlineCompletion();
-		this._addPropertiesToInlineCompletionItem(this._model?.items.map(i => i.completion) || []);
+		const completionItems = this._addPropertiesToInlineCompletionItem(this._model?.items.map(i => i.completion) || []);
+		if (lineContext && completionItems) {
+			const model = new TerminalCompletionModel(
+				[
+					...completionItems,
+					this._inlineCompletionItem,
+				],
+				lineContext
+			);
+			this._showCompletions(model, false);
+		}
 
 		// Hide and clear model if there are no more items
 		if (!this._suggestWidget.hasCompletions()) {
