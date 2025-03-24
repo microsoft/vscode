@@ -7,7 +7,9 @@ import { DataTransfers } from '../../../../base/browser/dnd.js';
 import { $, DragAndDropObserver } from '../../../../base/browser/dom.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { coalesce } from '../../../../base/common/arrays.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { UriList } from '../../../../base/common/dataTransfer.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Mimes } from '../../../../base/common/mime.js';
 import { basename } from '../../../../base/common/resources.js';
@@ -244,7 +246,7 @@ export class ChatDragAndDrop extends Themable {
 			return this.resolveSymbolsAttachContext(data);
 		}
 
-		if (!containsDragType(e, DataTransfers.INTERNAL_URI_LIST) && containsDragType(e, 'text/uri-list') && ((containsDragType(e, 'text/html') || containsDragType(e, 'text/plain')))) {
+		if (!containsDragType(e, DataTransfers.INTERNAL_URI_LIST) && containsDragType(e, Mimes.uriList) && ((containsDragType(e, Mimes.html) || containsDragType(e, Mimes.text)))) {
 			return this.resolveHTMLAttachContext(e);
 		}
 
@@ -325,7 +327,7 @@ export class ChatDragAndDrop extends Themable {
 
 	private async downloadImageAsUint8Array(url: string): Promise<Uint8Array | undefined> {
 		try {
-			const extractedImages = await this.webContentExtractorService.readImage(URI.parse(url));
+			const extractedImages = await this.webContentExtractorService.readImage(URI.parse(url), CancellationToken.None);
 			if (extractedImages) {
 				return extractedImages.buffer;
 			}
@@ -345,20 +347,27 @@ export class ChatDragAndDrop extends Themable {
 			finalDisplayName = `${displayName} ${appendValue}`;
 		}
 
-		const src = await extractImageAttributes(e);
-		const isString = typeof src === 'string';
+		const dataFromFile = await extractImageFromFile(e);
+		if (dataFromFile) {
+			return [await this.createImageVariable(await resizeImage(dataFromFile), finalDisplayName)];
+		}
 
-		if ((src instanceof Uint8Array && src.length > 0) || (isString && /^data:image\/[a-z]+;base64,/.test(src))) {
-			return [await this.createImageVariable(await resizeImage(src), finalDisplayName)];
-		} else if (isString && /^https?:\/\/.+/.test(src)) {
-			const url = new URL(src);
-			const imageData = await this.downloadImageAsUint8Array(url.toString());
-			if (imageData) {
-				return [await this.createImageVariable(await resizeImage(imageData), finalDisplayName, url.toString())];
+		const dataFromUrl = await extractImageFromUrl(e);
+		const variableEntries: IChatRequestVariableEntry[] = [];
+		if (dataFromUrl) {
+			for (const url of dataFromUrl) {
+				if (/^data:image\/[a-z]+;base64,/.test(url)) {
+					variableEntries.push(await this.createImageVariable(await resizeImage(url), finalDisplayName));
+				} else if (/^https?:\/\/.+/.test(url)) {
+					const imageData = await this.downloadImageAsUint8Array(url);
+					if (imageData) {
+						variableEntries.push(await this.createImageVariable(await resizeImage(imageData), finalDisplayName, url));
+					}
+				}
 			}
 		}
 
-		return [];
+		return variableEntries;
 	}
 
 	private async createImageVariable(data: Uint8Array, name: string, id?: string) {
@@ -491,18 +500,28 @@ function symbolId(resource: URI, range?: IRange): string {
 	return resource.fsPath + rangePart;
 }
 
-async function extractImageAttributes(e: DragEvent): Promise<string | Uint8Array> {
+async function extractImageFromFile(e: DragEvent): Promise<Uint8Array | undefined> {
 	const files = e.dataTransfer?.files;
 	if (files && files.length > 0) {
-		const dataTransferFiles = await files[0].bytes();
-		return dataTransferFiles;
+		const file = files[0];
+		if (file.type.startsWith('image/')) {
+			const dataTransferFiles = await file.bytes();
+			return dataTransferFiles;
+		}
 	}
 
+	return undefined;
+}
+
+async function extractImageFromUrl(e: DragEvent): Promise<string[] | undefined> {
 	const textUrl = e.dataTransfer?.getData('text/uri-list');
 	if (textUrl) {
-		return textUrl;
+		const uris = UriList.parse(textUrl);
+		if (uris.length > 0) {
+			return uris;
+		}
 	}
 
-	return new Uint8Array();
+	return undefined;
 }
 
