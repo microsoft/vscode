@@ -116,19 +116,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		[TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop, localize('inlineSuggestionAlwaysOnTop', 'Inline Suggestion')],
 	]);
 
-	private _kindToTypeMap = new Map<number, string>([
-		[TerminalCompletionItemKind.File, 'File'],
-		[TerminalCompletionItemKind.Folder, 'Folder'],
-		[TerminalCompletionItemKind.Method, 'Method'],
-		[TerminalCompletionItemKind.Alias, 'Alias'],
-		[TerminalCompletionItemKind.Argument, 'Argument'],
-		[TerminalCompletionItemKind.Option, 'Option'],
-		[TerminalCompletionItemKind.OptionValue, 'Option Value'],
-		[TerminalCompletionItemKind.Flag, 'Flag'],
-		[TerminalCompletionItemKind.InlineSuggestion, 'Inline Suggestion'],
-		[TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop, 'Inline Suggestion'],
-	]);
-
 	private readonly _inlineCompletion: ITerminalCompletion = {
 		label: '',
 		// Right arrow is used to accept the completion. This is a common keybinding in pwsh, zsh
@@ -324,7 +311,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			if (!completion.icon && completion.kind !== undefined) {
 				completion.icon = this._kindToIconMap.get(completion.kind);
 				completion.kindLabel = this._kindToKindLabelMap.get(completion.kind);
-				completion.type = this._kindToTypeMap.get(completion.kind);
 			}
 		}
 
