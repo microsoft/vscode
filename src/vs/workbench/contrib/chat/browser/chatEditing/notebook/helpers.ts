@@ -156,11 +156,9 @@ export function adjustCellDiffAndOriginalModelBasedOnCellAddDelete(change: Noteb
 	let diffEntryIndex = -1;
 	let indexToInsertInOriginalModel: number | undefined = undefined;
 	if (cells.length) {
-		let found = false;
 		for (let i = 0; i < cellDiffInfo.length; i++) {
 			const diff = cellDiffInfo[i];
 			if (typeof diff.modifiedCellIndex === 'number' && diff.modifiedCellIndex === change[0]) {
-				found = true;
 				diffEntryIndex = i;
 
 				if (typeof diff.originalCellIndex === 'number') {
