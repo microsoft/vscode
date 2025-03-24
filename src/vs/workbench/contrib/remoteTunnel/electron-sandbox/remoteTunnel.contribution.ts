@@ -722,7 +722,10 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 					id: RemoteTunnelCommandIds.closeUnusedPorts,
 					title: RemoteTunnelCommandLabels.closeUnusedPorts,
 					category: REMOTE_TUNNEL_CATEGORY,
-					menu: []
+					precondition: ContextKeyExpr.equals(REMOTE_TUNNEL_CONNECTION_STATE_KEY, 'connected'),
+					menu: [{
+						id: MenuId.CommandPalette,
+					}]
 				});
 			}
 
