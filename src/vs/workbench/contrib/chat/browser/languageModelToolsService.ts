@@ -325,6 +325,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			};
 		}
 
+		if (prepared?.toolSpecificData?.kind !== 'terminal' && prepared?.confirmationMessages) {
+			prepared.confirmationMessages.allowAutoConfirm = true;
+		}
+
 		return prepared;
 	}
 
