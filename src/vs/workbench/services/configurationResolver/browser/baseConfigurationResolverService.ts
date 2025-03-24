@@ -138,6 +138,9 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 				return extensionService.getExtension(id);
 			},
 		}, labelService, pathService.userHome().then(home => home.path), envVariablesPromise);
+
+		this.resolvableVariables.add('command');
+		this.resolvableVariables.add('input');
 	}
 
 	override async resolveWithInteractionReplace(folder: IWorkspaceFolderData | undefined, config: any, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<any> {
