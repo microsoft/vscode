@@ -105,7 +105,7 @@ export class McpService extends Disposable implements IMcpService {
 					inputSchema: tool.definition.inputSchema,
 					canBeReferencedInPrompt: true,
 					runsInWorkspace: collection?.scope === StorageScope.WORKSPACE || !!collection?.remoteAuthority,
-					tags: ['mcp', 'vscode_editing'], // TODO@jrieken remove this tag
+					tags: ['mcp'],
 				};
 
 				if (existing) {
