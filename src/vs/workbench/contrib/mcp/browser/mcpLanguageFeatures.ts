@@ -203,6 +203,13 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 							title: '$(loading~spin) ' + localize('server.starting', 'Starting'),
 							arguments: [server.definition.id],
 						},
+					}, {
+						range,
+						command: {
+							id: StopServer.ID,
+							title: localize('cancel', "Cancel"),
+							arguments: [server.definition.id],
+						},
 					});
 					break;
 				case McpConnectionState.Kind.Running:
