@@ -228,7 +228,7 @@ export class NotebookProviderInfoStore extends Disposable {
 					if (!data?.handle) {
 						throw new Error('Invalid cell handle');
 					}
-					const cellUri = data?.notebook.with({ fragment: (data.handle).toString() });
+					const cellUri = data?.notebook.with({ fragment: resource.fragment });
 
 					cellOptions = { resource: cellUri, options };
 
