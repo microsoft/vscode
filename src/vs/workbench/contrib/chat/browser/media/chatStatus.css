@@ -118,10 +118,9 @@
 	display: flex;
 	flex-direction: row;
 	gap: 6px;
-	color: var(--vscode-descriptionForeground);
 
 	.detail-item {
 		margin-left: auto;
-		font-weight: normal;
+		color: var(--vscode-descriptionForeground);
 	}
 }
