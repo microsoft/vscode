@@ -34,7 +34,7 @@ import { ViewLayout } from '../viewLayout/viewLayout.js';
 import { MinimapTokensColorTracker } from './minimapTokensColorTracker.js';
 import { ILineBreaksComputer, ILineBreaksComputerFactory, InjectedText } from '../modelLineProjectionData.js';
 import { ViewEventHandler } from '../viewEventHandler.js';
-import { ICoordinatesConverter, InlineDecoration, ISpecialLineHeightChangeAccessor, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
+import { ICoordinatesConverter, InlineDecoration, ILineHeightChangeAccessor, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
 import { ViewModelDecorations } from './viewModelDecorations.js';
 import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelLineHeightChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent, WidgetFocusChangedEvent } from '../viewModelEventDispatcher.js';
 import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from './viewModelLines.js';
@@ -422,25 +422,17 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._register(this.model.onDidChangeLineHeight((e) => {
 			const filteredChanges = e.changes.filter((change) => change.ownerId === this._editorId || change.ownerId === 0);
 
-			for (const change of filteredChanges) {
-				const lineNumber = change.lineNumber;
-				const lineHeight = change.lineHeight;
-				const decorationId = change.decorationId;
-				const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
-				if (lineHeight !== null) {
-					for (let i = viewRange.startLineNumber; i <= viewRange.endLineNumber; i++) {
-						this.viewLayout.changeSpecialLineHeights((accessor: ISpecialLineHeightChangeAccessor) => {
-							accessor.insertOrChangeSpecialLineHeight(decorationId, lineNumber, lineHeight);
-						});
-					}
-				} else {
-					for (let i = viewRange.startLineNumber; i <= viewRange.endLineNumber; i++) {
-						this.viewLayout.changeSpecialLineHeights((accessor: ISpecialLineHeightChangeAccessor) => {
-							accessor.removeSpecialLineHeight(decorationId);
-						});
+			this.viewLayout.changeSpecialLineHeights((accessor: ILineHeightChangeAccessor) => {
+				for (const change of filteredChanges) {
+					const { decorationId, lineNumber, lineHeight } = change;
+					const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
+					if (lineHeight !== null) {
+						accessor.insertOrChangeCustomLineHeight(decorationId, viewRange.startLineNumber, viewRange.endLineNumber, lineHeight);
+					} else {
+						accessor.removeCustomLineHeight(decorationId);
 					}
 				}
-			}
+			});
 
 			// recreate the model event using the filtered changes
 			if (filteredChanges.length > 0) {

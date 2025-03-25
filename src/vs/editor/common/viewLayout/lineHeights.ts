@@ -27,7 +27,7 @@ export class SpecialLine {
 	}
 }
 
-export class LineHeightManager {
+export class LineHeightsManager {
 
 	private _decorationIDToSpecialLine: Map<string, SpecialLine> = new Map<string, SpecialLine>();
 	private _orderedSpecialLines: SpecialLine[] = [];
@@ -44,7 +44,7 @@ export class LineHeightManager {
 		this._defaultLineHeight = defaultLineHeight;
 	}
 
-	public removeSpecialLineUsingDecoration(decorationID: string): void {
+	public removeCustomLineHeight(decorationID: string): void {
 		const specialLine = this._decorationIDToSpecialLine.get(decorationID);
 		if (!specialLine) {
 			return;
@@ -55,7 +55,7 @@ export class LineHeightManager {
 		this._hasPending = true;
 	}
 
-	public insertOrChangeSpecialLineHeightUsingDecoration(decorationId: string, lineNumber: number, lineHeight: number): void {
+	public insertOrChangeCustomLineHeight(decorationId: string, startLineNumber: number, endLineNumber: number, lineHeight: number): void {
 		const specialLine = this._decorationIDToSpecialLine.get(decorationId);
 		if (!specialLine) {
 			const specialLine = new SpecialLine(decorationId, -1, lineNumber, lineHeight, 0);
@@ -77,7 +77,7 @@ export class LineHeightManager {
 		return this._defaultLineHeight;
 	}
 
-	public totalHeightUntilLineNumber(lineNumber: number): number {
+	public getAccumulatedLineHeightsIncludingLineNumber(lineNumber: number): number {
 		this.commit();
 		const searchIndex = this._binarySearchOverSpecialLinesArray(lineNumber);
 		if (searchIndex >= 0) {
@@ -187,10 +187,6 @@ export class LineHeightManager {
 			this._orderedSpecialLines[i].lineNumber += insertCount;
 			this._orderedSpecialLines[i].prefixSum += this._defaultLineHeight * insertCount;
 		}
-	}
-
-	public mustCommit(): boolean {
-		return this._hasPending;
 	}
 
 	public commit(): void {
