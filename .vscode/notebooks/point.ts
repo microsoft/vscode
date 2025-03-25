@@ -15,7 +15,7 @@ class Point {
 	 */
 	constructor(x: number, z: number = 0) {
 		this.z = z;
-		this.t = 'feature branch change';
+		this.t = 'blah blah blah';
 		this.x = x;
 	}
 
