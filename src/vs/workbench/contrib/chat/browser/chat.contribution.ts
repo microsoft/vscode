@@ -289,6 +289,7 @@ configurationRegistry.registerConfiguration({
 			policy: {
 				name: 'ChatPromptFiles',
 				minimumVersion: '1.99',
+				description: nls.localize('chat.promptFiles.policy', "Enables reusable prompt files in Chat, Edits, and Inline Chat sessions."),
 				previewFeature: true,
 				defaultValue: false
 			}
@@ -413,7 +414,7 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 			return;
 		}
 
-		this.registeredNode = {
+		this.registeredNode = configurationRegistry.registerConfiguration({
 			id: 'chatAgent',
 			title: nls.localize('interactiveSessionConfigurationTitle', "Chat"),
 			type: 'object',
@@ -431,8 +432,7 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 					}
 				},
 			}
-		};
-		configurationRegistry.registerConfiguration(this.registeredNode);
+		});
 	}
 
 	private deregisterSetting() {
