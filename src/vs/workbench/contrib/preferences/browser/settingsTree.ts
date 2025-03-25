@@ -33,8 +33,9 @@ import { Disposable, DisposableStore, isDisposable, toDisposable } from '../../.
 import { isIOS } from '../../../../base/common/platform.js';
 import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { isDefined, isUndefinedOrNull } from '../../../../base/common/types.js';
-import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { URI } from '../../../../base/common/uri.js';
 import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { localize } from '../../../../nls.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -42,6 +43,7 @@ import { ConfigurationTarget, IConfigurationService, getLanguageTagSettingPlainK
 import { ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IListService, WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
@@ -55,23 +57,20 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { getIgnoredSettings } from '../../../../platform/userDataSync/common/settingsMerge.js';
 import { IUserDataSyncEnablementService, getDefaultIgnoredSettings } from '../../../../platform/userDataSync/common/userDataSync.js';
+import { APPLICATION_SCOPES, APPLY_ALL_PROFILES_SETTING, IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { ISetting, ISettingsGroup, SETTINGS_AUTHORITY, SettingValueType } from '../../../services/preferences/common/preferences.js';
+import { getInvalidTypeError } from '../../../services/preferences/common/preferencesValidation.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
+import { LANGUAGE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU, compareTwoNullableNumbers } from '../common/preferences.js';
+import { settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from '../common/settingsEditorColorRegistry.js';
 import { settingsMoreActionIcon } from './preferencesIcons.js';
 import { SettingsTarget } from './preferencesWidgets.js';
 import { ISettingOverrideClickEvent, SettingsTreeIndicatorsLabel, getIndicatorsLabelAriaLabel } from './settingsEditorSettingIndicators.js';
 import { ITOCEntry } from './settingsLayout.js';
 import { ISettingsEditorViewState, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement, inspectSetting, objectSettingSupportsRemoveDefaultValue, settingKeyToDisplayFormat } from './settingsTreeModels.js';
 import { ExcludeSettingWidget, IBoolObjectDataItem, IIncludeExcludeDataItem, IListDataItem, IObjectDataItem, IObjectEnumOption, IObjectKeySuggester, IObjectValueSuggester, IncludeSettingWidget, ListSettingWidget, ObjectSettingCheckboxWidget, ObjectSettingDropdownWidget, ObjectValue, SettingListEvent } from './settingsWidgets.js';
-import { LANGUAGE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU, compareTwoNullableNumbers } from '../common/preferences.js';
-import { settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from '../common/settingsEditorColorRegistry.js';
-import { APPLICATION_SCOPES, APPLY_ALL_PROFILES_SETTING, IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
-import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
-import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { ISetting, ISettingsGroup, SETTINGS_AUTHORITY, SettingValueType } from '../../../services/preferences/common/preferences.js';
-import { getInvalidTypeError } from '../../../services/preferences/common/preferencesValidation.js';
-import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { URI } from '../../../../base/common/uri.js';
 
 const $ = DOM.$;
 
@@ -568,6 +567,7 @@ function _resolveSettingsTree(tocData: ITOCEntry<string>, allSettings: Set<ISett
 	let children: ITOCEntry<ISetting>[] | undefined;
 	if (tocData.children) {
 		children = tocData.children
+			.filter(child => child.hide !== true)
 			.map(child => _resolveSettingsTree(child, allSettings, logService))
 			.filter(child => child.children?.length || child.settings?.length);
 	}
@@ -874,7 +874,9 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 		const descriptionElement = DOM.append(container, $('.setting-item-description'));
 		const modifiedIndicatorElement = DOM.append(container, $('.setting-item-modified-indicator'));
-		toDispose.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), modifiedIndicatorElement, () => localize('modified', "The setting has been configured in the current scope.")));
+		toDispose.add(this._hoverService.setupDelayedHover(modifiedIndicatorElement, {
+			content: localize('modified', "The setting has been configured in the current scope.")
+		}));
 
 		const valueElement = DOM.append(container, $('.setting-item-value'));
 		const controlElement = DOM.append(valueElement, $('div.setting-item-control'));
@@ -961,7 +963,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 		const titleTooltip = setting.key + (element.isConfigured ? ' - Modified' : '');
 		template.categoryElement.textContent = element.displayCategory ? (element.displayCategory + ': ') : '';
-		template.elementDisposables.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), template.categoryElement, titleTooltip));
+		template.elementDisposables.add(this._hoverService.setupDelayedHover(template.categoryElement, { content: titleTooltip }));
 
 		template.labelElement.text = element.displayLabel;
 		template.labelElement.title = titleTooltip;
@@ -1993,7 +1995,9 @@ class SettingBoolRenderer extends AbstractSettingRenderer implements ITreeRender
 		const controlElement = DOM.append(descriptionAndValueElement, $('.setting-item-bool-control'));
 		const descriptionElement = DOM.append(descriptionAndValueElement, $('.setting-item-description'));
 		const modifiedIndicatorElement = DOM.append(container, $('.setting-item-modified-indicator'));
-		toDispose.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), modifiedIndicatorElement, localize('modified', "The setting has been configured in the current scope.")));
+		toDispose.add(this._hoverService.setupDelayedHover(modifiedIndicatorElement, {
+			content: localize('modified', "The setting has been configured in the current scope.")
+		}));
 
 		const deprecationWarningElement = DOM.append(container, $('.setting-item-deprecation-message'));
 

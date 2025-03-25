@@ -290,7 +290,7 @@ export abstract class ConvenientObservable<T, TChange> implements IObservableWit
 }
 
 export abstract class BaseObservable<T, TChange = void> extends ConvenientObservable<T, TChange> {
-	public readonly _observers = new Set<IObserver>();
+	protected readonly _observers = new Set<IObserver>();
 
 	constructor() {
 		super();
@@ -328,6 +328,10 @@ export abstract class BaseObservable<T, TChange = void> extends ConvenientObserv
 			getLogger()?.handleObservableCreated(this);
 		}
 		return this;
+	}
+
+	public debugGetObservers() {
+		return this._observers;
 	}
 }
 
@@ -385,7 +389,7 @@ export function subtransaction(tx: ITransaction | undefined, fn: (tx: ITransacti
 }
 
 export class TransactionImpl implements ITransaction {
-	public _updatingObservers: { observer: IObserver; observable: IObservable<any> }[] | null = [];
+	private _updatingObservers: { observer: IObserver; observable: IObservable<any> }[] | null = [];
 
 	constructor(public readonly _fn: Function, private readonly _getDebugName?: () => string) {
 		getLogger()?.handleBeginTransaction(this);
@@ -413,6 +417,10 @@ export class TransactionImpl implements ITransaction {
 		// Prevent anyone from updating observers from now on.
 		this._updatingObservers = null;
 		getLogger()?.handleEndTransaction(this);
+	}
+
+	public debugGetUpdatingObservers() {
+		return this._updatingObservers;
 	}
 }
 
@@ -494,6 +502,16 @@ export class ObservableValue<T, TChange = void>
 
 	protected _setValue(newValue: T): void {
 		this._value = newValue;
+	}
+
+	public debugGetState() {
+		return {
+			value: this._value,
+		};
+	}
+
+	public debugSetValue(value: unknown) {
+		this._value = value as T;
 	}
 }
 

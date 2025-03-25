@@ -22,7 +22,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IUserDataSyncEnablementService } from '../../../../platform/userDataSync/common/userDataSync.js';
-import { activationTimeIcon, errorIcon, infoIcon, installCountIcon, preReleaseIcon, ratingIcon, remoteIcon, sponsorIcon, starEmptyIcon, starFullIcon, starHalfIcon, syncIgnoredIcon, warningIcon } from './extensionsIcons.js';
+import { activationTimeIcon, errorIcon, infoIcon, installCountIcon, preReleaseIcon, privateExtensionIcon, ratingIcon, remoteIcon, sponsorIcon, starEmptyIcon, starFullIcon, starHalfIcon, syncIgnoredIcon, warningIcon } from './extensionsIcons.js';
 import { registerColor, textLinkForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
@@ -46,6 +46,10 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { Extensions, IExtensionFeaturesManagementService, IExtensionFeaturesRegistry } from '../../../services/extensionManagement/common/extensionFeatures.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { extensionVerifiedPublisherIconColor, verifiedPublisherIcon } from '../../../services/extensionManagement/common/extensionsIcons.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IExplorerService } from '../../files/browser/files.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { VIEW_ID as EXPLORER_VIEW_ID } from '../../files/common/files.js';
 
 export abstract class ExtensionWidget extends Disposable implements IExtensionContainer {
 	private _extension: IExtension | null = null;
@@ -71,17 +75,26 @@ export function onClick(element: HTMLElement, callback: () => void): IDisposable
 
 export class InstallCountWidget extends ExtensionWidget {
 
+	private readonly disposables = this._register(new DisposableStore());
+
 	constructor(
-		private container: HTMLElement,
+		readonly container: HTMLElement,
 		private small: boolean,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
-		container.classList.add('extension-install-count');
 		this.render();
+
+		this._register(toDisposable(() => this.clear()));
+	}
+
+	private clear(): void {
+		this.container.innerText = '';
+		this.disposables.clear();
 	}
 
 	render(): void {
-		this.container.innerText = '';
+		this.clear();
 
 		if (!this.extension) {
 			return;
@@ -96,15 +109,20 @@ export class InstallCountWidget extends ExtensionWidget {
 			return;
 		}
 
-		append(this.container, $('span' + ThemeIcon.asCSSSelector(installCountIcon)));
-		const count = append(this.container, $('span.count'));
+		const parent = this.small ? this.container : append(this.container, $('span.install', { tabIndex: 0 }));
+		append(parent, $('span' + ThemeIcon.asCSSSelector(installCountIcon)));
+		const count = append(parent, $('span.count'));
 		count.textContent = installLabel;
+
+		if (!this.small) {
+			this.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.container, localize('install count', "Install count")));
+		}
 	}
 
 	static getInstallLabel(extension: IExtension, small: boolean): string | undefined {
 		const installCount = extension.installCount;
 
-		if (installCount === undefined) {
+		if (!installCount) {
 			return undefined;
 		}
 
@@ -129,12 +147,14 @@ export class InstallCountWidget extends ExtensionWidget {
 
 export class RatingsWidget extends ExtensionWidget {
 
-	private readonly containerHover: IManagedHover;
+	private containerHover: IManagedHover | undefined;
+	private readonly disposables = this._register(new DisposableStore());
 
 	constructor(
-		private container: HTMLElement,
+		readonly container: HTMLElement,
 		private small: boolean,
-		@IHoverService hoverService: IHoverService
+		@IHoverService private readonly hoverService: IHoverService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
 		container.classList.add('extension-ratings');
@@ -143,13 +163,17 @@ export class RatingsWidget extends ExtensionWidget {
 			container.classList.add('small');
 		}
 
-		this.containerHover = this._register(hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), container, ''));
-
 		this.render();
+		this._register(toDisposable(() => this.clear()));
+	}
+
+	private clear(): void {
+		this.container.innerText = '';
+		this.disposables.clear();
 	}
 
 	render(): void {
-		this.container.innerText = '';
+		this.clear();
 
 		if (!this.extension) {
 			return;
@@ -167,51 +191,71 @@ export class RatingsWidget extends ExtensionWidget {
 			return;
 		}
 
+		if (!this.extension.url) {
+			return;
+		}
+
 		const rating = Math.round(this.extension.rating * 2) / 2;
-		this.containerHover.update(localize('ratedLabel', "Average rating: {0} out of 5", rating));
 		if (this.small) {
 			append(this.container, $('span' + ThemeIcon.asCSSSelector(starFullIcon)));
 
 			const count = append(this.container, $('span.count'));
 			count.textContent = String(rating);
 		} else {
+			const element = append(this.container, $('span.rating.clickable', { tabIndex: 0 }));
 			for (let i = 1; i <= 5; i++) {
 				if (rating >= i) {
-					append(this.container, $('span' + ThemeIcon.asCSSSelector(starFullIcon)));
+					append(element, $('span' + ThemeIcon.asCSSSelector(starFullIcon)));
 				} else if (rating >= i - 0.5) {
-					append(this.container, $('span' + ThemeIcon.asCSSSelector(starHalfIcon)));
+					append(element, $('span' + ThemeIcon.asCSSSelector(starHalfIcon)));
 				} else {
-					append(this.container, $('span' + ThemeIcon.asCSSSelector(starEmptyIcon)));
+					append(element, $('span' + ThemeIcon.asCSSSelector(starEmptyIcon)));
 				}
 			}
 			if (this.extension.ratingCount) {
-				const ratingCountElemet = append(this.container, $('span', undefined, ` (${this.extension.ratingCount})`));
+				const ratingCountElemet = append(element, $('span', undefined, ` (${this.extension.ratingCount})`));
 				ratingCountElemet.style.paddingLeft = '1px';
+			}
+
+			this.containerHover = this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), element, ''));
+			this.containerHover.update(localize('ratedLabel', "Average rating: {0} out of 5", rating));
+			element.setAttribute('role', 'link');
+			if (this.extension.ratingUrl) {
+				this.disposables.add(onClick(element, () => this.openerService.open(URI.parse(this.extension!.ratingUrl!))));
 			}
 		}
 	}
+
 }
 
-export class VerifiedPublisherWidget extends ExtensionWidget {
+export class PublisherWidget extends ExtensionWidget {
+
+	private element: HTMLElement | undefined;
+	private containerHover: IManagedHover | undefined;
 
 	private readonly disposables = this._register(new DisposableStore());
-	private readonly containerHover: IManagedHover;
 
 	constructor(
-		private container: HTMLElement,
+		readonly container: HTMLElement,
 		private small: boolean,
-		@IHoverService hoverService: IHoverService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IHoverService private readonly hoverService: IHoverService,
 		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
-		this.containerHover = this._register(hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), container, ''));
+
 		this.render();
+		this._register(toDisposable(() => this.clear()));
+	}
+
+	private clear(): void {
+		this.element?.remove();
+		this.disposables.clear();
 	}
 
 	render(): void {
-		reset(this.container);
-		this.disposables.clear();
-		if (!this.extension?.publisherDomain?.verified) {
+		this.clear();
+		if (!this.extension) {
 			return;
 		}
 
@@ -223,20 +267,45 @@ export class VerifiedPublisherWidget extends ExtensionWidget {
 			return;
 		}
 
-		const publisherDomainLink = URI.parse(this.extension.publisherDomain.link);
-		const verifiedPublisher = append(this.container, $('span.extension-verified-publisher.clickable'));
-		append(verifiedPublisher, renderIcon(verifiedPublisherIcon));
+		this.element = append(this.container, $('.publisher'));
+		const publisherDisplayName = $('.publisher-name.ellipsis');
+		publisherDisplayName.textContent = this.extension.publisherDisplayName;
 
-		if (!this.small) {
-			verifiedPublisher.tabIndex = 0;
-			this.containerHover.update(`Verified Domain: ${this.extension.publisherDomain.link}`);
-			verifiedPublisher.setAttribute('role', 'link');
+		const verifiedPublisher = $('.verified-publisher');
+		append(verifiedPublisher, $('span.extension-verified-publisher.clickable'), renderIcon(verifiedPublisherIcon));
 
-			append(verifiedPublisher, $('span.extension-verified-publisher-domain', undefined, publisherDomainLink.authority.startsWith('www.') ? publisherDomainLink.authority.substring(4) : publisherDomainLink.authority));
-			this.disposables.add(onClick(verifiedPublisher, () => this.openerService.open(publisherDomainLink)));
+		if (this.small) {
+			if (this.extension.publisherDomain) {
+				append(this.element, verifiedPublisher);
+			}
+			append(this.element, publisherDisplayName);
+		} else {
+			this.element.classList.toggle('clickable', !!this.extension.url);
+			this.element.setAttribute('role', 'button');
+			this.element.tabIndex = 0;
+
+			this.containerHover = this.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.element, localize('publisher', "Publisher ({0})", this.extension.publisherDisplayName)));
+			append(this.element, publisherDisplayName);
+
+			if (this.extension.publisherDomain) {
+				append(this.element, verifiedPublisher);
+				const publisherDomainLink = URI.parse(this.extension.publisherDomain.link);
+				verifiedPublisher.tabIndex = 0;
+				verifiedPublisher.setAttribute('role', 'button');
+				this.containerHover.update(localize('verified publisher', "This publisher has verified ownership of {0}", this.extension.publisherDomain.link));
+				verifiedPublisher.setAttribute('role', 'link');
+
+				append(verifiedPublisher, $('span.extension-verified-publisher-domain', undefined, publisherDomainLink.authority.startsWith('www.') ? publisherDomainLink.authority.substring(4) : publisherDomainLink.authority));
+				this.disposables.add(onClick(verifiedPublisher, () => this.openerService.open(publisherDomainLink)));
+			}
+
+			if (this.extension.url) {
+				this.disposables.add(onClick(this.element, () => this.extensionsWorkbenchService.openSearch(`publisher:"${this.extension?.publisherDisplayName}"`)));
+			}
 		}
 
 	}
+
 }
 
 export class SponsorWidget extends ExtensionWidget {
@@ -244,7 +313,7 @@ export class SponsorWidget extends ExtensionWidget {
 	private readonly disposables = this._register(new DisposableStore());
 
 	constructor(
-		private container: HTMLElement,
+		readonly container: HTMLElement,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IOpenerService private readonly openerService: IOpenerService,
 	) {
@@ -445,6 +514,73 @@ export class ExtensionPackCountWidget extends ExtensionWidget {
 	}
 }
 
+export class ExtensionKindIndicatorWidget extends ExtensionWidget {
+
+	private element: HTMLElement | undefined;
+
+	private readonly disposables = this._register(new DisposableStore());
+
+	constructor(
+		readonly container: HTMLElement,
+		private small: boolean,
+		@IHoverService private readonly hoverService: IHoverService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IExplorerService private readonly explorerService: IExplorerService,
+		@IViewsService private readonly viewsService: IViewsService,
+	) {
+		super();
+		this.render();
+		this._register(toDisposable(() => this.clear()));
+	}
+
+	private clear(): void {
+		this.element?.remove();
+		this.disposables.clear();
+	}
+
+	render(): void {
+		this.clear();
+
+		if (this.small) {
+			return;
+		}
+
+		if (!this.extension) {
+			return;
+		}
+
+		if (this.extension?.private) {
+			this.element = append(this.container, $('.extension-kind-indicator'));
+			append(this.element, $('span' + ThemeIcon.asCSSSelector(privateExtensionIcon)));
+			if (!this.small) {
+				append(this.element, $('span.private-extension-label', undefined, localize('privateExtension', "Private Extension")));
+			}
+			return;
+		}
+
+		const location = this.extension.resourceExtension?.location ?? (this.extension.local?.source === 'resource' ? this.extension.local?.location : undefined);
+		if (!location) {
+			return;
+		}
+
+		this.element = append(this.container, $('.extension-kind-indicator'));
+		const workspaceFolder = this.contextService.getWorkspaceFolder(location);
+		if (workspaceFolder && this.extension.isWorkspaceScoped) {
+			this.element.textContent = localize('workspace extension', "Workspace Extension");
+			this.element.classList.add('clickable');
+			this.element.setAttribute('role', 'button');
+			this.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.element, this.uriIdentityService.extUri.relativePath(workspaceFolder.uri, location)));
+			this.disposables.add(onClick(this.element, () => {
+				this.viewsService.openView(EXPLORER_VIEW_ID, true).then(() => this.explorerService.select(location, true));
+			}));
+		} else {
+			this.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.element, location.path));
+			this.element.textContent = localize('local extension', "Local Extension");
+		}
+	}
+}
+
 export class SyncIgnoredWidget extends ExtensionWidget {
 
 	private readonly disposables = this._register(new DisposableStore());
@@ -555,7 +691,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 			this.hover.value = this.hoverService.setupManagedHover({
 				delay: this.configurationService.getValue<number>('workbench.hover.delay'),
 				showHover: (options, focus) => {
-					return this.hoverService.showHover({
+					return this.hoverService.showInstantHover({
 						...options,
 						additionalClasses: ['extension-hover'],
 						position: {
@@ -595,8 +731,12 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		}
 		markdown.appendText(`\n`);
 
+		let addSeparator = false;
+		if (this.extension.private) {
+			markdown.appendMarkdown(`$(${privateExtensionIcon.id}) ${localize('privateExtension', "Private Extension")}`);
+			addSeparator = true;
+		}
 		if (this.extension.state === ExtensionState.Installed) {
-			let addSeparator = false;
 			const installLabel = InstallCountWidget.getInstallLabel(this.extension, true);
 			if (installLabel) {
 				if (addSeparator) {
@@ -620,9 +760,9 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 				markdown.appendMarkdown(`$(${sponsorIcon.id}) [${localize('sponsor', "Sponsor")}](${this.extension.publisherSponsorLink})`);
 				addSeparator = true;
 			}
-			if (addSeparator) {
-				markdown.appendText(`\n`);
-			}
+		}
+		if (addSeparator) {
+			markdown.appendText(`\n`);
 		}
 
 		const location = this.extension.resourceExtension?.location ?? (this.extension.local?.source === 'resource' ? this.extension.local?.location : undefined);
@@ -862,6 +1002,7 @@ export class ExtensionRecommendationWidget extends ExtensionWidget {
 export const extensionRatingIconColor = registerColor('extensionIcon.starForeground', { light: '#DF6100', dark: '#FF8E00', hcDark: '#FF8E00', hcLight: textLinkForeground }, localize('extensionIconStarForeground', "The icon color for extension ratings."), false);
 export const extensionPreReleaseIconColor = registerColor('extensionIcon.preReleaseForeground', { dark: '#1d9271', light: '#1d9271', hcDark: '#1d9271', hcLight: textLinkForeground }, localize('extensionPreReleaseForeground', "The icon color for pre-release extension."), false);
 export const extensionSponsorIconColor = registerColor('extensionIcon.sponsorForeground', { light: '#B51E78', dark: '#D758B3', hcDark: null, hcLight: '#B51E78' }, localize('extensionIcon.sponsorForeground', "The icon color for extension sponsor."), false);
+export const extensionPrivateBadgeBackground = registerColor('extensionIcon.privateForeground', { dark: '#ffffff60', light: '#00000060', hcDark: '#ffffff60', hcLight: '#00000060' }, localize('extensionIcon.private', "The icon color for private extensions."));
 
 registerThemingParticipant((theme, collector) => {
 	const extensionRatingIcon = theme.getColor(extensionRatingIconColor);
@@ -877,4 +1018,9 @@ registerThemingParticipant((theme, collector) => {
 
 	collector.addRule(`.monaco-hover.extension-hover .markdown-hover .hover-contents ${ThemeIcon.asCSSSelector(sponsorIcon)} { color: var(--vscode-extensionIcon-sponsorForeground); }`);
 	collector.addRule(`.extension-editor > .header > .details > .subtitle .sponsor ${ThemeIcon.asCSSSelector(sponsorIcon)} { color: var(--vscode-extensionIcon-sponsorForeground); }`);
+
+	const privateBadgeBackground = theme.getColor(extensionPrivateBadgeBackground);
+	if (privateBadgeBackground) {
+		collector.addRule(`.extension-private-badge { color: ${privateBadgeBackground}; }`);
+	}
 });

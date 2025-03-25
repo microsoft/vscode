@@ -174,7 +174,7 @@ registerAction2(class StartReadHints extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'inlayHints.startReadingLineWithHint',
-			title: localize2('read.title', "Read Line With Inline Hints"),
+			title: localize2('read.title', "Read Line with Inline Hints"),
 			precondition: EditorContextKeys.hasInlayHintsProvider,
 			f1: true
 		});

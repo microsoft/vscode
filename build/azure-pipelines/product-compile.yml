@@ -104,12 +104,12 @@ steps:
   - template: common/install-builtin-extensions.yml@self
 
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: npm exec -- npm-run-all -lp core-ci-pr extensions-ci-pr hygiene eslint valid-layers-check vscode-dts-compile-check tsec-compile-check
+    - script: npm exec -- npm-run-all -lp core-ci-pr extensions-ci-pr hygiene eslint valid-layers-check property-init-order-check vscode-dts-compile-check tsec-compile-check
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Compile & Hygiene (OSS)
   - ${{ else }}:
-    - script: npm exec -- npm-run-all -lp core-ci extensions-ci hygiene eslint valid-layers-check vscode-dts-compile-check tsec-compile-check
+    - script: npm exec -- npm-run-all -lp core-ci extensions-ci hygiene eslint valid-layers-check property-init-order-check vscode-dts-compile-check tsec-compile-check
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Compile & Hygiene (non-OSS)

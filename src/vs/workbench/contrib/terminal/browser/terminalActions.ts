@@ -42,7 +42,6 @@ import { IPreferencesService } from '../../../services/preferences/common/prefer
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { isAbsolute } from '../../../../base/common/path.js';
-import { AbstractVariableResolverService } from '../../../services/configurationResolver/common/variableResolver.js';
 import { ITerminalQuickPickItem } from './terminalProfileQuickpick.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { getIconId, getColorClass, getUriClasses } from './terminalIcon.js';
@@ -62,6 +61,7 @@ import { editorGroupToColumn } from '../../../services/editor/common/editorGroup
 import { InstanceContext } from './terminalContextMenu.js';
 import { AccessibleViewProviderId } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { TerminalTabList } from './terminalTabsList.js';
+import { ConfigurationResolverExpression } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -904,7 +904,7 @@ export function registerTerminalActions() {
 
 	registerActiveInstanceAction({
 		id: TerminalCommandId.SelectToPreviousCommand,
-		title: localize2('workbench.action.terminal.selectToPreviousCommand', 'Select To Previous Command'),
+		title: localize2('workbench.action.terminal.selectToPreviousCommand', 'Select to Previous Command'),
 		keybinding: {
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow,
 			when: TerminalContextKeys.focus,
@@ -919,7 +919,7 @@ export function registerTerminalActions() {
 
 	registerActiveInstanceAction({
 		id: TerminalCommandId.SelectToNextCommand,
-		title: localize2('workbench.action.terminal.selectToNextCommand', 'Select To Next Command'),
+		title: localize2('workbench.action.terminal.selectToNextCommand', 'Select to Next Command'),
 		keybinding: {
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow,
 			when: TerminalContextKeys.focus,
@@ -934,7 +934,7 @@ export function registerTerminalActions() {
 
 	registerActiveXtermAction({
 		id: TerminalCommandId.SelectToPreviousLine,
-		title: localize2('workbench.action.terminal.selectToPreviousLine', 'Select To Previous Line'),
+		title: localize2('workbench.action.terminal.selectToPreviousLine', 'Select to Previous Line'),
 		precondition: sharedWhenClause.terminalAvailable,
 		run: async (xterm, _, instance) => {
 			xterm.markTracker.selectToPreviousLine();
@@ -945,7 +945,7 @@ export function registerTerminalActions() {
 
 	registerActiveXtermAction({
 		id: TerminalCommandId.SelectToNextLine,
-		title: localize2('workbench.action.terminal.selectToNextLine', 'Select To Next Line'),
+		title: localize2('workbench.action.terminal.selectToNextLine', 'Select to Next Line'),
 		precondition: sharedWhenClause.terminalAvailable,
 		run: async (xterm, _, instance) => {
 			xterm.markTracker.selectToNextLine();
@@ -1682,7 +1682,7 @@ async function resolveWorkspaceFolderCwd(folder: IWorkspaceFolder, configuration
 	}
 
 	const resolvedCwdConfig = await configurationResolverService.resolveAsync(folder, cwdConfig);
-	return isAbsolute(resolvedCwdConfig) || resolvedCwdConfig.startsWith(AbstractVariableResolverService.VARIABLE_LHS)
+	return isAbsolute(resolvedCwdConfig) || resolvedCwdConfig.startsWith(ConfigurationResolverExpression.VARIABLE_LHS)
 		? { folder, isAbsolute: true, isOverridden: true, cwd: URI.from({ ...folder.uri, path: resolvedCwdConfig }) }
 		: { folder, isAbsolute: false, isOverridden: true, cwd: URI.joinPath(folder.uri, resolvedCwdConfig) };
 }

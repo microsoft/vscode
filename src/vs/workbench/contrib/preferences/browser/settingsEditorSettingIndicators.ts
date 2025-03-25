@@ -145,7 +145,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 		const content = localize('trustLabel', "The setting value can only be applied in a trusted workspace.");
 		const showHover = (focus: boolean) => {
-			return this.hoverService.showHover({
+			return this.hoverService.showInstantHover({
 				...this.defaultHoverOptions,
 				content,
 				target: workspaceTrustElement,
@@ -186,7 +186,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 		const syncIgnoredHoverContent = localize('syncIgnoredTitle', "This setting is ignored during sync");
 		const showHover = (focus: boolean) => {
-			return this.hoverService.showHover({
+			return this.hoverService.showInstantHover({
 				...this.defaultHoverOptions,
 				content: syncIgnoredHoverContent,
 				target: syncIgnoredElement
@@ -329,7 +329,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 		const content = isPreviewSetting ? PREVIEW_INDICATOR_DESCRIPTION : EXPERIMENTAL_INDICATOR_DESCRIPTION;
 		const showHover = (focus: boolean) => {
-			return this.hoverService.showHover({
+			return this.hoverService.showInstantHover({
 				...this.defaultHoverOptions,
 				content,
 				target: this.previewIndicator.element
@@ -374,7 +374,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 			this.scopeOverridesIndicator.label.text = '$(briefcase) ' + localize('policyLabelText', "Managed by organization");
 			const content = localize('policyDescription', "This setting is managed by your organization and its actual value cannot be changed.");
 			const showHover = (focus: boolean) => {
-				return this.hoverService.showHover({
+				return this.hoverService.showInstantHover({
 					...this.defaultHoverOptions,
 					content,
 					actions: [{
@@ -396,7 +396,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 			const content = localize('applicationSettingDescription', "The setting is not specific to the current profile, and will retain its value when switching profiles.");
 			const showHover = (focus: boolean) => {
-				return this.hoverService.showHover({
+				return this.hoverService.showInstantHover({
 					...this.defaultHoverOptions,
 					content,
 					target: this.scopeOverridesIndicator.element
@@ -512,7 +512,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 			}
 
 			const showHover = (focus: boolean) => {
-				return this.hoverService.showHover({
+				return this.hoverService.showInstantHover({
 					content: new MarkdownString().appendMarkdown(defaultOverrideHoverContent),
 					target: this.defaultOverrideIndicator.element,
 					position: {

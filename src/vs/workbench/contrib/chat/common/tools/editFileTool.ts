@@ -7,14 +7,17 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { SaveReason } from '../../../../common/editor.js';
+import { GroupsOrder, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
+import { CellUri } from '../../../notebook/common/notebookCommon.js';
+import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { ICodeMapperService } from '../../common/chatCodeMapperService.js';
-import { IChatEditingService } from '../../common/chatEditingService.js';
 import { ChatModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
@@ -47,6 +50,7 @@ export const EditToolData: IToolData = {
 	id: InternalEditToolId,
 	displayName: localize('chat.tools.editFile', "Edit File"),
 	modelDescription: `Edit a file in the workspace. Use this tool once per file that needs to be modified, even if there are multiple changes for a file. Generate the "explanation" property first. ${codeInstructions}`,
+	source: { type: 'internal' },
 	inputSchema: {
 		type: 'object',
 		properties: {
@@ -71,11 +75,12 @@ export class EditTool implements IToolImpl {
 
 	constructor(
 		@IChatService private readonly chatService: IChatService,
-		@IChatEditingService private readonly chatEditingService: IChatEditingService,
 		@ICodeMapperService private readonly codeMapperService: ICodeMapperService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ILanguageModelIgnoredFilesService private readonly ignoredFilesService: ILanguageModelIgnoredFilesService,
 		@ITextFileService private readonly textFileService: ITextFileService,
+		@INotebookService private readonly notebookService: INotebookService,
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 	) { }
 
 	async invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
@@ -84,9 +89,20 @@ export class EditTool implements IToolImpl {
 		}
 
 		const parameters = invocation.parameters as EditToolParams;
-		const uri = URI.revive(parameters.file); // TODO@roblourens do revive in MainThreadLanguageModelTools
-		if (!this.workspaceContextService.isInsideWorkspace(uri)) {
-			throw new Error(`File ${uri.fsPath} can't be edited because it's not inside the current workspace`);
+		const fileUri = URI.revive(parameters.file); // TODO@roblourens do revive in MainThreadLanguageModelTools
+		const uri = CellUri.parse(fileUri)?.notebook || fileUri;
+
+		if (!this.workspaceContextService.isInsideWorkspace(uri) && !this.notebookService.getNotebookTextModel(uri)) {
+			const groupsByLastActive = this.editorGroupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
+			const uriIsOpenInSomeEditor = groupsByLastActive.some((group) => {
+				return group.editors.some((editor) => {
+					return isEqual(editor.resource, uri);
+				});
+			});
+
+			if (!uriIsOpenInSomeEditor) {
+				throw new Error(`File ${uri.fsPath} can't be edited because it's not inside the current workspace`);
+			}
 		}
 
 		if (await this.ignoredFilesService.fileIsIgnored(uri, token)) {
@@ -112,19 +128,29 @@ export class EditTool implements IToolImpl {
 		});
 		model.acceptResponseProgress(request, {
 			kind: 'codeblockUri',
-			uri
+			uri,
+			isEdit: true
 		});
 		model.acceptResponseProgress(request, {
 			kind: 'markdownContent',
 			content: new MarkdownString(parameters.code + '\n````\n')
 		});
-		model.acceptResponseProgress(request, {
-			kind: 'textEdit',
-			edits: [],
-			uri
-		});
+		// Signal start.
+		if (this.notebookService.hasSupportedNotebooks(uri) && (this.notebookService.getNotebookTextModel(uri))) {
+			model.acceptResponseProgress(request, {
+				kind: 'notebookEdit',
+				edits: [],
+				uri
+			});
+		} else {
+			model.acceptResponseProgress(request, {
+				kind: 'textEdit',
+				edits: [],
+				uri
+			});
+		}
 
-		const editSession = this.chatEditingService.getEditingSession(model.sessionId);
+		const editSession = model.editingSession;
 		if (!editSession) {
 			throw new Error('This tool must be called from within an editing session');
 		}
@@ -142,7 +168,12 @@ export class EditTool implements IToolImpl {
 			},
 		}, token);
 
-		model.acceptResponseProgress(request, { kind: 'textEdit', uri, edits: [], done: true });
+		// Signal end.
+		if (this.notebookService.hasSupportedNotebooks(uri) && (this.notebookService.getNotebookTextModel(uri))) {
+			model.acceptResponseProgress(request, { kind: 'notebookEdit', uri, edits: [], done: true });
+		} else {
+			model.acceptResponseProgress(request, { kind: 'textEdit', uri, edits: [], done: true });
+		}
 
 		if (result?.errorMessage) {
 			throw new Error(result.errorMessage);

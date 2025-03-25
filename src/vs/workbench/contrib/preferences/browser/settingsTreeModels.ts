@@ -342,7 +342,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		// so we reset the default value source to the non-language-specific default value source for now.
 		this.defaultValueSource = this.setting.nonLanguageSpecificDefaultValueSource;
 
-		if (inspected.policyValue) {
+		if (inspected.policyValue !== undefined) {
 			this.hasPolicyValue = true;
 			isConfigured = false; // The user did not manually configure the setting themselves.
 			displayValue = inspected.policyValue;
@@ -596,10 +596,15 @@ export class SettingsTreeModel implements IDisposable {
 		if (tocEntry.settings) {
 			const settingChildren = tocEntry.settings.map(s => this.createSettingsTreeSettingElement(s, element));
 			for (const child of settingChildren) {
-				if (!child.setting.deprecationMessage || child.isConfigured) {
+				if (!child.setting.deprecationMessage) {
 					children.push(child);
 				} else {
-					child.dispose();
+					child.inspectSelf();
+					if (child.isConfigured) {
+						children.push(child);
+					} else {
+						child.dispose();
+					}
 				}
 			}
 		}
@@ -634,7 +639,7 @@ export class SettingsTreeModel implements IDisposable {
 			this._userDataProfileService,
 			this._configurationService);
 
-		const nameElements = this._treeElementsBySettingName.get(setting.key) || [];
+		const nameElements = this._treeElementsBySettingName.get(setting.key) ?? [];
 		nameElements.push(element);
 		this._treeElementsBySettingName.set(setting.key, nameElements);
 		return element;
@@ -1021,28 +1026,24 @@ export class SearchResultModel extends SettingsTreeModel {
 
 		this.cachedUniqueSearchResults = {
 			filterMatches: combinedFilterMatches,
-			exactMatch: localResult?.exactMatch || remoteResult?.exactMatch
+			exactMatch: localResult.exactMatch // remote results should never have an exact match
 		};
 
 		return this.cachedUniqueSearchResults;
 	}
 
 	getRawResults(): ISearchResult[] {
-		return this.rawSearchResults || [];
+		return this.rawSearchResults ?? [];
 	}
 
 	setResult(order: SearchResultIdx, result: ISearchResult | null): void {
 		this.cachedUniqueSearchResults = null;
 		this.newExtensionSearchResults = null;
 
-		this.rawSearchResults = this.rawSearchResults || [];
+		this.rawSearchResults ??= [];
 		if (!result) {
 			delete this.rawSearchResults[order];
 			return;
-		}
-
-		if (result.exactMatch) {
-			this.rawSearchResults = [];
 		}
 
 		this.rawSearchResults[order] = result;

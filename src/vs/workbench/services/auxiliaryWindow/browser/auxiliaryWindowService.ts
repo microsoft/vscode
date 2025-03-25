@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getZoomLevel } from '../../../../base/browser/browser.js';
-import { Dimension, EventHelper, EventType, ModifierKeyEmitter, addDisposableListener, copyAttributes, createLinkElement, createMetaElement, getActiveWindow, getClientArea, getWindowId, isHTMLElement, position, registerWindow, sharedMutationObserver, trackAttributes } from '../../../../base/browser/dom.js';
+import { $, Dimension, EventHelper, EventType, ModifierKeyEmitter, addDisposableListener, copyAttributes, createLinkElement, createMetaElement, getActiveWindow, getClientArea, getWindowId, isHTMLElement, position, registerWindow, sharedMutationObserver, trackAttributes } from '../../../../base/browser/dom.js';
 import { cloneGlobalStylesheets, isGlobalStylesheet } from '../../../../base/browser/domStylesheets.js';
 import { CodeWindow, ensureCodeWindow, mainWindow } from '../../../../base/browser/window.js';
 import { coalesce } from '../../../../base/common/arrays.js';
@@ -504,8 +504,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		mark('code/auxiliaryWindow/willApplyHTML');
 
 		// Create workbench container and apply classes
-		const container = document.createElement('div');
-		container.setAttribute('role', 'application');
+		const container = $('div', { role: 'application' });
 		position(container, 0, 0, 0, 0, 'relative');
 		container.style.display = 'flex';
 		container.style.height = '100%';

@@ -295,6 +295,9 @@ export class Button extends Disposable implements IButton {
 
 	set icon(icon: ThemeIcon) {
 		this._setAriaLabel();
+
+		const oldIcons = Array.from(this._element.classList).filter(item => item.startsWith('codicon-'));
+		this._element.classList.remove(...oldIcons);
 		this._element.classList.add(...ThemeIcon.asClassNameArray(icon));
 	}
 
@@ -349,13 +352,17 @@ export interface IButtonWithDropdownOptions extends IButtonOptions {
 	readonly actions: readonly IAction[] | IActionProvider;
 	readonly actionRunner?: IActionRunner;
 	readonly addPrimaryActionToDropdown?: boolean;
+	/**
+	 * dropdown menus with higher layers are rendered higher in z-index order
+	 */
+	readonly dropdownLayer?: number;
 }
 
 export class ButtonWithDropdown extends Disposable implements IButton {
 
-	private readonly button: Button;
+	readonly primaryButton: Button;
 	private readonly action: Action;
-	private readonly dropdownButton: Button;
+	readonly dropdownButton: Button;
 	private readonly separatorContainer: HTMLDivElement;
 	private readonly separator: HTMLDivElement;
 
@@ -374,9 +381,9 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 			options = { ...options, hoverDelegate: this._register(createInstantHoverDelegate()) };
 		}
 
-		this.button = this._register(new Button(this.element, options));
-		this._register(this.button.onDidClick(e => this._onDidClick.fire(e)));
-		this.action = this._register(new Action('primaryAction', renderStringAsPlaintext(this.button.label), undefined, true, async () => this._onDidClick.fire(undefined)));
+		this.primaryButton = this._register(new Button(this.element, options));
+		this._register(this.primaryButton.onDidClick(e => this._onDidClick.fire(e)));
+		this.action = this._register(new Action('primaryAction', renderStringAsPlaintext(this.primaryButton.label), undefined, true, async () => this._onDidClick.fire(undefined)));
 
 		this.separatorContainer = document.createElement('div');
 		this.separatorContainer.classList.add('monaco-button-dropdown-separator');
@@ -407,7 +414,8 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 				getAnchor: () => this.dropdownButton.element,
 				getActions: () => options.addPrimaryActionToDropdown === false ? [...actions] : [this.action, ...actions],
 				actionRunner: options.actionRunner,
-				onHide: () => this.dropdownButton.element.setAttribute('aria-expanded', 'false')
+				onHide: () => this.dropdownButton.element.setAttribute('aria-expanded', 'false'),
+				layer: options.dropdownLayer
 			});
 			this.dropdownButton.element.setAttribute('aria-expanded', 'true');
 		}));
@@ -419,39 +427,39 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 	}
 
 	set label(value: string) {
-		this.button.label = value;
+		this.primaryButton.label = value;
 		this.action.label = value;
 	}
 
 	set icon(icon: ThemeIcon) {
-		this.button.icon = icon;
+		this.primaryButton.icon = icon;
 	}
 
 	set enabled(enabled: boolean) {
-		this.button.enabled = enabled;
+		this.primaryButton.enabled = enabled;
 		this.dropdownButton.enabled = enabled;
 
 		this.element.classList.toggle('disabled', !enabled);
 	}
 
 	get enabled(): boolean {
-		return this.button.enabled;
+		return this.primaryButton.enabled;
 	}
 
 	set checked(value: boolean) {
-		this.button.checked = value;
+		this.primaryButton.checked = value;
 	}
 
 	get checked() {
-		return this.button.checked;
+		return this.primaryButton.checked;
 	}
 
 	focus(): void {
-		this.button.focus();
+		this.primaryButton.focus();
 	}
 
 	hasFocus(): boolean {
-		return this.button.hasFocus() || this.dropdownButton.hasFocus();
+		return this.primaryButton.hasFocus() || this.dropdownButton.hasFocus();
 	}
 }
 

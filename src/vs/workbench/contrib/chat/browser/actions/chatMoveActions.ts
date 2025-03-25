@@ -3,22 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceTimeout } from '../../../../../base/common/async.js';
+import { Event } from '../../../../../base/common/event.js';
 import { localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
-import { CHAT_CATEGORY } from './chatActions.js';
-import { ChatViewId, IChatWidgetService } from '../chat.js';
-import { ChatEditor, IChatEditorOptions } from '../chatEditor.js';
-import { ChatEditorInput } from '../chatEditorInput.js';
-import { ChatViewPane } from '../chatViewPane.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { isChatViewTitleActionContext } from '../../common/chatActions.js';
-import { ChatAgentLocation } from '../../common/chatAgents.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { IChatService } from '../../common/chatService.js';
+import { ChatAgentLocation } from '../../common/constants.js';
+import { ChatViewId, IChatWidgetService } from '../chat.js';
+import { ChatEditor, IChatEditorOptions } from '../chatEditor.js';
+import { ChatEditorInput } from '../chatEditorInput.js';
+import { ChatViewPane } from '../chatViewPane.js';
+import { CHAT_CATEGORY } from './chatActions.js';
 
 enum MoveToNewLocation {
 	Editor = 'Editor',
@@ -97,22 +100,24 @@ export function registerMoveActions() {
 async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNewLocation, _sessionId?: string) {
 	const widgetService = accessor.get(IChatWidgetService);
 	const editorService = accessor.get(IEditorService);
+	const chatService = accessor.get(IChatService);
 
 	const widget = (_sessionId ? widgetService.getWidgetBySessionId(_sessionId) : undefined)
 		?? widgetService.lastFocusedWidget;
-	if (!widget || widget.location !== ChatAgentLocation.Panel) {
+	if (!widget || !widget.viewModel || widget.location !== ChatAgentLocation.Panel) {
 		await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true } }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
 		return;
 	}
 
-	const viewModel = widget.viewModel;
-	if (!viewModel) {
-		return;
-	}
-
-	const sessionId = viewModel.sessionId;
+	const sessionId = widget.viewModel.sessionId;
 	const viewState = widget.getViewState();
+
 	widget.clear();
+	// The ChatWidget just signals cancellation to its host viewpane or editor. Clearing the session is now async, we need to wait for it to finish.
+	// This is expected to always happen.
+	await raceTimeout(Event.toPromise(
+		Event.filter(chatService.onDidDisposeSession, e => e.sessionId === sessionId),
+	), 2000);
 
 	const options: IChatEditorOptions = { target: { sessionId }, pinned: true, viewState: viewState };
 	await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
@@ -129,7 +134,7 @@ async function moveToSidebar(accessor: ServicesAccessor): Promise<void> {
 	if (chatEditor instanceof ChatEditor && chatEditorInput instanceof ChatEditorInput && chatEditorInput.sessionId) {
 		await editorService.closeEditor({ editor: chatEditor.input, groupId: editorGroupService.activeGroup.id });
 		view = await viewsService.openView(ChatViewId) as ChatViewPane;
-		view.loadSession(chatEditorInput.sessionId, chatEditor.getViewState());
+		await view.loadSession(chatEditorInput.sessionId, chatEditor.getViewState());
 	} else {
 		view = await viewsService.openView(ChatViewId) as ChatViewPane;
 	}

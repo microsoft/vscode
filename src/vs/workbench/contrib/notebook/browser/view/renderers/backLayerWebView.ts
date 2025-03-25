@@ -762,7 +762,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 								}
 							}
 
-							this.openerService.open(CellUri.generateCellOutputUri(this.documentUri, outputId));
+							this.openerService.open(CellUri.generateCellOutputUriWithId(this.documentUri, outputId));
 							return;
 						}
 						if (uri.path === 'cellOutput.enableScrolling') {
@@ -794,7 +794,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 								'workbench.action.openSettings',
 								'_notebook.selectKernel',
 								// TODO@rebornix explore open output channel with name command
-								'jupyter.viewOutput'
+								'jupyter.viewOutput',
+								'jupyter.createPythonEnvAndSelectController',
 							],
 						});
 						return;
@@ -1854,14 +1855,24 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 	}
 
 
-	deltaCellContainerClassNames(cellId: string, added: string[], removed: string[]) {
+	deltaCellOutputContainerClassNames(cellId: string, added: string[], removed: string[]) {
 		this._sendMessageToWebview({
 			type: 'decorations',
 			cellId,
 			addedClassNames: added,
 			removedClassNames: removed
 		});
+	}
 
+	deltaMarkupPreviewClassNames(cellId: string, added: string[], removed: string[]) {
+		if (this.markupPreviewMapping.get(cellId)) {
+			this._sendMessageToWebview({
+				type: 'markupDecorations',
+				cellId,
+				addedClassNames: added,
+				removedClassNames: removed
+			});
+		}
 	}
 
 	updateOutputRenderers() {

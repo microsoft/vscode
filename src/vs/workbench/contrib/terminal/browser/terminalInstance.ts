@@ -90,6 +90,7 @@ import type { IMenu } from '../../../../platform/actions/common/actions.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { TerminalContribCommandId } from '../terminalContribExports.js';
 import type { IProgressState } from '@xterm/addon-progress';
+import { refreshShellIntegrationInfoStatus } from './terminalTooltip.js';
 
 const enum Constants {
 	/**
@@ -469,11 +470,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (capability === TerminalCapability.CommandDetection) {
 				const commandDetection = this.capabilities.get(capability);
 				if (commandDetection) {
+					commandDetection.promptInputModel.setShellType(this.shellType);
 					capabilityListeners.set(capability, Event.any(
 						commandDetection.promptInputModel.onDidStartInput,
 						commandDetection.promptInputModel.onDidChangeInput,
 						commandDetection.promptInputModel.onDidFinishInput
-					)(() => this._labelComputer?.refreshLabel(this)));
+					)(() => {
+						this._labelComputer?.refreshLabel(this);
+						refreshShellIntegrationInfoStatus(this);
+					}));
 				}
 			}
 		}));
@@ -846,6 +851,18 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Init winpty compat and link handler after process creation as they rely on the
 		// underlying process OS
 		this._register(this._processManager.onProcessReady(async (processTraits) => {
+			// Respond to DA1 with basic conformance. Note that including this is required to avoid
+			// a long delay in conpty 1.22+ where it waits for the response.
+			// Reference: https://github.com/microsoft/terminal/blob/3760caed97fa9140a40777a8fbc1c95785e6d2ab/src/terminal/adapter/adaptDispatch.cpp#L1471-L1495
+			if (processTraits?.windowsPty?.backend === 'conpty') {
+				this._register(xterm.raw.parser.registerCsiHandler({ final: 'c' }, params => {
+					if (params.length === 0 || params.length === 1 && params[0] === 0) {
+						this._processManager.write('\x1b[?61;4c');
+						return true;
+					}
+					return false;
+				}));
+			}
 			if (this._processManager.os) {
 				lineDataEventAddon.setOperatingSystem(this._processManager.os);
 			}
@@ -859,6 +876,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}));
 		this._register(xterm.onDidChangeProgress(() => this._labelComputer?.refreshLabel(this)));
+
+		// Register and update the terminal's shell integration status
+		this._register(Event.runAndSubscribe(xterm.shellIntegration.onDidChangeSeenSequences, () => {
+			if (xterm.shellIntegration.seenSequences.size > 0) {
+				refreshShellIntegrationInfoStatus(this);
+			}
+		}));
 
 		// Set up updating of the process cwd on key press, this is only needed when the cwd
 		// detection capability has not been registered

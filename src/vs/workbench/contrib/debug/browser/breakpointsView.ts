@@ -224,7 +224,7 @@ export class BreakpointsView extends ViewPane {
 		const iconLabelContainer = dom.append(container, $('span.breakpoint-warning'));
 		this.hintContainer = this._register(new IconLabel(iconLabelContainer, {
 			supportIcons: true, hoverDelegate: {
-				showHover: (options, focus?) => this.hoverService.showHover({ content: options.content, target: this.hintContainer!.element }, focus),
+				showHover: (options, focus?) => this.hoverService.showInstantHover({ content: options.content, target: this.hintContainer!.element }, focus),
 				delay: <number>this.configurationService.getValue('workbench.hover.delay')
 			}
 		}));

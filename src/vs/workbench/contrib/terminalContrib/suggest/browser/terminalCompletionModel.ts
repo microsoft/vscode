@@ -47,7 +47,11 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 
 	// Sort files of the same name by extension
 	const isArg = leadingLineContent.includes(' ');
-	if (!isArg && a.labelLowExcludeFileExt === b.labelLowExcludeFileExt) {
+	if (!isArg && a.completion.kind === TerminalCompletionItemKind.File && b.completion.kind === TerminalCompletionItemKind.File) {
+		// If the file name excluding the extension is different, just do a regular sort
+		if (a.labelLowExcludeFileExt !== b.labelLowExcludeFileExt) {
+			return a.labelLowExcludeFileExt.localeCompare(b.labelLowExcludeFileExt, undefined, { ignorePunctuation: true });
+		}
 		// Then by label length ascending (excluding file extension if it's a file)
 		score = a.labelLowExcludeFileExt.length - b.labelLowExcludeFileExt.length;
 		if (score !== 0) {
@@ -81,20 +85,38 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 	}
 
 	// Sort by folder depth (eg. `vscode/` should come before `vscode-.../`)
-	if (a.labelLowNormalizedPath && b.labelLowNormalizedPath) {
-		// Directories
-		// Count depth of path (number of / or \ occurrences)
-		score = count(a.labelLowNormalizedPath, '/') - count(b.labelLowNormalizedPath, '/');
-		if (score !== 0) {
-			return score;
-		}
+	if (a.completion.kind === TerminalCompletionItemKind.Folder && b.completion.kind === TerminalCompletionItemKind.Folder) {
+		if (a.labelLowNormalizedPath && b.labelLowNormalizedPath) {
+			// Directories
+			// Count depth of path (number of / or \ occurrences)
+			score = count(a.labelLowNormalizedPath, '/') - count(b.labelLowNormalizedPath, '/');
+			if (score !== 0) {
+				return score;
+			}
 
-		// Ensure shorter prefixes appear first
-		if (b.labelLowNormalizedPath.startsWith(a.labelLowNormalizedPath)) {
-			return -1; // `a` is a prefix of `b`, so `a` should come first
+			// Ensure shorter prefixes appear first
+			if (b.labelLowNormalizedPath.startsWith(a.labelLowNormalizedPath)) {
+				return -1; // `a` is a prefix of `b`, so `a` should come first
+			}
+			if (a.labelLowNormalizedPath.startsWith(b.labelLowNormalizedPath)) {
+				return 1; // `b` is a prefix of `a`, so `b` should come first
+			}
 		}
-		if (a.labelLowNormalizedPath.startsWith(b.labelLowNormalizedPath)) {
-			return 1; // `b` is a prefix of `a`, so `b` should come first
+	}
+
+	if (a.completion.kind !== b.completion.kind) {
+		// Sort by kind
+		if ((a.completion.kind === TerminalCompletionItemKind.Method || a.completion.kind === TerminalCompletionItemKind.Alias) && (b.completion.kind !== TerminalCompletionItemKind.Method && b.completion.kind !== TerminalCompletionItemKind.Alias)) {
+			return -1; // Methods and aliases should come first
+		}
+		if ((b.completion.kind === TerminalCompletionItemKind.Method || b.completion.kind === TerminalCompletionItemKind.Alias) && (a.completion.kind !== TerminalCompletionItemKind.Method && a.completion.kind !== TerminalCompletionItemKind.Alias)) {
+			return 1; // Methods and aliases should come first
+		}
+		if ((a.completion.kind === TerminalCompletionItemKind.File || a.completion.kind === TerminalCompletionItemKind.Folder) && (b.completion.kind !== TerminalCompletionItemKind.File && b.completion.kind !== TerminalCompletionItemKind.Folder)) {
+			return 1; // Resources should come last
+		}
+		if ((b.completion.kind === TerminalCompletionItemKind.File || b.completion.kind === TerminalCompletionItemKind.Folder) && (a.completion.kind !== TerminalCompletionItemKind.File && a.completion.kind !== TerminalCompletionItemKind.Folder)) {
+			return -1; // Resources should come last
 		}
 	}
 

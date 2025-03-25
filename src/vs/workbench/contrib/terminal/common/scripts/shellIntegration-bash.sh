@@ -198,6 +198,9 @@ if [ "$__vsc_stable" = "0" ]; then
 	builtin printf "\e]633;P;ContinuationPrompt=$(echo "$PS2" | sed 's/\x1b/\\\\x1b/g')\a"
 fi
 
+# Report this shell supports rich command detection
+builtin printf '\e]633;P;HasRichCommandDetection=True\a'
+
 __vsc_report_prompt() {
 	# Expand the original PS1 similarly to how bash would normally
 	# See https://stackoverflow.com/a/37137981 for technique
@@ -242,8 +245,12 @@ __updateEnvCacheAA() {
 __trackMissingEnvVarsAA() {
 	if [ "$use_associative_array" = 1 ]; then
 		declare -A currentEnvMap
-		while IFS='=' read -r key value; do
-			currentEnvMap["$key"]="$value"
+		while IFS= read -r line; do
+			if [[ "$line" == *"="* ]]; then
+				local key="${line%%=*}"
+				local value="${line#*=}"
+				currentEnvMap["$key"]="$value"
+			fi
 		done < <(env)
 
 		for key in "${!vsc_aa_env[@]}"; do
@@ -309,34 +316,52 @@ __vsc_update_env() {
 		if [ "$use_associative_array" = 1 ]; then
 			if [ ${#vsc_aa_env[@]} -eq 0 ]; then
 				# Associative array is empty, do not diff, just add
-				while IFS='=' read -r key value; do
-					vsc_aa_env["$key"]="$value"
-					builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
-				done < <(env)
+				# Use null byte instead of a newline to support multi-line values (e.g. PS1 values)
+				while IFS= read -r -d $'\0' line; do
+					if [[ "$line" == *"="* ]]; then
+						# %% removes longest match of =* Ensure we get everything before first equal sign.
+						local key="${line%%=*}"
+						# # removes shortest match of *= Ensure we get everything after first equal sign. Preserving additional equal signs.
+						local value="${line#*=}"
+						vsc_aa_env["$key"]="$value"
+						builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+					fi
+				done < <(env -0) # env command with null bytes as separator instead of newlines
 			else
 				# Diff approach for associative array
-				while IFS='=' read -r key value; do
-					__updateEnvCacheAA "$key" "$value"
-				done < <(env)
+				while IFS= read -r -d $'\0' line; do
+					if [[ "$line" == *"="* ]]; then
+						local key="${line%%=*}"
+						local value="${line#*=}"
+						__updateEnvCacheAA "$key" "$value"
+					fi
+				done < <(env -0)
 				__trackMissingEnvVarsAA
 			fi
 
 		else
 			if [[ -z ${vsc_env_keys[@]} ]] && [[ -z ${vsc_env_values[@]} ]]; then
-			# Non associative arrays are both empty, do not diff, just add
-				while IFS='=' read -r key value; do
-					vsc_env_keys+=("$key")
-					vsc_env_values+=("$value")
-					builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
-				done < <(env)
+				# Non associative arrays are both empty, do not diff, just add
+				while IFS= read -r -d $'\0' line; do
+					if [[ "$line" == *"="* ]]; then
+						local key="${line%%=*}"
+						local value="${line#*=}"
+						vsc_env_keys+=("$key")
+						vsc_env_values+=("$value")
+						builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+					fi
+				done < <(env -0)
 			else
 				# Diff approach for non-associative arrays
-				while IFS='=' read -r key value; do
-					__updateEnvCache "$key" "$value"
-				done < <(env)
+				while IFS= read -r -d $'\0' line; do
+					if [[ "$line" == *"="* ]]; then
+						local key="${line%%=*}"
+						local value="${line#*=}"
+						__updateEnvCache "$key" "$value"
+					fi
+				done < <(env -0)
 				__trackMissingEnvVars
 			fi
-
 		fi
 		builtin printf '\e]633;EnvSingleEnd;%s;\a' $__vsc_nonce
 	fi

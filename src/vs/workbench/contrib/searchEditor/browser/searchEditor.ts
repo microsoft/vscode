@@ -201,7 +201,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 			ariaLabel: localize('label.includes', 'Search Include Patterns'),
 			inputBoxStyles: searchEditorInputboxStyles
 		}));
-		this.inputPatternIncludes.onSubmit(triggeredOnType => this.triggerSearch({ resetCursor: false, delay: triggeredOnType ? this.searchConfig.searchOnTypeDebouncePeriod : 0 }));
+		this._register(this.inputPatternIncludes.onSubmit(triggeredOnType => this.triggerSearch({ resetCursor: false, delay: triggeredOnType ? this.searchConfig.searchOnTypeDebouncePeriod : 0 })));
 		this._register(this.inputPatternIncludes.onChangeSearchInEditorsBox(() => this.triggerSearch()));
 
 		// Excludes

@@ -36,6 +36,7 @@ import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { localizeManifest } from './extensionNls.js';
 
 export type ManifestMetadata = Partial<{
+	targetPlatform: TargetPlatform;
 	installedTimestamp: number;
 	size: number;
 }>;
@@ -673,6 +674,7 @@ class ExtensionsScanner extends Disposable {
 			metadata = {
 				installedTimestamp: manifest.__metadata.installedTimestamp,
 				size: manifest.__metadata.size,
+				targetPlatform: manifest.__metadata.targetPlatform,
 			};
 		}
 

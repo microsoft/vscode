@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
-import { $ } from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { PixelRatio } from '../../../../base/browser/pixelRatio.js';
 import { BreadcrumbsItem, BreadcrumbsWidget, IBreadcrumbsItemEvent, IBreadcrumbsWidgetStyles } from '../../../../base/browser/ui/breadcrumbs/breadcrumbsWidget.js';
+import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { timeout } from '../../../../base/common/async.js';
@@ -190,21 +190,7 @@ function createBreadcrumbDndObserver(accessor: ServicesAccessor, container: HTML
 				}
 			});
 
-			// Create drag image and remove when dropped
-			const dragImage = $('.monaco-drag-image');
-			dragImage.textContent = label;
-
-			const getDragImageContainer = (e: HTMLElement | null) => {
-				while (e && !e.classList.contains('monaco-workbench')) {
-					e = e.parentElement;
-				}
-				return e || container.ownerDocument;
-			};
-
-			const dragContainer = getDragImageContainer(container);
-			dragContainer.appendChild(dragImage);
-			event.dataTransfer.setDragImage(dragImage, -10, -10);
-			setTimeout(() => dragImage.remove(), 0);
+			applyDragImage(event, container, label);
 		}
 	});
 }

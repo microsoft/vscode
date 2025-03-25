@@ -11,10 +11,6 @@
 .monaco-workbench .codicon.codicon-symbol-class { color: var(--vscode-symbolIcon-classForeground); }
 .monaco-editor .codicon.codicon-symbol-method,
 .monaco-workbench .codicon.codicon-symbol-method { color: var(--vscode-symbolIcon-methodForeground); }
-.monaco-editor .codicon.codicon-symbol-method-arrow,
-.monaco-workbench .codicon.codicon-symbol-method-arrow { color: var(--vscode-symbolIcon-methodArrowForeground); }
-.monaco-editor .codicon.codicon-flag,
-.monaco-workbench .codicon.codicon-flag { color: var(--vscode-symbolIcon-flagForeground); }
 .monaco-editor .codicon.codicon-symbol-color,
 .monaco-workbench .codicon.codicon-symbol-color { color: var(--vscode-symbolIcon-colorForeground); }
 .monaco-editor .codicon.codicon-symbol-constant,

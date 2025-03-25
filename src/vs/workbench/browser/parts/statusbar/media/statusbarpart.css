@@ -239,13 +239,3 @@
 	color: var(--vscode-statusBarItem-offlineHoverForeground);
 	background-color: var(--vscode-statusBarItem-offlineHoverBackground) !important;
 }
-
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.copilot-kind {
-	color: var(--vscode-statusBarItem-copilotForeground);
-	background-color: var(--vscode-statusBarItem-copilotBackground);
-}
-
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item.copilot-kind a:hover:not(.disabled) {
-	color: var(--vscode-statusBarItem-copilotHoverForeground);
-	background-color: var(--vscode-statusBarItem-copilotHoverBackground) !important;
-}

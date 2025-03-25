@@ -11,7 +11,7 @@ import { IQuickInputService } from '../../../../../../../../platform/quickinput/
  * Asks the user for a prompt name.
  */
 export const askForPromptName = async (
-	_type: 'local' | 'global',
+	_type: 'local' | 'user',
 	quickInputService: IQuickInputService,
 ): Promise<string | undefined> => {
 	const result = await quickInputService.input(

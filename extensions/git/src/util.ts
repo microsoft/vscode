@@ -12,6 +12,8 @@ import byline from 'byline';
 export const isMacintosh = process.platform === 'darwin';
 export const isWindows = process.platform === 'win32';
 export const isRemote = env.remoteName !== undefined;
+export const isLinux = process.platform === 'linux';
+export const isLinuxSnap = isLinux && !!process.env['SNAP'] && !!process.env['SNAP_REVISION'];
 
 export function log(...args: any[]): void {
 	console.log.apply(console, ['git:', ...args]);

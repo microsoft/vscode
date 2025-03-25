@@ -51,6 +51,7 @@ export interface IQuickPickItem {
 	 */
 	disabled?: boolean;
 	alwaysShow?: boolean;
+	indented?: boolean;
 }
 
 export interface IQuickPickSeparator {

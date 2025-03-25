@@ -412,6 +412,8 @@ export interface IDebugSession extends ITreeElement {
 	removeReplExpressions(): void;
 	addReplExpression(stackFrame: IStackFrame | undefined, name: string): Promise<void>;
 	appendToRepl(data: INewReplElementData): void;
+	/** Cancel any associated test run set through the DebugSessionOptions */
+	cancelCorrelatedTestRun(): void;
 
 	// session events
 	readonly onDidEndAdapter: Event<AdapterEndEvent | undefined>;

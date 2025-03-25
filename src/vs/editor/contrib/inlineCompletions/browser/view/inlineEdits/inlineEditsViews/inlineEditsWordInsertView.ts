@@ -8,15 +8,16 @@ import { IMouseEvent } from '../../../../../../../base/browser/mouseEvent.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, derived, IObservable } from '../../../../../../../base/common/observable.js';
+import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
 import { Point } from '../../../../../../browser/point.js';
 import { Rect } from '../../../../../../browser/rect.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
 import { OffsetRange } from '../../../../../../common/core/offsetRange.js';
 import { SingleTextEdit } from '../../../../../../common/core/textEdit.js';
-import { IInlineEditsView } from '../inlineEditsViewInterface.js';
+import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';
 import { getModifiedBorderColor } from '../theme.js';
-import { InlineEditTabAction, mapOutFalsy, rectToProps } from '../utils/utils.js';
+import { mapOutFalsy, rectToProps } from '../utils/utils.js';
 
 export class InlineEditsWordInsertView extends Disposable implements IInlineEditsView {
 
@@ -58,7 +59,7 @@ export class InlineEditsWordInsertView extends Disposable implements IInlineEdit
 				return [];
 			}
 
-			const modifiedBorderColor = getModifiedBorderColor(this._tabAction).read(reader);
+			const modifiedBorderColor = asCssVariable(getModifiedBorderColor(this._tabAction).read(reader));
 
 			return [
 				n.div({

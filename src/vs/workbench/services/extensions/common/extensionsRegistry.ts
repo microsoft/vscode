@@ -404,6 +404,11 @@ export const schema: IJSONSchema = {
 						description: nls.localize('vscode.extension.activationEvents.onTerminalCompletionsRequested', 'An activation event emitted when terminal completions are requested.'),
 					},
 					{
+						label: 'onMcpCollection',
+						description: nls.localize('vscode.extension.activationEvents.onMcpCollection', 'An activation event emitted whenver a tool from the MCP server is requested.'),
+						body: 'onMcpCollection:${2:collectionId}',
+					},
+					{
 						label: '*',
 						description: nls.localize('vscode.extension.activationEvents.star', 'An activation event emitted on VS Code startup. To ensure a great end user experience, please use this activation event in your extension only when no other activation events combination works in your use-case.'),
 						body: '*'

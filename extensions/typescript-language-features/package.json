@@ -11,8 +11,7 @@
     "workspaceTrust",
     "multiDocumentHighlightProvider",
     "codeActionAI",
-    "codeActionRanges",
-    "editorHoverVerbosityLevel"
+    "codeActionRanges"
   ],
   "capabilities": {
     "virtualWorkspaces": {
@@ -1515,15 +1514,6 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "%configuration.updateImportsOnPaste%"
-        },
-        "typescript.experimental.expandableHover": {
-          "type": "boolean",
-          "default": false,
-          "description": "%configuration.expandableHover%",
-          "scope": "window",
-          "tags": [
-            "experimental"
-          ]
         }
       }
     },

@@ -9,8 +9,8 @@ import { assert } from '../../../../../../../../base/common/assert.js';
 import { VSBuffer } from '../../../../../../../../base/common/buffer.js';
 import { dirname } from '../../../../../../../../base/common/resources.js';
 import { IFileService } from '../../../../../../../../platform/files/common/files.js';
-import { isPromptFile, PROMPT_FILE_EXTENSION } from '../../../../../../../../platform/prompts/common/constants.js';
 import { ICommandService } from '../../../../../../../../platform/commands/common/commands.js';
+import { isPromptFile, PROMPT_FILE_EXTENSION } from '../../../../../../../../platform/prompts/common/constants.js';
 
 /**
  * Options for the {@link createPromptFile} utility.

@@ -1,129 +1,203 @@
 ; Order matters! Place lower precedence first.
-; Adapted from https://github.com/zed-industries/zed/blob/main/crates/languages/src/typescript/highlights.scm
 
 ; Variables
 
-(identifier) @variable
+(identifier) @variable.ts
+
+(_
+  object: (identifier) @variable.other.object.ts)
 
 ; Literals
 
-(this) @variable.language.this
-(super) @variable.language.super
+(this) @variable.language.this.ts
+(super) @variable.language.super.ts
 
-(comment) @comment
+(comment) @comment.ts
 
 ; TODO: This doesn't seem to be working
-(escape_sequence) @constant.character.escape
+(escape_sequence) @constant.character.escape.ts
 
-[
-  (string)
+((string) @string.quoted.single.ts
+  (#match? @string.quoted.single.ts "^'.*'$"))
+
+((string) @string.quoted.double.ts
+  (#match? @string.quoted.double.ts "^\".*\"$"))
+
+([
   (template_string)
   (template_literal_type)
-] @string
+] @string.template.ts)
+
+(string .
+  ([
+    "\""
+    "'"
+  ]) @punctuation.definition.string.begin.ts)
+
+(string
+  ([
+    "\""
+    "'"
+  ]) @punctuation.definition.string.end.ts .)
+
+(template_string . ("`") @punctuation.definition.string.template.begin.ts)
+
+(template_string ("`") @punctuation.definition.string.template.end.ts .)
 
 ; NOTE: the typescript grammar doesn't break regex into nice parts so as to capture parts of it separately
-(regex) @string.regexp
-(number) @constant.numeric
+(regex) @string.regexp.ts
+(number) @constant.numeric.ts
 
 ; Properties
 
 (member_expression
   object: (this)
-  property: (property_identifier) @variable)
+  property: (property_identifier) @variable.ts)
 
 (member_expression
-  property: (property_identifier) @variable.other.constant
-  (#match? @variable.other.constant "^[A-Z][A-Z_]+$"))
+  property: (property_identifier) @variable.other.constant.ts
+  (#match? @variable.other.constant.ts "^[A-Z][A-Z_]+$"))
 
 [
   (property_identifier)
   (shorthand_property_identifier)
-  (shorthand_property_identifier_pattern)] @variable
+  (shorthand_property_identifier_pattern)] @variable.ts
 
 ; Function and method definitions
 
 (function_expression
-  name: (identifier) @entity.name.function)
+  name: (identifier) @entity.name.function.ts)
+(function_signature
+  name: (identifier) @entity.name.function.ts)
 (function_declaration
-  name: (identifier) @entity.name.function)
+  name: (identifier) @entity.name.function.ts)
 (method_definition
-  name: (property_identifier) @meta.definition.method @entity.name.function
-  (#not-eq? @entity.name.function "constructor"))
+  name: (property_identifier) @meta.definition.method.ts @entity.name.function.ts
+  (#not-eq? @entity.name.function.ts "constructor"))
 (method_definition
-  name: (property_identifier) @meta.definition.method @storage.type
-  (#eq? @storage.type "constructor"))
+  name: (property_identifier) @meta.definition.method.ts @storage.type.ts
+  (#eq? @storage.type.ts "constructor"))
 (method_signature
-  name: (property_identifier) @meta.definition.method @entity.name.function)
+  name: (property_identifier) @meta.definition.method.ts @entity.name.function.ts)
+(generator_function_declaration
+  "*" @keyword.generator.asterisk.ts)
+(generator_function_declaration
+  name: (identifier) @meta.definition.function.ts @entity.name.function.ts)
 
 (pair
-  key: (property_identifier) @entity.name.function
+  key: (property_identifier) @entity.name.function.ts
   value: [(function_expression) (arrow_function)])
 
 (assignment_expression
   left: (member_expression
-    property: (property_identifier) @entity.name.function)
+    property: (property_identifier) @entity.name.function.ts)
   right: [(function_expression) (arrow_function)])
 
 (variable_declarator
-  name: (identifier) @entity.name.function
+  name: (identifier) @entity.name.function.ts
   value: [(function_expression) (arrow_function)])
 
 (assignment_expression
-  left: (identifier) @entity.name.function
+  left: (identifier) @entity.name.function.ts
   right: [(function_expression) (arrow_function)])
 
 (required_parameter
-  (identifier) @variable.parameter)
+  (identifier) @variable.parameter.ts)
 
 (required_parameter
-  (rest_pattern
-    (identifier) @variable.parameter))
+  (_
+    ([
+      (identifier)
+      (shorthand_property_identifier_pattern)
+    ]) @variable.parameter.ts))
 
 (optional_parameter
-  (identifier) @variable.parameter)
+  (identifier) @variable.parameter.ts)
+
+(optional_parameter
+  (_
+    ([
+      (identifier)
+      (shorthand_property_identifier_pattern)
+    ]) @variable.parameter.ts))
 
 (catch_clause
-  parameter: (identifier) @variable.parameter)
+  parameter: (identifier) @variable.parameter.ts)
+
+(index_signature
+  name: (identifier) @variable.parameter.ts)
+
+(arrow_function
+  parameter: (identifier) @variable.parameter.ts)
 
 ; Function and method calls
 
 (call_expression
-  function: (identifier) @entity.name.function)
+  function: (identifier) @entity.name.function.ts)
 
 (call_expression
   function: (member_expression
-  	object: (identifier) @support.class.promise)
-    (#eq? @support.class.promise "Promise"))
+  	object: (identifier) @support.class.promise.ts)
+    (#eq? @support.class.promise.ts "Promise"))
 
 (call_expression
   function: (member_expression
-    property: (property_identifier) @entity.name.function))
+    property: (property_identifier) @entity.name.function.ts))
 
-(new_expression) @new.expr
+(new_expression) @new.expr.ts
 
 (new_expression
-  constructor: (identifier) @entity.name.function)
+  constructor: (identifier) @entity.name.function.ts)
 
 
 ; Special identifiers
 
-(predefined_type) @support.type
-(predefined_type (["string" "boolean" "number" "any" "unknown"])) @support.type.primitive
-(type_identifier) @entity.name.type
+(predefined_type) @support.type.ts
+(predefined_type (["string" "boolean" "number" "any" "unknown" "never" "void"])) @support.type.primitive.ts
+
+(_
+  (type_identifier) @entity.name.type.ts)
+
+(type_annotation
+  ([
+    (type_identifier)
+    (nested_type_identifier)
+   ]) @meta.type.annotation.ts @entity.name.type.ts)
+
+(class_declaration
+  (type_identifier) @entity.name.type.class.ts)
+
+(type_alias_declaration
+  (type_identifier) @entity.name.type.alias.ts)
+(type_alias_declaration
+  value: (_
+    (type_identifier) @entity.name.type.ts))
+
+(interface_declaration
+  (type_identifier) @entity.name.type.interface.ts)
+
 (internal_module
   name: (identifier) @entity.name.type.ts)
 
-([
-  (identifier)
-  (shorthand_property_identifier)
-  (shorthand_property_identifier_pattern)] @variable.other.constant
-  (#match? @variable.other.constant "^[A-Z][A-Z_]+$"))
+(enum_declaration
+  name: (identifier) @entity.name.type.enum.ts)
+
+(
+  [
+    (_ name: (identifier))
+    (shorthand_property_identifier)
+    (shorthand_property_identifier_pattern)
+  ] @variable.other.constant.ts
+  (#match? @variable.other.constant.ts "^[A-Z][A-Z_]+$"))
 
 (extends_clause
-  value: (identifier) @entity.other.inherited-class)
+  value: (identifier) @entity.other.inherited-class.ts)
+
+(extends_type_clause
+  type: (type_identifier) @entity.other.inherited-class.ts)
 
 (implements_clause
-  (type_identifier) @entity.other.inherited-class)
+  (type_identifier) @entity.other.inherited-class.ts)
 
 ; Tokens
 
@@ -134,7 +208,7 @@
   ","
   ":"
   "?"
-] @punctuation.delimiter
+] @punctuation.delimiter.ts
 
 [
   "!"
@@ -144,7 +218,7 @@
   "&&"
   "||"
   "??"
-] @keyword.operator.logical
+] @keyword.operator.logical.ts
 
 (binary_expression ([
   "-"
@@ -153,18 +227,22 @@
   "/"
   "%"
   "^"
-]) @keyword.operator.arithmetic)
+]) @keyword.operator.arithmetic.ts)
 
 (binary_expression ([
   "<"
   "<="
   ">"
   ">="
-]) @keyword.operator.relational)
+]) @keyword.operator.relational.ts)
+
+(unary_expression ([
+  "-"
+]) @keyword.operator.arithmetic.ts)
 
 [
   "="
-] @keyword.operator.assignment
+] @keyword.operator.assignment.ts
 
 (augmented_assignment_expression ([
   "-="
@@ -178,15 +256,15 @@
   "&&="
   "||="
   "??="
-]) @keyword.operator.assignment.compound)
+]) @keyword.operator.assignment.compound.ts)
 
 [
   "++"
-] @keyword.operator.increment
+] @keyword.operator.increment.ts
 
 [
   "--"
-] @keyword.operator.decrement
+] @keyword.operator.decrement.ts
 
 [
   "**"
@@ -202,16 +280,28 @@
   "~"
   "&"
   "|"
-] @keyword.operator
+] @keyword.operator.ts
 
 (union_type
-  ("|") @keyword.operator.type)
+  ("|") @keyword.operator.type.ts)
 
 (intersection_type
-  ("&") @keyword.operator.type)
+  ("&") @keyword.operator.type.ts)
 
 (type_annotation
-  (":") @keyword.operator.type.annotation)
+  (":") @keyword.operator.type.annotation.ts)
+
+(index_signature
+  (":") @keyword.operator.type.annotation.ts)
+
+(type_predicate_annotation
+  (":") @keyword.operator.type.annotation.ts)
+
+(conditional_type
+  ([
+    "?"
+    ":"
+  ]) @keyword.operator.ternary.ts)
 
 [
   "{"
@@ -220,36 +310,40 @@
   ")"
   "["
   "]"
-] @punctuation
+] @punctuation.ts
 
 (template_substitution
-  "${" @punctuation.definition.template-expression.begin
-  "}" @punctuation.definition.template-expression.end)
+  "${" @punctuation.definition.template-expression.begin.ts
+  "}" @punctuation.definition.template-expression.end.ts)
 
 (template_type
-  "${" @punctuation.definition.template-expression.begin
-  "}" @punctuation.definition.template-expression.end)
+  "${" @punctuation.definition.template-expression.begin.ts
+  "}" @punctuation.definition.template-expression.end.ts)
 
 (type_arguments
-  "<" @punctuation.definition.typeparameters
-  ">" @punctuation.definition.typeparameters)
+  "<" @punctuation.definition.typeparameters.begin.ts
+  ">" @punctuation.definition.typeparameters.end.ts)
+
+(type_parameters
+  "<" @punctuation.definition.typeparameters.begin.ts
+  ">" @punctuation.definition.typeparameters.end.ts)
 
 ; Keywords
 
-("typeof") @keyword.operator.expression.typeof
+("typeof") @keyword.operator.expression.typeof.ts
 
-(binary_expression "instanceof" @keyword.operator.expression.instanceof)
+(binary_expression "instanceof" @keyword.operator.expression.instanceof.ts)
 
-("of") @keyword.operator.expression.of
+("of") @keyword.operator.expression.of.ts
 
-("is") @keyword.operator.expression.is
+("is") @keyword.operator.expression.is.ts
 
 [
   "delete"
   "in"
   "infer"
   "keyof"
-] @keyword.operator.expression
+] @keyword.operator.expression.ts
 
 [
   "as"
@@ -273,10 +367,9 @@
   "switch"
   "throw"
   "try"
-  "type"
   "while"
   "yield"
-] @keyword.control
+] @keyword.control.ts
 
 [
   "abstract"
@@ -290,7 +383,7 @@
   "public"
   "readonly"
   "static"
-] @storage.modifier
+] @storage.modifier.ts
 
 [
   "=>"
@@ -304,7 +397,9 @@
   "namespace"
   "set"
   "var"
-] @storage.type
+] @storage.type.ts
+
+("type") @storage.type.type.ts
 
 [
   "module"
@@ -314,67 +409,72 @@
   "debugger"
   "target"
   "with"
-] @keyword
+] @keyword.ts
 
-(regex_flags) @keyword
+(regex_flags) @keyword.ts
 
-[
-  "void"
-] @support.type.primitive
+(unary_expression
+  "void" @keyword.operator.expression.void.ts)
 
 [
   "new"
-] @keyword.operator.new
+] @keyword.operator.new.ts
 
 (public_field_definition
-  ("?") @keyword.operator.optional)
+  ("?") @keyword.operator.optional.ts)
 
 (property_signature
-  ("?") @keyword.operator.optional)
+  ("?") @keyword.operator.optional.ts)
+
+(method_signature
+  ("?") @keyword.operator.optional.ts)
 
 (optional_parameter
   ([
     "?"
     ":"
-  ]) @keyword.operator.optional)
+  ]) @keyword.operator.optional.ts)
 
 (ternary_expression
   ([
     "?"
     ":"
-  ]) @keyword.operator.ternary)
+  ]) @keyword.operator.ternary.ts)
 
 (optional_chain
-  ("?.") @punctuation.accessor.optional)
+  ("?.") @punctuation.accessor.optional.ts)
 
-(rest_pattern) @keyword.operator.rest
+(rest_pattern
+  ("...") @keyword.operator.rest.ts)
+(rest_type
+  ("...") @keyword.operator.rest.ts)
 
 (spread_element
-  ("...") @keyword.operator.spread)
+  ("...") @keyword.operator.spread.ts)
 
 ; Language constants
 
 [
   (null)
-] @constant.language.null
+] @constant.language.null.ts
 
 [
   (undefined)
-] @constant.language.undefined
+] @constant.language.undefined.ts
 
- ((identifier) @constant.language.nan
-   (#eq? @constant.language.nan "NaN"))
+((identifier) @constant.language.nan.ts
+  (#eq? @constant.language.nan.ts "NaN"))
 
- ((identifier) @constant.language.infinity
-   (#eq? @constant.language.infinity "Infinity"))
+((identifier) @constant.language.infinity.ts
+  (#eq? @constant.language.infinity.ts "Infinity"))
 
 [
   (true)
-] @constant.language.boolean.true
+] @constant.language.boolean.true.ts
 
 [
   (false)
-] @constant.language.boolean.false
+] @constant.language.boolean.false.ts
 
 (literal_type
   [
@@ -382,7 +482,7 @@
     (undefined)
     (true)
     (false)
-  ] @support.type.builtin)
+  ] @support.type.builtin.ts)
 
 (namespace_import
-  "*" @constant.language)
+  "*" @constant.language.ts)

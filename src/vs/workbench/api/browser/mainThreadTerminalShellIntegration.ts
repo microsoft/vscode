@@ -33,14 +33,15 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 			}
 		}));
 
-		// onDidchangeTerminalShellIntegration initial state
+		// onDidChangeTerminalShellIntegration initial state
 		for (const terminal of this._terminalService.instances) {
-			if (terminal.capabilities.has(TerminalCapability.CommandDetection)) {
+			const cmdDetection = terminal.capabilities.get(TerminalCapability.CommandDetection);
+			if (cmdDetection) {
 				this._proxy.$shellIntegrationChange(terminal.instanceId);
-				const cwdDetection = terminal.capabilities.get(TerminalCapability.CwdDetection);
-				if (cwdDetection) {
-					this._proxy.$cwdChange(terminal.instanceId, this._convertCwdToUri(cwdDetection.getCwd()));
-				}
+			}
+			const cwdDetection = terminal.capabilities.get(TerminalCapability.CwdDetection);
+			if (cwdDetection) {
+				this._proxy.$cwdChange(terminal.instanceId, this._convertCwdToUri(cwdDetection.getCwd()));
 			}
 		}
 
@@ -48,8 +49,9 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 		const onDidAddCommandDetection = this._store.add(this._terminalService.createOnInstanceEvent(instance => {
 			return Event.map(
 				Event.filter(instance.capabilities.onDidAddCapabilityType, e => {
-					return e === TerminalCapability.CommandDetection || e === TerminalCapability.CwdDetection;
-				}), () => instance
+					return (e === TerminalCapability.CwdDetection || e === TerminalCapability.CommandDetection);
+				}),
+				() => instance
 			);
 		})).event;
 		this._store.add(onDidAddCommandDetection(e => this._proxy.$shellIntegrationChange(e.instanceId)));

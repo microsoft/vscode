@@ -1,7 +1,7 @@
 [
 	{
 		"c": "var",
-		"t": "storage.type",
+		"t": "storage.type.ts",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -15,7 +15,7 @@
 	},
 	{
 		"c": "x",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -29,7 +29,7 @@
 	},
 	{
 		"c": "=",
-		"t": "keyword.operator.assignment",
+		"t": "keyword.operator.assignment.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -43,7 +43,7 @@
 	},
 	{
 		"c": "`",
-		"t": "string",
+		"t": "string.template.ts punctuation.definition.string.template.begin.ts",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -57,7 +57,7 @@
 	},
 	{
 		"c": "Hello ",
-		"t": "string",
+		"t": "string.template.ts",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -71,7 +71,7 @@
 	},
 	{
 		"c": "${",
-		"t": "punctuation.definition.template-expression.begin",
+		"t": "string.template.ts punctuation.definition.template-expression.begin.ts",
 		"r": {
 			"dark_plus": "punctuation.definition.template-expression.begin: #569CD6",
 			"light_plus": "punctuation.definition.template-expression.begin: #0000FF",
@@ -85,12 +85,12 @@
 	},
 	{
 		"c": "foo",
-		"t": "variable",
+		"t": "string.template.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
 			"hc_black": "variable: #9CDCFE",
 			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
@@ -99,7 +99,7 @@
 	},
 	{
 		"c": "}",
-		"t": "punctuation.definition.template-expression.end",
+		"t": "string.template.ts punctuation.ts punctuation.definition.template-expression.end.ts",
 		"r": {
 			"dark_plus": "punctuation.definition.template-expression.end: #569CD6",
 			"light_plus": "punctuation.definition.template-expression.end: #0000FF",
@@ -113,7 +113,7 @@
 	},
 	{
 		"c": "!",
-		"t": "string",
+		"t": "string.template.ts",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -127,7 +127,7 @@
 	},
 	{
 		"c": "`",
-		"t": "string",
+		"t": "string.template.ts punctuation.definition.string.template.end.ts",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -141,7 +141,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -155,7 +155,7 @@
 	},
 	{
 		"c": "console",
-		"t": "variable",
+		"t": "variable.ts variable.other.object.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -169,7 +169,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -183,7 +183,7 @@
 	},
 	{
 		"c": "log",
-		"t": "entity.name.function",
+		"t": "variable.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -197,7 +197,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -211,7 +211,7 @@
 	},
 	{
 		"c": "`",
-		"t": "string",
+		"t": "string.template.ts punctuation.definition.string.template.begin.ts",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -225,7 +225,7 @@
 	},
 	{
 		"c": "string text line 1\nstring text line 2",
-		"t": "string",
+		"t": "string.template.ts",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -239,7 +239,7 @@
 	},
 	{
 		"c": "`",
-		"t": "string",
+		"t": "string.template.ts punctuation.definition.string.template.end.ts",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -253,7 +253,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "punctuation.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -267,7 +267,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -281,7 +281,7 @@
 	},
 	{
 		"c": "x",
-		"t": "variable",
+		"t": "variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -295,7 +295,7 @@
 	},
 	{
 		"c": "=",
-		"t": "keyword.operator.assignment",
+		"t": "keyword.operator.assignment.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -309,7 +309,7 @@
 	},
 	{
 		"c": "tag",
-		"t": "entity.name.function",
+		"t": "variable.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -323,7 +323,7 @@
 	},
 	{
 		"c": "`",
-		"t": "string",
+		"t": "string.template.ts punctuation.definition.string.template.begin.ts",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -337,7 +337,7 @@
 	},
 	{
 		"c": "Hello ",
-		"t": "string",
+		"t": "string.template.ts",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -351,7 +351,7 @@
 	},
 	{
 		"c": "${",
-		"t": "punctuation.definition.template-expression.begin",
+		"t": "string.template.ts punctuation.definition.template-expression.begin.ts",
 		"r": {
 			"dark_plus": "punctuation.definition.template-expression.begin: #569CD6",
 			"light_plus": "punctuation.definition.template-expression.begin: #0000FF",
@@ -365,12 +365,12 @@
 	},
 	{
 		"c": "a",
-		"t": "variable",
+		"t": "string.template.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
 			"hc_black": "variable: #9CDCFE",
 			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
@@ -379,7 +379,7 @@
 	},
 	{
 		"c": "+",
-		"t": "keyword.operator.arithmetic",
+		"t": "string.template.ts keyword.operator.arithmetic.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -393,12 +393,12 @@
 	},
 	{
 		"c": "b",
-		"t": "variable",
+		"t": "string.template.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
 			"hc_black": "variable: #9CDCFE",
 			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
@@ -407,7 +407,7 @@
 	},
 	{
 		"c": "}",
-		"t": "punctuation.definition.template-expression.end",
+		"t": "string.template.ts punctuation.ts punctuation.definition.template-expression.end.ts",
 		"r": {
 			"dark_plus": "punctuation.definition.template-expression.end: #569CD6",
 			"light_plus": "punctuation.definition.template-expression.end: #0000FF",
@@ -421,7 +421,7 @@
 	},
 	{
 		"c": " world ",
-		"t": "string",
+		"t": "string.template.ts",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -435,7 +435,7 @@
 	},
 	{
 		"c": "${",
-		"t": "punctuation.definition.template-expression.begin",
+		"t": "string.template.ts punctuation.definition.template-expression.begin.ts",
 		"r": {
 			"dark_plus": "punctuation.definition.template-expression.begin: #569CD6",
 			"light_plus": "punctuation.definition.template-expression.begin: #0000FF",
@@ -449,12 +449,12 @@
 	},
 	{
 		"c": "a",
-		"t": "variable",
+		"t": "string.template.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
 			"hc_black": "variable: #9CDCFE",
 			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
@@ -463,7 +463,7 @@
 	},
 	{
 		"c": "*",
-		"t": "keyword.operator.arithmetic",
+		"t": "string.template.ts keyword.operator.arithmetic.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -477,12 +477,12 @@
 	},
 	{
 		"c": "b",
-		"t": "variable",
+		"t": "string.template.ts variable.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
 			"hc_black": "variable: #9CDCFE",
 			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
@@ -491,7 +491,7 @@
 	},
 	{
 		"c": "}",
-		"t": "punctuation.definition.template-expression.end",
+		"t": "string.template.ts punctuation.ts punctuation.definition.template-expression.end.ts",
 		"r": {
 			"dark_plus": "punctuation.definition.template-expression.end: #569CD6",
 			"light_plus": "punctuation.definition.template-expression.end: #0000FF",
@@ -505,7 +505,7 @@
 	},
 	{
 		"c": "`",
-		"t": "string",
+		"t": "string.template.ts punctuation.definition.string.template.end.ts",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -519,7 +519,7 @@
 	},
 	{
 		"c": ";",
-		"t": "punctuation.delimiter",
+		"t": "punctuation.delimiter.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",

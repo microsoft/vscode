@@ -80,7 +80,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 
 	readonly priority = LayoutPriority.Low;
 
-	private configuration = this.resolveConfiguration();
+	private configuration: IAuxiliaryBarPartConfiguration;
 
 	constructor(
 		@INotificationService notificationService: INotificationService,
@@ -124,6 +124,8 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			extensionService,
 			menuService,
 		);
+
+		this.configuration = this.resolveConfiguration();
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION)) {

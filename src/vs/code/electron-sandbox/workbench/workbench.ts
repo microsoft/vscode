@@ -90,15 +90,19 @@
 			splash.className = baseTheme ?? 'vs-dark';
 
 			if (layoutInfo.windowBorder && colorInfo.windowBorder) {
-				splash.style.position = 'relative';
-				splash.style.height = 'calc(100vh - 2px)';
-				splash.style.width = 'calc(100vw - 2px)';
-				splash.style.border = `1px solid var(--window-border-color)`;
-				splash.style.setProperty('--window-border-color', colorInfo.windowBorder);
+				const borderElement = document.createElement('div');
+				borderElement.style.position = 'absolute';
+				borderElement.style.width = 'calc(100vw - 2px)';
+				borderElement.style.height = 'calc(100vh - 2px)';
+				borderElement.style.zIndex = '1'; // allow border above other elements
+				borderElement.style.border = `1px solid var(--window-border-color)`;
+				borderElement.style.setProperty('--window-border-color', colorInfo.windowBorder);
 
 				if (layoutInfo.windowBorderRadius) {
-					splash.style.borderRadius = layoutInfo.windowBorderRadius;
+					borderElement.style.borderRadius = layoutInfo.windowBorderRadius;
 				}
+
+				splash.appendChild(borderElement);
 			}
 
 			// ensure there is enough space

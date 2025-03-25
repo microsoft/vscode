@@ -229,7 +229,7 @@ export class PlaywrightDriver {
 		}
 	}
 
-	async dispatchKeybinding(keybinding: string) {
+	async sendKeybinding(keybinding: string, accept?: () => Promise<void> | void) {
 		const chords = keybinding.split(' ');
 		for (let i = 0; i < chords.length; i++) {
 			const chord = chords[i];
@@ -256,7 +256,9 @@ export class PlaywrightDriver {
 			}
 		}
 
-		await this.wait(100);
+		if (accept) {
+			await accept();
+		}
 	}
 
 	async click(selector: string, xoffset?: number | undefined, yoffset?: number | undefined) {
@@ -317,7 +319,7 @@ export class PlaywrightDriver {
 	}
 
 	wait(ms: number): Promise<void> {
-		return new Promise<void>(resolve => setTimeout(resolve, ms));
+		return wait(ms);
 	}
 
 	whenWorkbenchRestored(): Promise<void> {
@@ -327,4 +329,8 @@ export class PlaywrightDriver {
 	private async getDriverHandle(): Promise<playwright.JSHandle<IWindowDriver>> {
 		return this.page.evaluateHandle('window.driver');
 	}
+}
+
+export function wait(ms: number): Promise<void> {
+	return new Promise<void>(resolve => setTimeout(resolve, ms));
 }

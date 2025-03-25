@@ -16,6 +16,8 @@ export { type DebugOwner } from './debugName.js';
 
 import { addLogger, setLogObservableFn } from './logging/logging.js';
 import { ConsoleObservableLogger, logObservableToConsole } from './logging/consoleObservableLogger.js';
+import { DevToolsLogger } from './logging/debugger/devToolsLogger.js';
+import { env } from '../process.js';
 
 setLogObservableFn(logObservableToConsole);
 
@@ -26,4 +28,9 @@ const enableLogging = false
 
 if (enableLogging) {
 	addLogger(new ConsoleObservableLogger());
+}
+
+if (env && env['VSCODE_DEV_DEBUG']) {
+	// To debug observables you also need the extension "ms-vscode.debug-value-editor"
+	addLogger(DevToolsLogger.getInstance());
 }

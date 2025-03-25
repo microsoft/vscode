@@ -311,11 +311,16 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 		}
 	});
 
+	// Following features are enabled from the runtime:
+	// `DocumentPolicyIncludeJSCallStacksInCrashReports` - https://www.electronjs.org/docs/latest/api/web-frame-main#framecollectjavascriptcallstack-experimental
+	const featuresToEnable =
+		`DocumentPolicyIncludeJSCallStacksInCrashReports, ${app.commandLine.getSwitchValue('enable-features')}`;
+	app.commandLine.appendSwitch('enable-features', featuresToEnable);
+
 	// Following features are disabled from the runtime:
 	// `CalculateNativeWinOcclusion` - Disable native window occlusion tracker (https://groups.google.com/a/chromium.org/g/embedder-dev/c/ZF3uHHyWLKw/m/VDN2hDXMAAAJ)
-	// `PlzDedicatedWorker` - Refs https://github.com/microsoft/vscode/issues/233060#issuecomment-2523212427
 	const featuresToDisable =
-		`CalculateNativeWinOcclusion,PlzDedicatedWorker,${app.commandLine.getSwitchValue('disable-features')}`;
+		`CalculateNativeWinOcclusion,${app.commandLine.getSwitchValue('disable-features')}`;
 	app.commandLine.appendSwitch('disable-features', featuresToDisable);
 
 	// Blink features to configure.
@@ -520,6 +525,18 @@ function getJSFlags(cliArgs: NativeParsedArgs): string | null {
 	// Add any existing JS flags we already got from the command line
 	if (cliArgs['js-flags']) {
 		jsFlags.push(cliArgs['js-flags']);
+	}
+
+	if (process.platform === 'linux') {
+		// Fix cppgc crash on Linux with 16KB page size.
+		// Refs https://issues.chromium.org/issues/378017037
+		// The fix from https://github.com/electron/electron/commit/6c5b2ef55e08dc0bede02384747549c1eadac0eb
+		// only affects non-renderer process.
+		// The following will ensure that the flag will be
+		// applied to the renderer process as well.
+		// TODO(deepak1556): Remove this once we update to
+		// Chromium >= 134.
+		jsFlags.push('--nodecommit_pooled_pages');
 	}
 
 	return jsFlags.length > 0 ? jsFlags.join(' ') : null;

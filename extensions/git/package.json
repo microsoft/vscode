@@ -21,7 +21,6 @@
     "contribSourceControlInputBoxMenu",
     "contribSourceControlTitleMenu",
     "contribViewsWelcome",
-    "diffCommand",
     "editSessionIdentityProvider",
     "quickDiffProvider",
     "quickInputButtonLocation",
@@ -3323,10 +3322,15 @@
           "markdownDescription": "%config.diagnosticsCommitHook.Sources%",
           "scope": "resource"
         },
-        "git.untrackedChangesEnableTrash": {
+        "git.discardUntrackedChangesToTrash": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "%config.untrackedChangesEnableTrash%"
+          "markdownDescription": "%config.discardUntrackedChangesToTrash%"
+        },
+        "git.showReferenceDetails": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%config.showReferenceDetails%"
         }
       }
     },
@@ -3435,10 +3439,10 @@
         "id": "git.blame.editorDecorationForeground",
         "description": "%colors.blameEditorDecoration%",
         "defaults": {
-          "dark": "editorCodeLens.foreground",
-          "light": "editorCodeLens.foreground",
-          "highContrast": "editorCodeLens.foreground",
-          "highContrastLight": "editorCodeLens.foreground"
+          "dark": "editorInlayHint.foreground",
+          "light": "editorInlayHint.foreground",
+          "highContrast": "editorInlayHint.foreground",
+          "highContrastLight": "editorInlayHint.foreground"
         }
       }
     ],
@@ -3564,7 +3568,6 @@
   "dependencies": {
     "@joaomoreno/unique-names-generator": "^5.2.0",
     "@vscode/extension-telemetry": "^0.9.8",
-    "@vscode/iconv-lite-umd": "0.7.0",
     "byline": "^5.0.0",
     "file-type": "16.5.4",
     "picomatch": "2.3.1",

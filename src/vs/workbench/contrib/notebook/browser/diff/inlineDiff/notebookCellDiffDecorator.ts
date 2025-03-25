@@ -21,7 +21,7 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import { NotebookCellTextModel } from '../../../common/model/notebookCellTextModel.js';
 import { DetailedLineRangeMapping } from '../../../../../../editor/common/diff/rangeMapping.js';
 import { minimapGutterAddedBackground, minimapGutterDeletedBackground, minimapGutterModifiedBackground, overviewRulerAddedForeground, overviewRulerDeletedForeground, overviewRulerModifiedForeground } from '../../../../scm/common/quickDiff.js';
-import { INotebookOriginalCellModelFactory } from '../../contrib/chatEdit/notebookOriginalCellModelFactory.js';
+import { INotebookOriginalCellModelFactory } from './notebookOriginalCellModelFactory.js';
 
 //TODO: allow client to set read-only - chateditsession should set read-only while making changes
 export class NotebookCellDiffDecorator extends DisposableStore {

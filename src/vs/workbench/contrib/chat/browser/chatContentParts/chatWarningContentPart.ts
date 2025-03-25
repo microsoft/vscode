@@ -11,6 +11,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { IChatContentPart } from './chatContentParts.js';
 import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
+import { ChatErrorLevel } from '../../common/chatService.js';
 
 const $ = dom.$;
 
@@ -18,7 +19,7 @@ export class ChatWarningContentPart extends Disposable implements IChatContentPa
 	public readonly domNode: HTMLElement;
 
 	constructor(
-		kind: 'info' | 'warning' | 'error',
+		kind: ChatErrorLevel,
 		content: IMarkdownString,
 		renderer: MarkdownRenderer,
 	) {
@@ -28,15 +29,15 @@ export class ChatWarningContentPart extends Disposable implements IChatContentPa
 		let icon;
 		let iconClass;
 		switch (kind) {
-			case 'warning':
+			case ChatErrorLevel.Warning:
 				icon = Codicon.warning;
 				iconClass = '.chat-warning-codicon';
 				break;
-			case 'error':
+			case ChatErrorLevel.Error:
 				icon = Codicon.error;
 				iconClass = '.chat-error-codicon';
 				break;
-			case 'info':
+			case ChatErrorLevel.Info:
 				icon = Codicon.info;
 				iconClass = '.chat-info-codicon';
 				break;

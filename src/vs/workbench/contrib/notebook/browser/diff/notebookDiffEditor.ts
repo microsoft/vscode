@@ -289,6 +289,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	}
 
 	async toggleInlineView(): Promise<void> {
+		this._layoutCancellationTokenSource?.dispose();
+
 		this._inlineView = !this._inlineView;
 
 		if (!this._lastLayoutProperties) {
@@ -302,6 +304,9 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			this.layout(this._lastLayoutProperties?.dimension, this._lastLayoutProperties?.position);
 			this.inlineDiffWidget?.hide();
 		}
+
+		this._layoutCancellationTokenSource = new CancellationTokenSource();
+		this.updateLayout(this._layoutCancellationTokenSource.token);
 	}
 
 	protected createEditor(parent: HTMLElement): void {
@@ -924,9 +929,9 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 	deltaCellOutputContainerClassNames(diffSide: DiffSide, cellId: string, added: string[], removed: string[]) {
 		if (diffSide === DiffSide.Original) {
-			this._originalWebview?.deltaCellContainerClassNames(cellId, added, removed);
+			this._originalWebview?.deltaCellOutputContainerClassNames(cellId, added, removed);
 		} else {
-			this._modifiedWebview?.deltaCellContainerClassNames(cellId, added, removed);
+			this._modifiedWebview?.deltaCellOutputContainerClassNames(cellId, added, removed);
 		}
 	}
 

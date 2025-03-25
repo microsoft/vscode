@@ -97,7 +97,7 @@ export class NotificationsStatus extends Disposable {
 				statusProperties,
 				'status.notifications',
 				StatusbarAlignment.RIGHT,
-				-Number.MAX_VALUE /* towards the far end of the right hand side */
+				Number.NEGATIVE_INFINITY /* last entry */
 			);
 		} else {
 			this.notificationsCenterStatusItem.update(statusProperties);
@@ -200,7 +200,7 @@ export class NotificationsStatus extends Disposable {
 				},
 				'status.message',
 				StatusbarAlignment.LEFT,
-				-Number.MAX_VALUE /* far right on left hand side */
+				Number.NEGATIVE_INFINITY /* last entry */
 			);
 			showHandle = null;
 		}, showAfter);
