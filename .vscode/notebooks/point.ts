@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 class Point {
 	x: number;
-	t:string;
+	t: string;
 	z: number;
 
 	/**
@@ -15,7 +15,7 @@ class Point {
 	 */
 	constructor(x: number, z: number = 0) {
 		this.z = z;
-		this.t = 'feature branch change';
+		this.t = 'other change';
 		this.x = x;
 	}
 
