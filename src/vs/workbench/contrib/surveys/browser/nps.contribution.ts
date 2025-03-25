@@ -33,7 +33,7 @@ class NPSContribution implements IWorkbenchContribution {
 		@IProductService productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		if (!productService.npsSurveyUrl || configurationService.getValue<boolean>('telemetry.disableFeedback')) {
+		if (!productService.npsSurveyUrl || !configurationService.getValue<boolean>('telemetry.feedback.enabled')) {
 			return;
 		}
 
