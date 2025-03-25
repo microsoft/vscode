@@ -355,12 +355,12 @@ export class ChatDragAndDrop extends Themable {
 			finalDisplayName = `${displayName} ${appendValue}`;
 		}
 
-		const dataFromFile = await extractImageFromFile(e);
+		const dataFromFile = await this.extractImageFromFile(e);
 		if (dataFromFile) {
 			return [await this.createImageVariable(await resizeImage(dataFromFile), finalDisplayName)];
 		}
 
-		const dataFromUrl = await extractImageFromUrl(e);
+		const dataFromUrl = await this.extractImageFromUrl(e);
 		const variableEntries: IChatRequestVariableEntry[] = [];
 		if (dataFromUrl) {
 			for (const url of dataFromUrl) {
@@ -442,6 +442,45 @@ export class ChatDragAndDrop extends Themable {
 		this.overlays.forEach(overlay => this.updateOverlayStyles(overlay.overlay));
 		this.overlayTextBackground = this.getColor(this.styles.listBackground) || '';
 	}
+
+
+
+	private async extractImageFromFile(e: DragEvent): Promise<Uint8Array | undefined> {
+		const files = e.dataTransfer?.files;
+		if (files && files.length > 0) {
+			const file = files[0];
+			if (file.type.startsWith('image/')) {
+				try {
+					const buffer = await file.arrayBuffer();
+					return new Uint8Array(buffer);
+				} catch (error) {
+					this.logService.error('Error reading file:', error);
+					return undefined;
+				}
+			}
+		}
+
+		return undefined;
+	}
+
+	private async extractImageFromUrl(e: DragEvent): Promise<string[] | undefined> {
+		const textUrl = e.dataTransfer?.getData('text/uri-list');
+		if (textUrl) {
+			try {
+				const uris = UriList.parse(textUrl);
+				if (uris.length > 0) {
+					return uris;
+				}
+			} catch (error) {
+				this.logService.error('Error parsing URI list:', error);
+				return undefined;
+			}
+		}
+
+		return undefined;
+	}
+
+
 }
 
 async function getResourceAttachContext(resource: URI, isDirectory: boolean, textModelService: ITextModelService): Promise<IChatRequestVariableEntry | undefined> {
@@ -507,39 +546,4 @@ function symbolId(resource: URI, range?: IRange): string {
 		}
 	}
 	return resource.fsPath + rangePart;
-}
-
-async function extractImageFromFile(e: DragEvent): Promise<Uint8Array | undefined> {
-	const files = e.dataTransfer?.files;
-	if (files && files.length > 0) {
-		const file = files[0];
-		if (file.type.startsWith('image/')) {
-			try {
-				const buffer = await file.arrayBuffer();
-				return new Uint8Array(buffer);
-			} catch (error) {
-				console.error('Error reading file:', error);
-				return undefined;
-			}
-		}
-	}
-
-	return undefined;
-}
-
-async function extractImageFromUrl(e: DragEvent): Promise<string[] | undefined> {
-	const textUrl = e.dataTransfer?.getData('text/uri-list');
-	if (textUrl) {
-		try {
-			const uris = UriList.parse(textUrl);
-			if (uris.length > 0) {
-				return uris;
-			}
-		} catch (error) {
-			console.error('Error parsing URI list:', error);
-			return undefined;
-		}
-	}
-
-	return undefined;
 }
