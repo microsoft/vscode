@@ -39,6 +39,7 @@ import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupport
 import { ChatModel, IChatResponseModel, isCellTextEditOperation } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
+import { ChatEditorInput } from '../chatEditorInput.js';
 import { AbstractChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingSession } from './chatEditingSession.js';
 import { ChatEditingSnapshotTextModelContentProvider, ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
@@ -232,7 +233,8 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 					return;
 				}
 				const activeUri = this._editorService.activeEditorPane?.input.resource;
-				const inactive = Boolean(activeUri && session.entries.get().find(entry => isEqual(activeUri, entry.modifiedURI)));
+				const inactive = this._editorService.activeEditorPane?.input instanceof ChatEditorInput && this._editorService.activeEditorPane.input.sessionId === session.chatSessionId ||
+					Boolean(activeUri && session.entries.get().find(entry => isEqual(activeUri, entry.modifiedURI)));
 				this._editorService.openEditor({ resource: uri, options: { inactive, preserveFocus: true, pinned: true } });
 			}));
 		};

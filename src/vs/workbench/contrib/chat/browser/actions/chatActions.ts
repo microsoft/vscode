@@ -796,40 +796,61 @@ export function getEditsViewId(accessor: ServicesAccessor): string {
  * Returns whether we can continue clearing/switching chat sessions, false to cancel.
  */
 export async function handleCurrentEditingSession(currentEditingSession: IChatEditingSession, phrase: string | undefined, dialogService: IDialogService): Promise<boolean> {
-	const currentEdits = currentEditingSession.entries.get();
+	if (shouldShowClearEditingSessionConfirmation(currentEditingSession)) {
+		return showClearEditingSessionConfirmation(currentEditingSession, dialogService, { messageOverride: phrase });
+	}
+
+	return true;
+}
+
+export interface IClearEditingSessionConfirmationOptions {
+	titleOverride?: string;
+	messageOverride?: string;
+}
+
+export async function showClearEditingSessionConfirmation(editingSession: IChatEditingSession, dialogService: IDialogService, options?: IClearEditingSessionConfirmationOptions): Promise<boolean> {
+	const defaultPhrase = localize('chat.startEditing.confirmation.pending.message.default', "Starting a new chat will end your current edit session.");
+	const defaultTitle = localize('chat.startEditing.confirmation.title', "Start new chat?");
+	const phrase = options?.messageOverride ?? defaultPhrase;
+	const title = options?.titleOverride ?? defaultTitle;
+
+	const currentEdits = editingSession.entries.get();
+	const undecidedEdits = currentEdits.filter((edit) => edit.state.get() === WorkingSetEntryState.Modified);
+
+	const { result } = await dialogService.prompt({
+		title,
+		message: phrase + ' ' + localize('chat.startEditing.confirmation.pending.message.2', "Do you want to keep pending edits to {0} files?", undecidedEdits.length),
+		type: 'info',
+		cancelButton: true,
+		buttons: [
+			{
+				label: localize('chat.startEditing.confirmation.acceptEdits', "Keep & Continue"),
+				run: async () => {
+					await editingSession.accept();
+					return true;
+				}
+			},
+			{
+				label: localize('chat.startEditing.confirmation.discardEdits', "Undo & Continue"),
+				run: async () => {
+					await editingSession.reject();
+					return true;
+				}
+			}
+		],
+	});
+
+	return Boolean(result);
+}
+
+export function shouldShowClearEditingSessionConfirmation(editingSession: IChatEditingSession): boolean {
+	const currentEdits = editingSession.entries.get();
 	const currentEditCount = currentEdits.length;
 
 	if (currentEditCount) {
 		const undecidedEdits = currentEdits.filter((edit) => edit.state.get() === WorkingSetEntryState.Modified);
-		if (undecidedEdits.length) {
-			const defaultPhrase = localize('chat.startEditing.confirmation.pending.message.default', "Starting a new chat will end your current edit session.");
-			phrase = phrase ?? defaultPhrase;
-			const { result } = await dialogService.prompt({
-				title: localize('chat.startEditing.confirmation.title', "Start new chat?"),
-				message: phrase + ' ' + localize('chat.startEditing.confirmation.pending.message.2', "Do you want to keep pending edits to {0} files?", undecidedEdits.length),
-				type: 'info',
-				cancelButton: true,
-				buttons: [
-					{
-						label: localize('chat.startEditing.confirmation.acceptEdits', "Keep & Continue"),
-						run: async () => {
-							await currentEditingSession.accept();
-							return true;
-						}
-					},
-					{
-						label: localize('chat.startEditing.confirmation.discardEdits', "Undo & Continue"),
-						run: async () => {
-							await currentEditingSession.reject();
-							return true;
-						}
-					}
-				],
-			});
-
-			return Boolean(result);
-		}
+		return !!undecidedEdits.length;
 	}
 
-	return true;
+	return false;
 }
