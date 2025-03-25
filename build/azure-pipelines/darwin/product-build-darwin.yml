@@ -121,10 +121,10 @@ steps:
 
   - template: ../common/install-builtin-extensions.yml@self
 
-  - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
-    - script: node build/lib/policies darwin
-      displayName: Generate policy definitions
-      retryCountOnTaskFailure: 3
+  # - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
+  #   - script: node build/lib/policies darwin
+  #     displayName: Generate policy definitions
+  #     retryCountOnTaskFailure: 3
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: |
