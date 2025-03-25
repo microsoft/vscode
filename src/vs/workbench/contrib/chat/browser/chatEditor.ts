@@ -142,6 +142,7 @@ export class ChatEditor extends EditorPane {
 
 			// Need to set props individually on the memento
 			this._viewState.inputValue = widgetViewState.inputValue;
+			this._viewState.inputState = widgetViewState.inputState;
 			this._memento.saveMemento();
 		}
 	}
