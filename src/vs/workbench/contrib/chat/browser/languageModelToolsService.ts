@@ -31,7 +31,7 @@ import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatModel } from '../common/chatModel.js';
 import { ChatToolInvocation } from '../common/chatProgressTypes/chatToolInvocation.js';
 import { IChatService } from '../common/chatService.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../common/languageModelToolsService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, stringifyPromptTsxPart } from '../common/languageModelToolsService.js';
 
 const jsonSchemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
@@ -271,6 +271,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			}
 
 			toolResult = await tool.impl.invoke(dto, countTokens, token);
+			this.ensureToolDetails(dto, toolResult, tool.data);
+
 			this._telemetryService.publicLog2<LanguageModelToolInvokedEvent, LanguageModelToolInvokedClassification>(
 				'languageModelToolInvoked',
 				{
@@ -337,6 +339,27 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 
 		return prepared;
+	}
+
+	private ensureToolDetails(dto: IToolInvocation, toolResult: IToolResult, toolData: IToolData): void {
+		if (!toolResult.toolResultDetails && toolData.alwaysDisplayOutput) {
+			toolResult.toolResultDetails = {
+				input: JSON.stringify(dto.parameters, undefined, 2),
+				output: this.toolResultToString(toolResult),
+			};
+		}
+	}
+
+	private toolResultToString(toolResult: IToolResult): string {
+		const strs = [];
+		for (const part of toolResult.content) {
+			if (part.kind === 'text') {
+				strs.push(part.value);
+			} else if (part.kind === 'promptTsx') {
+				strs.push(stringifyPromptTsxPart(part));
+			}
+		}
+		return strs.join('');
 	}
 
 	private shouldAutoConfirm(toolId: string, runsInWorkspace: boolean | undefined): boolean {
