@@ -5,6 +5,7 @@
 
 import { CHAT_CATEGORY } from '../chatActions.js';
 import { localize2 } from '../../../../../../nls.js';
+import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { Action2 } from '../../../../../../platform/actions/common/actions.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/types.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
@@ -13,9 +14,8 @@ import { IOpenerService } from '../../../../../../platform/opener/common/opener.
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
-import { ISelectPromptOptions, askToSelectPrompt } from './dialogs/askToSelectPrompt/askToSelectPrompt.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
-import { ChatContextKeys } from '../../../common/chatContextKeys.js';
+import { ISelectPromptOptions, askToSelectPrompt } from './dialogs/askToSelectPrompt/askToSelectPrompt.js';
 
 /**
  * Action ID for the `Attach Prompt` action.
