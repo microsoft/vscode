@@ -416,14 +416,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					throw err;
 				}
 			},
-			isTrustedExternalUris(uris: URI[]): boolean[] {
-				checkProposedApiEnabled(extension, 'envExtractUri');
-				return extHostUrls.isTrustedExternalUris(uris);
-			},
-			extractExternalUris(uris: URI[]): Promise<string[]> {
-				checkProposedApiEnabled(extension, 'envExtractUri');
-				return extHostUrls.extractExternalUris(uris);
-			},
 			get remoteName() {
 				return getRemoteName(initData.remote.authority);
 			},
