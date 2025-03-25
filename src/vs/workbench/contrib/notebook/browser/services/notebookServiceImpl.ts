@@ -233,7 +233,7 @@ export class NotebookProviderInfoStore extends Disposable {
 					cellOptions = { resource: cellUri, options };
 
 					const cellIndex = await this._notebookEditorModelResolverService.resolve(notebookUri)
-						.then(model => model.object.notebook.cells.findIndex(cell => cell.uri.fragment === cellUri.fragment))
+						.then(model => model.object.notebook.cells.findIndex(cell => cell.handle === data?.handle))
 						.then(index => index >= 0 ? index : 0);
 
 					const cellIndexesToRanges: ICellRange[] = [{ start: cellIndex, end: cellIndex + 1 }];
