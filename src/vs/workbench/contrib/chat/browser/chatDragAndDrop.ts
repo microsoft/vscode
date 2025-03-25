@@ -21,8 +21,8 @@ import { localize } from '../../../../nls.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { CodeDataTransfers, containsDragType, DocumentSymbolTransferData, extractEditorsDropData, extractMarkerDropData, extractSymbolDropData, IDraggedResourceEditorInput, MarkerTransferData } from '../../../../platform/dnd/browser/dnd.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { MarkerSeverity } from '../../../../platform/markers/common/markers.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { isUntitledResourceEditorInput } from '../../../common/editor.js';
@@ -31,6 +31,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { UntitledTextEditorInput } from '../../../services/untitled/common/untitledTextEditorInput.js';
 import { IChatRequestVariableEntry, IDiagnosticVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry } from '../common/chatModel.js';
+import { IChatWidgetService } from './chat.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { IChatInputStyles } from './chatInputPart.js';
 import { imageToHash } from './chatPasteProviders.js';
@@ -61,8 +62,9 @@ export class ChatDragAndDrop extends Themable {
 		@IEditorService private readonly editorService: IEditorService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ITextModelService private readonly textModelService: ITextModelService,
-		@INotificationService private readonly notificationService: INotificationService,
 		@ISharedWebContentExtractorService private readonly webContentExtractorService: ISharedWebContentExtractorService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super(themeService);
 
@@ -332,10 +334,16 @@ export class ChatDragAndDrop extends Themable {
 				return extractedImages.buffer;
 			}
 		} catch (error) {
-			console.warn('Fetch failed:', error);
+			this.logService.warn('Fetch failed:', error);
 		}
 
-		this.notificationService.error(localize('fetchFailed', 'Failed to fetch image from URL: {0}', url));
+		// TODO: use dnd provider to insert text @justschen
+		const selection = this.chatWidgetService.lastFocusedWidget?.inputEditor.getSelection();
+		if (selection && this.chatWidgetService.lastFocusedWidget) {
+			this.chatWidgetService.lastFocusedWidget.inputEditor.executeEdits('chatInsertUrl', [{ range: selection, text: url }]);
+		}
+
+		this.logService.warn(`Image URLs must end in .jpg, .png, .gif, .webp, or .bmp. Failed to fetch image from this URL: ${url}`);
 		return undefined;
 	}
 
@@ -347,21 +355,21 @@ export class ChatDragAndDrop extends Themable {
 			finalDisplayName = `${displayName} ${appendValue}`;
 		}
 
-		const dataFromFile = await extractImageFromFile(e);
+		const dataFromFile = await this.extractImageFromFile(e);
 		if (dataFromFile) {
 			return [await this.createImageVariable(await resizeImage(dataFromFile), finalDisplayName)];
 		}
 
-		const dataFromUrl = await extractImageFromUrl(e);
+		const dataFromUrl = await this.extractImageFromUrl(e);
 		const variableEntries: IChatRequestVariableEntry[] = [];
 		if (dataFromUrl) {
 			for (const url of dataFromUrl) {
 				if (/^data:image\/[a-z]+;base64,/.test(url)) {
-					variableEntries.push(await this.createImageVariable(await resizeImage(url), finalDisplayName));
+					variableEntries.push(await this.createImageVariable(await resizeImage(url), finalDisplayName, URI.parse(url)));
 				} else if (/^https?:\/\/.+/.test(url)) {
 					const imageData = await this.downloadImageAsUint8Array(url);
 					if (imageData) {
-						variableEntries.push(await this.createImageVariable(await resizeImage(imageData), finalDisplayName, url));
+						variableEntries.push(await this.createImageVariable(await resizeImage(imageData), finalDisplayName, URI.parse(url), url));
 					}
 				}
 			}
@@ -370,14 +378,15 @@ export class ChatDragAndDrop extends Themable {
 		return variableEntries;
 	}
 
-	private async createImageVariable(data: Uint8Array, name: string, id?: string) {
+	private async createImageVariable(data: Uint8Array, name: string, uri?: URI, id?: string,): Promise<IChatRequestVariableEntry> {
 		return {
 			id: id || await imageToHash(data),
 			name: name,
 			value: data,
 			isImage: true,
 			isFile: false,
-			isDirectory: false
+			isDirectory: false,
+			references: uri ? [{ reference: uri, kind: 'reference' }] : []
 		};
 	}
 
@@ -433,6 +442,45 @@ export class ChatDragAndDrop extends Themable {
 		this.overlays.forEach(overlay => this.updateOverlayStyles(overlay.overlay));
 		this.overlayTextBackground = this.getColor(this.styles.listBackground) || '';
 	}
+
+
+
+	private async extractImageFromFile(e: DragEvent): Promise<Uint8Array | undefined> {
+		const files = e.dataTransfer?.files;
+		if (files && files.length > 0) {
+			const file = files[0];
+			if (file.type.startsWith('image/')) {
+				try {
+					const buffer = await file.arrayBuffer();
+					return new Uint8Array(buffer);
+				} catch (error) {
+					this.logService.error('Error reading file:', error);
+					return undefined;
+				}
+			}
+		}
+
+		return undefined;
+	}
+
+	private async extractImageFromUrl(e: DragEvent): Promise<string[] | undefined> {
+		const textUrl = e.dataTransfer?.getData('text/uri-list');
+		if (textUrl) {
+			try {
+				const uris = UriList.parse(textUrl);
+				if (uris.length > 0) {
+					return uris;
+				}
+			} catch (error) {
+				this.logService.error('Error parsing URI list:', error);
+				return undefined;
+			}
+		}
+
+		return undefined;
+	}
+
+
 }
 
 async function getResourceAttachContext(resource: URI, isDirectory: boolean, textModelService: ITextModelService): Promise<IChatRequestVariableEntry | undefined> {
@@ -499,29 +547,3 @@ function symbolId(resource: URI, range?: IRange): string {
 	}
 	return resource.fsPath + rangePart;
 }
-
-async function extractImageFromFile(e: DragEvent): Promise<Uint8Array | undefined> {
-	const files = e.dataTransfer?.files;
-	if (files && files.length > 0) {
-		const file = files[0];
-		if (file.type.startsWith('image/')) {
-			const dataTransferFiles = await file.bytes();
-			return dataTransferFiles;
-		}
-	}
-
-	return undefined;
-}
-
-async function extractImageFromUrl(e: DragEvent): Promise<string[] | undefined> {
-	const textUrl = e.dataTransfer?.getData('text/uri-list');
-	if (textUrl) {
-		const uris = UriList.parse(textUrl);
-		if (uris.length > 0) {
-			return uris;
-		}
-	}
-
-	return undefined;
-}
-
