@@ -33,7 +33,7 @@ import { ICellExecutionError } from './notebookExecutionStateService.js';
 import { INotebookTextModelLike } from './notebookKernelService.js';
 import { ICellRange } from './notebookRange.js';
 import { RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
-import { generateMetadataUri, generate as generateUri, parseMetadataUri, parse as parseUri } from '../../../services/notebook/common/notebookDocumentService.js';
+import { generateMetadataUri, generate as generateUri, extractCellOutputDetails, parseMetadataUri, parse as parseUri } from '../../../services/notebook/common/notebookDocumentService.js';
 import { IWorkingCopyBackupMeta, IWorkingCopySaveEvent } from '../../../services/workingCopy/common/workingCopy.js';
 import { SnapshotContext } from '../../../services/workingCopy/common/fileWorkingCopy.js';
 
@@ -646,23 +646,8 @@ export namespace CellUri {
 		});
 	}
 
-	export function parseCellOutputUri(uri: URI): { notebook: URI; outputId?: string } | undefined {
-		if (uri.scheme !== Schemas.vscodeNotebookCellOutput) {
-			return;
-		}
-
-		const params = new URLSearchParams(uri.query);
-		const outputId = params.get('outputId') || undefined;
-		const notebookScheme = params.get('notebookScheme');
-
-		return {
-			outputId,
-			notebook: uri.with({
-				scheme: notebookScheme || Schemas.file,
-				fragment: null,
-				query: null
-			}),
-		};
+	export function parseCellOutputUri(uri: URI): { notebook: URI; openIn: string; outputId?: string; cellFragment?: string; outputIndex?: number; cellHandle?: number } | undefined {
+		return extractCellOutputDetails(uri);
 	}
 
 	export function generateCellPropertyUri(notebook: URI, handle: number, scheme: string): URI {

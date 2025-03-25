@@ -48,6 +48,7 @@ import { NotebookMultiDiffEditorInput } from '../diff/notebookMultiDiffEditorInp
 import { SnapshotContext } from '../../../../services/workingCopy/common/fileWorkingCopy.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
+import { ICellRange } from '../../common/notebookRange.js';
 
 export class NotebookProviderInfoStore extends Disposable {
 
@@ -180,19 +181,38 @@ export class NotebookProviderInfoStore extends Disposable {
 			};
 			const notebookEditorOptions = {
 				canHandleDiff: () => !!this._configurationService.getValue(NotebookSetting.textDiffEditorPreview) && !this._accessibilityService.isScreenReaderOptimized(),
-				canSupportResource: (resource: URI) => resource.scheme === Schemas.untitled || resource.scheme === Schemas.vscodeNotebookCell || this._fileService.hasProvider(resource)
+				canSupportResource: (resource: URI) => {
+					if (resource.scheme === Schemas.vscodeNotebookCellOutput) {
+						const params = new URLSearchParams(resource.query);
+						return params.get('openIn') === 'notebook';
+					}
+					return resource.scheme === Schemas.untitled || resource.scheme === Schemas.vscodeNotebookCell || this._fileService.hasProvider(resource);
+				}
 			};
-			const notebookEditorInputFactory: EditorInputFactoryFunction = ({ resource, options }) => {
-				const data = CellUri.parse(resource);
+			const notebookEditorInputFactory: EditorInputFactoryFunction = async ({ resource, options }) => {
+				let data;
+				if (resource.scheme === Schemas.vscodeNotebookCellOutput) {
+					const outputUriData = CellUri.parseCellOutputUri(resource);
+					if (!outputUriData || !outputUriData.notebook || !outputUriData.cellHandle) {
+						throw new Error('Invalid cell output uri');
+					}
+
+					data = {
+						notebook: outputUriData.notebook,
+						handle: outputUriData.cellHandle
+					};
+
+				} else {
+					data = CellUri.parse(resource);
+				}
+
 				let notebookUri: URI;
 
 				let cellOptions: IResourceEditorInput | undefined;
-				let preferredResource = resource;
 
 				if (data) {
 					// resource is a notebook cell
 					notebookUri = this.uriIdentService.asCanonicalUri(data.notebook);
-					preferredResource = data.notebook;
 					cellOptions = { resource, options };
 				} else {
 					notebookUri = this.uriIdentService.asCanonicalUri(resource);
@@ -202,8 +222,38 @@ export class NotebookProviderInfoStore extends Disposable {
 					cellOptions = (options as INotebookEditorOptions | undefined)?.cellOptions;
 				}
 
-				const notebookOptions: INotebookEditorOptions = { ...options, cellOptions, viewState: undefined };
-				const editor = NotebookEditorInput.getOrCreate(this._instantiationService, notebookUri, preferredResource, notebookProviderInfo.id);
+				let notebookOptions: INotebookEditorOptions;
+
+				if (resource.scheme === Schemas.vscodeNotebookCellOutput) {
+					if (!data?.handle || !data?.notebook) {
+						throw new Error('Invalid cell handle');
+					}
+
+					const cellUri = CellUri.generate(data.notebook, data.handle);
+
+					cellOptions = { resource: cellUri, options };
+
+					const cellIndex = await this._notebookEditorModelResolverService.resolve(notebookUri)
+						.then(model => model.object.notebook.cells.findIndex(cell => cell.handle === data?.handle))
+						.then(index => index >= 0 ? index : 0);
+
+					const cellIndexesToRanges: ICellRange[] = [{ start: cellIndex, end: cellIndex + 1 }];
+
+					notebookOptions = {
+						...options,
+						cellOptions,
+						viewState: undefined,
+						cellSelections: cellIndexesToRanges
+					};
+				} else {
+					notebookOptions = {
+						...options,
+						cellOptions,
+						viewState: undefined,
+					};
+				}
+				const preferredResourceParam = cellOptions?.resource;
+				const editor = NotebookEditorInput.getOrCreate(this._instantiationService, notebookUri, preferredResourceParam, notebookProviderInfo.id);
 				return { editor, options: notebookOptions };
 			};
 
