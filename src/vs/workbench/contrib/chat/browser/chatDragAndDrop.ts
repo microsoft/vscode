@@ -337,6 +337,7 @@ export class ChatDragAndDrop extends Themable {
 			this.logService.warn('Fetch failed:', error);
 		}
 
+		// TODO: use dnd provider to insert text @justschen
 		const selection = this.chatWidgetService.lastFocusedWidget?.inputEditor.getSelection();
 		if (selection && this.chatWidgetService.lastFocusedWidget) {
 			this.chatWidgetService.lastFocusedWidget.inputEditor.executeEdits('chatInsertUrl', [{ range: selection, text: url }]);
