@@ -192,6 +192,27 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		});
 	}
 
+	function isInsideComment(document: TextDocument, position: Position): boolean {
+		const text = document.getText();
+		const offset = document.offsetAt(position);
+
+		// Look for '/*' before the cursor, if not found the value will be -1, if found, value will be the index
+		const before = text.lastIndexOf('/*', offset);
+		if (before === -1) {
+			// There is no comment behind the cursor
+			return false;
+		}
+		// Look for '*/' after the index of the '/*', if not found the value will be -1, if found, value will be the index
+		const after = text.indexOf('*/', before);
+		if (after === -1) {
+			// There is no end to the comment
+			return true;
+		}
+
+		// There is a start and end to the comment, compare the position of the cursor and the end comment
+		return offset > before && offset < after + 2;
+	}
+
 	connection.onCompletion((textDocumentPosition, token) => {
 		return runSafeAsync(runtime, async () => {
 			const document = documents.get(textDocumentPosition.textDocument.uri);
@@ -199,6 +220,12 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 				const [settings,] = await Promise.all([getDocumentSettings(document), dataProvidersReady]);
 				const styleSheet = stylesheets.get(document);
 				const documentContext = getDocumentContext(document.uri, workspaceFolders);
+
+				// Check if the position is inside a comment
+				if (isInsideComment(document, textDocumentPosition.position)) {
+					return null; // Do not provide completions inside comments
+				}
+
 				return getLanguageService(document).doComplete2(document, textDocumentPosition.position, styleSheet, documentContext, settings?.completion);
 			}
 			return null;
