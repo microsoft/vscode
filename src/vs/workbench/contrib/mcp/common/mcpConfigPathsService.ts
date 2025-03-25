@@ -6,6 +6,7 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { basename } from '../../../../base/common/resources.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -87,7 +88,7 @@ export class McpConfigPathsService extends Disposable implements IMcpConfigPaths
 				id: 'workspace',
 				key: 'workspaceValue',
 				target: ConfigurationTarget.WORKSPACE,
-				label: localize('mcp.configuration.workspaceValue', 'From your workspace'),
+				label: basename(workspaceConfig),
 				scope: StorageScope.WORKSPACE,
 				order: McpCollectionSortOrder.Workspace,
 				remoteAuthority: _environmentService.remoteAuthority,
@@ -110,7 +111,7 @@ export class McpConfigPathsService extends Disposable implements IMcpConfigPaths
 					id: 'usrremote',
 					key: 'userRemoteValue',
 					target: ConfigurationTarget.USER_REMOTE,
-					label: localize('mcp.configuration.userRemoteValue', 'From {0}', label),
+					label,
 					scope: StorageScope.PROFILE,
 					order: McpCollectionSortOrder.User + McpCollectionSortOrder.RemoteBoost,
 					uri: env?.settingsPath,
@@ -140,7 +141,7 @@ export class McpConfigPathsService extends Disposable implements IMcpConfigPaths
 			id: `wf${workspaceFolder.index}`,
 			key: 'workspaceFolderValue',
 			target: ConfigurationTarget.WORKSPACE_FOLDER,
-			label: workspaceFolder.name,
+			label: `${workspaceFolder.name}/.vscode/mcp.json`,
 			scope: StorageScope.WORKSPACE,
 			remoteAuthority: this._environmentService.remoteAuthority,
 			order: McpCollectionSortOrder.WorkspaceFolder,
