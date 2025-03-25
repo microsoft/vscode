@@ -8,6 +8,7 @@ import { DisposableStore, EqualityComparer, IDisposable, strictEquals } from './
 import type { derivedOpts } from './derived.js';
 import { getLogger, logObservable } from './logging/logging.js';
 import { keepObserved, recomputeInitiallyAndOnChange } from './utils.js';
+import { onUnexpectedError } from '../errors.js';
 
 /**
  * Represents an observable value.
@@ -403,13 +404,29 @@ export class TransactionImpl implements ITransaction {
 	}
 
 	public updateObserver(observer: IObserver, observable: IObservable<any>): void {
+		if (!this._updatingObservers) {
+			// This happens when a transaction is used in a callback or async function.
+			// If an async transaction is used, make sure the promise awaits all users of the transaction (e.g. no race).
+			handleBugIndicatingErrorRecovery('Transaction already finished!');
+			// Error recovery
+			transaction(tx => {
+				tx.updateObserver(observer, observable);
+			});
+			return;
+		}
+
 		// When this gets called while finish is active, they will still get considered
-		this._updatingObservers!.push({ observer, observable });
+		this._updatingObservers.push({ observer, observable });
 		observer.beginUpdate(observable);
 	}
 
 	public finish(): void {
-		const updatingObservers = this._updatingObservers!;
+		const updatingObservers = this._updatingObservers;
+		if (!updatingObservers) {
+			handleBugIndicatingErrorRecovery('transaction.finish() has already been called!');
+			return;
+		}
+
 		for (let i = 0; i < updatingObservers.length; i++) {
 			const { observer, observable } = updatingObservers[i];
 			observer.endUpdate(observable);
@@ -422,6 +439,15 @@ export class TransactionImpl implements ITransaction {
 	public debugGetUpdatingObservers() {
 		return this._updatingObservers;
 	}
+}
+
+/**
+ * This function is used to indicate that the caller recovered from an error that indicates a bug.
+*/
+function handleBugIndicatingErrorRecovery(message: string) {
+	const err = new Error('BugIndicatingErrorRecovery: ' + message);
+	onUnexpectedError(err);
+	console.error('recovered from an error that indicates a bug', err);
 }
 
 /**
