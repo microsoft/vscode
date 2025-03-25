@@ -659,15 +659,13 @@ export namespace CellUri {
 		const outputId = params.get('outputId') ?? undefined;
 		const parsedCell = CellUri.parse(uri.with({ scheme: Schemas.vscodeNotebookCell }));
 		const outputIndex = params.get('outputIndex') ? parseInt(params.get('outputIndex') || '', 10) : undefined;
-		const notebookScheme = params.get('notebookScheme');
 
+		if (!parsedCell?.notebook) {
+			throw new Error('Invalid cell URI');
+		}
 
 		return {
-			notebook: uri.with({
-				scheme: notebookScheme || Schemas.file,
-				fragment: null,
-				query: null
-			}),
+			notebook: parsedCell?.notebook,
 			openIn: openIn,
 			outputId: outputId,
 			outputIndex: outputIndex,
