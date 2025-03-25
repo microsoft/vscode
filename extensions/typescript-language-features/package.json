@@ -1301,12 +1301,6 @@
           "description": "%typescript.suggest.enabled%",
           "scope": "language-overridable"
         },
-        "typescript.surveys.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "%configuration.surveys.enabled%",
-          "scope": "window"
-        },
         "typescript.tsserver.useSeparateSyntaxServer": {
           "type": "boolean",
           "default": true,
