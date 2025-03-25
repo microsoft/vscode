@@ -137,8 +137,8 @@ export const askToSelectPrompt = async (
 
 		let lastActiveWidget = options.widget;
 
-		// add logic to "complete" the selection dialog when the store gets disposed
-		// note! that the store is also disposed when the dialog is hidden also
+		// then the dialog is hidden or disposed for other reason,
+		// dispose everything and resolve the main promise
 		disposables.add({
 			dispose() {
 				quickPick.dispose();
@@ -167,7 +167,9 @@ export const askToSelectPrompt = async (
 			// if `super` key was pressed, open the selected prompt file
 			// in editor or the documentation link in a browser
 			if (ctrlCmd || docsSelected) {
+				// note that opening a file in editor also hides(disposes) the dialog
 				await openerService.open(selectedOption.value);
+				return;
 			}
 
 			// otherwise attach the selected prompt to a chat input
@@ -179,7 +181,7 @@ export const askToSelectPrompt = async (
 			}
 		}));
 
-		// handle the event of `button click` on an option list item
+		// handle the `button click` event on a list item (edit, delete, etc.)
 		disposables.add(quickPick.onDidTriggerItemButton(
 			handleButtonClick.bind(null, { quickPick, ...options }),
 		));
