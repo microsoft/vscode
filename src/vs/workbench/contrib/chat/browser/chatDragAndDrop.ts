@@ -21,6 +21,7 @@ import { localize } from '../../../../nls.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { CodeDataTransfers, containsDragType, DocumentSymbolTransferData, extractEditorsDropData, extractMarkerDropData, extractSymbolDropData, IDraggedResourceEditorInput, MarkerTransferData } from '../../../../platform/dnd/browser/dnd.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
@@ -63,6 +64,7 @@ export class ChatDragAndDrop extends Themable {
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@ISharedWebContentExtractorService private readonly webContentExtractorService: ISharedWebContentExtractorService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super(themeService);
 
@@ -332,7 +334,7 @@ export class ChatDragAndDrop extends Themable {
 				return extractedImages.buffer;
 			}
 		} catch (error) {
-			console.warn('Fetch failed:', error);
+			this.logService.warn('Fetch failed:', error);
 		}
 
 		const selection = this.chatWidgetService.lastFocusedWidget?.inputEditor.getSelection();
@@ -340,7 +342,7 @@ export class ChatDragAndDrop extends Themable {
 			this.chatWidgetService.lastFocusedWidget.inputEditor.executeEdits('chatInsertUrl', [{ range: selection, text: url }]);
 		}
 
-		console.warn(`Failed to fetch image from URL: ${url}`);
+		this.logService.warn(`Image URLs must end in .jpg, .png, .gif, .webp, or .bmp. Failed to fetch image from this URL: ${url}`);
 		return undefined;
 	}
 
