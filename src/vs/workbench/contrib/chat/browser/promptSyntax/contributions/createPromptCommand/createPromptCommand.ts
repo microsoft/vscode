@@ -113,9 +113,11 @@ const command = async (
 
 	const isConfigured = userDataSyncEnablementService
 		.isResourceEnablementConfigured(SyncResource.Prompts);
+	const isSettingsSyncEnabled = userDataSyncEnablementService.isEnabled();
 
-	// if prompts synchronization has been already configured before, nothing to do
-	if (isConfigured === true) {
+	// if prompts synchronization has already been configured before or
+	// if settings sync service is currently disabled, nothing to do
+	if ((isConfigured === true) || (isSettingsSyncEnabled === false)) {
 		return;
 	}
 
