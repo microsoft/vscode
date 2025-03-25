@@ -503,7 +503,16 @@ const NumberQ: QType<number> = {
 const StringQ: QType<string | NlsString> = {
 	Q: `[
 		(string (string_fragment) @value)
-		(call_expression function: (identifier) @localizeFn arguments: (arguments (string (string_fragment) @nlsKey) (string (string_fragment) @value)) (#eq? @localizeFn localize))
+		(call_expression
+			function: [
+				(identifier) @localizeFn (#eq? @localizeFn localize)
+				(member_expression
+					object: (identifier) @nlsObj (#eq? @nlsObj nls)
+					property: (property_identifier) @localizeFn (#eq? @localizeFn localize)
+				)
+			]
+			arguments: (arguments (string (string_fragment) @nlsKey) (string (string_fragment) @value))
+		)
 	]`,
 
 	value(matches: Parser.QueryMatch[]): string | NlsString | undefined {
