@@ -25,7 +25,7 @@ import { IInstantiationService } from '../../platform/instantiation/common/insta
 import { normalizeDriveLetter } from '../../base/common/labels.js';
 import { IRange } from '../../editor/common/core/range.js';
 import { ThemeIcon } from '../../base/common/themables.js';
-import { INotebookDocumentService, parseCellOutputUri } from '../services/notebook/common/notebookDocumentService.js';
+import { INotebookDocumentService, extractCellOutputDetails } from '../services/notebook/common/notebookDocumentService.js';
 
 export interface IResourceLabelProps {
 	resource?: URI | { primary?: URI; secondary?: URI };
@@ -491,7 +491,7 @@ class ResourceLabelWidget extends IconLabel {
 
 		if (!options.forceLabel && !isSideBySideEditor && resource?.scheme === Schemas.vscodeNotebookCellOutput) {
 			const notebookDocument = this.notebookDocumentService.getNotebook(resource);
-			const outputUriData = parseCellOutputUri(resource);
+			const outputUriData = extractCellOutputDetails(resource);
 			if (!outputUriData?.notebook || !outputUriData.cellFragment) {
 				return;
 			}

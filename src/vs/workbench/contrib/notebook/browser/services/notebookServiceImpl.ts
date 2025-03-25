@@ -225,10 +225,11 @@ export class NotebookProviderInfoStore extends Disposable {
 				let notebookOptions: INotebookEditorOptions;
 
 				if (resource.scheme === Schemas.vscodeNotebookCellOutput) {
-					if (!data?.handle) {
+					if (!data?.handle || !data?.notebook) {
 						throw new Error('Invalid cell handle');
 					}
-					const cellUri = data?.notebook.with({ fragment: resource.fragment });
+
+					const cellUri = CellUri.generate(data.notebook, data.handle);
 
 					cellOptions = { resource: cellUri, options };
 
