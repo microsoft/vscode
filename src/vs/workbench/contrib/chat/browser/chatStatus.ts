@@ -28,10 +28,13 @@ import { isObject } from '../../../../base/common/types.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from '../../../../base/common/actions.js';
+import { parseLinkedText } from '../../../../base/common/linkedText.js';
+import { Link } from '../../../../platform/opener/browser/link.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../base/common/actions.js';
-
-//#region --- colors
+import { IChatStatusItemService, ChatStatusEntry } from './chatStatusItemService.js';
 
 const gaugeBackground = registerColor('gauge.background', {
 	dark: inputValidationInfoBorder,
@@ -99,9 +102,9 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	private dashboard = new Lazy<ChatStatusDashboard>(() => this.instantiationService.createInstance(ChatStatusDashboard));
 
 	constructor(
-		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
 	) {
 		super();
 
@@ -211,11 +214,13 @@ class ChatStatusDashboard extends Disposable {
 
 	constructor(
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IHoverService private readonly hoverService: IHoverService,
-		@IEditorService private readonly editorService: IEditorService,
-		@ILanguageService private readonly languageService: ILanguageService,
+		@IChatStatusItemService private readonly chatStatusItemService: IChatStatusItemService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IHoverService private readonly hoverService: IHoverService,
+		@ILanguageService private readonly languageService: ILanguageService,
+		@IOpenerService private readonly openerService: IOpenerService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
@@ -271,6 +276,29 @@ class ChatStatusDashboard extends Disposable {
 			})();
 		}
 
+		// Contributions
+		{
+			for (const item of this.chatStatusItemService.getEntries()) {
+				addSeparator(undefined);
+				const chatItemDisposables = disposables.add(new MutableDisposable());
+
+				let rendered = this.renderContributedChatStatusItem(item);
+				chatItemDisposables.value = rendered.disposables;
+				this.element.appendChild(rendered.element);
+
+				disposables.add(this.chatStatusItemService.onDidChange(e => {
+					if (e.entry.id === item.id) {
+						const oldEl = rendered.element;
+
+						rendered = this.renderContributedChatStatusItem(e.entry);
+						chatItemDisposables.value = rendered.disposables;
+
+						oldEl.replaceWith(rendered.element);
+					}
+				}));
+			}
+		}
+
 		// Settings
 		{
 			addSeparator(localize('settingsTitle', "Settings"));
@@ -294,6 +322,37 @@ class ChatStatusDashboard extends Disposable {
 		}
 
 		return this.element;
+	}
+
+	private renderContributedChatStatusItem(item: ChatStatusEntry): { element: HTMLElement; disposables: DisposableStore } {
+		const disposables = new DisposableStore();
+
+		const entryEl = $('div.contribution');
+
+		entryEl.appendChild($('div.header', undefined, item.label));
+
+		const bodyEl = entryEl.appendChild($('div.body'));
+
+		const descriptionEl = bodyEl.appendChild($('span.description'));
+		this._renderTextPlus(descriptionEl, item.description, disposables);
+
+		if (item.detail) {
+			const itemElement = bodyEl.appendChild($('div.detail-item'));
+			this._renderTextPlus(itemElement, item.detail, disposables);
+		}
+
+		return { element: entryEl, disposables };
+	}
+
+	private _renderTextPlus(target: HTMLElement, text: string, store: DisposableStore): void {
+		for (const node of parseLinkedText(text).nodes) {
+			if (typeof node === 'string') {
+				const parts = renderLabelWithIcons(node);
+				target.append(...parts);
+			} else {
+				store.add(new Link(target, node, undefined, this.hoverService, this.openerService));
+			}
+		}
 	}
 
 	private runCommandAndClose(commandOrFn: string | Function): void {

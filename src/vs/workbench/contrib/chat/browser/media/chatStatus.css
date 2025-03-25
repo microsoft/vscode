@@ -111,3 +111,17 @@
 .chat-status-bar-entry-tooltip .settings .setting.disabled .setting-label {
 	color: var(--vscode-disabledForeground);
 }
+
+/* Contributions */
+
+.chat-status-bar-entry-tooltip .contribution .body {
+	display: flex;
+	flex-direction: row;
+	gap: 6px;
+	color: var(--vscode-descriptionForeground);
+
+	.detail-item {
+		margin-left: auto;
+		font-weight: normal;
+	}
+}
