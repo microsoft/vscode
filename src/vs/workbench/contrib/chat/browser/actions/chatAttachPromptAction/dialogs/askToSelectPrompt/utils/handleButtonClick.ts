@@ -64,7 +64,7 @@ export async function handleButtonClick(
 		const { confirmed } = await dialogService.confirm({
 			message: localize(
 				'commands.prompts.use.select-dialog.delete-prompt.confirm.message',
-				"Are you sure you want to delete prompt '{0}'?",
+				"Are you sure you want to delete '{0}'?",
 				filename,
 			),
 		});
@@ -77,7 +77,7 @@ export async function handleButtonClick(
 			return;
 		}
 
-		// prompt deletion was comfirmed so delete the prompt file
+		// prompt deletion was confirmed so delete the prompt file
 		await fileService.del(value);
 
 		// remove the deleted prompt from the selection dialog list
