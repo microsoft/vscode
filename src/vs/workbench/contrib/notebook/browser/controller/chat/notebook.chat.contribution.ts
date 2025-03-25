@@ -46,7 +46,9 @@ const NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT_CONST = ['text/plain', 'text/
 	'application/x.notebook.stream',
 	'application/vnd.code.notebook.stderr',
 	'application/x.notebook.stderr',
-	'image/png'
+	'image/png',
+	'image/jpeg',
+	'image/svg',
 ];
 
 class NotebookChatContribution extends Disposable implements IWorkbenchContribution {
@@ -113,7 +115,7 @@ class NotebookChatContribution extends Disposable implements IWorkbenchContribut
 		}));
 
 		// output context
-		NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT.bindTo(contextKeyService).set(['image/png'].concat(NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT_CONST));
+		NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT.bindTo(contextKeyService).set(NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT_CONST);
 	}
 
 	private async addKernelVariableCompletion(widget: IChatWidget, result: CompletionList, info: { insert: Range; replace: Range; varWord: IWordAtPosition | null }, token: CancellationToken) {

@@ -250,7 +250,8 @@ export class NotebookProviderInfoStore extends Disposable {
 						viewState: undefined,
 					};
 				}
-				const editor = NotebookEditorInput.getOrCreate(this._instantiationService, notebookUri, undefined, notebookProviderInfo.id);
+				const preferredResourceParam = cellOptions?.resource;
+				const editor = NotebookEditorInput.getOrCreate(this._instantiationService, notebookUri, preferredResourceParam, notebookProviderInfo.id);
 				return { editor, options: notebookOptions };
 			};
 
