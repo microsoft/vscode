@@ -251,6 +251,11 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			tags: ['experimental'],
 		},
+		[ChatConfiguration.Edits2Enabled]: {
+			type: 'boolean',
+			description: nls.localize('chat.edits2Enabled', "Enable the new Edits mode that is based on tool-calling. When this is enabled, models that don't support tool-calling are unavailable for Edits mode."),
+			default: true,
+		},
 		[mcpDiscoverySection]: {
 			oneOf: [
 				{ type: 'boolean' },
