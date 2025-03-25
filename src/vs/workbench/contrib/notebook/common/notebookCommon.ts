@@ -646,7 +646,7 @@ export namespace CellUri {
 		});
 	}
 
-	export function parseCellOutputUri(uri: URI): { notebook: URI; openIn: string; outputId?: string; cellFragment?: string; outputIndex?: number } | undefined {
+	export function parseCellOutputUri(uri: URI): { notebook: URI; openIn: string; outputId?: string; outputIndex?: number; cellHandle?: number } | undefined {
 		if (uri.scheme !== Schemas.vscodeNotebookCellOutput) {
 			return;
 		}
@@ -657,7 +657,7 @@ export namespace CellUri {
 			return;
 		}
 		const outputId = params.get('outputId') ?? undefined;
-		const cellFragment = uri.fragment ?? undefined;
+		const parsedCell = CellUri.parse(uri.with({ scheme: Schemas.vscodeNotebookCell }));
 		const outputIndex = params.get('outputIndex') ? parseInt(params.get('outputIndex') || '', 10) : undefined;
 		const notebookScheme = params.get('notebookScheme');
 
@@ -670,8 +670,8 @@ export namespace CellUri {
 			}),
 			openIn: openIn,
 			outputId: outputId,
-			cellFragment: cellFragment,
 			outputIndex: outputIndex,
+			cellHandle: parsedCell?.handle
 		};
 	}
 
