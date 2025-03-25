@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 class Point {
 	x: number;
-	y:number;
+	t:number;
 	z: number;
 
 	/**
@@ -15,6 +15,7 @@ class Point {
 	 */
 	constructor(x: number, z: number = 0) {
 		this.z = z;
+		this.t = t;
 		this.x = x;
 	}
 
