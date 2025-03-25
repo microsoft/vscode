@@ -441,6 +441,9 @@ export class TransactionImpl implements ITransaction {
 	}
 }
 
+/**
+ * This function is used to indicate that the caller recovered from an error that indicates a bug.
+*/
 function handleBugIndicatingErrorRecovery(message: string) {
 	const err = new Error('BugIndicatingErrorRecovery: ' + message);
 	onUnexpectedError(err);
