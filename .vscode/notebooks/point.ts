@@ -10,12 +10,12 @@ class Point {
 	/**
 	 * Creates a new Point instance.
 	 * @param x The x-coordinate of the point.
-	 * 
+	 *
 	 * @param z The z-coordinate of the point.
 	 */
 	constructor(x: number, z: number = 0) {
 		this.z = z;
-		this.t = t;
+		this.t = 'feature branch change';
 		this.x = x;
 	}
 
