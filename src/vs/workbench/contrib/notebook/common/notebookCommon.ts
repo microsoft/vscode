@@ -646,7 +646,7 @@ export namespace CellUri {
 		});
 	}
 
-	export function parseCellOutputUri(uri: URI): { notebook: URI; openIn: string; outputId?: string; outputIndex?: number; cellHandle?: number } | undefined {
+	export function parseCellOutputUri(uri: URI): { notebook: URI; openIn: string; outputId?: string; cellFragment?: string; outputIndex?: number; cellHandle?: number } | undefined {
 		return extractCellOutputDetails(uri);
 	}
 
