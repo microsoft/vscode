@@ -1392,7 +1392,16 @@ export class Repository implements Disposable {
 					if (discardUntrackedChangesToTrash) {
 						const limiter = new Limiter<void>(5);
 						await Promise.all(toClean.map(fsPath => limiter.queue(
-							async () => await workspace.fs.delete(Uri.file(fsPath), { useTrash: true }))));
+							async () => {
+								try {
+									await workspace.fs.delete(Uri.file(fsPath), { useTrash: true });
+								} catch (error) {
+									await workspace.fs.delete(Uri.file(fsPath), { useTrash: false });
+								}
+
+							}
+
+						)));
 					} else {
 						await this.repository.clean(toClean);
 					}
