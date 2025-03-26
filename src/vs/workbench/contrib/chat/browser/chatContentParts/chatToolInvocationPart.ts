@@ -231,6 +231,7 @@ class ChatToolInvocationSubPart extends Disposable {
 				const codeBlockRenderOptions: ICodeBlockRenderOptions = {
 					hideToolbar: true,
 					reserveWidth: 19,
+					maxHeightInLines: 13,
 					verticalPadding: 5,
 					editorOptions: {
 						wordWrap: 'on',
@@ -480,6 +481,7 @@ class ChatToolInvocationSubPart extends Disposable {
 			{
 				hideToolbar: true,
 				reserveWidth: 19,
+				maxHeightInLines: 13,
 				verticalPadding: 5,
 				editorOptions: {
 					wordWrap: 'on'
