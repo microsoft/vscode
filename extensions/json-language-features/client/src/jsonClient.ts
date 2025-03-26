@@ -13,6 +13,7 @@ import {
 } from 'vscode';
 import {
 	LanguageClientOptions, RequestType, NotificationType, FormattingOptions as LSPFormattingOptions, DocumentDiagnosticReportKind,
+	Diagnostic as LSPDiagnostic,
 	DidChangeConfigurationNotification, HandleDiagnosticsSignature, ResponseError, DocumentRangeFormattingParams,
 	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, ProvideHoverSignature, BaseLanguageClient, ProvideFoldingRangeSignature, ProvideDocumentSymbolsSignature, ProvideDocumentColorsSignature
 } from 'vscode-languageclient';
@@ -38,6 +39,9 @@ namespace LanguageStatusRequest {
 	export const type: RequestType<string, JSONLanguageStatus, any> = new RequestType('json/languageStatus');
 }
 
+namespace ValidateContentRequest {
+	export const type: RequestType<{ schemaUri: string; content: string }, LSPDiagnostic[], any> = new RequestType('json/validateContent');
+}
 interface SortOptions extends LSPFormattingOptions {
 }
 
@@ -211,6 +215,10 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 		window.showInformationMessage(l10n.t('JSON schema cache cleared.'));
 	}));
 
+	toDispose.push(commands.registerCommand('json.validate', async (schemaUri: Uri, content: string) => {
+		const diagnostics: LSPDiagnostic[] = await client.sendRequest(ValidateContentRequest.type, { schemaUri: schemaUri.toString(), content });
+		return diagnostics.map(client.protocol2CodeConverter.asDiagnostic);
+	}));
 
 	toDispose.push(commands.registerCommand('json.sort', async () => {
 
@@ -767,3 +775,5 @@ function updateMarkdownString(h: MarkdownString): MarkdownString {
 function isSchemaResolveError(d: Diagnostic) {
 	return d.code === /* SchemaResolveError */ 0x300;
 }
+
+
