@@ -176,7 +176,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			}
 
 			// Completions Disabled
-			else if (!isCompletionsEnabled(this.configurationService, this.editorService.activeTextEditorLanguageId)) {
+			else if (this.editorService.activeTextEditorLanguageId && !isCompletionsEnabled(this.configurationService, this.editorService.activeTextEditorLanguageId)) {
 				text = `$(copilot-not-connected)`;
 				ariaLabel = localize('completionsDisabledStatus', "Code Completions Disabled");
 			}
