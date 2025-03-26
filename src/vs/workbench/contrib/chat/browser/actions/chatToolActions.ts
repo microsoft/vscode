@@ -13,12 +13,14 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
+import { AddConfigurationAction } from '../../../mcp/browser/mcpCommands.js';
 import { IMcpService, IMcpServer, McpConnectionState } from '../../../mcp/common/mcpTypes.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatToolInvocation } from '../../common/chatService.js';
@@ -116,6 +118,7 @@ export class AttachToolsAction extends Action2 {
 		const extensionService = accessor.get(IExtensionService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const telemetryService = accessor.get(ITelemetryService);
+		const commandService = accessor.get(ICommandService);
 
 		let widget = chatWidgetService.lastFocusedWidget;
 		if (!widget) {
@@ -242,6 +245,8 @@ export class AttachToolsAction extends Action2 {
 
 
 		picker.placeholder = localize('placeholder', "Select tools that are available to chat");
+		picker.customButton = true;
+		picker.customLabel = localize('addMcpServer', "Add Server...");
 		picker.canSelectMany = true;
 		picker.keepScrollPosition = true;
 		picker.matchOnDescription = true;
@@ -316,7 +321,12 @@ export class AttachToolsAction extends Action2 {
 			_update();
 		}));
 
-		await Promise.race([Event.toPromise(Event.any(picker.onDidAccept, picker.onDidHide))]);
+		picker.onDidCustom(() => {
+			commandService.executeCommand(AddConfigurationAction.ID);
+			picker.hide();
+		});
+
+		await Promise.race([Event.toPromise(Event.any(picker.onDidAccept, picker.onDidHide, picker.onDidCustom))]);
 		telemetryService.publicLog2<SelectedToolData, SelectedToolClassification>('chat/selectedTools', {
 			enabled: widget.input.selectedToolsModel.tools.get().length,
 			total: Iterable.length(toolsService.getTools()),
