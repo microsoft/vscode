@@ -93,8 +93,12 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 	}
 
 	private async _loadPwshCompletionAddon(xterm: RawXtermTerminal): Promise<void> {
-		// Disable when shell type is not powershell
-		if (this._ctx.instance.shellType !== GeneralShellType.PowerShell) {
+		// Disable when shell type is not powershell. A naive check is done for Windows PowerShell
+		// as we don't differentiate it in shellType
+		if (
+			this._ctx.instance.shellType !== GeneralShellType.PowerShell ||
+			this._ctx.instance.shellLaunchConfig.executable?.endsWith('WindowsPowerShell\\v1.0\\powershell.exe')
+		) {
 			this._pwshAddon.clear();
 			return;
 		}
