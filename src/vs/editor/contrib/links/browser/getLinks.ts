@@ -70,12 +70,7 @@ export class Link implements ILink {
 
 export class LinksList {
 
-	static readonly Empty = new class extends LinksList {
-		constructor() {
-			super([]);
-			Object.freeze(this.links);
-		}
-	};
+	static readonly Empty = new LinksList([]);
 
 	readonly links: Link[];
 

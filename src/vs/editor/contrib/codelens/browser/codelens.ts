@@ -22,12 +22,7 @@ export interface CodeLensItem {
 
 export class CodeLensModel {
 
-	static readonly Empty = new class extends CodeLensModel {
-		constructor() {
-			super();
-			Object.freeze(this.lenses);
-		}
-	};
+	static readonly Empty = new CodeLensModel();
 
 	lenses: CodeLensItem[] = [];
 
