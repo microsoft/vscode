@@ -102,8 +102,9 @@ function patchProcess(allowExit: boolean) {
 	process.env['ELECTRON_RUN_AS_NODE'] = '1';
 
 	process.on = <any>function (event: string, listener: (...args: any[]) => void) {
+		let newListener = listener
 		if (event === 'uncaughtException') {
-			listener = function () {
+			newListener = function () {
 				try {
 					return listener.call(undefined, arguments);
 				} catch {
@@ -114,7 +115,7 @@ function patchProcess(allowExit: boolean) {
 				}
 			};
 		}
-		nativeOn(event, listener);
+		nativeOn(event, newListener);
 	};
 
 }
