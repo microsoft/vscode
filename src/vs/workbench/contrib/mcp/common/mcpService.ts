@@ -5,6 +5,7 @@
 
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/objects.js';
@@ -98,6 +99,7 @@ export class McpService extends Disposable implements IMcpService {
 				const toolData: IToolData = {
 					id: tool.id,
 					source: { type: 'mcp', collectionId: server.collection.id, definitionId: server.definition.id },
+					icon: Codicon.tools,
 					displayName: tool.definition.name,
 					toolReferenceName: tool.definition.name,
 					modelDescription: tool.definition.description ?? '',
