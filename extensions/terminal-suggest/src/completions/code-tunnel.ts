@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import code, { codeTunnelSubcommands, commonOptions, extensionManagementOptions, troubleshootingOptions, globalTunnelOptions, codeTunnelOptions, commonCLIOptions } from './code';
+import code, { codeTunnelSubcommands, commonOptions, extensionManagementOptions, troubleshootingOptions, globalTunnelOptions, codeTunnelOptions, commonCLIOptions, tunnelHelpOptions } from './code';
 
 export const extTunnelSubcommand = {
 	name: 'ext',
@@ -11,23 +11,26 @@ export const extTunnelSubcommand = {
 		{
 			name: 'list',
 			description: 'List installed extensions',
-			options: [
-				...commonCLIOptions,
-				{
-					name: '--category',
-					description: 'Filters installed extensions by provided category, when using --list-extensions',
-					isRepeatable: true,
-					args: {
-						name: 'category',
-						isOptional: true,
-					},
-				}
+			options: [...globalTunnelOptions, ...tunnelHelpOptions,
+			{
+				name: '--category',
+				description: 'Filters installed extensions by provided category, when using --list-extensions',
+				isRepeatable: true,
+				args: {
+					name: 'category',
+					isOptional: true,
+				},
+			},
+			{
+				name: '--show-versions',
+				description: 'Show versions of installed extensions, when using --list-extensions',
+			},
 			]
 		},
 		{
 			name: 'install',
 			description: 'Install an extension',
-			options: [...commonCLIOptions,
+			options: [...globalTunnelOptions, ...tunnelHelpOptions,
 			{
 				name: '--pre-release',
 				description: 'Installs the pre-release version of the extension',
@@ -50,12 +53,17 @@ export const extTunnelSubcommand = {
 		{
 			name: 'uninstall',
 			description: 'Uninstall an extension',
-			options: commonCLIOptions
+			options: [...globalTunnelOptions, ...tunnelHelpOptions],
+			args: {
+				name: 'ext-id | id',
+				isVariadic: true,
+				isOptional: true,
+			},
 		},
 		{
 			name: 'update',
 			description: 'Update the installed extensions',
-			options: commonCLIOptions
+			options: [...globalTunnelOptions, ...tunnelHelpOptions]
 		},
 	],
 	...globalTunnelOptions,
