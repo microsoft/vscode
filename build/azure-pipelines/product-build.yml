@@ -197,8 +197,6 @@ extends:
             pool:
               name: AcesShared
               os: macOS
-            variables:
-              VSCODE_ARCH: arm64
             steps:
               - template: build/azure-pipelines/product-compile.yml@self
                 parameters:
