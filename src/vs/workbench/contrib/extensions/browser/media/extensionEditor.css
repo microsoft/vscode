@@ -477,15 +477,13 @@
 	padding-bottom: 15px;
 }
 
-.extension-editor > .body > .content > .details > .additional-details-container .categories-container > .categories > .category,
-.extension-editor > .body > .content > .details > .additional-details-container .tags-container > .tags > .tag {
+.extension-editor > .body > .content > .details > .additional-details-container .categories-container > .categories > .category {
 	display: inline-block;
 	border: 1px solid rgba(136, 136, 136, 0.45);
 	padding: 2px 4px;
 	border-radius: 2px;
 	font-size: 90%;
 	margin: 0px 6px 3px 0px;
-	cursor: pointer;
 }
 
 .extension-editor > .body > .content > .details > .additional-details-container .resources-container > .resources > .resource {
