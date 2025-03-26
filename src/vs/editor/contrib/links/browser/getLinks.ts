@@ -70,11 +70,16 @@ export class Link implements ILink {
 
 export class LinksList {
 
-	static readonly Empty = new LinksList([]);
+	static readonly Empty = new class extends LinksList {
+		constructor() {
+			super([]);
+			Object.freeze(this.links);
+		}
+	};
 
 	readonly links: Link[];
 
-	private readonly _disposables = new DisposableStore();
+	private readonly _disposables: DisposableStore | undefined = new DisposableStore();
 
 	constructor(tuples: [ILinksList, LinkProvider][]) {
 
@@ -85,6 +90,7 @@ export class LinksList {
 			links = LinksList._union(links, newLinks);
 			// register disposables
 			if (isDisposable(list)) {
+				this._disposables ??= new DisposableStore();
 				this._disposables.add(list);
 			}
 		}
@@ -92,7 +98,7 @@ export class LinksList {
 	}
 
 	dispose(): void {
-		this._disposables.dispose();
+		this._disposables?.dispose();
 		this.links.length = 0;
 	}
 
