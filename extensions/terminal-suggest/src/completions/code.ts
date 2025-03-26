@@ -154,7 +154,7 @@ export const commonOptions: Fig.Option[] = [
 	}
 ];
 
-export const commonCLIOptions: Fig.Option[] = [
+const commonCLIOptions: Fig.Option[] = [
 	{
 		name: '--cli-data-dir',
 		description: 'Directory where CLI metadata should be stored',
