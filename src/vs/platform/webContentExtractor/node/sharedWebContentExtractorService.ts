@@ -17,7 +17,7 @@ export class SharedWebContentExtractorService implements ISharedWebContentExtrac
 		}
 
 		try {
-			const response = await fetch(uri.toString(), {
+			const response = await fetch(uri.toString(true), {
 				headers: {
 					'Accept': 'image/*',
 					'User-Agent': 'Mozilla/5.0'
