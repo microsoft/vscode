@@ -398,11 +398,11 @@ export class CodeBlockPart extends Disposable {
 			return;
 		}
 
-		this.layout(width);
 		this.editor.updateOptions({
 			...this.getEditorOptionsFromConfig(),
 			ariaLabel: localize('chat.codeBlockLabel', "Code block {0}", data.codeBlockIndex + 1),
 		});
+		this.layout(width);
 		this.toolbar.setAriaLabel(localize('chat.codeBlockToolbarLabel', "Code block {0}", data.codeBlockIndex + 1));
 		if (data.renderOptions?.hideToolbar) {
 			dom.hide(this.toolbar.getElement());
