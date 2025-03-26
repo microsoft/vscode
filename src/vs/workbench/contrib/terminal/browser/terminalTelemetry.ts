@@ -77,7 +77,7 @@ const enum AllowedShellType {
 }
 
 // Types that match the executable name directly
-const shellTypeExecutableAllowList = [
+const shellTypeExecutableAllowList: Set<string> = new Set([
 	AllowedShellType.CommandPrompt,
 	AllowedShellType.Wsl,
 
@@ -97,7 +97,7 @@ const shellTypeExecutableAllowList = [
 	AllowedShellType.Julia,
 	AllowedShellType.Node,
 	AllowedShellType.RubyIrb,
-];
+]) satisfies Set<AllowedShellType>;
 
 // Dynamic executables that map to a single type
 const shellTypeExecutableRegexAllowList: { regex: RegExp; type: AllowedShellType }[] = [
@@ -132,7 +132,7 @@ function getSanitizedShellType(shellLaunchConfig: IShellLaunchConfig): AllowedSh
 			return entry.type;
 		}
 	}
-	if ((shellTypeExecutableAllowList as string[]).includes(executableFileWithoutExt)) {
+	if ((shellTypeExecutableAllowList).has(executableFileWithoutExt)) {
 		return executableFileWithoutExt as AllowedShellType;
 	}
 	return AllowedShellType.Unknown;
