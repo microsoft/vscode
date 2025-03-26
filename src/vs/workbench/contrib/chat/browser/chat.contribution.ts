@@ -212,11 +212,18 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.tools.autoApprove': {
 			default: false,
-			description: nls.localize('chat.tools.autoApprove', "Controls whether tool use should be automatically approved ('YOLO mode'). Can be set to `true`, or an array of tool names to automatically approve."),
+			description: nls.localize('chat.tools.autoApprove', "Controls whether tool use should be automatically approved ('YOLO mode'). Can be set to `true`, or a mapping of tool names to automatically approve."),
 			oneOf: [
 				{ type: 'boolean' },
-				{ type: 'array', items: { type: 'string' } }
+				{ type: 'object', additionalProperties: { type: 'boolean' } }
 			],
+			tags: ['preview'],
+			policy: {
+				name: 'ChatToolsAutoApprove',
+				minimumVersion: '1.99',
+				previewFeature: true,
+				defaultValue: false
+			}
 		},
 		[mcpEnabledSection]: {
 			type: 'boolean',

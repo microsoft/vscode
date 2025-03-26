@@ -373,7 +373,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			return true;
 		}
 
-		const config = this._configurationService.inspect<boolean | string[]>('chat.tools.autoApprove');
+		const config = this._configurationService.inspect<boolean | Record<string, boolean>>('chat.tools.autoApprove');
 
 		// If we know the tool runs at a global level, only consider the global config.
 		// If we know the tool runs at a workspace level, use those specific settings when appropriate.
@@ -385,7 +385,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			}
 		}
 
-		return value === true || (Array.isArray(value) && value.includes(toolId));
+		return value === true || (typeof value === 'object' && value.hasOwnProperty(toolId) && value[toolId] === true);
 	}
 
 	private cleanupCallDisposables(requestId: string, store: DisposableStore): void {
