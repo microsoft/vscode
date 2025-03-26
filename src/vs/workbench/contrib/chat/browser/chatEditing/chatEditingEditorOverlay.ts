@@ -188,7 +188,7 @@ class ChatEditorOverlayWidget {
 								if (response) {
 
 									if (response?.isPaused.read(r)) {
-										return { message: localize('paused', "Pausing edits"), paused: true };
+										return { message: localize('paused', "Edits Paused"), paused: true };
 									}
 
 									const entry = that._entry.read(r);
