@@ -487,6 +487,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 				justifyContent: 'center',
 				transition: 'background-color 0.2s ease-in-out, width 0.2s ease-in-out',
 				...rectToProps(reader => layout.read(reader).pillRect),
+				width: 'auto',
 			}
 		}, [
 			n.div({
