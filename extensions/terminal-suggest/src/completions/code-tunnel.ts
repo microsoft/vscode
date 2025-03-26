@@ -2,7 +2,37 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import code, { codeTunnelSubcommands, commonOptions, extensionManagementOptions, troubleshootingOptions, globalTunnelOptions, codeTunnelOptions, tunnelHelpOptions } from './code';
+import code, { codeTunnelSubcommands, commonOptions, extensionManagementOptions, troubleshootingOptions, globalTunnelOptions, tunnelHelpOptions } from './code';
+
+export const codeTunnelOptions = [
+	{
+		name: '--extensions-dir',
+		description: 'Set the root path for extensions',
+		isRepeatable: true,
+		args: {
+			name: 'extensions_dir',
+			isOptional: true,
+		},
+	},
+	{
+		name: '--user-data-dir',
+		description: 'Specifies the directory that user data is kept in. Can be used to open multiple distinct instances of the editor',
+		isRepeatable: true,
+		args: {
+			name: 'user_data_dir',
+			isOptional: true,
+		},
+	},
+	{
+		name: '--use-version',
+		description: 'Sets the editor version to use for this command. The preferred version can be persisted with `code version use <version>`. Can be \'stable\', \'insiders\', a version number, or an absolute path to an existing install',
+		isRepeatable: true,
+		args: {
+			name: 'use_version',
+			isOptional: true,
+		},
+	},
+];
 
 export const extTunnelSubcommand = {
 	name: 'ext',

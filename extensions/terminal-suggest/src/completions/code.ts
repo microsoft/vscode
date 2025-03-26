@@ -485,7 +485,7 @@ export const globalTunnelOptions: Fig.Option[] = [
 	},
 ];
 
-export const codeTunnelOptions: Fig.Option[] = [
+const codeTunnelOptions: Fig.Option[] = [
 	{
 		name: '--install-extension',
 		description: 'Requests that extensions be preloaded and installed on connecting servers',
