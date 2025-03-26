@@ -463,7 +463,6 @@ export const globalTunnelOptions: Fig.Option[] = [
 			template: 'filepaths',
 		},
 	},
-
 	{
 		name: '--telemetry-level',
 		description: 'Sets the initial telemetry level',
@@ -478,6 +477,108 @@ export const globalTunnelOptions: Fig.Option[] = [
 			],
 		},
 	}
+];
+
+export const codeTunnelOptions: Fig.Option[] = [
+	{
+		name: '--install-extension',
+		description: 'Requests that extensions be preloaded and installed on connecting servers',
+		isRepeatable: true,
+		args: {
+			name: 'install_extension',
+			isOptional: true,
+		},
+	},
+	{
+		name: '--server-data-dir',
+		description: 'Specifies the directory that server data is kept in',
+		isRepeatable: true,
+		args: {
+			name: 'server_data_dir',
+			isOptional: true,
+		},
+	},
+	{
+		name: '--extensions-dir',
+		description: 'Set the root path for extensions',
+		isRepeatable: true,
+		args: {
+			name: 'extensions_dir',
+			isOptional: true,
+		},
+	},
+	{
+		name: '--user-data-dir',
+		description: 'Specifies the directory that user data is kept in. Can be used to open multiple distinct instances of the editor',
+		isRepeatable: true,
+		args: {
+			name: 'user_data_dir',
+			isOptional: true,
+		},
+	},
+	{
+		name: '--use-version',
+		description: 'Sets the editor version to use for this command. The preferred version can be persisted with `code version use <version>`. Can be \'stable\', \'insiders\', a version number, or an absolute path to an existing install',
+		isRepeatable: true,
+		args: {
+			name: 'use_version',
+			isOptional: true,
+		},
+	},
+	{
+		name: '--random-name',
+		description: 'Randomly name machine for port forwarding service',
+	},
+	{
+		name: '--no-sleep',
+		description: 'Prevents the machine going to sleep while this command runs',
+	},
+	{
+		name: '--accept-server-license-terms',
+		description: 'If set, the user accepts the server license terms and the server will be started without a user prompt',
+	},
+	{
+		name: '--name',
+		description: 'Sets the machine name for port forwarding service',
+		isRepeatable: true,
+		args: {
+			name: 'name',
+			isOptional: true,
+		},
+	},
+	{
+		name: ['-h', '--help'],
+		description: 'Print help',
+	},
+	{
+		name: '--log',
+		description: 'Log level to use',
+		isRepeatable: true,
+		args: {
+			name: 'log',
+			isOptional: true,
+			suggestions: [
+				'trace',
+				'debug',
+				'info',
+				'warn',
+				'error',
+				'critical',
+				'off',
+			],
+		},
+	},
+	{
+		name: '--verbose',
+		description: 'Print verbose output (implies --wait)',
+	},
+	{
+		name: '--cli-data-dir',
+		description: 'Directory where CLI metadata should be stored',
+		args: {
+			name: 'cli_data_dir',
+		},
+	},
 ];
 
 export const codeTunnelSubcommands = [
@@ -634,7 +735,7 @@ export const codeTunnelSubcommands = [
 				],
 			},
 		],
-		options: globalTunnelOptions
+		options: codeTunnelOptions,
 	},
 	{
 		name: 'status',
