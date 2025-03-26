@@ -195,6 +195,7 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 						};
 					}
 
+					const isBuiltinTool = isProposedApiEnabled(extension.description, 'chatParticipantPrivate');
 					const tool: IToolData = {
 						...rawTool,
 						source: { type: 'extension', extensionId: extension.description.identifier },
@@ -202,8 +203,11 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 						id: rawTool.name,
 						icon,
 						when: rawTool.when ? ContextKeyExpr.deserialize(rawTool.when) : undefined,
-						requiresConfirmation: !isProposedApiEnabled(extension.description, 'chatParticipantPrivate'),
-						alwaysDisplayOutput: !isProposedApiEnabled(extension.description, 'chatParticipantPrivate'),
+						requiresConfirmation: !isBuiltinTool,
+						alwaysDisplayOutput: !isBuiltinTool,
+						supportsToolPicker: isBuiltinTool ?
+							false :
+							rawTool.canBeReferencedInPrompt
 					};
 					const disposable = languageModelToolsService.registerToolData(tool);
 					this._registrationDisposables.set(toToolKey(extension.description.identifier, rawTool.name), disposable);

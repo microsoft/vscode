@@ -37,6 +37,7 @@ export interface IToolData {
 	runsInWorkspace?: boolean;
 	requiresConfirmation?: boolean;
 	alwaysDisplayOutput?: boolean;
+	supportsToolPicker?: boolean;
 }
 
 export type ToolDataSource =
