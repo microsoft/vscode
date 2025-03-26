@@ -546,7 +546,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		const registration = markAsSingleton(new MutableDisposable()); // prevents flicker on window reload
 
 		const updateRegistration = () => {
-			const disabled = context.state.hidden || !this.configurationService.getValue('chat.experimental.setupFromDialog');
+			const disabled = context.state.hidden || !this.configurationService.getValue('chat.setupFromDialog');
 			if (!disabled && !registration.value) {
 				const { agent: panelAgent, disposable: panelDisposable } = SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel, false, context, controller);
 				registration.value = combinedDisposable(
@@ -573,7 +573,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 		this._register(Event.runAndSubscribe(Event.any(
 			context.onDidChange,
-			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('chat.experimental.setupFromDialog'))
+			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('chat.setupFromDialog'))
 		), () => updateRegistration()));
 	}
 
@@ -633,7 +633,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 				showCopilotView(viewsService, layoutService);
 
-				const setupFromDialog = configurationService.getValue('chat.experimental.setupFromDialog');
+				const setupFromDialog = configurationService.getValue('chat.setupFromDialog');
 				if (!setupFromDialog) {
 					ensureSideBarChatViewSize(viewDescriptorService, layoutService, viewsService);
 				}
