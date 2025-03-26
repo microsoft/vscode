@@ -26,7 +26,7 @@ import { EditsViewId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { CHAT_CATEGORY, handleCurrentEditingSession } from './chatActions.js';
-import { ACTION_ID_NEW_CHAT, ChatDoneActionId } from './chatClearActions.js';
+import { ACTION_ID_NEW_CHAT, ChatDoneActionId, waitForChatSessionCleared } from './chatClearActions.js';
 
 export interface IVoiceChatExecuteActionContext {
 	readonly disableTimeout?: boolean;
@@ -565,12 +565,16 @@ class SendToNewChatAction extends Action2 {
 		const context: IChatExecuteActionContext | undefined = args[0];
 
 		const widgetService = accessor.get(IChatWidgetService);
+		const chatService = accessor.get(IChatService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		if (!widget) {
 			return;
 		}
 
 		widget.clear();
+		if (widget.viewModel) {
+			await waitForChatSessionCleared(widget.viewModel.sessionId, chatService);
+		}
 		widget.acceptInput(context?.inputValue);
 	}
 }
