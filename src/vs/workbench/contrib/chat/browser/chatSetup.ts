@@ -1106,6 +1106,7 @@ class ChatSetupController extends Disposable {
 		const result = await this.quickInputService.input({
 			prompt: localize('enterpriseInstance', "What is your {0} instance?", defaultChat.enterpriseProviderName),
 			placeHolder: localize('enterpriseInstancePlaceholder', 'i.e. "octocat" or "https://octocat.ghe.com"...'),
+			ignoreFocusLost: true,
 			value: uri,
 			validateInput: async value => {
 				isSingleWord = false;
