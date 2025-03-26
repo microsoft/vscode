@@ -53,7 +53,7 @@ export namespace ChatContextKeys {
 	export const Setup = {
 		hidden: new RawContextKey<boolean>('chatSetupHidden', false, true), 		// True when chat setup is explicitly hidden.
 		installed: new RawContextKey<boolean>('chatSetupInstalled', false, true),  	// True when the chat extension is installed.
-		fromDialog: ContextKeyExpr.has('config.chat.experimental.setupFromDialog'),
+		fromDialog: ContextKeyExpr.has('config.chat.setupFromDialog'),
 	};
 
 	export const Entitlement = {
