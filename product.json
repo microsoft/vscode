@@ -66,6 +66,7 @@
 				"publisherDisplayName": "Microsoft"
 			}
 		},
+		
 		{
 			"name": "ms-vscode.vscode-js-profile-table",
 			"version": "1.0.10",
