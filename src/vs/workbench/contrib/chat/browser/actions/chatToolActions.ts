@@ -21,6 +21,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
+import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { AddConfigurationAction } from '../../../mcp/browser/mcpCommands.js';
 import { IMcpService, IMcpServer, McpConnectionState } from '../../../mcp/common/mcpTypes.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
@@ -120,6 +121,7 @@ export class AttachToolsAction extends Action2 {
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const telemetryService = accessor.get(ITelemetryService);
 		const commandService = accessor.get(ICommandService);
+		const extensionWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 
 		let widget = chatWidgetService.lastFocusedWidget;
 		if (!widget) {
@@ -147,8 +149,8 @@ export class AttachToolsAction extends Action2 {
 		const enum BucketOrdinal { Extension, Mcp, Other }
 		type BucketPick = IQuickPickItem & { picked: boolean; ordinal: BucketOrdinal; status?: string; children: ToolPick[]; source: ToolDataSource };
 		type ToolPick = IQuickPickItem & { picked: boolean; tool: IToolData; parent: BucketPick };
-		type AddServerPick = IQuickPickItem & { addServer: true };
-		type MyPick = ToolPick | BucketPick | AddServerPick;
+		type AddPick = IQuickPickItem & { add: 'server' | 'ext'; pickable: false };
+		type MyPick = ToolPick | BucketPick | AddPick;
 
 		const defaultBucket: BucketPick = {
 			type: 'item',
@@ -234,7 +236,8 @@ export class AttachToolsAction extends Action2 {
 		const picker = store.add(quickPickService.createQuickPick<MyPick>({ useSeparators: true }));
 
 		const picks: (MyPick | IQuickPickSeparator)[] = [
-			{ addServer: true, type: 'item', label: localize('addServer', "Add Server..."), description: localize('addServerDescription', "Add a Model Context Protocol Server"), iconClass: ThemeIcon.asClassName(Codicon.add), pickable: false },
+			{ add: 'server', type: 'item', label: localize('addServer', "Add MCP Server..."), iconClass: ThemeIcon.asClassName(Codicon.add), pickable: false },
+			{ add: 'ext', type: 'item', label: localize('addExtension', "Install Extension..."), iconClass: ThemeIcon.asClassName(Codicon.add), pickable: false },
 		];
 
 		for (const bucket of Array.from(toolBuckets.values()).sort((a, b) => a.ordinal - b.ordinal)) {
@@ -290,8 +293,15 @@ export class AttachToolsAction extends Action2 {
 				return;
 			}
 
-			if (selectedPicks.some(p => 'addServer' in p)) {
-				commandService.executeCommand(AddConfigurationAction.ID);
+			const addPick = selectedPicks.find(p => 'add' in p);
+			if (addPick) {
+				if (addPick.add === 'ext') {
+					extensionWorkbenchService.openSearch('@tag:language-model-tools');
+				} else if (addPick.add === 'server') {
+					commandService.executeCommand(AddConfigurationAction.ID);
+				} else {
+					assertNever(addPick.add);
+				}
 				picker.hide();
 				return;
 			}
