@@ -446,6 +446,13 @@ export const commonAuthOptions: Fig.Option[] = [
 	}
 ];
 
+export const tunnelHelpOptions: Fig.Option[] = [
+	{
+		name: ['-h', '--help'],
+		description: 'Print help',
+	},
+];
+
 export const globalTunnelOptions: Fig.Option[] = [
 	{
 		name: '--cli-data-dir',
@@ -455,28 +462,27 @@ export const globalTunnelOptions: Fig.Option[] = [
 		},
 	},
 	{
-		name: '--log-to-file',
-		description: 'Log to a file in addition to stdout. Used when running as a service',
-		hidden: true,
-		args: {
-			name: 'log_to_file',
-			template: 'filepaths',
-		},
+		name: '--verbose',
+		description: 'Print verbose output (implies --wait)',
 	},
 	{
-		name: '--telemetry-level',
-		description: 'Sets the initial telemetry level',
-		hidden: true,
+		name: '--log',
+		description: 'Log level to use',
+		isRepeatable: true,
 		args: {
-			name: 'telemetry_level',
+			name: 'log',
+			isOptional: true,
 			suggestions: [
-				'off',
-				'crash',
+				'trace',
+				'debug',
+				'info',
+				'warn',
 				'error',
-				'all',
+				'critical',
+				'off',
 			],
 		},
-	}
+	},
 ];
 
 export const codeTunnelOptions: Fig.Option[] = [
@@ -589,27 +595,27 @@ export const codeTunnelSubcommands = [
 			{
 				name: 'prune',
 				description: 'Delete all servers which are currently not running',
-				options: commonCLIOptions,
+				options: [...globalTunnelOptions, ...tunnelHelpOptions],
 			},
 			{
 				name: 'kill',
 				description: 'Stops any running tunnel on the system',
-				options: commonCLIOptions,
+				options: [...globalTunnelOptions, ...tunnelHelpOptions],
 			},
 			{
 				name: 'restart',
 				description: 'Restarts any running tunnel on the system',
-				options: commonCLIOptions,
+				options: [...globalTunnelOptions, ...tunnelHelpOptions],
 			},
 			{
 				name: 'status',
 				description: 'Gets whether there is a tunnel running on the current machine',
-				options: commonCLIOptions,
+				options: [...globalTunnelOptions, ...tunnelHelpOptions],
 			},
 			{
 				name: 'rename',
 				description: 'Rename the name of this machine associated with port forwarding service',
-				options: commonCLIOptions,
+				options: [...globalTunnelOptions, ...tunnelHelpOptions],
 				args: {
 					name: 'name',
 				},
@@ -617,12 +623,12 @@ export const codeTunnelSubcommands = [
 			{
 				name: 'status',
 				description: 'Print process usage and diagnostics information',
-				options: commonCLIOptions,
+				options: [...globalTunnelOptions, ...tunnelHelpOptions],
 			},
 			{
 				name: 'unregister',
 				description: 'Remove this machine\'s association with the port forwarding service',
-				options: commonCLIOptions,
+				options: [...globalTunnelOptions, ...tunnelHelpOptions],
 			},
 			{
 				name: 'user',
@@ -630,17 +636,17 @@ export const codeTunnelSubcommands = [
 					{
 						name: 'login',
 						description: 'Log in to port forwarding service',
-						options: [...commonAuthOptions, ...commonCLIOptions],
+						options: [...globalTunnelOptions, ...tunnelHelpOptions, ...commonAuthOptions],
 					},
 					{
 						name: 'logout',
 						description: 'Log out of port forwarding service',
-						options: commonCLIOptions,
+						options: [...globalTunnelOptions, ...tunnelHelpOptions],
 					},
 					{
 						name: 'show',
 						description: 'Show the account that\'s logged into port forwarding service',
-						options: commonCLIOptions,
+						options: [...globalTunnelOptions, ...tunnelHelpOptions],
 					},
 					{
 						name: 'help',
@@ -651,10 +657,8 @@ export const codeTunnelSubcommands = [
 							{ name: 'show', description: 'Show the account that\'s logged into port forwarding service' },
 							{ name: 'help', description: 'Print this message or the help of the given subcommand(s)' },
 						],
-						options: commonCLIOptions,
 					},
 				],
-				options: commonCLIOptions,
 			},
 			{
 				name: 'service',
@@ -907,10 +911,12 @@ export const codeTunnelSubcommands = [
 					{
 						name: 'uninstall',
 						description: 'Uninstall an extension',
+						options: commonCLIOptions
 					},
 					{
 						name: 'update',
 						description: 'Update the installed extensions',
+						options: commonCLIOptions
 					},
 				],
 			},
