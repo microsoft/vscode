@@ -256,7 +256,9 @@ export function registerChatActions() {
 			const editingSession = view.widget.viewModel?.model.editingSession;
 			if (editingSession) {
 				const phrase = localize('switchChat.confirmPhrase', "Switching chats will end your current edit session.");
-				await handleCurrentEditingSession(editingSession, phrase, dialogService);
+				if (!await handleCurrentEditingSession(editingSession, phrase, dialogService)) {
+					return;
+				}
 			}
 
 			const showPicker = async () => {
