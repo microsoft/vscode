@@ -134,7 +134,8 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 						priority: contributedEditor.priority,
 					},
 					{
-						singlePerResource: () => !(this.getCustomEditorCapabilities(contributedEditor.id)?.supportsMultipleEditorsPerDocument ?? false)
+						singlePerResource: () => !(this.getCustomEditorCapabilities(contributedEditor.id)?.supportsMultipleEditorsPerDocument ?? false),
+						when: contributedEditor.whenClause
 					},
 					{
 						createEditorInput: ({ resource }, group) => {
