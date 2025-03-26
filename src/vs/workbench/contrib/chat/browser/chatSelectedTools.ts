@@ -51,7 +51,7 @@ export class ChatSelectedTools extends Disposable {
 
 		const allTools = observableFromEvent(
 			toolsService.onDidChangeTools,
-			() => Array.from(toolsService.getTools()).filter(t => t.canBeReferencedInPrompt)
+			() => Array.from(toolsService.getTools()).filter(t => t.supportsToolPicker)
 		);
 
 		const disabledData = this._selectedTools.map(data => {

@@ -104,6 +104,7 @@ export class McpService extends Disposable implements IMcpService {
 					userDescription: tool.definition.description ?? '',
 					inputSchema: tool.definition.inputSchema,
 					canBeReferencedInPrompt: true,
+					supportsToolPicker: true,
 					runsInWorkspace: collection?.scope === StorageScope.WORKSPACE || !!collection?.remoteAuthority,
 					tags: ['mcp'],
 				};
