@@ -157,7 +157,7 @@ export class FetchWebPageTool implements IToolImpl {
 				)
 			);
 
-			result.confirmationMessages = { title: confirmationTitle, message: confirmationMessage };
+			result.confirmationMessages = { title: confirmationTitle, message: confirmationMessage, allowAutoConfirm: false };
 		}
 
 		return result;

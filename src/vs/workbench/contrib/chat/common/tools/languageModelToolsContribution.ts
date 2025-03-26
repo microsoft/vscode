@@ -204,7 +204,7 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 						icon,
 						when: rawTool.when ? ContextKeyExpr.deserialize(rawTool.when) : undefined,
 						requiresConfirmation: !isBuiltinTool,
-						alwaysDisplayOutput: !isBuiltinTool,
+						alwaysDisplayInputOutput: !isBuiltinTool,
 						supportsToolPicker: isBuiltinTool ?
 							false :
 							rawTool.canBeReferencedInPrompt

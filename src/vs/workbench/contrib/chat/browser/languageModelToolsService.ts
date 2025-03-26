@@ -327,22 +327,24 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			};
 		}
 
-		if (prepared?.toolSpecificData?.kind !== 'terminal' && prepared?.confirmationMessages) {
-			prepared.confirmationMessages!.allowAutoConfirm = true;
-		}
+		if (prepared?.confirmationMessages) {
+			if (prepared.toolSpecificData?.kind !== 'terminal' && typeof prepared.confirmationMessages.allowAutoConfirm !== 'boolean') {
+				prepared.confirmationMessages.allowAutoConfirm = true;
+			}
 
-		if (prepared?.confirmationMessages && !prepared.toolSpecificData) {
-			prepared.toolSpecificData = {
-				kind: 'input',
-				rawInput: dto.parameters,
-			};
+			if (!prepared.toolSpecificData && tool.data.alwaysDisplayInputOutput) {
+				prepared.toolSpecificData = {
+					kind: 'input',
+					rawInput: dto.parameters,
+				};
+			}
 		}
 
 		return prepared;
 	}
 
 	private ensureToolDetails(dto: IToolInvocation, toolResult: IToolResult, toolData: IToolData): void {
-		if (!toolResult.toolResultDetails && toolData.alwaysDisplayOutput) {
+		if (!toolResult.toolResultDetails && toolData.alwaysDisplayInputOutput) {
 			toolResult.toolResultDetails = {
 				input: JSON.stringify(dto.parameters, undefined, 2),
 				output: this.toolResultToString(toolResult),
