@@ -102,7 +102,7 @@ function patchProcess(allowExit: boolean) {
 	process.env['ELECTRON_RUN_AS_NODE'] = '1';
 
 	process.on = <any>function (event: string, listener: (...args: any[]) => void) {
-		let newListener = listener
+		let newListener = listener;
 		if (event === 'uncaughtException') {
 			newListener = function () {
 				try {
