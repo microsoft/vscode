@@ -4,70 +4,71 @@
  *--------------------------------------------------------------------------------------------*/
 import code, { codeTunnelSubcommands, commonOptions, extensionManagementOptions, troubleshootingOptions, globalTunnelOptions, codeTunnelOptions, commonCLIOptions } from './code';
 
+export const extTunnelSubcommand = {
+	name: 'ext',
+	description: 'Manage editor extensions',
+	subcommands: [
+		{
+			name: 'list',
+			description: 'List installed extensions',
+			options: [
+				...commonCLIOptions,
+				{
+					name: '--category',
+					description: 'Filters installed extensions by provided category, when using --list-extensions',
+					isRepeatable: true,
+					args: {
+						name: 'category',
+						isOptional: true,
+					},
+				}
+			]
+		},
+		{
+			name: 'install',
+			description: 'Install an extension',
+			options: [...commonCLIOptions,
+			{
+				name: '--pre-release',
+				description: 'Installs the pre-release version of the extension',
+			},
+			{
+				name: '--donot-include-pack-and-dependencies',
+				description: `Don't include installing pack and dependencies of the extension`,
+			},
+			{
+				name: '--force',
+				description: `Update to the latest version of the extension if it's already installed`,
+			},
+			],
+			args: {
+				name: 'ext-id | id',
+				isVariadic: true,
+				isOptional: true,
+			},
+		},
+		{
+			name: 'uninstall',
+			description: 'Uninstall an extension',
+			options: commonCLIOptions
+		},
+		{
+			name: 'update',
+			description: 'Update the installed extensions',
+			options: commonCLIOptions
+		},
+	],
+	...globalTunnelOptions,
+	...codeTunnelOptions
+};
+
 const codeTunnelCompletionSpec: Fig.Spec = {
 	...code,
 	name: 'code-tunnel',
 	description: 'Create a tunnel that\'s accessible on vscode.dev from anywhere.',
 	subcommands: [
 		...codeTunnelSubcommands,
-		{
-			name: 'ext',
-			description: 'Manage editor extensions',
-			subcommands: [
-				{
-					name: 'list',
-					description: 'List installed extensions',
-					options: [
-						...commonCLIOptions,
-						{
-							name: '--category',
-							description: 'Filters installed extensions by provided category, when using --list-extensions',
-							isRepeatable: true,
-							args: {
-								name: 'category',
-								isOptional: true,
-							},
-						}
-					]
-				},
-				{
-					name: 'install',
-					description: 'Install an extension',
-					options: [...commonCLIOptions,
-					{
-						name: '--pre-release',
-						description: 'Installs the pre-release version of the extension',
-					},
-					{
-						name: '--donot-include-pack-and-dependencies',
-						description: `Don't include installing pack and dependencies of the extension`,
-					},
-					{
-						name: '--force',
-						description: `Update to the latest version of the extension if it's already installed`,
-					},
-					],
-					args: {
-						name: 'ext-id | id',
-						isVariadic: true,
-						isOptional: true,
-					},
-				},
-				{
-					name: 'uninstall',
-					description: 'Uninstall an extension',
-					options: commonCLIOptions
-				},
-				{
-					name: 'update',
-					description: 'Update the installed extensions',
-					options: commonCLIOptions
-				},
-			],
-			...globalTunnelOptions,
-			...codeTunnelOptions
-		},
-
+		extTunnelSubcommand
 	],
 	options: [
 		...commonOptions,
