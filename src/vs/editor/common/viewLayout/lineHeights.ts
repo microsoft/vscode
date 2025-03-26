@@ -90,6 +90,9 @@ export class LineHeightsManager {
 	}
 
 	public onLinesDeleted(fromLineNumber: number, toLineNumber: number): void {
+		console.log('onLinesDeleted : ', fromLineNumber, toLineNumber);
+		console.log('this._orderedCustomLines : ', JSON.stringify(this._orderedCustomLines));
+
 		this.commit();
 		const deleteCount = toLineNumber - fromLineNumber + 1;
 		const candidateStartIndexOfDeletion = this._binarySearchOverOrderedCustomLinesArray(fromLineNumber);
@@ -118,7 +121,7 @@ export class LineHeightsManager {
 				}
 			}
 		} else {
-			endIndexOfDeletion = -(candidateEndIndexOfDeletion > -1 ? candidateEndIndexOfDeletion + 2 : 0);
+			endIndexOfDeletion = candidateEndIndexOfDeletion < -1 ? -(candidateEndIndexOfDeletion + 2) : 0;
 		}
 		const isEndIndexBiggerThanStartIndex = endIndexOfDeletion > startIndexOfDeletion;
 		const isEndIndexEqualToStartIndexAndCoversCustomLine = endIndexOfDeletion === startIndexOfDeletion
@@ -148,6 +151,7 @@ export class LineHeightsManager {
 				+ this._defaultLineHeight * (toLineNumber - lastSpecialLineDeleted.lineNumber)
 				+ this._defaultLineHeight * (firstSpecialLineDeleted.lineNumber - fromLineNumber)
 				+ heightOfFirstLineAfterDeletion - maximumSpecialHeightOnDeletedInterval;
+			console.log('totalHeightDeleted : ', totalHeightDeleted);
 
 			const decorationIdsSeen = new Set<string>();
 			const newOrderedCustomLines: CustomLine[] = [];
@@ -189,6 +193,7 @@ export class LineHeightsManager {
 				specialLine.prefixSum -= totalHeightDeleted;
 			}
 		}
+		console.log('this._orderedCustomLines : ', JSON.stringify(this._orderedCustomLines));
 	}
 
 	public onLinesInserted(fromLineNumber: number, toLineNumber: number): void {
