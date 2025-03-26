@@ -565,7 +565,8 @@ function getProperty<T>(qtype: QType<T>, moduleName: string, node: Parser.Syntax
 	);
 
 	try {
-		return qtype.value(query.matches(node));
+		const matches = query.matches(node).filter(m => m.captures[0].node.parent?.parent === node);
+		return qtype.value(matches);
 	} catch (e) {
 		throw new ParseError(e.message, moduleName, node);
 	}
@@ -727,8 +728,8 @@ function renderADML(appName: string, versions: string[], categories: Category[],
 	<resources>
 		<stringTable>
 			<string id="Application">${appName}</string>
-			${versions.map(v => `<string id="Supported_${v.replace(/\./g, '_')}">${appName} &gt;= ${v}</string>`)}
-			${categories.map(c => renderADMLString('Category', c.moduleName, c.name, translations))}
+			${versions.map(v => `<string id="Supported_${v.replace(/\./g, '_')}">${appName} &gt;= ${v}</string>`).join(`\n			`)}
+			${categories.map(c => renderADMLString('Category', c.moduleName, c.name, translations)).join(`\n			`)}
 			${policies.map(p => p.renderADMLStrings(translations)).flat().join(`\n			`)}
 		</stringTable>
 		<presentationTable>
