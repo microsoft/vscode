@@ -124,7 +124,7 @@ steps:
   - template: ../common/install-builtin-extensions.yml@self
 
   - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
-    - powershell: node build\lib\policies
+    - powershell: node build\lib\policies win32
       displayName: Generate Group Policy definitions
       retryCountOnTaskFailure: 3
 
@@ -145,7 +145,7 @@ steps:
         exec { npm run gulp "vscode-win32-$(VSCODE_ARCH)-min-ci" }
         exec { npm run gulp "vscode-win32-$(VSCODE_ARCH)-inno-updater" }
         echo "##vso[task.setvariable variable=BUILT_CLIENT]true"
-        echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)"
+        echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Build client
@@ -156,7 +156,7 @@ steps:
         exec { npm run gulp "vscode-reh-win32-$(VSCODE_ARCH)-min-ci" }
         mv ..\vscode-reh-win32-$(VSCODE_ARCH) ..\vscode-server-win32-$(VSCODE_ARCH) # TODO@joaomoreno
         echo "##vso[task.setvariable variable=BUILT_SERVER]true"
-        echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(CodeSigningFolderPath),$(agent.builddirectory)/vscode-server-win32-$(VSCODE_ARCH)"
+        echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(CodeSigningFolderPath),$(Agent.BuildDirectory)/vscode-server-win32-$(VSCODE_ARCH)"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Build server
@@ -196,10 +196,10 @@ steps:
           $ErrorActionPreference = "Stop"
           $ArtifactName = (gci -Path "$(Build.ArtifactStagingDirectory)/cli" | Select-Object -last 1).FullName
           Expand-Archive -Path $ArtifactName -DestinationPath "$(Build.ArtifactStagingDirectory)/cli"
-          $AppProductJson = Get-Content -Raw -Path "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)\resources\app\product.json" | ConvertFrom-Json
+          $AppProductJson = Get-Content -Raw -Path "$(Agent.BuildDirectory)\VSCode-win32-$(VSCODE_ARCH)\resources\app\product.json" | ConvertFrom-Json
           $CliAppName = $AppProductJson.tunnelApplicationName
           $AppName = $AppProductJson.applicationName
-          Move-Item -Path "$(Build.ArtifactStagingDirectory)/cli/$AppName.exe" -Destination "$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)/bin/$CliAppName.exe"
+          Move-Item -Path "$(Build.ArtifactStagingDirectory)/cli/$AppName.exe" -Destination "$(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)/bin/$CliAppName.exe"
         displayName: Move VS Code CLI
 
       - task: UseDotNet@2
@@ -231,6 +231,11 @@ steps:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         displayName: Codesign executables and shared libraries
 
+      - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath sign-windows-appx $(CodeSigningFolderPath) '*.ps1'
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+        displayName: Codesign Powershell scripts
+
     - ${{ if eq(parameters.VSCODE_QUALITY, 'insider') }}:
       - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath sign-windows-appx $(CodeSigningFolderPath) '*.appx'
         env:
@@ -247,13 +252,16 @@ steps:
         condition: succeededOrFailed()
         displayName: Get product version
 
-      - powershell:  |
+      - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
           $ArchivePath = ".build\win32-$(VSCODE_ARCH)\VSCode-win32-$(VSCODE_ARCH)-$(VSCODE_VERSION).zip"
           New-Item -ItemType Directory -Path .build\win32-$(VSCODE_ARCH) -Force
-          exec { 7z.exe a -tzip $ArchivePath -x!CodeSignSummary*.md ..\VSCode-win32-$(VSCODE_ARCH)\* -r }
+          exec { 7z.exe a -tzip $ArchivePath ..\VSCode-win32-$(VSCODE_ARCH)\* "-xr!CodeSignSummary*.md" }
           echo "##vso[task.setvariable variable=CLIENT_PATH]$ArchivePath"
+
+          echo "Listing archive contents"
+          7z.exe l $ArchivePath
         condition: and(succeededOrFailed(), eq(variables['BUILT_CLIENT'], 'true'))
         displayName: Package client
 
@@ -262,8 +270,11 @@ steps:
           $ErrorActionPreference = "Stop"
           $ArchivePath = ".build\win32-$(VSCODE_ARCH)\vscode-server-win32-$(VSCODE_ARCH).zip"
           New-Item -ItemType Directory -Path .build\win32-$(VSCODE_ARCH) -Force
-          exec { 7z.exe a -tzip $ArchivePath ..\vscode-server-win32-$(VSCODE_ARCH) -r }
+          exec { 7z.exe a -tzip $ArchivePath ..\vscode-server-win32-$(VSCODE_ARCH) }
           echo "##vso[task.setvariable variable=SERVER_PATH]$ArchivePath"
+
+          echo "Listing archive contents"
+          7z.exe l $ArchivePath
         condition: and(succeededOrFailed(), eq(variables['BUILT_SERVER'], 'true'))
         displayName: Package server
 
@@ -272,32 +283,30 @@ steps:
           $ErrorActionPreference = "Stop"
           $ArchivePath = ".build\win32-$(VSCODE_ARCH)\vscode-server-win32-$(VSCODE_ARCH)-web.zip"
           New-Item -ItemType Directory -Path .build\win32-$(VSCODE_ARCH) -Force
-          exec { 7z.exe a -tzip $ArchivePath ..\vscode-server-win32-$(VSCODE_ARCH)-web -r }
+          exec { 7z.exe a -tzip $ArchivePath ..\vscode-server-win32-$(VSCODE_ARCH)-web }
           echo "##vso[task.setvariable variable=WEB_PATH]$ArchivePath"
+
+          echo "Listing archive contents"
+          7z.exe l $ArchivePath
         condition: and(succeededOrFailed(), eq(variables['BUILT_WEB'], 'true'))
         displayName: Package server (web)
 
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
-          exec { npm run -- gulp "vscode-win32-$(VSCODE_ARCH)-system-setup" --sign }
-          $SetupPath = ".build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup-$(VSCODE_ARCH)-$(VSCODE_VERSION).exe"
-          mv .build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup.exe $SetupPath
-          echo "##vso[task.setvariable variable=SYSTEM_SETUP_PATH]$SetupPath"
-        env:
-          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-        displayName: Build system setup
+          exec { npm exec -- npm-run-all -lp "gulp vscode-win32-$(VSCODE_ARCH)-system-setup -- --sign" "gulp vscode-win32-$(VSCODE_ARCH)-user-setup -- --sign"  }
 
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          exec { npm run -- gulp "vscode-win32-$(VSCODE_ARCH)-user-setup" --sign }
-          $SetupPath = ".build\win32-$(VSCODE_ARCH)\user-setup\VSCodeUserSetup-$(VSCODE_ARCH)-$(VSCODE_VERSION).exe"
-          mv .build\win32-$(VSCODE_ARCH)\user-setup\VSCodeSetup.exe $SetupPath
-          echo "##vso[task.setvariable variable=USER_SETUP_PATH]$SetupPath"
+          $SystemSetupPath = ".build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup-$(VSCODE_ARCH)-$(VSCODE_VERSION).exe"
+          $UserSetupPath = ".build\win32-$(VSCODE_ARCH)\user-setup\VSCodeUserSetup-$(VSCODE_ARCH)-$(VSCODE_VERSION).exe"
+
+          mv .build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup.exe $SystemSetupPath
+          mv .build\win32-$(VSCODE_ARCH)\user-setup\VSCodeSetup.exe $UserSetupPath
+
+          echo "##vso[task.setvariable variable=SYSTEM_SETUP_PATH]$SystemSetupPath"
+          echo "##vso[task.setvariable variable=USER_SETUP_PATH]$UserSetupPath"
         env:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-        displayName: Build user setup
+        displayName: Build setup packages (system, user)
 
       - powershell: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX]attempt$(System.JobAttempt)_"
         condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))

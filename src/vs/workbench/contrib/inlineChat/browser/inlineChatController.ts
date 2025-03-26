@@ -41,9 +41,6 @@ import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/edit
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { showChatView } from '../../chat/browser/chat.js';
 import { IChatWidgetLocationOptions } from '../../chat/browser/chatWidget.js';
-import { ChatAgentLocation } from '../../chat/common/chatAgents.js';
-import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
-import { IChatEditingService, WorkingSetEntryState } from '../../chat/common/chatEditingService.js';
 import { ChatModel, ChatRequestRemovalReason, IChatRequestModel, IChatTextEditGroup, IChatTextEditGroupState, IResponse } from '../../chat/common/chatModel.js';
 import { IChatService } from '../../chat/common/chatService.js';
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
@@ -54,6 +51,9 @@ import { InlineChatError } from './inlineChatSessionServiceImpl.js';
 import { HunkAction, IEditObserver, LiveStrategy, ProgressingEditsOptions } from './inlineChatStrategies.js';
 import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget.js';
+import { ChatAgentLocation } from '../../chat/common/constants.js';
+import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
+import { IChatEditingService, WorkingSetEntryState } from '../../chat/common/chatEditingService.js';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -1237,7 +1237,6 @@ export class InlineChatController2 implements IEditorContribution {
 				{
 					enableWorkingSet: 'implicit',
 					rendererOptions: {
-						renderCodeBlockPills: true,
 						renderTextEditsAsSummary: uri => isEqual(uri, _editor.getModel()?.uri)
 					}
 				},
@@ -1423,9 +1422,9 @@ export async function reviewEdits(accessor: ServicesAccessor, editor: ICodeEdito
 	const chatEditingService = accessor.get(IChatEditingService);
 
 	const uri = editor.getModel().uri;
-	const chatModel = chatService.startSession(ChatAgentLocation.Editor, token);
+	const chatModel = chatService.startSession(ChatAgentLocation.Editor, token, false);
 
-	const editSession = await chatEditingService.createEditingSession(chatModel.sessionId);
+	const editSession = await chatEditingService.createEditingSession(chatModel);
 
 	const store = new DisposableStore();
 	store.add(chatModel);

@@ -96,6 +96,9 @@ export class TestNativeHostService implements INativeHostService {
 	async toggleFullScreen(): Promise<void> { }
 	async isMaximized(): Promise<boolean> { return true; }
 	async isFullScreen(): Promise<boolean> { return true; }
+	async maximizeWindow(): Promise<void> { }
+	async unmaximizeWindow(): Promise<void> { }
+	async minimizeWindow(): Promise<void> { }
 	async moveWindowTop(options?: INativeHostOptions): Promise<void> { }
 	getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle }> { throw new Error('Method not implemented.'); }
 	async positionWindow(position: IRectangle, options?: INativeHostOptions): Promise<void> { }

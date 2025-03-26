@@ -17,7 +17,7 @@ import { IThemeService, Themable } from '../../../../platform/theme/common/theme
 import { widgetShadow } from '../../../../platform/theme/common/colorRegistry.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { INotificationsToastController } from './notificationsCommands.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { Severity, NotificationsFilter, NotificationPriority } from '../../../../platform/notification/common/notification.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
@@ -71,7 +71,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 	private readonly mapNotificationToToast = new Map<INotificationViewItem, INotificationToast>();
 	private readonly mapNotificationToDisposable = new Map<INotificationViewItem, IDisposable>();
 
-	private readonly notificationsToastsVisibleContextKey = NotificationsToastsVisibleContext.bindTo(this.contextKeyService);
+	private readonly notificationsToastsVisibleContextKey: IContextKey<boolean>;
 
 	private readonly addedToastsIntervalCounter = new IntervalCounter(NotificationsToasts.SPAM_PROTECTION.interval);
 
@@ -82,11 +82,13 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IHostService private readonly hostService: IHostService
 	) {
 		super(themeService);
+
+		this.notificationsToastsVisibleContextKey = NotificationsToastsVisibleContext.bindTo(contextKeyService);
 
 		this.registerListeners();
 	}

@@ -29,17 +29,19 @@ import { MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../../../inlineChat/common/in
 import { INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
 import { CellEditType, CellKind, NOTEBOOK_EDITOR_ID } from '../../../notebook/common/notebookCommon.js';
 import { NOTEBOOK_IS_ACTIVE_EDITOR } from '../../../notebook/common/notebookContextKeys.js';
-import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { IChatAgentService } from '../../common/chatAgents.js';
+import { ChatContextKeyExprs, ChatContextKeys } from '../../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, ChatEditingSessionState, IChatEditingService, isChatEditingActionContext } from '../../common/chatEditingService.js';
 import { IChatRequestModel } from '../../common/chatModel.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
+import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
 import { ChatTreeItem, EditsViewId, IChatWidgetService } from '../chat.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
 export const MarkUnhelpfulActionId = 'workbench.action.chat.markUnhelpful';
+const enableFeedbackConfig = 'config.telemetry.feedback.enabled';
 
 export function registerChatTitleActions() {
 	registerAction2(class MarkHelpfulAction extends Action2 {
@@ -55,12 +57,12 @@ export function registerChatTitleActions() {
 					id: MenuId.ChatMessageFooter,
 					group: 'navigation',
 					order: 1,
-					when: ContextKeyExpr.and(ChatContextKeys.isResponse, ChatContextKeys.responseHasError.negate())
+					when: ContextKeyExpr.and(ChatContextKeys.isResponse, ChatContextKeys.responseHasError.negate(), ContextKeyExpr.has(enableFeedbackConfig))
 				}, {
 					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
 					group: 'navigation',
 					order: 1,
-					when: ContextKeyExpr.and(ChatContextKeys.isResponse, ChatContextKeys.responseHasError.negate())
+					when: ContextKeyExpr.and(ChatContextKeys.isResponse, ChatContextKeys.responseHasError.negate(), ContextKeyExpr.has(enableFeedbackConfig))
 				}]
 			});
 		}
@@ -102,12 +104,12 @@ export function registerChatTitleActions() {
 					id: MenuId.ChatMessageFooter,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(ChatContextKeys.isResponse)
+					when: ContextKeyExpr.and(ChatContextKeys.isResponse, ContextKeyExpr.has(enableFeedbackConfig))
 				}, {
 					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(ChatContextKeys.isResponse, ChatContextKeys.responseHasError.negate())
+					when: ContextKeyExpr.and(ChatContextKeys.isResponse, ChatContextKeys.responseHasError.negate(), ContextKeyExpr.has(enableFeedbackConfig))
 				}]
 			});
 		}
@@ -154,12 +156,12 @@ export function registerChatTitleActions() {
 					id: MenuId.ChatMessageFooter,
 					group: 'navigation',
 					order: 3,
-					when: ContextKeyExpr.and(ChatContextKeys.responseSupportsIssueReporting, ChatContextKeys.isResponse)
+					when: ContextKeyExpr.and(ChatContextKeys.responseSupportsIssueReporting, ChatContextKeys.isResponse, ContextKeyExpr.has(enableFeedbackConfig))
 				}, {
 					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
 					group: 'navigation',
 					order: 3,
-					when: ContextKeyExpr.and(ChatContextKeys.responseSupportsIssueReporting, ChatContextKeys.isResponse)
+					when: ContextKeyExpr.and(ChatContextKeys.responseSupportsIssueReporting, ChatContextKeys.isResponse, ContextKeyExpr.has(enableFeedbackConfig))
 				}]
 			});
 		}
@@ -229,11 +231,12 @@ export function registerChatTitleActions() {
 				return;
 			}
 			const itemIndex = chatRequests?.findIndex(request => request.id === item.requestId);
-			if (chatModel?.initialLocation === ChatAgentLocation.EditingSession) {
+			const widget = chatWidgetService.getWidgetBySessionId(item.sessionId);
+			const mode = widget?.input.currentMode;
+			if (chatModel?.initialLocation === ChatAgentLocation.EditingSession || chatModel && (mode === ChatMode.Edit || mode === ChatMode.Agent)) {
 				const configurationService = accessor.get(IConfigurationService);
 				const dialogService = accessor.get(IDialogService);
-				const chatEditingService = accessor.get(IChatEditingService);
-				const currentEditingSession = chatEditingService.getEditingSession(chatModel.sessionId);
+				const currentEditingSession = widget?.viewModel?.model.editingSession;
 				if (!currentEditingSession) {
 					return;
 				}
@@ -268,8 +271,14 @@ export function registerChatTitleActions() {
 				}
 			}
 			const request = chatModel?.getRequests().find(candidate => candidate.id === item.requestId);
-			const languageModelId = chatWidgetService.getWidgetBySessionId(item.sessionId)?.input.currentLanguageModel;
-			chatService.resendRequest(request!, { userSelectedModelId: languageModelId });
+			const languageModelId = widget?.input.currentLanguageModel;
+			const userSelectedTools = widget?.input.currentMode === ChatMode.Agent ? widget.input.selectedToolsModel.tools.get().map(tool => tool.id) : undefined;
+			chatService.resendRequest(request!, {
+				userSelectedModelId: languageModelId,
+				userSelectedTools,
+				attempt: (request?.attempt ?? -1) + 1,
+				mode: widget?.input.currentMode,
+			});
 		}
 	});
 
@@ -354,20 +363,20 @@ export function registerChatTitleActions() {
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.x,
-				precondition: ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession),
+				precondition: ContextKeyExpr.and(ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask), ChatContextKeyExprs.unifiedChatEnabled.negate()),
 				keybinding: {
 					primary: KeyCode.Delete,
 					mac: {
 						primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 					},
-					when: ContextKeyExpr.and(ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession), ChatContextKeys.inChatSession, ChatContextKeys.inChatInput.negate()),
+					when: ContextKeyExpr.and(ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask), ChatContextKeys.inChatSession, ChatContextKeys.inChatInput.negate()),
 					weight: KeybindingWeight.WorkbenchContrib,
 				},
 				menu: {
 					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession), ChatContextKeys.isRequest)
+					when: ContextKeyExpr.and(ChatContextKeys.chatMode.isEqualTo(ChatMode.Ask), ChatContextKeys.isRequest, ChatContextKeyExprs.unifiedChatEnabled.negate())
 				}
 			});
 		}
@@ -408,12 +417,17 @@ export function registerChatTitleActions() {
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.goToEditingSession,
-				precondition: ContextKeyExpr.and(ChatContextKeys.editingParticipantRegistered, ChatContextKeys.requestInProgress.toNegated(), ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel)),
+				precondition: ContextKeyExpr.and(
+					ChatContextKeys.editingParticipantRegistered,
+					ChatContextKeys.requestInProgress.toNegated(),
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
+					ChatContextKeyExprs.unifiedChatEnabled.negate()
+				),
 				menu: {
 					id: MenuId.ChatMessageFooter,
 					group: 'navigation',
 					order: 4,
-					when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.isResponse, ChatContextKeys.editingParticipantRegistered, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel))
+					when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.isResponse, ChatContextKeys.editingParticipantRegistered, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel), ChatContextKeyExprs.unifiedChatEnabled.negate())
 				}
 			});
 		}
@@ -487,7 +501,7 @@ export function registerChatTitleActions() {
 				await chatService.adoptRequest(editingSession.chatSessionId, request);
 				this._collectWorkingSetAdditions(request, workingSetAdditions);
 			}
-			workingSetAdditions.forEach(uri => editingSession.addFileToWorkingSet(uri));
+			await Promise.all(Array.from(workingSetAdditions, async uri => editsView.widget.attachmentModel.addFile(uri)));
 
 			// make request
 			await chatService.sendRequest(editingSession.chatSessionId, '', {

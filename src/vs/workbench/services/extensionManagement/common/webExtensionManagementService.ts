@@ -237,6 +237,7 @@ function toLocalExtension(extension: IExtension): ILocalExtension {
 		targetPlatform: TargetPlatform.WEB,
 		updated: !!metadata.updated,
 		pinned: !!metadata?.pinned,
+		private: !!metadata.private,
 		isWorkspaceScoped: false,
 		source: metadata?.source ?? (extension.identifier.uuid ? 'gallery' : 'resource'),
 		size: metadata.size ?? 0,
@@ -291,6 +292,7 @@ class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implem
 			metadata.isSystem = existingExtension?.type === ExtensionType.System ? true : undefined;
 			metadata.updated = !!existingExtension;
 			metadata.isApplicationScoped = this.options.isApplicationScoped || metadata.isApplicationScoped;
+			metadata.private = this.extension.private;
 			metadata.preRelease = isBoolean(this.options.preRelease)
 				? this.options.preRelease
 				: this.options.installPreReleaseVersion || this.extension.properties.isPreReleaseVersion || metadata.preRelease;

@@ -8,7 +8,6 @@ import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { IManagedHoverTooltipMarkdownString } from '../../../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate.js';
 import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { basename, dirname } from '../../../../../base/common/path.js';
@@ -40,7 +39,7 @@ import { fillEditorsDragData } from '../../../../browser/dnd.js';
 import { ResourceLabels } from '../../../../browser/labels.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { revealInSideBarCommand } from '../../../files/browser/fileActions.contribution.js';
-import { IChatRequestVariableEntry, isImageVariableEntry, isLinkVariableEntry, isPasteVariableEntry } from '../../common/chatModel.js';
+import { IChatRequestVariableEntry, isImageVariableEntry, isPasteVariableEntry } from '../../common/chatModel.js';
 import { ChatResponseReferencePartStatusKind, IChatContentReference } from '../../common/chatService.js';
 import { convertUint8ArrayToString } from '../imageUtils.js';
 
@@ -73,6 +72,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 		}
 	}
 
+	// TODO@joyceerhl adopt chat attachment widgets
 	private initAttachedContext(container: HTMLElement) {
 		dom.clearNode(container);
 		this.attachedContextDisposables.clear();
@@ -181,10 +181,6 @@ export class ChatAttachmentsContentPart extends Disposable {
 						this.attachedContextDisposables.add(this.instantiationService.invokeFunction(accessor => hookUpResourceAttachmentDragAndContextMenu(accessor, widget, resource)));
 					}
 				}
-			} else if (isLinkVariableEntry(attachment)) {
-				ariaLabel = localize('chat.attachment.link', "Attached link, {0}", attachment.name);
-
-				label.setResource({ resource: attachment.value, name: attachment.name }, { icon: Codicon.link, title: attachment.value.toString() });
 			} else {
 				const attachmentLabel = attachment.fullName ?? attachment.name;
 				const withIcon = attachment.icon?.id ? `$(${attachment.icon.id}) ${attachmentLabel}` : attachmentLabel;

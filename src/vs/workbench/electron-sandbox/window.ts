@@ -6,7 +6,6 @@
 import './media/window.css';
 import { localize } from '../../nls.js';
 import { URI } from '../../base/common/uri.js';
-import { onUnexpectedError } from '../../base/common/errors.js';
 import { equals } from '../../base/common/objects.js';
 import { EventType, EventHelper, addDisposableListener, ModifierKeyEmitter, getActiveElement, hasWindow, getWindowById, getWindows, $ } from '../../base/browser/dom.js';
 import { Action, Separator, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../base/common/actions.js';
@@ -131,6 +130,8 @@ export class NativeWindow extends BaseWindow {
 	) {
 		super(mainWindow, undefined, hostService, nativeEnvironmentService);
 
+		this.configuredWindowZoomLevel = this.resolveConfiguredWindowZoomLevel();
+
 		this.registerListeners();
 		this.create();
 	}
@@ -182,13 +183,6 @@ export class NativeWindow extends BaseWindow {
 			const activeElement = getActiveElement();
 			if (activeElement) {
 				this.keybindingService.dispatchByUserSettingsLabel(request.userSettingsLabel, activeElement);
-			}
-		});
-
-		// Error reporting from main
-		ipcRenderer.on('vscode:reportError', (event: unknown, error: string) => {
-			if (error) {
-				onUnexpectedError(JSON.parse(error));
 			}
 		});
 
@@ -1058,7 +1052,7 @@ export class NativeWindow extends BaseWindow {
 
 	private readonly mapWindowIdToZoomStatusEntry = new Map<number, ZoomStatusEntry>();
 
-	private configuredWindowZoomLevel = this.resolveConfiguredWindowZoomLevel();
+	private configuredWindowZoomLevel: number;
 
 	private resolveConfiguredWindowZoomLevel(): number {
 		const windowZoomLevel = this.configurationService.getValue('window.zoomLevel');

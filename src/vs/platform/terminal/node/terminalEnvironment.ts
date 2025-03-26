@@ -89,7 +89,7 @@ export function getShellIntegrationInjection(
 	}
 	if (shellLaunchConfig.shellIntegrationEnvironmentReporting) {
 		if (isWindows) {
-			const enableWindowsEnvReporting = options.windowsUseConptyDll || options.windowsEnableConpty && getWindowsBuildNumber() >= 22631;
+			const enableWindowsEnvReporting = options.windowsUseConptyDll || options.windowsEnableConpty && getWindowsBuildNumber() >= 22631 && shell !== 'bash.exe';
 			if (enableWindowsEnvReporting) {
 				envMixin['VSCODE_SHELL_ENV_REPORTING'] = '1';
 			}

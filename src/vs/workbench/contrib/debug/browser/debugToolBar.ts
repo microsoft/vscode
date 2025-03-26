@@ -32,7 +32,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { widgetBorder, widgetShadow } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
-import { getTitleBarStyle, TitlebarStyle } from '../../../../platform/window/common/window.js';
+import { getWindowControlsStyle, WindowControlsStyle } from '../../../../platform/window/common/window.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { EditorTabsMode, IWorkbenchLayoutService, LayoutSettings, Parts } from '../../../services/layout/browser/layoutService.js';
 import { CONTEXT_DEBUG_STATE, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_FOCUSED_SESSION_IS_NO_DEBUG, CONTEXT_IN_DEBUG_MODE, CONTEXT_MULTI_SESSION_DEBUG, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_SUSPEND_DEBUGGEE_SUPPORTED, CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED, IDebugConfiguration, IDebugService, State, VIEWLET_ID } from '../common/debug.js';
@@ -80,12 +80,12 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		this.$el = dom.$('div.debug-toolbar');
 
 		// Note: changes to this setting require a restart, so no need to listen to it.
-		const customTitleBar = getTitleBarStyle(this.configurationService) === TitlebarStyle.CUSTOM;
+		const customWindowControls = getWindowControlsStyle(this.configurationService) === WindowControlsStyle.CUSTOM;
 
 		// Do not allow the widget to overflow or underflow window controls.
 		// Use CSS calculations to avoid having to force layout with `.clientWidth`
-		const controlsOnLeft = customTitleBar && platform === Platform.Mac;
-		const controlsOnRight = customTitleBar && (platform === Platform.Windows || platform === Platform.Linux);
+		const controlsOnLeft = customWindowControls && platform === Platform.Mac;
+		const controlsOnRight = customWindowControls && (platform === Platform.Windows || platform === Platform.Linux);
 		this.$el.style.transform = `translate(
 			min(
 				max(${controlsOnLeft ? '60px' : '0px'}, calc(-50% + (100vw * var(--x-position)))),
@@ -93,8 +93,6 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			),
 			var(--y-position)
 		)`;
-
-
 
 		this.dragArea = dom.append(this.$el, dom.$('div.drag-area' + ThemeIcon.asCSSSelector(icons.debugGripper)));
 

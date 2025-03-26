@@ -53,10 +53,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 			alert(progress.content.value);
 		}
 		const codicon = icon ? icon : this.showSpinner ? ThemeIcon.modify(Codicon.loading, 'spin') : Codicon.check;
-		const markdown = new MarkdownString(progress.content.value, {
-			supportThemeIcons: true
-		});
-		const result = this._register(renderer.render(markdown));
+		const result = this._register(renderer.render(progress.content));
 		result.element.classList.add('progress-step');
 		this.renderFileWidgets(result.element);
 

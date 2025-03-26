@@ -7,13 +7,15 @@ import { localize } from '../../../../../../nls.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { CHAT_CATEGORY } from '../../actions/chatActions.js';
 import { IChatWidget, IChatWidgetService } from '../../chat.js';
+import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { KeyMod, KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { PromptsConfig } from '../../../../../../platform/prompts/common/config.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { isPromptFile } from '../../../../../../platform/prompts/common/constants.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { appendToCommandPalette } from '../../../../files/browser/fileActions.contribution.js';
+import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IActiveCodeEditor, isCodeEditor, isDiffEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -133,17 +135,17 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: COMMAND_KEY_BINDING,
 	handler: command,
-	when: PromptsConfig.enabledCtx,
+	when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
 });
 
 /**
  * Register the "Use Prompt" command in the `command palette`.
  */
-appendToCommandPalette(
-	{
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
 		id: COMMAND_ID,
 		title: localize('commands.prompts.use.title', "Use Prompt"),
-		category: CHAT_CATEGORY,
+		category: CHAT_CATEGORY
 	},
-	PromptsConfig.enabledCtx,
-);
+	when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled)
+});

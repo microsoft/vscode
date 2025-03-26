@@ -39,7 +39,7 @@ import { IAction, Action, Separator, ActionRunner } from '../../../../base/commo
 import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionUntrustedWorkspaceSupportType, ExtensionVirtualWorkspaceSupportType, IExtensionDescription, IExtensionIdentifier, isLanguagePackExtension } from '../../../../platform/extensions/common/extensions.js';
 import { CancelablePromise, createCancelablePromise, ThrottledDelayer } from '../../../../base/common/async.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { SeverityIcon } from '../../../../platform/severityIcon/browser/severityIcon.js';
+import { SeverityIcon } from '../../../../base/browser/ui/severityIcon/severityIcon.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';

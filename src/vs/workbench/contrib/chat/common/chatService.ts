@@ -16,11 +16,12 @@ import { FileType } from '../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { IWorkspaceSymbol } from '../../search/common/search.js';
-import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult } from './chatAgents.js';
+import { IChatAgentCommand, IChatAgentData, IChatAgentResult } from './chatAgents.js';
 import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatRequestVariableEntry, IChatResponseModel, IExportableChatData, ISerializableChatData } from './chatModel.js';
 import { IParsedChatRequest } from './chatParserTypes.js';
 import { IChatParserContext } from './chatRequestParser.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
+import { ChatAgentLocation, ChatMode } from './constants.js';
 import { IPreparedToolInvocation, IToolConfirmationMessages, IToolResult } from './languageModelToolsService.js';
 
 export interface IChatRequest {
@@ -168,6 +169,7 @@ export interface IChatAgentVulnerabilityDetails {
 export interface IChatResponseCodeblockUriPart {
 	kind: 'codeblockUri';
 	uri: URI;
+	isEdit?: boolean;
 }
 
 export interface IChatAgentMarkdownContentWithVulnerability {
@@ -216,9 +218,14 @@ export interface IChatTerminalToolInvocationData {
 	language: string;
 }
 
+export interface IChatToolInputInvocationData {
+	kind: 'input';
+	rawInput: any;
+}
+
 export interface IChatToolInvocation {
 	presentation: IPreparedToolInvocation['presentation'];
-	toolSpecificData?: IChatTerminalToolInvocationData;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData;
 	/** Presence of this property says that confirmation is required */
 	confirmationMessages?: IToolConfirmationMessages;
 	confirmed: DeferredPromise<boolean>;
@@ -227,6 +234,8 @@ export interface IChatToolInvocation {
 	invocationMessage: string | IMarkdownString;
 	pastTenseMessage: string | IMarkdownString | undefined;
 	resultDetails: IToolResult['toolResultDetails'];
+	readonly toolId: string;
+	readonly toolCallId: string;
 
 	isCompletePromise: Promise<void>;
 	isComplete: boolean;
@@ -239,12 +248,13 @@ export interface IChatToolInvocation {
  */
 export interface IChatToolInvocationSerialized {
 	presentation: IPreparedToolInvocation['presentation'];
-	toolSpecificData?: IChatTerminalToolInvocationData;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData;
 	invocationMessage: string | IMarkdownString;
 	pastTenseMessage: string | IMarkdownString | undefined;
 	resultDetails: IToolResult['toolResultDetails'];
 	isConfirmed: boolean | undefined;
 	isComplete: boolean;
+	toolCallId: string;
 	kind: 'toolInvocationSerialized';
 }
 
@@ -411,7 +421,7 @@ export interface IChatTransferredSessionData {
 	sessionId: string;
 	inputValue: string;
 	location: ChatAgentLocation;
-	toolsAgentModeEnabled: boolean;
+	mode: ChatMode;
 }
 
 export interface IChatSendRequestResponseState {
@@ -444,7 +454,9 @@ export interface IChatTerminalLocationData {
 export type IChatLocationData = IChatEditorLocationData | IChatNotebookLocationData | IChatTerminalLocationData;
 
 export interface IChatSendRequestOptions {
+	mode?: ChatMode;
 	userSelectedModelId?: string;
+	userSelectedTools?: string[];
 	location?: ChatAgentLocation;
 	locationData?: IChatLocationData;
 	parserContext?: IChatParserContext;
@@ -479,9 +491,10 @@ export interface IChatService {
 
 	isEnabled(location: ChatAgentLocation): boolean;
 	hasSessions(): boolean;
-	startSession(location: ChatAgentLocation, token: CancellationToken): ChatModel;
+	startSession(location: ChatAgentLocation, token: CancellationToken, isGlobalEditingSession?: boolean): ChatModel;
 	getSession(sessionId: string): IChatModel | undefined;
-	getOrRestoreSession(sessionId: string): IChatModel | undefined;
+	getOrRestoreSession(sessionId: string): Promise<IChatModel | undefined>;
+	isPersistedSessionEmpty(sessionId: string): boolean;
 	loadSessionFromContent(data: IExportableChatData | ISerializableChatData): IChatModel | undefined;
 
 	/**
@@ -493,18 +506,23 @@ export interface IChatService {
 	adoptRequest(sessionId: string, request: IChatRequestModel): Promise<void>;
 	removeRequest(sessionid: string, requestId: string): Promise<void>;
 	cancelCurrentRequestForSession(sessionId: string): void;
-	clearSession(sessionId: string): void;
+	clearSession(sessionId: string): Promise<void>;
 	addCompleteRequest(sessionId: string, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, attempt: number | undefined, response: IChatCompleteResponse): void;
-	getHistory(): IChatDetail[];
+	getHistory(): Promise<IChatDetail[]>;
 	setChatSessionTitle(sessionId: string, title: string): void;
-	clearAllHistoryEntries(): void;
-	removeHistoryEntry(sessionId: string): void;
+	clearAllHistoryEntries(): Promise<void>;
+	removeHistoryEntry(sessionId: string): Promise<void>;
+	getChatStorageFolder(): URI;
+	logChatIndex(): void;
 
 	onDidPerformUserAction: Event<IChatUserActionEvent>;
 	notifyUserAction(event: IChatUserActionEvent): void;
 	onDidDisposeSession: Event<{ sessionId: string; reason: 'initializationFailed' | 'cleared' }>;
 
 	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void;
+
+	readonly unifiedViewEnabled: boolean;
+	isEditingLocation(location: ChatAgentLocation): boolean;
 }
 
 export const KEYWORD_ACTIVIATION_SETTING_ID = 'accessibility.voice.keywordActivation';

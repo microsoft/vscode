@@ -20,15 +20,18 @@ export interface IInlineEditsView {
 	onDidClick: Event<IMouseEvent>;
 }
 
+export interface IInlineEditHost {
+	inAcceptFlow: IObservable<boolean>;
+	inPartialAcceptFlow: IObservable<boolean>;
+}
+
 export interface IInlineEditModel {
 	displayName: string;
 	action: Command | undefined;
 	extensionCommands: Command[];
 	inlineEdit: InlineEditWithChanges;
-
 	tabAction: IObservable<InlineEditTabAction>;
-	inAcceptFlow: IObservable<boolean>;
-	inPartialAcceptFlow: IObservable<boolean>;
+	showCollapsed: IObservable<boolean>;
 
 	handleInlineEditShown(): void;
 	accept(): void;

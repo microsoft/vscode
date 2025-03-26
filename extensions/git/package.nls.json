@@ -289,6 +289,7 @@
 	"config.diagnosticsCommitHook.Enabled": "Controls whether to check for unresolved diagnostics before committing.",
 	"config.diagnosticsCommitHook.Sources": "Controls the list of sources (**Item**) and the minimum severity (**Value**) to be considered before committing. **Note:** To ignore diagnostics from a particular source, add the source to the list and set the minimum severity to `none`.",
 	"config.discardUntrackedChangesToTrash": "Controls whether discarding untracked changes moves the file(s) to the Recycle Bin (Windows), Trash (macOS, Linux) instead of deleting them permanently. **Note:** This setting has no effect when connected to a remote or when running in Linux as a snap package.",
+	"config.showReferenceDetails": "Controls whether to show the details of the last commit for Git refs in the checkout, branch, and tag pickers.",
 	"submenu.explorer": "Git",
 	"submenu.commit": "Commit",
 	"submenu.commit.amend": "Amend",

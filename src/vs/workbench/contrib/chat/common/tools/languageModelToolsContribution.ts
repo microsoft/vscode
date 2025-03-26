@@ -135,6 +135,8 @@ function toToolKey(extensionIdentifier: ExtensionIdentifier, toolName: string) {
 	return `${extensionIdentifier.value}/${toolName}`;
 }
 
+const CopilotAgentModeTag = 'vscode_editing';
+
 export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.toolsExtensionPointHandler';
 
@@ -167,7 +169,14 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 						continue;
 					}
 
-					if (rawTool.tags?.some(tag => tag.startsWith('copilot_') || tag.startsWith('vscode_')) && !isProposedApiEnabled(extension.description, 'chatParticipantPrivate')) {
+					if (rawTool.tags?.includes(CopilotAgentModeTag)) {
+						if (!isProposedApiEnabled(extension.description, 'languageModelToolsForAgent') && !isProposedApiEnabled(extension.description, 'chatParticipantPrivate')) {
+							logService.error(`Extension '${extension.description.identifier.value}' CANNOT register tool with tag "${CopilotAgentModeTag}" without enabling 'languageModelToolsForAgent' proposal`);
+							continue;
+						}
+					}
+
+					if (rawTool.tags?.some(tag => tag !== CopilotAgentModeTag && (tag.startsWith('copilot_') || tag.startsWith('vscode_'))) && !isProposedApiEnabled(extension.description, 'chatParticipantPrivate')) {
 						logService.error(`Extension '${extension.description.identifier.value}' CANNOT register tool with tags starting with "vscode_" or "copilot_"`);
 						continue;
 					}
@@ -186,13 +195,19 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 						};
 					}
 
+					const isBuiltinTool = isProposedApiEnabled(extension.description, 'chatParticipantPrivate');
 					const tool: IToolData = {
 						...rawTool,
-						extensionId: extension.description.identifier,
+						source: { type: 'extension', extensionId: extension.description.identifier },
 						inputSchema: rawTool.inputSchema,
 						id: rawTool.name,
 						icon,
 						when: rawTool.when ? ContextKeyExpr.deserialize(rawTool.when) : undefined,
+						requiresConfirmation: !isBuiltinTool,
+						alwaysDisplayInputOutput: !isBuiltinTool,
+						supportsToolPicker: isBuiltinTool ?
+							false :
+							rawTool.canBeReferencedInPrompt
 					};
 					const disposable = languageModelToolsService.registerToolData(tool);
 					this._registrationDisposables.set(toToolKey(extension.description.identifier, rawTool.name), disposable);

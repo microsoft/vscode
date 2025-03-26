@@ -157,7 +157,7 @@ class ExecCommandCopyWithSyntaxHighlightingAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.clipboardCopyWithSyntaxHighlightingAction',
-			label: nls.localize2('actions.clipboard.copyWithSyntaxHighlightingLabel', "Copy With Syntax Highlighting"),
+			label: nls.localize2('actions.clipboard.copyWithSyntaxHighlightingLabel', "Copy with Syntax Highlighting"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
@@ -237,17 +237,9 @@ if (PasteAction) {
 			let result: boolean;
 			const experimentalEditContextEnabled = focusedEditor.getOption(EditorOption.effectiveExperimentalEditContextEnabled);
 			if (experimentalEditContextEnabled) {
-				// Since we can not call execCommand('paste') on a dom node with edit context set
-				// we added a hidden text area that receives the paste execution
-				// see nativeEditContext.ts for more details
 				const nativeEditContext = NativeEditContextRegistry.get(focusedEditor.getId());
 				if (nativeEditContext) {
-					const textArea = nativeEditContext.textArea;
-					nativeEditContext.onWillPaste();
-					textArea.focus();
-					result = focusedEditor.getContainerDomNode().ownerDocument.execCommand('paste');
-					textArea.domNode.textContent = '';
-					nativeEditContext.domNode.focus();
+					result = nativeEditContext.executePaste();
 				} else {
 					result = false;
 				}

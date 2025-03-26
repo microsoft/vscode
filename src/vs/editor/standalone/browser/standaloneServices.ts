@@ -98,7 +98,7 @@ import { mainWindow } from '../../../base/browser/window.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { ITreeSitterParserService } from '../../common/services/treeSitterParserService.js';
 import { StandaloneTreeSitterParserService } from './standaloneTreeSitterService.js';
-import { IWorkerDescriptor } from '../../../base/common/worker/simpleWorker.js';
+import { IWebWorkerDescriptor } from '../../../base/browser/webWorkerFactory.js';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -1077,8 +1077,7 @@ class StandaloneContextMenuService extends ContextMenuService {
 	}
 }
 
-export const standaloneEditorWorkerDescriptor: IWorkerDescriptor = {
-	moduleId: 'vs/editor/common/services/editorSimpleWorker',
+const standaloneEditorWorkerDescriptor: IWebWorkerDescriptor = {
 	esmModuleLocation: undefined,
 	label: 'editorWorkerService'
 };

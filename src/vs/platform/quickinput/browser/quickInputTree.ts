@@ -418,6 +418,8 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 		element.element = data.entry ?? undefined;
 		const mainItem: IQuickPickItem = element.item;
 
+		element.element.classList.toggle('indented', Boolean(mainItem.indented));
+
 		data.checkbox.checked = element.checked;
 		data.toDisposeElement.add(element.onChecked(checked => data.checkbox.checked = checked));
 		data.checkbox.disabled = element.checkboxDisabled;

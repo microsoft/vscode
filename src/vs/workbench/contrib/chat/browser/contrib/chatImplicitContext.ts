@@ -18,10 +18,10 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { EditorsOrder } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { getNotebookEditorFromEditorPane, INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
-import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
 import { IBaseChatRequestVariableEntry, IChatRequestImplicitVariableEntry } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
+import { ChatAgentLocation } from '../../common/constants.js';
 import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 
@@ -46,7 +46,7 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 		const activeEditorDisposables = this._register(new DisposableStore());
 
 		this._register(Event.runAndSubscribe(
-			editorService.onDidVisibleEditorsChange,
+			editorService.onDidActiveEditorChange,
 			(() => {
 				activeEditorDisposables.clear();
 				const codeEditor = this.findActiveCodeEditor();

@@ -3,21 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './dialog.css';
+import { localize } from '../../../../nls.js';
 import { $, addDisposableListener, clearNode, EventHelper, EventType, getWindow, hide, isActiveElement, isAncestor, show } from '../../dom.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { ActionBar } from '../actionbar/actionbar.js';
-import { ButtonBar, ButtonWithDescription, IButtonStyles } from '../button/button.js';
+import { ButtonBar, ButtonWithDescription, ButtonWithDropdown, IButton, IButtonStyles, IButtonWithDropdownOptions } from '../button/button.js';
 import { ICheckboxStyles, Checkbox } from '../toggle/toggle.js';
 import { IInputBoxStyles, InputBox } from '../inputbox/inputBox.js';
-import { Action } from '../../../common/actions.js';
+import { Action, toAction } from '../../../common/actions.js';
 import { Codicon } from '../../../common/codicons.js';
 import { ThemeIcon } from '../../../common/themables.js';
 import { KeyCode, KeyMod } from '../../../common/keyCodes.js';
 import { mnemonicButtonLabel } from '../../../common/labels.js';
-import { Disposable } from '../../../common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../common/lifecycle.js';
 import { isLinux, isMacintosh, isWindows } from '../../../common/platform.js';
-import './dialog.css';
-import * as nls from '../../../../nls.js';
+import { isActionProvider } from '../dropdown/dropdown.js';
 
 export interface IDialogInputOptions {
 	readonly placeholder?: string;
@@ -36,6 +37,7 @@ export interface IDialogOptions {
 	readonly renderBody?: (container: HTMLElement) => void;
 	readonly icon?: ThemeIcon;
 	readonly buttonDetails?: string[];
+	readonly primaryButtonDropdown?: IButtonWithDropdownOptions;
 	readonly disableCloseAction?: boolean;
 	readonly disableDefaultAction?: boolean;
 	readonly buttonStyles: IButtonStyles;
@@ -67,7 +69,9 @@ interface ButtonMapEntry {
 }
 
 export class Dialog extends Disposable {
+
 	private readonly element: HTMLElement;
+
 	private readonly shadowElement: HTMLElement;
 	private modalElement: HTMLElement | undefined;
 	private readonly buttonsContainer: HTMLElement;
@@ -97,7 +101,7 @@ export class Dialog extends Disposable {
 		if (Array.isArray(buttons) && buttons.length > 0) {
 			this.buttons = buttons;
 		} else if (!this.options.disableDefaultAction) {
-			this.buttons = [nls.localize('ok', "OK")];
+			this.buttons = [localize('ok', "OK")];
 		} else {
 			this.buttons = [];
 		}
@@ -172,16 +176,16 @@ export class Dialog extends Disposable {
 	}
 
 	private getIconAriaLabel(): string {
-		let typeLabel = nls.localize('dialogInfoMessage', 'Info');
+		let typeLabel = localize('dialogInfoMessage', 'Info');
 		switch (this.options.type) {
 			case 'error':
-				typeLabel = nls.localize('dialogErrorMessage', 'Error');
+				typeLabel = localize('dialogErrorMessage', 'Error');
 				break;
 			case 'warning':
-				typeLabel = nls.localize('dialogWarningMessage', 'Warning');
+				typeLabel = localize('dialogWarningMessage', 'Warning');
 				break;
 			case 'pending':
-				typeLabel = nls.localize('dialogPendingMessage', 'In Progress');
+				typeLabel = localize('dialogPendingMessage', 'In Progress');
 				break;
 			case 'none':
 			case 'info':
@@ -200,7 +204,7 @@ export class Dialog extends Disposable {
 	async show(): Promise<IDialogResult> {
 		this.focusToReturn = this.container.ownerDocument.activeElement as HTMLElement;
 
-		return new Promise<IDialogResult>((resolve) => {
+		return new Promise<IDialogResult>(resolve => {
 			clearNode(this.buttonsContainer);
 
 			const close = () => {
@@ -210,14 +214,45 @@ export class Dialog extends Disposable {
 				});
 				return;
 			};
+			this._register(toDisposable(close));
 
 			const buttonBar = this.buttonBar = this._register(new ButtonBar(this.buttonsContainer));
 			const buttonMap = this.rearrangeButtons(this.buttons, this.options.cancelId);
 
+			const onButtonClick = (index: number) => {
+				resolve({
+					button: buttonMap[index].index,
+					checkboxChecked: this.checkbox ? this.checkbox.checked : undefined,
+					values: this.inputs.length > 0 ? this.inputs.map(input => input.value) : undefined
+				});
+			};
+
 			// Handle button clicks
-			buttonMap.forEach((entry, index) => {
+			buttonMap.forEach((_, index) => {
 				const primary = buttonMap[index].index === 0;
-				const button = this.options.buttonDetails ? this._register(buttonBar.addButtonWithDescription({ secondary: !primary, ...this.buttonStyles })) : this._register(buttonBar.addButton({ secondary: !primary, ...this.buttonStyles }));
+
+				let button: IButton;
+				if (primary && this.options?.primaryButtonDropdown) {
+					const actions = isActionProvider(this.options.primaryButtonDropdown.actions) ? this.options.primaryButtonDropdown.actions.getActions() : this.options.primaryButtonDropdown.actions;
+					button = this._register(buttonBar.addButtonWithDropdown({
+						...this.options.primaryButtonDropdown,
+						...this.buttonStyles,
+						dropdownLayer: 2600, // ensure the dropdown is above the dialog
+						actions: actions.map(action => toAction({
+							...action,
+							run: async () => {
+								await action.run();
+
+								onButtonClick(index);
+							}
+						}))
+					}));
+				} else if (this.options.buttonDetails) {
+					button = this._register(buttonBar.addButtonWithDescription({ secondary: !primary, ...this.buttonStyles }));
+				} else {
+					button = this._register(buttonBar.addButton({ secondary: !primary, ...this.buttonStyles }));
+				}
+
 				button.label = mnemonicButtonLabel(buttonMap[index].label, true);
 				if (button instanceof ButtonWithDescription) {
 					button.description = this.options.buttonDetails![buttonMap[index].index];
@@ -227,11 +262,7 @@ export class Dialog extends Disposable {
 						EventHelper.stop(e);
 					}
 
-					resolve({
-						button: buttonMap[index].index,
-						checkboxChecked: this.checkbox ? this.checkbox.checked : undefined,
-						values: this.inputs.length > 0 ? this.inputs.map(input => input.value) : undefined
-					});
+					onButtonClick(index);
 				}));
 			});
 
@@ -315,9 +346,20 @@ export class Dialog extends Disposable {
 
 					if (this.buttonBar) {
 						for (const button of this.buttonBar.buttons) {
-							focusableElements.push(button);
-							if (button.hasFocus()) {
-								focusedIndex = focusableElements.length - 1;
+							if (button instanceof ButtonWithDropdown) {
+								focusableElements.push(button.primaryButton);
+								if (button.primaryButton.hasFocus()) {
+									focusedIndex = focusableElements.length - 1;
+								}
+								focusableElements.push(button.dropdownButton);
+								if (button.dropdownButton.hasFocus()) {
+									focusedIndex = focusableElements.length - 1;
+								}
+							} else {
+								focusableElements.push(button);
+								if (button.hasFocus()) {
+									focusedIndex = focusableElements.length - 1;
+								}
 							}
 						}
 					}
@@ -407,7 +449,7 @@ export class Dialog extends Disposable {
 			if (!this.options.disableCloseAction) {
 				const actionBar = this._register(new ActionBar(this.toolbarContainer, {}));
 
-				const action = this._register(new Action('dialog.close', nls.localize('dialogClose', "Close Dialog"), ThemeIcon.asClassName(Codicon.dialogClose), true, async () => {
+				const action = this._register(new Action('dialog.close', localize('dialogClose', "Close Dialog"), ThemeIcon.asClassName(Codicon.dialogClose), true, async () => {
 					resolve({
 						button: this.options.cancelId || 0,
 						checkboxChecked: this.checkbox ? this.checkbox.checked : undefined

@@ -283,6 +283,7 @@ export interface ICustomDialogOptions {
 export interface ICustomDialogMarkdown {
 	readonly markdown: IMarkdownString;
 	readonly classes?: string[];
+	readonly dismissOnLinkClick?: boolean;
 }
 
 /**

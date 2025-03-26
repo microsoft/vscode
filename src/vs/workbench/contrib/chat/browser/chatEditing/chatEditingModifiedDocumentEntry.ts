@@ -28,6 +28,7 @@ import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
 import { localize } from '../../../../../nls.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -37,7 +38,7 @@ import { editorSelectionBackground } from '../../../../../platform/theme/common/
 import { IUndoRedoElement, IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { SaveReason, IEditorPane } from '../../../../common/editor.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
-import { IResolvedTextFileEditorModel, stringToSnapshot } from '../../../../services/textfile/common/textfiles.js';
+import { IResolvedTextFileEditorModel, ITextFileService, stringToSnapshot } from '../../../../services/textfile/common/textfiles.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { IModifiedFileEntry, ChatEditKind, WorkingSetEntryState, IModifiedFileEntryEditorIntegration } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
@@ -109,9 +110,11 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		@IFilesConfigurationService fileConfigService: IFilesConfigurationService,
 		@IChatService chatService: IChatService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
+		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IFileService fileService: IFileService,
 		@IUndoRedoService undoRedoService: IUndoRedoService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 	) {
 		super(
 			resourceRef.object.textEditorModel.uri,
@@ -201,10 +204,12 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		};
 	}
 
-	restoreFromSnapshot(snapshot: ISnapshotEntry) {
+	restoreFromSnapshot(snapshot: ISnapshotEntry, restoreToDisk = true) {
 		this._stateObs.set(snapshot.state, undefined);
 		this.originalModel.setValue(snapshot.original);
-		this._setDocValue(snapshot.current);
+		if (restoreToDisk) {
+			this._setDocValue(snapshot.current);
+		}
 		this._edit = snapshot.originalToCurrentEdit;
 		this._updateDiffInfoSeq();
 	}
@@ -343,6 +348,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		if (this._diffInfo.get().identical) {
 			this._stateObs.set(WorkingSetEntryState.Accepted, undefined);
 		}
+		this._accessibilitySignalService.playSignal(AccessibilitySignal.editsKept, { allowManyInParallel: true });
 		return true;
 	}
 
@@ -360,6 +366,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		if (this._diffInfo.get().identical) {
 			this._stateObs.set(WorkingSetEntryState.Rejected, undefined);
 		}
+		this._accessibilitySignalService.playSignal(AccessibilitySignal.editsUndone, { allowManyInParallel: true });
 		return true;
 	}
 
@@ -425,6 +432,21 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		this._diffInfo.set(nullDocumentDiff, tx);
 		this._edit = OffsetEdit.empty;
 		await this._collapse(tx);
+
+		const config = this._fileConfigService.getAutoSaveConfiguration(this.modifiedURI);
+		if (!config.autoSave || !this._textFileService.isDirty(this.modifiedURI)) {
+			// SAVE after accept for manual-savers, for auto-savers
+			// trigger explict save to get save participants going
+			try {
+				await this._textFileService.save(this.modifiedURI, {
+					reason: SaveReason.EXPLICIT,
+					force: true,
+					ignoreErrorHandler: true
+				});
+			} catch {
+				// ignored
+			}
+		}
 	}
 
 	protected override async _doReject(tx: ITransaction | undefined): Promise<void> {

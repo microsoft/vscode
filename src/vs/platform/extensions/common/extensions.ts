@@ -184,6 +184,11 @@ export interface IToolContribution {
 	userDescription?: string;
 }
 
+export interface IMcpCollectionContribution {
+	readonly id: string;
+	readonly label: string;
+}
+
 export interface IExtensionContributions {
 	commands?: ICommand[];
 	configuration?: any;
@@ -211,6 +216,7 @@ export interface IExtensionContributions {
 	readonly debugVisualizers?: IDebugVisualizationContribution[];
 	readonly chatParticipants?: ReadonlyArray<IChatParticipantContribution>;
 	readonly languageModelTools?: ReadonlyArray<IToolContribution>;
+	readonly modelContextServerCollections?: ReadonlyArray<IMcpCollectionContribution>;
 }
 
 export interface IExtensionCapabilities {

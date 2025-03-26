@@ -62,11 +62,12 @@ import { ILocalizedString } from '../../../../platform/action/common/action.js';
 import { registerNavigableContainer } from '../../../browser/actions/widgetNavigationCommands.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { SeverityIcon } from '../../../../platform/severityIcon/browser/severityIcon.js';
+import { SeverityIcon } from '../../../../base/browser/ui/severityIcon/severityIcon.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 
 export const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
 export const ExtensionsSortByContext = new RawContextKey<string>('extensionsSortByValue', '');
@@ -503,6 +504,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 	private searchBox: SuggestEnabledInput | undefined;
 	private notificationContainer: HTMLElement | undefined;
 	private readonly searchViewletState: MementoObject;
+	private extensionGalleryManifest: IExtensionGalleryManifest | null = null;
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -510,6 +512,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		@IProgressService private readonly progressService: IProgressService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@IExtensionGalleryManifestService extensionGalleryManifestService: IExtensionGalleryManifestService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -551,6 +554,15 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		this._register(this.paneCompositeService.onDidPaneCompositeOpen(e => { if (e.viewContainerLocation === ViewContainerLocation.Sidebar) { this.onViewletOpen(e.composite); } }, this));
 		this._register(extensionsWorkbenchService.onReset(() => this.refresh()));
 		this.searchViewletState = this.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
+
+		extensionGalleryManifestService.getExtensionGalleryManifest()
+			.then(galleryManifest => {
+				this.extensionGalleryManifest = galleryManifest;
+				this._register(extensionGalleryManifestService.onDidChangeExtensionGalleryManifest(galleryManifest => {
+					this.extensionGalleryManifest = galleryManifest;
+					this.refresh();
+				}));
+			});
 	}
 
 	get searchValue(): string | undefined {
@@ -581,7 +593,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 				else if (/sort:/.test(item)) { return 'c'; }
 				else { return 'd'; }
 			},
-			provideResults: (query: string) => Query.suggestions(query)
+			provideResults: (query: string) => Query.suggestions(query, this.extensionGalleryManifest)
 		}, placeholder, 'extensions:searchinput', { placeholderText: placeholder, value: searchValue }));
 
 		this.notificationContainer = append(this.header, $('.notification-container.hidden', { 'tabindex': '0' }));

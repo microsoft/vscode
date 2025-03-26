@@ -21,6 +21,7 @@ import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiff
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { EditorResourceAccessor, SideBySideEditor, TEXT_DIFF_EDITOR_ID } from '../../../../common/editor.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
 
 
 abstract class ChatEditingEditorAction extends Action2 {
@@ -71,7 +72,7 @@ abstract class NavigateAction extends ChatEditingEditorAction {
 				? localize2('next', 'Go to Next Chat Edit')
 				: localize2('prev', 'Go to Previous Chat Edit'),
 			icon: next ? Codicon.arrowDown : Codicon.arrowUp,
-			precondition: ctxHasRequestInProgress.negate(),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ctxHasRequestInProgress.negate()),
 			keybinding: {
 				primary: next
 					? KeyMod.Alt | KeyCode.F5

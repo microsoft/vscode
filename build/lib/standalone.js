@@ -41,7 +41,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.extractEditor = extractEditor;
-exports.createESMSourcesAndResources2 = createESMSourcesAndResources2;
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const tss = __importStar(require("./treeshaking"));
@@ -75,6 +74,9 @@ function extractEditor(options) {
         compilerOptions = tsConfig.compilerOptions;
     }
     tsConfig.compilerOptions = compilerOptions;
+    tsConfig.compilerOptions.sourceMap = true;
+    tsConfig.compilerOptions.module = 'es2022';
+    tsConfig.compilerOptions.outDir = options.tsOutDir;
     compilerOptions.noEmit = false;
     compilerOptions.noUnusedLocals = false;
     compilerOptions.preserveConstEnums = false;
@@ -141,102 +143,6 @@ function extractEditor(options) {
     [
         'vs/loader.js'
     ].forEach(copyFile);
-}
-function createESMSourcesAndResources2(options) {
-    const SRC_FOLDER = path_1.default.join(REPO_ROOT, options.srcFolder);
-    const OUT_FOLDER = path_1.default.join(REPO_ROOT, options.outFolder);
-    const OUT_RESOURCES_FOLDER = path_1.default.join(REPO_ROOT, options.outResourcesFolder);
-    const getDestAbsoluteFilePath = (file) => {
-        const dest = options.renames[file.replace(/\\/g, '/')] || file;
-        if (dest === 'tsconfig.json') {
-            return path_1.default.join(OUT_FOLDER, `tsconfig.json`);
-        }
-        if (/\.ts$/.test(dest)) {
-            return path_1.default.join(OUT_FOLDER, dest);
-        }
-        return path_1.default.join(OUT_RESOURCES_FOLDER, dest);
-    };
-    const allFiles = walkDirRecursive(SRC_FOLDER);
-    for (const file of allFiles) {
-        if (options.ignores.indexOf(file.replace(/\\/g, '/')) >= 0) {
-            continue;
-        }
-        if (file === 'tsconfig.json') {
-            const tsConfig = JSON.parse(fs_1.default.readFileSync(path_1.default.join(SRC_FOLDER, file)).toString());
-            tsConfig.compilerOptions.module = 'es2022';
-            tsConfig.compilerOptions.outDir = path_1.default.join(path_1.default.relative(OUT_FOLDER, OUT_RESOURCES_FOLDER), 'vs').replace(/\\/g, '/');
-            write(getDestAbsoluteFilePath(file), JSON.stringify(tsConfig, null, '\t'));
-            continue;
-        }
-        if (/\.ts$/.test(file) || /\.d\.ts$/.test(file) || /\.css$/.test(file) || /\.js$/.test(file) || /\.ttf$/.test(file)) {
-            // Transport the files directly
-            write(getDestAbsoluteFilePath(file), fs_1.default.readFileSync(path_1.default.join(SRC_FOLDER, file)));
-            continue;
-        }
-        console.log(`UNKNOWN FILE: ${file}`);
-    }
-    function walkDirRecursive(dir) {
-        if (dir.charAt(dir.length - 1) !== '/' || dir.charAt(dir.length - 1) !== '\\') {
-            dir += '/';
-        }
-        const result = [];
-        _walkDirRecursive(dir, result, dir.length);
-        return result;
-    }
-    function _walkDirRecursive(dir, result, trimPos) {
-        const files = fs_1.default.readdirSync(dir);
-        for (let i = 0; i < files.length; i++) {
-            const file = path_1.default.join(dir, files[i]);
-            if (fs_1.default.statSync(file).isDirectory()) {
-                _walkDirRecursive(file, result, trimPos);
-            }
-            else {
-                result.push(file.substr(trimPos));
-            }
-        }
-    }
-    function write(absoluteFilePath, contents) {
-        if (/(\.ts$)|(\.js$)/.test(absoluteFilePath)) {
-            contents = toggleComments(contents.toString());
-        }
-        writeFile(absoluteFilePath, contents);
-        function toggleComments(fileContents) {
-            const lines = fileContents.split(/\r\n|\r|\n/);
-            let mode = 0;
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i];
-                if (mode === 0) {
-                    if (/\/\/ ESM-comment-begin/.test(line)) {
-                        mode = 1;
-                        continue;
-                    }
-                    if (/\/\/ ESM-uncomment-begin/.test(line)) {
-                        mode = 2;
-                        continue;
-                    }
-                    continue;
-                }
-                if (mode === 1) {
-                    if (/\/\/ ESM-comment-end/.test(line)) {
-                        mode = 0;
-                        continue;
-                    }
-                    lines[i] = '// ' + line;
-                    continue;
-                }
-                if (mode === 2) {
-                    if (/\/\/ ESM-uncomment-end/.test(line)) {
-                        mode = 0;
-                        continue;
-                    }
-                    lines[i] = line.replace(/^(\s*)\/\/ ?/, function (_, indent) {
-                        return indent;
-                    });
-                }
-            }
-            return lines.join('\n');
-        }
-    }
 }
 function transportCSS(module, enqueue, write) {
     if (!/\.css/.test(module)) {
