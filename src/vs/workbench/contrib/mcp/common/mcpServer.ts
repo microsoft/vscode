@@ -57,6 +57,8 @@ interface IServerCacheEntry {
 	readonly servers: readonly McpServerDefinition.Serialized[];
 }
 
+const toolInvalidCharRe = /[^a-z0-9_-]/gi;
+
 export class McpServerMetadataCache extends Disposable {
 	private didChange = false;
 	private readonly cache = new LRUCache<string, IToolCacheEntry>(128);
@@ -301,6 +303,21 @@ export class McpServer extends Disposable implements IMcpServer {
 		});
 	}
 
+	private normalizeTool(tool: MCP.Tool): MCP.Tool {
+		if (!tool.description) {
+			// Ensure a description is provided for each tool, #243919
+			this._logger.warn(`Tool ${tool.name} does not have a description. Tools must be accurately described to be called`);
+			tool.description = '<empty>';
+		}
+
+		if (toolInvalidCharRe.test(tool.name)) {
+			this._logger.warn(`Tool ${JSON.stringify(tool.name)} is invalid. Tools names may only contain [a-z0-9_-]`);
+			tool.name = tool.name.replace(toolInvalidCharRe, '_');
+		}
+
+		return tool;
+	}
+
 	private populateLiveData(handler: McpServerRequestHandler, store: DisposableStore) {
 		const cts = new CancellationTokenSource();
 		store.add(toDisposable(() => cts.dispose(true)));
@@ -311,15 +328,7 @@ export class McpServer extends Disposable implements IMcpServer {
 			const toolPromise = handler.capabilities.tools ? handler.listTools({}, cts.token) : Promise.resolve([]);
 			const toolPromiseSafe = toolPromise.then(tools => {
 				handler.logger.info(`Discovered ${tools.length} tools`);
-				return tools.map(tool => {
-					if (!tool.description) {
-						// Ensure a description is provided for each tool, #243919
-						handler.logger.warn(`Tool ${tool.name} does not have a description. Tools must be accurately described to be called`);
-						tool.description = '<empty>';
-					}
-
-					return tool;
-				});
+				return tools.map(tool => this.normalizeTool(tool));
 			});
 			this.toolsFromServerPromise.set(new ObservablePromise(toolPromiseSafe), tx);
 
