@@ -4962,8 +4962,19 @@ export class LanguageModelDataPart implements vscode.LanguageModelDataPart {
 	}
 }
 
+/**
+ * Enum for supported image MIME types.
+ */
+export enum ChatImageMimeType {
+	PNG = 'image/png',
+	JPEG = 'image/jpeg',
+	GIF = 'image/gif',
+	WEBP = 'image/webp',
+	BMP = 'image/bmp',
+}
+
 export interface ChatImagePart {
-	mimeType: string;
+	mimeType: ChatImageMimeType;
 	data: VSBuffer;
 }
 
