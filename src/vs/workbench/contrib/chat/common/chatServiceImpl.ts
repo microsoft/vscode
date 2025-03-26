@@ -30,7 +30,7 @@ import { IChatAgent, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, 
 import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from './chatModel.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, IParsedChatRequest, chatAgentLeader, chatSubcommandLeader, getPromptText } from './chatParserTypes.js';
 import { ChatRequestParser } from './chatRequestParser.js';
-import { IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatTransferredSessionData, IChatUserActionEvent } from './chatService.js';
+import { IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChatRequestSubmittedEvent, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatTransferredSessionData, IChatUserActionEvent } from './chatService.js';
 import { ChatServiceTelemetry } from './chatServiceTelemetry.js';
 import { ChatSessionStore, IChatTransfer2 } from './chatSessionStore.js';
 import { IChatSlashCommandService } from './chatSlashCommands.js';
@@ -118,8 +118,8 @@ export class ChatService extends Disposable implements IChatService {
 		return this._transferredSessionData;
 	}
 
-	private readonly _onDidSubmitRequest = this._register(new Emitter<{ chatSessionId: string }>());
-	public readonly onDidSubmitRequest: Event<{ chatSessionId: string }> = this._onDidSubmitRequest.event;
+	private readonly _onDidSubmitRequest = this._register(new Emitter<IChatRequestSubmittedEvent>());
+	public readonly onDidSubmitRequest: Event<IChatRequestSubmittedEvent> = this._onDidSubmitRequest.event;
 
 	private readonly _onDidPerformUserAction = this._register(new Emitter<IChatUserActionEvent>());
 	public readonly onDidPerformUserAction: Event<IChatUserActionEvent> = this._onDidPerformUserAction.event;
@@ -916,7 +916,7 @@ export class ChatService extends Disposable implements IChatService {
 		rawResponsePromise.finally(() => {
 			this._pendingRequests.deleteAndDispose(model.sessionId);
 		});
-		this._onDidSubmitRequest.fire({ chatSessionId: model.sessionId });
+		this._onDidSubmitRequest.fire({ chatSessionId: model.sessionId, chatMode: options?.mode ?? ChatMode.Ask });
 		return {
 			responseCreatedPromise: responseCreated.p,
 			responseCompletePromise: rawResponsePromise,

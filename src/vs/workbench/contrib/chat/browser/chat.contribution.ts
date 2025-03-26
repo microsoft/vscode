@@ -23,6 +23,7 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { PromptsConfig } from '../../../../platform/prompts/common/config.js';
 import { DEFAULT_SOURCE_FOLDER as PROMPT_FILES_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../platform/prompts/common/constants.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
@@ -44,7 +45,7 @@ import { ChatSlashCommandService, IChatSlashCommandService } from '../common/cha
 import { ChatTransferService, IChatTransferService } from '../common/chatTransferService.js';
 import { IChatVariablesService } from '../common/chatVariables.js';
 import { ChatWidgetHistoryService, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
-import { ChatAgentLocation, ChatConfiguration } from '../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatMode } from '../common/constants.js';
 import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } from '../common/ignoredFiles.js';
 import { ILanguageModelsService, LanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelStatsService, LanguageModelStatsService } from '../common/languageModelStats.js';
@@ -387,21 +388,41 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 		@IProductService private readonly productService: IProductService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatEntitlementService private readonly entitlementService: IChatEntitlementService,
+		@IStorageService storageService: IStorageService,
+		@IChatService chatService: IChatService,
 	) {
 		super();
+
+		const hasUsedAgentKey = 'chat.hasUsedAgentMode';
+		let hasUsedAgent = storageService.getBoolean(hasUsedAgentKey, StorageScope.APPLICATION, false);
+		if (!hasUsedAgent) {
+			this._register(Event.once(
+				Event.filter(chatService.onDidSubmitRequest, e => e.chatMode === ChatMode.Agent),
+			)(() => {
+				storageService.store(hasUsedAgentKey, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+				hasUsedAgent = true;
+			}));
+		}
 
 		if (this.productService.quality !== 'stable') {
 			this.registerEnablementSetting();
 		}
 
 		const expDisabledKey = ChatContextKeys.Editing.agentModeDisallowed.bindTo(contextKeyService);
-		experimentService.getTreatment<boolean>('chatAgentEnabled').then(enabled => {
-			if (enabled) {
+		const treatments = Promise.all([
+			experimentService.getTreatment<boolean>('chatAgentEnabled'),
+			experimentService.getTreatment<string>('chatAgentEnabled2'),
+		]);
+
+		// Experiment logic:
+		// - OSS- always enabled
+		// - Insiders- default to enabled, experiment can disable
+		// - Stable- default to disabled, experiment can enable
+		treatments.then(([enabled, enabled2]) => {
+			if (enabled === true || enabled2 === 'enabled' || (enabled2 === 'enabledIfUsedAgent' && hasUsedAgent)) {
 				this.registerEnablementSetting();
 				expDisabledKey.set(false);
-			} else if (this.productService.quality === 'stable' || typeof enabled === 'boolean') {
-				// If undefined treatment, on stable, fall back to disabled.
-				// Other qualities fall back to enabled.
+			} else if (enabled === false || enabled2 === 'disabled' || enabled2 === 'enabledIfUsedAgent' || this.productService.quality === 'stable') {
 				this.deregisterSetting();
 				expDisabledKey.set(true);
 			}

@@ -483,11 +483,16 @@ export interface IChatSendRequestOptions {
 
 export const IChatService = createDecorator<IChatService>('IChatService');
 
+export interface IChatRequestSubmittedEvent {
+	chatSessionId: string;
+	chatMode: ChatMode;
+}
+
 export interface IChatService {
 	_serviceBrand: undefined;
 	transferredSessionData: IChatTransferredSessionData | undefined;
 
-	onDidSubmitRequest: Event<{ chatSessionId: string }>;
+	onDidSubmitRequest: Event<IChatRequestSubmittedEvent>;
 
 	isEnabled(location: ChatAgentLocation): boolean;
 	hasSessions(): boolean;
