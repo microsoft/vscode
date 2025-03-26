@@ -446,7 +446,7 @@ export const commonAuthOptions: Fig.Option[] = [
 	}
 ];
 
-export const tunnelOptions: Fig.Option[] = [
+export const globalTunnelOptions: Fig.Option[] = [
 	{
 		name: '--cli-data-dir',
 		description: 'Directory where CLI metadata should be stored',
@@ -634,29 +634,7 @@ export const codeTunnelSubcommands = [
 				],
 			},
 		],
-		options: tunnelOptions
-	},
-	{
-		name: 'ext',
-		description: 'Manage editor extensions',
-		subcommands: [
-			{
-				name: 'list',
-				description: 'List installed extensions',
-			},
-			{
-				name: 'install',
-				description: 'Install an extension',
-			},
-			{
-				name: 'uninstall',
-				description: 'Uninstall an extension',
-			},
-			{
-				name: 'update',
-				description: 'Update the installed extensions',
-			},
-		],
+		options: globalTunnelOptions
 	},
 	{
 		name: 'status',
@@ -665,7 +643,7 @@ export const codeTunnelSubcommands = [
 	{
 		name: 'version',
 		description: `Changes the version of the editor you're using`,
-		options: tunnelOptions
+		options: globalTunnelOptions
 	},
 	{
 		name: 'serve-web',

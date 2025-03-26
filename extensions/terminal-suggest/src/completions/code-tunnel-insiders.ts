@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { commonOptions, extensionManagementOptions, troubleshootingOptions, tunnelOptions } from './code';
+import { commonOptions, extensionManagementOptions, troubleshootingOptions, globalTunnelOptions } from './code';
 import codeTunnelCompletionSpec from './code-tunnel';
 
 const codeTunnelInsidersCompletionSpec: Fig.Spec = {
@@ -13,7 +13,7 @@ const codeTunnelInsidersCompletionSpec: Fig.Spec = {
 		...commonOptions,
 		...extensionManagementOptions('code-tunnel-insiders'),
 		...troubleshootingOptions('code-tunnel-insiders'),
-		...tunnelOptions
+		...globalTunnelOptions
 	]
 };
 
