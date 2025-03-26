@@ -195,8 +195,8 @@ class ChatEditorOverlayWidget {
 									if (entry) {
 										const progress = entry?.rewriteRatio.read(r);
 										const message = progress === 0
-											? localize('generating', "Generating Edits")
-											: localize('applyingPercentage', "{0}% Applying Edits", Math.round(progress * 100));
+											? localize('generating', "Generating edits")
+											: localize('applyingPercentage', "{0}% Applying edits", Math.round(progress * 100));
 
 										return { message };
 									}
