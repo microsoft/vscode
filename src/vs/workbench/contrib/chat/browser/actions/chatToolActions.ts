@@ -10,6 +10,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -146,7 +147,8 @@ export class AttachToolsAction extends Action2 {
 		const enum BucketOrdinal { Extension, Mcp, Other }
 		type BucketPick = IQuickPickItem & { picked: boolean; ordinal: BucketOrdinal; status?: string; children: ToolPick[]; source: ToolDataSource };
 		type ToolPick = IQuickPickItem & { picked: boolean; tool: IToolData; parent: BucketPick };
-		type MyPick = ToolPick | BucketPick;
+		type AddServerPick = IQuickPickItem & { addServer: true };
+		type MyPick = ToolPick | BucketPick | AddServerPick;
 
 		const defaultBucket: BucketPick = {
 			type: 'item',
@@ -231,7 +233,9 @@ export class AttachToolsAction extends Action2 {
 		const store = new DisposableStore();
 		const picker = store.add(quickPickService.createQuickPick<MyPick>({ useSeparators: true }));
 
-		const picks: (MyPick | IQuickPickSeparator)[] = [];
+		const picks: (MyPick | IQuickPickSeparator)[] = [
+			{ addServer: true, type: 'item', label: localize('addServer', "Add Server..."), description: localize('addServerDescription', "Add a Model Context Protocol Server"), iconClass: ThemeIcon.asClassName(Codicon.add), pickable: false },
+		];
 
 		for (const bucket of Array.from(toolBuckets.values()).sort((a, b) => a.ordinal - b.ordinal)) {
 			picks.push({
@@ -245,8 +249,6 @@ export class AttachToolsAction extends Action2 {
 
 
 		picker.placeholder = localize('placeholder', "Select tools that are available to chat");
-		picker.customButton = true;
-		picker.customLabel = localize('addMcpServer', "Add Server...");
 		picker.canSelectMany = true;
 		picker.keepScrollPosition = true;
 		picker.matchOnDescription = true;
@@ -288,6 +290,12 @@ export class AttachToolsAction extends Action2 {
 				return;
 			}
 
+			if (selectedPicks.some(p => 'addServer' in p)) {
+				commandService.executeCommand(AddConfigurationAction.ID);
+				picker.hide();
+				return;
+			}
+
 			const { added, removed } = diffSets(lastSelectedItems, new Set(selectedPicks));
 
 			for (const item of added) {
@@ -321,12 +329,7 @@ export class AttachToolsAction extends Action2 {
 			_update();
 		}));
 
-		picker.onDidCustom(() => {
-			commandService.executeCommand(AddConfigurationAction.ID);
-			picker.hide();
-		});
-
-		await Promise.race([Event.toPromise(Event.any(picker.onDidAccept, picker.onDidHide, picker.onDidCustom))]);
+		await Promise.race([Event.toPromise(Event.any(picker.onDidAccept, picker.onDidHide))]);
 		telemetryService.publicLog2<SelectedToolData, SelectedToolClassification>('chat/selectedTools', {
 			enabled: widget.input.selectedToolsModel.tools.get().length,
 			total: Iterable.length(toolsService.getTools()),
