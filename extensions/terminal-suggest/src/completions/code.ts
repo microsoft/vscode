@@ -154,76 +154,6 @@ export const commonOptions: Fig.Option[] = [
 	}
 ];
 
-const commonCLIOptions: Fig.Option[] = [
-	{
-		name: '--cli-data-dir',
-		description: 'Directory where CLI metadata should be stored',
-		isRepeatable: true,
-		args: {
-			name: 'cli_data_dir',
-			isOptional: true,
-		},
-	},
-	{
-		name: '--log-to-file',
-		description: 'Log to a file in addition to stdout. Used when running as a service',
-		hidden: true,
-		isRepeatable: true,
-		args: {
-			name: 'log_to_file',
-			isOptional: true,
-			template: 'filepaths',
-		},
-	},
-	{
-		name: '--log',
-		description: 'Log level to use',
-		isRepeatable: true,
-		args: {
-			name: 'log',
-			isOptional: true,
-			suggestions: [
-				'trace',
-				'debug',
-				'info',
-				'warn',
-				'error',
-				'critical',
-				'off',
-			],
-		},
-	},
-	{
-		name: '--telemetry-level',
-		description: 'Sets the initial telemetry level',
-		hidden: true,
-		isRepeatable: true,
-		args: {
-			name: 'telemetry_level',
-			isOptional: true,
-			suggestions: [
-				'off',
-				'crash',
-				'error',
-				'all',
-			],
-		},
-	},
-	{
-		name: '--verbose',
-		description: 'Print verbose output (implies --wait)',
-	},
-	{
-		name: '--disable-telemetry',
-		description: 'Disable telemetry for the current command, even if it was previously accepted as part of the license prompt or specified in \'--telemetry-level\'',
-	},
-	{
-		name: ['-h', '--help'],
-		description: 'Print help',
-	},
-];
-
-
 export const extensionManagementOptions = (cliName: string): Fig.Option[] => [
 	{
 		name: '--extensions-dir',
@@ -485,25 +415,8 @@ export const globalTunnelOptions: Fig.Option[] = [
 	},
 ];
 
-const codeTunnelOptions: Fig.Option[] = [
-	{
-		name: '--install-extension',
-		description: 'Requests that extensions be preloaded and installed on connecting servers',
-		isRepeatable: true,
-		args: {
-			name: 'install_extension',
-			isOptional: true,
-		},
-	},
-	{
-		name: '--server-data-dir',
-		description: 'Specifies the directory that server data is kept in',
-		isRepeatable: true,
-		args: {
-			name: 'server_data_dir',
-			isOptional: true,
-		},
-	},
+
+export const codeTunnelOptions = [
 	{
 		name: '--extensions-dir',
 		description: 'Set the root path for extensions',
@@ -531,61 +444,74 @@ const codeTunnelOptions: Fig.Option[] = [
 			isOptional: true,
 		},
 	},
-	{
-		name: '--random-name',
-		description: 'Randomly name machine for port forwarding service',
-	},
-	{
-		name: '--no-sleep',
-		description: 'Prevents the machine going to sleep while this command runs',
-	},
-	{
-		name: '--accept-server-license-terms',
-		description: 'If set, the user accepts the server license terms and the server will be started without a user prompt',
-	},
-	{
-		name: '--name',
-		description: 'Sets the machine name for port forwarding service',
-		isRepeatable: true,
-		args: {
-			name: 'name',
-			isOptional: true,
-		},
-	},
-	{
-		name: ['-h', '--help'],
-		description: 'Print help',
-	},
-	{
-		name: '--log',
-		description: 'Log level to use',
-		isRepeatable: true,
-		args: {
-			name: 'log',
-			isOptional: true,
-			suggestions: [
-				'trace',
-				'debug',
-				'info',
-				'warn',
-				'error',
-				'critical',
-				'off',
-			],
-		},
-	},
-	{
-		name: '--verbose',
-		description: 'Print verbose output (implies --wait)',
-	},
-	{
-		name: '--cli-data-dir',
-		description: 'Directory where CLI metadata should be stored',
-		args: {
-			name: 'cli_data_dir',
-		},
-	},
 ];
+
+export const extTunnelSubcommand = {
+	name: 'ext',
+	description: 'Manage editor extensions',
+	subcommands: [
+		{
+			name: 'list',
+			description: 'List installed extensions',
+			options: [...globalTunnelOptions, ...tunnelHelpOptions,
+			{
+				name: '--category',
+				description: 'Filters installed extensions by provided category, when using --list-extensions',
+				isRepeatable: true,
+				args: {
+					name: 'category',
+					isOptional: true,
+				},
+			},
+			{
+				name: '--show-versions',
+				description: 'Show versions of installed extensions, when using --list-extensions',
+			},
+			]
+		},
+		{
+			name: 'install',
+			description: 'Install an extension',
+			options: [...globalTunnelOptions, ...tunnelHelpOptions,
+			{
+				name: '--pre-release',
+				description: 'Installs the pre-release version of the extension',
+			},
+			{
+				name: '--donot-include-pack-and-dependencies',
+				description: `Don't include installing pack and dependencies of the extension`,
+			},
+			{
+				name: '--force',
+				description: `Update to the latest version of the extension if it's already installed`,
+			},
+			],
+			args: {
+				name: 'ext-id | id',
+				isVariadic: true,
+				isOptional: true,
+			},
+		},
+		{
+			name: 'uninstall',
+			description: 'Uninstall an extension',
+			options: [...globalTunnelOptions, ...tunnelHelpOptions],
+			args: {
+				name: 'ext-id | id',
+				isVariadic: true,
+				isOptional: true,
+			},
+		},
+		{
+			name: 'update',
+			description: 'Update the installed extensions',
+			options: [...globalTunnelOptions, ...tunnelHelpOptions]
+		},
+	],
+	...globalTunnelOptions,
+	...codeTunnelOptions
+};
+
 
 export const codeTunnelSubcommands = [
 	{
@@ -681,18 +607,18 @@ export const codeTunnelSubcommands = [
 								name: '--accept-server-license-terms',
 								description: 'If set, the user accepts the server license terms and the server will be started without a user prompt',
 							},
-							...commonCLIOptions,
+							...globalTunnelOptions, ...tunnelHelpOptions
 						],
 					},
 					{
 						name: 'uninstall',
 						description: 'Uninstalls and stops the tunnel service',
-						options: commonCLIOptions,
+						options: [...globalTunnelOptions, ...tunnelHelpOptions],
 					},
 					{
 						name: 'log',
 						description: 'Shows logs for the running service',
-						options: commonCLIOptions,
+						options: [...globalTunnelOptions, ...tunnelHelpOptions],
 					},
 					{
 						name: 'help',
@@ -703,10 +629,9 @@ export const codeTunnelSubcommands = [
 							{ name: 'log', description: 'Shows logs for the running service' },
 							{ name: 'help', description: 'Print this message or the help of the given subcommand(s)' },
 						],
-						options: commonCLIOptions
 					},
 				],
-				options: commonCLIOptions,
+				options: [...globalTunnelOptions, ...tunnelHelpOptions],
 			},
 			{
 				name: 'help',
@@ -739,7 +664,107 @@ export const codeTunnelSubcommands = [
 				],
 			},
 		],
-		options: codeTunnelOptions,
+		options: [
+			{
+				name: '--install-extension',
+				description: 'Requests that extensions be preloaded and installed on connecting servers',
+				isRepeatable: true,
+				args: {
+					name: 'install_extension',
+					isOptional: true,
+				},
+			},
+			{
+				name: '--server-data-dir',
+				description: 'Specifies the directory that server data is kept in',
+				isRepeatable: true,
+				args: {
+					name: 'server_data_dir',
+					isOptional: true,
+				},
+			},
+			{
+				name: '--extensions-dir',
+				description: 'Set the root path for extensions',
+				isRepeatable: true,
+				args: {
+					name: 'extensions_dir',
+					isOptional: true,
+				},
+			},
+			{
+				name: '--user-data-dir',
+				description: 'Specifies the directory that user data is kept in. Can be used to open multiple distinct instances of the editor',
+				isRepeatable: true,
+				args: {
+					name: 'user_data_dir',
+					isOptional: true,
+				},
+			},
+			{
+				name: '--use-version',
+				description: 'Sets the editor version to use for this command. The preferred version can be persisted with `code version use <version>`. Can be \'stable\', \'insiders\', a version number, or an absolute path to an existing install',
+				isRepeatable: true,
+				args: {
+					name: 'use_version',
+					isOptional: true,
+				},
+			},
+			{
+				name: '--random-name',
+				description: 'Randomly name machine for port forwarding service',
+			},
+			{
+				name: '--no-sleep',
+				description: 'Prevents the machine going to sleep while this command runs',
+			},
+			{
+				name: '--accept-server-license-terms',
+				description: 'If set, the user accepts the server license terms and the server will be started without a user prompt',
+			},
+			{
+				name: '--name',
+				description: 'Sets the machine name for port forwarding service',
+				isRepeatable: true,
+				args: {
+					name: 'name',
+					isOptional: true,
+				},
+			},
+			{
+				name: ['-h', '--help'],
+				description: 'Print help',
+			},
+			{
+				name: '--log',
+				description: 'Log level to use',
+				isRepeatable: true,
+				args: {
+					name: 'log',
+					isOptional: true,
+					suggestions: [
+						'trace',
+						'debug',
+						'info',
+						'warn',
+						'error',
+						'critical',
+						'off',
+					],
+				},
+			},
+			{
+				name: '--verbose',
+				description: 'Print verbose output (implies --wait)',
+			},
+			{
+				name: '--cli-data-dir',
+				description: 'Directory where CLI metadata should be stored',
+				args: {
+					name: 'cli_data_dir',
+				},
+			},
+		],
 	},
 	{
 		name: 'status',
@@ -824,7 +849,7 @@ export const codeTunnelSubcommands = [
 				name: '--accept-server-license-terms',
 				description: 'If set, the user accepts the server license terms and the server will be started without a user prompt',
 			},
-			...commonCLIOptions,
+			...globalTunnelOptions, ...tunnelHelpOptions,
 		]
 	},
 	{
@@ -896,30 +921,7 @@ export const codeTunnelSubcommands = [
 					}
 				],
 			},
-			{
-				name: 'ext',
-				description: 'Manage editor extensions',
-				subcommands: [
-					{
-						name: 'list',
-						description: 'List installed extensions',
-					},
-					{
-						name: 'install',
-						description: 'Install an extension',
-					},
-					{
-						name: 'uninstall',
-						description: 'Uninstall an extension',
-						options: commonCLIOptions
-					},
-					{
-						name: 'update',
-						description: 'Update the installed extensions',
-						options: commonCLIOptions
-					},
-				],
-			},
+			extTunnelSubcommand,
 			{
 				name: 'status',
 				description: 'Print process usage and diagnostics information',

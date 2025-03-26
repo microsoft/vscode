@@ -2,103 +2,77 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import code, { codeTunnelSubcommands, commonOptions, extensionManagementOptions, troubleshootingOptions, globalTunnelOptions, tunnelHelpOptions } from './code';
+import code, { codeTunnelSubcommands, commonOptions, extensionManagementOptions, troubleshootingOptions, globalTunnelOptions, extTunnelSubcommand, codeTunnelOptions } from './code';
 
-export const codeTunnelOptions = [
+
+export const codeTunnelSpecOptions: Fig.Option[] = [
 	{
-		name: '--extensions-dir',
-		description: 'Set the root path for extensions',
+		name: '--cli-data-dir',
+		description: 'Directory where CLI metadata should be stored',
 		isRepeatable: true,
 		args: {
-			name: 'extensions_dir',
+			name: 'cli_data_dir',
 			isOptional: true,
 		},
 	},
 	{
-		name: '--user-data-dir',
-		description: 'Specifies the directory that user data is kept in. Can be used to open multiple distinct instances of the editor',
+		name: '--log-to-file',
+		description: 'Log to a file in addition to stdout. Used when running as a service',
+		hidden: true,
 		isRepeatable: true,
 		args: {
-			name: 'user_data_dir',
+			name: 'log_to_file',
 			isOptional: true,
+			template: 'filepaths',
 		},
 	},
 	{
-		name: '--use-version',
-		description: 'Sets the editor version to use for this command. The preferred version can be persisted with `code version use <version>`. Can be \'stable\', \'insiders\', a version number, or an absolute path to an existing install',
+		name: '--log',
+		description: 'Log level to use',
 		isRepeatable: true,
 		args: {
-			name: 'use_version',
+			name: 'log',
 			isOptional: true,
+			suggestions: [
+				'trace',
+				'debug',
+				'info',
+				'warn',
+				'error',
+				'critical',
+				'off',
+			],
 		},
+	},
+	{
+		name: '--telemetry-level',
+		description: 'Sets the initial telemetry level',
+		hidden: true,
+		isRepeatable: true,
+		args: {
+			name: 'telemetry_level',
+			isOptional: true,
+			suggestions: [
+				'off',
+				'crash',
+				'error',
+				'all',
+			],
+		},
+	},
+	{
+		name: '--verbose',
+		description: 'Print verbose output (implies --wait)',
+	},
+	{
+		name: '--disable-telemetry',
+		description: 'Disable telemetry for the current command, even if it was previously accepted as part of the license prompt or specified in \'--telemetry-level\'',
+	},
+	{
+		name: ['-h', '--help'],
+		description: 'Print help',
 	},
 ];
-
-export const extTunnelSubcommand = {
-	name: 'ext',
-	description: 'Manage editor extensions',
-	subcommands: [
-		{
-			name: 'list',
-			description: 'List installed extensions',
-			options: [...globalTunnelOptions, ...tunnelHelpOptions,
-			{
-				name: '--category',
-				description: 'Filters installed extensions by provided category, when using --list-extensions',
-				isRepeatable: true,
-				args: {
-					name: 'category',
-					isOptional: true,
-				},
-			},
-			{
-				name: '--show-versions',
-				description: 'Show versions of installed extensions, when using --list-extensions',
-			},
-			]
-		},
-		{
-			name: 'install',
-			description: 'Install an extension',
-			options: [...globalTunnelOptions, ...tunnelHelpOptions,
-			{
-				name: '--pre-release',
-				description: 'Installs the pre-release version of the extension',
-			},
-			{
-				name: '--donot-include-pack-and-dependencies',
-				description: `Don't include installing pack and dependencies of the extension`,
-			},
-			{
-				name: '--force',
-				description: `Update to the latest version of the extension if it's already installed`,
-			},
-			],
-			args: {
-				name: 'ext-id | id',
-				isVariadic: true,
-				isOptional: true,
-			},
-		},
-		{
-			name: 'uninstall',
-			description: 'Uninstall an extension',
-			options: [...globalTunnelOptions, ...tunnelHelpOptions],
-			args: {
-				name: 'ext-id | id',
-				isVariadic: true,
-				isOptional: true,
-			},
-		},
-		{
-			name: 'update',
-			description: 'Update the installed extensions',
-			options: [...globalTunnelOptions, ...tunnelHelpOptions]
-		},
-	],
-	...globalTunnelOptions,
-	...codeTunnelOptions
-};
 
 const codeTunnelCompletionSpec: Fig.Spec = {
 	...code,
