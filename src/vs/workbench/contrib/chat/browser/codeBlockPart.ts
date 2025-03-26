@@ -142,6 +142,7 @@ export interface ICodeBlockRenderOptions {
 	verticalPadding?: number;
 	reserveWidth?: number;
 	editorOptions?: IEditorOptions;
+	maxHeightInLines?: number;
 }
 
 const defaultCodeblockPadding = 10;
@@ -366,9 +367,15 @@ export class CodeBlockPart extends Disposable {
 
 	layout(width: number): void {
 		const contentHeight = this.getContentHeight();
+
+		let height = contentHeight;
+		if (this.currentCodeBlockData?.renderOptions?.maxHeightInLines) {
+			height = Math.min(contentHeight, this.editor.getOption(EditorOption.lineHeight) * this.currentCodeBlockData?.renderOptions?.maxHeightInLines);
+		}
+
 		const editorBorder = 2;
 		width = width - editorBorder - (this.currentCodeBlockData?.renderOptions?.reserveWidth ?? 0);
-		this.editor.layout({ width, height: contentHeight });
+		this.editor.layout({ width, height });
 		this.updatePaddingForLayout();
 	}
 
