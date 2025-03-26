@@ -188,15 +188,15 @@ class ChatEditorOverlayWidget {
 								if (response) {
 
 									if (response?.isPaused.read(r)) {
-										return { message: localize('paused', "Edits Paused"), paused: true };
+										return { message: localize('paused', "Pausing edits"), paused: true };
 									}
 
 									const entry = that._entry.read(r);
 									if (entry) {
 										const progress = entry?.rewriteRatio.read(r);
 										const message = progress === 0
-											? localize('generating', "Generating Edits")
-											: localize('applyingPercentage', "{0}% Applying Edits", Math.round(progress * 100));
+											? localize('generating', "Generating edits")
+											: localize('applyingPercentage', "{0}% Applying edits", Math.round(progress * 100));
 
 										return { message };
 									}
