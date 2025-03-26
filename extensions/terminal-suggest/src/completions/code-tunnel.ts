@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import code, { codeTunnelSubcommands, commonOptions, extensionManagementOptions, troubleshootingOptions, globalTunnelOptions, codeTunnelOptions, commonCLIOptions, tunnelHelpOptions } from './code';
+import code, { codeTunnelSubcommands, commonOptions, extensionManagementOptions, troubleshootingOptions, globalTunnelOptions, codeTunnelOptions, tunnelHelpOptions } from './code';
 
 export const extTunnelSubcommand = {
 	name: 'ext',
