@@ -78,9 +78,10 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 	private readonly _layout = derived(this, reader => {
 		this._renderTextEffect.read(reader);
 		const widgetStart = this._start.read(reader);
-		const widgetEnd = this._end.read(reader);//
+		const widgetEnd = this._end.read(reader);
 
-		if (!widgetStart || !widgetEnd || widgetStart.x > widgetEnd.x) {
+		// TODO@hediet better about widgetStart and widgetEnd in a single transaction!
+		if (!widgetStart || !widgetEnd || widgetStart.x > widgetEnd.x || widgetStart.y > widgetEnd.y) {
 			return undefined;
 		}
 
