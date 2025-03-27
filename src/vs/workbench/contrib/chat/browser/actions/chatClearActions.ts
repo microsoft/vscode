@@ -26,7 +26,7 @@ import { EditingSessionAction } from '../chatEditing/chatEditingActions.js';
 import { ctxIsGlobalEditingSession } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
-import { CHAT_CATEGORY, getEditsViewId, handleCurrentEditingSession, IChatViewOpenOptions } from './chatActions.js';
+import { CHAT_CATEGORY, handleCurrentEditingSession, IChatViewOpenOptions } from './chatActions.js';
 import { clearChatEditor } from './chatClear.js';
 
 export const ACTION_ID_NEW_CHAT = `workbench.action.chat.newChat`;
@@ -197,7 +197,7 @@ export function registerNewChatActions() {
 		}
 	});
 
-	registerAction2(class GlobalEditsDoneAction extends Action2 {
+	registerAction2(class GlobalEditsDoneAction extends EditingSessionAction {
 		constructor() {
 			super({
 				id: ChatDoneActionId,
@@ -214,14 +214,12 @@ export function registerNewChatActions() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor, ...args: any[]) {
+		override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, widget: IChatWidget, ...args: any[]) {
 			const context = args[0];
 			const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
-			const widgetService = accessor.get(IChatWidgetService);
 			if (isChatViewTitleActionContext(context)) {
 				// Is running in the Chat view title
 				announceChatCleared(accessibilitySignalService);
-				const widget = widgetService.getWidgetBySessionId(context.sessionId);
 				if (widget) {
 					widget.clear();
 					widget.attachmentModel.clear();
@@ -229,16 +227,6 @@ export function registerNewChatActions() {
 				}
 			} else {
 				// Is running from f1 or keybinding
-				const viewsService = accessor.get(IViewsService);
-
-				const viewId = getEditsViewId(accessor);
-				const chatView = await viewsService.openView<ChatViewPane>(viewId);
-				if (!chatView) {
-					return;
-				}
-
-				const widget = chatView.widget;
-
 				announceChatCleared(accessibilitySignalService);
 				widget.clear();
 				widget.attachmentModel.clear();
