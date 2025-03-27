@@ -1369,14 +1369,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			this.setPanelHidden(true, true);
 			this.setAuxiliaryBarHidden(true, true);
-			this.setSideBarHidden(true, true);
+			this.setSideBarHidden(true);
 
 			if (config.hideActivityBar) {
-				this.setActivityBarHidden(true, true);
+				this.setActivityBarHidden(true);
 			}
 
 			if (config.hideStatusBar) {
-				this.setStatusBarHidden(true, true);
+				this.setStatusBarHidden(true);
 			}
 
 			if (config.hideLineNumbers) {
@@ -1401,13 +1401,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				// Activity Bar
 				if (e.affectsConfiguration(ZenModeSettings.HIDE_ACTIVITYBAR)) {
 					const zenModeHideActivityBar = this.configurationService.getValue<boolean>(ZenModeSettings.HIDE_ACTIVITYBAR);
-					this.setActivityBarHidden(zenModeHideActivityBar, true);
+					this.setActivityBarHidden(zenModeHideActivityBar);
 				}
 
 				// Status Bar
 				if (e.affectsConfiguration(ZenModeSettings.HIDE_STATUSBAR)) {
 					const zenModeHideStatusBar = this.configurationService.getValue<boolean>(ZenModeSettings.HIDE_STATUSBAR);
-					this.setStatusBarHidden(zenModeHideStatusBar, true);
+					this.setStatusBarHidden(zenModeHideStatusBar);
 				}
 
 				// Center Layout
@@ -1450,15 +1450,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 
 			if (zenModeExitInfo.wasVisible.sideBar) {
-				this.setSideBarHidden(false, true);
+				this.setSideBarHidden(false);
 			}
 
 			if (!this.stateModel.getRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN, true)) {
-				this.setActivityBarHidden(false, true);
+				this.setActivityBarHidden(false);
 			}
 
 			if (!this.stateModel.getRuntimeValue(LayoutStateKeys.STATUSBAR_HIDDEN, true)) {
-				this.setStatusBarHidden(false, true);
+				this.setStatusBarHidden(false);
 			}
 
 			if (zenModeExitInfo.transitionedToCenteredEditorLayout) {
@@ -1497,7 +1497,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._onDidChangeZenMode.fire(this.isZenModeActive());
 	}
 
-	private setStatusBarHidden(hidden: boolean, skipLayout?: boolean): void {
+	private setStatusBarHidden(hidden: boolean): void {
 		this.stateModel.setRuntimeValue(LayoutStateKeys.STATUSBAR_HIDDEN, hidden);
 
 		// Adjust CSS
@@ -1557,13 +1557,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		for (const part of [titleBar, editorPart, activityBar, panelPart, sideBar, statusBar, auxiliaryBarPart, bannerPart]) {
 			this._register(part.onDidVisibilityChange((visible) => {
 				if (part === sideBar) {
-					this.setSideBarHidden(!visible, true);
+					this.setSideBarHidden(!visible);
 				} else if (part === panelPart) {
 					this.setPanelHidden(!visible, true);
 				} else if (part === auxiliaryBarPart) {
 					this.setAuxiliaryBarHidden(!visible, true);
 				} else if (part === editorPart) {
-					this.setEditorHidden(!visible, true);
+					this.setEditorHidden(!visible);
 				}
 				this._onDidChangePartVisibility.fire();
 				this.handleContainerDidLayout(this.mainContainer, this._mainContainerDimension);
@@ -1741,7 +1741,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
-	private setActivityBarHidden(hidden: boolean, skipLayout?: boolean): void {
+	private setActivityBarHidden(hidden: boolean): void {
 		this.stateModel.setRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN, hidden);
 		this.workbenchGrid.setViewVisible(this.activityBarPartView, !hidden);
 	}
@@ -1750,7 +1750,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.workbenchGrid.setViewVisible(this.bannerPartView, !hidden);
 	}
 
-	private setEditorHidden(hidden: boolean, skipLayout?: boolean): void {
+	private setEditorHidden(hidden: boolean): void {
 		this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, hidden);
 
 		// Adjust CSS
@@ -1780,7 +1780,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		]);
 	}
 
-	private setSideBarHidden(hidden: boolean, skipLayout?: boolean): void {
+	private setSideBarHidden(hidden: boolean): void {
 		this.stateModel.setRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN, hidden);
 
 		// Adjust CSS
@@ -1885,7 +1885,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
-	setPanelAlignment(alignment: PanelAlignment, skipLayout?: boolean): void {
+	setPanelAlignment(alignment: PanelAlignment): void {
 
 		// Panel alignment only applies to a panel in the top/bottom position
 		if (!isHorizontal(this.getPanelPosition())) {
