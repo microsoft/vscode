@@ -150,12 +150,13 @@ export class InlineCompletionsModel extends Disposable {
 			changeSummary.didUndo = ctx.didChange(this._textModelVersionId) && !!ctx.change?.isUndoing;
 			return true;
 		}
-	}, reader => {
+	}, (reader, changeSummary) => {
 		const versionId = this._textModelVersionId.read(reader);
 		if (versionId !== null
 			&& this._lastAcceptedInlineCompletionInfo
 			&& this._lastAcceptedInlineCompletionInfo.textModelVersionIdAfter === versionId - 1
 			&& this._lastAcceptedInlineCompletionInfo.inlineCompletion.isInlineEdit
+			&& changeSummary.didUndo
 		) {
 			this._lastAcceptedInlineCompletionInfo = undefined;
 			return true;
