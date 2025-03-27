@@ -490,7 +490,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 	}
 
 	private renderInputBox(container: HTMLElement, editableData: IEditableData): IDisposable {
-		// Required for FireFox. The blur event doesn't fire on FireFox when you just mash the "+" button to forward a port.
+		// Required for Firefox. The blur event doesn't fire on Firefox when you just mash the "+" button to forward a port.
 		if (this.inputDone) {
 			this.inputDone(false, false);
 			this.inputDone = undefined;
