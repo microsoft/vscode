@@ -111,7 +111,7 @@ const completionSpec: Fig.Subcommand = {
 							{
 								name: "build",
 								description:
-									"Compile project from Typescript to Javascript. Also compiles the frontend assets if using webpack encore",
+									"Compile project from Typescript to JavaScript. Also compiles the frontend assets if using webpack encore",
 								options: [
 									{
 										name: ["-prod", "--production"],

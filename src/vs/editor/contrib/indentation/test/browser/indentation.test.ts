@@ -138,7 +138,7 @@ export function registerTokenizationSupport(instantiationService: TestInstantiat
 	return TokenizationRegistry.register(languageId, tokenizationSupport);
 }
 
-suite('Change Indentation to Spaces - TypeScript/Javascript', () => {
+suite('Change Indentation to Spaces - TypeScript/JavaScript', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -227,7 +227,7 @@ suite('Change Indentation to Spaces - TypeScript/Javascript', () => {
 	});
 });
 
-suite('Change Indentation to Tabs -  TypeScript/Javascript', () => {
+suite('Change Indentation to Tabs -  TypeScript/JavaScript', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 

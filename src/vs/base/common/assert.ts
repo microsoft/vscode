@@ -6,7 +6,7 @@
 import { BugIndicatingError, onUnexpectedError } from './errors.js';
 
 /**
- * Throws an error with the provided message if the provided value does not evaluate to a true Javascript value.
+ * Throws an error with the provided message if the provided value does not evaluate to a true JavaScript value.
  *
  * @deprecated Use `assert(...)` instead.
  * This method is usually used like this:
