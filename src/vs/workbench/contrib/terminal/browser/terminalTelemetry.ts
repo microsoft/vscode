@@ -101,6 +101,7 @@ const shellTypeExecutableAllowList: Set<string> = new Set([
 
 // Dynamic executables that map to a single type
 const shellTypeExecutableRegexAllowList: { regex: RegExp; type: AllowedShellType }[] = [
+	{ regex: /^(?:pwsh|powershell)(?:-preview)?$/i, type: AllowedShellType.Pwsh },
 	{ regex: /^python(?:\d+(?:\.\d+)?)?$/i, type: AllowedShellType.Python },
 ];
 
