@@ -912,7 +912,7 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 				this.onDidChangeActiveEmitter.fire(focusedItems as T[]);
 			}));
 			this.visibleDisposables.add(this.ui.list.onDidChangeSelection(({ items: selectedItems, event }) => {
-				if (this.canSelectMany) {
+				if (this.canSelectMany && !selectedItems.some(i => i.pickable === false)) {
 					if (selectedItems.length) {
 						this.ui.list.setSelectedElements([]);
 					}

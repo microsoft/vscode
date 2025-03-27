@@ -78,7 +78,7 @@ export class ChatEditor extends EditorPane {
 							return this.chatService.isEditingLocation(ChatAgentLocation.Panel);
 						},
 						referencesExpandedWhenEmptyResponse: !this.chatService.isEditingLocation(ChatAgentLocation.Panel),
-						progressMessageAtBottomOfResponse: this.chatService.isEditingLocation(ChatAgentLocation.Panel),
+						progressMessageAtBottomOfResponse: mode => mode !== ChatMode.Ask,
 					},
 					enableImplicitContext: true,
 					enableWorkingSet: this.chatService.isEditingLocation(ChatAgentLocation.Panel) ? 'explicit' : undefined,

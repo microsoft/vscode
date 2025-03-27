@@ -196,7 +196,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 			mouseSupport: false,
 			multipleSelectionSupport: false,
 			accessibilityProvider: {
-				getRole: () => 'option',
+				getRole: () => 'listitem',
 				getWidgetAriaLabel: () => localize('suggest', "Suggest"),
 				getWidgetRole: () => 'listbox',
 				getAriaLabel: (item: SimpleCompletionItem) => {

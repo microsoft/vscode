@@ -10,15 +10,19 @@ import { Event } from '../../../../../base/common/event.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
+import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
+import { AddConfigurationAction } from '../../../mcp/browser/mcpCommands.js';
 import { IMcpService, IMcpServer, McpConnectionState } from '../../../mcp/common/mcpTypes.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatToolInvocation } from '../../common/chatService.js';
@@ -88,12 +92,12 @@ export class AttachToolsAction extends Action2 {
 			f1: false,
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(
-				ContextKeyExpr.or(ChatContextKeys.Tools.toolsCount.greater(0)),
+				ContextKeyExpr.or(ChatContextKeys.Tools.pickableToolsCount.greater(0)),
 				ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent)
 			),
 			menu: {
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.or(ChatContextKeys.Tools.toolsCount.greater(0)),
+					ContextKeyExpr.or(ChatContextKeys.Tools.pickableToolsCount.greater(0)),
 					ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent)
 				),
 				id: MenuId.ChatInputAttachmentToolbar,
@@ -116,6 +120,8 @@ export class AttachToolsAction extends Action2 {
 		const extensionService = accessor.get(IExtensionService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const telemetryService = accessor.get(ITelemetryService);
+		const commandService = accessor.get(ICommandService);
+		const extensionWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 
 		let widget = chatWidgetService.lastFocusedWidget;
 		if (!widget) {
@@ -143,7 +149,8 @@ export class AttachToolsAction extends Action2 {
 		const enum BucketOrdinal { Extension, Mcp, Other }
 		type BucketPick = IQuickPickItem & { picked: boolean; ordinal: BucketOrdinal; status?: string; children: ToolPick[]; source: ToolDataSource };
 		type ToolPick = IQuickPickItem & { picked: boolean; tool: IToolData; parent: BucketPick };
-		type MyPick = ToolPick | BucketPick;
+		type AddPick = IQuickPickItem & { add: 'server' | 'ext'; pickable: false };
+		type MyPick = ToolPick | BucketPick | AddPick;
 
 		const defaultBucket: BucketPick = {
 			type: 'item',
@@ -158,7 +165,7 @@ export class AttachToolsAction extends Action2 {
 		const toolBuckets = new Map<string, BucketPick>();
 
 		for (const tool of toolsService.getTools()) {
-			if (!tool.canBeReferencedInPrompt) {
+			if (!tool.supportsToolPicker) {
 				continue;
 			}
 
@@ -228,7 +235,10 @@ export class AttachToolsAction extends Action2 {
 		const store = new DisposableStore();
 		const picker = store.add(quickPickService.createQuickPick<MyPick>({ useSeparators: true }));
 
-		const picks: (MyPick | IQuickPickSeparator)[] = [];
+		const picks: (MyPick | IQuickPickSeparator)[] = [
+			{ add: 'server', type: 'item', label: localize('addServer', "Add MCP Server..."), iconClass: ThemeIcon.asClassName(Codicon.add), pickable: false },
+			{ add: 'ext', type: 'item', label: localize('addExtension', "Install Extension..."), iconClass: ThemeIcon.asClassName(Codicon.add), pickable: false },
+		];
 
 		for (const bucket of Array.from(toolBuckets.values()).sort((a, b) => a.ordinal - b.ordinal)) {
 			picks.push({
@@ -280,6 +290,19 @@ export class AttachToolsAction extends Action2 {
 
 		store.add(picker.onDidChangeSelection(selectedPicks => {
 			if (ignoreEvent) {
+				return;
+			}
+
+			const addPick = selectedPicks.find(p => 'add' in p);
+			if (addPick) {
+				if (addPick.add === 'ext') {
+					extensionWorkbenchService.openSearch('@tag:language-model-tools');
+				} else if (addPick.add === 'server') {
+					commandService.executeCommand(AddConfigurationAction.ID);
+				} else {
+					assertNever(addPick.add);
+				}
+				picker.hide();
 				return;
 			}
 

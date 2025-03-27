@@ -53,7 +53,7 @@ export namespace ChatContextKeys {
 	export const Setup = {
 		hidden: new RawContextKey<boolean>('chatSetupHidden', false, true), 		// True when chat setup is explicitly hidden.
 		installed: new RawContextKey<boolean>('chatSetupInstalled', false, true),  	// True when the chat extension is installed.
-		fromDialog: ContextKeyExpr.has('config.chat.experimental.setupFromDialog'),
+		fromDialog: ContextKeyExpr.has('config.chat.setupFromDialog'),
 	};
 
 	export const Entitlement = {
@@ -91,7 +91,8 @@ export namespace ChatContextKeys {
 	};
 
 	export const Tools = {
-		toolsCount: new RawContextKey<number>('toolsCount', 0, { type: 'number', description: localize('toolsCount', "The count of tools available in the chat.") })
+		toolsCount: new RawContextKey<number>('toolsCount', 0, { type: 'number', description: localize('toolsCount', "The count of tools available in the chat.") }),
+		pickableToolsCount: new RawContextKey<number>('pickableToolsCount', 0, { type: 'number', description: localize('pickableToolsCount', "The count of tools available in the chat tools picker.") })
 	};
 }
 

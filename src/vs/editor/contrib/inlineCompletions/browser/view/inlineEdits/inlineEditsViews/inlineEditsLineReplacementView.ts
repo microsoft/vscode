@@ -253,6 +253,9 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 							fontSize: this._editor.getOption(EditorOption.fontSize),
 							fontWeight: this._editor.getOption(EditorOption.fontWeight),
 							pointerEvents: 'none',
+							whiteSpace: 'nowrap',
+							borderRadius: '4px',
+							overflow: 'hidden',
 						}
 					}, [...modifiedLineElements.lines]),
 				])

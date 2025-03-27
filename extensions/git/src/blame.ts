@@ -248,7 +248,6 @@ export class GitBlameController {
 
 		const markdownString = new MarkdownString();
 		markdownString.isTrusted = true;
-		markdownString.supportHtml = true;
 		markdownString.supportThemeIcons = true;
 
 		// Author, date

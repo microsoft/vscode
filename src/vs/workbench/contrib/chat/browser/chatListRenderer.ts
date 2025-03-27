@@ -247,15 +247,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	layout(width: number): void {
-		this._currentLayoutWidth = width - 40; // padding
-		for (const editor of this._editorPool.inUse()) {
-			editor.layout(this._currentLayoutWidth);
-		}
-		for (const toolEditor of this._toolEditorPool.inUse()) {
-			toolEditor.layout(this._currentLayoutWidth);
-		}
-		for (const diffEditor of this._diffEditorPool.inUse()) {
-			diffEditor.layout(this._currentLayoutWidth);
+		const newWidth = width - 40; // padding
+		if (newWidth !== this._currentLayoutWidth) {
+			this._currentLayoutWidth = newWidth;
+			for (const editor of this._editorPool.inUse()) {
+				editor.layout(this._currentLayoutWidth);
+			}
+			for (const toolEditor of this._toolEditorPool.inUse()) {
+				toolEditor.layout(this._currentLayoutWidth);
+			}
+			for (const diffEditor of this._diffEditorPool.inUse()) {
+				diffEditor.layout(this._currentLayoutWidth);
+			}
 		}
 	}
 
@@ -295,9 +298,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		username.tabIndex = 0;
 		const detailContainer = dom.append(detailContainerParent ?? user, $('span.detail-container'));
 		const detail = dom.append(detailContainer, $('span.detail'));
-		if (!checkModeOption(this.delegate.currentChatMode(), this.rendererOptions.progressMessageAtBottomOfResponse)) {
-			dom.append(detailContainer, $('span.chat-animated-ellipsis'));
-		}
+		dom.append(detailContainer, $('span.chat-animated-ellipsis'));
 		const value = dom.append(valueParent, $('.value'));
 		const elementDisposables = new DisposableStore();
 
@@ -405,7 +406,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.rowContainer.classList.toggle('editing-session', location && this.chatService.isEditingLocation(location));
 		templateData.rowContainer.classList.toggle('interactive-request', isRequestVM(element));
 		templateData.rowContainer.classList.toggle('interactive-response', isResponseVM(element));
-		templateData.rowContainer.classList.toggle('show-detail-progress', isResponseVM(element) && !element.isComplete && !element.progressMessages.length && !element.model.isPaused.get());
+		const progressMessageAtBottomOfResponse = checkModeOption(this.delegate.currentChatMode(), this.rendererOptions.progressMessageAtBottomOfResponse);
+		templateData.rowContainer.classList.toggle('show-detail-progress', isResponseVM(element) && !element.isComplete && !element.progressMessages.length && !element.model.isPaused.get() && !progressMessageAtBottomOfResponse);
 		templateData.username.textContent = element.username;
 		if (!this.rendererOptions.noHeader) {
 			this.renderAvatar(element, templateData);
@@ -837,7 +839,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			!lastPart ||
 			lastPart.kind === 'references' ||
 			(lastPart.kind === 'toolInvocation' && (lastPart.isComplete || lastPart.presentation === 'hidden')) ||
-			(lastPart.kind === 'textEditGroup' && lastPart.done && !partsToRender.some(part => part.kind === 'toolInvocation' && !part.isComplete))) {
+			((lastPart.kind === 'textEditGroup' || lastPart.kind === 'notebookEditGroup') && lastPart.done && !partsToRender.some(part => part.kind === 'toolInvocation' && !part.isComplete))) {
 			return true;
 		}
 

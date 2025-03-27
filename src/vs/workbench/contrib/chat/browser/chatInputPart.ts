@@ -77,7 +77,7 @@ import { IChatFollowup, IChatService } from '../common/chatService.js';
 import { IChatVariablesService } from '../common/chatVariables.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { ChatInputHistoryMaxEntries, IChatHistoryEntry, IChatInputState, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatMode } from '../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatMode, validateChatMode } from '../common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { CancelAction, ChatEditingSessionSubmitAction, ChatSubmitAction, ChatSwitchToNextModelActionId, IChatExecuteActionContext, IToggleChatModeArgs, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
 import { AttachToolsAction } from './actions/chatToolActions.js';
@@ -465,6 +465,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 
+		mode = validateChatMode(mode) ?? ChatMode.Ask;
 		if (mode === ChatMode.Agent && !this.agentService.hasToolsAgent) {
 			mode = ChatMode.Edit;
 		}
@@ -1033,6 +1034,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this._onDidChangeHeight.fire();
 			}
 		}));
+
+		this._register(this.selectedToolsModel.toolsActionItemViewItemProvider.onDidRender(() => this._onDidChangeHeight.fire()));
 	}
 
 	private renderAttachedContext() {
@@ -1558,6 +1561,7 @@ class ToggleChatModeActionViewItem extends DropdownMenuActionViewItemWithKeybind
 			case ChatMode.Edit:
 				return localize('chat.normalMode', "Edit");
 			case ChatMode.Ask:
+			default:
 				return localize('chat.askMode', "Ask");
 		}
 	}

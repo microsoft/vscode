@@ -131,12 +131,17 @@ export class InlineCompletionsModel extends Disposable {
 			const id = inlineEditSemanticId.read(reader);
 			if (id) {
 				this._editor.pushUndoStop();
+				this._lastShownInlineCompletionInfo = {
+					alternateTextModelVersionId: this.textModel.getAlternativeVersionId(),
+					inlineCompletion: this.state.get()!.inlineCompletion!.inlineCompletion,
+				};
 			}
 		}));
 
 		this._didUndoInlineEdits.recomputeInitiallyAndOnChange(this._store);
 	}
 
+	private _lastShownInlineCompletionInfo: { alternateTextModelVersionId: number; /* already freed! */ inlineCompletion: InlineCompletionItem } | undefined = undefined;
 	private _lastAcceptedInlineCompletionInfo: { textModelVersionIdAfter: number; /* already freed! */ inlineCompletion: InlineCompletionItem } | undefined = undefined;
 	private readonly _didUndoInlineEdits = derivedHandleChanges({
 		owner: this,
@@ -270,12 +275,25 @@ export class InlineCompletionsModel extends Disposable {
 			return undefined;
 		}
 
-		const context: InlineCompletionContext = {
+		let context: InlineCompletionContext = {
 			triggerKind: changeSummary.inlineCompletionTriggerKind,
 			selectedSuggestionInfo: suggestItem?.toSelectedSuggestionInfo(),
 			includeInlineCompletions: !changeSummary.onlyRequestInlineEdits,
 			includeInlineEdits: this._inlineEditsEnabled.read(reader),
 		};
+
+		if (context.triggerKind === InlineCompletionTriggerKind.Automatic) {
+			if (this.textModel.getAlternativeVersionId() === this._lastShownInlineCompletionInfo?.alternateTextModelVersionId) {
+				// When undoing back to a version where an inline edit/completion was shown,
+				// we want to show an inline edit (or completion) again if it was originally an inline edit (or completion).
+				context = {
+					...context,
+					includeInlineCompletions: !this._lastShownInlineCompletionInfo.inlineCompletion.isInlineEdit,
+					includeInlineEdits: this._lastShownInlineCompletionInfo.inlineCompletion.isInlineEdit,
+				};
+			}
+		}
+
 		const itemToPreserveCandidate = this.selectedInlineCompletion.get() ?? this._inlineCompletionItems.get()?.inlineEdit;
 		const itemToPreserve = changeSummary.preserveCurrentCompletion || itemToPreserveCandidate?.forwardStable
 			? itemToPreserveCandidate : undefined;

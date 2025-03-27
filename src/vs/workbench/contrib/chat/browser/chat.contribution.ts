@@ -44,7 +44,7 @@ import { ChatSlashCommandService, IChatSlashCommandService } from '../common/cha
 import { ChatTransferService, IChatTransferService } from '../common/chatTransferService.js';
 import { IChatVariablesService } from '../common/chatVariables.js';
 import { ChatWidgetHistoryService, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
-import { ChatAgentLocation, ChatConfiguration } from '../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatMode } from '../common/constants.js';
 import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } from '../common/ignoredFiles.js';
 import { ILanguageModelsService, LanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelStatsService, LanguageModelStatsService } from '../common/languageModelStats.js';
@@ -58,7 +58,7 @@ import { IPromptsService } from '../common/promptSyntax/service/types.js';
 import { LanguageModelToolsExtensionPointHandler } from '../common/tools/languageModelToolsContribution.js';
 import { BuiltinToolsContribution } from '../common/tools/tools.js';
 import { IVoiceChatService, VoiceChatService } from '../common/voiceChatService.js';
-import { EditsChatAccessibilityHelp, PanelChatAccessibilityHelp, QuickChatAccessibilityHelp } from './actions/chatAccessibilityHelp.js';
+import { AgentChatAccessibilityHelp, EditsChatAccessibilityHelp, PanelChatAccessibilityHelp, QuickChatAccessibilityHelp } from './actions/chatAccessibilityHelp.js';
 import { CopilotTitleBarMenuRendering, registerChatActions } from './actions/chatActions.js';
 import { ACTION_ID_NEW_CHAT, registerNewChatActions } from './actions/chatClearActions.js';
 import { CodeBlockActionRendering, registerChatCodeBlockActions, registerChatCodeCompareBlockActions } from './actions/chatCodeblockActions.js';
@@ -199,7 +199,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.renderRelatedFiles', "Controls whether related files should be rendered in the chat input."),
 			default: false
 		},
-		'chat.experimental.setupFromDialog': { // TODO@bpasero remove this eventually
+		'chat.setupFromDialog': { // TODO@bpasero remove this eventually
 			type: 'boolean',
 			description: nls.localize('chat.setupFromChat', "Controls whether Copilot setup starts from a dialog or from the welcome view."),
 			default: product.quality !== 'stable',
@@ -268,6 +268,7 @@ configurationRegistry.registerConfiguration({
 					])),
 				}
 			],
+			default: true,
 			markdownDescription: nls.localize('mpc.discovery.enabled', "Configures discovery of Model Context Protocol servers on the machine. It may be set to `true` or `false` to disable or enable all sources, and an mapping sources you wish to enable."),
 		},
 		[PromptsConfig.KEY]: {
@@ -289,6 +290,7 @@ configurationRegistry.registerConfiguration({
 			policy: {
 				name: 'ChatPromptFiles',
 				minimumVersion: '1.99',
+				description: nls.localize('chat.promptFiles.policy', "Enables reusable prompt files in Chat, Edits, and Inline Chat sessions."),
 				previewFeature: true,
 				defaultValue: false
 			}
@@ -413,14 +415,14 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 			return;
 		}
 
-		this.registeredNode = {
+		this.registeredNode = configurationRegistry.registerConfiguration({
 			id: 'chatAgent',
 			title: nls.localize('interactiveSessionConfigurationTitle', "Chat"),
 			type: 'object',
 			properties: {
 				[ChatConfiguration.AgentEnabled]: {
 					type: 'boolean',
-					description: nls.localize('chat.agent.enabled.description', "Enable agent mode for {0}. When this is enabled, a dropdown appears in the {0} view to toggle agent mode.", 'Copilot Edits'),
+					description: nls.localize('chat.agent.enabled.description', "Enable agent mode for {0}. When this is enabled, a dropdown appears in the view to toggle agent mode.", 'Copilot Chat'),
 					default: this.productService.quality !== 'stable',
 					tags: ['experimental', 'onExp'],
 					policy: {
@@ -431,8 +433,7 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 					}
 				},
 			}
-		};
-		configurationRegistry.registerConfiguration(this.registeredNode);
+		});
 	}
 
 	private deregisterSetting() {
@@ -475,6 +476,7 @@ AccessibleViewRegistry.register(new ChatResponseAccessibleView());
 AccessibleViewRegistry.register(new PanelChatAccessibilityHelp());
 AccessibleViewRegistry.register(new QuickChatAccessibilityHelp());
 AccessibleViewRegistry.register(new EditsChatAccessibilityHelp());
+AccessibleViewRegistry.register(new AgentChatAccessibilityHelp());
 
 registerEditorFeature(ChatInputBoxContentProvider);
 
@@ -504,7 +506,8 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 			detail: '',
 			sortText: 'z1_help',
 			executeImmediately: true,
-			locations: [ChatAgentLocation.Panel]
+			locations: [ChatAgentLocation.Panel],
+			modes: [ChatMode.Ask]
 		}, async (prompt, progress) => {
 			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
 			const agents = chatAgentService.getAgents();
@@ -521,7 +524,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 
 			// Report agent list
 			const agentText = (await Promise.all(agents
-				.filter(a => a.id !== defaultAgent?.id)
+				.filter(a => a.id !== defaultAgent?.id && !a.isCore)
 				.filter(a => a.locations.includes(ChatAgentLocation.Panel))
 				.map(async a => {
 					const description = a.description ? `- ${a.description}` : '';

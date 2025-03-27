@@ -16,7 +16,7 @@ import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../base/common/lazy.js';
-import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableStore, IDisposable, markAsSingleton, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import Severity from '../../../../base/common/severity.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { equalsIgnoreCase } from '../../../../base/common/strings.js';
@@ -543,10 +543,10 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 	}
 
 	private registerSetupAgents(context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): void {
-		const registration = this._register(new MutableDisposable());
+		const registration = markAsSingleton(new MutableDisposable()); // prevents flicker on window reload
 
 		const updateRegistration = () => {
-			const disabled = context.state.hidden || !this.configurationService.getValue('chat.experimental.setupFromDialog');
+			const disabled = context.state.hidden || !this.configurationService.getValue('chat.setupFromDialog');
 			if (!disabled && !registration.value) {
 				const { agent: panelAgent, disposable: panelDisposable } = SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel, false, context, controller);
 				registration.value = combinedDisposable(
@@ -573,7 +573,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 		this._register(Event.runAndSubscribe(Event.any(
 			context.onDidChange,
-			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('chat.experimental.setupFromDialog'))
+			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('chat.setupFromDialog'))
 		), () => updateRegistration()));
 	}
 
@@ -633,7 +633,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 				showCopilotView(viewsService, layoutService);
 
-				const setupFromDialog = configurationService.getValue('chat.experimental.setupFromDialog');
+				const setupFromDialog = configurationService.getValue('chat.setupFromDialog');
 				if (!setupFromDialog) {
 					ensureSideBarChatViewSize(viewDescriptorService, layoutService, viewsService);
 				}
@@ -1106,6 +1106,7 @@ class ChatSetupController extends Disposable {
 		const result = await this.quickInputService.input({
 			prompt: localize('enterpriseInstance', "What is your {0} instance?", defaultChat.enterpriseProviderName),
 			placeHolder: localize('enterpriseInstancePlaceholder', 'i.e. "octocat" or "https://octocat.ghe.com"...'),
+			ignoreFocusLost: true,
 			value: uri,
 			validateInput: async value => {
 				isSingleWord = false;

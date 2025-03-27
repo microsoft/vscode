@@ -31,7 +31,7 @@ import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatModel } from '../common/chatModel.js';
 import { ChatToolInvocation } from '../common/chatProgressTypes/chatToolInvocation.js';
 import { IChatService } from '../common/chatService.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../common/languageModelToolsService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, stringifyPromptTsxPart } from '../common/languageModelToolsService.js';
 
 const jsonSchemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
@@ -52,6 +52,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	private _tools = new Map<string, IToolEntry>();
 	private _toolContextKeys = new Set<string>();
 	private readonly _ctxToolsCount: IContextKey<number>;
+	private readonly _ctxPickableToolsCount: IContextKey<number>;
 
 	private _callsByRequestId = new Map<string, IDisposable[]>();
 
@@ -83,6 +84,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}));
 
 		this._ctxToolsCount = ChatContextKeys.Tools.toolsCount.bindTo(_contextKeyService);
+		this._ctxPickableToolsCount = ChatContextKeys.Tools.pickableToolsCount.bindTo(_contextKeyService);
 	}
 
 	registerToolData(toolData: IToolData): IDisposable {
@@ -92,6 +94,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 		this._tools.set(toolData.id, { data: toolData });
 		this._ctxToolsCount.set(this._tools.size);
+		this._ctxPickableToolsCount.set(Iterable.reduce(this._tools.values(), (pre, cur) => pre + (cur.data.supportsToolPicker ? 1 : 0), 0));
 		this._onDidChangeToolsScheduler.schedule();
 
 		toolData.when?.keys().forEach(key => this._toolContextKeys.add(key));
@@ -108,6 +111,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			store?.dispose();
 			this._tools.delete(toolData.id);
 			this._ctxToolsCount.set(this._tools.size);
+			this._ctxPickableToolsCount.set(Iterable.reduce(this._tools.values(), (pre, cur) => pre + (cur.data.supportsToolPicker ? 1 : 0), 0));
 			this._refreshAllToolContextKeys();
 			this._onDidChangeToolsScheduler.schedule();
 		});
@@ -271,6 +275,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			}
 
 			toolResult = await tool.impl.invoke(dto, countTokens, token);
+			this.ensureToolDetails(dto, toolResult, tool.data);
+
 			this._telemetryService.publicLog2<LanguageModelToolInvokedEvent, LanguageModelToolInvokedClassification>(
 				'languageModelToolInvoked',
 				{
@@ -325,18 +331,41 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			};
 		}
 
-		if (prepared?.toolSpecificData?.kind !== 'terminal' && prepared?.confirmationMessages) {
-			prepared.confirmationMessages!.allowAutoConfirm = true;
-		}
+		if (prepared?.confirmationMessages) {
+			if (prepared.toolSpecificData?.kind !== 'terminal' && typeof prepared.confirmationMessages.allowAutoConfirm !== 'boolean') {
+				prepared.confirmationMessages.allowAutoConfirm = true;
+			}
 
-		if (prepared?.confirmationMessages && !prepared.toolSpecificData) {
-			prepared.toolSpecificData = {
-				kind: 'input',
-				rawInput: dto.parameters,
-			};
+			if (!prepared.toolSpecificData && tool.data.alwaysDisplayInputOutput) {
+				prepared.toolSpecificData = {
+					kind: 'input',
+					rawInput: dto.parameters,
+				};
+			}
 		}
 
 		return prepared;
+	}
+
+	private ensureToolDetails(dto: IToolInvocation, toolResult: IToolResult, toolData: IToolData): void {
+		if (!toolResult.toolResultDetails && toolData.alwaysDisplayInputOutput) {
+			toolResult.toolResultDetails = {
+				input: JSON.stringify(dto.parameters, undefined, 2),
+				output: this.toolResultToString(toolResult),
+			};
+		}
+	}
+
+	private toolResultToString(toolResult: IToolResult): string {
+		const strs = [];
+		for (const part of toolResult.content) {
+			if (part.kind === 'text') {
+				strs.push(part.value);
+			} else if (part.kind === 'promptTsx') {
+				strs.push(stringifyPromptTsxPart(part));
+			}
+		}
+		return strs.join('');
 	}
 
 	private shouldAutoConfirm(toolId: string, runsInWorkspace: boolean | undefined): boolean {

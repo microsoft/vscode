@@ -150,14 +150,14 @@ export class FetchWebPageTool implements IToolImpl {
 			);
 
 			confirmationMessage.appendMarkdown(
-				'\n\n$(info)' + localize(
+				'\n\n$(info) ' + localize(
 					'fetchWebPage.confirmationMessageManageTrustedDomains',
 					'You can [manage your trusted domains]({0}) to skip this confirmation in the future.',
 					`command:${managedTrustedDomainsCommand}`
 				)
 			);
 
-			result.confirmationMessages = { title: confirmationTitle, message: confirmationMessage };
+			result.confirmationMessages = { title: confirmationTitle, message: confirmationMessage, allowAutoConfirm: false };
 		}
 
 		return result;

@@ -9,7 +9,7 @@ import { assert } from '../../../../../../../../base/common/assert.js';
 import { VSBuffer } from '../../../../../../../../base/common/buffer.js';
 import { dirname } from '../../../../../../../../base/common/resources.js';
 import { IFileService } from '../../../../../../../../platform/files/common/files.js';
-import { ICommandService } from '../../../../../../../../platform/commands/common/commands.js';
+import { IOpenerService } from '../../../../../../../../platform/opener/common/opener.js';
 import { isPromptFile, PROMPT_FILE_EXTENSION } from '../../../../../../../../platform/prompts/common/constants.js';
 
 /**
@@ -33,7 +33,7 @@ interface ICreatePromptFileOptions {
 	readonly content: string;
 
 	fileService: IFileService;
-	commandService: ICommandService;
+	openerService: IOpenerService;
 }
 
 /**
@@ -47,7 +47,7 @@ interface ICreatePromptFileOptions {
 export const createPromptFile = async (
 	options: ICreatePromptFileOptions,
 ): Promise<URI> => {
-	const { fileName, folder, content, fileService, commandService } = options;
+	const { fileName, folder, content, fileService, openerService } = options;
 
 	const promptUri = URI.joinPath(folder, fileName);
 
@@ -67,7 +67,7 @@ export const createPromptFile = async (
 		);
 
 		// prompt file already exists so open it
-		await commandService.executeCommand('vscode.open', promptUri);
+		await openerService.open(promptUri);
 
 		return promptUri;
 	}

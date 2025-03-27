@@ -256,7 +256,9 @@ export function registerChatActions() {
 			const editingSession = view.widget.viewModel?.model.editingSession;
 			if (editingSession) {
 				const phrase = localize('switchChat.confirmPhrase', "Switching chats will end your current edit session.");
-				await handleCurrentEditingSession(editingSession, phrase, dialogService);
+				if (!await handleCurrentEditingSession(editingSession, phrase, dialogService)) {
+					return;
+				}
 			}
 
 			const showPicker = async () => {
@@ -747,7 +749,7 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 			const chatHidden = chatEntitlementService.sentiment === ChatSentiment.Disabled;
 			const { chatQuotaExceeded, completionsQuotaExceeded } = chatEntitlementService.quotas;
 			const signedOut = chatEntitlementService.entitlement === ChatEntitlement.Unknown;
-			const setupFromDialog = configurationService.getValue('chat.experimental.setupFromDialog');
+			const setupFromDialog = configurationService.getValue('chat.setupFromDialog');
 
 			let primaryActionId = TOGGLE_CHAT_ACTION_ID;
 			let primaryActionTitle = localize('toggleChat', "Toggle Chat");
@@ -779,7 +781,7 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 			chatEntitlementService.onDidChangeSentiment,
 			chatEntitlementService.onDidChangeQuotaExceeded,
 			chatEntitlementService.onDidChangeEntitlement,
-			Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('chat.experimental.setupFromDialog'))
+			Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('chat.setupFromDialog'))
 		));
 
 		// Reduces flicker a bit on reload/restart
