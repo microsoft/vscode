@@ -61,7 +61,8 @@ const getChatWidgetObject = async (
 };
 
 /**
- * TODO: @legomushroom
+ * Opens a new chat session based on the `unified chat view` mode
+ * enablement, and provided `edits` flag.
  */
 const openNewChat = async (
 	options: ISelectPromptOptions,
@@ -69,6 +70,8 @@ const openNewChat = async (
 ): Promise<IChatWidget> => {
 	const { commandService, chatService, viewsService } = options;
 
+	// the `unified chat view` mode does not have a separate `edits` view
+	// therefore we always open a new default chat session in this mode
 	if (chatService.unifiedViewEnabled === true) {
 		await commandService.executeCommand(ACTION_ID_NEW_CHAT);
 		const widget = await showChatView(viewsService);
@@ -81,6 +84,8 @@ const openNewChat = async (
 		return widget;
 	}
 
+	// in non-unified chat view mode, we can open either an `edits` view
+	// or an `ask` chat view based on the `edits` flag
 	(edits === true)
 		? await commandService.executeCommand(ACTION_ID_NEW_EDIT_SESSION)
 		: await commandService.executeCommand(ACTION_ID_NEW_CHAT);
@@ -98,7 +103,8 @@ const openNewChat = async (
 };
 
 /**
- * TODO: @legomushroom
+ * Shows an existing chat view based on the `unified chat view` mode
+ * enablement, and provided `edits` flag.
  */
 const showExistingChat = async (
 	options: ISelectPromptOptions,
