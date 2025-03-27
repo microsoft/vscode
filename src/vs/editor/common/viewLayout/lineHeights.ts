@@ -105,7 +105,7 @@ export class LineHeightsManager {
 				}
 			}
 		} else {
-			startIndexOfDeletion = candidateStartIndexOfDeletion === -(numberOfCustomLines + 1) ? numberOfCustomLines - 1 : - (candidateStartIndexOfDeletion + 1);
+			startIndexOfDeletion = candidateStartIndexOfDeletion === -(numberOfCustomLines + 1) && candidateStartIndexOfDeletion !== -1 ? numberOfCustomLines - 1 : - (candidateStartIndexOfDeletion + 1);
 		}
 		const candidateEndIndexOfDeletion = this._binarySearchOverOrderedCustomLinesArray(toLineNumber);
 		let endIndexOfDeletion: number;
@@ -119,7 +119,7 @@ export class LineHeightsManager {
 				}
 			}
 		} else {
-			endIndexOfDeletion = candidateEndIndexOfDeletion === -(numberOfCustomLines + 1) ? numberOfCustomLines - 1 : - (candidateEndIndexOfDeletion + 1);
+			endIndexOfDeletion = candidateEndIndexOfDeletion === -(numberOfCustomLines + 1) && candidateEndIndexOfDeletion !== -1 ? numberOfCustomLines - 1 : - (candidateEndIndexOfDeletion + 1);
 		}
 		const isEndIndexBiggerThanStartIndex = endIndexOfDeletion > startIndexOfDeletion;
 		const isEndIndexEqualToStartIndexAndCoversCustomLine = endIndexOfDeletion === startIndexOfDeletion
@@ -185,9 +185,9 @@ export class LineHeightsManager {
 		} else {
 			const totalHeightDeleted = deleteCount * this._defaultLineHeight;
 			for (let i = endIndexOfDeletion; i < this._orderedCustomLines.length; i++) {
-				const specialLine = this._orderedCustomLines[i];
-				specialLine.lineNumber -= deleteCount;
-				specialLine.prefixSum -= totalHeightDeleted;
+				const customLine = this._orderedCustomLines[i];
+				customLine.lineNumber -= deleteCount;
+				customLine.prefixSum -= totalHeightDeleted;
 			}
 		}
 	}
