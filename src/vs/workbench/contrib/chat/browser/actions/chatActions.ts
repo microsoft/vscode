@@ -438,11 +438,12 @@ export function registerChatActions() {
 		}
 		async run(accessor: ServicesAccessor, ...args: any[]) {
 			const editorGroupsService = accessor.get(IEditorGroupsService);
-
 			const chatService = accessor.get(IChatService);
+			const instantiationService = accessor.get(IInstantiationService);
+			const widgetService = accessor.get(IChatWidgetService);
+
 			await chatService.clearAllHistoryEntries();
 
-			const widgetService = accessor.get(IChatWidgetService);
 			widgetService.getAllWidgets().forEach(widget => {
 				widget.clear();
 			});
@@ -452,7 +453,7 @@ export function registerChatActions() {
 			editorGroupsService.groups.forEach(group => {
 				group.editors.forEach(editor => {
 					if (editor instanceof ChatEditorInput) {
-						clearChatEditor(accessor, editor);
+						instantiationService.invokeFunction(clearChatEditor, editor);
 					}
 				});
 			});
