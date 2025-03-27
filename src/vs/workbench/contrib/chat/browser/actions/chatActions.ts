@@ -50,7 +50,7 @@ import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
-import { ChatMode } from '../../common/constants.js';
+import { ChatMode, validateChatMode } from '../../common/constants.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { ChatViewId, EditsViewId, IChatWidget, IChatWidgetService, showChatView, showCopilotView } from '../chat.js';
@@ -68,7 +68,7 @@ const TOGGLE_CHAT_ACTION_ID = 'workbench.action.chat.toggle';
 
 export interface IChatViewOpenOptions {
 	/**
-	 * The query for quick chat.
+	 * The query for chat.
 	 */
 	query: string;
 	/**
@@ -83,11 +83,14 @@ export interface IChatViewOpenOptions {
 	 * Any previous chat requests and responses that should be shown in the chat view.
 	 */
 	previousRequests?: IChatViewOpenRequestEntry[];
-
 	/**
 	 * Whether a screenshot of the focused window should be taken and attached
 	 */
 	attachScreenshot?: boolean;
+	/**
+	 * The mode to open the chat in.
+	 */
+	mode?: ChatMode;
 }
 
 export interface IChatViewOpenRequestEntry {
@@ -134,6 +137,9 @@ export function registerChatActions() {
 			const chatWidget = await showChatView(viewsService);
 			if (!chatWidget) {
 				return;
+			}
+			if (opts?.mode && validateChatMode(opts.mode)) {
+				chatWidget.input.setChatMode(opts.mode);
 			}
 			if (opts?.previousRequests?.length && chatWidget.viewModel) {
 				for (const { request, response } of opts.previousRequests) {
