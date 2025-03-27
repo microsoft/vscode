@@ -1140,7 +1140,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .action-item.chat-attached-context-attachment.chat-add-files {
 	height: 20px;
-	color: var(--vscode-descriptionForeground);
+	color: var(--vscode-foreground);
 }
 
 .action-item.chat-attached-context-attachment.chat-add-files span.keybinding {
