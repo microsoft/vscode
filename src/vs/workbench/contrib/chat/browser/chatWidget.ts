@@ -1383,6 +1383,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private async updateInlineCompletions(): Promise<void> {
+		console.log('updateInlineCompletions');
 		if (!this.inlineCompletionsDecorationCollection) {
 			return;
 		}

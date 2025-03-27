@@ -2704,6 +2704,9 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	// --- ghost text
 
 	registerInlineCompletionsProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.InlineCompletionItemProvider, metadata: vscode.InlineCompletionItemProviderMetadata | undefined): vscode.Disposable {
+		console.log('registerInlineCompletionsProvider');
+		// console.log('this._documents', this._documents);
+		console.log('provider : ', provider);
 		const adapter = new InlineCompletionAdapter(extension, this._documents, provider, this._commands.converter);
 		const handle = this._addNewAdapter(adapter, extension);
 		this._proxy.$registerInlineCompletionsSupport(
