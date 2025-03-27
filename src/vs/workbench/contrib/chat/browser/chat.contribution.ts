@@ -261,6 +261,18 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			tags: ['onExp'],
 		},
+		[ChatConfiguration.ExtensionToolsEnabled]: {
+			type: 'boolean',
+			description: nls.localize('chat.extensionToolsEnabled', "Enable using tools contributed by third-party extensions in Copilot Chat agent mode."),
+			default: true,
+			policy: {
+				name: 'ChatAgentExtensionTools',
+				minimumVersion: '1.99',
+				description: nls.localize('chat.extensionToolsPolicy', "Enable using tools contributed by third-party extensions in Copilot Chat agent mode."),
+				previewFeature: true,
+				defaultValue: false
+			}
+		},
 		[mcpDiscoverySection]: {
 			oneOf: [
 				{ type: 'boolean' },

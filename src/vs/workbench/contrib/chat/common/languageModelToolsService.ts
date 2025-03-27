@@ -41,7 +41,15 @@ export interface IToolData {
 }
 
 export type ToolDataSource =
-	| { type: 'extension'; extensionId: ExtensionIdentifier }
+	| {
+		type: 'extension';
+		extensionId: ExtensionIdentifier;
+		/**
+		 * True for tools contributed through extension API from third-party extensions, so they can be disabled by policy.
+		 * False for built-in tools, MCP tools are handled differently.
+		 */
+		isExternalTool: boolean;
+	}
 	| { type: 'mcp'; collectionId: string; definitionId: string }
 	| { type: 'internal' };
 
