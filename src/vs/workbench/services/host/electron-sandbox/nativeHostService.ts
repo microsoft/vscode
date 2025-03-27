@@ -39,17 +39,21 @@ class WorkbenchHostService extends Disposable implements IHostService {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
+
+		this.onDidChangeFocus = Event.latch(
+			Event.any(
+				Event.map(Event.filter(this.nativeHostService.onDidFocusMainOrAuxiliaryWindow, id => hasWindow(id), this._store), () => this.hasFocus, this._store),
+				Event.map(Event.filter(this.nativeHostService.onDidBlurMainOrAuxiliaryWindow, id => hasWindow(id), this._store), () => this.hasFocus, this._store),
+				Event.map(this.onDidChangeActiveWindow, () => this.hasFocus, this._store)
+			), undefined, this._store
+		);
+
+		this.onDidChangeFullScreen = Event.filter(this.nativeHostService.onDidChangeWindowFullScreen, e => hasWindow(e.windowId), this._store);
 	}
 
 	//#region Focus
 
-	readonly onDidChangeFocus = Event.latch(
-		Event.any(
-			Event.map(Event.filter(this.nativeHostService.onDidFocusMainOrAuxiliaryWindow, id => hasWindow(id), this._store), () => this.hasFocus, this._store),
-			Event.map(Event.filter(this.nativeHostService.onDidBlurMainOrAuxiliaryWindow, id => hasWindow(id), this._store), () => this.hasFocus, this._store),
-			Event.map(this.onDidChangeActiveWindow, () => this.hasFocus, this._store)
-		), undefined, this._store
-	);
+	readonly onDidChangeFocus: Event<boolean>;
 
 	get hasFocus(): boolean {
 		return getActiveDocument().hasFocus();
@@ -94,7 +98,7 @@ class WorkbenchHostService extends Disposable implements IHostService {
 		return Event.latch(emitter.event, undefined, this._store);
 	}
 
-	readonly onDidChangeFullScreen = Event.filter(this.nativeHostService.onDidChangeWindowFullScreen, e => hasWindow(e.windowId), this._store);
+	readonly onDidChangeFullScreen: Event<{ readonly windowId: number; readonly fullscreen: boolean }>;
 
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;

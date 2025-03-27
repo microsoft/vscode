@@ -66,14 +66,17 @@ export async function withTimeout<T>(
 	time: number,
 	promise: Promise<T>,
 ): Promise<T> {
+	let timeout: NodeJS.Timeout;
 	return Promise.race<Promise<T>>([
 		promise,
 		new Promise<T>((_, reject) => {
-			setTimeout(() => {
+			timeout = setTimeout(() => {
 				reject(new TimeoutError('Function timed out'));
 			}, time);
 		}),
-	]);
+	]).finally(() => {
+		clearTimeout(timeout);
+	});
 }
 
 export const longestCommonPrefix = (strings: string[]): string => {

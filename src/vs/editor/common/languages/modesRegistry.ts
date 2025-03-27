@@ -66,6 +66,20 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			'[plaintext]': {
 				'editor.unicodeHighlight.ambiguousCharacters': false,
 				'editor.unicodeHighlight.invisibleCharacters': false
+			},
+			// TODO: Below is a workaround for: https://github.com/microsoft/vscode/issues/240567
+			'[go]': {
+				'editor.insertSpaces': false
+			},
+			'[makefile]': {
+				'editor.insertSpaces': false,
+			},
+			'[shellscript]': {
+				'files.eol': '\n'
+			},
+			'[yaml]': {
+				'editor.insertSpaces': true,
+				'editor.tabSize': 2
 			}
 		}
 	}]);

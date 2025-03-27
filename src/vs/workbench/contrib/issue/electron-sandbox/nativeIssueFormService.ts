@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/issueReporter.css';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -12,13 +12,16 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import product from '../../../../platform/product/common/product.js';
+import { IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
+import { IHostService } from '../../../services/host/browser/host.js';
 import { IssueFormService } from '../browser/issueFormService.js';
 import { IIssueFormService, IssueReporterData } from '../common/issue.js';
 import { IssueReporter } from './issueReporterService.js';
-import { IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
-import { IHostService } from '../../../services/host/browser/host.js';
+import './media/issueReporter.css';
 
 export class NativeIssueFormService extends IssueFormService implements IIssueFormService {
+	private readonly store = new DisposableStore();
+
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAuxiliaryWindowService auxiliaryWindowService: IAuxiliaryWindowService,
@@ -53,8 +56,10 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 
 		// create issue reporter and instantiate
 		if (this.issueReporterWindow) {
-			const issueReporter = this.instantiationService.createInstance(IssueReporter, !!this.environmentService.disableExtensions, data, { type: this.type, arch: this.arch, release: this.release }, product, this.issueReporterWindow);
+			const issueReporter = this.store.add(this.instantiationService.createInstance(IssueReporter, !!this.environmentService.disableExtensions, data, { type: this.type, arch: this.arch, release: this.release }, product, this.issueReporterWindow));
 			issueReporter.render();
+		} else {
+			this.store.dispose();
 		}
 	}
 }

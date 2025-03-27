@@ -584,7 +584,7 @@ export class StartFindWithArgsAction extends EditorAction {
 	constructor() {
 		super({
 			id: FIND_IDS.StartFindWithArgs,
-			label: nls.localize2('startFindWithArgsAction', "Find With Arguments"),
+			label: nls.localize2('startFindWithArgsAction', "Find with Arguments"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: null,
@@ -633,7 +633,7 @@ export class StartFindWithSelectionAction extends EditorAction {
 	constructor() {
 		super({
 			id: FIND_IDS.StartFindWithSelection,
-			label: nls.localize2('startFindWithSelectionAction', "Find With Selection"),
+			label: nls.localize2('startFindWithSelectionAction', "Find with Selection"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: null,

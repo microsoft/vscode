@@ -40,7 +40,8 @@ export class ExtHostCell {
 			languageId: cell.language,
 			uri: cell.uri,
 			isDirty: false,
-			versionId: 1
+			versionId: 1,
+			encoding: 'utf8'
 		};
 	}
 

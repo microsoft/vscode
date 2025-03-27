@@ -265,11 +265,9 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	}
 
 	private createEmptyPaneMessage(parent: HTMLElement): void {
-		this.emptyPaneMessageElement = document.createElement('div');
-		this.emptyPaneMessageElement.classList.add('empty-pane-message-area');
+		this.emptyPaneMessageElement = $('.empty-pane-message-area');
 
-		const messageElement = document.createElement('div');
-		messageElement.classList.add('empty-pane-message');
+		const messageElement = $('.empty-pane-message');
 		messageElement.innerText = localize('pane.emptyMessage', "Drag a view here to display.");
 
 		this.emptyPaneMessageElement.appendChild(messageElement);

@@ -354,7 +354,7 @@ class Mangler {
         this.log = log;
         this.config = config;
         this.renameWorkerPool = workerpool_1.default.pool(path_1.default.join(__dirname, 'renameWorker.js'), {
-            maxWorkers: 1,
+            maxWorkers: 4,
             minWorkers: 'max'
         });
     }

@@ -53,16 +53,16 @@ export function substringPos(text: string, pos: Position): string {
 	return text.substring(offset);
 }
 
+export function getEndPositionsAfterApplying(edits: readonly SingleTextEdit[]): Position[] {
+	const newRanges = getModifiedRangesAfterApplying(edits);
+	return newRanges.map(range => range.getEndPosition());
+}
+
 export function getModifiedRangesAfterApplying(edits: readonly SingleTextEdit[]): Range[] {
 	const sortPerm = Permutation.createSortPermutation(edits, compareBy(e => e.range, Range.compareRangesUsingStarts));
 	const edit = new TextEdit(sortPerm.apply(edits));
 	const sortedNewRanges = edit.getNewRanges();
 	return sortPerm.inverse().apply(sortedNewRanges);
-}
-
-export function getEndPositionsAfterApplying(edits: readonly SingleTextEdit[]): Position[] {
-	const newRanges = getModifiedRangesAfterApplying(edits);
-	return newRanges.map(range => range.getEndPosition());
 }
 
 export function convertItemsToStableObservables<T>(items: IObservable<readonly T[]>, store: DisposableStore): IObservable<IObservable<T>[]> {

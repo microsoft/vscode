@@ -330,6 +330,8 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	) {
 		super();
 
+		this._register(this._state);
+
 		const findFilters = this._configurationService.getValue<{
 			markupSource: boolean;
 			markupPreview: boolean;

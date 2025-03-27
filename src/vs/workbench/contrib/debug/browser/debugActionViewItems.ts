@@ -133,6 +133,7 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 				this.start.tabIndex = 0;
 				this.start.focus();
 				event.stopPropagation();
+				event.preventDefault();
 			}
 		}));
 		this.container.style.border = `1px solid ${asCssVariable(selectBorder)}`;

@@ -343,6 +343,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 						width: 100%;
 					}
 
+					#container .cell_container.nb-insertHighlight div.output_container div.output {
+						background-color: var(--vscode-diffEditor-insertedLineBackground, var(--vscode-diffEditor-insertedTextBackground));
+					}
+
 					#container > div > div > div.output {
 						font-size: var(--notebook-cell-output-font-size);
 						width: var(--notebook-output-width);
@@ -398,6 +402,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 
 					#container .markup > div.nb-symbolHighlight {
 						background-color: var(--theme-notebook-symbol-highlight-background);
+					}
+
+					#container .markup > div.nb-insertHighlight {
+						background-color: var(--vscode-diffEditor-insertedLineBackground, var(--vscode-diffEditor-insertedTextBackground));
 					}
 
 					#container .nb-symbolHighlight .output_container .output {
@@ -754,7 +762,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 								}
 							}
 
-							this.openerService.open(CellUri.generateCellOutputUri(this.documentUri, outputId));
+							this.openerService.open(CellUri.generateCellOutputUriWithId(this.documentUri, outputId));
 							return;
 						}
 						if (uri.path === 'cellOutput.enableScrolling') {
@@ -786,7 +794,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 								'workbench.action.openSettings',
 								'_notebook.selectKernel',
 								// TODO@rebornix explore open output channel with name command
-								'jupyter.viewOutput'
+								'jupyter.viewOutput',
+								'jupyter.createPythonEnvAndSelectController',
 							],
 						});
 						return;
@@ -926,8 +935,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 				}
 				case 'notebookPerformanceMessage': {
 					this.notebookEditor.updatePerformanceMetadata(data.cellId, data.executionId, data.duration, data.rendererId);
-					if (data.mimeType && data.outputSize && data.rendererId === 'vscode.builtin-renderer') {
-						this._sendPerformanceData(data.mimeType, data.outputSize, data.duration);
+					if (data.outputSize && data.rendererId === 'vscode.builtin-renderer') {
+						this._sendPerformanceData(data.outputSize, data.duration);
 					}
 					break;
 				}
@@ -947,23 +956,20 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		return initializePromise.p;
 	}
 
-	private _sendPerformanceData(mimeType: string, outputSize: number, renderTime: number) {
+	private _sendPerformanceData(outputSize: number, renderTime: number) {
 		type NotebookOutputRenderClassification = {
 			owner: 'amunger';
 			comment: 'Track performance data for output rendering';
-			mimeType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Presentation type of the output.' };
 			outputSize: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Size of the output data buffer.'; isMeasurement: true };
 			renderTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Time spent rendering output.'; isMeasurement: true };
 		};
 
 		type NotebookOutputRenderEvent = {
-			mimeType: string;
 			outputSize: number;
 			renderTime: number;
 		};
 
 		const telemetryData = {
-			mimeType,
 			outputSize,
 			renderTime
 		};
@@ -1849,14 +1855,24 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 	}
 
 
-	deltaCellContainerClassNames(cellId: string, added: string[], removed: string[]) {
+	deltaCellOutputContainerClassNames(cellId: string, added: string[], removed: string[]) {
 		this._sendMessageToWebview({
 			type: 'decorations',
 			cellId,
 			addedClassNames: added,
 			removedClassNames: removed
 		});
+	}
 
+	deltaMarkupPreviewClassNames(cellId: string, added: string[], removed: string[]) {
+		if (this.markupPreviewMapping.get(cellId)) {
+			this._sendMessageToWebview({
+				type: 'markupDecorations',
+				cellId,
+				addedClassNames: added,
+				removedClassNames: removed
+			});
+		}
 	}
 
 	updateOutputRenderers() {

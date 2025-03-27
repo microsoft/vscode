@@ -7,25 +7,34 @@ import { DataTransfers } from '../../../../base/browser/dnd.js';
 import { $, DragAndDropObserver } from '../../../../base/browser/dom.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { coalesce } from '../../../../base/common/arrays.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { UriList } from '../../../../base/common/dataTransfer.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Mimes } from '../../../../base/common/mime.js';
-import { basename, joinPath } from '../../../../base/common/resources.js';
+import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { SymbolKinds } from '../../../../editor/common/languages.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
-import { CodeDataTransfers, containsDragType, DocumentSymbolTransferData, extractEditorsDropData, extractSymbolDropData, IDraggedResourceEditorInput } from '../../../../platform/dnd/browser/dnd.js';
-import { FileType, IFileService, IFileSystemProvider } from '../../../../platform/files/common/files.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { CodeDataTransfers, containsDragType, DocumentSymbolTransferData, extractEditorsDropData, extractMarkerDropData, extractSymbolDropData, IDraggedResourceEditorInput, MarkerTransferData } from '../../../../platform/dnd/browser/dnd.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
+import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { isUntitledResourceEditorInput } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { UntitledTextEditorInput } from '../../../services/untitled/common/untitledTextEditorInput.js';
-import { IChatRequestVariableEntry, ISymbolVariableEntry } from '../common/chatModel.js';
+import { IChatRequestVariableEntry, IDiagnosticVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry } from '../common/chatModel.js';
+import { IChatWidgetService } from './chat.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { IChatInputStyles } from './chatInputPart.js';
+import { imageToHash } from './chatPasteProviders.js';
 import { resizeImage } from './imageUtils.js';
 
 enum ChatDragAndDropType {
@@ -33,7 +42,9 @@ enum ChatDragAndDropType {
 	FILE_EXTERNAL,
 	FOLDER,
 	IMAGE,
-	SYMBOL
+	SYMBOL,
+	HTML,
+	MARKER,
 }
 
 export class ChatDragAndDrop extends Themable {
@@ -43,12 +54,17 @@ export class ChatDragAndDrop extends Themable {
 	private overlayTextBackground: string = '';
 
 	constructor(
-		protected readonly attachmentModel: ChatAttachmentModel,
+		private readonly attachmentModel: ChatAttachmentModel,
 		private readonly styles: IChatInputStyles,
 		@IThemeService themeService: IThemeService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IFileService protected readonly fileService: IFileService,
-		@IEditorService protected readonly editorService: IEditorService,
+		@IFileService private readonly fileService: IFileService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@ITextModelService private readonly textModelService: ITextModelService,
+		@ISharedWebContentExtractorService private readonly webContentExtractorService: ISharedWebContentExtractorService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super(themeService);
 
@@ -143,10 +159,6 @@ export class ChatDragAndDrop extends Themable {
 			return;
 		}
 
-		this.handleDrop(contexts);
-	}
-
-	protected handleDrop(contexts: IChatRequestVariableEntry[]): void {
 		this.attachmentModel.addContext(...contexts);
 	}
 
@@ -163,13 +175,17 @@ export class ChatDragAndDrop extends Themable {
 		// This is an esstimation based on the datatransfer types/items
 		if (this.isImageDnd(e)) {
 			return this.extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData')) ? ChatDragAndDropType.IMAGE : undefined;
+		} else if (containsDragType(e, 'text/html')) {
+			return ChatDragAndDropType.HTML;
 		} else if (containsDragType(e, CodeDataTransfers.SYMBOLS)) {
 			return ChatDragAndDropType.SYMBOL;
+		} else if (containsDragType(e, CodeDataTransfers.MARKERS)) {
+			return ChatDragAndDropType.MARKER;
 		} else if (containsDragType(e, DataTransfers.FILES)) {
 			return ChatDragAndDropType.FILE_EXTERNAL;
 		} else if (containsDragType(e, DataTransfers.INTERNAL_URI_LIST)) {
 			return ChatDragAndDropType.FILE_INTERNAL;
-		} else if (containsDragType(e, Mimes.uriList, CodeDataTransfers.FILES)) {
+		} else if (containsDragType(e, Mimes.uriList, CodeDataTransfers.FILES, DataTransfers.RESOURCES)) {
 			return ChatDragAndDropType.FOLDER;
 		}
 
@@ -182,13 +198,15 @@ export class ChatDragAndDrop extends Themable {
 		return dropType !== undefined;
 	}
 
-	protected getDropTypeName(type: ChatDragAndDropType): string {
+	private getDropTypeName(type: ChatDragAndDropType): string {
 		switch (type) {
 			case ChatDragAndDropType.FILE_INTERNAL: return localize('file', 'File');
 			case ChatDragAndDropType.FILE_EXTERNAL: return localize('file', 'File');
 			case ChatDragAndDropType.FOLDER: return localize('folder', 'Folder');
 			case ChatDragAndDropType.IMAGE: return localize('image', 'Image');
 			case ChatDragAndDropType.SYMBOL: return localize('symbol', 'Symbol');
+			case ChatDragAndDropType.MARKER: return localize('problem', 'Problem');
+			case ChatDragAndDropType.HTML: return localize('url', 'URL');
 		}
 	}
 
@@ -220,9 +238,18 @@ export class ChatDragAndDrop extends Themable {
 			return [];
 		}
 
+		const markerData = extractMarkerDropData(e);
+		if (markerData) {
+			return this.resolveMarkerAttachContext(markerData);
+		}
+
 		if (containsDragType(e, CodeDataTransfers.SYMBOLS)) {
 			const data = extractSymbolDropData(e);
 			return this.resolveSymbolsAttachContext(data);
+		}
+
+		if (!containsDragType(e, DataTransfers.INTERNAL_URI_LIST) && containsDragType(e, Mimes.uriList) && ((containsDragType(e, Mimes.html) || containsDragType(e, Mimes.text)))) {
+			return this.resolveHTMLAttachContext(e);
 		}
 
 		const data = extractEditorsDropData(e);
@@ -233,7 +260,7 @@ export class ChatDragAndDrop extends Themable {
 
 	private async resolveAttachContext(editorInput: IDraggedResourceEditorInput): Promise<IChatRequestVariableEntry | undefined> {
 		// Image
-		const imageContext = await getImageAttachContext(editorInput, this.fileService);
+		const imageContext = await getImageAttachContext(editorInput, this.fileService, this.dialogService);
 		if (imageContext) {
 			return this.extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData')) ? imageContext : undefined;
 		}
@@ -264,13 +291,13 @@ export class ChatDragAndDrop extends Themable {
 			return undefined;
 		}
 
-		return getResourceAttachContext(editor.resource, stat.isDirectory);
+		return await getResourceAttachContext(editor.resource, stat.isDirectory, this.textModelService);
 	}
 
 	private async resolveUntitledAttachContext(editor: IDraggedResourceEditorInput): Promise<IChatRequestVariableEntry | undefined> {
 		// If the resource is known, we can use it directly
 		if (editor.resource) {
-			return getResourceAttachContext(editor.resource, false);
+			return await getResourceAttachContext(editor.resource, false, this.textModelService);
 		}
 
 		// Otherwise, we need to check if the contents are already open in another editor
@@ -279,7 +306,7 @@ export class ChatDragAndDrop extends Themable {
 			const model = await canidate.resolve();
 			const contents = model.textEditorModel?.getValue();
 			if (contents === editor.contents) {
-				return getResourceAttachContext(canidate.resource, false);
+				return await getResourceAttachContext(canidate.resource, false, this.textModelService);
 			}
 		}
 
@@ -297,6 +324,82 @@ export class ChatDragAndDrop extends Themable {
 				fullName: `$(${SymbolKinds.toIcon(symbol.kind).id}) ${symbol.name}`,
 				name: symbol.name,
 			};
+		});
+	}
+
+	private async downloadImageAsUint8Array(url: string): Promise<Uint8Array | undefined> {
+		try {
+			const extractedImages = await this.webContentExtractorService.readImage(URI.parse(url), CancellationToken.None);
+			if (extractedImages) {
+				return extractedImages.buffer;
+			}
+		} catch (error) {
+			this.logService.warn('Fetch failed:', error);
+		}
+
+		// TODO: use dnd provider to insert text @justschen
+		const selection = this.chatWidgetService.lastFocusedWidget?.inputEditor.getSelection();
+		if (selection && this.chatWidgetService.lastFocusedWidget) {
+			this.chatWidgetService.lastFocusedWidget.inputEditor.executeEdits('chatInsertUrl', [{ range: selection, text: url }]);
+		}
+
+		this.logService.warn(`Image URLs must end in .jpg, .png, .gif, .webp, or .bmp. Failed to fetch image from this URL: ${url}`);
+		return undefined;
+	}
+
+	private async resolveHTMLAttachContext(e: DragEvent): Promise<IChatRequestVariableEntry[]> {
+		const displayName = localize('dragAndDroppedImageName', 'Image from URL');
+		let finalDisplayName = displayName;
+
+		for (let appendValue = 2; this.attachmentModel.attachments.some(attachment => attachment.name === finalDisplayName); appendValue++) {
+			finalDisplayName = `${displayName} ${appendValue}`;
+		}
+
+		const dataFromFile = await this.extractImageFromFile(e);
+		if (dataFromFile) {
+			return [await this.createImageVariable(await resizeImage(dataFromFile), finalDisplayName)];
+		}
+
+		const dataFromUrl = await this.extractImageFromUrl(e);
+		const variableEntries: IChatRequestVariableEntry[] = [];
+		if (dataFromUrl) {
+			for (const url of dataFromUrl) {
+				if (/^data:image\/[a-z]+;base64,/.test(url)) {
+					variableEntries.push(await this.createImageVariable(await resizeImage(url), finalDisplayName, URI.parse(url)));
+				} else if (/^https?:\/\/.+/.test(url)) {
+					const imageData = await this.downloadImageAsUint8Array(url);
+					if (imageData) {
+						variableEntries.push(await this.createImageVariable(await resizeImage(imageData), finalDisplayName, URI.parse(url), url));
+					}
+				}
+			}
+		}
+
+		return variableEntries;
+	}
+
+	private async createImageVariable(data: Uint8Array, name: string, uri?: URI, id?: string,): Promise<IChatRequestVariableEntry> {
+		return {
+			id: id || await imageToHash(data),
+			name: name,
+			value: data,
+			isImage: true,
+			isFile: false,
+			isDirectory: false,
+			references: uri ? [{ reference: uri, kind: 'reference' }] : []
+		};
+	}
+
+	private resolveMarkerAttachContext(markers: MarkerTransferData[]): IDiagnosticVariableEntry[] {
+		return markers.map((marker): IDiagnosticVariableEntry => {
+			let filter: IDiagnosticVariableEntryFilterData;
+			if (!('severity' in marker)) {
+				filter = { filterUri: URI.revive(marker.uri), filterSeverity: MarkerSeverity.Warning };
+			} else {
+				filter = IDiagnosticVariableEntryFilterData.fromMarker(marker);
+			}
+
+			return IDiagnosticVariableEntryFilterData.toEntry(filter);
 		});
 	}
 
@@ -325,7 +428,7 @@ export class ChatDragAndDrop extends Themable {
 		overlay.classList.toggle('visible', type !== undefined);
 	}
 
-	protected getOverlayText(type: ChatDragAndDropType): string {
+	private getOverlayText(type: ChatDragAndDropType): string {
 		const typeName = this.getDropTypeName(type);
 		return localize('attacAsContext', 'Attach {0} as Context', typeName);
 	}
@@ -339,92 +442,74 @@ export class ChatDragAndDrop extends Themable {
 		this.overlays.forEach(overlay => this.updateOverlayStyles(overlay.overlay));
 		this.overlayTextBackground = this.getColor(this.styles.listBackground) || '';
 	}
-}
 
-export class EditsDragAndDrop extends ChatDragAndDrop {
 
-	constructor(
-		attachmentModel: ChatAttachmentModel,
-		styles: IChatInputStyles,
-		@IThemeService themeService: IThemeService,
-		@IExtensionService extensionService: IExtensionService,
-		@IFileService fileService: IFileService,
-		@IEditorService editorService: IEditorService,
-	) {
-		super(attachmentModel, styles, themeService, extensionService, fileService, editorService);
-	}
 
-	protected override handleDrop(context: IChatRequestVariableEntry[]): void {
-		this.handleDropAsync(context);
-	}
-
-	protected async handleDropAsync(context: IChatRequestVariableEntry[]): Promise<void> {
-		const nonDirectoryContext = context.filter(context => !context.isDirectory);
-		const directories = context
-			.filter(context => context.isDirectory)
-			.map(context => context.value)
-			.filter(value => !!value && URI.isUri(value));
-
-		// If there are directories, we need to resolve the files and add them to the working set
-		for (const directory of directories) {
-			const fileSystemProvider = this.fileService.getProvider(directory.scheme);
-			if (!fileSystemProvider) {
-				continue;
+	private async extractImageFromFile(e: DragEvent): Promise<Uint8Array | undefined> {
+		const files = e.dataTransfer?.files;
+		if (files && files.length > 0) {
+			const file = files[0];
+			if (file.type.startsWith('image/')) {
+				try {
+					const buffer = await file.arrayBuffer();
+					return new Uint8Array(buffer);
+				} catch (error) {
+					this.logService.error('Error reading file:', error);
+					return undefined;
+				}
 			}
-
-			const resolvedFiles = await resolveFilesInDirectory(directory, fileSystemProvider, true);
-			const resolvedFileContext = resolvedFiles.map(file => getResourceAttachContext(file, false)).filter(context => !!context);
-			nonDirectoryContext.push(...resolvedFileContext);
 		}
 
-		super.handleDrop(nonDirectoryContext);
+		return undefined;
 	}
 
-	protected override getOverlayText(type: ChatDragAndDropType): string {
-		const typeName = this.getDropTypeName(type);
-		switch (type) {
-			case ChatDragAndDropType.FILE_INTERNAL:
-			case ChatDragAndDropType.FILE_EXTERNAL:
-				return localize('addToWorkingSet', 'Add {0} to Working Set', typeName);
-			case ChatDragAndDropType.FOLDER:
-				return localize('addToWorkingSet', 'Add {0} to Working Set', localize('files', 'Files'));
-			default:
-				return super.getOverlayText(type);
+	private async extractImageFromUrl(e: DragEvent): Promise<string[] | undefined> {
+		const textUrl = e.dataTransfer?.getData('text/uri-list');
+		if (textUrl) {
+			try {
+				const uris = UriList.parse(textUrl);
+				if (uris.length > 0) {
+					return uris;
+				}
+			} catch (error) {
+				this.logService.error('Error parsing URI list:', error);
+				return undefined;
+			}
 		}
+
+		return undefined;
 	}
+
+
 }
 
-async function resolveFilesInDirectory(resource: URI, fileSystemProvider: IFileSystemProvider, shouldRecurse: boolean): Promise<URI[]> {
-	const entries = await fileSystemProvider.readdir(resource);
+async function getResourceAttachContext(resource: URI, isDirectory: boolean, textModelService: ITextModelService): Promise<IChatRequestVariableEntry | undefined> {
+	let isOmitted = false;
 
-	const files: URI[] = [];
-	const folders: URI[] = [];
+	if (!isDirectory) {
+		try {
+			const createdModel = await textModelService.createModelReference(resource);
+			createdModel.dispose();
+		} catch {
+			isOmitted = true;
+		}
 
-	for (const [name, type] of entries) {
-		const entryResource = joinPath(resource, name);
-		if (type === FileType.File) {
-			files.push(entryResource);
-		} else if (type === FileType.Directory && shouldRecurse) {
-			folders.push(entryResource);
+		if (/\.(svg)$/i.test(resource.path)) {
+			isOmitted = true;
 		}
 	}
 
-	const subFiles = await Promise.all(folders.map(folder => resolveFilesInDirectory(folder, fileSystemProvider, shouldRecurse)));
-
-	return [...files, ...subFiles.flat()];
-}
-
-function getResourceAttachContext(resource: URI, isDirectory: boolean): IChatRequestVariableEntry | undefined {
 	return {
 		value: resource,
 		id: resource.toString(),
 		name: basename(resource),
 		isFile: !isDirectory,
 		isDirectory,
+		isOmitted
 	};
 }
 
-async function getImageAttachContext(editor: EditorInput | IDraggedResourceEditorInput, fileService: IFileService): Promise<IChatRequestVariableEntry | undefined> {
+async function getImageAttachContext(editor: EditorInput | IDraggedResourceEditorInput, fileService: IFileService, dialogService: IDialogService): Promise<IChatRequestVariableEntry | undefined> {
 	if (!editor.resource) {
 		return undefined;
 	}
@@ -432,6 +517,10 @@ async function getImageAttachContext(editor: EditorInput | IDraggedResourceEdito
 	if (/\.(png|jpg|jpeg|gif|webp)$/i.test(editor.resource.path)) {
 		const fileName = basename(editor.resource);
 		const readFile = await fileService.readFile(editor.resource);
+		if (readFile.size > 30 * 1024 * 1024) { // 30 MB
+			dialogService.error(localize('imageTooLarge', 'Image is too large'), localize('imageTooLargeMessage', 'The image {0} is too large to be attached.', fileName));
+			throw new Error('Image is too large');
+		}
 		const resizedImage = await resizeImage(readFile.value.buffer);
 		return {
 			id: editor.resource.toString(),

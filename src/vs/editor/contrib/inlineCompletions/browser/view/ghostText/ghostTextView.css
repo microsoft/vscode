@@ -24,8 +24,19 @@
 	font-size: 0;
 }
 
-.monaco-editor .ghost-text-decoration, .monaco-editor .suggest-preview-text .ghost-text {
+.monaco-editor .ghost-text-decoration,
+.monaco-editor .suggest-preview-text .ghost-text {
 	font-style: italic;
+}
+
+.monaco-editor .suggest-preview-text.clickable .view-line {
+	z-index: 1;
+}
+
+.monaco-editor .ghost-text-decoration.clickable,
+.monaco-editor .ghost-text-decoration-preview.clickable,
+.monaco-editor .suggest-preview-text.clickable .ghost-text {
+	cursor: pointer;
 }
 
 .monaco-editor .inline-completion-text-to-replace {
@@ -44,4 +55,24 @@
 	}
 	background-color: var(--vscode-editorGhostText-background);
 	border: 1px solid var(--vscode-editorGhostText-border);
+}
+
+.monaco-editor .ghost-text-decoration.warning,
+.monaco-editor .ghost-text-decoration-preview.warning,
+.monaco-editor .suggest-preview-text .ghost-text.warning {
+	background: var(--monaco-editor-warning-decoration) repeat-x bottom left;
+	border-bottom: 4px double var(--vscode-editorWarning-border);
+}
+
+.ghost-text-view-warning-widget-icon {
+	.codicon {
+		color: var(--vscode-editorWarning-foreground) !important;
+	}
+}
+
+.monaco-editor {
+	.edits-fadeout-decoration {
+		opacity: var(--animation-opacity, 1);
+		background-color: var(--vscode-inlineEdit-modifiedChangedTextBackground);
+	}
 }

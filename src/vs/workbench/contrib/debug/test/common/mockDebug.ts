@@ -195,6 +195,10 @@ export class MockSession implements IDebugSession {
 		throw new Error('Method not implemented.');
 	}
 
+	cancelCorrelatedTestRun(): void {
+
+	}
+
 	get compoundRoot(): DebugCompoundRoot | undefined {
 		return undefined;
 	}

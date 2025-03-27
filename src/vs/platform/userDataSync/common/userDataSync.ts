@@ -167,13 +167,14 @@ export const enum SyncResource {
 	Settings = 'settings',
 	Keybindings = 'keybindings',
 	Snippets = 'snippets',
+	Prompts = 'prompts',
 	Tasks = 'tasks',
 	Extensions = 'extensions',
 	GlobalState = 'globalState',
 	Profiles = 'profiles',
 	WorkspaceState = 'workspaceState',
 }
-export const ALL_SYNC_RESOURCES: SyncResource[] = [SyncResource.Settings, SyncResource.Keybindings, SyncResource.Snippets, SyncResource.Tasks, SyncResource.Extensions, SyncResource.GlobalState, SyncResource.Profiles];
+export const ALL_SYNC_RESOURCES: SyncResource[] = [SyncResource.Settings, SyncResource.Keybindings, SyncResource.Snippets, SyncResource.Prompts, SyncResource.Tasks, SyncResource.Extensions, SyncResource.GlobalState, SyncResource.Profiles];
 
 export function getPathSegments(collection: string | undefined, ...paths: string[]): string[] {
 	return collection ? [collection, ...paths] : paths;
@@ -531,10 +532,16 @@ export interface IUserDataSyncEnablementService {
 	setEnablement(enabled: boolean): void;
 
 	readonly onDidChangeResourceEnablement: Event<[SyncResource, boolean]>;
-	isResourceEnabled(resource: SyncResource): boolean;
+	isResourceEnabled(resource: SyncResource, defaultValue?: boolean): boolean;
 	setResourceEnablement(resource: SyncResource, enabled: boolean): void;
 
 	getResourceSyncStateVersion(resource: SyncResource): string | undefined;
+
+	/**
+	 * Checks if resource enabled was explicitly configured before,
+	 * ignoring its default enablement value used in {@link isResourceEnabled}.
+	 */
+	isResourceEnablementConfigured(resource: SyncResource): boolean;
 }
 
 export interface IUserDataSyncTask {

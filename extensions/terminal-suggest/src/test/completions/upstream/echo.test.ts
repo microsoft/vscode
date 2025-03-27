@@ -12,20 +12,20 @@ const allOptions = [
 	'-e',
 	'-n',
 ];
-
+const echoExpectedCompletions = [{ label: 'echo', description: (echoSpec as any).description }];
 export const echoTestSuiteSpec: ISuiteSpec = {
 	name: 'echo',
 	completionSpecs: echoSpec,
 	availableCommands: 'echo',
 	testSpecs: [
 		// Empty input
-		{ input: '|', expectedCompletions: ['echo'], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		{ input: '|', expectedCompletions: echoExpectedCompletions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 
 		// Typing the command
-		{ input: 'e|', expectedCompletions: ['echo'], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
-		{ input: 'ec|', expectedCompletions: ['echo'], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
-		{ input: 'ech|', expectedCompletions: ['echo'], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
-		{ input: 'echo|', expectedCompletions: ['echo'], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		{ input: 'e|', expectedCompletions: echoExpectedCompletions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		{ input: 'ec|', expectedCompletions: echoExpectedCompletions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		{ input: 'ech|', expectedCompletions: echoExpectedCompletions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		{ input: 'echo|', expectedCompletions: echoExpectedCompletions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 
 		// Basic options
 		{ input: 'echo |', expectedCompletions: allOptions },

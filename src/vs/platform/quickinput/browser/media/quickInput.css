@@ -188,6 +188,10 @@
 	padding: 0 6px;
 }
 
+.quick-input-list .quick-input-list-entry.indented {
+	padding-left: 1.3em;
+}
+
 .quick-input-list .quick-input-list-entry.quick-input-list-separator-border {
 	border-top-width: 1px;
 	border-top-style: solid;
@@ -244,6 +248,13 @@
 }
 .quick-input-widget.show-checkboxes .quick-input-list .quick-input-list-checkbox {
 	display: inline;
+}
+.quick-input-widget.show-checkboxes .quick-input-list-entry.not-pickable {
+	margin-left: -10px;
+
+	.quick-input-list-checkbox {
+		display: none;
+	}
 }
 
 .quick-input-list .quick-input-list-rows > .quick-input-list-row {

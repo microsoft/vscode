@@ -6,9 +6,15 @@
 import type * as Parser from '@vscode/tree-sitter-wasm';
 import { Event } from '../../../../base/common/event.js';
 import { ITextModel } from '../../../common/model.js';
-import { ITreeSitterParserService, ITreeSitterParseResult, ITextModelTreeSitter, TreeUpdateEvent } from '../../../common/services/treeSitterParserService.js';
+import { ITreeSitterParserService, ITextModelTreeSitter, TreeUpdateEvent } from '../../../common/services/treeSitterParserService.js';
 
 export class TestTreeSitterParserService implements ITreeSitterParserService {
+	getLanguage(languageId: string): Promise<Parser.Language | undefined> {
+		throw new Error('Method not implemented.');
+	}
+	getTreeSync(content: string, languageId: string): Parser.Tree | undefined {
+		throw new Error('Method not implemented.');
+	}
 	async getTextModelTreeSitter(model: ITextModel, parseImmediately?: boolean): Promise<ITextModelTreeSitter> {
 		throw new Error('Method not implemented.');
 	}
@@ -24,7 +30,7 @@ export class TestTreeSitterParserService implements ITreeSitterParserService {
 	waitForLanguage(languageId: string): Promise<Parser.Language | undefined> {
 		throw new Error('Method not implemented.');
 	}
-	getParseResult(textModel: ITextModel): ITreeSitterParseResult | undefined {
+	getParseResult(textModel: ITextModel): ITextModelTreeSitter | undefined {
 		throw new Error('Method not implemented.');
 	}
 

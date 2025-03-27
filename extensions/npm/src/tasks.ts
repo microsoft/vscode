@@ -71,10 +71,16 @@ export class NpmTaskProvider implements TaskProvider {
 			} else {
 				packageJsonUri = _task.scope.uri.with({ path: _task.scope.uri.path + '/package.json' });
 			}
+			let task: Task;
 			if (kind.script === INSTALL_SCRIPT) {
-				return createInstallationTask(this.context, _task.scope, packageJsonUri);
+				task = await createInstallationTask(this.context, _task.scope, packageJsonUri);
+			} else {
+				task = await createScriptRunnerTask(this.context, kind.script, _task.scope, packageJsonUri);
 			}
-			return createScriptRunnerTask(this.context, kind.script, _task.scope, packageJsonUri);
+			// VSCode requires that task.definition must not change between resolutions
+			// We need to restore task.definition to its original value
+			task.definition = kind;
+			return task;
 		}
 		return undefined;
 	}

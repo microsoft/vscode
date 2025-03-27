@@ -161,7 +161,7 @@ import { IUserDataProfile, IUserDataProfilesService, toUserDataProfile, UserData
 import { UserDataProfileService } from '../../services/userDataProfile/common/userDataProfileService.js';
 import { IUserDataProfileService } from '../../services/userDataProfile/common/userDataProfile.js';
 import { EnablementState, IExtensionManagementServer, IResourceExtension, IScannedExtension, IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../services/extensionManagement/common/extensionManagement.js';
-import { ILocalExtension, IGalleryExtension, InstallOptions, UninstallOptions, IExtensionsControlManifest, IGalleryMetadata, IExtensionManagementParticipant, Metadata, InstallExtensionResult, InstallExtensionInfo, UninstallExtensionInfo } from '../../../platform/extensionManagement/common/extensionManagement.js';
+import { ILocalExtension, IGalleryExtension, InstallOptions, UninstallOptions, IExtensionsControlManifest, IGalleryMetadata, IExtensionManagementParticipant, Metadata, InstallExtensionResult, InstallExtensionInfo, UninstallExtensionInfo, InstallExtensionSummary } from '../../../platform/extensionManagement/common/extensionManagement.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { IRemoteExtensionsScannerService } from '../../../platform/remote/common/remoteExtensionsScanner.js';
 import { IRemoteSocketFactoryService, RemoteSocketFactoryService } from '../../../platform/remote/common/remoteSocketFactoryService.js';
@@ -1369,6 +1369,7 @@ export class TestLifecycleService extends Disposable implements ILifecycleServic
 	}
 
 	startupKind!: StartupKind;
+	willShutdown = false;
 
 	private readonly _onBeforeShutdown = this._register(new Emitter<InternalBeforeShutdownEvent>());
 	get onBeforeShutdown(): Event<InternalBeforeShutdownEvent> { return this._onBeforeShutdown.event; }
@@ -1467,17 +1468,21 @@ export class TestTextResourceConfigurationService implements ITextResourceConfig
 
 export class RemoteFileSystemProvider implements IFileSystemProvider {
 
-	constructor(private readonly wrappedFsp: IFileSystemProvider, private readonly remoteAuthority: string) { }
+	constructor(private readonly wrappedFsp: IFileSystemProvider, private readonly remoteAuthority: string) {
+		this.capabilities = this.wrappedFsp.capabilities;
+		this.onDidChangeCapabilities = this.wrappedFsp.onDidChangeCapabilities;
+		this.onDidChangeFile = Event.map(this.wrappedFsp.onDidChangeFile, changes => changes.map(c => {
+			return {
+				type: c.type,
+				resource: c.resource.with({ scheme: Schemas.vscodeRemote, authority: this.remoteAuthority }),
+			};
+		}));
+	}
 
-	readonly capabilities: FileSystemProviderCapabilities = this.wrappedFsp.capabilities;
-	readonly onDidChangeCapabilities: Event<void> = this.wrappedFsp.onDidChangeCapabilities;
+	readonly capabilities: FileSystemProviderCapabilities;
+	readonly onDidChangeCapabilities: Event<void>;
 
-	readonly onDidChangeFile: Event<readonly IFileChange[]> = Event.map(this.wrappedFsp.onDidChangeFile, changes => changes.map(c => {
-		return {
-			type: c.type,
-			resource: c.resource.with({ scheme: Schemas.vscodeRemote, authority: this.remoteAuthority }),
-		};
-	}));
+	readonly onDidChangeFile: Event<readonly IFileChange[]>;
 	watch(resource: URI, opts: IWatchOptions): IDisposable { return this.wrappedFsp.watch(this.toFileResource(resource), opts); }
 
 	stat(resource: URI): Promise<IStat> { return this.wrappedFsp.stat(this.toFileResource(resource)); }
@@ -1728,7 +1733,7 @@ export function registerTestSideBySideEditor(): IDisposable {
 
 export class TestFileEditorInput extends EditorInput implements IFileEditorInput {
 
-	readonly preferredResource = this.resource;
+	readonly preferredResource;
 
 	gotDisposed = false;
 	gotSaved = false;
@@ -1745,6 +1750,8 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 		private _typeId: string
 	) {
 		super();
+
+		this.preferredResource = this.resource;
 	}
 
 	override get typeId() { return this._typeId; }
@@ -2164,7 +2171,7 @@ export class TestRemoteAgentService implements IRemoteAgentService {
 
 export class TestRemoteExtensionsScannerService implements IRemoteExtensionsScannerService {
 	declare readonly _serviceBrand: undefined;
-	async whenExtensionsReady(): Promise<void> { }
+	async whenExtensionsReady(): Promise<InstallExtensionSummary> { return { failed: [] }; }
 	scanExtensions(): Promise<IExtensionDescription[]> { throw new Error('Method not implemented.'); }
 }
 

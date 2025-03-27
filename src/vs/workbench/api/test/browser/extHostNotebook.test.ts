@@ -220,7 +220,8 @@ suite('NotebookCell#Document', function () {
 				lines: doc.getText().split('\n'),
 				languageId: doc.languageId,
 				uri: doc.uri,
-				versionId: doc.version
+				versionId: doc.version,
+				encoding: 'utf8'
 			});
 		}
 

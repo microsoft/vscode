@@ -8,10 +8,10 @@ import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { Memento } from '../../../common/memento.js';
-import { ChatAgentLocation } from './chatAgents.js';
 import { WorkingSetEntryState } from './chatEditingService.js';
 import { IChatRequestVariableEntry } from './chatModel.js';
 import { CHAT_PROVIDER_ID } from './chatParticipantContribTypes.js';
+import { ChatAgentLocation, ChatMode } from './constants.js';
 
 export interface IChatHistoryEntry {
 	text: string;
@@ -23,6 +23,7 @@ export interface IChatInputState {
 	[key: string]: any;
 	chatContextAttachments?: ReadonlyArray<IChatRequestVariableEntry>;
 	chatWorkingSet?: ReadonlyArray<{ uri: URI; state: WorkingSetEntryState }>;
+	chatMode?: ChatMode;
 }
 
 export const IChatWidgetHistoryService = createDecorator<IChatWidgetHistoryService>('IChatWidgetHistoryService');

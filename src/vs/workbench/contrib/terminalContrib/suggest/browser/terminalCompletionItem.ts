@@ -10,13 +10,24 @@ import { ISimpleCompletion, SimpleCompletionItem } from '../../../../services/su
 export enum TerminalCompletionItemKind {
 	File = 0,
 	Folder = 1,
-	Flag = 2,
-	Method = 3,
+	Method = 2,
+	Alias = 3,
 	Argument = 4,
-	Alias = 5,
+	Option = 5,
+	OptionValue = 6,
+	Flag = 7,
+	// Kinds only for core
+	InlineSuggestion = 100,
+	InlineSuggestionAlwaysOnTop = 101,
 }
 
 export interface ITerminalCompletion extends ISimpleCompletion {
+	/**
+	 * A custom string that should be input into the terminal when selecting this completion. This
+	 * is only required if the label is not what's being input.
+	 */
+	inputData?: string;
+
 	/**
 	 * The kind of terminal completion item.
 	 */
@@ -39,23 +50,23 @@ export class TerminalCompletionItem extends SimpleCompletionItem {
 	/**
 	 * {@link labelLow} without the file extension.
 	 */
-	readonly labelLowExcludeFileExt: string;
+	labelLowExcludeFileExt: string;
 
 	/**
 	 * The lowercase label, when the completion is a file or directory this has  normalized path
 	 * separators (/) on Windows and no trailing separator for directories.
 	 */
-	readonly labelLowNormalizedPath: string;
+	labelLowNormalizedPath: string;
 
 	/**
 	 * A penalty that applies to files or folders starting with the underscore character.
 	 */
-	readonly underscorePenalty: 0 | 1 = 0;
+	underscorePenalty: 0 | 1 = 0;
 
 	/**
 	 * The file extension part from {@link labelLow}.
 	 */
-	readonly fileExtLow: string = '';
+	fileExtLow: string = '';
 
 	constructor(
 		override readonly completion: ITerminalCompletion

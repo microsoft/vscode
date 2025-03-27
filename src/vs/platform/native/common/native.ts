@@ -86,6 +86,9 @@ export interface ICommonNativeHostService {
 	getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle }>;
 
 	isMaximized(options?: INativeHostOptions): Promise<boolean>;
+	maximizeWindow(options?: INativeHostOptions): Promise<void>;
+	unmaximizeWindow(options?: INativeHostOptions): Promise<void>;
+	minimizeWindow(options?: INativeHostOptions): Promise<void>;
 	moveWindowTop(options?: INativeHostOptions): Promise<void>;
 	positionWindow(position: IRectangle, options?: INativeHostOptions): Promise<void>;
 
@@ -109,9 +112,6 @@ export interface ICommonNativeHostService {
 	 * focused application which may not be VSCode.
 	 */
 	focusWindow(options?: INativeHostOptions & { force?: boolean }): Promise<void>;
-
-	// Titlebar default style override
-	overrideDefaultTitlebarStyle(style: 'custom' | undefined): Promise<void>;
 
 	// Dialogs
 	showMessageBox(options: MessageBoxOptions & INativeHostOptions): Promise<MessageBoxReturnValue>;

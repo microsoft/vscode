@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import assert from 'assert';
+import assert, { notStrictEqual, strictEqual } from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TerminalCompletionModel } from '../../browser/terminalCompletionModel.js';
 import { LineContext } from '../../../../../services/suggest/browser/simpleCompletionModel.js';
@@ -214,6 +214,43 @@ suite('TerminalCompletionModel', function () {
 				'__init__.py',
 				'__pycache',
 			]);
+		});
+	});
+
+	suite('inline completions', () => {
+		function createItems(kind: TerminalCompletionItemKind.InlineSuggestion | TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop) {
+			return [
+				...createFolderItems('a', 'c'),
+				...createFileItems('b', 'd'),
+				new TerminalCompletionItem({
+					label: 'ab',
+					provider: 'core',
+					replacementIndex: 0,
+					replacementLength: 0,
+					kind
+				})
+			];
+		}
+		suite('InlineSuggestion', () => {
+			test('should put on top generally', function () {
+				const model = new TerminalCompletionModel(createItems(TerminalCompletionItemKind.InlineSuggestion), new LineContext('', 0));
+				strictEqual(model.items[0].completion.label, 'ab');
+			});
+			test('should NOT put on top when there\'s an exact match of another item', function () {
+				const model = new TerminalCompletionModel(createItems(TerminalCompletionItemKind.InlineSuggestion), new LineContext('a', 0));
+				notStrictEqual(model.items[0].completion.label, 'ab');
+				strictEqual(model.items[1].completion.label, 'ab');
+			});
+		});
+		suite('InlineSuggestionAlwaysOnTop', () => {
+			test('should put on top generally', function () {
+				const model = new TerminalCompletionModel(createItems(TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop), new LineContext('', 0));
+				strictEqual(model.items[0].completion.label, 'ab');
+			});
+			test('should put on top even if there\'s an exact match of another item', function () {
+				const model = new TerminalCompletionModel(createItems(TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop), new LineContext('a', 0));
+				strictEqual(model.items[0].completion.label, 'ab');
+			});
 		});
 	});
 });

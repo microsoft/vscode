@@ -152,12 +152,39 @@ export interface ICwdDetectionCapability {
 
 export interface IShellEnvDetectionCapability {
 	readonly type: TerminalCapability.ShellEnvDetection;
-	readonly onDidChangeEnv: Event<Map<string, string>>;
-	get env(): Map<string, string>;
+	readonly onDidChangeEnv: Event<TerminalShellIntegrationEnvironment>;
+	get env(): TerminalShellIntegrationEnvironment;
 	setEnvironment(envs: { [key: string]: string | undefined } | undefined, isTrusted: boolean): void;
-	startEnvironmentSingleVar(isTrusted: boolean): void;
+	startEnvironmentSingleVar(clear: boolean, isTrusted: boolean): void;
 	setEnvironmentSingleVar(key: string, value: string | undefined, isTrusted: boolean): void;
+	deleteEnvironmentSingleVar(key: string, value: string | undefined, isTrusted: boolean): void;
 	endEnvironmentSingleVar(isTrusted: boolean): void;
+}
+
+export interface TerminalShellIntegrationEnvironment {
+	/**
+	 * The dictionary of environment variables.
+	 */
+	value: { [key: string]: string | undefined } | undefined;
+
+	/**
+	 * Whether the environment came from a trusted source and is therefore safe to use its
+	 * values in a manner that could lead to execution of arbitrary code. If this value is
+	 * `false`, {@link value} should either not be used for something that could lead to arbitrary
+	 * code execution, or the user should be warned beforehand.
+	 *
+	 * This is `true` only when the environment was reported explicitly and it used a nonce for
+	 * verification.
+	 */
+	isTrusted: boolean;
+}
+
+export interface TerminalShellIntegration {
+	/**
+	 * The environment of the shell process. This is undefined if the shell integration script
+	 * does not send the environment.
+	 */
+	readonly env: TerminalShellIntegrationEnvironment;
 }
 
 export const enum CommandInvalidationReason {
@@ -187,12 +214,14 @@ export interface ICommandDetectionCapability {
 	readonly executingCommandConfidence: 'low' | 'medium' | 'high' | undefined;
 	/** The current cwd at the cursor's position. */
 	readonly cwd: string | undefined;
+	readonly hasRichCommandDetection: boolean;
 	readonly currentCommand: ICurrentPartialCommand | undefined;
 	readonly onCommandStarted: Event<ITerminalCommand>;
 	readonly onCommandFinished: Event<ITerminalCommand>;
 	readonly onCommandExecuted: Event<ITerminalCommand>;
 	readonly onCommandInvalidated: Event<ITerminalCommand[]>;
 	readonly onCurrentCommandInvalidated: Event<ICommandInvalidationRequest>;
+	readonly onSetRichCommandDetection: Event<boolean>;
 	setContinuationPrompt(value: string): void;
 	setPromptTerminator(value: string, lastPromptLine: string): void;
 	setCwd(value: string): void;
@@ -212,6 +241,7 @@ export interface ICommandDetectionCapability {
 	handleCommandStart(options?: IHandleCommandOptions): void;
 	handleCommandExecuted(options?: IHandleCommandOptions): void;
 	handleCommandFinished(exitCode?: number, options?: IHandleCommandOptions): void;
+	setHasRichCommandDetection(value: boolean): void;
 	/**
 	 * Set the command line explicitly.
 	 * @param commandLine The command line being set.
@@ -318,6 +348,7 @@ export interface IMarkProperties {
 }
 export interface ISerializedCommandDetectionCapability {
 	isWindowsPty: boolean;
+	hasRichCommandDetection: boolean;
 	commands: ISerializedTerminalCommand[];
 	promptInputModel: ISerializedPromptInputModel | undefined;
 }

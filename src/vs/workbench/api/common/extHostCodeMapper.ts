@@ -8,8 +8,9 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ICodeMapperResult } from '../../contrib/chat/common/chatCodeMapperService.js';
 import * as extHostProtocol from './extHost.protocol.js';
-import { TextEdit } from './extHostTypeConverters.js';
+import { NotebookEdit, TextEdit } from './extHostTypeConverters.js';
 import { URI } from '../../../base/common/uri.js';
+import { asArray } from '../../../base/common/arrays.js';
 
 export class ExtHostCodeMapper implements extHostProtocol.ExtHostCodeMapperShape {
 
@@ -33,10 +34,17 @@ export class ExtHostCodeMapper implements extHostProtocol.ExtHostCodeMapperShape
 		// Construct a response object to pass to the provider
 		const stream: vscode.MappedEditsResponseStream = {
 			textEdit: (target: vscode.Uri, edits: vscode.TextEdit | vscode.TextEdit[]) => {
-				edits = (Array.isArray(edits) ? edits : [edits]);
+				edits = asArray(edits);
 				this._proxy.$handleProgress(internalRequest.requestId, {
 					uri: target,
 					edits: edits.map(TextEdit.from)
+				});
+			},
+			notebookEdit: (target: vscode.Uri, edits: vscode.NotebookEdit | vscode.NotebookEdit[]) => {
+				edits = asArray(edits);
+				this._proxy.$handleProgress(internalRequest.requestId, {
+					uri: target,
+					edits: edits.map(NotebookEdit.from)
 				});
 			}
 		};

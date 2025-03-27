@@ -41,6 +41,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.fromMarketplace = fromMarketplace;
+exports.fromVsix = fromVsix;
 exports.fromGithub = fromGithub;
 exports.packageNonNativeLocalExtensionsStream = packageNonNativeLocalExtensionsStream;
 exports.packageNativeLocalExtensionsStream = packageNativeLocalExtensionsStream;
@@ -56,6 +57,7 @@ const child_process_1 = __importDefault(require("child_process"));
 const glob_1 = __importDefault(require("glob"));
 const gulp_1 = __importDefault(require("gulp"));
 const path_1 = __importDefault(require("path"));
+const crypto_1 = __importDefault(require("crypto"));
 const vinyl_1 = __importDefault(require("vinyl"));
 const stats_1 = require("./stats");
 const util2 = __importStar(require("./util"));
@@ -257,6 +259,29 @@ function fromMarketplace(serviceUrl, { name: extensionName, version, sha256, met
         },
         checksumSha256: sha256
     })
+        .pipe(vzip.src())
+        .pipe((0, gulp_filter_1.default)('extension/**'))
+        .pipe((0, gulp_rename_1.default)(p => p.dirname = p.dirname.replace(/^extension\/?/, '')))
+        .pipe(packageJsonFilter)
+        .pipe((0, gulp_buffer_1.default)())
+        .pipe(json({ __metadata: metadata }))
+        .pipe(packageJsonFilter.restore);
+}
+function fromVsix(vsixPath, { name: extensionName, version, sha256, metadata }) {
+    const json = require('gulp-json-editor');
+    (0, fancy_log_1.default)('Using local VSIX for extension:', ansi_colors_1.default.yellow(`${extensionName}@${version}`), '...');
+    const packageJsonFilter = (0, gulp_filter_1.default)('package.json', { restore: true });
+    return gulp_1.default.src(vsixPath)
+        .pipe((0, gulp_buffer_1.default)())
+        .pipe(event_stream_1.default.mapSync((f) => {
+        const hash = crypto_1.default.createHash('sha256');
+        hash.update(f.contents);
+        const checksum = hash.digest('hex');
+        if (checksum !== sha256) {
+            throw new Error(`Checksum mismatch for ${vsixPath} (expected ${sha256}, actual ${checksum}))`);
+        }
+        return f;
+    }))
         .pipe(vzip.src())
         .pipe((0, gulp_filter_1.default)('extension/**'))
         .pipe((0, gulp_rename_1.default)(p => p.dirname = p.dirname.replace(/^extension\/?/, '')))

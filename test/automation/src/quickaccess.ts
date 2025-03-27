@@ -137,22 +137,21 @@ export class QuickAccess {
 		// Other parts of code might steal focus away from quickinput :(
 		while (retries < 5) {
 
-			// Open via keybinding
-			switch (kind) {
-				case QuickAccessKind.Files:
-					await this.code.dispatchKeybinding(process.platform === 'darwin' ? 'cmd+p' : 'ctrl+p');
-					break;
-				case QuickAccessKind.Symbols:
-					await this.code.dispatchKeybinding(process.platform === 'darwin' ? 'cmd+shift+o' : 'ctrl+shift+o');
-					break;
-				case QuickAccessKind.Commands:
-					await this.code.dispatchKeybinding(process.platform === 'darwin' ? 'cmd+shift+p' : 'ctrl+shift+p');
-					break;
-			}
-
-			// Await for quick input widget opened
 			try {
-				await this.quickInput.waitForQuickInputOpened(10);
+				// Await for quick input widget opened
+				const accept = () => this.quickInput.waitForQuickInputOpened(10);
+				// Open via keybinding
+				switch (kind) {
+					case QuickAccessKind.Files:
+						await this.code.sendKeybinding(process.platform === 'darwin' ? 'cmd+p' : 'ctrl+p', accept);
+						break;
+					case QuickAccessKind.Symbols:
+						await this.code.sendKeybinding(process.platform === 'darwin' ? 'cmd+shift+o' : 'ctrl+shift+o', accept);
+						break;
+					case QuickAccessKind.Commands:
+						await this.code.sendKeybinding(process.platform === 'darwin' ? 'cmd+shift+p' : 'ctrl+shift+p', accept);
+						break;
+				}
 				break;
 			} catch (err) {
 				if (++retries > 5) {
@@ -160,7 +159,7 @@ export class QuickAccess {
 				}
 
 				// Retry
-				await this.code.dispatchKeybinding('escape');
+				await this.code.sendKeybinding('escape');
 			}
 		}
 

@@ -414,11 +414,9 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 
 	private _contextValue: string | undefined = undefined;
 	get contextValue(): string | undefined {
-		checkProposedApiEnabled(this._extension, 'scmResourceGroupState');
 		return this._contextValue;
 	}
 	set contextValue(contextValue: string | undefined) {
-		checkProposedApiEnabled(this._extension, 'scmResourceGroupState');
 		this._contextValue = contextValue;
 		this._proxy.$updateGroup(this._sourceControlHandle, this.handle, this.features);
 	}
@@ -431,12 +429,8 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 	}
 
 	get features(): SCMGroupFeatures {
-		const contextValue = isProposedApiEnabled(this._extension, 'scmResourceGroupState')
-			? this.contextValue
-			: undefined;
-
 		return {
-			contextValue,
+			contextValue: this.contextValue,
 			hideWhenEmpty: this.hideWhenEmpty
 		};
 	}

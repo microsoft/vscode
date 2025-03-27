@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Event } from '../../../../../base/common/event.js';
+import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { matchesSomeScheme, Schemas } from '../../../../../base/common/network.js';
 import { basename } from '../../../../../base/common/path.js';
 import { basenameOrAuthority, isEqualAuthority } from '../../../../../base/common/resources.js';
@@ -37,94 +37,46 @@ import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { SETTINGS_AUTHORITY } from '../../../../services/preferences/common/preferences.js';
 import { createFileIconThemableTreeContainerScope } from '../../../files/browser/views/explorerView.js';
 import { ExplorerFolderContext } from '../../../files/common/files.js';
-import { chatEditingWidgetFileReadonlyContextKey, chatEditingWidgetFileStateContextKey, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { chatEditingWidgetFileStateContextKey, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { ChatResponseReferencePartStatusKind, IChatContentReference, IChatWarningMessage } from '../../common/chatService.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../common/chatViewModel.js';
 import { ChatTreeItem, IChatWidgetService } from '../chat.js';
+import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { IDisposableReference, ResourcePool } from './chatCollections.js';
-import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
+import { IChatContentPartRenderContext } from './chatContentParts.js';
 
-const $ = dom.$;
+export const $ = dom.$;
 
 export interface IChatReferenceListItem extends IChatContentReference {
 	title?: string;
 	description?: string;
 	state?: WorkingSetEntryState;
 	excluded?: boolean;
-	isMarkedReadonly?: boolean;
 }
 
 export type IChatCollapsibleListItem = IChatReferenceListItem | IChatWarningMessage;
 
-export interface IChatCollapsibleListOptions {
-	expandedWhenEmptyResponse?: boolean;
-}
-
-export class ChatCollapsibleListContentPart extends Disposable implements IChatContentPart {
-	public readonly domNode: HTMLElement;
-
-	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
-	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
-
-	private readonly hasFollowingContent: boolean;
+export class ChatCollapsibleListContentPart extends ChatCollapsibleContentPart {
 
 	constructor(
 		private readonly data: ReadonlyArray<IChatCollapsibleListItem>,
-		labelOverride: string | undefined,
+		labelOverride: IMarkdownString | string | undefined,
 		context: IChatContentPartRenderContext,
-		contentReferencesListPool: CollapsibleListPool,
-		options: IChatCollapsibleListOptions,
-		@IOpenerService openerService: IOpenerService,
-		@IMenuService menuService: IMenuService,
+		private readonly contentReferencesListPool: CollapsibleListPool,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IMenuService private readonly menuService: IMenuService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
-		super();
-
-		const element = context.element as IChatResponseViewModel;
-		this.hasFollowingContent = context.contentIndex + 1 < context.content.length;
-		const referencesLabel = labelOverride ?? (data.length > 1 ?
+		super(labelOverride ?? (data.length > 1 ?
 			localize('usedReferencesPlural', "Used {0} references", data.length) :
-			localize('usedReferencesSingular', "Used {0} reference", 1));
-		const iconElement = $('.chat-used-context-icon');
-		const isExpanded = () =>
-			element.usedReferencesExpanded ?? (
-				options.expandedWhenEmptyResponse && element.response.value.length === 0
-			);
-		const icon = (element: IChatResponseViewModel) => {
-			return isExpanded() ? Codicon.chevronDown : Codicon.chevronRight;
-		};
-		iconElement.classList.add(...ThemeIcon.asClassNameArray(icon(element)));
-		const buttonElement = $('.chat-used-context-label', undefined);
+			localize('usedReferencesSingular', "Used {0} reference", 1)), context);
+	}
 
-		const collapseButton = this._register(new Button(buttonElement, {
-			buttonBackground: undefined,
-			buttonBorder: undefined,
-			buttonForeground: undefined,
-			buttonHoverBackground: undefined,
-			buttonSecondaryBackground: undefined,
-			buttonSecondaryForeground: undefined,
-			buttonSecondaryHoverBackground: undefined,
-			buttonSeparator: undefined
-		}));
-		this.domNode = $('.chat-used-context', undefined, buttonElement);
-		collapseButton.label = referencesLabel;
-		collapseButton.element.prepend(iconElement);
-		this.updateAriaLabel(collapseButton.element, referencesLabel, isExpanded());
-		this.domNode.classList.toggle('chat-used-context-collapsed', !isExpanded());
-		this._register(collapseButton.onDidClick(() => {
-			iconElement.classList.remove(...ThemeIcon.asClassNameArray(icon(element)));
-			element.usedReferencesExpanded = !isExpanded();
-			iconElement.classList.add(...ThemeIcon.asClassNameArray(icon(element)));
-			this.domNode.classList.toggle('chat-used-context-collapsed', !isExpanded());
-			this._onDidChangeHeight.fire();
-			this.updateAriaLabel(collapseButton.element, referencesLabel, isExpanded());
-		}));
-
-		const ref = this._register(contentReferencesListPool.get());
+	protected override initContent(): HTMLElement {
+		const ref = this._register(this.contentReferencesListPool.get());
 		const list = ref.object;
-		this.domNode.appendChild(list.getHTMLElement().parentElement!);
 
 		this._register(list.onDidOpen((e) => {
 			if (e.element && 'reference' in e.element && typeof e.element.reference === 'object') {
@@ -132,7 +84,7 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 				const uri = URI.isUri(uriOrLocation) ? uriOrLocation :
 					uriOrLocation?.uri;
 				if (uri) {
-					openerService.open(
+					this.openerService.open(
 						uri,
 						{
 							fromUserGesture: true,
@@ -158,7 +110,7 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
 				getActions: () => {
-					const menu = menuService.getMenuActions(MenuId.ChatAttachmentsContext, list.contextKeyService, { shouldForwardArgs: true, arg: uri });
+					const menu = this.menuService.getMenuActions(MenuId.ChatAttachmentsContext, list.contextKeyService, { shouldForwardArgs: true, arg: uri });
 					return getFlatContextMenuActions(menu);
 				}
 			});
@@ -173,23 +125,52 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 		}));
 
 		const maxItemsShown = 6;
-		const itemsShown = Math.min(data.length, maxItemsShown);
+		const itemsShown = Math.min(this.data.length, maxItemsShown);
 		const height = itemsShown * 22;
 		list.layout(height);
 		list.getHTMLElement().style.height = `${height}px`;
-		list.splice(0, list.length, data);
+		list.splice(0, list.length, this.data);
+
+		return list.getHTMLElement().parentElement!;
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
 		return other.kind === 'references' && other.references.length === this.data.length && (!!followingContent.length === this.hasFollowingContent);
 	}
+}
 
-	private updateAriaLabel(element: HTMLElement, label: string, expanded?: boolean): void {
-		element.ariaLabel = expanded ? localize('usedReferencesExpanded', "{0}, expanded", label) : localize('usedReferencesCollapsed', "{0}, collapsed", label);
+export interface IChatUsedReferencesListOptions {
+	expandedWhenEmptyResponse?: boolean;
+}
+
+export class ChatUsedReferencesListContentPart extends ChatCollapsibleListContentPart {
+	constructor(
+		data: ReadonlyArray<IChatCollapsibleListItem>,
+		labelOverride: IMarkdownString | string | undefined,
+		context: IChatContentPartRenderContext,
+		contentReferencesListPool: CollapsibleListPool,
+		private readonly options: IChatUsedReferencesListOptions,
+		@IOpenerService openerService: IOpenerService,
+		@IMenuService menuService: IMenuService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+	) {
+		super(data, labelOverride, context, contentReferencesListPool, openerService, menuService, instantiationService, contextMenuService);
+		if (data.length === 0) {
+			dom.hide(this.domNode);
+		}
 	}
 
-	addDisposable(disposable: IDisposable): void {
-		this._register(disposable);
+	protected override isExpanded(): boolean {
+		const element = this.context.element as IChatResponseViewModel;
+		return element.usedReferencesExpanded ?? !!(
+			this.options.expandedWhenEmptyResponse && element.response.value.length === 0
+		);
+	}
+
+	protected override setExpanded(value: boolean): void {
+		const element = this.context.element as IChatResponseViewModel;
+		element.usedReferencesExpanded = !this.isExpanded();
 	}
 }
 
@@ -396,25 +377,15 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 			} else if (matchesSomeScheme(uri, Schemas.mailto, Schemas.http, Schemas.https)) {
 				templateData.label.setResource({ resource: uri, name: uri.toString() }, { icon: icon ?? Codicon.globe, title: data.options?.status?.description ?? data.title ?? uri.toString(), strikethrough: data.excluded, extraClasses });
 			} else {
-				if (data.state === WorkingSetEntryState.Transient || data.state === WorkingSetEntryState.Suggested) {
-					templateData.label.setResource(
-						{
-							resource: uri,
-							name: basenameOrAuthority(uri),
-							description: data.description ?? localize('chat.openEditor', 'Open Editor'),
-							range: 'range' in reference ? reference.range : undefined,
-						}, { icon, title: data.options?.status?.description ?? data.title, italic: data.state === WorkingSetEntryState.Suggested, strikethrough: data.excluded, extraClasses });
-				} else {
-					templateData.label.setFile(uri, {
-						fileKind: FileKind.FILE,
-						// Should not have this live-updating data on a historical reference
-						fileDecorations: undefined,
-						range: 'range' in reference ? reference.range : undefined,
-						title: data.options?.status?.description ?? data.title,
-						strikethrough: data.excluded,
-						extraClasses
-					});
-				}
+				templateData.label.setFile(uri, {
+					fileKind: FileKind.FILE,
+					// Should not have this live-updating data on a historical reference
+					fileDecorations: undefined,
+					range: 'range' in reference ? reference.range : undefined,
+					title: data.options?.status?.description ?? data.title,
+					strikethrough: data.excluded,
+					extraClasses
+				});
 			}
 		}
 
@@ -446,7 +417,6 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 				if (data.state !== undefined) {
 					chatEditingWidgetFileStateContextKey.bindTo(templateData.contextKeyService).set(data.state);
 				}
-				chatEditingWidgetFileReadonlyContextKey.bindTo(templateData.contextKeyService).set(!!data.isMarkedReadonly);
 			}
 		}
 	}

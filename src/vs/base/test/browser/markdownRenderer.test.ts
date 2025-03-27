@@ -852,7 +852,7 @@ suite('MarkdownRenderer', () => {
 			});
 
 			test('incomplete link target with incomplete arg 2', () => {
-				const incomplete = '[text](command:_github.copilot.openRelativePath "arg';
+				const incomplete = '[text](command:vscode.openRelativePath "arg';
 				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 

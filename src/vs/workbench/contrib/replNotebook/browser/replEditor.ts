@@ -163,7 +163,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 				this._editorOptions = this._computeEditorOptions();
 			}
 		}));
-		this._notebookOptions = instantiationService.createInstance(NotebookOptions, this.window, true, { cellToolbarInteraction: 'hover', globalToolbar: true, stickyScrollEnabled: false, dragAndDropEnabled: false });
+		this._notebookOptions = instantiationService.createInstance(NotebookOptions, this.window, true, { cellToolbarInteraction: 'hover', globalToolbar: true, stickyScrollEnabled: false, dragAndDropEnabled: false, disableRulers: true });
 		this._editorMemento = this.getEditorMemento<InteractiveEditorViewState>(editorGroupService, textResourceConfigurationService, INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 
 		this._register(this._keybindingService.onDidUpdateKeybindings(this._updateInputHint, this));
@@ -289,7 +289,8 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 				},
 				hover: {
 					enabled: true
-				}
+				},
+				rulers: []
 			}
 		});
 
@@ -383,10 +384,16 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 			codeWindow: this.window
 		}, undefined, this.window);
 
+		const skipContributions = [
+			'workbench.notebook.cellToolbar',
+			'editor.contrib.inlineCompletionsController'
+		];
+
+		const inputContributions = getDefaultNotebookCreationOptions().cellEditorContributions?.filter(c => skipContributions.indexOf(c.id) === -1);
 		this._codeEditorWidget = this._instantiationService.createInstance(CodeEditorWidget, this._inputEditorContainer, this._editorOptions, {
 			...{
 				isSimpleWidget: false,
-				contributions: getDefaultNotebookCreationOptions().cellEditorContributions
+				contributions: inputContributions,
 			}
 		});
 

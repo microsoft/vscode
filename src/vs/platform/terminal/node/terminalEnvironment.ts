@@ -87,7 +87,16 @@ export function getShellIntegrationInjection(
 	if (options.shellIntegration.nonce) {
 		envMixin['VSCODE_NONCE'] = options.shellIntegration.nonce;
 	}
-
+	if (shellLaunchConfig.shellIntegrationEnvironmentReporting) {
+		if (isWindows) {
+			const enableWindowsEnvReporting = options.windowsUseConptyDll || options.windowsEnableConpty && getWindowsBuildNumber() >= 22631 && shell !== 'bash.exe';
+			if (enableWindowsEnvReporting) {
+				envMixin['VSCODE_SHELL_ENV_REPORTING'] = '1';
+			}
+		} else {
+			envMixin['VSCODE_SHELL_ENV_REPORTING'] = '1';
+		}
+	}
 	// Windows
 	if (isWindows) {
 		if (shell === 'pwsh.exe' || shell === 'powershell.exe') {

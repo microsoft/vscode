@@ -14,6 +14,9 @@ import { TerminalCapability, type ITerminalCapabilityStore } from '../../../../.
 import { GeneralShellType, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { TerminalSuggestSettingId } from '../common/terminalSuggestConfiguration.js';
 import { TerminalCompletionItemKind, type ITerminalCompletion } from './terminalCompletionItem.js';
+import { env as processEnv } from '../../../../../base/common/process.js';
+import type { IProcessEnvironment } from '../../../../../base/common/platform.js';
+import { timeout } from '../../../../../base/common/async.js';
 
 export const ITerminalCompletionService = createDecorator<ITerminalCompletionService>('terminalCompletionService');
 
@@ -48,6 +51,7 @@ export class TerminalCompletionList<ITerminalCompletion> {
 export interface TerminalResourceRequestConfig {
 	filesRequested?: boolean;
 	foldersRequested?: boolean;
+	fileExtensions?: string[];
 	cwd?: UriComponents;
 	pathSeparator: string;
 	env?: { [key: string]: string | null | undefined };
@@ -57,7 +61,7 @@ export interface TerminalResourceRequestConfig {
 export interface ITerminalCompletionProvider {
 	id: string;
 	shellTypes?: TerminalShellType[];
-	provideCompletions(value: string, cursorPosition: number, token: CancellationToken): Promise<ITerminalCompletion[] | TerminalCompletionList<ITerminalCompletion> | undefined>;
+	provideCompletions(value: string, cursorPosition: number, allowFallbackCompletions: boolean, token: CancellationToken): Promise<ITerminalCompletion[] | TerminalCompletionList<ITerminalCompletion> | undefined>;
 	triggerCharacters?: string[];
 	isBuiltin?: boolean;
 }
@@ -66,7 +70,7 @@ export interface ITerminalCompletionService {
 	_serviceBrand: undefined;
 	readonly providers: IterableIterator<ITerminalCompletionProvider>;
 	registerTerminalCompletionProvider(extensionIdentifier: string, id: string, provider: ITerminalCompletionProvider, ...triggerCharacters: string[]): IDisposable;
-	provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType, capabilities: ITerminalCapabilityStore, token: CancellationToken, triggerCharacter?: boolean, skipExtensionCompletions?: boolean): Promise<ITerminalCompletion[] | undefined>;
+	provideCompletions(promptValue: string, cursorPosition: number, allowFallbackCompletions: boolean, shellType: TerminalShellType, capabilities: ITerminalCapabilityStore, token: CancellationToken, triggerCharacter?: boolean, skipExtensionCompletions?: boolean): Promise<ITerminalCompletion[] | undefined>;
 }
 
 export class TerminalCompletionService extends Disposable implements ITerminalCompletionService {
@@ -85,9 +89,13 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		}
 	}
 
+	/** Overrides the environment for testing purposes. */
+	set processEnv(env: IProcessEnvironment) { this._processEnv = env; }
+	private _processEnv = processEnv;
+
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IFileService private readonly _fileService: IFileService
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
 	}
@@ -112,7 +120,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		});
 	}
 
-	async provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType, capabilities: ITerminalCapabilityStore, token: CancellationToken, triggerCharacter?: boolean, skipExtensionCompletions?: boolean): Promise<ITerminalCompletion[] | undefined> {
+	async provideCompletions(promptValue: string, cursorPosition: number, allowFallbackCompletions: boolean, shellType: TerminalShellType, capabilities: ITerminalCapabilityStore, token: CancellationToken, triggerCharacter?: boolean, skipExtensionCompletions?: boolean): Promise<ITerminalCompletion[] | undefined> {
 		if (!this._providers || !this._providers.values || cursorPosition < 0) {
 			return undefined;
 		}
@@ -138,7 +146,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 		if (skipExtensionCompletions) {
 			providers = providers.filter(p => p.isBuiltin);
-			return this._collectCompletions(providers, shellType, promptValue, cursorPosition, capabilities, token);
+			return this._collectCompletions(providers, shellType, promptValue, cursorPosition, allowFallbackCompletions, capabilities, token);
 		}
 
 		const providerConfig: { [key: string]: boolean } = this._configurationService.getValue(TerminalSuggestSettingId.Providers);
@@ -151,15 +159,18 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			return;
 		}
 
-		return this._collectCompletions(providers, shellType, promptValue, cursorPosition, capabilities, token);
+		return this._collectCompletions(providers, shellType, promptValue, cursorPosition, allowFallbackCompletions, capabilities, token);
 	}
 
-	private async _collectCompletions(providers: ITerminalCompletionProvider[], shellType: TerminalShellType, promptValue: string, cursorPosition: number, capabilities: ITerminalCapabilityStore, token: CancellationToken): Promise<ITerminalCompletion[] | undefined> {
+	private async _collectCompletions(providers: ITerminalCompletionProvider[], shellType: TerminalShellType, promptValue: string, cursorPosition: number, allowFallbackCompletions: boolean, capabilities: ITerminalCapabilityStore, token: CancellationToken): Promise<ITerminalCompletion[] | undefined> {
 		const completionPromises = providers.map(async provider => {
 			if (provider.shellTypes && !provider.shellTypes.includes(shellType)) {
 				return undefined;
 			}
-			const completions: ITerminalCompletion[] | TerminalCompletionList<ITerminalCompletion> | undefined = await provider.provideCompletions(promptValue, cursorPosition, token);
+			const completions = await Promise.race([
+				provider.provideCompletions(promptValue, cursorPosition, allowFallbackCompletions, token),
+				timeout(5000)
+			]);
 			if (!completions) {
 				return undefined;
 			}
@@ -183,9 +194,8 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				if (resourceCompletions) {
 					completionItems.push(...resourceCompletions);
 				}
-				return completionItems;
 			}
-			return;
+			return completionItems;
 		});
 
 		const results = await Promise.all(completionPromises);
@@ -198,9 +208,14 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			// for tests, make sure the right path separator is used
 			promptValue = promptValue.replaceAll(/[\\/]/g, resourceRequestConfig.pathSeparator);
 		}
-		const cwd = URI.revive(resourceRequestConfig.cwd);
-		const foldersRequested = resourceRequestConfig.foldersRequested ?? false;
+
+		// Files requested implies folders requested since the file could be in any folder. We could
+		// provide diagnostics when a folder is provided where a file is expected.
+		const foldersRequested = (resourceRequestConfig.foldersRequested || resourceRequestConfig.filesRequested) ?? false;
 		const filesRequested = resourceRequestConfig.filesRequested ?? false;
+		const fileExtensions = resourceRequestConfig.fileExtensions ?? undefined;
+
+		const cwd = URI.revive(resourceRequestConfig.cwd);
 		if (!cwd || (!foldersRequested && !filesRequested)) {
 			return;
 		}
@@ -251,13 +266,9 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		const type = lastWordFolderHasTildePrefix ? 'tilde' : isAbsolutePath ? 'absolute' : 'relative';
 		switch (type) {
 			case 'tilde': {
-				const env = capabilities.get(TerminalCapability.ShellEnvDetection)?.env;
-				if (env) {
-					const home = useWindowsStylePath ? env.get('USERPROFILE') : env.get('HOME');
-					// TODO: Handle the case where the HOME environment variable is not set
-					if (home) {
-						lastWordFolderResource = URI.joinPath(URI.file(home), lastWordFolder.slice(1).replaceAll('\\ ', ' '));
-					}
+				const home = this._getHomeDir(useWindowsStylePath, capabilities);
+				if (home) {
+					lastWordFolderResource = URI.joinPath(URI.file(home), lastWordFolder.slice(1).replaceAll('\\ ', ' '));
 				}
 				if (!lastWordFolderResource) {
 					// Use less strong wording here as it's not as strong of a concept on Windows
@@ -372,6 +383,13 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				label += resourceRequestConfig.pathSeparator;
 			}
 
+			if (child.isFile && fileExtensions) {
+				const extension = child.name.split('.').length > 1 ? child.name.split('.').at(-1) : undefined;
+				if (extension && !fileExtensions.includes(extension)) {
+					continue;
+				}
+			}
+
 			resourceCompletions.push({
 				label,
 				provider,
@@ -389,7 +407,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			if (promptValue.startsWith('cd ')) {
 				const config = this._configurationService.getValue(TerminalSuggestSettingId.CdPath);
 				if (config === 'absolute' || config === 'relative') {
-					const cdPath = capabilities.get(TerminalCapability.ShellEnvDetection)?.env?.get('CDPATH');
+					const cdPath = this._getEnvVar('CDPATH', capabilities);
 					if (cdPath) {
 						const cdPathEntries = cdPath.split(useWindowsStylePath ? ';' : ':');
 						for (const cdPathEntry of cdPathEntries) {
@@ -446,14 +464,10 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		//
 		// - (relative) `|` -> `~`
 		if (type === 'relative' && !lastWordFolder.match(/[\\\/]/)) {
-			const env = capabilities.get(TerminalCapability.ShellEnvDetection)?.env;
 			let homeResource: URI | string | undefined;
-			if (env) {
-				const home = useWindowsStylePath ? env.get('USERPROFILE') : env.get('HOME');
-				// TODO: Handle the case where the HOME environment variable is not set
-				if (home) {
-					homeResource = URI.joinPath(URI.file(home), lastWordFolder.slice(1).replaceAll('\\ ', ' '));
-				}
+			const home = this._getHomeDir(useWindowsStylePath, capabilities);
+			if (home) {
+				homeResource = URI.joinPath(URI.file(home), lastWordFolder.slice(1).replaceAll('\\ ', ' '));
 			}
 			if (!homeResource) {
 				// Use less strong wording here as it's not as strong of a concept on Windows
@@ -471,6 +485,18 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		}
 
 		return resourceCompletions;
+	}
+
+	private _getEnvVar(key: string, capabilities: ITerminalCapabilityStore): string | undefined {
+		const env = capabilities.get(TerminalCapability.ShellEnvDetection)?.env?.value as { [key: string]: string | undefined };
+		if (env) {
+			return env[key];
+		}
+		return this._processEnv[key];
+	}
+
+	private _getHomeDir(useWindowsStylePath: boolean, capabilities: ITerminalCapabilityStore): string | undefined {
+		return useWindowsStylePath ? this._getEnvVar('USERPROFILE', capabilities) : this._getEnvVar('HOME', capabilities);
 	}
 }
 

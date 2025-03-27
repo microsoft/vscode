@@ -12,6 +12,14 @@ export class Rect {
 		return new Rect(point.x, point.y, point.x, point.y);
 	}
 
+	public static fromPoints(topLeft: Point, bottomRight: Point): Rect {
+		return new Rect(topLeft.x, topLeft.y, bottomRight.x, bottomRight.y);
+	}
+
+	public static fromPointSize(point: Point, size: Point): Rect {
+		return new Rect(point.x, point.y, point.x + size.x, point.y + size.y);
+	}
+
 	public static fromLeftTopRightBottom(left: number, top: number, right: number, bottom: number): Rect {
 		return new Rect(left, top, right, bottom);
 	}
@@ -40,8 +48,8 @@ export class Rect {
 		return new Rect(left, top, right, bottom);
 	}
 
-	public readonly width = this.right - this.left;
-	public readonly height = this.bottom - this.top;
+	public get width() { return this.right - this.left; }
+	public get height() { return this.bottom - this.top; }
 
 	constructor(
 		public readonly left: number,
@@ -54,16 +62,56 @@ export class Rect {
 		}
 	}
 
-	withMargin(margin: number): Rect {
-		return new Rect(this.left - margin, this.top - margin, this.right + margin, this.bottom + margin);
+	withMargin(margin: number): Rect;
+	withMargin(marginVertical: number, marginHorizontal: number): Rect;
+	withMargin(marginTop: number, marginRight: number, marginBottom: number, marginLeft: number): Rect;
+	withMargin(marginOrVerticalOrTop: number, rightOrHorizontal?: number, bottom?: number, left?: number): Rect {
+		let marginLeft, marginRight, marginTop, marginBottom;
+
+		// Single margin value
+		if (rightOrHorizontal === undefined && bottom === undefined && left === undefined) {
+			marginLeft = marginRight = marginTop = marginBottom = marginOrVerticalOrTop;
+		}
+		// Vertical and horizontal margins
+		else if (bottom === undefined && left === undefined) {
+			marginLeft = marginRight = rightOrHorizontal!;
+			marginTop = marginBottom = marginOrVerticalOrTop;
+		}
+		// Individual margins for all sides
+		else {
+			marginLeft = left!;
+			marginRight = rightOrHorizontal!;
+			marginTop = marginOrVerticalOrTop;
+			marginBottom = bottom!;
+		}
+
+		return new Rect(
+			this.left - marginLeft,
+			this.top - marginTop,
+			this.right + marginRight,
+			this.bottom + marginBottom,
+		);
 	}
 
 	intersectVertical(range: OffsetRange): Rect {
+		const newTop = Math.max(this.top, range.start);
+		const newBottom = Math.min(this.bottom, range.endExclusive);
 		return new Rect(
 			this.left,
-			Math.max(this.top, range.start),
+			newTop,
 			this.right,
-			Math.min(this.bottom, range.endExclusive),
+			Math.max(newTop, newBottom),
+		);
+	}
+
+	intersectHorizontal(range: OffsetRange): Rect {
+		const newLeft = Math.max(this.left, range.start);
+		const newRight = Math.min(this.right, range.endExclusive);
+		return new Rect(
+			newLeft,
+			this.top,
+			Math.max(newLeft, newRight),
+			this.bottom,
 		);
 	}
 
@@ -100,6 +148,13 @@ export class Rect {
 			&& this.bottom >= other.bottom;
 	}
 
+	containsPoint(point: Point): boolean {
+		return this.left <= point.x
+			&& this.top <= point.y
+			&& this.right >= point.x
+			&& this.bottom >= point.y;
+	}
+
 	moveToBeContainedIn(parent: Rect): Rect {
 		const width = this.width;
 		const height = this.height;
@@ -134,19 +189,57 @@ export class Rect {
 		return new Rect(this.left, top, this.right, this.bottom);
 	}
 
-	moveLeft(delta: number): Rect {
-		return new Rect(this.left - delta, this.top, this.right - delta, this.bottom);
+	withLeft(left: number): Rect {
+		return new Rect(left, this.top, this.right, this.bottom);
 	}
 
-	moveRight(delta: number): Rect {
+	translateX(delta: number): Rect {
 		return new Rect(this.left + delta, this.top, this.right + delta, this.bottom);
 	}
 
-	moveUp(delta: number): Rect {
-		return new Rect(this.left, this.top - delta, this.right, this.bottom - delta);
+	translateY(delta: number): Rect {
+		return new Rect(this.left, this.top + delta, this.right, this.bottom + delta);
 	}
 
-	moveDown(delta: number): Rect {
-		return new Rect(this.left, this.top + delta, this.right, this.bottom + delta);
+	deltaRight(delta: number): Rect {
+		return new Rect(this.left, this.top, this.right + delta, this.bottom);
+	}
+
+	deltaTop(delta: number): Rect {
+		return new Rect(this.left, this.top + delta, this.right, this.bottom);
+	}
+
+	deltaLeft(delta: number): Rect {
+		return new Rect(this.left + delta, this.top, this.right, this.bottom);
+	}
+
+	deltaBottom(delta: number): Rect {
+		return new Rect(this.left, this.top, this.right, this.bottom + delta);
+	}
+
+	getLeftBottom(): Point {
+		return new Point(this.left, this.bottom);
+	}
+
+	getRightBottom(): Point {
+		return new Point(this.right, this.bottom);
+	}
+
+	getLeftTop(): Point {
+		return new Point(this.left, this.top);
+	}
+
+	getRightTop(): Point {
+		return new Point(this.right, this.top);
+	}
+
+	toStyles() {
+		return {
+			position: 'absolute',
+			left: `${this.left}px`,
+			top: `${this.top}px`,
+			width: `${this.width}px`,
+			height: `${this.height}px`,
+		};
 	}
 }

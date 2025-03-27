@@ -621,6 +621,36 @@ function getActualStartIndex<T>(array: T[], start: number): number {
 }
 
 /**
+ * Utility that helps to pick a property from an object.
+ *
+ * ## Examples
+ *
+ * ```typescript
+ * interface IObject = {
+ *   a: number,
+ *   b: string,
+ * };
+ *
+ * const list: IObject[] = [
+ *   { a: 1, b: 'foo' },
+ *   { a: 2, b: 'bar' },
+ * ];
+ *
+ * assert.deepStrictEqual(
+ *   list.map(pick('a')),
+ *   [1, 2],
+ * );
+ * ```
+ */
+export const pick = <TObject, TKeyName extends keyof TObject>(
+	key: TKeyName,
+) => {
+	return (obj: TObject): TObject[TKeyName] => {
+		return obj[key];
+	};
+};
+
+/**
  * When comparing two values,
  * a negative number indicates that the first value is less than the second,
  * a positive number indicates that the first value is greater than the second,
@@ -682,6 +712,22 @@ export const booleanComparator: Comparator<boolean> = (a, b) => numberComparator
 
 export function reverseOrder<TItem>(comparator: Comparator<TItem>): Comparator<TItem> {
 	return (a, b) => -comparator(a, b);
+}
+
+/**
+ * Returns a new comparator that treats `undefined` as the smallest value.
+ * All other values are compared using the given comparator.
+*/
+export function compareUndefinedSmallest<T>(comparator: Comparator<T>): Comparator<T | undefined> {
+	return (a, b) => {
+		if (a === undefined) {
+			return b === undefined ? CompareResult.neitherLessOrGreaterThan : CompareResult.lessThan;
+		} else if (b === undefined) {
+			return CompareResult.greaterThan;
+		}
+
+		return comparator(a, b);
+	};
 }
 
 export class ArrayQueue<T> {

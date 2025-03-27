@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getZoomLevel } from '../../../../base/browser/browser.js';
-import { Dimension, EventHelper, EventType, ModifierKeyEmitter, addDisposableListener, copyAttributes, createLinkElement, createMetaElement, getActiveWindow, getClientArea, getWindowId, isHTMLElement, position, registerWindow, sharedMutationObserver, trackAttributes } from '../../../../base/browser/dom.js';
+import { $, Dimension, EventHelper, EventType, ModifierKeyEmitter, addDisposableListener, copyAttributes, createLinkElement, createMetaElement, getActiveWindow, getClientArea, getWindowId, isHTMLElement, position, registerWindow, sharedMutationObserver, trackAttributes } from '../../../../base/browser/dom.js';
 import { cloneGlobalStylesheets, isGlobalStylesheet } from '../../../../base/browser/domStylesheets.js';
 import { CodeWindow, ensureCodeWindow, mainWindow } from '../../../../base/browser/window.js';
 import { coalesce } from '../../../../base/common/arrays.js';
@@ -82,6 +82,8 @@ export interface IAuxiliaryWindow extends IDisposable {
 
 	createState(): IAuxiliaryWindowOpenOptions;
 }
+
+const DEFAULT_AUX_WINDOW_DIMENSIONS = new Dimension(DEFAULT_AUX_WINDOW_SIZE.width, DEFAULT_AUX_WINDOW_SIZE.height);
 
 export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 
@@ -193,7 +195,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		// in the `onWillLayout` phase and then let other compoments
 		// react when the overall layout has finished in `onDidLayout`.
 
-		const dimension = getClientArea(this.window.document.body, this.container);
+		const dimension = getClientArea(this.window.document.body, DEFAULT_AUX_WINDOW_DIMENSIONS, this.container);
 		this._onWillLayout.fire(dimension);
 		this._onDidLayout.fire(dimension);
 	}
@@ -502,8 +504,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		mark('code/auxiliaryWindow/willApplyHTML');
 
 		// Create workbench container and apply classes
-		const container = document.createElement('div');
-		container.setAttribute('role', 'application');
+		const container = $('div', { role: 'application' });
 		position(container, 0, 0, 0, 0, 'relative');
 		container.style.display = 'flex';
 		container.style.height = '100%';

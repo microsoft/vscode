@@ -684,16 +684,6 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [deps-image]: https://deps.rs/repo/github/RustCrypto/utils/status.svg
 [deps-link]: https://deps.rs/repo/github/RustCrypto/utils
 
-[msrv-1.39]: https://img.shields.io/badge/rustc-1.39.0+-blue.svg
-[msrv-1.40]: https://img.shields.io/badge/rustc-1.40.0+-blue.svg
-[msrv-1.41]: https://img.shields.io/badge/rustc-1.41.0+-blue.svg
-[msrv-1.45]: https://img.shields.io/badge/rustc-1.45.0+-blue.svg
-[msrv-1.51]: https://img.shields.io/badge/rustc-1.51.0+-blue.svg
-[msrv-1.56]: https://img.shields.io/badge/rustc-1.56.0+-blue.svg
-[msrv-1.57]: https://img.shields.io/badge/rustc-1.57.0+-blue.svg
-[msrv-1.59]: https://img.shields.io/badge/rustc-1.59.0+-blue.svg
-[msrv-1.60]: https://img.shields.io/badge/rustc-1.60.0+-blue.svg
-
 [//]: # (crates)
 
 [`blobby`]: ./blobby
@@ -737,16 +727,6 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [license-image]: https://img.shields.io/badge/license-Apache2.0/MIT-blue.svg
 [deps-image]: https://deps.rs/repo/github/RustCrypto/utils/status.svg
 [deps-link]: https://deps.rs/repo/github/RustCrypto/utils
-
-[msrv-1.39]: https://img.shields.io/badge/rustc-1.39.0+-blue.svg
-[msrv-1.40]: https://img.shields.io/badge/rustc-1.40.0+-blue.svg
-[msrv-1.41]: https://img.shields.io/badge/rustc-1.41.0+-blue.svg
-[msrv-1.45]: https://img.shields.io/badge/rustc-1.45.0+-blue.svg
-[msrv-1.51]: https://img.shields.io/badge/rustc-1.51.0+-blue.svg
-[msrv-1.56]: https://img.shields.io/badge/rustc-1.56.0+-blue.svg
-[msrv-1.57]: https://img.shields.io/badge/rustc-1.57.0+-blue.svg
-[msrv-1.59]: https://img.shields.io/badge/rustc-1.59.0+-blue.svg
-[msrv-1.60]: https://img.shields.io/badge/rustc-1.60.0+-blue.svg
 
 [//]: # (crates)
 
@@ -962,7 +942,7 @@ chrono 0.4.38 - MIT OR Apache-2.0
 https://github.com/chronotope/chrono
 
 Rust-chrono is dual-licensed under The MIT License [1] and
-Apache 2.0 License [2]. Copyright (c) 2014--2017, Kang Seonghoon and
+Apache 2.0 License [2]. Copyright (c) 2014--2025, Kang Seonghoon and
 contributors.
 
 Nota Bene: This is same as the Rust Project's own license.
@@ -1525,16 +1505,6 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [deps-image]: https://deps.rs/repo/github/RustCrypto/utils/status.svg
 [deps-link]: https://deps.rs/repo/github/RustCrypto/utils
 
-[msrv-1.39]: https://img.shields.io/badge/rustc-1.39.0+-blue.svg
-[msrv-1.40]: https://img.shields.io/badge/rustc-1.40.0+-blue.svg
-[msrv-1.41]: https://img.shields.io/badge/rustc-1.41.0+-blue.svg
-[msrv-1.45]: https://img.shields.io/badge/rustc-1.45.0+-blue.svg
-[msrv-1.51]: https://img.shields.io/badge/rustc-1.51.0+-blue.svg
-[msrv-1.56]: https://img.shields.io/badge/rustc-1.56.0+-blue.svg
-[msrv-1.57]: https://img.shields.io/badge/rustc-1.57.0+-blue.svg
-[msrv-1.59]: https://img.shields.io/badge/rustc-1.59.0+-blue.svg
-[msrv-1.60]: https://img.shields.io/badge/rustc-1.60.0+-blue.svg
-
 [//]: # (crates)
 
 [`blobby`]: ./blobby
@@ -1674,10 +1644,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [license-image]: https://img.shields.io/badge/license-Apache2.0/MIT-blue.svg
 [deps-image]: https://deps.rs/repo/github/RustCrypto/traits/status.svg
 [deps-link]: https://deps.rs/repo/github/RustCrypto/traits
-[msrv-1.56]: https://img.shields.io/badge/rustc-1.56.0+-blue.svg
-[msrv-1.57]: https://img.shields.io/badge/rustc-1.57.0+-blue.svg
-[msrv-1.60]: https://img.shields.io/badge/rustc-1.60.0+-blue.svg
-[msrv-1.65]: https://img.shields.io/badge/rustc-1.65.0+-blue.svg
+[msrv-1.85]: https://img.shields.io/badge/rustc-1.85.0+-blue.svg
 
 [//]: # (crates)
 
@@ -1839,10 +1806,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [license-image]: https://img.shields.io/badge/license-Apache2.0/MIT-blue.svg
 [deps-image]: https://deps.rs/repo/github/RustCrypto/traits/status.svg
 [deps-link]: https://deps.rs/repo/github/RustCrypto/traits
-[msrv-1.56]: https://img.shields.io/badge/rustc-1.56.0+-blue.svg
-[msrv-1.57]: https://img.shields.io/badge/rustc-1.57.0+-blue.svg
-[msrv-1.60]: https://img.shields.io/badge/rustc-1.60.0+-blue.svg
-[msrv-1.65]: https://img.shields.io/badge/rustc-1.65.0+-blue.svg
+[msrv-1.85]: https://img.shields.io/badge/rustc-1.85.0+-blue.svg
 
 [//]: # (crates)
 
@@ -2272,7 +2236,7 @@ DEALINGS IN THE SOFTWARE.
 flate2 1.0.30 - MIT OR Apache-2.0
 https://github.com/rust-lang/flate2-rs
 
-Copyright (c) 2014 Alex Crichton
+Copyright (c) 2014-2025 Alex Crichton
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -2388,7 +2352,7 @@ SOFTWARE.
 form_urlencoded 1.2.1 - MIT OR Apache-2.0
 https://github.com/servo/rust-url
 
-Copyright (c) 2013-2022 The rust-url developers
+Copyright (c) 2013-2025 The rust-url developers
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -2985,7 +2949,7 @@ getrandom 0.1.16 - MIT OR Apache-2.0
 getrandom 0.2.15 - MIT OR Apache-2.0
 https://github.com/rust-random/getrandom
 
-Copyright (c) 2018-2024 The rust-random Project Developers
+Copyright (c) 2018-2025 The rust-random Project Developers
 Copyright (c) 2014 The Rust Project Developers
 
 Permission is hereby granted, free of charge, to any
@@ -3225,16 +3189,6 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [deps-image]: https://deps.rs/repo/github/RustCrypto/utils/status.svg
 [deps-link]: https://deps.rs/repo/github/RustCrypto/utils
 
-[msrv-1.39]: https://img.shields.io/badge/rustc-1.39.0+-blue.svg
-[msrv-1.40]: https://img.shields.io/badge/rustc-1.40.0+-blue.svg
-[msrv-1.41]: https://img.shields.io/badge/rustc-1.41.0+-blue.svg
-[msrv-1.45]: https://img.shields.io/badge/rustc-1.45.0+-blue.svg
-[msrv-1.51]: https://img.shields.io/badge/rustc-1.51.0+-blue.svg
-[msrv-1.56]: https://img.shields.io/badge/rustc-1.56.0+-blue.svg
-[msrv-1.57]: https://img.shields.io/badge/rustc-1.57.0+-blue.svg
-[msrv-1.59]: https://img.shields.io/badge/rustc-1.59.0+-blue.svg
-[msrv-1.60]: https://img.shields.io/badge/rustc-1.60.0+-blue.svg
-
 [//]: # (crates)
 
 [`blobby`]: ./blobby
@@ -3278,9 +3232,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [license-image]: https://img.shields.io/badge/license-Apache2.0/MIT-blue.svg
 [deps-image]: https://deps.rs/repo/github/RustCrypto/MACs/status.svg
 [deps-link]: https://deps.rs/repo/github/RustCrypto/MACs
-[msrv-1.41]: https://img.shields.io/badge/rustc-1.41.0+-blue.svg
-[msrv-1.81]: https://img.shields.io/badge/rustc-1.56.0+-blue.svg
-[msrv-1.57]: https://img.shields.io/badge/rustc-1.57.0+-blue.svg
+[msrv-1.85]: https://img.shields.io/badge/rustc-1.85.0+-blue.svg
 
 [//]: # (crates)
 
@@ -3344,7 +3296,7 @@ https://github.com/hyperium/http-body
 
 The MIT License (MIT)
 
-Copyright (c) 2019-2024 Sean McArthur & Hyper Contributors
+Copyright (c) 2019-2025 Sean McArthur & Hyper Contributors
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -3376,7 +3328,7 @@ DEALINGS IN THE SOFTWARE.
 httparse 1.8.0 - MIT/Apache-2.0
 https://github.com/seanmonstar/httparse
 
-Copyright (c) 2015-2024 Sean McArthur
+Copyright (c) 2015-2025 Sean McArthur
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -3430,7 +3382,7 @@ https://github.com/hyperium/hyper
 
 The MIT License (MIT)
 
-Copyright (c) 2014-2021 Sean McArthur
+Copyright (c) 2014-2025 Sean McArthur
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -4076,7 +4028,7 @@ ICU 1.8.1 to ICU 57.1 © 1995-2016 International Business Machines Corporation a
 idna 1.0.3 - MIT OR Apache-2.0
 https://github.com/servo/rust-url/
 
-Copyright (c) 2013-2022 The rust-url developers
+Copyright (c) 2013-2025 The rust-url developers
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -4219,16 +4171,6 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [license-image]: https://img.shields.io/badge/license-Apache2.0/MIT-blue.svg
 [deps-image]: https://deps.rs/repo/github/RustCrypto/utils/status.svg
 [deps-link]: https://deps.rs/repo/github/RustCrypto/utils
-
-[msrv-1.39]: https://img.shields.io/badge/rustc-1.39.0+-blue.svg
-[msrv-1.40]: https://img.shields.io/badge/rustc-1.40.0+-blue.svg
-[msrv-1.41]: https://img.shields.io/badge/rustc-1.41.0+-blue.svg
-[msrv-1.45]: https://img.shields.io/badge/rustc-1.45.0+-blue.svg
-[msrv-1.51]: https://img.shields.io/badge/rustc-1.51.0+-blue.svg
-[msrv-1.56]: https://img.shields.io/badge/rustc-1.56.0+-blue.svg
-[msrv-1.57]: https://img.shields.io/badge/rustc-1.57.0+-blue.svg
-[msrv-1.59]: https://img.shields.io/badge/rustc-1.59.0+-blue.svg
-[msrv-1.60]: https://img.shields.io/badge/rustc-1.60.0+-blue.svg
 
 [//]: # (crates)
 
@@ -4508,8 +4450,6 @@ DEALINGS IN THE SOFTWARE.
 
 lazy_static 1.4.0 - MIT/Apache-2.0
 https://github.com/rust-lang-nursery/lazy-static.rs
-
-Copyright (c) 2010 The Rust Project Developers
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -5315,7 +5255,7 @@ DEALINGS IN THE SOFTWARE.
 num_cpus 1.16.0 - MIT OR Apache-2.0
 https://github.com/seanmonstar/num_cpus
 
-Copyright (c) 2015
+Copyright (c) 2015-2025 Sean McArthur
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -5459,7 +5399,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-openssl 0.10.66 - Apache-2.0
+openssl 0.10.70 - Apache-2.0
 https://github.com/sfackler/rust-openssl
 
 Copyright 2011-2017 Google Inc.
@@ -5538,7 +5478,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-openssl-sys 0.9.103 - MIT
+openssl-sys 0.9.105 - MIT
 https://github.com/sfackler/rust-openssl
 
 The MIT License (MIT)
@@ -5573,7 +5513,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 opentelemetry 0.19.0 - Apache-2.0
-https://github.com/open-telemetry/opentelemetry-rust
+https://github.com/open-telemetry/opentelemetry-rust/tree/main/opentelemetry
 
 Apache License
                            Version 2.0, January 2004
@@ -5989,7 +5929,7 @@ Apache License
 ---------------------------------------------------------
 
 opentelemetry_sdk 0.19.0 - Apache-2.0
-https://github.com/open-telemetry/opentelemetry-rust
+https://github.com/open-telemetry/opentelemetry-rust/tree/main/opentelemetry-sdk
 
 Apache License
                            Version 2.0, January 2004
@@ -6791,7 +6731,7 @@ DEALINGS IN THE SOFTWARE.
 percent-encoding 2.3.1 - MIT OR Apache-2.0
 https://github.com/servo/rust-url/
 
-Copyright (c) 2013-2022 The rust-url developers
+Copyright (c) 2013-2025 The rust-url developers
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -7505,7 +7445,7 @@ DEALINGS IN THE SOFTWARE.
 reqwest 0.11.27 - MIT OR Apache-2.0
 https://github.com/seanmonstar/reqwest
 
-Copyright (c) 2016 Sean McArthur
+Copyright (c) 2016-2025 Sean McArthur
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -8358,7 +8298,7 @@ DEALINGS IN THE SOFTWARE.
 secret-service 3.0.1 - MIT OR Apache-2.0
 https://github.com/hwchen/secret-service-rs
 
-Copyright (c) 2016 secret-service Developers
+Copyright (c) 2025 secret-service Developers
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -8644,7 +8584,6 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [license-image]: https://img.shields.io/badge/license-Apache2.0/MIT-blue.svg
 [deps-image]: https://deps.rs/repo/github/RustCrypto/hashes/status.svg
 [deps-link]: https://deps.rs/repo/github/RustCrypto/hashes
-[msrv-1.81]: https://img.shields.io/badge/rustc-1.81.0+-blue.svg
 
 [//]: # (crates)
 
@@ -8656,6 +8595,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`groestl`]: ./groestl
 [`jh`]: ./jh
 [`k12`]: ./k12
+[`kupyna`]: ./kupyna
 [`md2`]: ./md2
 [`md4`]: ./md4
 [`md5`]: ./md5
@@ -8698,6 +8638,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [Grøstl]: https://en.wikipedia.org/wiki/Grøstl
 [JH]: https://www3.ntu.edu.sg/home/wuhj/research/jh
 [KangarooTwelve]: https://keccak.team/kangarootwelve.html
+[Kupyna]: https://eprint.iacr.org/2015/885.pdf
 [MD2]: https://en.wikipedia.org/wiki/MD2_(cryptography)
 [MD4]: https://en.wikipedia.org/wiki/MD4
 [MD5]: https://en.wikipedia.org/wiki/MD5
@@ -8737,7 +8678,6 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [license-image]: https://img.shields.io/badge/license-Apache2.0/MIT-blue.svg
 [deps-image]: https://deps.rs/repo/github/RustCrypto/hashes/status.svg
 [deps-link]: https://deps.rs/repo/github/RustCrypto/hashes
-[msrv-1.81]: https://img.shields.io/badge/rustc-1.81.0+-blue.svg
 
 [//]: # (crates)
 
@@ -8749,6 +8689,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`groestl`]: ./groestl
 [`jh`]: ./jh
 [`k12`]: ./k12
+[`kupyna`]: ./kupyna
 [`md2`]: ./md2
 [`md4`]: ./md4
 [`md5`]: ./md5
@@ -8791,6 +8732,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [Grøstl]: https://en.wikipedia.org/wiki/Grøstl
 [JH]: https://www3.ntu.edu.sg/home/wuhj/research/jh
 [KangarooTwelve]: https://keccak.team/kangarootwelve.html
+[Kupyna]: https://eprint.iacr.org/2015/885.pdf
 [MD2]: https://en.wikipedia.org/wiki/MD2_(cryptography)
 [MD4]: https://en.wikipedia.org/wiki/MD4
 [MD5]: https://en.wikipedia.org/wiki/MD5
@@ -9455,7 +9397,7 @@ DEALINGS IN THE SOFTWARE.
 tar 0.4.40 - MIT/Apache-2.0
 https://github.com/alexcrichton/tar-rs
 
-Copyright (c) 2014 Alex Crichton
+Copyright (c) The tar-rs Project Contributors
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -9579,7 +9521,7 @@ DEALINGS IN THE SOFTWARE.
 time 0.3.36 - MIT OR Apache-2.0
 https://github.com/time-rs/time
 
-Copyright (c) 2024 Jacob Pratt et al.
+Copyright (c) Jacob Pratt et al.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -9605,7 +9547,7 @@ SOFTWARE.
 time-core 0.1.2 - MIT OR Apache-2.0
 https://github.com/time-rs/time
 
-Copyright (c) 2024 Jacob Pratt et al.
+Copyright (c) Jacob Pratt et al.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -10049,7 +9991,7 @@ https://github.com/seanmonstar/try-lock
 
 The MIT License (MIT)
 
-Copyright (c) 2018-2023 Sean McArthur
+Copyright (c) 2018-2025 Sean McArthur
 Copyright (c) 2016 Alex Crichton
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -10261,7 +10203,7 @@ DEALINGS IN THE SOFTWARE.
 url 2.5.4 - MIT OR Apache-2.0
 https://github.com/servo/rust-url
 
-Copyright (c) 2013-2022 The rust-url developers
+Copyright (c) 2013-2025 The rust-url developers
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -11828,16 +11770,6 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [license-image]: https://img.shields.io/badge/license-Apache2.0/MIT-blue.svg
 [deps-image]: https://deps.rs/repo/github/RustCrypto/utils/status.svg
 [deps-link]: https://deps.rs/repo/github/RustCrypto/utils
-
-[msrv-1.39]: https://img.shields.io/badge/rustc-1.39.0+-blue.svg
-[msrv-1.40]: https://img.shields.io/badge/rustc-1.40.0+-blue.svg
-[msrv-1.41]: https://img.shields.io/badge/rustc-1.41.0+-blue.svg
-[msrv-1.45]: https://img.shields.io/badge/rustc-1.45.0+-blue.svg
-[msrv-1.51]: https://img.shields.io/badge/rustc-1.51.0+-blue.svg
-[msrv-1.56]: https://img.shields.io/badge/rustc-1.56.0+-blue.svg
-[msrv-1.57]: https://img.shields.io/badge/rustc-1.57.0+-blue.svg
-[msrv-1.59]: https://img.shields.io/badge/rustc-1.59.0+-blue.svg
-[msrv-1.60]: https://img.shields.io/badge/rustc-1.60.0+-blue.svg
 
 [//]: # (crates)
 

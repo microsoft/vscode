@@ -47,6 +47,7 @@ export const enum ViewDimUnfocusedOpacityProperties {
 export const enum AccessibilityVerbositySettingId {
 	Terminal = 'accessibility.verbosity.terminal',
 	DiffEditor = 'accessibility.verbosity.diffEditor',
+	MergeEditor = 'accessibility.verbosity.mergeEditor',
 	Chat = 'accessibility.verbosity.panelChat',
 	InlineChat = 'accessibility.verbosity.inlineChat',
 	TerminalChat = 'accessibility.verbosity.terminalChat',
@@ -506,6 +507,16 @@ const configuration: IConfigurationNode = {
 				}
 			}
 		},
+		'accessibility.signals.chatEditModifiedFile': {
+			...defaultNoAnnouncement,
+			'description': localize('accessibility.signals.chatEditModifiedFile', "Plays a sound / audio cue when revealing a file with changes from chat edits"),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.chatEditModifiedFile.sound', "Plays a sound when revealing a file with changes from chat edits"),
+					...soundFeatureBase
+				}
+			}
+		},
 		'accessibility.signals.notebookCellCompleted': {
 			...signalFeatureBase,
 			'description': localize('accessibility.signals.notebookCellCompleted', "Plays a signal - sound (audio cue) and/or announcement (alert) - when a notebook cell execution is successfully completed."),
@@ -630,6 +641,34 @@ const configuration: IConfigurationNode = {
 				},
 			},
 		},
+		'accessibility.signals.editsUndone': {
+			...signalFeatureBase,
+			'description': localize('accessibility.signals.editsUndone', "Plays a signal - sound (audio cue) and/or announcement (alert) - when edits have been undone."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.editsUndone.sound', "Plays a sound when edits have been undone."),
+					...soundFeatureBase
+				},
+				'announcement': {
+					'description': localize('accessibility.signals.editsUndone.announcement', "Announces when edits have been undone."),
+					...announcementFeatureBase
+				},
+			},
+		},
+		'accessibility.signals.editsKept': {
+			...signalFeatureBase,
+			'description': localize('accessibility.signals.editsKept', "Plays a signal - sound (audio cue) and/or announcement (alert) - when edits are kept."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.editsKept.sound', "Plays a sound when edits are kept."),
+					...soundFeatureBase
+				},
+				'announcement': {
+					'description': localize('accessibility.signals.editsKept.announcement', "Announces when edits are kept."),
+					...announcementFeatureBase
+				},
+			},
+		},
 		'accessibility.signals.save': {
 			'type': 'object',
 			'tags': ['accessibility'],
@@ -718,7 +757,12 @@ const configuration: IConfigurationNode = {
 			enum: ['none', 'input', 'lastExecution'],
 			default: 'input',
 			description: localize('replEditor.autoFocusAppendedCell', "Control whether focus should automatically be sent to the REPL when code is executed."),
-		}
+		},
+		'accessibility.windowTitleOptimized': {
+			'type': 'boolean',
+			'default': true,
+			'markdownDescription': localize('accessibility.windowTitleOptimized', "Controls whether the {0} should be optimized for screen readers when in screen reader mode. When enabled, the window title will have {1} appended to the end.", '`#window.title#`', '`activeEditorState`')
+		},
 	}
 };
 

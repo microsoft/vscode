@@ -5,14 +5,14 @@
 
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { Event, Emitter } from '../../base/common/event.js';
-import { EventType, addDisposableListener, getClientArea, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, isActiveDocument, getWindow, getWindowId, getActiveElement, Dimension, safeGetClientArea } from '../../base/browser/dom.js';
+import { EventType, addDisposableListener, getClientArea, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, isActiveDocument, getWindow, getWindowId, getActiveElement, Dimension } from '../../base/browser/dom.js';
 import { onDidChangeFullscreen, isFullscreen, isWCOEnabled } from '../../base/browser/browser.js';
 import { IWorkingCopyBackupService } from '../services/workingCopy/common/workingCopyBackup.js';
 import { isWindows, isLinux, isMacintosh, isWeb, isIOS } from '../../base/common/platform.js';
 import { EditorInputCapabilities, GroupIdentifier, isResourceEditorInput, IUntypedEditorInput, pathsToEditors } from '../common/editor.js';
 import { SidebarPart } from './parts/sidebar/sidebarPart.js';
 import { PanelPart } from './parts/panel/panelPart.js';
-import { Position, Parts, PanelOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, panelOpensMaximizedFromString, PanelAlignment, ActivityBarPosition, LayoutSettings, MULTI_WINDOW_PARTS, SINGLE_WINDOW_PARTS, ZenModeSettings, EditorTabsMode, EditorActionsLocation, shouldShowCustomTitleBar, isHorizontal } from '../services/layout/browser/layoutService.js';
+import { Position, Parts, PanelOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, panelOpensMaximizedFromString, PanelAlignment, ActivityBarPosition, LayoutSettings, MULTI_WINDOW_PARTS, SINGLE_WINDOW_PARTS, ZenModeSettings, EditorTabsMode, EditorActionsLocation, shouldShowCustomTitleBar, isHorizontal, isMultiWindowPart } from '../services/layout/browser/layoutService.js';
 import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from '../../platform/workspace/common/workspace.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../platform/storage/common/storage.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../platform/configuration/common/configuration.js';
@@ -599,10 +599,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		for (const container of this.containers) {
 			const isMainContainer = container === this.mainContainer;
 			const isActiveContainer = this.activeContainer === container;
-			const containerWindowId = getWindowId(getWindow(container));
 
 			let windowBorder = false;
-			if (!this.state.runtime.mainWindowFullscreen && !this.state.runtime.maximized.has(containerWindowId) && (activeBorder || inactiveBorder)) {
+			if (!this.state.runtime.mainWindowFullscreen && (activeBorder || inactiveBorder)) {
 				windowBorder = true;
 
 				// If the inactive color is missing, fallback to the active one
@@ -623,7 +622,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private initLayoutState(lifecycleService: ILifecycleService, fileService: IFileService): void {
-		this._mainContainerDimension = safeGetClientArea(this.parent, DEFAULT_WINDOW_DIMENSIONS); // running with fallback to ensure no error is thrown (https://github.com/microsoft/vscode/issues/240242)
+		this._mainContainerDimension = getClientArea(this.parent, DEFAULT_WINDOW_DIMENSIONS); // running with fallback to ensure no error is thrown (https://github.com/microsoft/vscode/issues/240242)
 
 		this.stateModel = new LayoutStateModel(this.storageService, this.configurationService, this.contextService);
 		this.stateModel.load(this._mainContainerDimension);
@@ -1156,6 +1155,16 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return isAncestorUsingFlowTo(activeElement, container);
 	}
 
+	private _getFocusedPart(): Parts | undefined {
+		for (const part of this.parts.keys()) {
+			if (this.hasFocus(part as Parts)) {
+				return part as Parts;
+			}
+		}
+
+		return undefined;
+	}
+
 	focusPart(part: MULTI_WINDOW_PARTS, targetWindow: Window): void;
 	focusPart(part: SINGLE_WINDOW_PARTS): void;
 	focusPart(part: Parts, targetWindow: Window = mainWindow): void {
@@ -1328,6 +1337,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	toggleZenMode(skipLayout?: boolean, restoring = false): void {
+		const focusedPartPreTransition = this._getFocusedPart();
+
 		this.setZenModeActive(!this.isZenModeActive());
 		this.state.runtime.zenMode.transitionDisposables.clearAndDisposeAll();
 
@@ -1472,8 +1483,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			setLineNumbers();
 
-			this.focus();
-
 			toggleMainWindowFullScreen = zenModeExitInfo.transitionedToFullScreen && this.state.runtime.mainWindowFullscreen;
 		}
 
@@ -1483,6 +1492,17 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		if (toggleMainWindowFullScreen) {
 			this.hostService.toggleFullScreen(mainWindow);
+		}
+
+		// restore focus if part is still visible, otherwise fallback to editor
+		if (focusedPartPreTransition && this.isVisible(focusedPartPreTransition, getWindow(this.activeContainer))) {
+			if (isMultiWindowPart(focusedPartPreTransition)) {
+				this.focusPart(focusedPartPreTransition, getWindow(this.activeContainer));
+			} else {
+				this.focusPart(focusedPartPreTransition);
+			}
+		} else {
+			this.focus();
 		}
 
 		// Event
@@ -1590,7 +1610,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	layout(): void {
 		if (!this.disposed) {
-			this._mainContainerDimension = safeGetClientArea(this.state.runtime.mainWindowFullscreen ?
+			this._mainContainerDimension = getClientArea(this.state.runtime.mainWindowFullscreen ?
 				mainWindow.document.body : 	// in fullscreen mode, make sure to use <body> element because
 				this.parent,				// in that case the workbench will span the entire site
 				DEFAULT_WINDOW_DIMENSIONS	// running with fallback to ensure no error is thrown (https://github.com/microsoft/vscode/issues/240242)
@@ -2079,11 +2099,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	getMainWindowBorderRadius(): string | undefined {
-		return this.state.runtime.mainWindowBorder && isMacintosh ? '5px' : undefined;
+		return this.state.runtime.mainWindowBorder && isMacintosh ? '10px' : undefined;
 	}
 
 	isPanelMaximized(): boolean {
-
 		// the workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
 		return (this.getPanelAlignment() === 'center' || !isHorizontal(this.getPanelPosition())) && !this.isVisible(Parts.EDITOR_PART, mainWindow);
 	}

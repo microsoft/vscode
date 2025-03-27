@@ -8,6 +8,7 @@ import { DisposableStore, EqualityComparer, IDisposable, strictEquals } from './
 import type { derivedOpts } from './derived.js';
 import { getLogger, logObservable } from './logging/logging.js';
 import { keepObserved, recomputeInitiallyAndOnChange } from './utils.js';
+import { onUnexpectedError } from '../errors.js';
 
 /**
  * Represents an observable value.
@@ -290,7 +291,7 @@ export abstract class ConvenientObservable<T, TChange> implements IObservableWit
 }
 
 export abstract class BaseObservable<T, TChange = void> extends ConvenientObservable<T, TChange> {
-	protected readonly observers = new Set<IObserver>();
+	protected readonly _observers = new Set<IObserver>();
 
 	constructor() {
 		super();
@@ -298,23 +299,23 @@ export abstract class BaseObservable<T, TChange = void> extends ConvenientObserv
 	}
 
 	public addObserver(observer: IObserver): void {
-		const len = this.observers.size;
-		this.observers.add(observer);
+		const len = this._observers.size;
+		this._observers.add(observer);
 		if (len === 0) {
 			this.onFirstObserverAdded();
 		}
-		if (len !== this.observers.size) {
-			getLogger()?.handleOnListenerCountChanged(this, this.observers.size);
+		if (len !== this._observers.size) {
+			getLogger()?.handleOnListenerCountChanged(this, this._observers.size);
 		}
 	}
 
 	public removeObserver(observer: IObserver): void {
-		const deleted = this.observers.delete(observer);
-		if (deleted && this.observers.size === 0) {
+		const deleted = this._observers.delete(observer);
+		if (deleted && this._observers.size === 0) {
 			this.onLastObserverRemoved();
 		}
 		if (deleted) {
-			getLogger()?.handleOnListenerCountChanged(this, this.observers.size);
+			getLogger()?.handleOnListenerCountChanged(this, this._observers.size);
 		}
 	}
 
@@ -328,6 +329,10 @@ export abstract class BaseObservable<T, TChange = void> extends ConvenientObserv
 			getLogger()?.handleObservableCreated(this);
 		}
 		return this;
+	}
+
+	public debugGetObservers() {
+		return this._observers;
 	}
 }
 
@@ -385,7 +390,7 @@ export function subtransaction(tx: ITransaction | undefined, fn: (tx: ITransacti
 }
 
 export class TransactionImpl implements ITransaction {
-	private updatingObservers: { observer: IObserver; observable: IObservable<any> }[] | null = [];
+	private _updatingObservers: { observer: IObserver; observable: IObservable<any> }[] | null = [];
 
 	constructor(public readonly _fn: Function, private readonly _getDebugName?: () => string) {
 		getLogger()?.handleBeginTransaction(this);
@@ -399,21 +404,50 @@ export class TransactionImpl implements ITransaction {
 	}
 
 	public updateObserver(observer: IObserver, observable: IObservable<any>): void {
+		if (!this._updatingObservers) {
+			// This happens when a transaction is used in a callback or async function.
+			// If an async transaction is used, make sure the promise awaits all users of the transaction (e.g. no race).
+			handleBugIndicatingErrorRecovery('Transaction already finished!');
+			// Error recovery
+			transaction(tx => {
+				tx.updateObserver(observer, observable);
+			});
+			return;
+		}
+
 		// When this gets called while finish is active, they will still get considered
-		this.updatingObservers!.push({ observer, observable });
+		this._updatingObservers.push({ observer, observable });
 		observer.beginUpdate(observable);
 	}
 
 	public finish(): void {
-		const updatingObservers = this.updatingObservers!;
+		const updatingObservers = this._updatingObservers;
+		if (!updatingObservers) {
+			handleBugIndicatingErrorRecovery('transaction.finish() has already been called!');
+			return;
+		}
+
 		for (let i = 0; i < updatingObservers.length; i++) {
 			const { observer, observable } = updatingObservers[i];
 			observer.endUpdate(observable);
 		}
 		// Prevent anyone from updating observers from now on.
-		this.updatingObservers = null;
+		this._updatingObservers = null;
 		getLogger()?.handleEndTransaction(this);
 	}
+
+	public debugGetUpdatingObservers() {
+		return this._updatingObservers;
+	}
+}
+
+/**
+ * This function is used to indicate that the caller recovered from an error that indicates a bug.
+*/
+function handleBugIndicatingErrorRecovery(message: string) {
+	const err = new Error('BugIndicatingErrorRecovery: ' + message);
+	onUnexpectedError(err);
+	console.error('recovered from an error that indicates a bug', err);
 }
 
 /**
@@ -477,7 +511,7 @@ export class ObservableValue<T, TChange = void>
 			this._setValue(value);
 			getLogger()?.handleObservableUpdated(this, { oldValue, newValue: value, change, didChange: true, hadValue: true });
 
-			for (const observer of this.observers) {
+			for (const observer of this._observers) {
 				tx.updateObserver(observer, this);
 				observer.handleChange(this, change);
 			}
@@ -494,6 +528,16 @@ export class ObservableValue<T, TChange = void>
 
 	protected _setValue(newValue: T): void {
 		this._value = newValue;
+	}
+
+	public debugGetState() {
+		return {
+			value: this._value,
+		};
+	}
+
+	public debugSetValue(value: unknown) {
+		this._value = value as T;
 	}
 }
 

@@ -16,7 +16,6 @@ import { ActionsOrientation, IActionViewItem, prepareActions } from '../../../..
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IPaneOptions, Pane, IPaneStyles } from '../../../../base/browser/ui/splitview/paneview.js';
@@ -83,13 +82,6 @@ export interface IFilterViewPaneOptions extends IViewPaneOptions {
 
 export const VIEWPANE_FILTER_ACTION = new Action('viewpane.action.filter');
 
-type WelcomeActionClassification = {
-	owner: 'joaomoreno';
-	viewId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The view ID in which the welcome view button was clicked.' };
-	uri: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The URI of the command ran by the result of clicking the button.' };
-	comment: 'This is used to know when users click on the welcome view buttons.';
-};
-
 const viewPaneContainerExpandedIcon = registerIcon('view-pane-container-expanded', Codicon.chevronDown, nls.localize('viewPaneContainerExpandedIcon', 'Icon for an expanded view pane container.'));
 const viewPaneContainerCollapsedIcon = registerIcon('view-pane-container-collapsed', Codicon.chevronRight, nls.localize('viewPaneContainerCollapsedIcon', 'Icon for a collapsed view pane container.'));
 
@@ -125,7 +117,6 @@ class ViewWelcomeController {
 		private readonly delegate: IViewWelcomeDelegate,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IOpenerService protected openerService: IOpenerService,
-		@ITelemetryService protected telemetryService: ITelemetryService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@ILifecycleService lifecycleService: ILifecycleService
 	) {
@@ -257,7 +248,6 @@ class ViewWelcomeController {
 					const button = new Button(buttonContainer, { title: node.title, supportIcons: true, secondary: renderSecondaryButtons && buttonsCount > 0 ? true : false, ...defaultButtonStyles, });
 					button.label = node.label;
 					button.onDidClick(_ => {
-						this.telemetryService.publicLog2<{ viewId: string; uri: string }, WelcomeActionClassification>('views.welcomeAction', { viewId: this.delegate.id, uri: node.href });
 						this.openerService.open(node.href, { allowCommands: true });
 					}, null, this.renderDisposables);
 					this.renderDisposables.add(button);
@@ -381,7 +371,6 @@ export abstract class ViewPane extends Pane implements IView {
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IOpenerService protected openerService: IOpenerService,
 		@IThemeService protected themeService: IThemeService,
-		@ITelemetryService protected telemetryService: ITelemetryService,
 		@IHoverService protected readonly hoverService: IHoverService,
 		protected readonly accessibleViewInformationService?: IAccessibleViewInformationService
 	) {
@@ -561,14 +550,18 @@ export abstract class ViewPane extends Pane implements IView {
 		}
 
 		this.iconContainerHover = this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.iconContainer, calculatedTitle));
-		this.iconContainer.setAttribute('aria-label', this._getAriaLabel(calculatedTitle));
+		this.iconContainer.setAttribute('aria-label', this._getAriaLabel(calculatedTitle, this._titleDescription));
 	}
 
-	private _getAriaLabel(title: string): string {
+	private _getAriaLabel(title: string, description: string | undefined): string {
 		const viewHasAccessibilityHelpContent = this.viewDescriptorService.getViewDescriptorById(this.id)?.accessibilityHelpContent;
 		const accessibleViewHasShownForView = this.accessibleViewInformationService?.hasShownAccessibleView(this.id);
 		if (!viewHasAccessibilityHelpContent || accessibleViewHasShownForView) {
-			return title;
+			if (description) {
+				return `${title} - ${description}`;
+			} else {
+				return title;
+			}
 		}
 
 		return nls.localize('viewAccessibilityHelp', 'Use Alt+F1 for accessibility help {0}', title);
@@ -581,15 +574,19 @@ export abstract class ViewPane extends Pane implements IView {
 			this.titleContainerHover?.update(calculatedTitle);
 		}
 
-		const ariaLabel = this._getAriaLabel(calculatedTitle);
-		if (this.iconContainer) {
-			this.iconContainerHover?.update(calculatedTitle);
-			this.iconContainer.setAttribute('aria-label', ariaLabel);
-		}
-		this.ariaHeaderLabel = this.getAriaHeaderLabel(ariaLabel);
+		this.updateAriaHeaderLabel(calculatedTitle, this._titleDescription);
 
 		this._title = title;
 		this._onDidChangeTitleArea.fire();
+	}
+
+	private updateAriaHeaderLabel(title: string, description: string | undefined) {
+		const ariaLabel = this._getAriaLabel(title, description);
+		if (this.iconContainer) {
+			this.iconContainerHover?.update(title);
+			this.iconContainer.setAttribute('aria-label', ariaLabel);
+		}
+		this.ariaHeaderLabel = this.getAriaHeaderLabel(ariaLabel);
 	}
 
 	private setTitleDescription(description: string | undefined) {
@@ -605,7 +602,7 @@ export abstract class ViewPane extends Pane implements IView {
 
 	protected updateTitleDescription(description?: string | undefined): void {
 		this.setTitleDescription(description);
-
+		this.updateAriaHeaderLabel(this._title, description);
 		this._titleDescription = description;
 		this._onDidChangeTitleArea.fire();
 	}
@@ -760,11 +757,10 @@ export abstract class FilterViewPane extends ViewPane {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		accessibleViewService?: IAccessibleViewInformationService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService, accessibleViewService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService, accessibleViewService);
 		const childInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 		this.filterWidget = this._register(childInstantiationService.createInstance(FilterWidget, options.filterOptions));
 	}

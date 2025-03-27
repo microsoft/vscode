@@ -36,7 +36,6 @@ export class LeftBracket extends BaseToken {
 		const { range } = line;
 
 		const startPosition = new Position(range.startLineNumber, atColumnNumber);
-		// the tab token length is 1, hence `+ 1`
 		const endPosition = new Position(range.startLineNumber, atColumnNumber + this.symbol.length);
 
 		return new LeftBracket(Range.fromPositions(
@@ -81,7 +80,6 @@ export class RightBracket extends BaseToken {
 		const { range } = line;
 
 		const startPosition = new Position(range.startLineNumber, atColumnNumber);
-		// the tab token length is 1, hence `+ 1`
 		const endPosition = new Position(range.startLineNumber, atColumnNumber + this.symbol.length);
 
 		return new RightBracket(Range.fromPositions(
@@ -97,3 +95,8 @@ export class RightBracket extends BaseToken {
 		return `right-bracket${this.range}`;
 	}
 }
+
+/**
+ * General bracket token type.
+ */
+export type TBracket = LeftBracket | RightBracket;

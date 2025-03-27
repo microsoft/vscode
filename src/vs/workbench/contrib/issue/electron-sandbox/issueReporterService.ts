@@ -16,6 +16,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { IProcessMainService } from '../../../../platform/process/common/process.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
 import { applyZoom } from '../../../../platform/window/electron-sandbox/window.js';
 import { BaseIssueReporterService } from '../browser/baseIssueReporterService.js';
 import { IssueReporterData as IssueReporterModelData } from '../browser/issueReporterModel.js';
@@ -47,7 +48,8 @@ export class IssueReporter extends BaseIssueReporterService {
 		@IProcessMainService processMainService: IProcessMainService,
 		@IThemeService themeService: IThemeService,
 		@IFileService fileService: IFileService,
-		@IFileDialogService fileDialogService: IFileDialogService
+		@IFileDialogService fileDialogService: IFileDialogService,
+		@IUpdateService private readonly updateService: IUpdateService
 	) {
 		super(disableExtensions, data, os, product, window, false, issueFormService, themeService, fileService, fileDialogService);
 		this.processMainService = processMainService;
@@ -64,11 +66,26 @@ export class IssueReporter extends BaseIssueReporterService {
 			});
 		}
 
+		this.checkForUpdates();
 		this.setEventHandlers();
 		applyZoom(this.data.zoomLevel, this.window);
 		this.updateExperimentsInfo(this.data.experiments);
 		this.updateRestrictedMode(this.data.restrictedMode);
 		this.updateUnsupportedMode(this.data.isUnsupported);
+	}
+
+	private async checkForUpdates(): Promise<void> {
+		const updateState = this.updateService.state;
+		if (updateState.type === StateType.Ready || updateState.type === StateType.Downloaded) {
+			this.needsUpdate = true;
+			const includeAcknowledgement = this.getElementById('version-acknowledgements');
+			const updateBanner = this.getElementById('update-banner');
+			if (updateBanner && includeAcknowledgement) {
+				includeAcknowledgement.classList.remove('hidden');
+				updateBanner.classList.remove('hidden');
+				updateBanner.textContent = localize('updateAvailable', "A new version of {0} is available.", this.product.nameLong);
+			}
+		}
 	}
 
 	public override setEventHandlers(): void {

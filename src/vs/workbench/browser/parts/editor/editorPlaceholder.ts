@@ -67,10 +67,10 @@ export abstract class EditorPlaceholder extends EditorPane {
 	protected createEditor(parent: HTMLElement): void {
 
 		// Container
-		this.container = document.createElement('div');
-		this.container.className = 'monaco-editor-pane-placeholder';
+		this.container = $('.monaco-editor-pane-placeholder', {
+			tabIndex: 0 // enable focus support from the editor part (do not remove)
+		});
 		this.container.style.outline = 'none';
-		this.container.tabIndex = 0; // enable focus support from the editor part (do not remove)
 
 		// Custom Scrollbars
 		this.scrollbar = this._register(new DomScrollableElement(this.container, { horizontal: ScrollbarVisibility.Auto, vertical: ScrollbarVisibility.Auto }));
@@ -107,7 +107,7 @@ export abstract class EditorPlaceholder extends EditorPane {
 
 		// Label
 		const labelContainer = container.appendChild($('.editor-placeholder-label-container'));
-		const labelWidget = document.createElement('span');
+		const labelWidget = $('span');
 		labelWidget.textContent = truncatedLabel;
 		labelContainer.appendChild(labelWidget);
 
