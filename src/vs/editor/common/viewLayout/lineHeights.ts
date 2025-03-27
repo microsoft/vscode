@@ -90,11 +90,9 @@ export class LineHeightsManager {
 	}
 
 	public onLinesDeleted(fromLineNumber: number, toLineNumber: number): void {
-		console.log('onLinesDeleted : ', fromLineNumber, toLineNumber);
-		console.log('this._orderedCustomLines : ', JSON.stringify(this._orderedCustomLines));
-
 		this.commit();
 		const deleteCount = toLineNumber - fromLineNumber + 1;
+		const numberOfCustomLines = this._orderedCustomLines.length;
 		const candidateStartIndexOfDeletion = this._binarySearchOverOrderedCustomLinesArray(fromLineNumber);
 		let startIndexOfDeletion: number;
 		if (candidateStartIndexOfDeletion >= 0) {
@@ -107,13 +105,13 @@ export class LineHeightsManager {
 				}
 			}
 		} else {
-			startIndexOfDeletion = -(candidateStartIndexOfDeletion + 1);
+			startIndexOfDeletion = candidateStartIndexOfDeletion === -(numberOfCustomLines + 1) ? numberOfCustomLines - 1 : - (candidateStartIndexOfDeletion + 1);
 		}
 		const candidateEndIndexOfDeletion = this._binarySearchOverOrderedCustomLinesArray(toLineNumber);
 		let endIndexOfDeletion: number;
 		if (candidateEndIndexOfDeletion >= 0) {
 			endIndexOfDeletion = candidateEndIndexOfDeletion;
-			for (let i = candidateEndIndexOfDeletion + 1; i < this._orderedCustomLines.length; i++) {
+			for (let i = candidateEndIndexOfDeletion + 1; i < numberOfCustomLines; i++) {
 				if (this._orderedCustomLines[i].lineNumber === toLineNumber) {
 					endIndexOfDeletion++;
 				} else {
@@ -121,7 +119,7 @@ export class LineHeightsManager {
 				}
 			}
 		} else {
-			endIndexOfDeletion = candidateEndIndexOfDeletion < -1 ? -(candidateEndIndexOfDeletion + 2) : 0;
+			endIndexOfDeletion = candidateEndIndexOfDeletion === -(numberOfCustomLines + 1) ? numberOfCustomLines - 1 : - (candidateEndIndexOfDeletion + 1);
 		}
 		const isEndIndexBiggerThanStartIndex = endIndexOfDeletion > startIndexOfDeletion;
 		const isEndIndexEqualToStartIndexAndCoversCustomLine = endIndexOfDeletion === startIndexOfDeletion
@@ -151,7 +149,6 @@ export class LineHeightsManager {
 				+ this._defaultLineHeight * (toLineNumber - lastSpecialLineDeleted.lineNumber)
 				+ this._defaultLineHeight * (firstSpecialLineDeleted.lineNumber - fromLineNumber)
 				+ heightOfFirstLineAfterDeletion - maximumSpecialHeightOnDeletedInterval;
-			console.log('totalHeightDeleted : ', totalHeightDeleted);
 
 			const decorationIdsSeen = new Set<string>();
 			const newOrderedCustomLines: CustomLine[] = [];
@@ -193,7 +190,6 @@ export class LineHeightsManager {
 				specialLine.prefixSum -= totalHeightDeleted;
 			}
 		}
-		console.log('this._orderedCustomLines : ', JSON.stringify(this._orderedCustomLines));
 	}
 
 	public onLinesInserted(fromLineNumber: number, toLineNumber: number): void {
