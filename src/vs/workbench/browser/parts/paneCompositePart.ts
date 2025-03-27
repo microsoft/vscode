@@ -525,7 +525,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 			}
 		}
 
-		return this.openComposite(id, focus) as PaneComposite;
+		return this.openComposite(id, focus) as PaneComposite | undefined;
 	}
 
 	getPaneComposite(id: string): PaneCompositeDescriptor | undefined {
