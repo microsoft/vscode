@@ -17,11 +17,19 @@ import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDi
 import { ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { autorunWithStore, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { CancellationTokenSource } from '../../../../base/common/observableInternal/commonFacade/cancellation.js';
 import { extUri, isEqual } from '../../../../base/common/resources.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
+import { InlineCompletionContext, InlineCompletionTriggerKind } from '../../../../editor/common/languages.js';
+import { ILanguageConfigurationService } from '../../../../editor/common/languages/languageConfigurationRegistry.js';
+import { IModelDeltaDecoration } from '../../../../editor/common/model.js';
+import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
+import { provideInlineCompletions } from '../../../../editor/contrib/inlineCompletions/browser/model/provideInlineCompletions.js';
 import { localize } from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -161,6 +169,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private canRequestBePaused: IContextKey<boolean>;
 	private agentInInput: IContextKey<boolean>;
 
+	private inlineCompletionsDecorationCollection: IEditorDecorationsCollection | undefined;
 
 	private _visible = false;
 	public get visible() {
@@ -247,6 +256,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatEditingService chatEditingService: IChatEditingService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+		@ILanguageConfigurationService private readonly languageConfigurationService: ILanguageConfigurationService,
 	) {
 		super();
 
@@ -852,6 +863,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			() => this.collectInputState()
 		));
 		this.inputPart.render(container, '', this);
+		this.inlineCompletionsDecorationCollection = this.inputEditor.createDecorationsCollection();
 
 		this._register(this.inputPart.onDidLoadInputState(state => {
 			this.contribs.forEach(c => {
@@ -920,6 +932,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._register(this.inputEditor.onDidChangeModelContent(() => {
 			this.parsedChatRequest = undefined;
 			this.updateChatInputContext();
+			this.updateInlineCompletions();
 		}));
 		this._register(this.chatAgentService.onDidChangeAgents(() => {
 			this.parsedChatRequest = undefined;
@@ -1367,6 +1380,57 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private updateChatInputContext() {
 		const currentAgent = this.parsedInput.parts.find(part => part instanceof ChatRequestAgentPart);
 		this.agentInInput.set(!!currentAgent);
+	}
+
+	private async updateInlineCompletions(): Promise<void> {
+		if (!this.inlineCompletionsDecorationCollection) {
+			return;
+		}
+		const source = new CancellationTokenSource();
+		const context: InlineCompletionContext = {
+			triggerKind: InlineCompletionTriggerKind.Automatic,
+			includeInlineEdits: true,
+			includeInlineCompletions: true,
+			selectedSuggestionInfo: undefined
+		};
+		const model = this.inputEditor.getModel();
+		const position = this.inputEditor.getPosition();
+		if (!model || !position) {
+			return;
+		}
+		const value = model.getValue();
+		if (!value) {
+			this.clearInlineCompletions();
+			return;
+		}
+		const updatedCompletions = await provideInlineCompletions(
+			this.languageFeaturesService.inlineCompletionsProvider,
+			position,
+			model,
+			context,
+			source.token,
+			this.languageConfigurationService
+		);
+		const completion = updatedCompletions.completions[0];
+		if (!completion) {
+			return;
+		}
+		const decorations: readonly IModelDeltaDecoration[] = [{
+			range: Range.fromPositions(position),
+			options: {
+				description: 'chat inline completions',
+				after: {
+					content: completion.insertText,
+					inlineClassName: 'chat-inline-completion'
+				},
+				showIfCollapsed: true,
+			}
+		}];
+		this.inlineCompletionsDecorationCollection.set(decorations);
+	}
+
+	private clearInlineCompletions(): void {
+		this.inlineCompletionsDecorationCollection?.set([]);
 	}
 }
 

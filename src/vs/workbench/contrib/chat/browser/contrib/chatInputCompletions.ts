@@ -16,7 +16,7 @@ import { isCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IWordAtPosition, getWordAtText } from '../../../../../editor/common/core/wordHelper.js';
-import { CompletionContext, CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, DocumentSymbol, Location, ProviderResult, SymbolKind, SymbolKinds } from '../../../../../editor/common/languages.js';
+import { CompletionContext, CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, DocumentSymbol, InlineCompletion, InlineCompletionContext, InlineCompletions, Location, ProviderResult, SymbolKind, SymbolKinds } from '../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { IOutlineModelService } from '../../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
@@ -1006,6 +1006,15 @@ class ToolCompletions extends Disposable {
 					suggestions: toolItems
 				};
 			}
+		}));
+		this._register(this.languageFeaturesService.inlineCompletionsProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
+			async provideInlineCompletions(model: ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): Promise<InlineCompletions<InlineCompletion>> {
+				const items: readonly InlineCompletion[] = [{
+					insertText: 'hi'
+				}];
+				return { items };
+			},
+			freeInlineCompletions() { }
 		}));
 	}
 }
