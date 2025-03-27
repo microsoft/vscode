@@ -16,7 +16,7 @@ import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js
 import { localize, localize2 } from '../../../../nls.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier, IExtensionManifest } from '../../../../platform/extensions/common/extensions.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -479,7 +479,7 @@ class EditsViewContribution extends Disposable implements IWorkbenchContribution
 
 	private static readonly HideMovedEditsViewKey = 'chatEditsView.hideMovedEditsView';
 
-	private readonly showWelcomeViewCtx = ShowMovedChatEditsView.bindTo(this.contextKeyService);
+	private readonly showWelcomeViewCtx: IContextKey<boolean>;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -488,6 +488,8 @@ class EditsViewContribution extends Disposable implements IWorkbenchContribution
 		@IChatService private readonly chatService: IChatService,
 	) {
 		super();
+
+		this.showWelcomeViewCtx = ShowMovedChatEditsView.bindTo(this.contextKeyService);
 
 		const unifiedViewEnabled = this.configurationService.getValue(ChatConfiguration.UnifiedChatView);
 
