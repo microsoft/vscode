@@ -1554,7 +1554,7 @@ class UnresponsiveError extends Error {
 		// we can avoid collecting them when constructing the error.
 		const stackTraceLimit = Error.stackTraceLimit;
 		Error.stackTraceLimit = 0;
-		super(`UnresponsiveSampleError: by ${windowId} from ${pid}`);
+		super(`UnresponsiveSampleError: from window with ID ${windowId} belonging to process with pid ${pid}`);
 		Error.stackTraceLimit = stackTraceLimit;
 		this.name = 'UnresponsiveSampleError';
 		this.stack = sample;
