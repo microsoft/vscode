@@ -120,7 +120,7 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 					break;
 				case ChatAgentLocation.EditingSession:
 					id = isToolsAgent ? 'setup.agent' : 'setup.edits';
-					description = isToolsAgent ? localize('agentDescription', "Edit files in your workspace in agent mode (Experimental)") : localize('editsDescription', "Edit files in your workspace");
+					description = isToolsAgent ? localize('agentDescription', "Edit files in your workspace in agent mode") : localize('editsDescription', "Edit files in your workspace");
 					welcomeMessageContent = isToolsAgent ?
 						{
 							title: localize('editsTitle', "Edit with Copilot"),
