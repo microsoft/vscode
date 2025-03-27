@@ -35,6 +35,8 @@ import { Link } from '../../../../platform/opener/browser/link.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IChatStatusItemService, ChatStatusEntry } from './chatStatusItemService.js';
+import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
 
 const gaugeBackground = registerColor('gauge.background', {
 	dark: inputValidationInfoBorder,
@@ -249,6 +251,7 @@ class ChatStatusDashboard extends Disposable {
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
 	) {
 		super();
 	}
@@ -516,17 +519,11 @@ class ChatStatusDashboard extends Disposable {
 	private createNextEditSuggestionsSetting(container: HTMLElement, label: string, modeId: string | undefined, completionsSettingAccessor: ISettingsAccessor, disposables: DisposableStore): void {
 		const nesSettingId = defaultChat.nextEditSuggestionsSetting;
 		const completionsSettingId = defaultChat.completionsEnablementSetting;
+		const resource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 
 		const checkbox = this.createSetting(container, nesSettingId, label, {
-			readSetting: () => this.configurationService.getValue<boolean>(nesSettingId, { overrideIdentifier: modeId }),
-			writeSetting: (value: boolean) => {
-				const { overrideIdentifiers } = this.configurationService.inspect(nesSettingId, { overrideIdentifier: modeId });
-				if (modeId && overrideIdentifiers?.includes(modeId)) {
-					return this.configurationService.updateValue(nesSettingId, value, { overrideIdentifier: modeId });
-				}
-
-				return this.configurationService.updateValue(nesSettingId, value);
-			}
+			readSetting: () => this.textResourceConfigurationService.getValue<boolean>(resource, nesSettingId),
+			writeSetting: (value: boolean) => this.textResourceConfigurationService.updateValue(resource, nesSettingId, value)
 		}, disposables);
 
 		// enablement of NES depends on completions setting
