@@ -7,7 +7,8 @@ import { ISelectPromptOptions } from '../askToSelectPrompt.js';
 import { IChatWidget, showChatView, showEditsView } from '../../../../../chat.js';
 import { IChatAttachPromptActionOptions } from '../../../chatAttachPromptAction.js';
 import { assertDefined, WithUriValue } from '../../../../../../../../../base/common/types.js';
-import { IQuickPickItem } from '../../../../../../../../../platform/quickinput/common/quickInput.js';
+import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION } from '../../../../chatClearActions.js';
+import { IKeyMods, IQuickPickItem } from '../../../../../../../../../platform/quickinput/common/quickInput.js';
 
 /**
  * Attaches provided prompts to a chat input.
@@ -15,9 +16,9 @@ import { IQuickPickItem } from '../../../../../../../../../platform/quickinput/c
 export const attachPrompts = async (
 	files: readonly WithUriValue<IQuickPickItem>[],
 	options: ISelectPromptOptions,
-	altOption: boolean,
+	keyMods: IKeyMods,
 ): Promise<IChatWidget> => {
-	const widget = await getChatWidgetObject(options, altOption);
+	const widget = await getChatWidgetObject(options, keyMods);
 
 	for (const file of files) {
 		widget
@@ -38,26 +39,82 @@ export const attachPrompts = async (
  * @throws if failed to reveal a chat widget.
  */
 const getChatWidgetObject = async (
-	options: IChatAttachPromptActionOptions,
-	altOption: boolean,
+	options: ISelectPromptOptions,
+	keyMods: IKeyMods,
 ): Promise<IChatWidget> => {
-	const { widget, viewsService } = options;
+	const { widget } = options;
+	const { alt, ctrlCmd } = keyMods;
+
+	// if `ctrl/cmd` key was pressed, create a new chat session
+	if (ctrlCmd) {
+		return await openNewChat(options, alt);
+	}
 
 	// if no widget reference is present, the command was triggered from outside of
 	// an active chat input, so we reveal a chat widget window based on the `alt`
 	// key modifier state when a prompt was selected from the picker UI dialog
 	if (!widget) {
-		const widget = (altOption)
-			? await showEditsView(viewsService)
-			: await showChatView(viewsService);
+		return await showExistingChat(options, alt);
+	}
+
+	return widget;
+};
+
+/**
+ * TODO: @legomushroom
+ */
+const openNewChat = async (
+	options: ISelectPromptOptions,
+	edits: boolean,
+): Promise<IChatWidget> => {
+	const { commandService, chatService, viewsService } = options;
+
+	if (chatService.unifiedViewEnabled === true) {
+		await commandService.executeCommand(ACTION_ID_NEW_CHAT);
+		const widget = await showChatView(viewsService);
 
 		assertDefined(
 			widget,
-			'Revealed chat widget must be defined.',
+			'Chat widget must be defined.',
 		);
 
 		return widget;
 	}
+
+	(edits === true)
+		? await commandService.executeCommand(ACTION_ID_NEW_EDIT_SESSION)
+		: await commandService.executeCommand(ACTION_ID_NEW_CHAT);
+
+	const widget = (edits === true)
+		? await showEditsView(viewsService)
+		: await showChatView(viewsService);
+
+	assertDefined(
+		widget,
+		'Chat widget must be defined.',
+	);
+
+	return widget;
+};
+
+/**
+ * TODO: @legomushroom
+ */
+const showExistingChat = async (
+	options: ISelectPromptOptions,
+	edits: boolean,
+): Promise<IChatWidget> => {
+	const { chatService, viewsService } = options;
+
+	// there is no "edits" view when in the unified view mode
+	const widget = (edits && (chatService.unifiedViewEnabled === false))
+		? await showEditsView(viewsService)
+		: await showChatView(viewsService);
+
+	assertDefined(
+		widget,
+		'Revealed chat widget must be defined.',
+	);
 
 	return widget;
 };
