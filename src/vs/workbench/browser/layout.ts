@@ -1047,10 +1047,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			mark('code/willRestoreViewlet');
 
-			const viewlet = await this.paneCompositeService.openPaneComposite(this.state.initialization.views.containerToRestore.sideBar, ViewContainerLocation.Sidebar);
-			if (!viewlet) {
-				await this.paneCompositeService.openPaneComposite(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id, ViewContainerLocation.Sidebar); // fallback to default viewlet as needed
-			}
+			await this.openViewContainer(ViewContainerLocation.Sidebar, this.state.initialization.views.containerToRestore.sideBar);
 
 			mark('code/didRestoreViewlet');
 		})());
@@ -1067,10 +1064,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			mark('code/willRestorePanel');
 
-			const panel = await this.paneCompositeService.openPaneComposite(this.state.initialization.views.containerToRestore.panel, ViewContainerLocation.Panel);
-			if (!panel) {
-				await this.paneCompositeService.openPaneComposite(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Panel)?.id, ViewContainerLocation.Panel); // fallback to default panel as needed
-			}
+			await this.openViewContainer(ViewContainerLocation.Panel, this.state.initialization.views.containerToRestore.panel);
 
 			mark('code/didRestorePanel');
 		})());
@@ -1087,10 +1081,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			mark('code/willRestoreAuxiliaryBar');
 
-			const viewlet = await this.paneCompositeService.openPaneComposite(this.state.initialization.views.containerToRestore.auxiliaryBar, ViewContainerLocation.AuxiliaryBar);
-			if (!viewlet) {
-				await this.paneCompositeService.openPaneComposite(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.AuxiliaryBar)?.id, ViewContainerLocation.AuxiliaryBar); // fallback to default viewlet as needed
-			}
+			await this.openViewContainer(ViewContainerLocation.AuxiliaryBar, this.state.initialization.views.containerToRestore.auxiliaryBar);
 
 			mark('code/didRestoreAuxiliaryBar');
 		})());
@@ -1119,6 +1110,22 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.whenRestoredPromise.complete();
 			});
 		});
+	}
+
+	private async openViewContainer(location: ViewContainerLocation, id: string, focus?: boolean): Promise<void> {
+		let viewContainer = await this.paneCompositeService.openPaneComposite(id, location, focus);
+		if (viewContainer) {
+			return;
+		}
+
+		// fallback to default view container
+		viewContainer = await this.paneCompositeService.openPaneComposite(this.viewDescriptorService.getDefaultViewContainer(location)?.id, location, focus);
+		if (viewContainer) {
+			return;
+		}
+
+		// finally try to just open the first visible view container
+		await this.paneCompositeService.openPaneComposite(this.paneCompositeService.getVisiblePaneCompositeIds(location).at(0), location, focus);
 	}
 
 	registerPart(part: Part): IDisposable {
@@ -1234,32 +1241,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return true; // cannot hide editor part in auxiliary windows
 		}
 
-		if (this.initialized) {
-			switch (part) {
-				case Parts.TITLEBAR_PART:
-					return this.workbenchGrid.isViewVisible(this.titleBarPartView);
-				case Parts.SIDEBAR_PART:
-					return !this.stateModel.getRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN);
-				case Parts.PANEL_PART:
-					return !this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN);
-				case Parts.AUXILIARYBAR_PART:
-					return !this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN);
-				case Parts.STATUSBAR_PART:
-					return !this.stateModel.getRuntimeValue(LayoutStateKeys.STATUSBAR_HIDDEN);
-				case Parts.ACTIVITYBAR_PART:
-					return !this.stateModel.getRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN);
-				case Parts.EDITOR_PART:
-					return !this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN);
-				case Parts.BANNER_PART:
-					return this.workbenchGrid.isViewVisible(this.bannerPartView);
-				default:
-					return false; // any other part cannot be hidden
-			}
-		}
-
 		switch (part) {
 			case Parts.TITLEBAR_PART:
-				return shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled);
+				return this.initialized ?
+					this.workbenchGrid.isViewVisible(this.titleBarPartView) :
+					shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled);
 			case Parts.SIDEBAR_PART:
 				return !this.stateModel.getRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN);
 			case Parts.PANEL_PART:
@@ -1272,6 +1258,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				return !this.stateModel.getRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN);
 			case Parts.EDITOR_PART:
 				return !this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN);
+			case Parts.BANNER_PART:
+				return this.initialized ? this.workbenchGrid.isViewVisible(this.bannerPartView) : false;
 			default:
 				return false; // any other part cannot be hidden
 		}
@@ -1812,10 +1800,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		else if (!hidden && !this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar)) {
 			const viewletToOpen = this.paneCompositeService.getLastActivePaneCompositeId(ViewContainerLocation.Sidebar);
 			if (viewletToOpen) {
-				const viewlet = this.paneCompositeService.openPaneComposite(viewletToOpen, ViewContainerLocation.Sidebar, true);
-				if (!viewlet) {
-					this.paneCompositeService.openPaneComposite(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id, ViewContainerLocation.Sidebar, true);
-				}
+				this.openViewContainer(ViewContainerLocation.Sidebar, viewletToOpen, true);
 			}
 		}
 
@@ -1960,11 +1945,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 
 			if (panelToOpen) {
-				const focus = !skipLayout;
-				const panel = this.paneCompositeService.openPaneComposite(panelToOpen, ViewContainerLocation.Panel, focus);
-				if (!panel) {
-					this.paneCompositeService.openPaneComposite(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Panel)?.id, ViewContainerLocation.Panel, focus);
-				}
+				this.openViewContainer(ViewContainerLocation.Panel, panelToOpen, !skipLayout);
 			}
 		}
 
@@ -2063,11 +2044,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 
 			if (viewletToOpen) {
-				const focus = !skipLayout;
-				const viewlet = this.paneCompositeService.openPaneComposite(viewletToOpen, ViewContainerLocation.AuxiliaryBar, focus);
-				if (!viewlet) {
-					this.paneCompositeService.openPaneComposite(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.AuxiliaryBar)?.id, ViewContainerLocation.AuxiliaryBar, focus);
-				}
+				this.openViewContainer(ViewContainerLocation.AuxiliaryBar, viewletToOpen, !skipLayout);
 			}
 		}
 
