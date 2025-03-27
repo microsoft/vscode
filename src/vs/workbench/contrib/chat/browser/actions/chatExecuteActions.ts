@@ -108,7 +108,7 @@ class ToggleChatModeAction extends Action2 {
 	constructor() {
 		super({
 			id: ToggleChatModeAction.ID,
-			title: localize2('interactive.toggleAgent.label', "Set Chat Mode (Experimental)"),
+			title: localize2('interactive.toggleAgent.label', "Set Chat Mode"),
 			f1: true,
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(
@@ -117,7 +117,7 @@ class ToggleChatModeAction extends Action2 {
 					ChatContextKeys.Editing.hasToolsAgent,
 					ChatContextKeyExprs.unifiedChatEnabled),
 				ChatContextKeys.requestInProgress.negate()),
-			tooltip: localize('setChatMode', "Set Mode (Experimental)"),
+			tooltip: localize('setChatMode', "Set Mode"),
 			keybinding: {
 				when: ContextKeyExpr.and(
 					ChatContextKeys.inChatInput,
