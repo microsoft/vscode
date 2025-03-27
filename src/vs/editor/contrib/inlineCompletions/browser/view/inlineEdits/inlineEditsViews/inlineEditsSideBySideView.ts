@@ -51,7 +51,7 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 		const maxOriginalContent = maxContentWidthInRange(editorObs, originalDisplayRange, undefined/* do not reconsider on each layout info change */);
 		const maxModifiedContent = edit.lineEdit.newLines.reduce((max, line) => Math.max(max, line.length * w), 0);
 		const endOfEditorPadding = 20; // padding after last line of editor
-		const editorsPadding = edit.modifiedLineRange.length <= edit.originalLineRange.length ? HORIZONTAL_PADDING * 3 + endOfEditorPadding : 60 + endOfEditorPadding * 2;
+		const editorsPadding = HORIZONTAL_PADDING * 3 + endOfEditorPadding;
 
 		return maxOriginalContent + maxModifiedContent + editorsPadding < editorWidth - editorContentLeft - editorVerticalScrollbar - minimapWidth;
 	}
