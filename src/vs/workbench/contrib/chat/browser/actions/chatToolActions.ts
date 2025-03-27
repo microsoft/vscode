@@ -91,15 +91,9 @@ export class AttachToolsAction extends Action2 {
 			icon: Codicon.tools,
 			f1: false,
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(
-				ContextKeyExpr.or(ChatContextKeys.Tools.toolsCount.greater(0)),
-				ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent)
-			),
+			precondition: ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent),
 			menu: {
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.or(ChatContextKeys.Tools.toolsCount.greater(0)),
-					ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent)
-				),
+				when: ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent),
 				id: MenuId.ChatInputAttachmentToolbar,
 				group: 'navigation',
 				order: 1

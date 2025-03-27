@@ -105,14 +105,11 @@ export class ChatSelectedTools extends Disposable {
 
 							const { enabled, count } = toolsCount.read(r);
 
-							if (count === 0) {
-								super.updateLabel();
-								return;
-							}
-
-							const message = enabled !== count
-								? localize('tool.1', "{0} {1} of {2}", '$(tools)', enabled, count)
-								: localize('tool.0', "{0} {1}", '$(tools)', count);
+							const message = count === 0
+								? '$(tools)'
+								: enabled !== count
+									? localize('tool.1', "{0} {1} of {2}", '$(tools)', enabled, count)
+									: localize('tool.0', "{0} {1}", '$(tools)', count);
 
 							reset(this.label, ...renderLabelWithIcons(message));
 							onDidRender.fire();
