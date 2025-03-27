@@ -143,6 +143,17 @@ export class BrowserMain extends Disposable {
 			}
 		});
 
+		// MEMBRANE: Listen for event emitted by product tour to show package installer
+		// We do it here instead of workbench.ts (or elsewhere) because we have access to both:
+		// (1) window, and (2) the command service
+		instantiationService.invokeFunction(accessor => {
+			const commandService = accessor.get(ICommandService);
+			// eslint-disable-next-line no-restricted-globals
+			window.addEventListener('tour:show-learn-membrane', async () => {
+				await commandService.executeCommand('membrane.installPackage', 'membrane/getting-started');
+			});
+		});
+
 		// Return API Facade
 		return instantiationService.invokeFunction(accessor => {
 			const commandService = accessor.get(ICommandService);

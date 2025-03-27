@@ -62,7 +62,14 @@ type Writeable<T> = { -readonly [P in keyof T]: T[P] };
 		},
 		// For product tour, emit an event to advance to the next step
 		{
-			id: 'membrane.advanceTour', handler: (event) => window.dispatchEvent(new Event(`tour:${event.trigger}`))
+			id: 'membrane.advanceTour', handler: (cmdArgs) => window.dispatchEvent(new Event(`tour:${cmdArgs.trigger}`))
+		},
+		// For product tour, send coordinates of gaze rects to the web app
+		{
+			id: 'membrane.reportGazeRect', handler: (cmdArgs) => {
+				// cmdArgs { gaze_instance, rect_id, x, y, width, height }
+				window.dispatchEvent(new CustomEvent('tour:report-gaze-rect', { detail: cmdArgs }));
+			}
 		},
 		{
 			id: 'membrane.getLaunchParams', handler: () => {
