@@ -70,12 +70,10 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 
 	private readConfiguration() {
 		this._sessionStore.clear();
-
 		const options = this._editor.getOption(EditorOption.stickyScroll);
 		if (!options.enabled) {
 			return;
 		}
-
 		this._sessionStore.add(this._editor.onDidChangeModel(() => {
 			// We should not show an old model for a different file, it will always be wrong.
 			// So we clear the model here immediately and then trigger an update.
@@ -103,7 +101,6 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 	private updateStickyModelProvider() {
 		this._stickyModelProvider?.dispose();
 		this._stickyModelProvider = null;
-
 		const editor = this._editor;
 		if (editor.hasModel()) {
 			this._stickyModelProvider = new StickyModelProvider(
@@ -123,7 +120,6 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 	}
 
 	private async updateStickyModel(token: CancellationToken): Promise<void> {
-
 		if (!this._editor.hasModel() || !this._stickyModelProvider || this._editor.getModel().isTooLargeForTokenization()) {
 			this._model = null;
 			return;
@@ -133,7 +129,6 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 			// the computation was canceled, so do not overwrite the model
 			return;
 		}
-
 		this._model = model;
 	}
 
@@ -174,9 +169,10 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 			if (!child) {
 				return;
 			}
-			if (child.range) {
-				const childStartLine = child.range.startLineNumber;
-				const childEndLine = child.range.endLineNumber;
+			const childRange = child.range;
+			if (childRange) {
+				const childStartLine = childRange.startLineNumber;
+				const childEndLine = childRange.endLineNumber;
 				if (range.startLineNumber <= childEndLine + 1 && childStartLine - 1 <= range.endLineNumber && childStartLine !== lastLine) {
 					lastLine = childStartLine;
 					const lineHeight = this._editor.getOption(EditorOption.lineHeight);
