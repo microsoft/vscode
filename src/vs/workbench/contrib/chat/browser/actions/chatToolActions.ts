@@ -356,6 +356,10 @@ export class AttachToolsAction extends Action2 {
 			_update();
 		}));
 
+		store.add(picker.onDidAccept(() => {
+			picker.activeItems.find(isAddPick)?.run();
+		}));
+
 		await Promise.race([Event.toPromise(Event.any(picker.onDidAccept, picker.onDidHide))]);
 		telemetryService.publicLog2<SelectedToolData, SelectedToolClassification>('chat/selectedTools', {
 			enabled: widget.input.selectedToolsModel.tools.get().length,
