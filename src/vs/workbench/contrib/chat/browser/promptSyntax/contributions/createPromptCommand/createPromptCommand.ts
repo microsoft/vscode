@@ -15,8 +15,8 @@ import { ILabelService } from '../../../../../../../platform/label/common/label.
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { PromptsConfig } from '../../../../../../../platform/prompts/common/config.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
-import { MenuId, MenuRegistry } from '../../../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../../../platform/contextkey/common/contextkey.js';
+import { MenuId, MenuRegistry } from '../../../../../../../platform/actions/common/actions.js';
 import { IPromptPath, IPromptsService } from '../../../../common/promptSyntax/service/types.js';
 import { IQuickInputService } from '../../../../../../../platform/quickinput/common/quickInput.js';
 import { ServicesAccessor } from '../../../../../../../platform/instantiation/common/instantiation.js';
@@ -62,8 +62,8 @@ const command = async (
 	const fileService = accessor.get(IFileService);
 	const labelService = accessor.get(ILabelService);
 	const openerService = accessor.get(IOpenerService);
-	const commandService = accessor.get(ICommandService);
 	const promptsService = accessor.get(IPromptsService);
+	const commandService = accessor.get(ICommandService);
 	const quickInputService = accessor.get(IQuickInputService);
 	const notificationService = accessor.get(INotificationService);
 	const workspaceService = accessor.get(IWorkspaceContextService);
@@ -96,7 +96,7 @@ const command = async (
 		folder: selectedFolder,
 		content,
 		fileService,
-		commandService,
+		openerService,
 	});
 
 	await openerService.open(promptUri);
@@ -113,9 +113,11 @@ const command = async (
 
 	const isConfigured = userDataSyncEnablementService
 		.isResourceEnablementConfigured(SyncResource.Prompts);
+	const isSettingsSyncEnabled = userDataSyncEnablementService.isEnabled();
 
-	// if prompts synchronization has been already configured before, nothing to do
-	if (isConfigured === true) {
+	// if prompts synchronization has already been configured before or
+	// if settings sync service is currently disabled, nothing to do
+	if ((isConfigured === true) || (isSettingsSyncEnabled === false)) {
 		return;
 	}
 

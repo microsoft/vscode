@@ -16,6 +16,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { Location } from '../../../../editor/common/languages.js';
 import { IChatTerminalToolInvocationData, IChatToolInputInvocationData } from './chatService.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { PromptElementJSON, stringifyPromptElementJSON } from './tools/promptTsxTypes.js';
 
 export interface IToolData {
 	id: string;
@@ -35,6 +36,8 @@ export interface IToolData {
 	 */
 	runsInWorkspace?: boolean;
 	requiresConfirmation?: boolean;
+	alwaysDisplayInputOutput?: boolean;
+	supportsToolPicker?: boolean;
 }
 
 export type ToolDataSource =
@@ -90,6 +93,10 @@ export interface IToolResult {
 export interface IToolResultPromptTsxPart {
 	kind: 'promptTsx';
 	value: unknown;
+}
+
+export function stringifyPromptTsxPart(part: IToolResultPromptTsxPart): string {
+	return stringifyPromptElementJSON(part.value as PromptElementJSON);
 }
 
 export interface IToolResultTextPart {

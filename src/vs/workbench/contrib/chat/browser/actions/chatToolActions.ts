@@ -88,12 +88,12 @@ export class AttachToolsAction extends Action2 {
 			f1: false,
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(
-				ContextKeyExpr.or(ChatContextKeys.Tools.toolsCount.greater(0)),
+				ContextKeyExpr.or(ChatContextKeys.Tools.pickableToolsCount.greater(0)),
 				ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent)
 			),
 			menu: {
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.or(ChatContextKeys.Tools.toolsCount.greater(0)),
+					ContextKeyExpr.or(ChatContextKeys.Tools.pickableToolsCount.greater(0)),
 					ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent)
 				),
 				id: MenuId.ChatInputAttachmentToolbar,
@@ -158,7 +158,7 @@ export class AttachToolsAction extends Action2 {
 		const toolBuckets = new Map<string, BucketPick>();
 
 		for (const tool of toolsService.getTools()) {
-			if (!tool.canBeReferencedInPrompt) {
+			if (!tool.supportsToolPicker) {
 				continue;
 			}
 

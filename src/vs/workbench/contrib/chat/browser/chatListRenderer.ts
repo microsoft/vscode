@@ -247,15 +247,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	layout(width: number): void {
-		this._currentLayoutWidth = width - 40; // padding
-		for (const editor of this._editorPool.inUse()) {
-			editor.layout(this._currentLayoutWidth);
-		}
-		for (const toolEditor of this._toolEditorPool.inUse()) {
-			toolEditor.layout(this._currentLayoutWidth);
-		}
-		for (const diffEditor of this._diffEditorPool.inUse()) {
-			diffEditor.layout(this._currentLayoutWidth);
+		const newWidth = width - 40; // padding
+		if (newWidth !== this._currentLayoutWidth) {
+			this._currentLayoutWidth = newWidth;
+			for (const editor of this._editorPool.inUse()) {
+				editor.layout(this._currentLayoutWidth);
+			}
+			for (const toolEditor of this._toolEditorPool.inUse()) {
+				toolEditor.layout(this._currentLayoutWidth);
+			}
+			for (const diffEditor of this._diffEditorPool.inUse()) {
+				diffEditor.layout(this._currentLayoutWidth);
+			}
 		}
 	}
 

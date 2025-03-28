@@ -231,26 +231,36 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 			return {};
 		}
 
-		const chatContext = await this.requestService.request({
-			type: 'GET',
-			url: tokenEntitlementsUrl,
-			disableCache: true,
-			headers: {
-				'Authorization': `Bearer ${accessToken}`
-			}
-		}, CancellationToken.None);
+		try {
+			const chatContext = await this.requestService.request({
+				type: 'GET',
+				url: tokenEntitlementsUrl,
+				disableCache: true,
+				headers: {
+					'Authorization': `Bearer ${accessToken}`
+				}
+			}, CancellationToken.None);
 
-		const chatData = await asJson<ITokenEntitlementsResponse>(chatContext);
-		if (chatData) {
-			return {
-				// Editor preview features are disabled if the flag is present and set to 0
-				chat_preview_features_enabled: this.extractFromToken(chatData.token, 'editor_preview_features') !== '0',
-			};
+			const chatData = await asJson<ITokenEntitlementsResponse>(chatContext);
+			if (chatData) {
+				return {
+					// Editor preview features are disabled if the flag is present and set to 0
+					chat_preview_features_enabled: this.extractFromToken(chatData.token, 'editor_preview_features') !== '0',
+				};
+			}
+			this.logService.error('Failed to fetch token entitlements', 'No data returned');
+		} catch (error) {
+			this.logService.error('Failed to fetch token entitlements', getErrorMessage(error));
 		}
+
 		return {};
 	}
 
 	private async getChatEntitlements(accessToken: string, chatEntitlementsUrl: string): Promise<Partial<IChatEntitlementsResponse>> {
+		if (!chatEntitlementsUrl) {
+			return {};
+		}
+
 		try {
 			const context = await this.requestService.request({
 				type: 'GET',

@@ -727,7 +727,7 @@ export class Configuration {
 	}
 
 	getValue(section: string | undefined, overrides: IConfigurationOverrides, workspace: Workspace | undefined): any {
-		const consolidateConfigurationModel = this.getConsolidatedConfigurationModel(overrides, workspace);
+		const consolidateConfigurationModel = this.getConsolidatedConfigurationModel(section, overrides, workspace);
 		return consolidateConfigurationModel.getValue(section);
 	}
 
@@ -755,7 +755,7 @@ export class Configuration {
 	}
 
 	inspect<C>(key: string, overrides: IConfigurationOverrides, workspace: Workspace | undefined): IConfigurationValue<C> {
-		const consolidateConfigurationModel = this.getConsolidatedConfigurationModel(overrides, workspace);
+		const consolidateConfigurationModel = this.getConsolidatedConfigurationModel(key, overrides, workspace);
 		const folderConfigurationModel = this.getFolderConfigurationModelForResource(overrides.resource, workspace);
 		const memoryConfigurationModel = overrides.resource ? this._memoryConfigurationByResource.get(overrides.resource) || this._memoryConfiguration : this._memoryConfiguration;
 		const overrideIdentifiers = new Set<string>();
@@ -970,12 +970,12 @@ export class Configuration {
 		return this._folderConfigurations;
 	}
 
-	private getConsolidatedConfigurationModel(overrides: IConfigurationOverrides, workspace: Workspace | undefined): ConfigurationModel {
+	private getConsolidatedConfigurationModel(section: string | undefined, overrides: IConfigurationOverrides, workspace: Workspace | undefined): ConfigurationModel {
 		let configurationModel = this.getConsolidatedConfigurationModelForResource(overrides, workspace);
 		if (overrides.overrideIdentifier) {
 			configurationModel = configurationModel.override(overrides.overrideIdentifier);
 		}
-		if (!this._policyConfiguration.isEmpty()) {
+		if (!this._policyConfiguration.isEmpty() && this._policyConfiguration.getValue(section) !== undefined) {
 			// clone by merging
 			configurationModel = configurationModel.merge();
 			for (const key of this._policyConfiguration.keys) {

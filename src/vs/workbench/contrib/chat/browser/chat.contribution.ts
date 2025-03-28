@@ -199,7 +199,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.renderRelatedFiles', "Controls whether related files should be rendered in the chat input."),
 			default: false
 		},
-		'chat.experimental.setupFromDialog': { // TODO@bpasero remove this eventually
+		'chat.setupFromDialog': { // TODO@bpasero remove this eventually
 			type: 'boolean',
 			description: nls.localize('chat.setupFromChat', "Controls whether Copilot setup starts from a dialog or from the welcome view."),
 			default: product.quality !== 'stable',
@@ -268,6 +268,7 @@ configurationRegistry.registerConfiguration({
 					])),
 				}
 			],
+			default: true,
 			markdownDescription: nls.localize('mpc.discovery.enabled', "Configures discovery of Model Context Protocol servers on the machine. It may be set to `true` or `false` to disable or enable all sources, and an mapping sources you wish to enable."),
 		},
 		[PromptsConfig.KEY]: {

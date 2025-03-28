@@ -234,13 +234,15 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 				actualOptions ??= {
 					readOnly: this._editor.getOption(EditorOption.readOnly),
 					stickyScroll: this._editor.getOption(EditorOption.stickyScroll),
-					codeLens: this._editor.getOption(EditorOption.codeLens)
+					codeLens: this._editor.getOption(EditorOption.codeLens),
+					guides: this._editor.getOption(EditorOption.guides)
 				};
 
 				this._editor.updateOptions({
 					readOnly: true,
 					stickyScroll: { enabled: false },
-					codeLens: false
+					codeLens: false,
+					guides: { indentation: false, bracketPairs: false }
 				});
 			} else {
 				restoreActualOptions();

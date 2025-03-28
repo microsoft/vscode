@@ -105,6 +105,8 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -132,6 +134,12 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		this._register(this.chatEntitlementService.onDidChangeQuotaExceeded(() => this.entry?.update(this.getEntryProps())));
 		this._register(this.chatEntitlementService.onDidChangeSentiment(() => this.entry?.update(this.getEntryProps())));
 		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => this.entry?.update(this.getEntryProps())));
+		this._register(this.editorService.onDidActiveEditorChange(() => this.entry?.update(this.getEntryProps())));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(defaultChat.completionsEnablementSetting)) {
+				this.entry?.update(this.getEntryProps());
+			}
+		}));
 	}
 
 	private getEntryProps(): IStatusbarEntry {
@@ -166,6 +174,12 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				ariaLabel = quotaWarning;
 				kind = 'prominent';
 			}
+
+			// Completions Disabled
+			else if (this.editorService.activeTextEditorLanguageId && !isCompletionsEnabled(this.configurationService, this.editorService.activeTextEditorLanguageId)) {
+				text = `$(copilot-not-connected)`;
+				ariaLabel = localize('completionsDisabledStatus', "Code Completions Disabled");
+			}
 		}
 
 		return {
@@ -198,6 +212,19 @@ function canUseCopilot(chatEntitlementService: IChatEntitlementService): boolean
 	const allQuotaReached = chatEntitlementService.quotas.chatQuotaExceeded && chatEntitlementService.quotas.completionsQuotaExceeded;
 
 	return !newUser && !signedOut && !allQuotaReached;
+}
+
+function isCompletionsEnabled(configurationService: IConfigurationService, modeId: string = '*'): boolean {
+	const result = configurationService.getValue<Record<string, boolean>>(defaultChat.completionsEnablementSetting);
+	if (!isObject(result)) {
+		return false;
+	}
+
+	if (typeof result[modeId] !== 'undefined') {
+		return Boolean(result[modeId]); // go with setting if explicitly defined
+	}
+
+	return Boolean(result['*']); // fallback to global setting otherwise
 }
 
 interface ISettingsAccessor {
@@ -334,17 +361,17 @@ class ChatStatusDashboard extends Disposable {
 		const bodyEl = entryEl.appendChild($('div.body'));
 
 		const descriptionEl = bodyEl.appendChild($('span.description'));
-		this._renderTextPlus(descriptionEl, item.description, disposables);
+		this.renderTextPlus(descriptionEl, item.description, disposables);
 
 		if (item.detail) {
 			const itemElement = bodyEl.appendChild($('div.detail-item'));
-			this._renderTextPlus(itemElement, item.detail, disposables);
+			this.renderTextPlus(itemElement, item.detail, disposables);
 		}
 
 		return { element: entryEl, disposables };
 	}
 
-	private _renderTextPlus(target: HTMLElement, text: string, store: DisposableStore): void {
+	private renderTextPlus(target: HTMLElement, text: string, store: DisposableStore): void {
 		for (const node of parseLinkedText(text).nodes) {
 			if (typeof node === 'string') {
 				const parts = renderLabelWithIcons(node);
@@ -362,6 +389,7 @@ class ChatStatusDashboard extends Disposable {
 			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: commandOrFn, from: 'chat-status' });
 			this.commandService.executeCommand(commandOrFn);
 		}
+
 		this.hoverService.hideHover(true);
 	}
 
@@ -473,18 +501,7 @@ class ChatStatusDashboard extends Disposable {
 		const settingId = defaultChat.completionsEnablementSetting;
 
 		return {
-			readSetting: () => {
-				const result = this.configurationService.getValue<Record<string, boolean>>(settingId);
-				if (!isObject(result)) {
-					return false;
-				}
-
-				if (typeof result[modeId] !== 'undefined') {
-					return Boolean(result[modeId]); // go with setting if explicitly defined
-				}
-
-				return Boolean(result['*']); // fallback to global setting otherwise
-			},
+			readSetting: () => isCompletionsEnabled(this.configurationService, modeId),
 			writeSetting: (value: boolean) => {
 				let result = this.configurationService.getValue<Record<string, boolean>>(settingId);
 				if (!isObject(result)) {
