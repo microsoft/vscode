@@ -3,55 +3,92 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { timeout } from '../../../../base/common/async.js';
+import { Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { basename } from '../../../../base/common/path.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import type { IShellLaunchConfig } from '../../../../platform/terminal/common/terminal.js';
+import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
+import type { IShellLaunchConfig, ShellIntegrationInjectionFailureReason } from '../../../../platform/terminal/common/terminal.js';
 import type { IWorkbenchContribution } from '../../../common/contributions.js';
-import { ITerminalService } from './terminal.js';
+import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
+import { ITerminalService, type ITerminalInstance } from './terminal.js';
 
 export class TerminalTelemetryContribution extends Disposable implements IWorkbenchContribution {
 	static ID = 'terminalTelemetry';
 
 	constructor(
+		@ILifecycleService lifecycleService: ILifecycleService,
 		@ITerminalService terminalService: ITerminalService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 
 		this._register(terminalService.onDidCreateInstance(async instance => {
-			// Wait for process ready so the shell launch config is fully resolved
-			await instance.processReady;
-			this._logCreateInstance(instance.shellLaunchConfig);
+			const store = new DisposableStore();
+			this._store.add(store);
+
+			await Promise.race([
+				// Wait for process ready so the shell launch config is fully resolved, then
+				// allow another 10 seconds for the shell integration to be fully initialized
+				instance.processReady.then(() => {
+					return timeout(10000);
+				}),
+				// If the terminal is disposed, it's ready to report on immediately
+				Event.toPromise(instance.onDisposed, store),
+				// If the app is shutting down, flush
+				Event.toPromise(lifecycleService.onWillShutdown, store),
+			]);
+
+			this._logCreateInstance(instance);
+			this._store.delete(store);
 		}));
 	}
 
-	private _logCreateInstance(shellLaunchConfig: IShellLaunchConfig): void {
+	private _logCreateInstance(instance: ITerminalInstance): void {
+		const slc = instance.shellLaunchConfig;
+		const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
+
 		type TerminalCreationTelemetryData = {
 			shellType: string;
 			isCustomPtyImplementation: boolean;
 			isExtensionOwnedTerminal: boolean;
 			isLoginShell: boolean;
 			isReconnect: boolean;
+
+			shellIntegrationQuality: number;
+			shellIntegrationInjected: boolean;
+			shellIntegrationInjectionFailureReason: ShellIntegrationInjectionFailureReason | undefined;
 		};
 		type TerminalCreationTelemetryClassification = {
 			owner: 'tyriar';
 			comment: 'Track details about terminal creation, such as the shell type';
-			shellType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The path of the file as a hash.' };
+
+			shellType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The detected shell type for the terminal.' };
 			isCustomPtyImplementation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the terminal was using a custom PTY implementation.' };
 			isExtensionOwnedTerminal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the terminal was created by an extension.' };
 			isLoginShell: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the arguments contain -l or --login.' };
 			isReconnect: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the terminal is reconnecting to an existing instance.' };
+
+			shellIntegrationQuality: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The shell integration quality (rich=2, basic=1 or none=0).' };
+			shellIntegrationInjected: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the shell integration script was injected.' };
+			shellIntegrationInjectionFailureReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Info about shell integration injection.' };
 		};
 		this._telemetryService.publicLog2<TerminalCreationTelemetryData, TerminalCreationTelemetryClassification>('terminal/createInstance', {
-			shellType: getSanitizedShellType(shellLaunchConfig),
-			isCustomPtyImplementation: !!shellLaunchConfig.customPtyImplementation,
-			isExtensionOwnedTerminal: !!shellLaunchConfig.isExtensionOwnedTerminal,
-			isLoginShell: (typeof shellLaunchConfig.args === 'string' ? shellLaunchConfig.args.split(' ') : shellLaunchConfig.args)?.some(arg => arg === '-l' || arg === '--login') ?? false,
-			isReconnect: !!shellLaunchConfig.attachPersistentProcess,
+			shellType: getSanitizedShellType(slc),
+			isCustomPtyImplementation: !!slc.customPtyImplementation,
+			isExtensionOwnedTerminal: !!slc.isExtensionOwnedTerminal,
+			isLoginShell: (typeof slc.args === 'string' ? slc.args.split(' ') : slc.args)?.some(arg => arg === '-l' || arg === '--login') ?? false,
+			isReconnect: !!slc.attachPersistentProcess,
+
+			shellIntegrationQuality: commandDetection?.hasRichCommandDetection ? 2 : commandDetection ? 1 : 0,
+			shellIntegrationInjected: instance.usedShellIntegrationInjection,
+			shellIntegrationInjectionFailureReason: instance.shellIntegrationInjectionFailureReason,
 		});
 	}
 }
+
+// #region Shell Type
 
 const enum AllowedShellType {
 	Unknown = 'unknown',
@@ -205,14 +242,14 @@ const shellTypePathRegexAllowList: { regex: RegExp; type: AllowedShellType }[] =
 	{ regex: /\\Windows\\System32\\(?:bash|wsl)\.exe$/i, type: AllowedShellType.Wsl },
 ];
 
-function getSanitizedShellType(shellLaunchConfig: IShellLaunchConfig): AllowedShellType {
-	if (!shellLaunchConfig.executable) {
+function getSanitizedShellType(slc: IShellLaunchConfig): AllowedShellType {
+	if (!slc.executable) {
 		return AllowedShellType.Unknown;
 	}
-	const executableFile = basename(shellLaunchConfig.executable);
+	const executableFile = basename(slc.executable);
 	const executableFileWithoutExt = executableFile.replace(/\.[^\.]+$/, '');
 	for (const entry of shellTypePathRegexAllowList) {
-		if (entry.regex.test(shellLaunchConfig.executable)) {
+		if (entry.regex.test(slc.executable)) {
 			return entry.type;
 		}
 	}
@@ -226,3 +263,5 @@ function getSanitizedShellType(shellLaunchConfig: IShellLaunchConfig): AllowedSh
 	}
 	return AllowedShellType.Unknown;
 }
+
+// #endregion Shell Type

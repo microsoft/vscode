@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITerminalProcessOptions } from '../../common/terminal.js';
-import { getShellIntegrationInjection, getWindowsBuildNumber, IShellIntegrationConfigInjection } from '../../node/terminalEnvironment.js';
+import { getShellIntegrationInjection, getWindowsBuildNumber, IShellIntegrationConfigInjection, type IShellIntegrationInjectionFailure } from '../../node/terminalEnvironment.js';
 
 const enabledProcessOptions: ITerminalProcessOptions = { shellIntegration: { enabled: true, suggestEnabled: false, nonce: '' }, windowsEnableConpty: true, windowsUseConptyDll: false, environmentVariableCollections: undefined, workspaceFolder: undefined };
 const disabledProcessOptions: ITerminalProcessOptions = { shellIntegration: { enabled: false, suggestEnabled: false, nonce: '' }, windowsEnableConpty: true, windowsUseConptyDll: false, environmentVariableCollections: undefined, workspaceFolder: undefined };
@@ -21,8 +21,8 @@ const logService = new NullLogService();
 const productService = { applicationName: 'vscode' } as IProductService;
 const defaultEnvironment = {};
 
-function deepStrictEqualIgnoreStableVar(actual: IShellIntegrationConfigInjection | undefined, expected: IShellIntegrationConfigInjection) {
-	if (actual?.envMixin) {
+function deepStrictEqualIgnoreStableVar(actual: IShellIntegrationConfigInjection | IShellIntegrationInjectionFailure | undefined, expected: IShellIntegrationConfigInjection) {
+	if (actual && 'envMixin' in actual && actual.envMixin) {
 		delete actual.envMixin['VSCODE_STABLE'];
 	}
 	deepStrictEqual(actual, expected);
@@ -51,6 +51,7 @@ suite('platform - terminalEnvironment', () => {
 				: `. "${repoRoot}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration.ps1"`;
 			suite('should override args', () => {
 				const enabledExpectedResult = Object.freeze<IShellIntegrationConfigInjection>({
+					type: 'injection',
 					newArgs: [
 						'-noexit',
 						'-command',
@@ -81,6 +82,7 @@ suite('platform - terminalEnvironment', () => {
 			});
 			suite('should incorporate login arg', () => {
 				const enabledExpectedResult = Object.freeze<IShellIntegrationConfigInjection>({
+					type: 'injection',
 					newArgs: [
 						'-l',
 						'-noexit',
@@ -147,16 +149,16 @@ suite('platform - terminalEnvironment', () => {
 						ok(result.filesToCopy[3].source.match(expectedSources[3]));
 					}
 					test('when undefined, []', () => {
-						const result1 = getShellIntegrationInjection({ executable: 'zsh', args: [] }, enabledProcessOptions, defaultEnvironment, logService, productService);
+						const result1 = getShellIntegrationInjection({ executable: 'zsh', args: [] }, enabledProcessOptions, defaultEnvironment, logService, productService) as IShellIntegrationConfigInjection;
 						deepStrictEqual(result1?.newArgs, ['-i']);
 						assertIsEnabled(result1);
-						const result2 = getShellIntegrationInjection({ executable: 'zsh', args: undefined }, enabledProcessOptions, defaultEnvironment, logService, productService);
+						const result2 = getShellIntegrationInjection({ executable: 'zsh', args: undefined }, enabledProcessOptions, defaultEnvironment, logService, productService) as IShellIntegrationConfigInjection;
 						deepStrictEqual(result2?.newArgs, ['-i']);
 						assertIsEnabled(result2);
 					});
 					suite('should incorporate login arg', () => {
 						test('when array', () => {
-							const result = getShellIntegrationInjection({ executable: 'zsh', args: ['-l'] }, enabledProcessOptions, defaultEnvironment, logService, productService);
+							const result = getShellIntegrationInjection({ executable: 'zsh', args: ['-l'] }, enabledProcessOptions, defaultEnvironment, logService, productService) as IShellIntegrationConfigInjection;
 							deepStrictEqual(result?.newArgs, ['-il']);
 							assertIsEnabled(result);
 						});
@@ -172,12 +174,12 @@ suite('platform - terminalEnvironment', () => {
 					});
 					suite('should incorporate global ZDOTDIR env variable', () => {
 						test('when custom ZDOTDIR', () => {
-							const result1 = getShellIntegrationInjection({ executable: 'zsh', args: [] }, enabledProcessOptions, { ...defaultEnvironment, ZDOTDIR: customZdotdir }, logService, productService);
+							const result1 = getShellIntegrationInjection({ executable: 'zsh', args: [] }, enabledProcessOptions, { ...defaultEnvironment, ZDOTDIR: customZdotdir }, logService, productService) as IShellIntegrationConfigInjection;
 							deepStrictEqual(result1?.newArgs, ['-i']);
 							assertIsEnabled(result1, customZdotdir);
 						});
 						test('when undefined', () => {
-							const result1 = getShellIntegrationInjection({ executable: 'zsh', args: [] }, enabledProcessOptions, undefined, logService, productService);
+							const result1 = getShellIntegrationInjection({ executable: 'zsh', args: [] }, enabledProcessOptions, undefined, logService, productService) as IShellIntegrationConfigInjection;
 							deepStrictEqual(result1?.newArgs, ['-i']);
 							assertIsEnabled(result1);
 						});
@@ -188,6 +190,7 @@ suite('platform - terminalEnvironment', () => {
 				suite('should override args', () => {
 					test('when undefined, [], empty string', () => {
 						const enabledExpectedResult = Object.freeze<IShellIntegrationConfigInjection>({
+							type: 'injection',
 							newArgs: [
 								'--init-file',
 								`${repoRoot}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-bash.sh`
@@ -202,6 +205,7 @@ suite('platform - terminalEnvironment', () => {
 					});
 					suite('should set login env variable and not modify args', () => {
 						const enabledExpectedResult = Object.freeze<IShellIntegrationConfigInjection>({
+							type: 'injection',
 							newArgs: [
 								'--init-file',
 								`${repoRoot}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-bash.sh`
