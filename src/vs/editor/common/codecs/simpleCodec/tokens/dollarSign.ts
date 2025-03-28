@@ -15,12 +15,12 @@ export class DollarSign extends BaseToken {
 	/**
 	 * The underlying symbol of the token.
 	 */
-	public static readonly symbol: string = '$';
+	public static readonly symbol: '$' = '$';
 
 	/**
 	 * Return text representation of the token.
 	 */
-	public get text(): string {
+	public get text(): '$' {
 		return DollarSign.symbol;
 	}
 
