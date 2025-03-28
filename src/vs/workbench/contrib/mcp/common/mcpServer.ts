@@ -56,7 +56,7 @@ type ServerBootStateClassification = {
 
 interface IToolCacheEntry {
 	/** Cached tools so we can show what's available before it's started */
-	readonly tools: readonly MCP.Tool[];
+	readonly tools: readonly IValidatedMcpTool[];
 }
 
 interface IServerCacheEntry {
@@ -109,12 +109,12 @@ export class McpServerMetadataCache extends Disposable {
 	}
 
 	/** Gets cached tools for a server (used before a server is running) */
-	getTools(definitionId: string): readonly MCP.Tool[] | undefined {
+	getTools(definitionId: string): readonly IValidatedMcpTool[] | undefined {
 		return this.cache.get(definitionId)?.tools;
 	}
 
 	/** Sets cached tools for a server */
-	storeTools(definitionId: string, tools: readonly MCP.Tool[]): void {
+	storeTools(definitionId: string, tools: readonly IValidatedMcpTool[]): void {
 		this.cache.set(definitionId, { ...this.cache.get(definitionId), tools });
 		this.didChange = true;
 	}
@@ -135,6 +135,15 @@ export class McpServerMetadataCache extends Disposable {
 	}
 }
 
+interface IValidatedMcpTool extends MCP.Tool {
+	/**
+	 * Tool name as published by the MCP server. This may
+	 * be different than the one in {@link definition} due to name normalization
+	 * in {@link McpServer._getValidatedTools}.
+	 */
+	serverToolName: string;
+}
+
 export class McpServer extends Disposable implements IMcpServer {
 	private readonly _connectionSequencer = new Sequencer();
 	private readonly _connection = this._register(disposableObservableValue<IMcpServerConnection | undefined>(this, undefined));
@@ -145,7 +154,7 @@ export class McpServer extends Disposable implements IMcpServer {
 	private get toolsFromCache() {
 		return this._toolCache.getTools(this.definition.id);
 	}
-	private readonly toolsFromServerPromise = observableValue<ObservablePromise<readonly MCP.Tool[]> | undefined>(this, undefined);
+	private readonly toolsFromServerPromise = observableValue<ObservablePromise<readonly IValidatedMcpTool[]> | undefined>(this, undefined);
 	private readonly toolsFromServer = derived(reader => this.toolsFromServerPromise.read(reader)?.promiseResult.read(reader)?.data);
 
 	public readonly tools: IObservable<readonly IMcpTool[]>;
@@ -311,7 +320,8 @@ export class McpServer extends Disposable implements IMcpServer {
 		});
 	}
 
-	private async _normalizeTool(tool: MCP.Tool): Promise<MCP.Tool | { error: string[] }> {
+	private async _normalizeTool(originalTool: MCP.Tool): Promise<IValidatedMcpTool | { error: string[] }> {
+		const tool: IValidatedMcpTool = { ...originalTool, serverToolName: originalTool.name };
 		if (!tool.description) {
 			// Ensure a description is provided for each tool, #243919
 			this._logger.warn(`Tool ${tool.name} does not have a description. Tools must be accurately described to be called`);
@@ -349,11 +359,11 @@ export class McpServer extends Disposable implements IMcpServer {
 		return { error: messages };
 	}
 
-	private async _getValidatedTools(handler: McpServerRequestHandler, tools: MCP.Tool[]) {
+	private async _getValidatedTools(handler: McpServerRequestHandler, tools: MCP.Tool[]): Promise<IValidatedMcpTool[]> {
 		let error = '';
 
 		const validations = await Promise.all(tools.map(t => this._normalizeTool(t)));
-		const validated: MCP.Tool[] = [];
+		const validated: IValidatedMcpTool[] = [];
 		for (const [i, result] of validations.entries()) {
 			if ('error' in result) {
 				error += localize('mcpBadSchema.tool', 'Tool `{0}` has invalid JSON parameters:', tools[i].name) + '\n';
@@ -458,16 +468,20 @@ export class McpTool implements IMcpTool {
 
 	readonly id: string;
 
+	public get definition(): MCP.Tool { return this._definition; }
+
 	constructor(
 		private readonly _server: McpServer,
 		idPrefix: string,
-		public readonly definition: MCP.Tool,
+		private readonly _definition: IValidatedMcpTool,
 	) {
-		this.id = (idPrefix + definition.name).replaceAll('.', '_');
+		this.id = (idPrefix + _definition.name).replaceAll('.', '_');
 	}
 
 	call(params: Record<string, unknown>, token?: CancellationToken): Promise<MCP.CallToolResult> {
-		return this._server.callOn(h => h.callTool({ name: this.definition.name, arguments: params }), token);
+		// serverToolName is always set now, but older cache entries (from 1.99-Insiders) may not have it.
+		const name = this._definition.serverToolName ?? this._definition.name;
+		return this._server.callOn(h => h.callTool({ name, arguments: params }), token);
 	}
 }
 
