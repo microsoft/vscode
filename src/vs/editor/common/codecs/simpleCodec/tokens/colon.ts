@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BaseToken } from '../../baseToken.js';
 import { Range } from '../../../core/range.js';
+import { BaseToken } from '../../baseToken.js';
 import { Position } from '../../../core/position.js';
 import { Line } from '../../linesCodec/tokens/line.js';
 
