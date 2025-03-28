@@ -669,11 +669,11 @@ class TestRunElementRenderer implements ICompressibleTreeRenderer<ITreeElement, 
 	/** @inheritdoc */
 	public renderTemplate(container: HTMLElement): TemplateData {
 		const templateDisposable = new DisposableStore();
-		const wrapper = dom.append(container, dom.$('.test-peek-item'));
-		const icon = dom.append(wrapper, dom.$('.state'));
-		const label = dom.append(wrapper, dom.$('.name'));
+		container.classList.add('testing-stdtree-container');
+		const icon = dom.append(container, dom.$('.state'));
+		const label = dom.append(container, dom.$('.label'));
 
-		const actionBar = new ActionBar(wrapper, {
+		const actionBar = new ActionBar(container, {
 			actionViewItemProvider: (action, options) =>
 				action instanceof MenuItemAction
 					? this.instantiationService.createInstance(MenuEntryActionViewItem, action, { hoverDelegate: options.hoverDelegate })

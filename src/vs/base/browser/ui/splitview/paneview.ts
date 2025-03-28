@@ -18,6 +18,7 @@ import { ScrollEvent } from '../../../common/scrollable.js';
 import './paneview.css';
 import { localize } from '../../../../nls.js';
 import { IView, Sizing, SplitView } from './splitview.js';
+import { applyDragImage } from '../dnd/dnd.js';
 
 export interface IPaneOptions {
 	minimumBodySize?: number;
@@ -50,7 +51,7 @@ export abstract class Pane extends Disposable implements IView {
 	private static readonly HEADER_SIZE = 22;
 
 	readonly element: HTMLElement;
-	private header!: HTMLElement;
+	private header: HTMLElement | undefined;
 	private body!: HTMLElement;
 
 	protected _expanded: boolean;
@@ -84,10 +85,10 @@ export abstract class Pane extends Disposable implements IView {
 
 	set ariaHeaderLabel(newLabel: string) {
 		this._ariaHeaderLabel = newLabel;
-		this.header.setAttribute('aria-label', this.ariaHeaderLabel);
+		this.header?.setAttribute('aria-label', this.ariaHeaderLabel);
 	}
 
-	get draggableElement(): HTMLElement {
+	get draggableElement(): HTMLElement | undefined {
 		return this.header;
 	}
 
@@ -139,11 +140,15 @@ export abstract class Pane extends Disposable implements IView {
 
 	orthogonalSize: number = 0;
 
+	protected getAriaHeaderLabel(title: string): string {
+		return localize('viewSection', "{0} Section", title);
+	}
+
 	constructor(options: IPaneOptions) {
 		super();
 		this._expanded = typeof options.expanded === 'undefined' ? true : !!options.expanded;
 		this._orientation = typeof options.orientation === 'undefined' ? Orientation.VERTICAL : options.orientation;
-		this._ariaHeaderLabel = localize('viewSection', "{0} Section", options.title);
+		this._ariaHeaderLabel = this.getAriaHeaderLabel(options.title);
 		this._minimumBodySize = typeof options.minimumBodySize === 'number' ? options.minimumBodySize : this._orientation === Orientation.HORIZONTAL ? 200 : 120;
 		this._maximumBodySize = typeof options.maximumBodySize === 'number' ? options.maximumBodySize : Number.POSITIVE_INFINITY;
 
@@ -252,8 +257,8 @@ export abstract class Pane extends Disposable implements IView {
 
 		const focusTracker = trackFocus(this.header);
 		this._register(focusTracker);
-		this._register(focusTracker.onDidFocus(() => this.header.classList.add('focused'), null));
-		this._register(focusTracker.onDidBlur(() => this.header.classList.remove('focused'), null));
+		this._register(focusTracker.onDidFocus(() => this.header?.classList.add('focused'), null));
+		this._register(focusTracker.onDidBlur(() => this.header?.classList.remove('focused'), null));
 
 		this.updateHeader();
 
@@ -269,8 +274,9 @@ export abstract class Pane extends Disposable implements IView {
 
 		this._register(Gesture.addTarget(this.header));
 
+		const header = this.header;
 		[EventType.CLICK, TouchEventType.Tap].forEach(eventType => {
-			this._register(addDisposableListener(this.header, eventType, e => {
+			this._register(addDisposableListener(header, eventType, e => {
 				if (!e.defaultPrevented) {
 					this.setExpanded(!this.isExpanded());
 				}
@@ -315,6 +321,9 @@ export abstract class Pane extends Disposable implements IView {
 	}
 
 	protected updateHeader(): void {
+		if (!this.header) {
+			return;
+		}
 		const expanded = !this.headerVisible || this.isExpanded();
 
 		if (this.collapsible) {
@@ -358,8 +367,8 @@ class PaneDraggable extends Disposable {
 	constructor(private pane: Pane, private dnd: IPaneDndController, private context: IDndContext) {
 		super();
 
-		pane.draggableElement.draggable = true;
-		this._register(addDisposableListener(pane.draggableElement, 'dragstart', e => this.onDragStart(e)));
+		pane.draggableElement!.draggable = true;
+		this._register(addDisposableListener(pane.draggableElement!, 'dragstart', e => this.onDragStart(e)));
 		this._register(addDisposableListener(pane.dropTargetElement, 'dragenter', e => this.onDragEnter(e)));
 		this._register(addDisposableListener(pane.dropTargetElement, 'dragleave', e => this.onDragLeave(e)));
 		this._register(addDisposableListener(pane.dropTargetElement, 'dragend', e => this.onDragEnd(e)));
@@ -373,16 +382,16 @@ class PaneDraggable extends Disposable {
 			return;
 		}
 
+		const label = this.pane.draggableElement?.textContent || '';
+
 		e.dataTransfer.effectAllowed = 'move';
 
 		if (isFirefox) {
 			// Firefox: requires to set a text data transfer to get going
-			e.dataTransfer?.setData(DataTransfers.TEXT, this.pane.draggableElement.textContent || '');
+			e.dataTransfer?.setData(DataTransfers.TEXT, label);
 		}
 
-		const dragImage = append(this.pane.element.ownerDocument.body, $('.monaco-drag-image', {}, this.pane.draggableElement.textContent || ''));
-		e.dataTransfer.setDragImage(dragImage, -10, -10);
-		setTimeout(() => dragImage.remove(), 0);
+		applyDragImage(e, this.pane.element, label);
 
 		this.context.draggable = this;
 	}

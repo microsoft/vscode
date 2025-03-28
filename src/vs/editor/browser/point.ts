@@ -25,4 +25,8 @@ export class Point {
 	public deltaY(delta: number): Point {
 		return new Point(this.x, this.y + delta);
 	}
+
+	public toString() {
+		return `(${this.x},${this.y})`;
+	}
 }

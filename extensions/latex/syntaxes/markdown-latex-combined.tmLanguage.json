@@ -4,9 +4,9 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/56e2dc967e6bafafc1acfeeb80af42b8328b021a",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/ed0a6d72377d89eb90280f4159f2d6cdbd63a3a3",
 	"name": "Markdown",
-	"scopeName": "text.tex.markdown_latex_combined",
+	"scopeName": "text.tex.internal_only_markdown_latex_combined",
 	"patterns": [
 		{
 			"include": "text.tex.latex"
@@ -2483,14 +2483,34 @@
 			"name": "meta.separator.markdown"
 		},
 		"frontMatter": {
-			"begin": "\\A-{3}\\s*$",
-			"contentName": "meta.embedded.block.frontmatter",
+			"begin": "\\A(?=(-{3,}))",
+			"end": "^ {,3}\\1-*[ \\t]*$|^[ \\t]*\\.{3}$",
+			"applyEndPatternLast": 1,
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.end.frontmatter"
+				}
+			},
 			"patterns": [
 				{
-					"include": "source.yaml"
+					"begin": "\\A(-{3,})(.*)$",
+					"while": "^(?! {,3}\\1-*[ \\t]*$|[ \\t]*\\.{3}$)",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.definition.begin.frontmatter"
+						},
+						"2": {
+							"name": "comment.frontmatter"
+						}
+					},
+					"contentName": "meta.embedded.block.frontmatter",
+					"patterns": [
+						{
+							"include": "source.yaml"
+						}
+					]
 				}
-			],
-			"end": "(^|\\G)-{3}|\\.{3}\\s*$"
+			]
 		},
 		"table": {
 			"name": "markup.table.markdown",

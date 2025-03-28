@@ -56,7 +56,7 @@ export class WordContextKey {
 					this._ckAtEnd.set(false);
 					return;
 				}
-				this._ckAtEnd.set(word.endColumn === selection.getStartPosition().column);
+				this._ckAtEnd.set(word.endColumn === selection.getStartPosition().column && selection.getStartPosition().lineNumber === selection.getEndPosition().lineNumber);
 			};
 			this._selectionListener = this._editor.onDidChangeCursorSelection(checkForWordEnd);
 			checkForWordEnd();

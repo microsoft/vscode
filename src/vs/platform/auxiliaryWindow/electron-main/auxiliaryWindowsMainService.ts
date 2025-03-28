@@ -98,7 +98,7 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 		const windowState: IWindowState = {};
 		const overrides: IDefaultBrowserWindowOptionsOverrides = {};
 
-		const features = details.features.split(','); // for example: popup=yes,left=270,top=14.5,width=800,height=600
+		const features = details.features.split(','); // for example: popup=yes,left=270,top=14.5,width=1024,height=768
 		for (const feature of features) {
 			const [key, value] = feature.split('=');
 			switch (key) {

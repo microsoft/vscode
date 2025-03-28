@@ -9,15 +9,15 @@ import { CancellationError } from './errors.js';
 import { ISplice } from './sequence.js';
 
 /**
- * Returns the last element of an array.
- * @param array The array.
- * @param n Which element from the end (default is zero).
+ * Returns the last entry and the initial N-1 entries of the array, as a tuple of [rest, last].
+ *
+ * The array must have at least one element.
+ *
+ * @param arr The input array
+ * @returns A tuple of [rest, last] where rest is all but the last element and last is the last element
+ * @throws Error if the array is empty
  */
-export function tail<T>(array: ArrayLike<T>, n: number = 0): T | undefined {
-	return array[array.length - (1 + n)];
-}
-
-export function tail2<T>(arr: T[]): [T[], T] {
+export function tail<T>(arr: T[]): [T[], T] {
 	if (arr.length === 0) {
 		throw new Error('Invalid tail call');
 	}
@@ -621,6 +621,36 @@ function getActualStartIndex<T>(array: T[], start: number): number {
 }
 
 /**
+ * Utility that helps to pick a property from an object.
+ *
+ * ## Examples
+ *
+ * ```typescript
+ * interface IObject = {
+ *   a: number,
+ *   b: string,
+ * };
+ *
+ * const list: IObject[] = [
+ *   { a: 1, b: 'foo' },
+ *   { a: 2, b: 'bar' },
+ * ];
+ *
+ * assert.deepStrictEqual(
+ *   list.map(pick('a')),
+ *   [1, 2],
+ * );
+ * ```
+ */
+export const pick = <TObject, TKeyName extends keyof TObject>(
+	key: TKeyName,
+) => {
+	return (obj: TObject): TObject[TKeyName] => {
+		return obj[key];
+	};
+};
+
+/**
  * When comparing two values,
  * a negative number indicates that the first value is less than the second,
  * a positive number indicates that the first value is greater than the second,
@@ -682,6 +712,22 @@ export const booleanComparator: Comparator<boolean> = (a, b) => numberComparator
 
 export function reverseOrder<TItem>(comparator: Comparator<TItem>): Comparator<TItem> {
 	return (a, b) => -comparator(a, b);
+}
+
+/**
+ * Returns a new comparator that treats `undefined` as the smallest value.
+ * All other values are compared using the given comparator.
+*/
+export function compareUndefinedSmallest<T>(comparator: Comparator<T>): Comparator<T | undefined> {
+	return (a, b) => {
+		if (a === undefined) {
+			return b === undefined ? CompareResult.neitherLessOrGreaterThan : CompareResult.lessThan;
+		} else if (b === undefined) {
+			return CompareResult.greaterThan;
+		}
+
+		return comparator(a, b);
+	};
 }
 
 export class ArrayQueue<T> {

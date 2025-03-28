@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
-import * as crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
+import crypto from 'crypto';
 import * as utils from './utils';
-import * as colors from 'ansi-colors';
-import * as ts from 'typescript';
-import * as Vinyl from 'vinyl';
+import colors from 'ansi-colors';
+import ts from 'typescript';
+import Vinyl from 'vinyl';
 import { RawSourceMap, SourceMapConsumer, SourceMapGenerator } from 'source-map';
 
 export interface IConfiguration {
@@ -65,6 +65,7 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 
 		if (!file.contents) {
 			host.removeScriptSnapshot(file.path);
+			delete lastBuildVersion[normalize(file.path)];
 		} else {
 			host.addScriptSnapshot(file.path, new VinylScriptSnapshot(file));
 		}
@@ -701,7 +702,7 @@ class LanguageServiceHost implements ts.LanguageServiceHost {
 		// (2) import-require statements
 		info.importedFiles.forEach(ref => {
 
-			if (!ref.fileName.startsWith('.') || path.extname(ref.fileName) === '') {
+			if (!ref.fileName.startsWith('.')) {
 				// node module?
 				return;
 			}

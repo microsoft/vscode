@@ -144,11 +144,6 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	@memoize
 	get extHostLogsPath(): URI { return joinPath(this.logsHome, 'exthost'); }
 
-	@memoize
-	get extHostTelemetryLogFile(): URI {
-		return joinPath(this.extHostLogsPath, 'extensionTelemetry.log');
-	}
-
 	private extensionHostDebugEnvironment: IExtensionHostDebugEnvironment | undefined = undefined;
 
 	@memoize
@@ -259,7 +254,8 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	@memoize
 	get profile(): string | undefined { return this.payload?.get('profile'); }
 
-	editSessionId: string | undefined = this.options.editSessionId;
+	@memoize
+	get editSessionId(): string | undefined { return this.options.editSessionId; }
 
 	private payload: Map<string, string> | undefined;
 

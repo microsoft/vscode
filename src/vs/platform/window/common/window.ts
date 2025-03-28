@@ -6,7 +6,7 @@
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { PerformanceMark } from '../../../base/common/performance.js';
-import { isLinux, isMacintosh, isNative, isWeb } from '../../../base/common/platform.js';
+import { isMacintosh, isNative, isWeb } from '../../../base/common/platform.js';
 import { URI, UriComponents, UriDto } from '../../../base/common/uri.js';
 import { ISandboxConfiguration } from '../../../base/parts/sandbox/common/sandboxTypes.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
@@ -15,7 +15,6 @@ import { NativeParsedArgs } from '../../environment/common/argv.js';
 import { FileType } from '../../files/common/files.js';
 import { ILoggerResource, LogLevel } from '../../log/common/log.js';
 import { PolicyDefinition, PolicyValue } from '../../policy/common/policy.js';
-import product from '../../product/common/product.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IUserDataProfile } from '../../userDataProfile/common/userDataProfile.js';
 import { IAnyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from '../../workspace/common/workspace.js';
@@ -63,6 +62,7 @@ export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
 	readonly noRecentEntry?: boolean;
 
 	readonly addMode?: boolean;
+	readonly removeMode?: boolean;
 
 	readonly diffMode?: boolean;
 	readonly mergeMode?: boolean;
@@ -71,8 +71,9 @@ export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
 	readonly waitMarkerFileURI?: URI;
 }
 
-export interface IAddFoldersRequest {
+export interface IAddRemoveFoldersRequest {
 	readonly foldersToAdd: UriComponents[];
+	readonly foldersToRemove: UriComponents[];
 }
 
 interface IOpenedWindow {
@@ -151,6 +152,7 @@ export interface IWindowSettings {
 	readonly restoreFullscreen: boolean;
 	readonly zoomLevel: number;
 	readonly titleBarStyle: TitlebarStyle;
+	readonly controlsStyle: WindowControlsStyle;
 	readonly autoDetectHighContrast: boolean;
 	readonly autoDetectColorScheme: boolean;
 	readonly menuBarVisibility: MenuBarVisibility;
@@ -162,7 +164,6 @@ export interface IWindowSettings {
 	readonly clickThroughInactive: boolean;
 	readonly newWindowProfile: string;
 	readonly density: IDensitySettings;
-	readonly experimentalControlOverlay?: boolean;
 }
 
 export interface IDensitySettings {
@@ -179,6 +180,12 @@ export const enum TitlebarStyle {
 	CUSTOM = 'custom',
 }
 
+export const enum WindowControlsStyle {
+	NATIVE = 'native',
+	CUSTOM = 'custom',
+	HIDDEN = 'hidden'
+}
+
 export const enum CustomTitleBarVisibility {
 	AUTO = 'auto',
 	WINDOWED = 'windowed',
@@ -188,7 +195,6 @@ export const enum CustomTitleBarVisibility {
 export function hasCustomTitlebar(configurationService: IConfigurationService, titleBarStyle?: TitlebarStyle): boolean {
 	// Returns if it possible to have a custom title bar in the curren session
 	// Does not imply that the title bar is visible
-
 	return true;
 }
 
@@ -196,6 +202,7 @@ export function hasNativeTitlebar(configurationService: IConfigurationService, t
 	if (!titleBarStyle) {
 		titleBarStyle = getTitleBarStyle(configurationService);
 	}
+
 	return titleBarStyle === TitlebarStyle.NATIVE;
 }
 
@@ -222,29 +229,42 @@ export function getTitleBarStyle(configurationService: IConfigurationService): T
 		}
 	}
 
-	return isLinux && product.quality === 'stable' ? TitlebarStyle.NATIVE : TitlebarStyle.CUSTOM; // default to custom on all OS except Linux stable (for now)
+	return TitlebarStyle.CUSTOM; // default to custom on all OS
+}
+
+export function getWindowControlsStyle(configurationService: IConfigurationService): WindowControlsStyle {
+	if (isWeb || isMacintosh || getTitleBarStyle(configurationService) === TitlebarStyle.NATIVE) {
+		return WindowControlsStyle.NATIVE; // only supported on Windows/Linux desktop with custom titlebar
+	}
+
+	const configuration = configurationService.getValue<IWindowSettings | undefined>('window');
+	const style = configuration?.controlsStyle;
+	if (style === WindowControlsStyle.CUSTOM || style === WindowControlsStyle.HIDDEN) {
+		return style;
+	}
+
+	return WindowControlsStyle.NATIVE; // default to native on all OS
 }
 
 export const DEFAULT_CUSTOM_TITLEBAR_HEIGHT = 35; // includes space for command center
 
 export function useWindowControlsOverlay(configurationService: IConfigurationService): boolean {
-	if (isMacintosh || isWeb) {
-		return false; // only supported on a Windows/Linux desktop instances
+	if (isWeb) {
+		return false; // only supported on desktop instances
 	}
 
 	if (hasNativeTitlebar(configurationService)) {
 		return false; // only supported when title bar is custom
 	}
 
-	if (isLinux) {
-		const setting = configurationService.getValue('window.experimentalControlOverlay');
-		if (typeof setting === 'boolean') {
-			return setting;
+	if (!isMacintosh) {
+		const setting = getWindowControlsStyle(configurationService);
+		if (setting === WindowControlsStyle.CUSTOM || setting === WindowControlsStyle.HIDDEN) {
+			return false; // explicitly disabled by choice
 		}
 	}
 
-	// Default to true.
-	return true;
+	return true; // default
 }
 
 export function useNativeFullScreen(configurationService: IConfigurationService): boolean {
@@ -381,10 +401,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 
 	isInitialStartup?: boolean;
 	logLevel: LogLevel;
-	loggers: {
-		global: UriDto<ILoggerResource>[];
-		window: UriDto<ILoggerResource>[];
-	};
+	loggers: UriDto<ILoggerResource>[];
 
 	fullscreen?: boolean;
 	maximized?: boolean;
@@ -409,3 +426,6 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 export function zoomLevelToZoomFactor(zoomLevel = 0): number {
 	return Math.pow(1.2, zoomLevel);
 }
+
+export const DEFAULT_WINDOW_SIZE = { width: 1200, height: 800 } as const;
+export const DEFAULT_AUX_WINDOW_SIZE = { width: 1024, height: 768 } as const;

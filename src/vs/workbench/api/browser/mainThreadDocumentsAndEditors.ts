@@ -386,7 +386,8 @@ export class MainThreadDocumentsAndEditors {
 			lines: model.getLinesContent(),
 			EOL: model.getEOL(),
 			languageId: model.getLanguageId(),
-			isDirty: this._textFileService.isDirty(model.uri)
+			isDirty: this._textFileService.isDirty(model.uri),
+			encoding: this._textFileService.getEncoding(model.uri)
 		};
 	}
 

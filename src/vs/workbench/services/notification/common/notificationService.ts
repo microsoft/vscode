@@ -29,6 +29,8 @@ export class NotificationService extends Disposable implements INotificationServ
 	) {
 		super();
 
+		this.globalFilterEnabled = this.storageService.getBoolean(NotificationService.GLOBAL_FILTER_SETTINGS_KEY, StorageScope.APPLICATION, false);
+
 		this.updateFilters();
 		this.registerListeners();
 	}
@@ -81,7 +83,7 @@ export class NotificationService extends Disposable implements INotificationServ
 	private readonly _onDidChangeFilter = this._register(new Emitter<void>());
 	readonly onDidChangeFilter = this._onDidChangeFilter.event;
 
-	private globalFilterEnabled = this.storageService.getBoolean(NotificationService.GLOBAL_FILTER_SETTINGS_KEY, StorageScope.APPLICATION, false);
+	private globalFilterEnabled: boolean;
 
 	private readonly mapSourceToFilter: Map<string /** source id */, INotificationSourceFilter> = (() => {
 		const map = new Map<string, INotificationSourceFilter>();
@@ -272,7 +274,6 @@ export class NotificationService extends Disposable implements INotificationServ
 	}
 
 	prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
-		const toDispose = new DisposableStore();
 
 		// Handle neverShowAgain option accordingly
 		if (options?.neverShowAgain) {
@@ -300,6 +301,7 @@ export class NotificationService extends Disposable implements INotificationServ
 		}
 
 		let choiceClicked = false;
+		const toDispose = new DisposableStore();
 
 
 		// Convert choices into primary/secondary actions

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as es from 'event-stream';
+import es from 'event-stream';
 import { basename } from 'path';
-import * as File from 'vinyl';
+import File from 'vinyl';
 
 export interface IInlineMetaContext {
 	readonly targetPaths: string[];

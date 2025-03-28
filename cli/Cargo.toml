@@ -41,7 +41,7 @@ hyper = { version = "0.14.26", features = ["server", "http1", "runtime"] }
 indicatif = "0.17.4"
 tempfile = "3.5.0"
 clap_lex = "0.7.0"
-url = "2.3.1"
+url = "2.5.4"
 async-trait = "0.1.68"
 log = "0.4.18"
 const_format = "0.2.31"

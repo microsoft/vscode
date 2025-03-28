@@ -91,7 +91,7 @@ function registerMarkdownStatusItem(selector: vscode.DocumentSelector, commandMa
 
 		const enabled = vscode.workspace.getConfiguration('markdown', markdownDoc).get(enabledSettingId);
 		if (enabled) {
-			statusItem.text = vscode.l10n.t('Link validation enabled');
+			statusItem.text = vscode.l10n.t('Markdown link validation enabled');
 			statusItem.command = {
 				command: commandId,
 				arguments: [false],
@@ -99,7 +99,7 @@ function registerMarkdownStatusItem(selector: vscode.DocumentSelector, commandMa
 				tooltip: vscode.l10n.t('Disable validation of Markdown links'),
 			};
 		} else {
-			statusItem.text = vscode.l10n.t('Link validation disabled');
+			statusItem.text = vscode.l10n.t('Markdown link validation disabled');
 			statusItem.command = {
 				command: commandId,
 				arguments: [true],

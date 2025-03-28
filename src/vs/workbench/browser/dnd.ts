@@ -646,16 +646,22 @@ export class ResourceListDnDHandler<T> implements IListDragAndDrop<T> {
 
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
 		const resources: URI[] = [];
-		for (const element of (data as ElementsDragAndDropData<T>).elements) {
+		const elements = (data as ElementsDragAndDropData<T>).elements;
+		for (const element of elements) {
 			const resource = this.toResource(element);
 			if (resource) {
 				resources.push(resource);
 			}
 		}
+		this.onWillDragElements(elements, originalEvent);
 		if (resources.length) {
 			// Apply some datatransfer types to allow for dragging the element outside of the application
 			this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, resources, originalEvent));
 		}
+	}
+
+	protected onWillDragElements(elements: readonly T[], originalEvent: DragEvent): void {
+		// noop
 	}
 
 	onDragOver(data: IDragAndDropData, targetElement: T, targetIndex: number, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction {

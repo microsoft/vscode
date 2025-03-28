@@ -152,10 +152,8 @@ export const fontStyleRegex = /^(normal|italic|(oblique[ \w\s-]+))$/;
 export const fontWeightRegex = /^(normal|bold|lighter|bolder|(\d{0-1000}))$/;
 export const fontSizeRegex = /^([\w_.%+-]+)$/;
 export const fontFormatRegex = /^woff|woff2|truetype|opentype|embedded-opentype|svg$/;
-export const fontCharacterRegex = /^([^\\]|\\[a-fA-F0-9]+)$/u;
 export const fontColorRegex = /^#[0-9a-fA-F]{0,6}$/;
 
-export const fontCharacterErrorMessage = localize('schema.fontCharacter.formatError', 'The fontCharacter must be a single letter or a backslash followed by unicode code points in hexadecimal.');
 export const fontIdErrorMessage = localize('schema.fontId.formatError', 'The font ID must only contain letters, numbers, underscores and dashes.');
 
 class IconRegistry implements IIconRegistry {
@@ -170,7 +168,7 @@ class IconRegistry implements IIconRegistry {
 				type: 'object',
 				properties: {
 					fontId: { type: 'string', description: localize('iconDefinition.fontId', 'The id of the font to use. If not set, the font that is defined first is used.'), pattern: fontIdRegex.source, patternErrorMessage: fontIdErrorMessage },
-					fontCharacter: { type: 'string', description: localize('iconDefinition.fontCharacter', 'The font character associated with the icon definition.'), pattern: fontCharacterRegex.source, patternErrorMessage: fontCharacterErrorMessage }
+					fontCharacter: { type: 'string', description: localize('iconDefinition.fontCharacter', 'The font character associated with the icon definition.') }
 				},
 				additionalProperties: false,
 				defaultSnippets: [{ body: { fontCharacter: '\\\\e030' } }]
