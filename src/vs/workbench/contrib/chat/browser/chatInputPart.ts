@@ -1042,7 +1042,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}));
 
-		this._register(Event.debounce(this.selectedToolsModel.toolsActionItemViewItemProvider.onDidRender, () => { }, 0)(() => this._onDidChangeHeight.fire()));
+		this._register(this.selectedToolsModel.toolsActionItemViewItemProvider.onDidRender(() => this._onDidChangeHeight.fire()));
 	}
 
 	private renderAttachedContext() {
