@@ -153,9 +153,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			get folders() { return workspaceFolders; }
 		};
 
-		const extensionUri = initializationOptions?.extensionUri;
-
-		languageModes = getLanguageModes(initializationOptions?.embeddedLanguages || { css: true, javascript: true }, workspace, params.capabilities, fileSystemProvider, extensionUri);
+		languageModes = getLanguageModes(initializationOptions?.embeddedLanguages || { css: true, javascript: true }, workspace, params.capabilities, fileSystemProvider);
 
 		const dataPaths: string[] = initializationOptions?.dataPaths || [];
 		fetchHTMLDataProviders(dataPaths, customDataRequestService).then(dataProviders => {
