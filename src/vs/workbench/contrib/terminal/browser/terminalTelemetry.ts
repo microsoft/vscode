@@ -202,7 +202,7 @@ const shellTypePathRegexAllowList: { regex: RegExp; type: AllowedShellType }[] =
 	{ regex: /\\WindowsPowerShell\\v1.0\\powershell.exe$/i, type: AllowedShellType.WindowsPowerShell },
 	// WSL executables will represent some other shell in the end, but it's difficult to determine
 	// when we log
-	{ regex: /\\Windows\\System32\\(?:bash|wsl)\.exe$/i, type: AllowedShellType.Wsl },
+	{ regex: /\\Windows\\(?:System32|SysWOW64|Sysnative)\\(?:bash|wsl)\.exe$/i, type: AllowedShellType.Wsl },
 ];
 
 function getSanitizedShellType(shellLaunchConfig: IShellLaunchConfig): AllowedShellType {
