@@ -89,9 +89,13 @@ export class ScreenReaderSupport {
 		const tabSize = this._context.viewModel.model.getOptions().tabSize;
 		const spaceWidth = options.get(EditorOption.fontInfo).spaceWidth;
 		this._domNode.domNode.style.tabSize = `${tabSize * spaceWidth}px`;
+
+		// currently not correct because line breaks are not correctly computed.
+		// first fix line breaks then this.
 		const wordWrapOverride2 = options.get(EditorOption.wordWrapOverride2);
-		const wordWrapValue = wordWrapOverride2 !== 'inherit' ? wordWrapOverride2 : options.get(EditorOption.wordWrap);
-		this._domNode.domNode.style.textWrap = wordWrapValue === 'off' ? 'nowrap' : 'wrap';
+		const wordWrapOverride1 = (wordWrapOverride2 === 'inherit' ? options.get(EditorOption.wordWrapOverride1) : wordWrapOverride2);
+		const wordWrap = (wordWrapOverride1 === 'inherit' ? options.get(EditorOption.wordWrap) : wordWrapOverride1);
+		this._domNode.domNode.style.textWrap = wordWrap === 'off' ? 'nowrap' : 'wrap';
 	}
 
 	public onCursorStateChanged(e: ViewCursorStateChangedEvent): void {
@@ -152,8 +156,9 @@ export class ScreenReaderSupport {
 			const widthOfTextBeforeCursor = context.measureText(contentBeforeCursor).width;
 			left += primaryCursorVisibleRange.left - widthOfTextBeforeCursor;
 		}
+		const scrollLeft = this._context.viewLayout.getCurrentScrollLeft();
 		canvas.remove();
-		return left;
+		return left - scrollLeft;
 	}
 
 	private _renderAtTopLeft(): void {

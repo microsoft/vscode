@@ -16,7 +16,7 @@ import { PartFingerprint, PartFingerprints } from '../../../view/viewPart.js';
 import { LineNumbersOverlay } from '../../../viewParts/lineNumbers/lineNumbers.js';
 import { Margin } from '../../../viewParts/margin/margin.js';
 import { RenderLineNumbersType, EditorOption, IComputedEditorOptions, EditorOptions } from '../../../../common/config/editorOptions.js';
-import { FontInfo } from '../../../../common/config/fontInfo.js';
+import { BareFontInfo, FontInfo } from '../../../../common/config/fontInfo.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
@@ -717,7 +717,10 @@ export class TextAreaEditContext extends AbstractEditContext {
 				const lineCount = newlinecount(this.textArea.domNode.value.substr(0, this.textArea.domNode.selectionStart));
 
 				let scrollLeft = this._visibleTextArea.widthOfHiddenLineTextBefore;
-				let left = (this._contentLeft + visibleStart.left - this._scrollLeft);
+				const fontInfo = this._context.viewModel.getFontInfoForPosition(this._primaryCursorPosition);
+				let left = this._computeLeftOffset(this._primaryCursorPosition, visibleStart, fontInfo);
+				applyFontInfo(this.textArea, fontInfo);
+
 				// See https://github.com/microsoft/vscode/issues/141725#issuecomment-1050670841
 				// Here we are adding +1 to avoid flickering that might be caused by having a width that is too small.
 				// This could be caused by rounding errors that might only show up with certain font families.
@@ -778,8 +781,8 @@ export class TextAreaEditContext extends AbstractEditContext {
 			return;
 		}
 
-		const left = this._contentLeft + this._primaryCursorVisibleRange.left - this._scrollLeft;
-		if (left < this._contentLeft || left > this._contentLeft + this._contentWidth) {
+		const cursorLeft = this._contentLeft + this._primaryCursorVisibleRange.left - this._scrollLeft;
+		if (cursorLeft < this._contentLeft || cursorLeft > this._contentLeft + this._contentWidth) {
 			// cursor is outside the viewport
 			this._renderAtTopLeft();
 			return;
@@ -792,6 +795,9 @@ export class TextAreaEditContext extends AbstractEditContext {
 			return;
 		}
 
+		const fontInfo = this._context.viewModel.getFontInfoForPosition(this._primaryCursorPosition);
+		const left = this._computeLeftOffset(this._primaryCursorPosition, this._primaryCursorVisibleRange, fontInfo);
+		applyFontInfo(this.textArea, fontInfo);
 		// The primary cursor is in the viewport (at least vertically) => place textarea on the cursor
 
 		if (platform.isMacintosh || this._accessibilitySupport === AccessibilitySupport.Enabled) {
@@ -802,7 +808,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 			this._doRender({
 				lastRenderPosition: this._primaryCursorPosition,
 				top,
-				left: this._textAreaWrapping ? this._contentLeft : left,
+				left,
 				width: this._textAreaWidth,
 				height: lineHeight,
 				useCover: false
@@ -818,11 +824,26 @@ export class TextAreaEditContext extends AbstractEditContext {
 		this._doRender({
 			lastRenderPosition: this._primaryCursorPosition,
 			top: top,
-			left: this._textAreaWrapping ? this._contentLeft : left,
+			left,
 			width: this._textAreaWidth,
 			height: (canUseZeroSizeTextarea ? 0 : 1),
 			useCover: false
 		});
+	}
+
+	private _computeLeftOffset(primaryCursorPosition: Position, primaryCursorVisibleRange: HorizontalPosition, fontInfo: BareFontInfo): number {
+		let left = this._contentLeft;
+		const canvas = document.createElement('canvas');
+		const context = canvas.getContext('2d');
+		if (context) {
+			context.font = `${fontInfo.fontWeight} ${fontInfo.fontSize}px ${fontInfo.fontFamily}`;
+			const rangeBeforeCursor = new Range(primaryCursorPosition.lineNumber, 1, primaryCursorPosition.lineNumber, primaryCursorPosition.column);
+			const contentBeforeCursor = this._context.viewModel.getValueInRange(rangeBeforeCursor, EndOfLinePreference.TextDefined);
+			const widthOfTextBeforeCursor = context.measureText(contentBeforeCursor).width;
+			left += primaryCursorVisibleRange.left - widthOfTextBeforeCursor;
+		}
+		canvas.remove();
+		return left - this._scrollLeft;
 	}
 
 	private _renderAtTopLeft(): void {
@@ -844,8 +865,6 @@ export class TextAreaEditContext extends AbstractEditContext {
 		const ta = this.textArea;
 		const tac = this.textAreaCover;
 
-		const fontInfo = this._context.viewModel.getFontInfoForPosition(this._primaryCursorPosition);
-		applyFontInfo(ta, fontInfo);
 		ta.setTop(renderData.top);
 		ta.setLeft(renderData.left);
 		ta.setWidth(renderData.width);
