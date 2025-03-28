@@ -22,7 +22,6 @@ export interface IInlineEditsView {
 
 export interface IInlineEditHost {
 	inAcceptFlow: IObservable<boolean>;
-	inPartialAcceptFlow: IObservable<boolean>;
 }
 
 export interface IInlineEditModel {

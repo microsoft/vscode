@@ -57,14 +57,12 @@ export class InlineEditModel implements IInlineEditModel {
 export class InlineEditHost implements IInlineEditHost {
 	readonly onDidAccept: Event<void>;
 	readonly inAcceptFlow: IObservable<boolean>;
-	readonly inPartialAcceptFlow: IObservable<boolean>;
 
 	constructor(
 		private readonly _model: InlineCompletionsModel,
 	) {
 		this.onDidAccept = this._model.onDidAccept;
 		this.inAcceptFlow = this._model.inAcceptFlow;
-		this.inPartialAcceptFlow = this._model.inPartialAcceptFlow;
 	}
 }
 
