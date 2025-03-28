@@ -233,7 +233,7 @@ const shellTypePathRegexAllowList: { regex: RegExp; type: AllowedShellType }[] =
 	// Git bash uses bash.exe, so look up based on the path
 	{ regex: /\\Git\\.+\\bash\.exe$/i, type: AllowedShellType.GitBash },
 	// Msys2 uses bash.exe, so look up based on the path
-	{ regex: /\\msys2(?:64)?\\.+\\(?:bash|msys2)\.exe$/i, type: AllowedShellType.Msys2 },
+	{ regex: /\\msys(?:32|64)\\.+\\(?:bash|msys2)\.exe$/i, type: AllowedShellType.Msys2 },
 	// WindowsPowerShell should always be installed on this path, we cannot just look at the
 	// executable name since powershell is the CLI on other platforms sometimes (eg. snap package)
 	{ regex: /\\WindowsPowerShell\\v1.0\\powershell.exe$/i, type: AllowedShellType.WindowsPowerShell },
