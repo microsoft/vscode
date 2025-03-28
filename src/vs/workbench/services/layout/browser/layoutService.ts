@@ -223,9 +223,7 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	/**
 	 * Set part hidden or not in the target window.
 	 */
-	setPartHidden(hidden: boolean, part: Exclude<SINGLE_WINDOW_PARTS, Parts.STATUSBAR_PART | Parts.TITLEBAR_PART>): void;
-	setPartHidden(hidden: boolean, part: Exclude<MULTI_WINDOW_PARTS, Parts.STATUSBAR_PART | Parts.TITLEBAR_PART>, targetWindow: Window): void;
-	setPartHidden(hidden: boolean, part: Exclude<Parts, Parts.STATUSBAR_PART | Parts.TITLEBAR_PART>, targetWindow: Window): void;
+	setPartHidden(hidden: boolean, part: Parts): void;
 
 	/**
 	 * Maximizes the panel height if the panel is not already maximized.
