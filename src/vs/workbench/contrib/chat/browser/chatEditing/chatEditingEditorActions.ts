@@ -247,11 +247,11 @@ abstract class AcceptRejectHunkAction extends ChatEditingEditorAction {
 		);
 	}
 
-	override runChatEditingCommand(_accessor: ServicesAccessor, _session: IChatEditingSession, _entry: IModifiedFileEntry, ctrl: IModifiedFileEntryEditorIntegration, ...args: any[]): Promise<void> | void {
+	override async runChatEditingCommand(_accessor: ServicesAccessor, _session: IChatEditingSession, _entry: IModifiedFileEntry, ctrl: IModifiedFileEntryEditorIntegration, ...args: any[]): Promise<void> {
 		if (this._accept) {
-			ctrl.acceptNearestChange(args[0]);
+			await ctrl.acceptNearestChange(args[0]);
 		} else {
-			ctrl.rejectNearestChange(args[0]);
+			await ctrl.rejectNearestChange(args[0]);
 		}
 	}
 }
