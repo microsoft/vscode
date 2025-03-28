@@ -90,7 +90,7 @@ async function launchServer(options: LaunchOptions) {
 async function launchBrowser(options: LaunchOptions, endpoint: string) {
 	const { logger, workspacePath, tracing, snapshots, headless } = options;
 
-	const [browserType, browserChannel] = (options.browser ?? 'chromium-chrome').split('-');
+	const [browserType, browserChannel] = (options.browser ?? 'chromium').split('-');
 	const browser = await measureAndLog(() => playwright[browserType as unknown as 'chromium' | 'webkit' | 'firefox'].launch({
 		headless: headless ?? false,
 		timeout: 0,

@@ -29,6 +29,7 @@ const { promisify } = require('node:util');
  * grep: string;
  * runGlob: string;
  * browser: string;
+ * browserChannel: string;
  * reporter: string;
  * 'reporter-options': string;
  * tfs: string;
@@ -43,7 +44,7 @@ const args = minimist(process.argv.slice(2), {
 	string: ['run', 'grep', 'runGlob', 'browser', 'reporter', 'reporter-options', 'tfs'],
 	default: {
 		build: false,
-		browser: ['chromium-chrome', 'chromium-msedge', 'firefox', 'webkit'],
+		browser: ['chromium', 'firefox', 'webkit'],
 		reporter: process.platform === 'win32' ? 'list' : 'spec',
 		'reporter-options': ''
 	},
@@ -60,6 +61,7 @@ const args = minimist(process.argv.slice(2), {
 		debug: 'do not run browsers headless',
 		sequential: 'only run suites for a single browser at a time',
 		browser: 'browsers in which tests should run',
+		browserChannel: 'channel of the browser to use (e.g., dev, beta)',
 		reporter: 'the mocha reporter',
 		'reporter-options': 'the mocha reporter options',
 		tfs: 'tfs',
@@ -77,6 +79,7 @@ Options:
 --debug, --debug-browser do not run browsers headless
 --sequential         only run suites for a single browser at a time
 --browser <browser>  browsers in which tests should run. separate the channel with a dash, e.g. 'chromium-msedge' or 'chromium-chrome'
+--browserChannel <channel> channel of the browser to use (e.g., dev, beta)
 --reporter <reporter> the mocha reporter
 --reporter-options <reporter-options> the mocha reporter options
 --tfs <tfs>          tfs
@@ -241,7 +244,11 @@ async function createServer() {
 
 async function runTestsInBrowser(testModules, browserType, browserChannel) {
 	const server = await createServer();
-	const browser = await playwright[browserType].launch({ headless: !Boolean(args.debug), devtools: Boolean(args.debug), channel: browserChannel });
+	const browser = await playwright[browserType].launch({
+		headless: !Boolean(args.debug),
+		devtools: Boolean(args.debug),
+		channel: browserChannel || args.browserChannel // Use browserChannel or fallback to args.browserChannel
+	});
 	const context = await browser.newContext();
 	const page = await context.newPage();
 	const target = new URL(server.url + '/test/unit/browser/renderer.html');

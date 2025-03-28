@@ -28,8 +28,8 @@ steps:
       - powershell: npm run test-node
         displayName: Run unit tests (node.js)
         timeoutInMinutes: 15
-      - powershell: node test/unit/browser/index.js --browser chromium-msedge --tfs "Browser Unit Tests"
-        displayName: Run unit tests (Browser, Edge)
+      - powershell: node test/unit/browser/index.js --browser chromium --tfs "Browser Unit Tests"
+        displayName: Run unit tests (Browser, Chromium)
         timeoutInMinutes: 20
 
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
@@ -39,8 +39,8 @@ steps:
       - powershell: npm run test-node -- --build
         displayName: Run unit tests (node.js)
         timeoutInMinutes: 15
-      - powershell: npm run test-browser-no-install -- --build --browser firefox --tfs "Browser Unit Tests"
-        displayName: Run unit tests (Browser, Firefox)
+      - powershell: npm run test-browser-no-install -- --build --browser chromium --tfs "Browser Unit Tests"
+        displayName: Run unit tests (Browser, Chromium)
         timeoutInMinutes: 20
 
   - ${{ if eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true) }}:
@@ -78,8 +78,8 @@ steps:
         displayName: Run integration tests (Electron)
         timeoutInMinutes: 20
 
-      - powershell: .\scripts\test-web-integration.bat --browser chromium-msedge
-        displayName: Run integration tests (Browser, Edge)
+      - powershell: .\scripts\test-web-integration.bat --browser chromium
+        displayName: Run integration tests (Browser, Chromium)
         timeoutInMinutes: 20
 
       - powershell: .\scripts\test-remote-integration.bat
@@ -150,10 +150,10 @@ steps:
         displayName: Run smoke tests (Electron)
         timeoutInMinutes: 20
 
-      - powershell: npm run smoketest-no-compile -- --web --tracing --headless --browser chromium-msedge
+      - powershell: npm run smoketest-no-compile -- --web --tracing --headless
         env:
           VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)\vscode-server-win32-$(VSCODE_ARCH)-web
-        displayName: Run smoke tests (Browser, Edge)
+        displayName: Run smoke tests (Browser, Chromium)
         timeoutInMinutes: 20
 
       - powershell: npm run gulp compile-extension:vscode-test-resolver
