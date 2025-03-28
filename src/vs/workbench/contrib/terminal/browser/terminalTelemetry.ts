@@ -15,7 +15,7 @@ export class TerminalTelemetryContribution extends Disposable implements IWorkbe
 
 	constructor(
 		@ITerminalService terminalService: ITerminalService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -29,23 +29,26 @@ export class TerminalTelemetryContribution extends Disposable implements IWorkbe
 	private _logCreateInstance(shellLaunchConfig: IShellLaunchConfig): void {
 		type TerminalCreationTelemetryData = {
 			shellType: string;
-			isReconnect: boolean;
 			isCustomPtyImplementation: boolean;
+			isExtensionOwnedTerminal: boolean;
 			isLoginShell: boolean;
+			isReconnect: boolean;
 		};
 		type TerminalCreationTelemetryClassification = {
 			owner: 'tyriar';
 			comment: 'Track details about terminal creation, such as the shell type';
 			shellType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The path of the file as a hash.' };
-			isReconnect: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the terminal is reconnecting to an existing instance.' };
 			isCustomPtyImplementation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the terminal was using a custom PTY implementation.' };
+			isExtensionOwnedTerminal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the terminal was created by an extension.' };
 			isLoginShell: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the arguments contain -l or --login.' };
+			isReconnect: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the terminal is reconnecting to an existing instance.' };
 		};
 		this._telemetryService.publicLog2<TerminalCreationTelemetryData, TerminalCreationTelemetryClassification>('terminal/createInstance', {
 			shellType: getSanitizedShellType(shellLaunchConfig),
-			isReconnect: !!shellLaunchConfig.attachPersistentProcess,
 			isCustomPtyImplementation: !!shellLaunchConfig.customPtyImplementation,
+			isExtensionOwnedTerminal: !!shellLaunchConfig.isExtensionOwnedTerminal,
 			isLoginShell: (typeof shellLaunchConfig.args === 'string' ? shellLaunchConfig.args.split(' ') : shellLaunchConfig.args)?.some(arg => arg === '-l' || arg === '--login') ?? false,
+			isReconnect: !!shellLaunchConfig.attachPersistentProcess,
 		});
 	}
 }
