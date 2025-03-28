@@ -8,6 +8,7 @@ import { IChatWidget } from '../../../../chat.js';
 import { attachPrompts } from './utils/attachPrompts.js';
 import { handleButtonClick } from './utils/handleButtonClick.js';
 import { URI } from '../../../../../../../../base/common/uri.js';
+import { IChatService } from '../../../../../common/chatService.js';
 import { assert } from '../../../../../../../../base/common/assert.js';
 import { createPromptPickItem } from './utils/createPromptPickItem.js';
 import { createPlaceholderText } from './utils/createPlaceholderText.js';
@@ -20,6 +21,7 @@ import { ILabelService } from '../../../../../../../../platform/label/common/lab
 import { IOpenerService } from '../../../../../../../../platform/opener/common/opener.js';
 import { IViewsService } from '../../../../../../../services/views/common/viewsService.js';
 import { IDialogService } from '../../../../../../../../platform/dialogs/common/dialogs.js';
+import { ICommandService } from '../../../../../../../../platform/commands/common/commands.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../../../../platform/quickinput/common/quickInput.js';
 
 /**
@@ -48,10 +50,12 @@ export interface ISelectPromptOptions {
 	readonly promptFiles: readonly IPromptPath[];
 
 	readonly fileService: IFileService;
+	readonly chatService: IChatService;
 	readonly labelService: ILabelService;
 	readonly viewsService: IViewsService;
 	readonly openerService: IOpenerService;
 	readonly dialogService: IDialogService;
+	readonly commandService: ICommandService;
 	readonly quickInputService: IQuickInputService;
 }
 
@@ -151,7 +155,6 @@ export const askToSelectPrompt = async (
 		// handle the prompt `accept` event
 		disposables.add(quickPick.onDidAccept(async (event) => {
 			const { selectedItems } = quickPick;
-			const { alt, ctrlCmd } = quickPick.keyMods;
 
 			// sanity check to confirm our expectations
 			assert(
@@ -164,16 +167,15 @@ export const askToSelectPrompt = async (
 			// whether user selected the docs link option
 			const docsSelected = (selectedOption === DOCS_OPTION);
 
-			// if `super` key was pressed, open the selected prompt file
-			// in editor or the documentation link in a browser
-			if (ctrlCmd || docsSelected) {
+			// if documentation item was selected, open its link in a browser
+			if (docsSelected) {
 				// note that opening a file in editor also hides(disposes) the dialog
 				await openerService.open(selectedOption.value);
 				return;
 			}
 
 			// otherwise attach the selected prompt to a chat input
-			lastActiveWidget = await attachPrompts(selectedItems, options, alt);
+			lastActiveWidget = await attachPrompts(selectedItems, options, quickPick.keyMods);
 
 			// if user submitted their selection, close the dialog
 			if (!event.inBackground) {

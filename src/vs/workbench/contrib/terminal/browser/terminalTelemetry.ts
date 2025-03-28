@@ -19,7 +19,11 @@ export class TerminalTelemetryContribution extends Disposable implements IWorkbe
 	) {
 		super();
 
-		this._register(terminalService.onDidCreateInstance(e => this._logCreateInstance(e.shellLaunchConfig)));
+		this._register(terminalService.onDidCreateInstance(async instance => {
+			// Wait for process ready so the shell launch config is fully resolved
+			await instance.processReady;
+			this._logCreateInstance(instance.shellLaunchConfig);
+		}));
 	}
 
 	private _logCreateInstance(shellLaunchConfig: IShellLaunchConfig): void {
