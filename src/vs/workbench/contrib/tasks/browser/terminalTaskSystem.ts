@@ -833,7 +833,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					eventCounter++;
 					this._busyTasks[mapKey] = task;
 					this._fireTaskEvent(TaskEvent.general(TaskEventKind.Active, task, terminal?.instanceId));
-					this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherStarted, task, terminal?.instanceId));
 				} else if (event.kind === ProblemCollectorEventKind.BackgroundProcessingEnds) {
 					eventCounter--;
 					if (this._busyTasks[mapKey]) {
