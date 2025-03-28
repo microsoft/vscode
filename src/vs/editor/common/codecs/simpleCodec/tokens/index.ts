@@ -14,6 +14,7 @@ export { Space } from './space.js';
 export { FormFeed } from './formFeed.js';
 export { DollarSign } from './dollarSign.js';
 export { VerticalTab } from './verticalTab.js';
+export { SimpleToken } from './simpleToken.js';
 export { ExclamationMark } from './exclamationMark.js';
 export { TBracket, LeftBracket, RightBracket } from './brackets.js';
 export { TCurlyBrace, LeftCurlyBrace, RightCurlyBrace } from './curlyBraces.js';

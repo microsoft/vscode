@@ -16,8 +16,8 @@ import { LinesDecoder, TLineToken } from '../../../common/codecs/linesCodec/line
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 /**
- * Note! This decoder is also often used to test common logic of abstract {@linkcode BaseDecoder}
- * class, because the {@linkcode LinesDecoder} is one of the simplest non-abstract decoders we have.
+ * Note! This decoder is also often used to test common logic of abstract {@link BaseDecoder}
+ * class, because the {@link LinesDecoder} is one of the simplest non-abstract decoders we have.
  */
 suite('LinesDecoder', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -129,8 +129,8 @@ export class TestLinesDecoder extends TestDecoder<TLineToken, LinesDecoder> {
 }
 
 /**
- * Common reusable test utility to validate {@linkcode LinesDecoder} logic with
- * the provided {@linkcode tokensConsumeMethod} way of consuming decoder-produced tokens.
+ * Common reusable test utility to validate {@link LinesDecoder} logic with
+ * the provided {@link tokensConsumeMethod} way of consuming decoder-produced tokens.
  *
  * @throws if a test fails, please see thrown error for failure details.
  * @param tokensConsumeMethod The way to consume tokens produced by the decoder.

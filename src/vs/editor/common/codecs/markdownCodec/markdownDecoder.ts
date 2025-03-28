@@ -11,19 +11,19 @@ import { ReadableStream } from '../../../../base/common/stream.js';
 import { LeftAngleBracket } from '../simpleCodec/tokens/angleBrackets.js';
 import { ExclamationMark } from '../simpleCodec/tokens/exclamationMark.js';
 import { BaseDecoder } from '../../../../base/common/codecs/baseDecoder.js';
-import { SimpleDecoder, TSimpleToken } from '../simpleCodec/simpleDecoder.js';
+import { SimpleDecoder, TSimpleDecoderToken } from '../simpleCodec/simpleDecoder.js';
 import { MarkdownCommentStart, PartialMarkdownCommentStart } from './parsers/markdownComment.js';
 import { MarkdownLinkCaption, PartialMarkdownLink, PartialMarkdownLinkCaption } from './parsers/markdownLink.js';
 
 /**
  * Tokens handled by this decoder.
  */
-export type TMarkdownToken = MarkdownToken | TSimpleToken;
+export type TMarkdownToken = MarkdownToken | TSimpleDecoderToken;
 
 /**
  * Decoder capable of parsing markdown entities (e.g., links) from a sequence of simple tokens.
  */
-export class MarkdownDecoder extends BaseDecoder<TMarkdownToken, TSimpleToken> {
+export class MarkdownDecoder extends BaseDecoder<TMarkdownToken, TSimpleDecoderToken> {
 	/**
 	 * Current parser object that is responsible for parsing a sequence of tokens into
 	 * some markdown entity. Set to `undefined` when no parsing is in progress at the moment.
@@ -39,7 +39,7 @@ export class MarkdownDecoder extends BaseDecoder<TMarkdownToken, TSimpleToken> {
 		super(new SimpleDecoder(stream));
 	}
 
-	protected override onStreamData(token: TSimpleToken): void {
+	protected override onStreamData(token: TSimpleDecoderToken): void {
 		// `markdown links` start with `[` character, so here we can
 		// initiate the process of parsing a markdown link
 		if (token instanceof LeftBracket && !this.current) {

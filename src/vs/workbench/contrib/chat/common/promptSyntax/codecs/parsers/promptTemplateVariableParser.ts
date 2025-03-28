@@ -6,7 +6,7 @@
 import { assert } from '../../../../../../../base/common/assert.js';
 import { PromptTemplateVariable } from '../tokens/promptTemplateVariable.js';
 import { BaseToken } from '../../../../../../../editor/common/codecs/baseToken.js';
-import { TSimpleToken } from '../../../../../../../editor/common/codecs/simpleCodec/simpleDecoder.js';
+import { TSimpleDecoderToken } from '../../../../../../../editor/common/codecs/simpleCodec/simpleDecoder.js';
 import { DollarSign, LeftCurlyBrace, RightCurlyBrace } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/index.js';
 import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../../../../../../editor/common/codecs/simpleCodec/parserBase.js';
 
@@ -20,13 +20,13 @@ export type TPromptTemplateVariableParser = PartialPromptTemplateVariableStart |
  * a prompt text. Transitions to {@link PartialPromptTemplateVariable} parser
  * as soon as the `${` character sequence is found.
  */
-export class PartialPromptTemplateVariableStart extends ParserBase<TSimpleToken, PartialPromptTemplateVariableStart | PartialPromptTemplateVariable> {
+export class PartialPromptTemplateVariableStart extends ParserBase<DollarSign | LeftCurlyBrace, PartialPromptTemplateVariableStart | PartialPromptTemplateVariable> {
 	constructor(token: DollarSign) {
 		super([token]);
 	}
 
 	@assertNotConsumed
-	public accept(token: TSimpleToken): TAcceptTokenResult<PartialPromptTemplateVariableStart | PartialPromptTemplateVariable> {
+	public accept(token: TSimpleDecoderToken): TAcceptTokenResult<PartialPromptTemplateVariableStart | PartialPromptTemplateVariable> {
 		if (token instanceof LeftCurlyBrace) {
 			this.currentTokens.push(token);
 
@@ -48,13 +48,13 @@ export class PartialPromptTemplateVariableStart extends ParserBase<TSimpleToken,
 /**
  * Parser that handles a partial `${variable}` token sequence in a prompt text.
  */
-export class PartialPromptTemplateVariable extends ParserBase<TSimpleToken, PartialPromptTemplateVariable | PromptTemplateVariable> {
+export class PartialPromptTemplateVariable extends ParserBase<TSimpleDecoderToken, PartialPromptTemplateVariable | PromptTemplateVariable> {
 	constructor(tokens: (DollarSign | LeftCurlyBrace)[]) {
 		super(tokens);
 	}
 
 	@assertNotConsumed
-	public accept(token: TSimpleToken): TAcceptTokenResult<PartialPromptTemplateVariable | PromptTemplateVariable> {
+	public accept(token: TSimpleDecoderToken): TAcceptTokenResult<PartialPromptTemplateVariable | PromptTemplateVariable> {
 		// template variables are terminated by the `}` character
 		// TODO: @legomushroom - support escaped `}` characters?
 		if (token instanceof RightCurlyBrace) {
@@ -84,7 +84,7 @@ export class PartialPromptTemplateVariable extends ParserBase<TSimpleToken, Part
 	 * contents, if any is present.
 	 */
 	private get contents(): string {
-		const contentTokens: TSimpleToken[] = [];
+		const contentTokens: TSimpleDecoderToken[] = [];
 
 		// template variables are surrounded by `${}`, hence we need to have
 		// at least `${` plus one character for the contents to be non-empty

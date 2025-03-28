@@ -10,7 +10,7 @@ import { newWriteableStream } from '../../../../base/common/stream.js';
 import { NewLine } from '../../../common/codecs/linesCodec/tokens/newLine.js';
 import { CarriageReturn } from '../../../common/codecs/linesCodec/tokens/carriageReturn.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { SimpleDecoder, TSimpleToken } from '../../../common/codecs/simpleCodec/simpleDecoder.js';
+import { SimpleDecoder, TSimpleDecoderToken } from '../../../common/codecs/simpleCodec/simpleDecoder.js';
 import {
 	At,
 	Tab,
@@ -56,7 +56,7 @@ import {
  *   ],
  * );
  */
-export class TestSimpleDecoder extends TestDecoder<TSimpleToken, SimpleDecoder> {
+export class TestSimpleDecoder extends TestDecoder<TSimpleDecoderToken, SimpleDecoder> {
 	constructor() {
 		const stream = newWriteableStream<VSBuffer>(null);
 		const decoder = new SimpleDecoder(stream);

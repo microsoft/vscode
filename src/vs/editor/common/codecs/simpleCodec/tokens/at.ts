@@ -3,43 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BaseToken } from '../../baseToken.js';
-import { Line } from '../../linesCodec/tokens/line.js';
-import { Range } from '../../../../../editor/common/core/range.js';
+import { SimpleToken } from './simpleToken.js';
 
 /**
  * A token that represent a `@` with a `range`. The `range`
  * value reflects the position of the token in the original data.
  */
-export class At extends BaseToken {
+export class At extends SimpleToken {
 	/**
 	 * The underlying symbol of the token.
 	 */
-	public static readonly symbol: string = '@';
+	public static override readonly symbol: '@' = '@';
 
 	/**
 	 * Return text representation of the token.
 	 */
-	public get text(): string {
+	public override get text() {
 		return At.symbol;
-	}
-
-	/**
-	 * Create new token with range inside
-	 * the given `Line` at the given `column number`.
-	 */
-	public static newOnLine(
-		line: Line,
-		atColumnNumber: number,
-	): At {
-		const { range } = line;
-
-		return new At(new Range(
-			range.startLineNumber,
-			atColumnNumber,
-			range.startLineNumber,
-			atColumnNumber + this.symbol.length,
-		));
 	}
 
 	/**

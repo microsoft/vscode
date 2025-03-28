@@ -8,7 +8,7 @@ import { Dash } from '../../simpleCodec/tokens/dash.js';
 import { pick } from '../../../../../base/common/arrays.js';
 import { assert } from '../../../../../base/common/assert.js';
 import { MarkdownComment } from '../tokens/markdownComment.js';
-import { TSimpleToken } from '../../simpleCodec/simpleDecoder.js';
+import { TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
 import { ExclamationMark } from '../../simpleCodec/tokens/exclamationMark.js';
 import { LeftAngleBracket, RightAngleBracket } from '../../simpleCodec/tokens/angleBrackets.js';
 import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../simpleCodec/parserBase.js';
@@ -16,13 +16,13 @@ import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../simpleC
 /**
  * The parser responsible for parsing the `<!--` sequence - the start of a `markdown comment`.
  */
-export class PartialMarkdownCommentStart extends ParserBase<TSimpleToken, PartialMarkdownCommentStart | MarkdownCommentStart> {
+export class PartialMarkdownCommentStart extends ParserBase<TSimpleDecoderToken, PartialMarkdownCommentStart | MarkdownCommentStart> {
 	constructor(token: LeftAngleBracket) {
 		super([token]);
 	}
 
 	@assertNotConsumed
-	public accept(token: TSimpleToken): TAcceptTokenResult<PartialMarkdownCommentStart | MarkdownCommentStart> {
+	public accept(token: TSimpleDecoderToken): TAcceptTokenResult<PartialMarkdownCommentStart | MarkdownCommentStart> {
 		const lastToken = this.currentTokens[this.currentTokens.length - 1];
 
 		// if received `!` after `<`, continue the parsing process
@@ -49,10 +49,10 @@ export class PartialMarkdownCommentStart extends ParserBase<TSimpleToken, Partia
 			}
 
 			if (lastToken instanceof Dash) {
-				const token1: TSimpleToken | undefined = this.currentTokens[0];
-				const token2: TSimpleToken | undefined = this.currentTokens[1];
-				const token3: TSimpleToken | undefined = this.currentTokens[2];
-				const token4: TSimpleToken | undefined = this.currentTokens[3];
+				const token1: TSimpleDecoderToken | undefined = this.currentTokens[0];
+				const token2: TSimpleDecoderToken | undefined = this.currentTokens[1];
+				const token3: TSimpleDecoderToken | undefined = this.currentTokens[2];
+				const token4: TSimpleDecoderToken | undefined = this.currentTokens[3];
 
 				// sanity checks
 				assert(
@@ -94,13 +94,13 @@ export class PartialMarkdownCommentStart extends ParserBase<TSimpleToken, Partia
  * E.g. `<!-- some comment` which may or may not end with `-->`. If it does,
  * then the parser transitions to the {@link MarkdownComment} token.
  */
-export class MarkdownCommentStart extends ParserBase<TSimpleToken, MarkdownCommentStart | MarkdownComment> {
+export class MarkdownCommentStart extends ParserBase<TSimpleDecoderToken, MarkdownCommentStart | MarkdownComment> {
 	constructor(tokens: [LeftAngleBracket, ExclamationMark, Dash, Dash]) {
 		super(tokens);
 	}
 
 	@assertNotConsumed
-	public accept(token: TSimpleToken): TAcceptTokenResult<MarkdownCommentStart | MarkdownComment> {
+	public accept(token: TSimpleDecoderToken): TAcceptTokenResult<MarkdownCommentStart | MarkdownComment> {
 		// if received `>` while current token sequence ends with `--`,
 		// then this is the end of the comment sequence
 		if (token instanceof RightAngleBracket && this.endsWithDashes) {

@@ -64,7 +64,6 @@ export abstract class BaseToken {
 	/**
 	 * Render a list of tokens into a string.
 	 */
-	// TODO: @legomushroom - add unit tests
 	public static render(tokens: readonly BaseToken[]): string {
 		return tokens.map((token) => {
 			return token.text;
@@ -77,11 +76,10 @@ export abstract class BaseToken {
 	 *
 	 * @throws if:
 	 * 	- provided {@link tokens} list is empty
-	 *  - the first token starts on a line that is greater than the last token
-	 *  - if the first and last token are on the same line, the first token must
-	 *    start column must be smaller or equal to the start column of the last token
+	 *  - the first token start number is greater than the start line of the last token
+	 *  - if the first and last token are on the same line, the first token start column must
+	 * 	  be smaller than the start column of the last token
 	 */
-	// TODO: @legomushroom - add unit tests
 	public static fullRange(tokens: readonly BaseToken[]): Range {
 		assert(
 			tokens.length > 0,
@@ -93,13 +91,13 @@ export abstract class BaseToken {
 
 		// sanity checks for the full range we would construct
 		assert(
-			firstToken.range.startLineNumber <= lastToken.range.endLineNumber,
+			firstToken.range.startLineNumber <= lastToken.range.startLineNumber,
 			'First token must start on previous or the same line as the last token.',
 		);
-		if (firstToken.range.startLineNumber === lastToken.range.endLineNumber) {
+		if (firstToken.range.startLineNumber === lastToken.range.startLineNumber) {
 			assert(
-				firstToken.range.startColumn <= lastToken.range.endColumn,
-				'First token must start on previous or the same column as the last token.',
+				firstToken.range.endColumn <= lastToken.range.startColumn,
+				'First token must end at least on previous or the same column as the last token.',
 			);
 		}
 

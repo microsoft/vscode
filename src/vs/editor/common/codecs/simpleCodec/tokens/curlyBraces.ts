@@ -3,45 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BaseToken } from '../../baseToken.js';
-import { Range } from '../../../core/range.js';
-import { Position } from '../../../core/position.js';
-import { Line } from '../../linesCodec/tokens/line.js';
+import { SimpleToken } from './simpleToken.js';
 
 /**
  * A token that represent a `{` with a `range`. The `range`
  * value reflects the position of the token in the original data.
  */
-export class LeftCurlyBrace extends BaseToken {
+export class LeftCurlyBrace extends SimpleToken {
 	/**
 	 * The underlying symbol of the token.
 	 */
-	public static readonly symbol: string = '{';
+	public static override readonly symbol: '{' = '{';
 
 	/**
 	 * Return text representation of the token.
 	 */
-	public get text(): string {
+	public override get text() {
 		return LeftCurlyBrace.symbol;
-	}
-
-	/**
-	 * Create new `LeftCurlyBrace` token with range inside
-	 * the given `Line` at the given `column number`.
-	 */
-	public static newOnLine(
-		line: Line,
-		atColumnNumber: number,
-	): LeftCurlyBrace {
-		const { range } = line;
-
-		const startPosition = new Position(range.startLineNumber, atColumnNumber);
-		const endPosition = new Position(range.startLineNumber, atColumnNumber + this.symbol.length);
-
-		return new LeftCurlyBrace(Range.fromPositions(
-			startPosition,
-			endPosition,
-		));
 	}
 
 	/**
@@ -56,36 +34,17 @@ export class LeftCurlyBrace extends BaseToken {
  * A token that represent a `}` with a `range`. The `range`
  * value reflects the position of the token in the original data.
  */
-export class RightCurlyBrace extends BaseToken {
+export class RightCurlyBrace extends SimpleToken {
 	/**
 	 * The underlying symbol of the token.
 	 */
-	public static readonly symbol: string = '}';
+	public static override readonly symbol: '}' = '}';
 
 	/**
 	 * Return text representation of the token.
 	 */
-	public get text(): string {
+	public override get text() {
 		return RightCurlyBrace.symbol;
-	}
-
-	/**
-	 * Create new `RightCurlyBrace` token with range inside
-	 * the given `Line` at the given `column number`.
-	 */
-	public static newOnLine(
-		line: Line,
-		atColumnNumber: number,
-	): RightCurlyBrace {
-		const { range } = line;
-
-		const startPosition = new Position(range.startLineNumber, atColumnNumber);
-		const endPosition = new Position(range.startLineNumber, atColumnNumber + this.symbol.length);
-
-		return new RightCurlyBrace(Range.fromPositions(
-			startPosition,
-			endPosition,
-		));
 	}
 
 	/**

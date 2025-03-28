@@ -8,8 +8,8 @@ import { NewLine } from '../linesCodec/tokens/newLine.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { ReadableStream } from '../../../../base/common/stream.js';
 import { CarriageReturn } from '../linesCodec/tokens/carriageReturn.js';
-import { LinesDecoder, TLineToken } from '../linesCodec/linesDecoder.js';
 import { BaseDecoder } from '../../../../base/common/codecs/baseDecoder.js';
+import { LinesDecoder, TLineBreakToken, TLineToken } from '../linesCodec/linesDecoder.js';
 import {
 	At,
 	Tab,
@@ -37,20 +37,27 @@ import {
 	RightAngleBracket,
 } from './tokens/index.js';
 import { pick } from '../../../../base/common/arrays.js';
+import { ISimpleTokenClass, SimpleToken } from './tokens/simpleToken.js';
 
 /**
- * A token type that this decoder can handle.
+ * Type for all simple tokens.
  */
-export type TSimpleToken = Word | Space | Tab | VerticalTab | At
+export type TSimpleToken = Space | Tab | VerticalTab | At
 	| NewLine | FormFeed | CarriageReturn | TBracket | TAngleBracket | TCurlyBrace
-	| TParenthesis | Colon | Hash | Dash | ExclamationMark | Slash | DollarSign;
+	| TParenthesis | Colon | Hash | Dash | ExclamationMark | Slash | DollarSign
+	| TLineBreakToken;
+
+/**
+* Type of tokens emitted by this decoder.
+*/
+export type TSimpleDecoderToken = TSimpleToken | Word;
 
 /**
  * List of well-known distinct tokens that this decoder emits (excluding
  * the word stop characters defined below). Everything else is considered
- * an arbitrary "text" sequence and is emitted as a single `Word` token.
+ * an arbitrary "text" sequence and is emitted as a single {@link Word} token.
  */
-const WELL_KNOWN_TOKENS = Object.freeze([
+export const WELL_KNOWN_TOKENS: readonly ISimpleTokenClass<TSimpleToken>[] = Object.freeze([
 	LeftParenthesis, RightParenthesis, LeftBracket, RightBracket,
 	LeftCurlyBrace, RightCurlyBrace, LeftAngleBracket, RightAngleBracket,
 	Space, Tab, VerticalTab, FormFeed, Colon, Hash, Dash, ExclamationMark, At, Slash, DollarSign,
@@ -69,7 +76,7 @@ const WORD_STOP_CHARACTERS: readonly string[] = Object.freeze(
  * A decoder that can decode a stream of `Line`s into a stream
  * of simple token, - `Word`, `Space`, `Tab`, `NewLine`, etc.
  */
-export class SimpleDecoder extends BaseDecoder<TSimpleToken, TLineToken> {
+export class SimpleDecoder extends BaseDecoder<TSimpleDecoderToken, TLineToken> {
 	constructor(
 		stream: ReadableStream<VSBuffer>,
 	) {
@@ -98,7 +105,7 @@ export class SimpleDecoder extends BaseDecoder<TSimpleToken, TLineToken> {
 
 			// if it is a well-known token, emit it and continue to the next one
 			if (tokenConstructor) {
-				this._onData.fire(tokenConstructor.newOnLine(line, columnNumber));
+				this._onData.fire(SimpleToken.newOnLine(line, columnNumber, tokenConstructor));
 
 				i++;
 				continue;
