@@ -43,7 +43,7 @@ const args = minimist(process.argv.slice(2), {
 	string: ['run', 'grep', 'runGlob', 'browser', 'reporter', 'reporter-options', 'tfs'],
 	default: {
 		build: false,
-		browser: ['chromium', 'firefox', 'webkit'],
+		browser: ['chromium-chrome', 'chromium-msedge', 'firefox', 'webkit'],
 		reporter: process.platform === 'win32' ? 'list' : 'spec',
 		'reporter-options': ''
 	},

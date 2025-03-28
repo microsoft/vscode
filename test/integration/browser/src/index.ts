@@ -38,7 +38,7 @@ const args = minimist(process.argv.slice(2), {
 		h: 'help'
 	},
 	default: {
-		'browser': 'chromium'
+		'browser': 'chromium-chrome'
 	}
 });
 
