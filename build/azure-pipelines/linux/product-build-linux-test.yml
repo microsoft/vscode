@@ -41,10 +41,10 @@ steps:
       - script: npm run test-node
         displayName: Run unit tests (node.js)
         timeoutInMinutes: 15
-      - script: npm run test-browser-no-install -- --browser chromium --tfs "Browser Unit Tests"
+      - script: npm run test-browser-no-install -- --browser chromium-chrome --tfs "Browser Unit Tests"
         env:
           DEBUG: "*browser*"
-        displayName: Run unit tests (Browser, Chromium)
+        displayName: Run unit tests (Browser, Chrome)
         timeoutInMinutes: 15
 
 
@@ -55,10 +55,10 @@ steps:
       - script: npm run test-node -- --build
         displayName: Run unit tests (node.js)
         timeoutInMinutes: 15
-      - script: npm run test-browser-no-install -- --build --browser chromium --tfs "Browser Unit Tests"
+      - script: npm run test-browser-no-install -- --build --browser chromium-chrome --tfs "Browser Unit Tests"
         env:
           DEBUG: "*browser*"
-        displayName: Run unit tests (Browser, Chromium)
+        displayName: Run unit tests (Browser, Chrome)
         timeoutInMinutes: 15
 
   - ${{ if eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true) }}:
@@ -92,8 +92,8 @@ steps:
         displayName: Run integration tests (Electron)
         timeoutInMinutes: 20
 
-      - script: ./scripts/test-web-integration.sh --browser chromium
-        displayName: Run integration tests (Browser, Chromium)
+      - script: ./scripts/test-web-integration.sh --browser chromium-chrome
+        displayName: Run integration tests (Browser, Chrome)
         timeoutInMinutes: 20
 
       - script: ./scripts/test-remote-integration.sh
@@ -116,10 +116,10 @@ steps:
         displayName: Run integration tests (Electron)
         timeoutInMinutes: 20
 
-      - script: ./scripts/test-web-integration.sh --browser chromium
+      - script: ./scripts/test-web-integration.sh --browser chromium-chrome
         env:
           VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
-        displayName: Run integration tests (Browser, Chromium)
+        displayName: Run integration tests (Browser, Chrome)
         timeoutInMinutes: 20
 
       - script: |
@@ -160,9 +160,9 @@ steps:
         timeoutInMinutes: 20
         displayName: Run smoke tests (Electron)
 
-      - script: npm run smoketest-no-compile -- --web --tracing --headless --electronArgs="--disable-dev-shm-usage"
+      - script: npm run smoketest-no-compile -- --web --tracing --headless --electronArgs="--disable-dev-shm-usage" --browser chromium-chrome
         timeoutInMinutes: 20
-        displayName: Run smoke tests (Browser, Chromium)
+        displayName: Run smoke tests (Browser, Chrome)
 
       - script: npm run smoketest-no-compile -- --remote --tracing
         timeoutInMinutes: 20
@@ -173,11 +173,11 @@ steps:
         timeoutInMinutes: 20
         displayName: Run smoke tests (Electron)
 
-      - script: npm run smoketest-no-compile -- --web --tracing --headless --electronArgs="--disable-dev-shm-usage"
+      - script: npm run smoketest-no-compile -- --web --tracing --headless --electronArgs="--disable-dev-shm-usage" --browser chromium-chrome
         env:
           VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
         timeoutInMinutes: 20
-        displayName: Run smoke tests (Browser, Chromium)
+        displayName: Run smoke tests (Browser, Chrome)
 
       - script: |
           set -e

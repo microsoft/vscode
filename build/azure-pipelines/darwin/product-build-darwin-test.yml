@@ -129,11 +129,11 @@ steps:
         timeoutInMinutes: 20
         displayName: Run smoke tests (Electron)
 
-      - script: npm run smoketest-no-compile -- --web --tracing --headless
+      - script: npm run smoketest-no-compile -- --web --tracing --headless --browser chromium-chrome
         env:
           VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)-web
         timeoutInMinutes: 20
-        displayName: Run smoke tests (Browser, Chromium)
+        displayName: Run smoke tests (Browser, Chrome)
 
       - script: |
           set -e
