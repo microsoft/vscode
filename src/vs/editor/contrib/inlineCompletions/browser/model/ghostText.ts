@@ -10,7 +10,7 @@ import { Range } from '../../../../common/core/range.js';
 import { SingleTextEdit, TextEdit } from '../../../../common/core/textEdit.js';
 import { LineDecoration } from '../../../../common/viewLayout/lineDecorations.js';
 import { InlineDecoration } from '../../../../common/viewModel.js';
-import { ColumnRange } from '../utils.js';
+import { ColumnRange } from '../../../../common/core/columnRange.js';
 
 export class GhostText {
 	constructor(
