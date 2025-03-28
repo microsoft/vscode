@@ -3,43 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BaseToken } from '../../baseToken.js';
-import { Range } from '../../../core/range.js';
-import { Line } from '../../linesCodec/tokens/line.js';
+import { SimpleToken } from './simpleToken.js';
 
 /**
  * A token that represent a `$` with a `range`. The `range`
  * value reflects the position of the token in the original data.
  */
-export class DollarSign extends BaseToken {
+export class DollarSign extends SimpleToken {
 	/**
 	 * The underlying symbol of the token.
 	 */
-	public static readonly symbol: '$' = '$';
+	public static override readonly symbol: '$' = '$';
 
 	/**
 	 * Return text representation of the token.
 	 */
-	public get text(): '$' {
+	public override get text() {
 		return DollarSign.symbol;
-	}
-
-	/**
-	 * Create new token with range inside
-	 * the given `Line` at the given `column number`.
-	 */
-	public static newOnLine(
-		line: Line,
-		atColumnNumber: number,
-	): DollarSign {
-		const { range } = line;
-
-		return new DollarSign(new Range(
-			range.startLineNumber,
-			atColumnNumber,
-			range.startLineNumber,
-			atColumnNumber + this.symbol.length,
-		));
 	}
 
 	/**

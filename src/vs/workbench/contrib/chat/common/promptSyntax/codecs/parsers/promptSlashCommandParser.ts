@@ -15,8 +15,8 @@ import { Space } from '../../../../../../../editor/common/codecs/simpleCodec/tok
 import { Colon } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/colon.js';
 import { NewLine } from '../../../../../../../editor/common/codecs/linesCodec/tokens/newLine.js';
 import { FormFeed } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/formFeed.js';
-import { TSimpleToken } from '../../../../../../../editor/common/codecs/simpleCodec/simpleDecoder.js';
 import { VerticalTab } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/verticalTab.js';
+import { TSimpleDecoderToken } from '../../../../../../../editor/common/codecs/simpleCodec/simpleDecoder.js';
 import { CarriageReturn } from '../../../../../../../editor/common/codecs/linesCodec/tokens/carriageReturn.js';
 import { ExclamationMark } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/exclamationMark.js';
 import { LeftBracket, RightBracket } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/brackets.js';
@@ -39,13 +39,13 @@ export const INVALID_NAME_CHARACTERS: readonly string[] = [ExclamationMark, Left
  * The parser responsible for parsing a `prompt /command` sequences.
  * E.g., `/search` or `/explain` command.
  */
-export class PartialPromptSlashCommand extends ParserBase<TSimpleToken, PartialPromptSlashCommand | PromptSlashCommand> {
-	constructor(token: At) {
+export class PartialPromptSlashCommand extends ParserBase<TSimpleDecoderToken, PartialPromptSlashCommand | PromptSlashCommand> {
+	constructor(token: Slash) {
 		super([token]);
 	}
 
 	@assertNotConsumed
-	public accept(token: TSimpleToken): TAcceptTokenResult<PartialPromptSlashCommand | PromptSlashCommand> {
+	public accept(token: TSimpleDecoderToken): TAcceptTokenResult<PartialPromptSlashCommand | PromptSlashCommand> {
 		// if a `stop` character is encountered, finish the parsing process
 		if (STOP_CHARACTERS.includes(token.text)) {
 			try {

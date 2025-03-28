@@ -13,9 +13,14 @@ import { assertDefined } from '../../../../base/common/types.js';
 import { BaseDecoder } from '../../../../base/common/codecs/baseDecoder.js';
 
 /**
+ * Any line break token type.
+ */
+export type TLineBreakToken = CarriageReturn | NewLine;
+
+/**
  * Tokens produced by the {@link LinesDecoder}.
  */
-export type TLineToken = Line | CarriageReturn | NewLine;
+export type TLineToken = Line | TLineBreakToken;
 
 /**
  * The `decoder` part of the `LinesCodec` and is able to transform

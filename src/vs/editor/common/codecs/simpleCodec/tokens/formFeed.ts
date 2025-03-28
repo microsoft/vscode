@@ -3,45 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BaseToken } from '../../baseToken.js';
-import { Line } from '../../linesCodec/tokens/line.js';
-import { Range } from '../../../../../editor/common/core/range.js';
-import { Position } from '../../../../../editor/common/core/position.js';
+import { SimpleToken } from './simpleToken.js';
 
 /**
  * Token that represent a `form feed` with a `range`. The `range`
  * value reflects the position of the token in the original data.
  */
-export class FormFeed extends BaseToken {
+export class FormFeed extends SimpleToken {
 	/**
 	 * The underlying symbol of the token.
 	 */
-	public static readonly symbol: string = '\f';
+	public static override readonly symbol: '\f' = '\f';
 
 	/**
 	 * Return text representation of the token.
 	 */
-	public get text(): string {
+	public override get text() {
 		return FormFeed.symbol;
-	}
-
-	/**
-	 * Create new `FormFeed` token with range inside
-	 * the given `Line` at the given `column number`.
-	 */
-	public static newOnLine(
-		line: Line,
-		atColumnNumber: number,
-	): FormFeed {
-		const { range } = line;
-
-		const startPosition = new Position(range.startLineNumber, atColumnNumber);
-		const endPosition = new Position(range.startLineNumber, atColumnNumber + this.symbol.length);
-
-		return new FormFeed(Range.fromPositions(
-			startPosition,
-			endPosition,
-		));
 	}
 
 	/**
