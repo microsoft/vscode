@@ -51,6 +51,8 @@ export class TerminalTelemetryContribution extends Disposable implements IWorkbe
 
 		type TerminalCreationTelemetryData = {
 			shellType: string;
+			promptType: string | undefined;
+
 			isCustomPtyImplementation: boolean;
 			isExtensionOwnedTerminal: boolean;
 			isLoginShell: boolean;
@@ -65,6 +67,8 @@ export class TerminalTelemetryContribution extends Disposable implements IWorkbe
 			comment: 'Track details about terminal creation, such as the shell type';
 
 			shellType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The detected shell type for the terminal.' };
+			promptType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The detected prompt type for the terminal.' };
+
 			isCustomPtyImplementation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the terminal was using a custom PTY implementation.' };
 			isExtensionOwnedTerminal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the terminal was created by an extension.' };
 			isLoginShell: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the arguments contain -l or --login.' };
@@ -76,6 +80,8 @@ export class TerminalTelemetryContribution extends Disposable implements IWorkbe
 		};
 		this._telemetryService.publicLog2<TerminalCreationTelemetryData, TerminalCreationTelemetryClassification>('terminal/createInstance', {
 			shellType: getSanitizedShellType(slc),
+			promptType: commandDetection?.promptType,
+
 			isCustomPtyImplementation: !!slc.customPtyImplementation,
 			isExtensionOwnedTerminal: !!slc.isExtensionOwnedTerminal,
 			isLoginShell: (typeof slc.args === 'string' ? slc.args.split(' ') : slc.args)?.some(arg => arg === '-l' || arg === '--login') ?? false,
