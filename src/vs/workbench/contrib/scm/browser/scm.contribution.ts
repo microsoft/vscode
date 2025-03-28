@@ -368,6 +368,16 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('scm.compactFolders', "Controls whether the Source Control view should render folders in a compact form. In such a form, single child folders will be compressed in a combined tree element."),
 			default: true
 		},
+		'scm.graph.defaultHistoryFilter': {
+			type: 'string',
+			enum: ['all', 'auto'],
+			enumDescriptions: [
+				localize('scm.graph.defaultHistoryFilter.all', "Get references from all branches."),
+				localize('scm.graph.defaultHistoryFilter.auto', "Get references only from the current working branch(s).")
+			],
+			description: localize('scm.graph.defaultHistoryFilter', "Controls default history references used in the Source Control Graph view."),
+			default: 'auto',
+		},
 		'scm.graph.pageOnScroll': {
 			type: 'boolean',
 			description: localize('scm.graph.pageOnScroll', "Controls whether the Source Control Graph view will load the next page of items when you scroll to the end of the list."),
