@@ -373,7 +373,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			enum: ['all', 'auto'],
 			enumDescriptions: [
 				localize('scm.graph.defaultHistoryFilter.all', "Get references from all branches."),
-				localize('scm.graph.defaultHistoryFilter.auto', "Get references only from the current working branch(s).")
+				localize('scm.graph.defaultHistoryFilter.auto', "Get references only from the current working branch(es).")
 			],
 			description: localize('scm.graph.defaultHistoryFilter', "Controls default history references used in the Source Control Graph view."),
 			default: 'auto',
