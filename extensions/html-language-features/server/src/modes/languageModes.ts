@@ -89,6 +89,7 @@ export interface LanguageMode {
 	onDocumentRemoved(document: TextDocument): void;
 	getSemanticTokens?(document: TextDocument): Promise<SemanticTokenData[]>;
 	getSemanticTokenLegend?(): { types: string[]; modifiers: string[] };
+	getTextDocumentContent?(name: string): Promise<string>;
 	dispose(): void;
 }
 
@@ -112,6 +113,8 @@ export interface Uri {
 	scheme: string;
 	path: string;
 }
+
+export const FILE_PROTOCOL = 'html-server';
 
 export function getLanguageModes(supportedLanguages: { [languageId: string]: boolean }, workspace: Workspace, clientCapabilities: ClientCapabilities, requestService: FileSystemProvider, extensionUri?: Uri): LanguageModes {
 	const htmlLanguageService = getHTMLLanguageService({ clientCapabilities, fileSystemProvider: requestService });

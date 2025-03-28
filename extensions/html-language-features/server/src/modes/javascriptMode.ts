@@ -8,15 +8,13 @@ import {
 	SymbolInformation, SymbolKind, CompletionItem, Location, SignatureHelp, SignatureInformation, ParameterInformation,
 	Definition, TextEdit, TextDocument, Diagnostic, DiagnosticSeverity, Range, CompletionItemKind, Hover,
 	DocumentHighlight, DocumentHighlightKind, CompletionList, Position, FormattingOptions, FoldingRange, FoldingRangeKind, SelectionRange,
-	LanguageMode, Settings, SemanticTokenData, Workspace, DocumentContext, CompletionItemData, isCompletionItemData, Uri
+	LanguageMode, Settings, SemanticTokenData, Workspace, DocumentContext, CompletionItemData, isCompletionItemData, Uri, FILE_PROTOCOL
 } from './languageModes';
 import { getWordAtText, isWhitespaceOnly, repeat } from '../utils/strings';
 import { HTMLDocumentRegions } from './embeddedSupport';
 
 import * as ts from 'typescript';
 import { getSemanticTokens, getSemanticTokenLegend } from './javascriptSemanticTokens';
-import { loadLibrary } from './javascriptLibs';
-import path from 'path';
 
 const JS_WORD_REGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;
 
@@ -79,18 +77,24 @@ function getLanguageServiceHost(scriptKind: ts.ScriptKind) {
 
 			}
 		};
-		return ts.createLanguageService(host);
+		return {
+			service: ts.createLanguageService(host),
+			loadLibrary: libs.loadLibrary,
+		};
 	});
 	return {
 		async getLanguageService(jsDocument: TextDocument): Promise<ts.LanguageService> {
 			currentTextDocument = jsDocument;
-			return jsLanguageService;
+			return (await jsLanguageService).service;
 		},
 		getCompilationSettings() {
 			return compilerOptions;
 		},
+		async loadLibrary(fileName: string) {
+			return (await jsLanguageService).loadLibrary(fileName);
+		},
 		dispose() {
-			jsLanguageService.then(s => s.dispose());
+			jsLanguageService.then(s => s.service.dispose());
 		}
 	};
 }
@@ -304,7 +308,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			const jsLanguageService = await host.getLanguageService(jsDocument);
 			const definition = jsLanguageService.getDefinitionAtPosition(jsDocument.uri, jsDocument.offsetAt(position));
 			if (definition) {
-				return definition.map(d => {
+				return (await Promise.all(definition.map(async d => {
 					if (d.fileName === jsDocument.uri) {
 						return {
 							uri: document.uri,
@@ -314,19 +318,18 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 						if (!extensionUri) {
 							return undefined;
 						}
-						const filePath = path.posix.join(extensionUri.path, '../node_modules/typescript/lib', d.fileName);
-						const libUri = `${extensionUri.scheme}://${filePath}`;
-						const content = loadLibrary(d.fileName);
+						const libUri = `${FILE_PROTOCOL}://${languageId}/${d.fileName}`;
+						const content = await host.loadLibrary(d.fileName);
 						if (!content) {
 							return undefined;
 						}
-						const libDocument = TextDocument.create(libUri, 'typescript', 1, content);
+						const libDocument = TextDocument.create(libUri, languageId, 1, content);
 						return {
 							uri: libUri,
 							range: convertRange(libDocument, d.textSpan)
 						};
 					}
-				}).filter(d => !!d);
+				}))).filter(d => !!d);
 			}
 			return null;
 		},
@@ -420,6 +423,9 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		},
 		getSemanticTokenLegend(): { types: string[]; modifiers: string[] } {
 			return getSemanticTokenLegend();
+		},
+		getTextDocumentContent(name: string): Promise<string> {
+			return host.loadLibrary(name);
 		},
 		dispose() {
 			host.dispose();
