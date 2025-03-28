@@ -10,6 +10,11 @@ import { DollarSign } from '../../../../../../../editor/common/codecs/simpleCode
 import { LeftCurlyBrace, RightCurlyBrace } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/curlyBraces.js';
 
 /**
+ * TODO: @legomushroom - list
+ * - parse the variable contents
+ */
+
+/**
  * Represents a `${template:variable}` token in a prompt text.
  */
 export class PromptTemplateVariable extends PromptToken {

@@ -14,6 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { MarkdownLink } from '../../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
 import { ChatPromptDecoder, TChatPromptToken } from '../../../../common/promptSyntax/codecs/chatPromptDecoder.js';
 import { PromptVariable, PromptVariableWithData } from '../../../../common/promptSyntax/codecs/tokens/promptVariable.js';
+import { PromptTemplateVariable } from '../../../../common/promptSyntax/codecs/tokens/promptTemplateVariable.js';
 
 /**
  * A reusable test utility that asserts that a `ChatPromptDecoder` instance
@@ -63,7 +64,7 @@ suite('ChatPromptDecoder', () => {
 			' \t#file:a/b/c/filename2.md\t🖖\t#file:other-file.md',
 			' [#file:reference.md](./reference.md)some text #file:/some/file/with/absolute/path.md',
 			'text /run text #file: another @github text #selection even more text',
-			'\t\v#my-name:metadata:1:20 \t\t/command\t',
+			'\t\v#my-name:metadata:1:20 \t\t/command\t\v${inputs:id}\t',
 		];
 
 		await test.run(
@@ -120,6 +121,10 @@ suite('ChatPromptDecoder', () => {
 					new Range(9, 28, 9, 28 + 8),
 					'command',
 				),
+				new PromptTemplateVariable(
+					new Range(9, 38, 9, 38 + 12),
+					'inputs:id',
+				),
 			],
 		);
 	});
@@ -172,7 +177,7 @@ suite('ChatPromptDecoder', () => {
 				'my command is \t/run',
 				'your /command\v is done',
 				'/their#command is a pun',
-				'and the /none@cmd made by a nun',
+				'and the /none@cmd was made by a nun',
 			];
 
 			await test.run(
@@ -205,6 +210,47 @@ suite('ChatPromptDecoder', () => {
 					new PromptAtMention(
 						new Range(4, 14, 4, 14 + 4),
 						'cmd',
+					),
+				],
+			);
+		});
+	});
+
+	suite('• template variables', () => {
+		test('• produces expected tokens', async () => {
+			const test = testDisposables.add(
+				new TestChatPromptDecoder(),
+			);
+
+			const contents = [
+				'my command is \t${run}',
+				'your ${variable}\v is done',
+				'${their:variable} is a pun',
+				'and the ${none:var} is made by a nun',
+			];
+
+			await test.run(
+				contents,
+				[
+					// first line
+					new PromptTemplateVariable(
+						new Range(1, 16, 1, 16 + 6),
+						'run',
+					),
+					// second line
+					new PromptTemplateVariable(
+						new Range(2, 6, 2, 6 + 11),
+						'variable',
+					),
+					// third line
+					new PromptTemplateVariable(
+						new Range(3, 1, 3, 1 + 17),
+						'their:variable',
+					),
+					// forth line
+					new PromptTemplateVariable(
+						new Range(4, 9, 4, 9 + 11),
+						'none:var',
 					),
 				],
 			);

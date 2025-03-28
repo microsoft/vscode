@@ -13,6 +13,11 @@ import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../../../.
 /**
  * TODO: @legomushroom
  */
+export type TPromptTemplateVariableParser = PartialPromptTemplateVariableStart | PartialPromptTemplateVariable;
+
+/**
+ * TODO: @legomushroom
+ */
 export class PartialPromptTemplateVariableStart extends ParserBase<TSimpleToken, PartialPromptTemplateVariableStart | PartialPromptTemplateVariable> {
 	constructor(token: DollarSign) {
 		super([token]);
