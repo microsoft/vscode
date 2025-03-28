@@ -6,24 +6,31 @@
 import { Range } from '../../../common/core/range.js';
 import { TestDecoder } from '../utils/testDecoder.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { At } from '../../../common/codecs/simpleCodec/tokens/at.js';
 import { newWriteableStream } from '../../../../base/common/stream.js';
-import { Tab } from '../../../common/codecs/simpleCodec/tokens/tab.js';
-import { Hash } from '../../../common/codecs/simpleCodec/tokens/hash.js';
-import { Word } from '../../../common/codecs/simpleCodec/tokens/word.js';
-import { Dash } from '../../../common/codecs/simpleCodec/tokens/dash.js';
-import { Space } from '../../../common/codecs/simpleCodec/tokens/space.js';
-import { Slash } from '../../../common/codecs/simpleCodec/tokens/slash.js';
 import { NewLine } from '../../../common/codecs/linesCodec/tokens/newLine.js';
-import { FormFeed } from '../../../common/codecs/simpleCodec/tokens/formFeed.js';
-import { VerticalTab } from '../../../common/codecs/simpleCodec/tokens/verticalTab.js';
 import { CarriageReturn } from '../../../common/codecs/linesCodec/tokens/carriageReturn.js';
-import { ExclamationMark } from '../../../common/codecs/simpleCodec/tokens/exclamationMark.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { SimpleDecoder, TSimpleToken } from '../../../common/codecs/simpleCodec/simpleDecoder.js';
-import { LeftBracket, RightBracket } from '../../../common/codecs/simpleCodec/tokens/brackets.js';
-import { LeftParenthesis, RightParenthesis } from '../../../common/codecs/simpleCodec/tokens/parentheses.js';
-import { LeftAngleBracket, RightAngleBracket } from '../../../common/codecs/simpleCodec/tokens/angleBrackets.js';
+import {
+	At,
+	Tab,
+	Word,
+	Hash,
+	Dash,
+	Colon,
+	Slash,
+	Space,
+	FormFeed,
+	DollarSign,
+	VerticalTab,
+	LeftBracket,
+	RightBracket,
+	ExclamationMark,
+	LeftParenthesis,
+	RightParenthesis,
+	LeftAngleBracket,
+	RightAngleBracket,
+} from '../../../common/codecs/simpleCodec/tokens/index.js';
 
 /**
  * A reusable test utility that asserts that a `SimpleDecoder` instance
@@ -69,7 +76,7 @@ suite('SimpleDecoder', () => {
 				' hello world!',
 				'how are\t you?\v',
 				'',
-				'   (test)  [!@#$%^🦄&*_+=-]\f  ',
+				'   (test)  [!@#$:%^🦄&*_+=-]\f  ',
 				'\t<hi 👋>\t🤗❤ \t',
 				' hey\v-\tthere\r',
 				' @workspace@legomushroom',
@@ -107,13 +114,15 @@ suite('SimpleDecoder', () => {
 				new ExclamationMark(new Range(4, 13, 4, 14)),
 				new At(new Range(4, 14, 4, 15)),
 				new Hash(new Range(4, 15, 4, 16)),
-				new Word(new Range(4, 16, 4, 16 + 10), '$%^🦄&*_+='),
-				new Dash(new Range(4, 26, 4, 27)),
-				new RightBracket(new Range(4, 27, 4, 28)),
-				new FormFeed(new Range(4, 28, 4, 29)),
-				new Space(new Range(4, 29, 4, 30)),
+				new DollarSign(new Range(4, 16, 4, 17)),
+				new Colon(new Range(4, 17, 4, 18)),
+				new Word(new Range(4, 18, 4, 18 + 9), '%^🦄&*_+='),
+				new Dash(new Range(4, 27, 4, 28)),
+				new RightBracket(new Range(4, 28, 4, 29)),
+				new FormFeed(new Range(4, 29, 4, 30)),
 				new Space(new Range(4, 30, 4, 31)),
-				new NewLine(new Range(4, 31, 4, 32)),
+				new Space(new Range(4, 31, 4, 32)),
+				new NewLine(new Range(4, 32, 4, 33)),
 				// fifth line
 				new Tab(new Range(5, 1, 5, 2)),
 				new LeftAngleBracket(new Range(5, 2, 5, 3)),
