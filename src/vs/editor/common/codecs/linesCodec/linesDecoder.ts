@@ -13,7 +13,7 @@ import { assertDefined } from '../../../../base/common/types.js';
 import { BaseDecoder } from '../../../../base/common/codecs/baseDecoder.js';
 
 /**
- * Tokens produced by the `LinesDecoder`.
+ * Tokens produced by the {@link LinesDecoder}.
  */
 export type TLineToken = Line | CarriageReturn | NewLine;
 

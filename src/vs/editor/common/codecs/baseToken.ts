@@ -62,8 +62,9 @@ export abstract class BaseToken {
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Render a list of tokens into a string.
 	 */
+	// TODO: @legomushroom - add unit tests
 	public static render(tokens: readonly BaseToken[]): string {
 		return tokens.map((token) => {
 			return token.text;
@@ -71,9 +72,16 @@ export abstract class BaseToken {
 	}
 
 	/**
-	 * TODO: @legomushroom
-	 * @throws
+	 * Returns the full range of a list of tokens in which the first token is
+	 * used as the start of a tokens sequence and the last token reflects the end.
+	 *
+	 * @throws if:
+	 * 	- provided {@link tokens} list is empty
+	 *  - the first token starts on a line that is greater than the last token
+	 *  - if the first and last token are on the same line, the first token must
+	 *    start column must be smaller or equal to the start column of the last token
 	 */
+	// TODO: @legomushroom - add unit tests
 	public static fullRange(tokens: readonly BaseToken[]): Range {
 		assert(
 			tokens.length > 0,
