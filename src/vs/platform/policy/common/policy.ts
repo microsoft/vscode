@@ -39,7 +39,7 @@ export abstract class AbstractPolicyService extends Disposable implements IPolic
 		this.policyDefinitions = { ...policyDefinitions, ...this.policyDefinitions };
 
 		if (size !== Object.keys(this.policyDefinitions).length) {
-			await this._updatePolicyDefinitions(policyDefinitions);
+			await this._updatePolicyDefinitions(this.policyDefinitions);
 		}
 
 		return Iterable.reduce(this.policies.entries(), (r, [name, value]) => ({ ...r, [name]: value }), {});
