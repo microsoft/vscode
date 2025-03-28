@@ -25,6 +25,8 @@ import {
 	VerticalTab,
 	LeftBracket,
 	RightBracket,
+	LeftCurlyBrace,
+	RightCurlyBrace,
 	ExclamationMark,
 	LeftParenthesis,
 	RightParenthesis,
@@ -80,7 +82,7 @@ suite('SimpleDecoder', () => {
 				'\t<hi 👋>\t🤗❤ \t',
 				' hey\v-\tthere\r',
 				' @workspace@legomushroom',
-				'my text /run',
+				'my ${text} /run',
 			],
 			[
 				// first line
@@ -154,10 +156,13 @@ suite('SimpleDecoder', () => {
 				// eighth line
 				new Word(new Range(8, 1, 8, 3), 'my'),
 				new Space(new Range(8, 3, 8, 4)),
-				new Word(new Range(8, 4, 8, 8), 'text'),
-				new Space(new Range(8, 8, 8, 9)),
-				new Slash(new Range(8, 9, 8, 10)),
-				new Word(new Range(8, 10, 8, 10 + 3), 'run'),
+				new DollarSign(new Range(8, 4, 8, 5)),
+				new LeftCurlyBrace(new Range(8, 5, 8, 6)),
+				new Word(new Range(8, 6, 8, 6 + 4), 'text'),
+				new RightCurlyBrace(new Range(8, 10, 8, 11)),
+				new Space(new Range(8, 11, 8, 12)),
+				new Slash(new Range(8, 12, 8, 13)),
+				new Word(new Range(8, 13, 8, 13 + 3), 'run'),
 			],
 		);
 	});
