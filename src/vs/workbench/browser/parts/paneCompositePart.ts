@@ -531,11 +531,15 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 			}
 		}
 
-		const result = this.openComposite(id, focus) as PaneComposite | undefined;
+		try {
+			const result = this.openComposite(id, focus) as PaneComposite | undefined;
+			blockOpening?.complete(result);
 
-		blockOpening?.complete(result);
-
-		return result;
+			return result;
+		} catch (error) {
+			blockOpening?.error(error);
+			throw error;
+		}
 	}
 
 	getPaneComposite(id: string): PaneCompositeDescriptor | undefined {
