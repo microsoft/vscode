@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
+import { existsSync, statSync } from 'fs';
 import { memoize } from '../../../base/common/decorators.js';
 import { FileAccess } from '../../../base/common/network.js';
 import * as path from '../../../base/common/path.js';
@@ -16,6 +17,7 @@ import { DEFAULT_TERMINAL_OSX, IExternalTerminalService, IExternalTerminalSettin
 import { ITerminalEnvironment } from '../../terminal/common/terminal.js';
 
 const TERMINAL_TITLE = nls.localize('console.title', "VS Code Console");
+const delay = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
 
 abstract class ExternalTerminalService {
 	public _serviceBrand: undefined;
@@ -151,67 +153,71 @@ export class MacExternalTerminalService extends ExternalTerminalService implemen
 	public runInTerminal(title: string, dir: string, args: string[], envVars: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
 
 		const terminalApp = settings.osxExec || DEFAULT_TERMINAL_OSX;
+		const windowTitle = title || TERMINAL_TITLE;
+		switch (terminalApp) {
+			case DEFAULT_TERMINAL_OSX:
+			case 'iTerm.app':
+				return this.runInAppleScriptTerminal(windowTitle, dir, args, envVars, terminalApp);
+			case 'kitty.app':
+				return KittyTerminalService.runInTerminal(windowTitle, dir, args, envVars);
+			default:
+				return Promise.reject(new Error(nls.localize('mac.terminal.type.not.supported', "'{0}' not supported", terminalApp)));
+		}
+	}
 
+	private runInAppleScriptTerminal(title: string, dir: string, args: string[], envVars: ITerminalEnvironment, terminalApp: string): Promise<number | undefined> {
 		return new Promise<number | undefined>((resolve, reject) => {
 
-			if (terminalApp === DEFAULT_TERMINAL_OSX || terminalApp === 'iTerm.app') {
+			// On OS X we can launch an AppleScript that creates (or reuses) a scriptable terminal window
+			// and then launches the program inside that window.
 
-				// On OS X we launch an AppleScript that creates (or reuses) a Terminal window
-				// and then launches the program inside that window.
+			const script = terminalApp === DEFAULT_TERMINAL_OSX ? 'TerminalHelper' : 'iTermHelper';
+			const scriptpath = FileAccess.asFileUri(`vs/workbench/contrib/externalTerminal/node/${script}.scpt`).fsPath;
 
-				const script = terminalApp === DEFAULT_TERMINAL_OSX ? 'TerminalHelper' : 'iTermHelper';
-				const scriptpath = FileAccess.asFileUri(`vs/workbench/contrib/externalTerminal/node/${script}.scpt`).fsPath;
+			const osaArgs = [
+				scriptpath,
+				'-t', title || TERMINAL_TITLE,
+				'-w', dir,
+			];
 
-				const osaArgs = [
-					scriptpath,
-					'-t', title || TERMINAL_TITLE,
-					'-w', dir,
-				];
-
-				for (const a of args) {
-					osaArgs.push('-a');
-					osaArgs.push(a);
-				}
-
-				if (envVars) {
-					// merge environment variables into a copy of the process.env
-					const env = Object.assign({}, getSanitizedEnvironment(process), envVars);
-
-					for (const key in env) {
-						const value = env[key];
-						if (value === null) {
-							osaArgs.push('-u');
-							osaArgs.push(key);
-						} else {
-							osaArgs.push('-e');
-							osaArgs.push(`${key}=${value}`);
-						}
-					}
-				}
-
-				let stderr = '';
-				const osa = cp.spawn(MacExternalTerminalService.OSASCRIPT, osaArgs);
-				osa.on('error', err => {
-					reject(improveError(err));
-				});
-				osa.stderr.on('data', (data) => {
-					stderr += data.toString();
-				});
-				osa.on('exit', (code: number) => {
-					if (code === 0) {	// OK
-						resolve(undefined);
-					} else {
-						if (stderr) {
-							const lines = stderr.split('\n', 1);
-							reject(new Error(lines[0]));
-						} else {
-							reject(new Error(nls.localize('mac.terminal.script.failed', "Script '{0}' failed with exit code {1}", script, code)));
-						}
-					}
-				});
-			} else {
-				reject(new Error(nls.localize('mac.terminal.type.not.supported', "'{0}' not supported", terminalApp)));
+			for (const a of args) {
+				osaArgs.push('-a', a);
 			}
+
+			if (envVars) {
+				// merge environment variables into a copy of the process.env
+				const env = Object.assign({}, getSanitizedEnvironment(process), envVars);
+
+				for (const key in env) {
+					const value = env[key];
+					if (value === null) {
+						osaArgs.push('-u', key);
+					} else {
+						osaArgs.push('-e', `${key}=${value}`);
+					}
+				}
+			}
+
+			let stderr = '';
+			const osa = cp.spawn(MacExternalTerminalService.OSASCRIPT, osaArgs);
+			osa.on('error', err => {
+				reject(improveError(err));
+			});
+			osa.stderr.on('data', (data) => {
+				stderr += data.toString();
+			});
+			osa.on('exit', (code: number) => {
+				if (code === 0) {	// OK
+					resolve(undefined);
+				} else {
+					if (stderr) {
+						const lines = stderr.split('\n', 1);
+						reject(new Error(lines[0]));
+					} else {
+						reject(new Error(nls.localize('mac.terminal.script.failed', "Script '{0}' failed with exit code {1}", script, code)));
+					}
+				}
+			});
 		});
 	}
 
@@ -368,4 +374,153 @@ function quote(args: string[]): string {
 		r += ' ';
 	}
 	return r;
+}
+
+namespace KittyTerminalService {
+	export interface KittyProcess {
+		cmdline: string[];
+		cwd: string;
+		pid: number;
+	}
+
+	export interface KittyWindow {
+		id: number;
+		title: string;
+		at_prompt: boolean;
+		foreground_processes: KittyProcess[];
+	}
+
+	export interface KittyTab {
+		windows: KittyWindow[];
+	}
+
+	export interface KittyInstance {
+		tabs: KittyTab[];
+	}
+}
+
+class KittyTerminalService {
+	static readonly KITTY_SOCKET = '/tmp/vscode-kitty.sock';
+	static readonly INVALID_WINDOW_ID = -1;
+
+	static async ensureKittyRunning() {
+		if (!existsSync(this.KITTY_SOCKET) || !statSync(this.KITTY_SOCKET).isSocket()) {
+			const child = cp.spawn('kitty', [
+				'-o', 'allow_remote_control=yes',
+				`--listen-on=unix:${this.KITTY_SOCKET}`
+			], {
+				detached: true,
+				stdio: 'ignore'
+			});
+			child.on('error', () => {
+				throw (new Error(nls.localize('mac.terminal.kitty.not.found', "Kitty terminal is not found.")));
+			});
+			child.unref(); // Fully detach the process
+
+			// Wait for the socket to be created
+			for (let i = 0; i < 10; i++) { // Retry for ~5 seconds
+				await delay(500);
+				if (existsSync(this.KITTY_SOCKET) && statSync(this.KITTY_SOCKET).isSocket()) {
+					return;
+				}
+			}
+			throw (new Error(nls.localize('mac.terminal.kitty.not.running', "Kitty terminal is not running")));
+		}
+	}
+
+	private static getInstances(): KittyTerminalService.KittyInstance[] {
+		try {
+			const result = cp.spawnSync('kitten', ['@', '--to', `unix:${this.KITTY_SOCKET}`, 'ls'], {
+				stdio: 'pipe',
+			});
+			if (result.status !== 0) {
+				const errorOutput = result.stderr.toString().trim() || 'Unknown error';
+				throw new Error(nls.localize('mac.terminal.kitty.list.failed', "Failed to list kitty windows: {0}", errorOutput));
+			}
+			const output = result.stdout.toString();
+			const instances = JSON.parse(output);
+			return instances;
+		} catch (error) {
+			throw new Error(nls.localize('mac.terminal.kitty.list.failed', "Failed to list kitty windows: {0}", error.message));
+		}
+	}
+
+	private static findAvailablePromptWindow(instances: KittyTerminalService.KittyInstance[], title: string): number {
+		for (const instance of instances) {
+			for (const tab of instance.tabs) {
+				for (const window of tab.windows) {
+					if (window.title.includes(title) && window.at_prompt) {
+						return window.id;
+					}
+				}
+			}
+		}
+		return this.INVALID_WINDOW_ID;
+	}
+
+	private static selectWindow(windowId: number): number {
+		if (windowId === this.INVALID_WINDOW_ID) {
+			return windowId;
+		}
+		const result = cp.spawnSync('kitten', ['@', '--to', `unix:${this.KITTY_SOCKET}`, 'select-window', '--match', `id:${windowId}`], {
+			stdio: 'pipe'
+		});
+		const selectedWindowId = result.status === 0 ? windowId : this.INVALID_WINDOW_ID;
+		return selectedWindowId;
+	}
+
+	private static launchPromptWindow(title: string): number {
+		const result = cp.spawnSync('kitten', ['@', '--to', `unix:${this.KITTY_SOCKET}`, 'launch', '--type', 'os-window', '--title', title], {
+			stdio: 'pipe'
+		});
+		const windowIdStr = result.stdout.toString().trim();
+		const windowId = parseInt(windowIdStr);
+		if (isNaN(windowId)) {
+			throw new Error(nls.localize('mac.terminal.kitty.launch.failed', "Failed to launch OS window: expected an integer but got '{0}'", windowIdStr));
+		}
+		return windowId;
+	}
+
+	private static getOrLaunchPromptWindow(title: string) {
+		const instances = KittyTerminalService.getInstances();
+		let promptWindowId = KittyTerminalService.findAvailablePromptWindow(instances, title);
+		if (promptWindowId !== KittyTerminalService.INVALID_WINDOW_ID) {
+			KittyTerminalService.selectWindow(promptWindowId);
+		} else {
+			promptWindowId = KittyTerminalService.launchPromptWindow(title);
+		}
+		return promptWindowId;
+	}
+
+	private static runCommandInWindow(windowId: number, command: string) {
+		const result = cp.spawnSync('kitten', ['@', '--to', `unix:${this.KITTY_SOCKET}`, 'send-text', '--match', `id:${windowId}`, command]
+			, { stdio: 'pipe' });
+		if (result.status !== 0) {
+			const errorOutput = result.stderr.toString().trim() || 'Unknown error';
+			throw new Error(nls.localize('kitty.runInWindow.failed', "Failed to run command in kitty window: {0}", errorOutput));
+		}
+	}
+
+	static async runInTerminal(title: string, dir: string, args: string[], envVars: ITerminalEnvironment): Promise<number | undefined> {
+		return new Promise<number | undefined>((resolve, reject) => {
+			try {
+				KittyTerminalService.ensureKittyRunning();
+				const promptWindowId = KittyTerminalService.getOrLaunchPromptWindow(title);
+
+				const cdPart = dir ? `cd ${dir}; ` : '';
+				const envString = Object.entries(envVars)
+					.map(([key, value]) => `${key}=${value}`)
+					.join(' ')
+					.trim();
+				const envPart = envString ? `env ${envString} ` : '';
+				const commandPart = args.join(' ').trim();
+				const fullCommand = `${cdPart}${envPart}${commandPart}` + '\n';
+				KittyTerminalService.runCommandInWindow(promptWindowId, fullCommand);
+
+				resolve(promptWindowId);
+			} catch (error) {
+				reject(error);
+			}
+		});
+	}
 }
