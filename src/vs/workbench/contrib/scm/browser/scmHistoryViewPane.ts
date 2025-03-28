@@ -834,7 +834,8 @@ class SCMHistoryViewModel extends Disposable {
 			return;
 		}
 
-		const filterState = this._repositoryFilterState.get(getProviderKey(repository.provider)) ?? 'auto';
+		const defaultFilter = this._configurationService.getValue<'all' | 'auto'>('scm.graph.defaultHistoryFilter');
+		const filterState = this._repositoryFilterState.get(getProviderKey(repository.provider)) ?? defaultFilter;
 		if (filterState === 'all' || filterState === 'auto') {
 			return filterState;
 		}
@@ -934,7 +935,8 @@ class SCMHistoryViewModel extends Disposable {
 			return;
 		}
 
-		if (filter !== 'auto') {
+		const defaultFilter = this._configurationService.getValue<'all' | 'auto'>('scm.graph.defaultHistoryFilter');
+		if (filter !== defaultFilter) {
 			this._repositoryFilterState.set(getProviderKey(repository.provider), filter);
 		} else {
 			this._repositoryFilterState.delete(getProviderKey(repository.provider));
@@ -979,7 +981,8 @@ class SCMHistoryViewModel extends Disposable {
 
 	private async _resolveHistoryItemFilter(repository: ISCMRepository, historyProvider: ISCMHistoryProvider): Promise<ISCMHistoryItemRef[]> {
 		const historyItemRefs: ISCMHistoryItemRef[] = [];
-		const historyItemsFilter = this._repositoryFilterState.get(getProviderKey(repository.provider)) ?? 'auto';
+		const defaultFilter = this._configurationService.getValue<'all' | 'auto'>('scm.graph.defaultHistoryFilter');
+		const historyItemsFilter = this._repositoryFilterState.get(getProviderKey(repository.provider)) ?? defaultFilter;
 
 		switch (historyItemsFilter) {
 			case 'all':
