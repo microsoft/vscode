@@ -19,16 +19,16 @@ import {
 	Slash,
 	Space,
 	FormFeed,
-	TBracket,
 	DollarSign,
 	VerticalTab,
+	TBracket,
 	LeftBracket,
 	RightBracket,
-	TParenthesis,
-	TAngleBracket,
 	ExclamationMark,
+	TParenthesis,
 	LeftParenthesis,
 	RightParenthesis,
+	TAngleBracket,
 	LeftAngleBracket,
 	RightAngleBracket,
 } from './tokens/index.js';
@@ -36,9 +36,9 @@ import {
 /**
  * A token type that this decoder can handle.
  */
-export type TSimpleToken = Word | Space | Tab | VerticalTab | At | NewLine | FormFeed
-	| CarriageReturn | TBracket | TAngleBracket | TParenthesis
-	| Colon | Hash | Dash | ExclamationMark | Slash | DollarSign;
+export type TSimpleToken = Word | Space | Tab | VerticalTab | At
+	| NewLine | FormFeed | CarriageReturn | TBracket | TAngleBracket
+	| TParenthesis | Colon | Hash | Dash | ExclamationMark | Slash | DollarSign;
 
 /**
  * List of well-known distinct tokens that this decoder emits (excluding
