@@ -18,7 +18,11 @@ import { CLIServer } from './extHostCLIServer.js';
 import { realpathSync } from '../../../base/node/extpath.js';
 import { ExtHostConsoleForwarder } from './extHostConsoleForwarder.js';
 import { ExtHostDiskFileSystemProvider } from './extHostDiskFileSystemProvider.js';
-import { createRequire } from 'node:module';
+import { createRequire, register } from 'node:module';
+import { assertType } from '../../../base/common/types.js';
+import { generateUuid } from '../../../base/common/uuid.js';
+import { BidirectionalMap } from '../../../base/common/map.js';
+import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 const require = createRequire(import.meta.url);
 
 class NodeModuleRequireInterceptor extends RequireInterceptor {
@@ -69,6 +73,94 @@ class NodeModuleRequireInterceptor extends RequireInterceptor {
 	}
 }
 
+class NodeModuleESMInterceptor extends RequireInterceptor {
+
+	private static _createDataUri(scriptContent: string): string {
+		return `data:text/javascript;charset=utf-8,${encodeURIComponent(scriptContent)}`;
+	}
+
+	// This string is a script that runs in the loader thread of NodeJS.
+	private static _loaderScript = `
+	let lookup;
+	export const initialize = async (context) => {
+		let requestIds = 0;
+		const { port } = context;
+		const pendingRequests = new Map();
+		port.onmessage = (event) => {
+			const { id, url } = event.data;
+			pendingRequests.get(id)?.(url);
+		};
+		lookup = url => {
+			const myId = requestIds++;
+			return new Promise((resolve) => {
+				pendingRequests.set(myId, resolve);
+				port.postMessage({ id: myId, url, });
+			});
+		};
+	};
+	export const resolve = async (specifier, context, nextResolve) => {
+		if (specifier !== 'vscode' || !context.parentURL) {
+			return nextResolve(specifier, context);
+		}
+		const otherUrl = await lookup(context.parentURL);
+		return {
+			url: otherUrl,
+			shortCircuit: true,
+		};
+	};`;
+
+	private readonly _store = new DisposableStore();
+
+	dispose(): void {
+		this._store.dispose();
+	}
+
+	protected override _installInterceptor(): void {
+
+		type Message = { id: string; url: string };
+
+		const apiInstances = new BidirectionalMap<object, string>();
+		(globalThis as any)['_VSCODE_IMPORT_VSCODE_API'] = (key: string) => { return apiInstances.getKey(key); };
+
+		const { port1, port2 } = new MessageChannel();
+
+		port1.onmessage = (e) => {
+			const factory = this._factories.get('vscode');
+			assertType(factory);
+
+			const { id, url } = <Message>e.data;
+			const uri = URI.parse(url);
+
+			const apiInstance = factory.load('_not_used', uri, () => { });
+			let key = apiInstances.get(apiInstance);
+			if (!key) {
+				key = generateUuid();
+				apiInstances.set(apiInstance, key);
+			}
+
+			port1.postMessage({
+				id,
+				url: NodeModuleESMInterceptor._createDataUri(
+					`const _vscodeInstance = globalThis['_VSCODE_IMPORT_VSCODE_API']('${key}');\n\n` +
+					Object.keys(apiInstance).map((name => `export const ${name} = _vscodeInstance['${name}'];`)).join('\n')
+				)
+			});
+		};
+		port1.start();
+
+		register(NodeModuleESMInterceptor._createDataUri(NodeModuleESMInterceptor._loaderScript), {
+			parentURL: import.meta.url,
+			data: { number: 1, port: port2 },
+			transferList: [port2],
+		});
+
+		this._store.add(toDisposable(() => {
+			port1.close();
+			port2.close();
+		}));
+	}
+}
+
 export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 
 	readonly extensionRuntime = ExtensionRuntime.Node;
@@ -93,8 +185,13 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		this._instaService.createInstance(ExtHostDiskFileSystemProvider);
 
 		// Module loading tricks
-		const interceptor = this._instaService.createInstance(NodeModuleRequireInterceptor, extensionApiFactory, { mine: this._myRegistry, all: this._globalRegistry });
-		await interceptor.install();
+		await this._instaService.createInstance(NodeModuleRequireInterceptor, extensionApiFactory, { mine: this._myRegistry, all: this._globalRegistry })
+			.install();
+
+		// ESM loading tricks
+		await this._store.add(this._instaService.createInstance(NodeModuleESMInterceptor, extensionApiFactory, { mine: this._myRegistry, all: this._globalRegistry }))
+			.install();
+
 		performance.mark('code/extHost/didInitAPI');
 
 		// Do this when extension service exists, but extensions are not being activated yet.
@@ -107,13 +204,13 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		return extensionDescription.main;
 	}
 
-	protected async _loadCommonJSModule<T>(extension: IExtensionDescription | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
+	private async _doLoadModule<T>(extension: IExtensionDescription | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder, loader: () => T | Promise<T>): Promise<T> {
 		if (module.scheme !== Schemas.file) {
 			throw new Error(`Cannot load URI: '${module}', must be of file-scheme`);
 		}
 		let r: T | null = null;
 		activationTimesBuilder.codeLoadingStart();
-		this._logService.trace(`ExtensionService#loadCommonJSModule ${module.toString(true)}`);
+		this._logService.trace(`ExtensionService#loadModule ${module.toString(true)}`);
 		this._logService.flush();
 		const extensionId = extension?.identifier.value;
 		if (extension) {
@@ -123,7 +220,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 			if (extensionId) {
 				performance.mark(`code/extHost/willLoadExtensionCode/${extensionId}`);
 			}
-			r = <T>(require)(module.fsPath);
+			r = await loader();
 		} finally {
 			if (extensionId) {
 				performance.mark(`code/extHost/didLoadExtensionCode/${extensionId}`);
@@ -131,6 +228,14 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 			activationTimesBuilder.codeLoadingStop();
 		}
 		return r;
+	}
+
+	protected async _loadCommonJSModule<T>(extension: IExtensionDescription | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
+		return this._doLoadModule<T>(extension, module, activationTimesBuilder, () => <T>(require)(module.fsPath));
+	}
+
+	protected async _loadESMModule<T>(extension: IExtensionDescription | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
+		return this._doLoadModule<T>(extension, module, activationTimesBuilder, async () => <T>await import(module.fsPath));
 	}
 
 	public async $setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void> {
