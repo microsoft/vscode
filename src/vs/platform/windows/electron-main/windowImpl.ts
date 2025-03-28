@@ -238,7 +238,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			});
 		};
 
-		// Snap the window to top, bottom, left or right
+		// Snap the window to either top, bottom, left or right
 		const snapWindow = (win: BrowserWindow) => {
 			const [winWidth, winHeight] = win.getSize();
 			const currentDisplay = screen.getDisplayMatching(win.getBounds());
