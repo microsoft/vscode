@@ -67,6 +67,7 @@ const enum AllowedShellType {
 	Ksh = 'ksh',
 	Nushell = 'nu',
 	Pwsh = 'pwsh',
+	PwshPreview = 'pwsh-preview',
 	Sh = 'sh',
 	Ssh = 'ssh',
 	Tcsh = 'tcsh',
@@ -105,6 +106,7 @@ const shellTypeExecutableAllowList: Set<string> = new Set([
 
 // Dynamic executables that map to a single type
 const shellTypeExecutableRegexAllowList: { regex: RegExp; type: AllowedShellType }[] = [
+	{ regex: /^(?:pwsh|powershell)(?:-preview)?$/i, type: AllowedShellType.PwshPreview },
 	{ regex: /^python(?:\d+(?:\.\d+)?)?$/i, type: AllowedShellType.Python },
 ];
 
