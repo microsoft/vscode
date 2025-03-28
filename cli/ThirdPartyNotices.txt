@@ -2949,7 +2949,7 @@ getrandom 0.1.16 - MIT OR Apache-2.0
 getrandom 0.2.15 - MIT OR Apache-2.0
 https://github.com/rust-random/getrandom
 
-Copyright (c) 2018-2024 The rust-random Project Developers
+Copyright (c) 2018-2025 The rust-random Project Developers
 Copyright (c) 2014 The Rust Project Developers
 
 Permission is hereby granted, free of charge, to any
@@ -5513,7 +5513,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 opentelemetry 0.19.0 - Apache-2.0
-https://github.com/open-telemetry/opentelemetry-rust
+https://github.com/open-telemetry/opentelemetry-rust/tree/main/opentelemetry
 
 Apache License
                            Version 2.0, January 2004
@@ -5929,7 +5929,7 @@ Apache License
 ---------------------------------------------------------
 
 opentelemetry_sdk 0.19.0 - Apache-2.0
-https://github.com/open-telemetry/opentelemetry-rust
+https://github.com/open-telemetry/opentelemetry-rust/tree/main/opentelemetry-sdk
 
 Apache License
                            Version 2.0, January 2004
@@ -8584,7 +8584,6 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [license-image]: https://img.shields.io/badge/license-Apache2.0/MIT-blue.svg
 [deps-image]: https://deps.rs/repo/github/RustCrypto/hashes/status.svg
 [deps-link]: https://deps.rs/repo/github/RustCrypto/hashes
-[msrv-1.85]: https://img.shields.io/badge/rustc-1.85.0+-blue.svg
 
 [//]: # (crates)
 
@@ -8596,6 +8595,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`groestl`]: ./groestl
 [`jh`]: ./jh
 [`k12`]: ./k12
+[`kupyna`]: ./kupyna
 [`md2`]: ./md2
 [`md4`]: ./md4
 [`md5`]: ./md5
@@ -8638,6 +8638,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [Grøstl]: https://en.wikipedia.org/wiki/Grøstl
 [JH]: https://www3.ntu.edu.sg/home/wuhj/research/jh
 [KangarooTwelve]: https://keccak.team/kangarootwelve.html
+[Kupyna]: https://eprint.iacr.org/2015/885.pdf
 [MD2]: https://en.wikipedia.org/wiki/MD2_(cryptography)
 [MD4]: https://en.wikipedia.org/wiki/MD4
 [MD5]: https://en.wikipedia.org/wiki/MD5
@@ -8677,7 +8678,6 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [license-image]: https://img.shields.io/badge/license-Apache2.0/MIT-blue.svg
 [deps-image]: https://deps.rs/repo/github/RustCrypto/hashes/status.svg
 [deps-link]: https://deps.rs/repo/github/RustCrypto/hashes
-[msrv-1.85]: https://img.shields.io/badge/rustc-1.85.0+-blue.svg
 
 [//]: # (crates)
 
@@ -8689,6 +8689,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`groestl`]: ./groestl
 [`jh`]: ./jh
 [`k12`]: ./k12
+[`kupyna`]: ./kupyna
 [`md2`]: ./md2
 [`md4`]: ./md4
 [`md5`]: ./md5
@@ -8731,6 +8732,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [Grøstl]: https://en.wikipedia.org/wiki/Grøstl
 [JH]: https://www3.ntu.edu.sg/home/wuhj/research/jh
 [KangarooTwelve]: https://keccak.team/kangarootwelve.html
+[Kupyna]: https://eprint.iacr.org/2015/885.pdf
 [MD2]: https://en.wikipedia.org/wiki/MD2_(cryptography)
 [MD4]: https://en.wikipedia.org/wiki/MD4
 [MD5]: https://en.wikipedia.org/wiki/MD5
@@ -9395,7 +9397,7 @@ DEALINGS IN THE SOFTWARE.
 tar 0.4.40 - MIT/Apache-2.0
 https://github.com/alexcrichton/tar-rs
 
-Copyright (c) 2014 Alex Crichton
+Copyright (c) The tar-rs Project Contributors
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -9519,7 +9521,7 @@ DEALINGS IN THE SOFTWARE.
 time 0.3.36 - MIT OR Apache-2.0
 https://github.com/time-rs/time
 
-Copyright (c) 2024 Jacob Pratt et al.
+Copyright (c) Jacob Pratt et al.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -9545,7 +9547,7 @@ SOFTWARE.
 time-core 0.1.2 - MIT OR Apache-2.0
 https://github.com/time-rs/time
 
-Copyright (c) 2024 Jacob Pratt et al.
+Copyright (c) Jacob Pratt et al.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

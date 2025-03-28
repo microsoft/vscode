@@ -73,11 +73,22 @@ declare module 'vscode' {
 		constructor(value: ChatImagePart);
 	}
 
+	/**
+	 * Enum for supported image MIME types.
+	 */
+	export enum ChatImageMimeType {
+		PNG = 'image/png',
+		JPEG = 'image/jpeg',
+		GIF = 'image/gif',
+		WEBP = 'image/webp',
+		BMP = 'image/bmp',
+	}
+
 	export interface ChatImagePart {
 		/**
-		 * The image's MIME type (e.g., "image/png", "image/jpeg").
+		 * The image's MIME type.
 		 */
-		mimeType: string;
+		mimeType: ChatImageMimeType;
 
 		/**
 		 * The raw binary data of the image, encoded as a Uint8Array. Note: do not use base64 encoding. Maximum image size is 5MB.

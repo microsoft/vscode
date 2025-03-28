@@ -430,7 +430,7 @@ registerAction2(class AddFilesToWorkingSetAction extends EditingSessionAction {
 		}
 
 		for (const file of uris) {
-			chatWidget.attachmentModel.addFile(file);
+			await chatWidget.attachmentModel.addFile(file);
 		}
 	}
 });

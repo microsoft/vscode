@@ -78,7 +78,7 @@ export class ChatEditor extends EditorPane {
 							return this.chatService.isEditingLocation(ChatAgentLocation.Panel);
 						},
 						referencesExpandedWhenEmptyResponse: !this.chatService.isEditingLocation(ChatAgentLocation.Panel),
-						progressMessageAtBottomOfResponse: this.chatService.isEditingLocation(ChatAgentLocation.Panel),
+						progressMessageAtBottomOfResponse: mode => mode !== ChatMode.Ask,
 					},
 					enableImplicitContext: true,
 					enableWorkingSet: this.chatService.isEditingLocation(ChatAgentLocation.Panel) ? 'explicit' : undefined,
@@ -142,6 +142,7 @@ export class ChatEditor extends EditorPane {
 
 			// Need to set props individually on the memento
 			this._viewState.inputValue = widgetViewState.inputValue;
+			this._viewState.inputState = widgetViewState.inputState;
 			this._memento.saveMemento();
 		}
 	}

@@ -352,7 +352,7 @@ export class InlineEditsView extends Disposable {
 			}
 		}
 		if (numOriginalLines > 0 && numModifiedLines > 0) {
-			if (this._renderSideBySide.read(reader) !== 'never' && InlineEditsSideBySideView.fitsInsideViewport(this._editor, inlineEdit, originalDisplayRange, reader)) {
+			if (this._renderSideBySide.read(reader) !== 'never' && InlineEditsSideBySideView.fitsInsideViewport(this._editor, this._previewTextModel, inlineEdit, originalDisplayRange, reader)) {
 				return 'sideBySide';
 			}
 

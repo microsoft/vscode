@@ -419,6 +419,7 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 		const mainItem: IQuickPickItem = element.item;
 
 		element.element.classList.toggle('indented', Boolean(mainItem.indented));
+		element.element.classList.toggle('not-pickable', element.item.pickable === false);
 
 		data.checkbox.checked = element.checked;
 		data.toDisposeElement.add(element.onChecked(checked => data.checkbox.checked = checked));
@@ -1050,7 +1051,7 @@ export class QuickInputTree extends Disposable {
 	setAllVisibleChecked(checked: boolean) {
 		this._elementCheckedEventBufferer.bufferEvents(() => {
 			this._itemElements.forEach(element => {
-				if (!element.hidden && !element.checkboxDisabled) {
+				if (!element.hidden && !element.checkboxDisabled && element.item.pickable !== false) {
 					// Would fire an event if we didn't beffer the events
 					element.checked = checked;
 				}
@@ -1522,7 +1523,7 @@ export class QuickInputTree extends Disposable {
 	private _allVisibleChecked(elements: QuickPickItemElement[], whenNoneVisible = true) {
 		for (let i = 0, n = elements.length; i < n; i++) {
 			const element = elements[i];
-			if (!element.hidden) {
+			if (!element.hidden && element.item.pickable !== false) {
 				if (!element.checked) {
 					return false;
 				} else {

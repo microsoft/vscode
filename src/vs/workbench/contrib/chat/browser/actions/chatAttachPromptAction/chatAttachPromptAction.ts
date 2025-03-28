@@ -5,15 +5,19 @@
 
 import { CHAT_CATEGORY } from '../chatActions.js';
 import { localize2 } from '../../../../../../nls.js';
+import { IChatService } from '../../../common/chatService.js';
+import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { Action2 } from '../../../../../../platform/actions/common/actions.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/types.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
+import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
-import { ISelectPromptOptions, askToSelectPrompt } from './dialogs/askToSelectPrompt.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
-import { ChatContextKeys } from '../../../common/chatContextKeys.js';
+import { ISelectPromptOptions, askToSelectPrompt } from './dialogs/askToSelectPrompt/askToSelectPrompt.js';
 
 /**
  * Action ID for the `Attach Prompt` action.
@@ -24,7 +28,7 @@ export const ATTACH_PROMPT_ACTION_ID = 'workbench.action.chat.attach.prompt';
  * Options for the {@link AttachPromptAction} action.
  */
 export interface IChatAttachPromptActionOptions extends Pick<
-	ISelectPromptOptions, 'resource' | 'widget' | 'viewsService'
+	ISelectPromptOptions, 'resource' | 'widget'
 > { }
 
 /**
@@ -45,10 +49,14 @@ export class AttachPromptAction extends Action2 {
 		accessor: ServicesAccessor,
 		options: IChatAttachPromptActionOptions,
 	): Promise<void> {
+		const fileService = accessor.get(IFileService);
+		const chatService = accessor.get(IChatService);
 		const labelService = accessor.get(ILabelService);
 		const viewsService = accessor.get(IViewsService);
 		const openerService = accessor.get(IOpenerService);
+		const dialogService = accessor.get(IDialogService);
 		const promptsService = accessor.get(IPromptsService);
+		const commandService = accessor.get(ICommandService);
 		const quickInputService = accessor.get(IQuickInputService);
 
 		// find all prompt files in the user workspace
@@ -57,9 +65,13 @@ export class AttachPromptAction extends Action2 {
 		await askToSelectPrompt({
 			...options,
 			promptFiles,
-			labelService,
+			chatService,
+			fileService,
 			viewsService,
+			labelService,
+			dialogService,
 			openerService,
+			commandService,
 			quickInputService,
 		});
 	}

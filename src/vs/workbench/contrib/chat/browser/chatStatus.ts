@@ -28,10 +28,15 @@ import { isObject } from '../../../../base/common/types.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from '../../../../base/common/actions.js';
+import { parseLinkedText } from '../../../../base/common/linkedText.js';
+import { Link } from '../../../../platform/opener/browser/link.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../base/common/actions.js';
-
-//#region --- colors
+import { IChatStatusItemService, ChatStatusEntry } from './chatStatusItemService.js';
+import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
 
 const gaugeBackground = registerColor('gauge.background', {
 	dark: inputValidationInfoBorder,
@@ -99,9 +104,11 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	private dashboard = new Lazy<ChatStatusDashboard>(() => this.instantiationService.createInstance(ChatStatusDashboard));
 
 	constructor(
-		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -113,7 +120,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		const hidden = this.chatEntitlementService.sentiment === ChatSentiment.Disabled;
 
 		if (!hidden) {
-			this.entry ||= this.statusbarService.addEntry(this.getEntryProps(), ChatStatusBarEntry.ID, StatusbarAlignment.RIGHT, { location: { id: 'status.editor.mode', priority: 100.1 }, alignment: StatusbarAlignment.RIGHT });
+			this.entry ||= this.statusbarService.addEntry(this.getEntryProps(), 'chat.statusBarEntry', StatusbarAlignment.RIGHT, { location: { id: 'status.editor.mode', priority: 100.1 }, alignment: StatusbarAlignment.RIGHT });
 
 			// TODO@bpasero: remove this eventually
 			const completionsStatusId = `${defaultChat.extensionId}.status`;
@@ -129,6 +136,12 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		this._register(this.chatEntitlementService.onDidChangeQuotaExceeded(() => this.entry?.update(this.getEntryProps())));
 		this._register(this.chatEntitlementService.onDidChangeSentiment(() => this.entry?.update(this.getEntryProps())));
 		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => this.entry?.update(this.getEntryProps())));
+		this._register(this.editorService.onDidActiveEditorChange(() => this.entry?.update(this.getEntryProps())));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(defaultChat.completionsEnablementSetting)) {
+				this.entry?.update(this.getEntryProps());
+			}
+		}));
 	}
 
 	private getEntryProps(): IStatusbarEntry {
@@ -162,6 +175,12 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				text = `$(copilot-warning) ${quotaWarning}`;
 				ariaLabel = quotaWarning;
 				kind = 'prominent';
+			}
+
+			// Completions Disabled
+			else if (this.editorService.activeTextEditorLanguageId && !isCompletionsEnabled(this.configurationService, this.editorService.activeTextEditorLanguageId)) {
+				text = `$(copilot-not-connected)`;
+				ariaLabel = localize('completionsDisabledStatus', "Code Completions Disabled");
 			}
 		}
 
@@ -197,6 +216,19 @@ function canUseCopilot(chatEntitlementService: IChatEntitlementService): boolean
 	return !newUser && !signedOut && !allQuotaReached;
 }
 
+function isCompletionsEnabled(configurationService: IConfigurationService, modeId: string = '*'): boolean {
+	const result = configurationService.getValue<Record<string, boolean>>(defaultChat.completionsEnablementSetting);
+	if (!isObject(result)) {
+		return false;
+	}
+
+	if (typeof result[modeId] !== 'undefined') {
+		return Boolean(result[modeId]); // go with setting if explicitly defined
+	}
+
+	return Boolean(result['*']); // fallback to global setting otherwise
+}
+
 interface ISettingsAccessor {
 	readSetting: () => boolean;
 	writeSetting: (value: boolean) => Promise<void>;
@@ -211,12 +243,15 @@ class ChatStatusDashboard extends Disposable {
 
 	constructor(
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IHoverService private readonly hoverService: IHoverService,
-		@IEditorService private readonly editorService: IEditorService,
-		@ILanguageService private readonly languageService: ILanguageService,
+		@IChatStatusItemService private readonly chatStatusItemService: IChatStatusItemService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IHoverService private readonly hoverService: IHoverService,
+		@ILanguageService private readonly languageService: ILanguageService,
+		@IOpenerService private readonly openerService: IOpenerService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
 	) {
 		super();
 	}
@@ -271,6 +306,29 @@ class ChatStatusDashboard extends Disposable {
 			})();
 		}
 
+		// Contributions
+		{
+			for (const item of this.chatStatusItemService.getEntries()) {
+				addSeparator(undefined);
+				const chatItemDisposables = disposables.add(new MutableDisposable());
+
+				let rendered = this.renderContributedChatStatusItem(item);
+				chatItemDisposables.value = rendered.disposables;
+				this.element.appendChild(rendered.element);
+
+				disposables.add(this.chatStatusItemService.onDidChange(e => {
+					if (e.entry.id === item.id) {
+						const oldEl = rendered.element;
+
+						rendered = this.renderContributedChatStatusItem(e.entry);
+						chatItemDisposables.value = rendered.disposables;
+
+						oldEl.replaceWith(rendered.element);
+					}
+				}));
+			}
+		}
+
 		// Settings
 		{
 			addSeparator(localize('settingsTitle', "Settings"));
@@ -296,6 +354,37 @@ class ChatStatusDashboard extends Disposable {
 		return this.element;
 	}
 
+	private renderContributedChatStatusItem(item: ChatStatusEntry): { element: HTMLElement; disposables: DisposableStore } {
+		const disposables = new DisposableStore();
+
+		const entryEl = $('div.contribution');
+
+		entryEl.appendChild($('div.header', undefined, item.label));
+
+		const bodyEl = entryEl.appendChild($('div.body'));
+
+		const descriptionEl = bodyEl.appendChild($('span.description'));
+		this.renderTextPlus(descriptionEl, item.description, disposables);
+
+		if (item.detail) {
+			const itemElement = bodyEl.appendChild($('div.detail-item'));
+			this.renderTextPlus(itemElement, item.detail, disposables);
+		}
+
+		return { element: entryEl, disposables };
+	}
+
+	private renderTextPlus(target: HTMLElement, text: string, store: DisposableStore): void {
+		for (const node of parseLinkedText(text).nodes) {
+			if (typeof node === 'string') {
+				const parts = renderLabelWithIcons(node);
+				target.append(...parts);
+			} else {
+				store.add(new Link(target, node, undefined, this.hoverService, this.openerService));
+			}
+		}
+	}
+
 	private runCommandAndClose(commandOrFn: string | Function): void {
 		if (typeof commandOrFn === 'function') {
 			commandOrFn();
@@ -303,6 +392,7 @@ class ChatStatusDashboard extends Disposable {
 			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: commandOrFn, from: 'chat-status' });
 			this.commandService.executeCommand(commandOrFn);
 		}
+
 		this.hoverService.hideHover(true);
 	}
 
@@ -414,18 +504,7 @@ class ChatStatusDashboard extends Disposable {
 		const settingId = defaultChat.completionsEnablementSetting;
 
 		return {
-			readSetting: () => {
-				const result = this.configurationService.getValue<Record<string, boolean>>(settingId);
-				if (!isObject(result)) {
-					return false;
-				}
-
-				if (typeof result[modeId] !== 'undefined') {
-					return Boolean(result[modeId]); // go with setting if explicitly defined
-				}
-
-				return Boolean(result['*']); // fallback to global setting otherwise
-			},
+			readSetting: () => isCompletionsEnabled(this.configurationService, modeId),
 			writeSetting: (value: boolean) => {
 				let result = this.configurationService.getValue<Record<string, boolean>>(settingId);
 				if (!isObject(result)) {
@@ -440,17 +519,11 @@ class ChatStatusDashboard extends Disposable {
 	private createNextEditSuggestionsSetting(container: HTMLElement, label: string, modeId: string | undefined, completionsSettingAccessor: ISettingsAccessor, disposables: DisposableStore): void {
 		const nesSettingId = defaultChat.nextEditSuggestionsSetting;
 		const completionsSettingId = defaultChat.completionsEnablementSetting;
+		const resource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 
 		const checkbox = this.createSetting(container, nesSettingId, label, {
-			readSetting: () => this.configurationService.getValue<boolean>(nesSettingId, { overrideIdentifier: modeId }),
-			writeSetting: (value: boolean) => {
-				const { overrideIdentifiers } = this.configurationService.inspect(nesSettingId, { overrideIdentifier: modeId });
-				if (modeId && overrideIdentifiers?.includes(modeId)) {
-					return this.configurationService.updateValue(nesSettingId, value, { overrideIdentifier: modeId });
-				}
-
-				return this.configurationService.updateValue(nesSettingId, value);
-			}
+			readSetting: () => this.textResourceConfigurationService.getValue<boolean>(resource, nesSettingId),
+			writeSetting: (value: boolean) => this.textResourceConfigurationService.updateValue(resource, nesSettingId, value)
 		}, disposables);
 
 		// enablement of NES depends on completions setting

@@ -55,7 +55,6 @@ export const codeSpecOptionsAndSubcommands = [
 	'--wait',
 	'tunnel',
 	'serve-web',
-	'ext',
 	'help',
 	'status',
 	'version'

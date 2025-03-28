@@ -127,23 +127,15 @@ export class McpRegistryInputStorage extends Disposable {
 	}
 
 	private async _sealSecrets() {
+		const key = await this._getEncryptionKey.value;
 		return this._secretsSealerSequencer.queue(async () => {
 			if (!this._record.value.unsealedSecrets || isEmptyObject(this._record.value.unsealedSecrets)) {
 				this._record.value.secrets = undefined;
 				return;
 			}
 
-			if (!this._record.value.secrets) {
-				const iv = crypto.getRandomValues(new Uint8Array(MCP_ENCRYPTION_IV_LENGTH));
-				this._record.value.secrets = {
-					value: '',
-					iv: encodeBase64(VSBuffer.wrap(iv)),
-				};
-			}
-
 			const toSeal = JSON.stringify(this._record.value.unsealedSecrets);
-			const iv = decodeBase64(this._record.value.secrets.iv);
-			const key = await this._getEncryptionKey.value;
+			const iv = crypto.getRandomValues(new Uint8Array(MCP_ENCRYPTION_IV_LENGTH));
 			const encrypted = await crypto.subtle.encrypt(
 				{ name: MCP_ENCRYPTION_KEY_ALGORITHM, iv: iv.buffer },
 				key,
@@ -151,11 +143,7 @@ export class McpRegistryInputStorage extends Disposable {
 			);
 
 			const enc = encodeBase64(VSBuffer.wrap(new Uint8Array(encrypted)));
-			if (this._record.value.secrets.value === enc) {
-				return;
-			}
-
-			this._record.value.secrets.value = enc;
+			this._record.value.secrets = { iv: encodeBase64(VSBuffer.wrap(iv)), value: enc };
 			this._didChange = true;
 		});
 	}

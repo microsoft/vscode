@@ -1550,7 +1550,12 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 class UnresponsiveError extends Error {
 
 	constructor(sample: string, windowId: number, pid: number = 0) {
-		super(`UnresponsiveSampleError: by ${windowId} from ${pid}`);
+		// Since the stacks are available via the sample
+		// we can avoid collecting them when constructing the error.
+		const stackTraceLimit = Error.stackTraceLimit;
+		Error.stackTraceLimit = 0;
+		super(`UnresponsiveSampleError: from window with ID ${windowId} belonging to process with pid ${pid}`);
+		Error.stackTraceLimit = stackTraceLimit;
 		this.name = 'UnresponsiveSampleError';
 		this.stack = sample;
 	}

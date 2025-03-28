@@ -259,7 +259,7 @@
 					navigator.serviceWorker.addEventListener('message', versionHandler);
 
 					const postVersionMessage = (/** @type {ServiceWorker} */ controller) => {
-						controller.postMessage({ channel: 'version' });
+						controller.postMessage({ channel: 'version', data: { webviewID: ID } });
 					};
 
 					// At this point, either the service worker is ready and

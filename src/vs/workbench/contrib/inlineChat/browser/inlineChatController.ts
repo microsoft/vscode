@@ -1237,7 +1237,7 @@ export class InlineChatController2 implements IEditorContribution {
 				{
 					enableWorkingSet: 'implicit',
 					rendererOptions: {
-						renderTextEditsAsSummary: uri => isEqual(uri, _editor.getModel()?.uri)
+						renderTextEditsAsSummary: _uri => true
 					}
 				},
 				this._editor

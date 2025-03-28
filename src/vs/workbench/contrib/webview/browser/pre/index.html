@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-DXeP32g8BdMsVuVabYTmznoTH59F7M7UtV0vXemEFqc=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-D+d2/k0hwjyCxorvVPVFGz3TsCJaNh2jVdTq7X+RsTU=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 
 	<!-- Disable pinch zooming -->
@@ -265,7 +265,7 @@
 					navigator.serviceWorker.addEventListener('message', versionHandler);
 
 					const postVersionMessage = (/** @type {ServiceWorker} */ controller) => {
-						controller.postMessage({ channel: 'version' });
+						controller.postMessage({ channel: 'version', data: { webviewID: ID } });
 					};
 
 					// At this point, either the service worker is ready and

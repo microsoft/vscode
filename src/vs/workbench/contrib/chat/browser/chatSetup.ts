@@ -16,7 +16,7 @@ import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../base/common/lazy.js';
-import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableStore, IDisposable, markAsSingleton, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import Severity from '../../../../base/common/severity.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { equalsIgnoreCase } from '../../../../base/common/strings.js';
@@ -63,7 +63,7 @@ import { CHAT_CATEGORY, CHAT_OPEN_ACTION_ID, CHAT_SETUP_ACTION_ID } from './acti
 import { ChatViewId, EditsViewId, ensureSideBarChatViewSize, IChatWidgetService, preferCopilotEditsView, showCopilotView } from './chat.js';
 import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
 import { ChatViewsWelcomeExtensions, IChatViewsWelcomeContributionRegistry } from './viewsWelcome/chatViewsWelcome.js';
-import { ChatAgentLocation, ChatConfiguration } from '../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatMode, validateChatMode } from '../common/constants.js';
 import { ILanguageModelsService } from '../common/languageModels.js';
 import { Dialog } from '../../../../base/browser/ui/dialog/dialog.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
@@ -120,7 +120,7 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 					break;
 				case ChatAgentLocation.EditingSession:
 					id = isToolsAgent ? 'setup.agent' : 'setup.edits';
-					description = isToolsAgent ? localize('agentDescription', "Edit files in your workspace in agent mode (Experimental)") : localize('editsDescription', "Edit files in your workspace");
+					description = isToolsAgent ? localize('agentDescription', "Edit files in your workspace in agent mode") : localize('editsDescription', "Edit files in your workspace");
 					welcomeMessageContent = isToolsAgent ?
 						{
 							title: localize('editsTitle', "Edit with Copilot"),
@@ -543,10 +543,10 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 	}
 
 	private registerSetupAgents(context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): void {
-		const registration = this._register(new MutableDisposable());
+		const registration = markAsSingleton(new MutableDisposable()); // prevents flicker on window reload
 
 		const updateRegistration = () => {
-			const disabled = context.state.hidden || !this.configurationService.getValue('chat.experimental.setupFromDialog');
+			const disabled = context.state.hidden || !this.configurationService.getValue('chat.setupFromDialog');
 			if (!disabled && !registration.value) {
 				const { agent: panelAgent, disposable: panelDisposable } = SetupChatAgentImplementation.register(this.instantiationService, ChatAgentLocation.Panel, false, context, controller);
 				registration.value = combinedDisposable(
@@ -573,7 +573,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 		this._register(Event.runAndSubscribe(Event.any(
 			context.onDidChange,
-			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('chat.experimental.setupFromDialog'))
+			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('chat.setupFromDialog'))
 		), () => updateRegistration()));
 	}
 
@@ -618,7 +618,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				});
 			}
 
-			override async run(accessor: ServicesAccessor): Promise<void> {
+			override async run(accessor: ServicesAccessor, mode: ChatMode): Promise<void> {
 				const viewsService = accessor.get(IViewsService);
 				const viewDescriptorService = accessor.get(IViewDescriptorService);
 				const configurationService = accessor.get(IConfigurationService);
@@ -631,9 +631,14 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 				await context.update({ hidden: false });
 
-				const setupFromDialog = configurationService.getValue('chat.experimental.setupFromDialog');
+				const chatWidgetPromise = showCopilotView(viewsService, layoutService);
+				if (mode) {
+					const chatWidget = await chatWidgetPromise;
+					chatWidget?.input.setChatMode(mode);
+				}
+
+				const setupFromDialog = configurationService.getValue('chat.setupFromDialog');
 				if (!setupFromDialog) {
-					showCopilotView(viewsService, layoutService);
 					ensureSideBarChatViewSize(viewDescriptorService, layoutService, viewsService);
 				}
 
@@ -777,7 +782,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				const params = new URLSearchParams(url.query);
 				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'url', detail: params.get('referrer') ?? undefined });
 
-				await this.commandService.executeCommand(CHAT_SETUP_ACTION_ID);
+				await this.commandService.executeCommand(CHAT_SETUP_ACTION_ID, validateChatMode(params.get('mode')));
 
 				return true;
 			}
@@ -1105,6 +1110,7 @@ class ChatSetupController extends Disposable {
 		const result = await this.quickInputService.input({
 			prompt: localize('enterpriseInstance', "What is your {0} instance?", defaultChat.enterpriseProviderName),
 			placeHolder: localize('enterpriseInstancePlaceholder', 'i.e. "octocat" or "https://octocat.ghe.com"...'),
+			ignoreFocusLost: true,
 			value: uri,
 			validateInput: async value => {
 				isSingleWord = false;
