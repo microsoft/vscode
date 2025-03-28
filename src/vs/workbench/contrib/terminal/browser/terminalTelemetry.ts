@@ -58,9 +58,12 @@ const enum AllowedShellType {
 
 	// Windows only
 	CommandPrompt = 'cmd',
+	Cygwin = 'cygwin-bash',
 	GitBash = 'git-bash',
+	Msys2 = 'msys2-bash',
 	WindowsPowerShell = 'windows-powershell',
 	Wsl = 'wsl',
+
 
 	// Common Unix shells
 	Bash = 'bash',
@@ -186,14 +189,18 @@ const shellTypeExecutableRegexAllowList: { regex: RegExp; type: AllowedShellType
 
 // Path-based look ups
 const shellTypePathRegexAllowList: { regex: RegExp; type: AllowedShellType }[] = [
+	// Cygwin uses bash.exe, so look up based on the path
+	{ regex: /\\Cygwin(?:64)?\\.+\\bash\.exe$/i, type: AllowedShellType.Cygwin },
 	// Git bash uses bash.exe, so look up based on the path
-	{ regex: /Git\\bin\\bash\.exe$/i, type: AllowedShellType.GitBash },
+	{ regex: /\\Git\\.+\\bash\.exe$/i, type: AllowedShellType.GitBash },
+	// Msys2 uses bash.exe, so look up based on the path
+	{ regex: /\\msys2(?:64)?\\.+\\(?:bash|msys2)\.exe$/i, type: AllowedShellType.Msys2 },
 	// WindowsPowerShell should always be installed on this path, we cannot just look at the
 	// executable name since powershell is the CLI on other platforms sometimes (eg. snap package)
-	{ regex: /WindowsPowerShell\\v1.0\\powershell.exe$/i, type: AllowedShellType.WindowsPowerShell },
+	{ regex: /\\WindowsPowerShell\\v1.0\\powershell.exe$/i, type: AllowedShellType.WindowsPowerShell },
 	// WSL executables will represent some other shell in the end, but it's difficult to determine
 	// when we log
-	{ regex: /Windows\\System32\\(?:bash|wsl)\.exe$/i, type: AllowedShellType.Wsl },
+	{ regex: /\\Windows\\System32\\(?:bash|wsl)\.exe$/i, type: AllowedShellType.Wsl },
 ];
 
 function getSanitizedShellType(shellLaunchConfig: IShellLaunchConfig): AllowedShellType {
