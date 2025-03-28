@@ -24,6 +24,9 @@ import {
 	TBracket,
 	LeftBracket,
 	RightBracket,
+	TCurlyBrace,
+	LeftCurlyBrace,
+	RightCurlyBrace,
 	ExclamationMark,
 	TParenthesis,
 	LeftParenthesis,
@@ -37,7 +40,7 @@ import {
  * A token type that this decoder can handle.
  */
 export type TSimpleToken = Word | Space | Tab | VerticalTab | At
-	| NewLine | FormFeed | CarriageReturn | TBracket | TAngleBracket
+	| NewLine | FormFeed | CarriageReturn | TBracket | TAngleBracket | TCurlyBrace
 	| TParenthesis | Colon | Hash | Dash | ExclamationMark | Slash | DollarSign;
 
 /**
@@ -46,7 +49,8 @@ export type TSimpleToken = Word | Space | Tab | VerticalTab | At
  * an arbitrary "text" sequence and is emitted as a single `Word` token.
  */
 const WELL_KNOWN_TOKENS = Object.freeze([
-	LeftParenthesis, RightParenthesis, LeftBracket, RightBracket, LeftAngleBracket, RightAngleBracket,
+	LeftParenthesis, RightParenthesis, LeftBracket, RightBracket,
+	LeftCurlyBrace, RightCurlyBrace, LeftAngleBracket, RightAngleBracket,
 	Space, Tab, VerticalTab, FormFeed, Colon, Hash, Dash, ExclamationMark, At, Slash, DollarSign,
 ]);
 
@@ -55,9 +59,11 @@ const WELL_KNOWN_TOKENS = Object.freeze([
  * Note! the `\r` and `\n` are excluded from the list because this decoder based on `LinesDecoder` which
  * 	     already handles the `CR`/`newline` cases and emits lines that don't contain them.
  */
+// TODO: @legomushroom - refactor to account for the `WELL_KNOWN_TOKENS`?
 const WORD_STOP_CHARACTERS: readonly string[] = Object.freeze([
 	Space.symbol, Tab.symbol, VerticalTab.symbol, FormFeed.symbol, At.symbol, Slash.symbol,
 	Colon.symbol, Hash.symbol, Dash.symbol, ExclamationMark.symbol, DollarSign.symbol,
+	LeftCurlyBrace.symbol, RightCurlyBrace.symbol,
 	LeftBracket.symbol, RightBracket.symbol,
 	LeftParenthesis.symbol, RightParenthesis.symbol,
 	LeftAngleBracket.symbol, RightAngleBracket.symbol,

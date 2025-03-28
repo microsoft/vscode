@@ -16,5 +16,6 @@ export { DollarSign } from './dollarSign.js';
 export { VerticalTab } from './verticalTab.js';
 export { ExclamationMark } from './exclamationMark.js';
 export { TBracket, LeftBracket, RightBracket } from './brackets.js';
+export { TCurlyBrace, LeftCurlyBrace, RightCurlyBrace } from './curlyBraces.js';
 export { TParenthesis, LeftParenthesis, RightParenthesis } from './parentheses.js';
 export { TAngleBracket, LeftAngleBracket, RightAngleBracket } from './angleBrackets.js';
