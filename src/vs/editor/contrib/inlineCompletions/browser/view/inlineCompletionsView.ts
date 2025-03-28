@@ -72,7 +72,7 @@ export class InlineCompletionsView extends Disposable {
 			let fontSize: number = this._editor.getOption(EditorOption.fontSize);
 			if (cursorSelection) {
 				const fontInfo = this._editor.getFontInfoForPosition(cursorSelection.getPosition());
-				if (fontInfo) {
+				if (fontInfo && fontInfo.fontSize <= fontInfo.lineHeight) {
 					fontSize = fontInfo.fontSize;
 				}
 			}
