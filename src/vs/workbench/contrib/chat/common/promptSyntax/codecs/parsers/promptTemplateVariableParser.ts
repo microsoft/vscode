@@ -11,12 +11,14 @@ import { DollarSign, LeftCurlyBrace, RightCurlyBrace } from '../../../../../../.
 import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../../../../../../editor/common/codecs/simpleCodec/parserBase.js';
 
 /**
- * TODO: @legomushroom
+ * Parsers of the `${variable}` token sequence in a prompt text.
  */
 export type TPromptTemplateVariableParser = PartialPromptTemplateVariableStart | PartialPromptTemplateVariable;
 
 /**
- * TODO: @legomushroom
+ * Parser that handles start sequence of a `${variable}` token sequence in
+ * a prompt text. Transitions to {@link PartialPromptTemplateVariable} parser
+ * as soon as the `${` character sequence is found.
  */
 export class PartialPromptTemplateVariableStart extends ParserBase<TSimpleToken, PartialPromptTemplateVariableStart | PartialPromptTemplateVariable> {
 	constructor(token: DollarSign) {
@@ -44,7 +46,7 @@ export class PartialPromptTemplateVariableStart extends ParserBase<TSimpleToken,
 }
 
 /**
- * TODO: @legomushroom
+ * Parser that handles a partial `${variable}` token sequence in a prompt text.
  */
 export class PartialPromptTemplateVariable extends ParserBase<TSimpleToken, PartialPromptTemplateVariable | PromptTemplateVariable> {
 	constructor(tokens: (DollarSign | LeftCurlyBrace)[]) {
@@ -66,8 +68,6 @@ export class PartialPromptTemplateVariable extends ParserBase<TSimpleToken, Part
 			};
 		}
 
-		// TODO: @legomushroom - are there any invalid template variable characters?
-
 		// otherwise it is a valid name character, so add it to the list of
 		// the current tokens and continue the parsing process
 		this.currentTokens.push(token);
@@ -80,11 +80,14 @@ export class PartialPromptTemplateVariable extends ParserBase<TSimpleToken, Part
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Returns a string representation of the prompt template variable
+	 * contents, if any is present.
 	 */
 	private get contents(): string {
 		const contentTokens: TSimpleToken[] = [];
 
+		// template variables are surrounded by `${}`, hence we need to have
+		// at least `${` plus one character for the contents to be non-empty
 		if (this.currentTokens.length < 3) {
 			return '';
 		}

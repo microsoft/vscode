@@ -68,7 +68,7 @@ export class TestSimpleDecoder extends TestDecoder<TSimpleToken, SimpleDecoder> 
 suite('SimpleDecoder', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('produces expected tokens', async () => {
+	test('produces expected tokens #1', async () => {
 		const test = testDisposables.add(
 			new TestSimpleDecoder(),
 		);
@@ -167,65 +167,63 @@ suite('SimpleDecoder', () => {
 		);
 	});
 
-	suite('slash commands', () => {
-		test('produces expected tokens', async () => {
-			const test = testDisposables.add(
-				new TestSimpleDecoder(),
-			);
+	test('produces expected tokens #2', async () => {
+		const test = testDisposables.add(
+			new TestSimpleDecoder(),
+		);
 
-			await test.run(
-				[
-					'your command is /catch',
-					'\t\t/command1/command2 ',
-					'  /cmd#var ',
-					'/test@github\t\t',
-					'/update\r',
-					'',
-				],
-				[
-					// first line
-					new Word(new Range(1, 1, 1, 5), 'your'),
-					new Space(new Range(1, 5, 1, 6)),
-					new Word(new Range(1, 6, 1, 6 + 7), 'command'),
-					new Space(new Range(1, 13, 1, 14)),
-					new Word(new Range(1, 14, 1, 14 + 2), 'is'),
-					new Space(new Range(1, 16, 1, 17)),
-					new Slash(new Range(1, 17, 1, 18)),
-					new Word(new Range(1, 18, 1, 18 + 5), 'catch'),
-					new NewLine(new Range(1, 23, 1, 24)),
-					// second line
-					new Tab(new Range(2, 1, 2, 2)),
-					new Tab(new Range(2, 2, 2, 3)),
-					new Slash(new Range(2, 3, 2, 4)),
-					new Word(new Range(2, 4, 2, 4 + 8), 'command1'),
-					new Slash(new Range(2, 12, 2, 13)),
-					new Word(new Range(2, 13, 2, 13 + 8), 'command2'),
-					new Space(new Range(2, 21, 2, 22)),
-					new NewLine(new Range(2, 22, 2, 23)),
-					// third line
-					new Space(new Range(3, 1, 3, 2)),
-					new Space(new Range(3, 2, 3, 3)),
-					new Slash(new Range(3, 3, 3, 4)),
-					new Word(new Range(3, 4, 3, 4 + 3), 'cmd'),
-					new Hash(new Range(3, 7, 3, 8)),
-					new Word(new Range(3, 8, 3, 8 + 3), 'var'),
-					new Space(new Range(3, 11, 3, 12)),
-					new NewLine(new Range(3, 12, 3, 13)),
-					// fourth line
-					new Slash(new Range(4, 1, 4, 2)),
-					new Word(new Range(4, 2, 4, 2 + 4), 'test'),
-					new At(new Range(4, 6, 4, 7)),
-					new Word(new Range(4, 7, 4, 7 + 6), 'github'),
-					new Tab(new Range(4, 13, 4, 14)),
-					new Tab(new Range(4, 14, 4, 15)),
-					new NewLine(new Range(4, 15, 4, 16)),
-					// fifth line
-					new Slash(new Range(5, 1, 5, 2)),
-					new Word(new Range(5, 2, 5, 2 + 6), 'update'),
-					new CarriageReturn(new Range(5, 8, 5, 9)),
-					new NewLine(new Range(5, 9, 5, 10)),
-				],
-			);
-		});
+		await test.run(
+			[
+				'your command is /catch',
+				'\t\t/command1/command2 ',
+				'  /cmd#var ',
+				'/test@github\t\t',
+				'/update\r',
+				'',
+			],
+			[
+				// first line
+				new Word(new Range(1, 1, 1, 5), 'your'),
+				new Space(new Range(1, 5, 1, 6)),
+				new Word(new Range(1, 6, 1, 6 + 7), 'command'),
+				new Space(new Range(1, 13, 1, 14)),
+				new Word(new Range(1, 14, 1, 14 + 2), 'is'),
+				new Space(new Range(1, 16, 1, 17)),
+				new Slash(new Range(1, 17, 1, 18)),
+				new Word(new Range(1, 18, 1, 18 + 5), 'catch'),
+				new NewLine(new Range(1, 23, 1, 24)),
+				// second line
+				new Tab(new Range(2, 1, 2, 2)),
+				new Tab(new Range(2, 2, 2, 3)),
+				new Slash(new Range(2, 3, 2, 4)),
+				new Word(new Range(2, 4, 2, 4 + 8), 'command1'),
+				new Slash(new Range(2, 12, 2, 13)),
+				new Word(new Range(2, 13, 2, 13 + 8), 'command2'),
+				new Space(new Range(2, 21, 2, 22)),
+				new NewLine(new Range(2, 22, 2, 23)),
+				// third line
+				new Space(new Range(3, 1, 3, 2)),
+				new Space(new Range(3, 2, 3, 3)),
+				new Slash(new Range(3, 3, 3, 4)),
+				new Word(new Range(3, 4, 3, 4 + 3), 'cmd'),
+				new Hash(new Range(3, 7, 3, 8)),
+				new Word(new Range(3, 8, 3, 8 + 3), 'var'),
+				new Space(new Range(3, 11, 3, 12)),
+				new NewLine(new Range(3, 12, 3, 13)),
+				// fourth line
+				new Slash(new Range(4, 1, 4, 2)),
+				new Word(new Range(4, 2, 4, 2 + 4), 'test'),
+				new At(new Range(4, 6, 4, 7)),
+				new Word(new Range(4, 7, 4, 7 + 6), 'github'),
+				new Tab(new Range(4, 13, 4, 14)),
+				new Tab(new Range(4, 14, 4, 15)),
+				new NewLine(new Range(4, 15, 4, 16)),
+				// fifth line
+				new Slash(new Range(5, 1, 5, 2)),
+				new Word(new Range(5, 2, 5, 2 + 6), 'update'),
+				new CarriageReturn(new Range(5, 8, 5, 9)),
+				new NewLine(new Range(5, 9, 5, 10)),
+			],
+		);
 	});
 });

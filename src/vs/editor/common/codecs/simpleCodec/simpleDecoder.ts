@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Line } from '../linesCodec/tokens/line.js';
 import { NewLine } from '../linesCodec/tokens/newLine.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { ReadableStream } from '../../../../base/common/stream.js';
@@ -35,6 +36,7 @@ import {
 	LeftAngleBracket,
 	RightAngleBracket,
 } from './tokens/index.js';
+import { pick } from '../../../../base/common/arrays.js';
 
 /**
  * A token type that this decoder can handle.
@@ -55,19 +57,13 @@ const WELL_KNOWN_TOKENS = Object.freeze([
 ]);
 
 /**
- * Characters that stop a "word" sequence.
- * Note! the `\r` and `\n` are excluded from the list because this decoder based on `LinesDecoder` which
- * 	     already handles the `CR`/`newline` cases and emits lines that don't contain them.
+ * A {@link Word} sequence stops when one of the well-known tokens are encountered.
+ * Note! the `\r` and `\n` are excluded from the list because this decoder based on
+ *       the {@link LinesDecoder} which emits {@link Line} tokens without them.
  */
-// TODO: @legomushroom - refactor to account for the `WELL_KNOWN_TOKENS`?
-const WORD_STOP_CHARACTERS: readonly string[] = Object.freeze([
-	Space.symbol, Tab.symbol, VerticalTab.symbol, FormFeed.symbol, At.symbol, Slash.symbol,
-	Colon.symbol, Hash.symbol, Dash.symbol, ExclamationMark.symbol, DollarSign.symbol,
-	LeftCurlyBrace.symbol, RightCurlyBrace.symbol,
-	LeftBracket.symbol, RightBracket.symbol,
-	LeftParenthesis.symbol, RightParenthesis.symbol,
-	LeftAngleBracket.symbol, RightAngleBracket.symbol,
-]);
+const WORD_STOP_CHARACTERS: readonly string[] = Object.freeze(
+	WELL_KNOWN_TOKENS.map(pick('symbol')),
+);
 
 /**
  * A decoder that can decode a stream of `Line`s into a stream
@@ -88,7 +84,7 @@ export class SimpleDecoder extends BaseDecoder<TSimpleToken, TLineToken> {
 			return;
 		}
 
-		// loop through the text separating it into `Word` and `Space` tokens
+		// loop through the text separating it into `Word` and `well-known` tokens
 		let i = 0;
 		while (i < line.text.length) {
 			// index is 0-based, but column numbers are 1-based
