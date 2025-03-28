@@ -43,7 +43,7 @@ import { ISimpleTokenClass, SimpleToken } from './tokens/simpleToken.js';
  * Type for all simple tokens.
  */
 export type TSimpleToken = Space | Tab | VerticalTab | At
-	| NewLine | FormFeed | CarriageReturn | TBracket | TAngleBracket | TCurlyBrace
+	| CarriageReturn | NewLine | FormFeed | TBracket | TAngleBracket | TCurlyBrace
 	| TParenthesis | Colon | Hash | Dash | ExclamationMark | Slash | DollarSign
 	| TLineBreakToken;
 
