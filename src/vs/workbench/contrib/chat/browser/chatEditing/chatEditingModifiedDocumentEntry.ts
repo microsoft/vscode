@@ -40,7 +40,7 @@ import { SaveReason, IEditorPane } from '../../../../common/editor.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IResolvedTextFileEditorModel, ITextFileService, stringToSnapshot } from '../../../../services/textfile/common/textfiles.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
-import { IModifiedFileEntry, ChatEditKind, WorkingSetEntryState, IModifiedFileEntryEditorIntegration } from '../../common/chatEditingService.js';
+import { IModifiedFileEntry, ChatEditKind, ModifiedFileEntryState, IModifiedFileEntryEditorIntegration } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatEditingCodeEditorIntegration, IDocumentDiff2 } from './chatEditingCodeEditorIntegration.js';
@@ -273,9 +273,9 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			const didResetToOriginalContent = this.modifiedModel.getValue() === this.initialContent;
 			const currentState = this._stateObs.get();
 			switch (currentState) {
-				case WorkingSetEntryState.Modified:
+				case ModifiedFileEntryState.Modified:
 					if (didResetToOriginalContent) {
-						this._stateObs.set(WorkingSetEntryState.Rejected, undefined);
+						this._stateObs.set(ModifiedFileEntryState.Rejected, undefined);
 						break;
 					}
 			}
@@ -319,7 +319,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 		transaction((tx) => {
 			if (!isLastEdits) {
-				this._stateObs.set(WorkingSetEntryState.Modified, tx);
+				this._stateObs.set(ModifiedFileEntryState.Modified, tx);
 				this._isCurrentlyBeingModifiedByObs.set(responseModel, tx);
 				const lineCount = this.modifiedModel.getLineCount();
 				this._rewriteRatioObs.set(Math.min(1, maxLineNumber / lineCount), tx);
@@ -346,7 +346,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		this.originalModel.pushEditOperations(null, edits, _ => null);
 		await this._updateDiffInfoSeq();
 		if (this._diffInfo.get().identical) {
-			this._stateObs.set(WorkingSetEntryState.Accepted, undefined);
+			this._stateObs.set(ModifiedFileEntryState.Accepted, undefined);
 		}
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.editsKept, { allowManyInParallel: true });
 		return true;
@@ -364,7 +364,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		this.modifiedModel.pushEditOperations(null, edits, _ => null);
 		await this._updateDiffInfoSeq();
 		if (this._diffInfo.get().identical) {
-			this._stateObs.set(WorkingSetEntryState.Rejected, undefined);
+			this._stateObs.set(ModifiedFileEntryState.Rejected, undefined);
 		}
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.editsUndone, { allowManyInParallel: true });
 		return true;

@@ -8,7 +8,7 @@ import { combinedDisposable, DisposableMap, DisposableStore, MutableDisposable, 
 import { autorun, derived, derivedOpts, IObservable, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar, WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IChatEditingService, IChatEditingSession, IModifiedFileEntry, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IActionRunner } from '../../../../../base/common/actions.js';
@@ -406,7 +406,7 @@ class ChatEditingOverlayController {
 			const { session, entry } = data;
 
 			if (
-				entry?.state.read(r) === WorkingSetEntryState.Modified // any entry changing
+				entry?.state.read(r) === ModifiedFileEntryState.Modified // any entry changing
 				|| (!session.isGlobalEditingSession && isInProgress.read(r)) // inline chat request
 			) {
 				// any session with changes
