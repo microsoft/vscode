@@ -296,12 +296,7 @@ export class InlineEditsView extends Disposable {
 	));
 
 	private getCacheId(model: IInlineEditModel) {
-		const inlineEdit = model.inlineEdit;
-		if (this._host.get()?.inPartialAcceptFlow.get()) {
-			return `${inlineEdit.inlineCompletion.id}_${inlineEdit.edit.edits.map(innerEdit => innerEdit.range.toString() + innerEdit.text).join(',')}`;
-		}
-
-		return inlineEdit.inlineCompletion.id;
+		return model.inlineEdit.inlineCompletion.id;
 	}
 
 	private determineView(model: IInlineEditModel, reader: IReader, diff: DetailedLineRangeMapping[], newText: StringText, originalDisplayRange: LineRange): string {
