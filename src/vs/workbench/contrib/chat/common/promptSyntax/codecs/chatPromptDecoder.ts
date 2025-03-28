@@ -10,12 +10,15 @@ import { PromptSlashCommand } from './tokens/promptSlashCommand.js';
 import { assertNever } from '../../../../../../base/common/assert.js';
 import { ReadableStream } from '../../../../../../base/common/stream.js';
 import { PartialPromptAtMention } from './parsers/promptAtMentionParser.js';
+import { PromptTemplateVariable } from './tokens/promptTemplateVariable.js';
 import { PartialPromptSlashCommand } from './parsers/promptSlashCommandParser.js';
 import { BaseDecoder } from '../../../../../../base/common/codecs/baseDecoder.js';
 import { PromptVariable, PromptVariableWithData } from './tokens/promptVariable.js';
 import { At } from '../../../../../../editor/common/codecs/simpleCodec/tokens/at.js';
 import { Hash } from '../../../../../../editor/common/codecs/simpleCodec/tokens/hash.js';
+import { PartialPromptTemplateVariable } from './parsers/promptTemplateVariableParser.js';
 import { Slash } from '../../../../../../editor/common/codecs/simpleCodec/tokens/slash.js';
+import { DollarSign } from '../../../../../../editor/common/codecs/simpleCodec/tokens/dollarSign.js';
 import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
 import { PartialPromptVariableName, PartialPromptVariableWithData } from './parsers/promptVariableParser.js';
 import { MarkdownDecoder, TMarkdownToken } from '../../../../../../editor/common/codecs/markdownCodec/markdownDecoder.js';
@@ -23,7 +26,8 @@ import { MarkdownDecoder, TMarkdownToken } from '../../../../../../editor/common
 /**
  * Tokens produced by this decoder.
  */
-export type TChatPromptToken = MarkdownLink | (PromptVariable | PromptVariableWithData) | PromptAtMention | PromptSlashCommand;
+export type TChatPromptToken = MarkdownLink | (PromptVariable | PromptVariableWithData)
+	| PromptAtMention | PromptSlashCommand | PromptTemplateVariable;
 
 /**
  * Decoder for the common chatbot prompt message syntax.
@@ -35,7 +39,8 @@ export class ChatPromptDecoder extends BaseDecoder<TChatPromptToken, TMarkdownTo
 	 * tokens, for instance, a `#file:/path/to/file.md` link that consists of `hash`,
 	 * `word`, and `colon` tokens sequence plus the `file path` part that follows.
 	 */
-	private current?: (PartialPromptVariableName | PartialPromptVariableWithData) | PartialPromptAtMention | PartialPromptSlashCommand;
+	private current?: (PartialPromptVariableName | PartialPromptVariableWithData)
+		| PartialPromptAtMention | PartialPromptSlashCommand | PartialPromptTemplateVariable;
 
 	constructor(
 		stream: ReadableStream<VSBuffer>,
@@ -44,7 +49,7 @@ export class ChatPromptDecoder extends BaseDecoder<TChatPromptToken, TMarkdownTo
 	}
 
 	protected override onStreamData(token: TMarkdownToken): void {
-		// prompt variables always start with the `#` character, hence
+		// prompt `#variables` always start with the `#` character, hence
 		// initiate a parser object if we encounter respective token and
 		// there is no active parser object present at the moment
 		if ((token instanceof Hash) && !this.current) {
@@ -53,7 +58,7 @@ export class ChatPromptDecoder extends BaseDecoder<TChatPromptToken, TMarkdownTo
 			return;
 		}
 
-		// prompt @mentions always start with the `@` character, hence
+		// prompt `@mentions` always start with the `@` character, hence
 		// initiate a parser object if we encounter respective token and
 		// there is no active parser object present at the moment
 		if ((token instanceof At) && !this.current) {
@@ -62,10 +67,19 @@ export class ChatPromptDecoder extends BaseDecoder<TChatPromptToken, TMarkdownTo
 			return;
 		}
 
-		// prompt /commands always start with the `/` character, hence
+		// prompt `/commands` always start with the `/` character, hence
 		// initiate a parser object if we encounter respective token and
 		// there is no active parser object present at the moment
 		if ((token instanceof Slash) && !this.current) {
+			this.current = new PartialPromptSlashCommand(token);
+
+			return;
+		}
+
+		// prompt `${template:variables}` always start with the `$` character,
+		// hence initiate a parser object if we encounter respective token and
+		// there is no active parser object present at the moment
+		if ((token instanceof DollarSign) && !this.current) {
 			this.current = new PartialPromptSlashCommand(token);
 
 			return;
@@ -138,7 +152,8 @@ export class ChatPromptDecoder extends BaseDecoder<TChatPromptToken, TMarkdownTo
 				return;
 			}
 
-			// otherwise try to convert incomplete parser object to a token
+			// otherwise try to convert unfinished parser object to a token
+
 			if (this.current instanceof PartialPromptVariableName) {
 				return this._onData.fire(this.current.asPromptVariable());
 			}
@@ -153,6 +168,10 @@ export class ChatPromptDecoder extends BaseDecoder<TChatPromptToken, TMarkdownTo
 
 			if (this.current instanceof PartialPromptSlashCommand) {
 				return this._onData.fire(this.current.asPromptSlashCommand());
+			}
+
+			if (this.current instanceof PartialPromptTemplateVariable) {
+				return this._onData.fire(this.current.asPromptTemplateVariable());
 			}
 
 			assertNever(
