@@ -1956,16 +1956,15 @@ export class Repository {
 	}
 
 	async merge(ref: string): Promise<void> {
-		const args = ['merge', ref];
-		return this.execMerge(args);
+		return this.execMerge(ref);
 	}
 
 	async squash(ref: string): Promise<void> {
-		const args = ['merge', ref, '--squash'];
-		return this.execMerge(args);
+		return this.execMerge(ref, ['--squash']);
 	}
 
-	private async execMerge(args: string[]) {
+	private async execMerge(ref: string, mergeOptions: string[] = []) {
+		const args = ['merge', ref, ...mergeOptions];
 		try {
 			await this.exec(args);
 		} catch (err) {
