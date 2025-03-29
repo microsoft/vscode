@@ -112,6 +112,10 @@ export class LineTokens implements IViewLineTokens {
 		this.languageIdCodec = decoder;
 	}
 
+	public getTextLength(): number {
+		return this._text.length;
+	}
+
 	public equals(other: IViewLineTokens): boolean {
 		if (other instanceof LineTokens) {
 			return this.slicedEquals(other, 0, this._tokensCount);
