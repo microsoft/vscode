@@ -99,7 +99,10 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 		if (repo) {
 			try {
 				quickpick.busy = true;
-				await octokit.repos.get({ owner, repo: repo });
+				let result = await octokit.repos.get({ owner, repo: repo });
+				if (result['data']['name'] !== repo) { // happens when the repo was renamed
+					break;
+				}
 				quickpick.items = [{ label: `$(error) GitHub repository already exists`, description: `$(github) ${owner}/${repo}`, alwaysShow: true }];
 			} catch {
 				break;
