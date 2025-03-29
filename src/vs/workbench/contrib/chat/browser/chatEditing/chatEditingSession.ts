@@ -147,7 +147,8 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 
 	public readonly canUndo = derived<boolean>((r) => {
-		if (this.state.read(r) !== ChatEditingSessionState.Idle) {
+		const state = this.state.read(r);
+		if (state !== ChatEditingSessionState.Idle && state !== ChatEditingSessionState.Initial) {
 			return false;
 		}
 		const linearHistoryIndex = this._linearHistoryIndex.read(r);
@@ -155,7 +156,8 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	});
 
 	public readonly canRedo = derived<boolean>((r) => {
-		if (this.state.read(r) !== ChatEditingSessionState.Idle) {
+		const state = this.state.read(r);
+		if (state !== ChatEditingSessionState.Idle && state !== ChatEditingSessionState.Initial) {
 			return false;
 		}
 		const linearHistoryIndex = this._linearHistoryIndex.read(r);
