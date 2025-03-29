@@ -17,7 +17,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../common/chatContextKeys.js';
-import { WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { chatVariableLeader } from '../../common/chatParserTypes.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatMode, validateChatMode } from '../../common/constants.js';
@@ -173,7 +173,7 @@ class ToggleChatModeAction extends Action2 {
 			}
 
 			const currentEdits = context.editingSession.entries.get();
-			const undecidedEdits = currentEdits.filter((edit) => edit.state.get() === WorkingSetEntryState.Modified);
+			const undecidedEdits = currentEdits.filter((edit) => edit.state.get() === ModifiedFileEntryState.Modified);
 			if (undecidedEdits.length > 0) {
 				if (!await handleCurrentEditingSession(context.editingSession, phrase, dialogService)) {
 					return;

@@ -41,7 +41,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { checkModeOption } from '../common/chat.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService, IChatWelcomeMessageContent, isChatWelcomeMessageContent } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, WorkingSetEntryState } from '../common/chatEditingService.js';
+import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, ModifiedFileEntryState } from '../common/chatEditingService.js';
 import { ChatPauseState, IChatModel, IChatRequestVariableEntry, IChatResponseModel } from '../common/chatModel.js';
 import { chatAgentLeader, ChatRequestAgentPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../common/chatParserTypes.js';
 import { ChatRequestParser } from '../common/chatRequestParser.js';
@@ -276,13 +276,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				return;
 			}
 			const entries = currentSession.entries.read(reader);
-			const decidedEntries = entries.filter(entry => entry.state.read(reader) !== WorkingSetEntryState.Modified);
+			const decidedEntries = entries.filter(entry => entry.state.read(reader) !== ModifiedFileEntryState.Modified);
 			return decidedEntries.map(entry => entry.entryId);
 		}));
 		this._register(bindContextKey(hasUndecidedChatEditingResourceContextKey, contextKeyService, (reader) => {
 			const currentSession = this._editingSession.read(reader);
 			const entries = currentSession?.entries.read(reader) ?? []; // using currentSession here
-			const decidedEntries = entries.filter(entry => entry.state.read(reader) === WorkingSetEntryState.Modified);
+			const decidedEntries = entries.filter(entry => entry.state.read(reader) === ModifiedFileEntryState.Modified);
 			return decidedEntries.length > 0;
 		}));
 		this._register(bindContextKey(hasAppliedChatEditsContextKey, contextKeyService, (reader) => {

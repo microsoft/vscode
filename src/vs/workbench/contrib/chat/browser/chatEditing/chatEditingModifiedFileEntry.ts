@@ -22,7 +22,7 @@ import { IEditorPane } from '../../../../common/editor.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { IChatAgentResult } from '../../common/chatAgents.js';
-import { ChatEditKind, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { ChatEditKind, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 
@@ -50,8 +50,8 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 	protected readonly _onDidDelete = this._register(new Emitter<void>());
 	readonly onDidDelete = this._onDidDelete.event;
 
-	protected readonly _stateObs = observableValue<WorkingSetEntryState>(this, WorkingSetEntryState.Attached);
-	readonly state: IObservable<WorkingSetEntryState> = this._stateObs;
+	protected readonly _stateObs = observableValue<ModifiedFileEntryState>(this, ModifiedFileEntryState.Attached);
+	readonly state: IObservable<ModifiedFileEntryState> = this._stateObs;
 
 	protected readonly _isCurrentlyBeingModifiedByObs = observableValue<IChatResponseModel | undefined>(this, undefined);
 	readonly isCurrentlyBeingModifiedBy: IObservable<IChatResponseModel | undefined> = this._isCurrentlyBeingModifiedByObs;
@@ -146,7 +146,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 		const cleanup = autorun(r => {
 			// reset config when settled
-			const resetConfig = this.state.read(r) !== WorkingSetEntryState.Modified;
+			const resetConfig = this.state.read(r) !== ModifiedFileEntryState.Modified;
 			if (resetConfig) {
 				this._store.delete(cleanup);
 				this._reviewModeTempObs.set(undefined, undefined);
@@ -161,13 +161,13 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 	}
 
 	async accept(tx: ITransaction | undefined): Promise<void> {
-		if (this._stateObs.get() !== WorkingSetEntryState.Modified) {
+		if (this._stateObs.get() !== ModifiedFileEntryState.Modified) {
 			// already accepted or rejected
 			return;
 		}
 
 		await this._doAccept(tx);
-		this._stateObs.set(WorkingSetEntryState.Accepted, tx);
+		this._stateObs.set(ModifiedFileEntryState.Accepted, tx);
 		this._autoAcceptCtrl.set(undefined, tx);
 
 		this._notifyAction('accepted');
@@ -176,13 +176,13 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 	protected abstract _doAccept(tx: ITransaction | undefined): Promise<void>;
 
 	async reject(tx: ITransaction | undefined): Promise<void> {
-		if (this._stateObs.get() !== WorkingSetEntryState.Modified) {
+		if (this._stateObs.get() !== ModifiedFileEntryState.Modified) {
 			// already accepted or rejected
 			return;
 		}
 
 		await this._doReject(tx);
-		this._stateObs.set(WorkingSetEntryState.Rejected, tx);
+		this._stateObs.set(ModifiedFileEntryState.Rejected, tx);
 		this._autoAcceptCtrl.set(undefined, tx);
 		this._notifyAction('rejected');
 	}
@@ -309,6 +309,6 @@ export interface ISnapshotEntry {
 	readonly original: string;
 	readonly current: string;
 	readonly originalToCurrentEdit: OffsetEdit;
-	readonly state: WorkingSetEntryState;
+	readonly state: ModifiedFileEntryState;
 	telemetryInfo: IModifiedEntryTelemetryInfo;
 }
