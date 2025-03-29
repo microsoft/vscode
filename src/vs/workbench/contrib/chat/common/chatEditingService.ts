@@ -86,7 +86,7 @@ export interface IChatEditingSession extends IDisposable {
 	readonly onDidDispose: Event<void>;
 	readonly state: IObservable<ChatEditingSessionState>;
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
-	show(): Promise<void>;
+	show(previousChanges?: boolean): Promise<void>;
 	remove(reason: WorkingSetEntryRemovalReason, ...uris: URI[]): void;
 	accept(...uris: URI[]): Promise<void>;
 	reject(...uris: URI[]): Promise<void>;
@@ -119,7 +119,7 @@ export interface IChatEditingSession extends IDisposable {
 	 * the next one.
 	 * @returns The observable or undefined if there is no diff between the stops.
 	 */
-	getEntryDiffBetweenStops(uri: URI, requestId: string, stopId: string | undefined): IObservable<IEditSessionEntryDiff | undefined> | undefined;
+	getEntryDiffBetweenStops(uri: URI, requestId: string | undefined, stopId: string | undefined): IObservable<IEditSessionEntryDiff | undefined> | undefined;
 
 	readonly canUndo: IObservable<boolean>;
 	readonly canRedo: IObservable<boolean>;
@@ -281,9 +281,17 @@ export function isChatEditingActionContext(thing: unknown): thing is IChatEditin
 	return typeof thing === 'object' && !!thing && 'sessionId' in thing;
 }
 
-export function getMultiDiffSourceUri(session: IChatEditingSession): URI {
+export function getMultiDiffSourceUri(session: IChatEditingSession, showPreviousChanges?: boolean): URI {
 	return URI.from({
 		scheme: CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME,
 		authority: session.chatSessionId,
+		query: showPreviousChanges ? 'previous' : undefined,
 	});
+}
+
+export function parseChatMultiDiffUri(uri: URI): { chatSessionId: string; showPreviousChanges: boolean } {
+	const chatSessionId = uri.authority;
+	const showPreviousChanges = uri.query === 'previous';
+
+	return { chatSessionId, showPreviousChanges };
 }
