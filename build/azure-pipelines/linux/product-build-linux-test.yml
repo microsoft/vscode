@@ -86,19 +86,11 @@ steps:
 
   - ${{ if eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true) }}:
     - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-      - script: ./scripts/test-integration.sh --tfs "Integration Tests"
+      - script: ./scripts/test-all-integration.sh --tfs "Integration Tests"
         env:
           DISPLAY: ":10"
-        displayName: Run integration tests (Electron)
-        timeoutInMinutes: 20
-
-      - script: ./scripts/test-web-integration.sh --browser chromium
-        displayName: Run integration tests (Browser, Chromium)
-        timeoutInMinutes: 20
-
-      - script: ./scripts/test-remote-integration.sh
-        displayName: Run integration tests (Remote)
-        timeoutInMinutes: 20
+        displayName: Run integration tests (Electron, Browser, Remote)
+        timeoutInMinutes: 30
 
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
       - script: |
