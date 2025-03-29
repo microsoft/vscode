@@ -224,6 +224,14 @@ class MergeItem extends BranchItem {
 	}
 }
 
+class SquashItem extends BranchItem {
+	async run(repository: Repository): Promise<void> {
+		if (this.ref.name || this.ref.commit) {
+			await repository.squash(this.ref.name ?? this.ref.commit!);
+		}
+	}
+}
+
 class RebaseItem extends BranchItem {
 
 	async run(repository: Repository): Promise<void> {
@@ -3152,6 +3160,33 @@ export class CommandCenter {
 		const choice = await this.pickRef(getQuickPickItems(), placeHolder);
 
 		if (choice instanceof MergeItem) {
+			await choice.run(repository);
+		}
+	}
+
+	@command('git.squash', { repository: true })
+	async squash(repository: Repository): Promise<void> {
+		const config = workspace.getConfiguration('git');
+		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
+
+		const getQuickPickItems = async (): Promise<QuickPickItem[]> => {
+			const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
+			const itemsProcessor = new RefItemsProcessor(repository, [
+				new RefProcessor(RefType.Head, SquashItem),
+				new RefProcessor(RefType.RemoteHead, SquashItem),
+				new RefProcessor(RefType.Tag, SquashItem)
+			], {
+				skipCurrentBranch: true,
+				skipCurrentBranchRemote: true
+			});
+
+			return itemsProcessor.processRefs(refs);
+		};
+
+		const placeHolder = l10n.t('Select a branch or tag to squash and merge from');
+		const choice = await this.pickRef(getQuickPickItems(), placeHolder);
+
+		if (choice instanceof SquashItem) {
 			await choice.run(repository);
 		}
 	}

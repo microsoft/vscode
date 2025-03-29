@@ -1957,7 +1957,15 @@ export class Repository {
 
 	async merge(ref: string): Promise<void> {
 		const args = ['merge', ref];
+		return this.execMerge(args);
+	}
 
+	async squash(ref: string): Promise<void> {
+		const args = ['merge', ref, '--squash'];
+		return this.execMerge(args);
+	}
+
+	private async execMerge(args: string[]) {
 		try {
 			await this.exec(args);
 		} catch (err) {

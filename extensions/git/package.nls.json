@@ -70,6 +70,7 @@
 	"command.cherryPick": "Cherry Pick...",
 	"command.cherryPickAbort": "Abort Cherry Pick",
 	"command.merge": "Merge...",
+	"command.squash": "Squash and Merge...",
 	"command.mergeAbort": "Abort Merge",
 	"command.rebase": "Rebase Branch...",
 	"command.createTag": "Create Tag...",

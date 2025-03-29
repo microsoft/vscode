@@ -1647,6 +1647,10 @@ export class Repository implements Disposable {
 		await this.run(Operation.Merge, () => this.repository.merge(ref));
 	}
 
+	async squash(ref: string): Promise<void> {
+		await this.run(Operation.Squash, () => this.repository.squash(ref));
+	}
+
 	async mergeAbort(): Promise<void> {
 		await this.run(Operation.MergeAbort, async () => await this.repository.mergeAbort());
 	}

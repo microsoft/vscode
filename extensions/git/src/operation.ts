@@ -56,6 +56,7 @@ export const enum OperationKind {
 	RevParse = 'RevParse',
 	SetBranchUpstream = 'SetBranchUpstream',
 	Show = 'Show',
+	Squash = 'Squash',
 	Stage = 'Stage',
 	Status = 'Status',
 	Stash = 'Stash',
@@ -71,7 +72,7 @@ export type Operation = AddOperation | ApplyOperation | BlameOperation | BranchO
 	GetRemoteRefsOperation | HashObjectOperation | IgnoreOperation | LogOperation | LogFileOperation | MergeOperation | MergeAbortOperation |
 	MergeBaseOperation | MoveOperation | PostCommitCommandOperation | PullOperation | PushOperation | RemoteOperation | RenameBranchOperation |
 	RemoveOperation | ResetOperation | RebaseOperation | RebaseAbortOperation | RebaseContinueOperation | RefreshOperation | RevertFilesOperation |
-	RevListOperation | RevParseOperation | SetBranchUpstreamOperation | ShowOperation | StageOperation | StatusOperation | StashOperation |
+	RevListOperation | RevParseOperation | SetBranchUpstreamOperation | ShowOperation | SquashOperation | StageOperation | StatusOperation | StashOperation |
 	SubmoduleUpdateOperation | SyncOperation | TagOperation;
 
 type BaseOperation = { kind: OperationKind; blocking: boolean; readOnly: boolean; remote: boolean; retry: boolean; showProgress: boolean };
@@ -124,6 +125,7 @@ export type RevListOperation = BaseOperation & { kind: OperationKind.RevList };
 export type RevParseOperation = BaseOperation & { kind: OperationKind.RevParse };
 export type SetBranchUpstreamOperation = BaseOperation & { kind: OperationKind.SetBranchUpstream };
 export type ShowOperation = BaseOperation & { kind: OperationKind.Show };
+export type SquashOperation = BaseOperation & { kind: OperationKind.Squash };
 export type StageOperation = BaseOperation & { kind: OperationKind.Stage };
 export type StatusOperation = BaseOperation & { kind: OperationKind.Status };
 export type StashOperation = BaseOperation & { kind: OperationKind.Stash };
@@ -181,6 +183,7 @@ export const Operation = {
 	RevParse: { kind: OperationKind.RevParse, blocking: false, readOnly: true, remote: false, retry: false, showProgress: false } as RevParseOperation,
 	SetBranchUpstream: { kind: OperationKind.SetBranchUpstream, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as SetBranchUpstreamOperation,
 	Show: { kind: OperationKind.Show, blocking: false, readOnly: true, remote: false, retry: false, showProgress: false } as ShowOperation,
+	Squash: { kind: OperationKind.Squash, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as SquashOperation,
 	Stage: { kind: OperationKind.Stage, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as StageOperation,
 	Status: { kind: OperationKind.Status, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as StatusOperation,
 	Stash: { kind: OperationKind.Stash, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as StashOperation,
