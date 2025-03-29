@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { BareFontInfo } from '../../common/config/fontInfo.js';
 import { Position } from '../../common/core/position.js';
 import { Range } from '../../common/core/range.js';
 import { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
@@ -59,6 +60,14 @@ export abstract class RestrictedRenderingContext {
 
 	public getVerticalOffsetAfterLineNumber(lineNumber: number, includeViewZones?: boolean): number {
 		return this._viewLayout.getVerticalOffsetAfterLineNumber(lineNumber, includeViewZones);
+	}
+
+	public getLineHeightForLineNumber(lineNumber: number): number {
+		return this._viewLayout.getLineHeightForLineNumber(lineNumber);
+	}
+
+	public getFontInfoForPosition(position: Position): BareFontInfo {
+		return this.viewportData.getFontInfoForPosition(position);
 	}
 
 	public getDecorationsInViewport(): ViewModelDecoration[] {

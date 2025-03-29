@@ -460,6 +460,11 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 	public afterContentClassName: string | undefined;
 	public glyphMarginClassName: string | undefined;
 	public isWholeLine: boolean;
+	public lineHeight?: number;
+	public fontFamily?: string;
+	public fontSize?: number;
+	public fontWeight?: string;
+	public fontStyle?: string;
 	public overviewRuler: IModelDecorationOverviewRulerOptions | undefined;
 	public stickiness: TrackedRangeStickiness | undefined;
 	public beforeInjectedText: InjectedTextOptions | undefined;
@@ -520,6 +525,11 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 
 		const options = providerArgs.options;
 		this.isWholeLine = Boolean(options.isWholeLine);
+		this.lineHeight = options.lineHeight;
+		this.fontFamily = options.fontFamily;
+		this.fontSize = options.fontSize;
+		this.fontWeight = options.fontWeight;
+		this.fontStyle = options.fontStyle;
 		this.stickiness = options.rangeBehavior;
 
 		const lightOverviewRulerColor = options.light && options.light.overviewRulerColor || options.overviewRulerColor;
@@ -549,6 +559,11 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 			className: this.className,
 			glyphMarginClassName: this.glyphMarginClassName,
 			isWholeLine: this.isWholeLine,
+			lineHeight: this.lineHeight,
+			fontFamily: this.fontFamily,
+			fontStyle: this.fontStyle,
+			fontSize: this.fontSize,
+			fontWeight: this.fontWeight,
 			overviewRuler: this.overviewRuler,
 			stickiness: this.stickiness,
 			before: this.beforeInjectedText,
@@ -586,7 +601,7 @@ export const _CSS_MAP: { [prop: string]: string } = {
 
 	fontStyle: 'font-style:{0};',
 	fontWeight: 'font-weight:{0};',
-	fontSize: 'font-size:{0};',
+	fontSize: 'font-size:min({0}px, var(--vscode-max-font-size, {0}px));',
 	fontFamily: 'font-family:{0};',
 	textDecoration: 'text-decoration:{0};',
 	cursor: 'cursor:{0};',
@@ -756,7 +771,7 @@ class DecorationCSSRules {
 			return '';
 		}
 		const cssTextArr: string[] = [];
-		this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'textDecoration', 'cursor', 'color', 'opacity', 'letterSpacing'], cssTextArr);
+		this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'fontFamily', 'fontSize', 'textDecoration', 'cursor', 'color', 'opacity', 'letterSpacing'], cssTextArr);
 		if (opts.letterSpacing) {
 			this._hasLetterSpacing = true;
 		}
@@ -830,7 +845,7 @@ class DecorationCSSRules {
 		return cssTextArr.length !== lenBefore;
 	}
 
-	private resolveValue(value: string | ThemeColor): string {
+	private resolveValue(value: string | number | ThemeColor | undefined): string | undefined {
 		if (isThemeColor(value)) {
 			this._usesThemeColors = true;
 			const color = this._theme.getColor(value.id);
@@ -839,7 +854,7 @@ class DecorationCSSRules {
 			}
 			return 'transparent';
 		}
-		return value;
+		return value ? value.toString() : undefined;
 	}
 }
 
