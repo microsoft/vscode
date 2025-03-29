@@ -308,16 +308,10 @@ class LanguageStatus {
 		left.classList.add('left');
 		element.appendChild(left);
 
-		const label = document.createElement('span');
-		label.classList.add('label');
-		const labelValue = typeof status.label === 'string' ? status.label : status.label.value;
-		dom.append(label, ...renderLabelWithIcons(computeText(labelValue, status.busy)));
-		left.appendChild(label);
+		const label = typeof status.label === 'string' ? status.label : status.label.value;
+		dom.append(left, ...renderLabelWithIcons(computeText(label, status.busy)));
 
-		const detail = document.createElement('span');
-		detail.classList.add('detail');
-		this._renderTextPlus(detail, status.detail, store);
-		left.appendChild(detail);
+		this._renderTextPlus(left, status.detail, store);
 
 		const right = document.createElement('div');
 		right.classList.add('right');
@@ -379,7 +373,12 @@ class LanguageStatus {
 	}
 
 	private _renderTextPlus(target: HTMLElement, text: string, store: DisposableStore): void {
+		let didRenderSeparator = false;
 		for (const node of parseLinkedText(text).nodes) {
+			if (!didRenderSeparator) {
+				dom.append(target, dom.$('span.separator'));
+				didRenderSeparator = true;
+			}
 			if (typeof node === 'string') {
 				const parts = renderLabelWithIcons(node);
 				dom.append(target, ...parts);
