@@ -179,6 +179,8 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 	private readonly _onUnresolvableError = this._register(new Emitter<void>());
 	readonly onUnresolvableError = this._onUnresolvableError.event;
 
+	private readonly pendingForwardedRequests = new Map<string, Promise<void>>();
+
 	constructor(
 		private readonly context: ChatEntitlementContext,
 		private readonly controller: Lazy<ChatSetupController>,
@@ -227,14 +229,22 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 		return {};
 	}
 
-	private _handlingForwardedRequest: string | undefined;
 	private async forwardRequestToCopilot(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService): Promise<void> {
-
-		if (this._handlingForwardedRequest === requestModel.message.text) {
-			throw new Error('Already handling this request');
+		if (this.pendingForwardedRequests.has(requestModel.id)) {
+			return this.pendingForwardedRequests.get(requestModel.id)!;
 		}
 
-		this._handlingForwardedRequest = requestModel.message.text;
+		const forwardRequest = this.doForwardRequestToCopilot(requestModel, progress, chatService, languageModelsService, chatAgentService, chatWidgetService);
+		this.pendingForwardedRequests.set(requestModel.id, forwardRequest);
+
+		try {
+			await forwardRequest;
+		} finally {
+			this.pendingForwardedRequests.delete(requestModel.id);
+		}
+	}
+
+	private async doForwardRequestToCopilot(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService): Promise<void> {
 
 		// We need a signal to know when we can resend the request to
 		// Copilot. Waiting for the registration of the agent is not
