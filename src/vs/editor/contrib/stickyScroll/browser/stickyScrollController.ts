@@ -96,6 +96,14 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 		this._widgetState = StickyScrollWidgetState.Empty;
 		const stickyScrollDomNode = this._stickyScrollWidget.getDomNode();
+		this._register(this._editor.onDidChangeLineHeight((e) => {
+			e.changes.forEach((change) => {
+				const lineNumber = change.lineNumber;
+				if (this._widgetState.startLineNumbers.includes(lineNumber)) {
+					this._renderStickyScroll(lineNumber);
+				}
+			});
+		}));
 		this._register(this._editor.onDidChangeConfiguration(e => {
 			this._readConfigurationChange(e);
 		}));

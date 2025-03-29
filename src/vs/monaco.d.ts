@@ -1744,6 +1744,10 @@ declare namespace monaco.editor {
 		 */
 		glyphMargin?: IModelDecorationGlyphMarginOptions | null;
 		/**
+		 * If set, the decoration will override the line height of the lines it spans.
+		 */
+		lineHeight?: number | null;
+		/**
 		 * If set, the decoration will be rendered in the lines decorations with this CSS class name.
 		 */
 		linesDecorationsClassName?: string | null;
@@ -6099,6 +6103,10 @@ declare namespace monaco.editor {
 		 * Get the vertical position (top offset) for the position w.r.t. to the first line.
 		 */
 		getTopForPosition(lineNumber: number, column: number): number;
+		/**
+		 * Get the line height for the line number.
+		 */
+		getLineHeightForLineNumber(lineNumber: number): number;
 		/**
 		 * Write the screen reader content to be the current selection
 		 */
