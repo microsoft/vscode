@@ -1978,7 +1978,7 @@ export class Repository {
 	}
 
 	async mergeAbort(): Promise<void> {
-		await this.exec(['merge', '--abort']);
+		await this.exec(['reset', '--merge']);
 	}
 
 	async tag(options: { name: string; message?: string; ref?: string }): Promise<void> {
