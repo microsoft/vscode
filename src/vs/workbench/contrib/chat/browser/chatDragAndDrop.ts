@@ -248,12 +248,12 @@ export class ChatDragAndDrop extends Themable {
 			return this.resolveSymbolsAttachContext(data);
 		}
 
-		if (!containsDragType(e, DataTransfers.INTERNAL_URI_LIST) && containsDragType(e, Mimes.uriList) && ((containsDragType(e, Mimes.html) || containsDragType(e, Mimes.text)))) {
+		const editorDragData = extractEditorsDropData(e);
+		if (editorDragData.length === 0 && !containsDragType(e, DataTransfers.INTERNAL_URI_LIST) && containsDragType(e, Mimes.uriList) && ((containsDragType(e, Mimes.html) || containsDragType(e, Mimes.text)))) {
 			return this.resolveHTMLAttachContext(e);
 		}
 
-		const data = extractEditorsDropData(e);
-		return coalesce(await Promise.all(data.map(editorInput => {
+		return coalesce(await Promise.all(editorDragData.map(editorInput => {
 			return this.resolveAttachContext(editorInput);
 		})));
 	}
