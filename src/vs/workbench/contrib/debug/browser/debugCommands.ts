@@ -8,7 +8,7 @@ import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { List } from '../../../../base/browser/ui/list/listWidget.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IListService } from '../../../../platform/list/browser/listService.js';
-import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, IConfig, IStackFrame, IThread, IDebugSession, CONTEXT_DEBUG_STATE, IDebugConfiguration, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, REPL_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, State, getStateLabel, CONTEXT_BREAKPOINT_INPUT_FOCUSED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, VIEWLET_ID, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_IN_DEBUG_REPL, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, isFrameDeemphasized } from '../common/debug.js';
+import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, IConfig, IStackFrame, IThread, IDebugSession, CONTEXT_DEBUG_STATE, IDebugConfiguration, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, REPL_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, State, getStateLabel, CONTEXT_BREAKPOINT_INPUT_FOCUSED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, VIEWLET_ID, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_IN_DEBUG_REPL, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, isFrameDeemphasized, IDataBreakpointInfoResponse, DataBreakpointSetType } from '../common/debug.js';
 import { Expression, Variable, Breakpoint, FunctionBreakpoint, DataBreakpoint, Thread } from '../common/debugModel.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { ICodeEditor, isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
@@ -79,6 +79,9 @@ export const CALLSTACK_DOWN_ID = 'workbench.action.debug.callStackDown';
 export const ADD_TO_WATCH_ID = 'debug.addToWatchExpressions';
 export const COPY_EVALUATE_PATH_ID = 'debug.copyEvaluatePath';
 export const COPY_VALUE_ID = 'workbench.debug.viewlet.action.copyValue';
+export const BREAK_WHEN_VALUE_CHANGES_ID = 'debug.breakWhenValueChanges';
+export const BREAK_WHEN_VALUE_IS_ACCESSED_ID = 'debug.breakWhenValueIsAccessed';
+export const BREAK_WHEN_VALUE_IS_READ_ID = 'debug.breakWhenValueIsRead';
 
 export const DEBUG_COMMAND_CATEGORY: ILocalizedString = nls.localize2('debug', 'Debug');
 export const RESTART_LABEL = nls.localize2('restartDebug', "Restart");
@@ -112,6 +115,12 @@ export const SELECT_DEBUG_SESSION_LABEL = nls.localize2('selectDebugSession', "S
 
 export const DEBUG_QUICK_ACCESS_PREFIX = 'debug ';
 export const DEBUG_CONSOLE_QUICK_ACCESS_PREFIX = 'debug consoles ';
+
+let dataBreakpointInfoResponse: IDataBreakpointInfoResponse | undefined;
+
+export function setDataBreakpointInfoResponse(resp: IDataBreakpointInfoResponse | undefined) {
+	dataBreakpointInfoResponse = resp;
+}
 
 interface CallStackContext {
 	sessionId: string;
@@ -895,6 +904,36 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 				}
 				elements.forEach((e: Expression) => debugService.removeWatchExpressions(e.getId()));
 			}
+		}
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: BREAK_WHEN_VALUE_CHANGES_ID,
+	handler: async (accessor: ServicesAccessor) => {
+		const debugService = accessor.get(IDebugService);
+		if (dataBreakpointInfoResponse) {
+			await debugService.addDataBreakpoint({ description: dataBreakpointInfoResponse.description, src: { type: DataBreakpointSetType.Variable, dataId: dataBreakpointInfoResponse.dataId! }, canPersist: !!dataBreakpointInfoResponse.canPersist, accessTypes: dataBreakpointInfoResponse.accessTypes, accessType: 'write' });
+		}
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: BREAK_WHEN_VALUE_IS_ACCESSED_ID,
+	handler: async (accessor: ServicesAccessor) => {
+		const debugService = accessor.get(IDebugService);
+		if (dataBreakpointInfoResponse) {
+			await debugService.addDataBreakpoint({ description: dataBreakpointInfoResponse.description, src: { type: DataBreakpointSetType.Variable, dataId: dataBreakpointInfoResponse.dataId! }, canPersist: !!dataBreakpointInfoResponse.canPersist, accessTypes: dataBreakpointInfoResponse.accessTypes, accessType: 'readWrite' });
+		}
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: BREAK_WHEN_VALUE_IS_READ_ID,
+	handler: async (accessor: ServicesAccessor) => {
+		const debugService = accessor.get(IDebugService);
+		if (dataBreakpointInfoResponse) {
+			await debugService.addDataBreakpoint({ description: dataBreakpointInfoResponse.description, src: { type: DataBreakpointSetType.Variable, dataId: dataBreakpointInfoResponse.dataId! }, canPersist: !!dataBreakpointInfoResponse.canPersist, accessTypes: dataBreakpointInfoResponse.accessTypes, accessType: 'read' });
 		}
 	}
 });
