@@ -33,8 +33,7 @@ if [ "@@NAME@@" != "code-oss" ]; then
 	CODE_SOURCE_PART=${APT_SOURCE_PARTS}vscode.list
 	CODE_SOURCE_PART_DEB822=${APT_SOURCE_PARTS}vscode.sources
 
-	eval $(apt-config shell APT_TRUSTED_PARTS Dir::Etc::trustedparts/d)
-	CODE_TRUSTED_PART=${APT_TRUSTED_PARTS}microsoft.gpg
+	CODE_TRUSTED_PART=/usr/share/keyrings/microsoft.gpg
 
 	# RET seems to be true by default even after db_get is called on a first install.
 	RET='true'
@@ -81,6 +80,8 @@ if [ "@@NAME@@" != "code-oss" ]; then
 			db_get @@NAME@@/add-microsoft-repo
 			if [ "$RET" = false ]; then
 				WRITE_SOURCE='no'
+			else
+				WRITE_SOURCE='yes'
 			fi
 		else
 			# The terminal is interactive but there is no debconf.
@@ -90,9 +91,24 @@ if [ "@@NAME@@" != "code-oss" ]; then
 	fi
 
 	if [ "$WRITE_SOURCE" != 'no' ]; then
-		echo "### THIS FILE IS AUTOMATICALLY CONFIGURED ###
+		# Check if apt modernize-sources is available.
+		if apt modernize-sources --help >/dev/null 2>&1; then
+			# Write repository in deb822 format with Signed-By.
+			echo "### THIS FILE IS AUTOMATICALLY CONFIGURED ###
+# You may comment out this entry, but any other modifications may be lost." > "$CODE_SOURCE_PART_DEB822"
+			cat <<EOF >> "$CODE_SOURCE_PART_DEB822"
+Types: deb
+URIs: https://packages.microsoft.com/repos/code
+Suites: stable
+Components: main
+Architectures: amd64,arm64,armhf
+Signed-By: $CODE_TRUSTED_PART
+EOF
+		else
+			echo "### THIS FILE IS AUTOMATICALLY CONFIGURED ###
 # You may comment out this entry, but any other modifications may be lost.
 deb [arch=amd64,arm64,armhf] https://packages.microsoft.com/repos/code stable main" > $CODE_SOURCE_PART
+		fi
 
 		# Sourced from https://packages.microsoft.com/keys/microsoft.asc
 		if [ ! -f $CODE_TRUSTED_PART ]; then
