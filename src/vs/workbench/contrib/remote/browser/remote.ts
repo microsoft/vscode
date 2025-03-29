@@ -702,7 +702,7 @@ class VisibleProgress {
 		progressService.withProgress(
 			{ location: location, buttons: buttons },
 			(progress) => { if (!this._isDisposed) { this._currentProgress = progress; } return promise; },
-			(choice) => onDidCancel(choice, this._lastReport)
+			(choice) => !this._isDisposed && onDidCancel(choice, this._lastReport)
 		);
 
 		if (this._lastReport) {
