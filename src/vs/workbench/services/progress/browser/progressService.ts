@@ -545,6 +545,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		const disposables = new DisposableStore();
 
 		let dialog: Dialog;
+		let taskCompleted = false;
 
 		const createDialog = (message: string) => {
 			const buttons = options.buttons || [];
@@ -571,8 +572,9 @@ export class ProgressService extends Disposable implements IProgressService {
 			disposables.add(dialog);
 
 			dialog.show().then(dialogResult => {
-				onDidCancel?.(dialogResult.button);
-
+				if (!taskCompleted) {
+					onDidCancel?.(dialogResult.button);
+				}
 				dispose(dialog);
 			});
 
@@ -611,6 +613,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		});
 
 		promise.finally(() => {
+			taskCompleted = true;
 			dispose(disposables);
 		});
 
