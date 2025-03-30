@@ -99,7 +99,7 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 		if (repo) {
 			try {
 				quickpick.busy = true;
-				let result = await octokit.repos.get({ owner, repo: repo });
+				const result = await octokit.repos.get({ owner, repo: repo });
 				if (result['data']['name'] !== repo) { // happens when the repo was renamed
 					break;
 				}
