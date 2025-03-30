@@ -1,0 +1,102 @@
+Pi Whitepaper
+The December 2021 Whitepaper chapters “Token Model and Mining” and “Roadmap” were released as an addendum to the original 2019 Whitepaper, with new information on Mainnet. The original March 2019 Whitepaper may need updates to its content, so please refer to the latest Pi Network communications for up-to-date information. Both Whitepapers are subject to change based on data collected during the Enclosed Network period of Mainnet.
+
+Original March 2019
+December 2021
+Whitepaper: March 2019 Original
+Introduction
+
+Preface
+As the world becomes increasingly digital, cryptocurrency is a next natural step in the evolution of money. Pi is the first digital currency for everyday people, representing a major step forward in the adoption of cryptocurrency worldwide.
+
+Our Mission: Build a cryptocurrency and smart contracts platform secured and operated by everyday people.
+
+Our Vision: Build the world’s most inclusive peer-to-peer ecosystem and online experience, fueled by Pi, the world’s most widely used cryptocurrency.
+
+DISCLAIMER for more advanced readers: Because Pi’s mission is to be inclusive as possible, we’re going to take this opportunity to introduce our blockchain newbies to the rabbit hole 🙂
+
+Introduction: Why cryptocurrencies matter
+Currently, our everyday financial transactions rely upon a trusted third party to maintain a record of transactions. For example, when you do a bank transaction, the banking system keeps a record & guarantees that the transaction is safe & reliable. Likewise, when Cindy transfers $5 to Steve using PayPal, PayPal maintains a central record of $5 dollars debited from Cindy’s account and $5 credited to Steve’s. Intermediaries like banks, PayPal, and other members of the current economic system play an important role in regulating the world’s financial transactions.
+
+However, the role of these trusted intermediaries also has limitations:
+
+Unfair value capture. These intermediaries amass billions of dollars in wealth creation (PayPal market cap is ~$130B), but pass virtually nothing onto their customers – the everyday people on the ground, whose money drives a meaningful proportion of the global economy. More and more people are falling behind.
+Fees. Banks and companies charge large fees for facilitating transactions. These fees often disproportionately impact lower-income populations who have the fewest alternatives.
+Censorship. If a particularly trusted intermediary decides that you should not be able to move your money, it can place restrictions on the movement of your money.
+Permissioned. The trusted intermediary serves as a gatekeeper who can arbitrarily prevent anybody from being part of the network.
+Pseudonymous. At a time when the issue of privacy is gaining greater urgency, these powerful gatekeepers can accidentally disclose — or force you to disclose — more financial information about yourself than you may want.
+Bitcoin’s “peer-to-peer electronic cash system,” launched in 2009 by an anonymous programmer (or group) Satoshi Nakamoto, was a watershed moment for the freedom of money. For the first time in history, people could securely exchange value, without requiring a third party or trusted intermediary. Paying in Bitcoin meant that people like Steve and Cindy could pay each other directly, bypassing institutional fees, obstructions, and intrusions. Bitcoin was truly a currency without boundaries, powering and connecting a new global economy.
+
+Introduction To Distributed Ledgers
+Bitcoin achieved this historical feat by using a distributed record. While the current financial system relies on the traditional central record of truth, the Bitcoin record is maintained by a distributed community of “validators,” who access and update this public ledger. Imagine the Bitcoin protocol as a globally shared “Google Sheet” that contains a record of transactions, validated and maintained by this distributed community.
+
+The breakthrough of Bitcoin (and general blockchain technology) is that, even though the record is maintained by a community, the technology enables them to always reach consensus on truthful transactions, insuring that cheaters cannot record false transactions or overtake the system. This technological advancement allows for the removal of the centralized intermediary, without compromising transactional financial security.
+
+Benefits Of Distributed Ledgers
+In addition to decentralization, bitcoin, or cryptocurrencies in general, share a few nice properties that make money smarter and safer, although different cryptocurrencies may be stronger in some properties and weaker in others, based on different implementations of their protocols. Cryptocurrencies are held in cryptographic wallets identified by a publicly accessible address, and is secured by a very strong privately held password, called the private key. This private key cryptographically signs transactions and is virtually impossible to create fraudulent signatures. This provides security and unseizability. Unlike traditional bank accounts that can be seized by government authorities, the cryptocurrency in your wallet can never be taken away by anyone without your private key. Cryptocurrencies are censorship-resistant due to the decentralized nature because anyone can submit transactions to any computer in the network to get recorded and validated. Cryptocurrency transactions are immutable because each block of transactions represents a cryptographic proof (a hash) of all the previous blocks that existed before that. Once someone sends you money, they cannot steal back their payment to you (i.e., no bouncing checks in blockchain). Some of the cryptocurrencies can even support atomic transactions. “Smart contracts” built atop these cryptocurrencies do not merely rely on law for enforcement, but directly enforced through publicly auditable code, which make them trustless and can potentially get rid of middlemen in many businesses, e.g. Escrow for real estate.
+
+Securing Distributed Ledgers (Mining)
+One of the challenges of maintaining a distributed record of transactions is security — specifically, how to have an open and editable ledger while preventing fraudulent activity. To address this challenge, Bitcoin introduced a novel process called Mining (using the consensus algorithm “Proof of Work”) to determine who is “trusted” to make updates to the shared record of transactions.
+
+You can think of the mining as a type of economic game that forces “Validators” to prove their merit when trying to add transactions to the record. To qualify, Validators must solve a series of complex computational puzzles. The Validator who solves the puzzle first is rewarded by being allowed to post the latest block of transactions. Posting the latest block of transactions allows Validators to “mine” a Block Reward – currently 12.5 bitcoin (or ~$40,000 at the time of writing).
+
+This process is very secure, but it demands enormous computing power and energy consumption as users essentially “burn money” to solve the computational puzzle that earns them more Bitcoin. The burn-to-reward ratio is so punitive that it is always in Validators’ self-interest to post honest transactions to the Bitcoin record.
+
+Scroll Up
+Problem
+
+Problem: Centralization of power and money put 1st Generation Cryptocurrencies out of reach
+In the early days of Bitcoin, when only a few people were working to validate transactions and mining the first blocks, anyone could earn 50 BTC by simply running Bitcoin mining software on their personal computer. As the currency began to gain in popularity, clever miners realized that they could earn more if they had more than one computer working to mine.
+
+As Bitcoin continued to increase in value, entire companies began to spring up to mine. These companies developed specialized chips (“ASICs”) and constructed huge farms of servers using these ASIC chips to mine Bitcoin. The emergence of these enormous mining corporations, known drove the Bitcoin Gold Rush, making it very difficult for everyday people to contribute to the network and get rewarded. Their efforts also began consuming increasingly large amounts of computing energy, contributing to mounting environmental issues around the world.
+
+The ease of mining Bitcoin and the subsequent rise of Bitcoin mining farms quickly produced a massive centralization of production power and wealth in Bitcoin’s network. To provide some context, 87% of all Bitcoins are now owned by 1% of their network, many of these coins were mined virtually free in their early days. As another example, Bitmain, one of Bitcoin’s biggest mining operations has earned billions in revenue and profits.
+
+The centralization of power in Bitcoin’s network makes it very difficult and expensive for the average person. If you want to acquire Bitcoin, your easiest options are to:
+
+Mine It Yourself. Just hook up the specialized hardware (here’s a rig on Amazon, if you’re interested!) and go to town. Just know that since you’ll be competing against massive server farms from across the world, consuming as much energy as the country of Switzerland, you won’t be able to mine much
+Buy Bitcoin on an exchange. Today, you can buy Bitcoin at a unit price of $3,500 / coin at the time of writing (note: you can buy the fractional amount of Bitcoin!) Of course, you would also be taking on substantial risk in doing so as the price of Bitcoin is quite volatile.
+Bitcoin was the first to show how cryptocurrency could disrupt the current financial model, giving people the ability to make transactions without having a third party in the way. The increase in freedom, flexibility, and privacy continues to drive the inevitable march toward digital currencies as a new norm. Despite its benefits, Bitcoin’s (likely unintended) concentration of money and power present a meaningful barrier to mainstream adoption. As Pi’s core team has conducted research to try to understand why people are reluctant to enter the cryptocurrency space. People consistently cited the risk of investing/mining as a key barrier to entry.
+
+Scroll up
+Solution
+
+Solution: Pi - Enabling mining on mobile phones
+After identifying these key barriers to adoption, the Pi Core Team set out to find a way that would allow everyday people to mine (or earn cryptocurrency rewards for validating transactions on a distributed record of transactions). As a refresher, one of the major challenges that arises with maintaining a distributed record of transactions is ensuring that updates to this open record are not fraudulent. While Bitcoin’s process for updating its record is proven (burning energy / money to prove trustworthiness), it is not very user (or planet!) friendly. For Pi, we introduced the additional design requirement of employing a consensus algorithm that would also be extremely user friendly and ideally enable mining on personal computers and mobile phones.
+
+In comparing existing consensus algorithms (the process that records transactions into a distributed ledger), the Stellar Consensus Protocol emerges as the leading candidate to enable user-friendly, mobile-first mining. Stellar Consensus Protocol(SCP) was architected by David Mazières a professor of Computer Science at Stanford who also serves as Chief Scientist at the Stellar Development Foundation. SCP uses a novel mechanism called Federated Byzantine Agreements to ensure that updates to a distributed ledger are accurate and trustworthy. SCP is also deployed in practice through the Stellar blockchain that has been operating since 2015.
+
+A Simplified Introduction To Consensus Algorithms
+Before jumping to introducing the Pi consensus algorithm, it helps to have a simple explanation on what a consensus algorithm does for a blockchain and the types of consensus algorithms that today’s blockchain protocols generally use, e.g. Bitcoin and SCP. This section is explicitly written in a oversimplified manner for the sake of clarity, and is not complete. For higher accuracy, see the section Adaptations to SCP below and read the stellar consensus protocol paper.
+
+A blockchain is a fault-tolerant distributed system that aims to totally order a list of blocks of transactions. Fault-tolerant distributed systems is an area of computer science that has been studied for many decades. They are called distributed systems because they do not have a centralized server but instead they are composed of a decentralized list of computers (called nodes or peers) that need to come to a consensus as to what is the content and total ordering of blocks. They are also called fault-tolerant because they can tolerate a certain degree of faulty nodes into the system (e.g. up to 33% of nodes can be faulty and the overall system continues to operate normally).
+
+There are two broad categories of consensus algorithms: The ones that elect a node as the leader who produces the next block, and the ones where there is no explicit leader but all nodes come to a consensus of what the next block is after exchanging votes by sending computer messages to each other. (Strictly speaking the last sentence contains multiple inaccuracies, but it helps us explain the broad strokes.)
+
+Bitcoin uses the first type of consensus algorithm: All bitcoin nodes are competing against each other in solving a cryptographic puzzle. Because the solution is found randomly, essentially the node that finds the solution first, by chance, is elected the leader of the round who produces the next block. This algorithm is called “Proof of work” and results in a lot of energy consumption.
+
+A Simplified Introduction To Stellar Consensus Protocol
+Pi uses the other type of consensus algorithms and is based on the Stellar Consensus Protocol (SCP) and an algorithm called Federated Byzantine Agreement (FBA). Such algorithms don’t have energy waste but they require exchanging many network messages in order for the nodes to come to “consensus” on what the next block should be. Each node can independently determine if a transaction is valid or not, e.g. authority of making the transition and double spending, based on the cryptographic signature and the transaction history. However, for a network of computers to agree on which transactions to record in a block and the order of these transactions and blocks, they need to message each other and have multiple rounds of voting to come to consensus. Intuitively, such messages from different computers in the network about which block is the next would look like the following: “I propose we all vote for block A to be next”; “I vote for block A to be the next block”; “I confirm that the majority of the nodes I trust also voted for block A”, from which the consensus algorithm enables this node to conclude that “A is the next block; and there could be no block other than A as the next block”;  Even though the above voting steps seem a lot, the internet is adequately fast and these messages are lightweight, thus such consensus algorithms are more lightweight than Bitcoin’s proof of work. One major representative of such algorithms is called Byzantine Fault Tolerance (BFT). Several of the top blockchains today are based on variants of BFT, such as NEO and Ripple.
+
+One major criticism of BFT is that it has a centralization point: because voting is involved, the set of nodes participating in the voting “quorum” are centrally determined by the creator of the system in its beginning. The contribution of FBA is that, instead of having one centrally determined quorum, each node sets their own “quorum slices”, which will in turn form different quorums. New nodes can join the network in a decentralized way: they declare the nodes that they trust and convince other nodes to trust them, but they don’t have to convince any central authority.
+
+SCP is one instantiation of FBA. Instead of burning energy like in Bitcoin’s proof of work consensus algorithm, SCP nodes secure the shared record by vouching for other nodes in the network as trustworthy. Each node in the network builds a quorum slice, consisting of other nodes in the network that they deem to be trustworthy. Quorums are formed based on its members quorum slices, and a validator will only accept new transactions if and only if a proportion of nodes in their quorums will also accept the transaction. As validators across the network construct their quorums, these quorums help nodes to reach consensus about transactions with guarantee on security. You can learn more about the Stellar Consensus Protocol by checking out this technical summary of SCP.
+
+Pi’s Adaptations to Stellar Consensus Protocol (SCP)
+Pi’s consensus algorithm builds atop SCP.  SCP has been formally proven [Mazieres 2015] and is currently implemented within the Stellar Network. Unlike Stellar Network consisting mostly of companies and institutions (e.g., IBM) as nodes, Pi intends to allow devices of individuals to contribute on the protocol level and get rewarded, including mobile phones, laptops and computers. Below is an introduction on how Pi applies SCP to enabling mining by individuals.
+
+There are four roles Pi users can play, as Pi miners. Namely:
+
+Pioneer. A user of the Pi mobile app who is simply confirming that they are not a “robot” on a daily basis. This user validates their presence every time they sign in to the app. They can also open the app to request transactions (e.g. make a payment in Pi to another Pioneer)
+Contributor. A user of the Pi mobile app who is contributing by providing a list of pioneers he or she knows and trusts. In aggregate, Pi contributors will build a global trust graph.
+Ambassador. A user of the Pi mobile app who is introducing other users into Pi network.
+Node. A user who is a pioneer, a contributor using the Pi mobile app, and is also running the Pi node software on their desktop or laptop computer. The Pi node software is the software that runs the core SCP algorithm, taking into account the trust graph information provided by the Contributors.
+A user can play more than one of the above roles. All roles are necessary, thus all roles are rewarded with newly minted Pi on a daily basis as long as they participated and contributed during that given day. In the loose definition of a “miner” being a user who receives newly minted currency as a reward for contributions, all four roles are considered to be Pi miners. We define“mining” more broadly than its traditional meaning equated to executing proof of work consensus algorithm as in Bitcoin or Ethereum.
+
+First of all, we need to emphasize that the Pi Node software has not been released yet. So this section is offered more as an architectural design and as a request to solicit comments from the technical community. This software will be fully open source and it will also heavily depend on stellar-core which is also open source software, available here. This means that anyone in the community will be able to read, comment and propose improvements on it. Below are the Pi proposed changes to SCP to enable mining by individual devices.
+
+Nodes
+
+For readability, we define as a correctly connected node to be what the SCP paper refers to as an intact node. Also, for readability, we define as the main Pi network to be the set of all intact nodes in the Pi network. The main task of each Node is to be configured to be correctly connected to the main Pi network. Intuitively, a node being incorrectly connected to the main network is similar to a Bitcoin node not being connected to the main bitcoin network.
+
+In SCP’s terms, for a node to get correctly connected means that this node must chose a “quorum slice” such that all resulting quorums that include this node intersect with the existing network’s quorums. More precisely, a node vn+1 is correctly connected to a main network N of n already correctly connected nodes (v1, v2, …, vn) if the resulting system N’ of n+1 nodes (v1, v2, …, vn+1) enjoys quorum intersection. In other words, N’ enjoys quorum intersection iff any two of its quorum
