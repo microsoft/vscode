@@ -112,7 +112,10 @@ export class ChatSelectedTools extends Disposable {
 									: localize('tool.0', "{0} {1}", '$(tools)', count);
 
 							reset(this.label, ...renderLabelWithIcons(message));
-							onDidRender.fire();
+
+							if (this.element?.isConnected) {
+								onDidRender.fire();
+							}
 						}));
 					}
 

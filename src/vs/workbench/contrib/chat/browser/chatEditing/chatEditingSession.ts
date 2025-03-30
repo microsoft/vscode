@@ -213,6 +213,8 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				this._linearHistoryIndex.set(restoredSessionState.linearHistoryIndex, tx);
 				this._state.set(ChatEditingSessionState.Idle, tx);
 			});
+		} else {
+			this._state.set(ChatEditingSessionState.Idle, undefined);
 		}
 
 		this._register(autorun(reader => {

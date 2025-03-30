@@ -261,6 +261,18 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			tags: ['onExp'],
 		},
+		[ChatConfiguration.ExtensionToolsEnabled]: {
+			type: 'boolean',
+			description: nls.localize('chat.extensionToolsEnabled', "Enable using tools contributed by third-party extensions in Copilot Chat agent mode."),
+			default: true,
+			policy: {
+				name: 'ChatAgentExtensionTools',
+				minimumVersion: '1.99',
+				description: nls.localize('chat.extensionToolsPolicy', "Enable using tools contributed by third-party extensions in Copilot Chat agent mode."),
+				previewFeature: true,
+				defaultValue: false
+			}
+		},
 		[mcpDiscoverySection]: {
 			oneOf: [
 				{ type: 'boolean' },
@@ -429,11 +441,11 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 					type: 'boolean',
 					description: nls.localize('chat.agent.enabled.description', "Enable agent mode for {0}. When this is enabled, a dropdown appears in the view to toggle agent mode.", 'Copilot Chat'),
 					default: this.productService.quality !== 'stable',
-					tags: ['experimental', 'onExp'],
+					tags: ['onExp'],
 					policy: {
 						name: 'ChatAgentMode',
 						minimumVersion: '1.99',
-						previewFeature: true,
+						previewFeature: false,
 						defaultValue: false
 					}
 				},
@@ -465,7 +477,6 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 							type: 'number',
 							markdownDescription: nls.localize('chat.agent.maxRequests', "The maximum number of requests to allow Copilot Edits to use per-turn in agent mode. When the limit is reached, Copilot will ask the user to confirm that it should keep working. \n\n> **Note**: For users on the Copilot Free plan, note that each agent mode request currently uses one chat request."),
 							default: defaultValue,
-							tags: ['experimental']
 						},
 					}
 				};

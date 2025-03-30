@@ -217,6 +217,11 @@ function __init_vscode_shell_integration
 	end
 end
 
+# Report prompt type
+if set -q POSH_SESSION_ID
+	__vsc_esc P PromptType=oh-my-posh
+end
+
 # Report this shell supports rich command detection
 __vsc_esc P HasRichCommandDetection=True
 

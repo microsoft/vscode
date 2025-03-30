@@ -29,7 +29,7 @@ export interface LaunchOptions {
 	readonly tracing?: boolean;
 	snapshots?: boolean;
 	readonly headless?: boolean;
-	readonly browser?: 'chromium' | 'webkit' | 'firefox';
+	readonly browser?: 'chromium' | 'webkit' | 'firefox' | 'chromium-msedge' | 'chromium-chrome';
 	readonly quality: Quality;
 }
 
