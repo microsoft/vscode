@@ -468,7 +468,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 
-		mode = validateChatMode(mode) ?? ChatMode.Ask;
+		mode = validateChatMode(mode) ?? (this.location === ChatAgentLocation.Panel ? ChatMode.Ask : ChatMode.Edit);
 		if (mode === ChatMode.Agent && !this.agentService.hasToolsAgent) {
 			mode = ChatMode.Edit;
 		}

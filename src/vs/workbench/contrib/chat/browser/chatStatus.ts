@@ -120,7 +120,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		const hidden = this.chatEntitlementService.sentiment === ChatSentiment.Disabled;
 
 		if (!hidden) {
-			this.entry ||= this.statusbarService.addEntry(this.getEntryProps(), ChatStatusBarEntry.ID, StatusbarAlignment.RIGHT, { location: { id: 'status.editor.mode', priority: 100.1 }, alignment: StatusbarAlignment.RIGHT });
+			this.entry ||= this.statusbarService.addEntry(this.getEntryProps(), 'chat.statusBarEntry', StatusbarAlignment.RIGHT, { location: { id: 'status.editor.mode', priority: 100.1 }, alignment: StatusbarAlignment.RIGHT });
 
 			// TODO@bpasero: remove this eventually
 			const completionsStatusId = `${defaultChat.extensionId}.status`;

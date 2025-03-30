@@ -109,27 +109,28 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 			let id: string;
 			let description = localize('chatDescription', "Ask Copilot");
 			let welcomeMessageContent: IChatWelcomeMessageContent | undefined;
+			const baseMessage = localize('chatMessage', "Copilot is powered by AI, so mistakes are possible. Review output carefully before use.");
 			switch (location) {
 				case ChatAgentLocation.Panel:
 					id = 'setup.chat';
 					welcomeMessageContent = {
 						title: description,
-						message: new MarkdownString(localize('chatMessage', "Copilot is powered by AI, so mistakes are possible. Review output carefully before use.")),
+						message: new MarkdownString(baseMessage),
 						icon: Codicon.copilotLarge
 					};
 					break;
 				case ChatAgentLocation.EditingSession:
 					id = isToolsAgent ? 'setup.agent' : 'setup.edits';
-					description = isToolsAgent ? localize('agentDescription', "Edit files in your workspace in agent mode (Experimental)") : localize('editsDescription', "Edit files in your workspace");
+					description = isToolsAgent ? localize('agentDescription', "Edit files in your workspace in agent mode") : localize('editsDescription', "Edit files in your workspace");
 					welcomeMessageContent = isToolsAgent ?
 						{
 							title: localize('editsTitle', "Edit with Copilot"),
-							message: new MarkdownString(localize('agentMessage', "Ask Copilot to edit your files in agent mode. Copilot will automatically use multiple requests to pick files to edit, run terminal commands, and iterate on errors.")),
+							message: new MarkdownString(localize('agentMessage', "Ask Copilot to edit your files in [agent mode]({0}). Copilot will automatically use multiple requests to pick files to edit, run terminal commands, and iterate on errors.", `https://aka.ms/vscode-copilot-agent`) + `\n\n${baseMessage}`),
 							icon: Codicon.copilotLarge
 						} :
 						{
 							title: localize('editsTitle', "Edit with Copilot"),
-							message: new MarkdownString(localize('editsMessage', "Start your editing session by defining a set of files that you want to work with. Then ask Copilot for the changes you want to make.")),
+							message: new MarkdownString(localize('editsMessage', "Start your editing session by defining a set of files that you want to work with. Then ask Copilot for the changes you want to make.") + `\n\n${baseMessage}`),
 							icon: Codicon.copilotLarge
 						};
 					break;
