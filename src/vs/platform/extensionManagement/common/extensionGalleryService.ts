@@ -30,6 +30,7 @@ import { StopWatch } from '../../../base/common/stopwatch.js';
 import { format2 } from '../../../base/common/strings.js';
 import { IAssignmentService } from '../../assignment/common/assignment.js';
 import { ExtensionGalleryResourceType, Flag, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifest, IExtensionGalleryManifestService } from './extensionGalleryManifest.js';
+import { TelemetryTrustedValue } from '../../telemetry/common/telemetryUtils.js';
 
 const CURRENT_TARGET_PLATFORM = isWeb ? TargetPlatform.WEB : getTargetPlatform(platform, arch);
 const SEARCH_ACTIVITY_HEADER_NAME = 'X-Market-Search-Activity-Id';
@@ -198,9 +199,9 @@ type GalleryServiceQueryEvent = QueryTelemetryData & {
 	readonly statusCode?: string;
 	readonly errorCode?: string;
 	readonly count?: string;
-	readonly server?: string;
-	readonly endToEndId?: string;
-	readonly activityId?: string;
+	readonly server?: TelemetryTrustedValue<string>;
+	readonly endToEndId?: TelemetryTrustedValue<string>;
+	readonly activityId?: TelemetryTrustedValue<string>;
 };
 
 type GalleryServiceAdditionalQueryClassification = {
@@ -1379,9 +1380,10 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		}
 	}
 
-	private getHeaderValue(headers: IHeaders | undefined, name: string): string | undefined {
-		const value = headers?.[name.toLowerCase()];
-		return Array.isArray(value) ? value[0] : value;
+	private getHeaderValue(headers: IHeaders | undefined, name: string): TelemetryTrustedValue<string> | undefined {
+		const headerValue = headers?.[name.toLowerCase()];
+		const value = Array.isArray(headerValue) ? headerValue[0] : headerValue;
+		return value ? new TelemetryTrustedValue(value) : undefined;
 	}
 
 	private async getLatestRawGalleryExtension(extension: string, uri: URI, token: CancellationToken): Promise<IRawGalleryExtension | null> {
@@ -1453,9 +1455,9 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 				host: string;
 				duration: number;
 				errorCode?: string;
-				server?: string;
-				activityId?: string;
-				endToEndId?: string;
+				server?: TelemetryTrustedValue<string>;
+				activityId?: TelemetryTrustedValue<string>;
+				endToEndId?: TelemetryTrustedValue<string>;
 			};
 			this.telemetryService.publicLog2<GalleryServiceGetLatestEvent, GalleryServiceGetLatestEventClassification>('galleryService:getLatest', {
 				extension,
@@ -1711,9 +1713,9 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 				assetType: string;
 				message: string;
 				extensionVersion: string;
-				server?: string;
-				endToEndId?: string;
-				activityId?: string;
+				server?: TelemetryTrustedValue<string>;
+				endToEndId?: TelemetryTrustedValue<string>;
+				activityId?: TelemetryTrustedValue<string>;
 			};
 			this.telemetryService.publicLog2<GalleryServiceCDNFallbackEvent, GalleryServiceCDNFallbackClassification>('galleryService:cdnFallback', {
 				extension,
