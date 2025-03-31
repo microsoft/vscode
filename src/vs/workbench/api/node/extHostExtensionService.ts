@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as performance from '../../../base/common/performance.js';
+import type * as vscode from 'vscode';
 import { createApiFactoryAndRegisterActors } from '../common/extHost.api.impl.js';
-import { RequireInterceptor } from '../common/extHostRequireInterceptor.js';
+import { INodeModuleFactory, RequireInterceptor } from '../common/extHostRequireInterceptor.js';
 import { ExtensionActivationTimesBuilder } from '../common/extHostExtensionActivator.js';
 import { connectProxyResolver } from './proxyResolver.js';
 import { AbstractExtHostExtensionService } from '../common/extHostExtensionService.js';
@@ -18,12 +19,13 @@ import { CLIServer } from './extHostCLIServer.js';
 import { realpathSync } from '../../../base/node/extpath.js';
 import { ExtHostConsoleForwarder } from './extHostConsoleForwarder.js';
 import { ExtHostDiskFileSystemProvider } from './extHostDiskFileSystemProvider.js';
-import { createRequire, register } from 'node:module';
+import nodeModule from 'node:module';
 import { assertType } from '../../../base/common/types.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { BidirectionalMap } from '../../../base/common/map.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
-const require = createRequire(import.meta.url);
+
+const require = nodeModule.createRequire(import.meta.url);
 
 class NodeModuleRequireInterceptor extends RequireInterceptor {
 
@@ -76,7 +78,7 @@ class NodeModuleRequireInterceptor extends RequireInterceptor {
 class NodeModuleESMInterceptor extends RequireInterceptor {
 
 	private static _createDataUri(scriptContent: string): string {
-		return `data:text/javascript;charset=utf-8,${encodeURIComponent(scriptContent)}`;
+		return `data:text/javascript;base64,${Buffer.from(scriptContent).toString('base64')}`;
 	}
 
 	// This string is a script that runs in the loader thread of NodeJS.
@@ -91,6 +93,7 @@ class NodeModuleESMInterceptor extends RequireInterceptor {
 			pendingRequests.get(id)?.(url);
 		};
 		lookup = url => {
+			// debugger;
 			const myId = requestIds++;
 			return new Promise((resolve) => {
 				pendingRequests.set(myId, resolve);
@@ -109,6 +112,8 @@ class NodeModuleESMInterceptor extends RequireInterceptor {
 		};
 	};`;
 
+	private static _vscodeImportFnName = `_VSCODE_IMPORT_VSCODE_API`;
+
 	private readonly _store = new DisposableStore();
 
 	dispose(): void {
@@ -119,38 +124,61 @@ class NodeModuleESMInterceptor extends RequireInterceptor {
 
 		type Message = { id: string; url: string };
 
-		const apiInstances = new BidirectionalMap<object, string>();
-		(globalThis as any)['_VSCODE_IMPORT_VSCODE_API'] = (key: string) => { return apiInstances.getKey(key); };
+		const apiInstances = new BidirectionalMap<typeof vscode, string>();
+		const apiImportDataUrl = new Map<string, string>();
+
+		// define a global function that can be used to get API instances given a random key
+		Object.defineProperty(globalThis, NodeModuleESMInterceptor._vscodeImportFnName, {
+			enumerable: false,
+			configurable: false,
+			writable: false,
+			value: (key: string) => {
+				return apiInstances.getKey(key);
+			}
+		});
 
 		const { port1, port2 } = new MessageChannel();
 
+		let apiModuleFactory: INodeModuleFactory | undefined;
+
 		port1.onmessage = (e) => {
-			const factory = this._factories.get('vscode');
-			assertType(factory);
+
+			// Get the vscode-module factory - which is the same logic that's also used by
+			// the CommonJS require interceptor
+			if (!apiModuleFactory) {
+				apiModuleFactory = this._factories.get('vscode');
+				assertType(apiModuleFactory);
+			}
 
 			const { id, url } = <Message>e.data;
 			const uri = URI.parse(url);
 
-			const apiInstance = factory.load('_not_used', uri, () => { });
+			// Get or create the API instance. The interface is per extension and extensions are
+			// looked up by the uri (e.data.url) and path containment.
+			const apiInstance = apiModuleFactory.load('_not_used', uri, () => { throw new Error('CANNOT LOAD MODULE from here.'); });
 			let key = apiInstances.get(apiInstance);
 			if (!key) {
 				key = generateUuid();
 				apiInstances.set(apiInstance, key);
 			}
 
+			// Create and cache a data-url which is the import script for the API instance
+			let scriptDataUrlSrc = apiImportDataUrl.get(key);
+			if (!scriptDataUrlSrc) {
+				const jsCode = `const _vscodeInstance = globalThis.${NodeModuleESMInterceptor._vscodeImportFnName}('${key}');\n\n${Object.keys(apiInstance).map((name => `export const ${name} = _vscodeInstance['${name}'];`)).join('\n')}`;
+				scriptDataUrlSrc = NodeModuleESMInterceptor._createDataUri(jsCode);
+				apiImportDataUrl.set(key, scriptDataUrlSrc);
+			}
+
 			port1.postMessage({
 				id,
-				url: NodeModuleESMInterceptor._createDataUri(
-					`const _vscodeInstance = globalThis['_VSCODE_IMPORT_VSCODE_API']('${key}');\n\n` +
-					Object.keys(apiInstance).map((name => `export const ${name} = _vscodeInstance['${name}'];`)).join('\n')
-				)
+				url: scriptDataUrlSrc
 			});
 		};
-		port1.start();
 
-		register(NodeModuleESMInterceptor._createDataUri(NodeModuleESMInterceptor._loaderScript), {
+		nodeModule.register(NodeModuleESMInterceptor._createDataUri(NodeModuleESMInterceptor._loaderScript), {
 			parentURL: import.meta.url,
-			data: { number: 1, port: port2 },
+			data: { port: port2 },
 			transferList: [port2],
 		});
 
