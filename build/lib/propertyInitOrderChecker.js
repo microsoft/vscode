@@ -54,7 +54,6 @@ const TS_CONFIG_PATH = path.join(__dirname, '../../', 'src', 'tsconfig.json');
 // #############################################################################################
 //
 const ignored = new Set([
-    'vs/base/common/arrays.ts',
     'vs/platform/extensionManagement/common/extensionsScannerService.ts',
     'vs/platform/configuration/common/configurations.ts',
     'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/tokenizer.ts',
