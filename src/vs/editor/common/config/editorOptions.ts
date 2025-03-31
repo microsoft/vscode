@@ -4343,7 +4343,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					default: defaults.edits.allowCodeShifting,
 					description: nls.localize('inlineSuggest.edits.allowCodeShifting', "Controls whether showing a suggestion will shift the code to make space for the suggestion inline."),
 					enum: ['always', 'horizontal', 'never'],
-					tags: ['nextEditSuggestions', 'preview']
+					tags: ['nextEditSuggestions']
 				},
 				'editor.inlineSuggest.edits.renderSideBySide': {
 					type: 'string',
@@ -4354,13 +4354,13 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 						nls.localize('editor.inlineSuggest.edits.renderSideBySide.auto', "Larger suggestions will show side by side if there is enough space, otherwise they will be shown below."),
 						nls.localize('editor.inlineSuggest.edits.renderSideBySide.never', "Larger suggestions are never shown side by side and will always be shown below."),
 					],
-					tags: ['nextEditSuggestions', 'preview']
+					tags: ['nextEditSuggestions']
 				},
 				'editor.inlineSuggest.edits.showCollapsed': {
 					type: 'boolean',
 					default: defaults.edits.showCollapsed,
 					description: nls.localize('inlineSuggest.edits.showCollapsed', "Controls whether the suggestion will show as collapsed until jumping to it."),
-					tags: ['nextEditSuggestions', 'preview']
+					tags: ['nextEditSuggestions']
 				},
 			}
 		);

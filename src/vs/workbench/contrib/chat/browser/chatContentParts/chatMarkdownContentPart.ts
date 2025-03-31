@@ -89,6 +89,13 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		// and within this part to find it within the codeblocks array
 		let globalCodeBlockIndexStart = codeBlockStartIndex;
 		let thisPartCodeBlockIndexStart = 0;
+
+		// Don't set to 'false' for responses, respect defaults
+		const markedOpts = isRequestVM(element) ? {
+			gfm: true,
+			breaks: true,
+		} : undefined;
+
 		const result = this._register(renderer.render(markdown.content, {
 			fillInIncompleteTokens,
 			codeBlockRendererSync: (languageId, text, raw) => {
@@ -191,10 +198,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				}
 			},
 			asyncRenderCallback: () => this._onDidChangeHeight.fire(),
-		}, {
-			gfm: isRequestVM(element),
-			breaks: isRequestVM(element),
-		}));
+		}, markedOpts));
 
 		const markdownDecorationsRenderer = instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
 		this._register(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(markdown, result.element));

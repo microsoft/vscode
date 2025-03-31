@@ -767,6 +767,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 						extension: string;
 						preRelease: boolean;
 						compatible: boolean;
+						fromFallback: boolean;
 					},
 					{
 						owner: 'sandy081';
@@ -774,10 +775,12 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 						extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Extension id' };
 						preRelease: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Get pre-release version' };
 						compatible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Get compatible version' };
+						fromFallback: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'From fallback' };
 					}>('galleryService:fallbacktoquery', {
 						extension: extensionInfo.id,
 						preRelease: !!extensionInfo.preRelease,
-						compatible: !!options.compatible
+						compatible: !!options.compatible,
+						fromFallback: !!resourceApi.fallback
 					});
 				toQuery.push(extensionInfo);
 			}

@@ -115,6 +115,15 @@ unset VSCODE_SHELL_ENV_REPORTING
 
 builtin printf "\e]633;P;ContinuationPrompt=%s\a" "$(echo "$PS2" | sed 's/\x1b/\\\\x1b/g')"
 
+# Report prompt type
+if [ -n "$ZSH" ] && [ -n "$ZSH_VERSION" ] && (( ${+functions[omz]} )) ; then
+	builtin printf '\e]633;P;PromptType=oh-my-zsh\a'
+elif [ -n "$STARSHIP_SESSION_KEY" ]; then
+	builtin printf '\e]633;P;PromptType=starship\a'
+elif [ -n "$P9K_SSH" ] || [ -n "$P9K_TTY" ]; then
+	builtin printf '\e]633;P;PromptType=p10k\a'
+fi
+
 # Report this shell supports rich command detection
 builtin printf '\e]633;P;HasRichCommandDetection=True\a'
 

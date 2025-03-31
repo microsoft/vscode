@@ -259,6 +259,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		if (currentState === WorkingSetEntryState.Modified && didResetToOriginalContent) {
 			this._stateObs.set(WorkingSetEntryState.Rejected, undefined);
 			this.updateCellDiffInfo([], undefined);
+			this.initializeModelsFromDiff();
 			return;
 		}
 
@@ -397,6 +398,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		if (currentState === WorkingSetEntryState.Modified && didResetToOriginalContent) {
 			this._stateObs.set(WorkingSetEntryState.Rejected, undefined);
 			this.updateCellDiffInfo([], undefined);
+			this.initializeModelsFromDiff();
 			return;
 		}
 	}

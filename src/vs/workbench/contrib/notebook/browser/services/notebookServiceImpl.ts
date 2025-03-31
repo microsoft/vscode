@@ -193,7 +193,7 @@ export class NotebookProviderInfoStore extends Disposable {
 				let data;
 				if (resource.scheme === Schemas.vscodeNotebookCellOutput) {
 					const outputUriData = CellUri.parseCellOutputUri(resource);
-					if (!outputUriData || !outputUriData.notebook || !outputUriData.cellHandle) {
+					if (!outputUriData || !outputUriData.notebook || outputUriData.cellHandle === undefined) {
 						throw new Error('Invalid cell output uri');
 					}
 
@@ -225,7 +225,7 @@ export class NotebookProviderInfoStore extends Disposable {
 				let notebookOptions: INotebookEditorOptions;
 
 				if (resource.scheme === Schemas.vscodeNotebookCellOutput) {
-					if (!data?.handle || !data?.notebook) {
+					if (data?.handle === undefined || !data?.notebook) {
 						throw new Error('Invalid cell handle');
 					}
 

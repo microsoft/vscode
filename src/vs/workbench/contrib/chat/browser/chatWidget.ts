@@ -1218,7 +1218,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight - 2;
 
 		const listHeight = Math.max(0, height - inputPartHeight);
-		this.listContainer.style.setProperty('--chat-current-response-min-height', listHeight * .75 + 'px');
+		if (this.viewOptions.renderStyle === 'compact' || this.viewOptions.renderStyle === 'minimal') {
+			this.listContainer.style.removeProperty('--chat-current-response-min-height');
+		} else {
+			this.listContainer.style.setProperty('--chat-current-response-min-height', listHeight * .75 + 'px');
+		}
 
 		this.tree.layout(listHeight, width);
 		this.tree.getHTMLElement().style.height = `${listHeight}px`;
