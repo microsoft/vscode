@@ -38,7 +38,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { MultiDiffEditor } from '../../../multiDiffEditor/browser/multiDiffEditor.js';
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
-import { ChatEditingSessionChangeType, ChatEditingSessionState, ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, IStreamingEdits, WorkingSetDisplayMetadata, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { ChatEditingSessionChangeType, ChatEditingSessionState, ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, IStreamingEdits, WorkingSetDisplayMetadata, WorkingSetEntryRemovalReason, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatRequestDisablement, IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { AbstractChatEditingModifiedFileEntry, IModifiedEntryTelemetryInfo, ISnapshotEntry } from './chatEditingModifiedFileEntry.js';
@@ -384,7 +384,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	public createSnapshot(requestId: string, undoStop: string | undefined): void {
 		const snapshot = this._createSnapshot(requestId, undoStop);
 		for (const [uri, _] of this._workingSet) {
-			this._workingSet.set(uri, { state: WorkingSetEntryState.Sent });
+			this._workingSet.set(uri, { state: ModifiedFileEntryState.Sent });
 		}
 
 		const linearHistoryPtr = this._linearHistoryIndex.get();
@@ -488,7 +488,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		// Restore all entries from the snapshot
 		for (const snapshotEntry of entries.values()) {
 			const entry = await this._getOrCreateModifiedFileEntry(snapshotEntry.resource, snapshotEntry.telemetryInfo);
-			const restoreToDisk = snapshotEntry.state === WorkingSetEntryState.Modified || restoreResolvedToDisk;
+			const restoreToDisk = snapshotEntry.state === ModifiedFileEntryState.Modified || restoreResolvedToDisk;
 			entry.restoreFromSnapshot(snapshotEntry, restoreToDisk);
 			entriesArr.push(entry);
 		}
@@ -922,7 +922,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		const notebookUri = CellUri.parse(resource)?.notebook || resource;
 		try {
 			// If a notebook isn't open, then use the old synchronization approach.
-			if (this._notebookService.hasSupportedNotebooks(notebookUri) && (this._notebookService.getNotebookTextModel(notebookUri) || ChatEditingModifiedNotebookEntry.canHandleSnapshotContent(initialContent))) {
+			if (this._notebookService.hasSupportedNotebooks(notebookUri) && (this._notebookService.getNotebookTextModel(notebookUri) || !initialContent || ChatEditingModifiedNotebookEntry.canHandleSnapshotContent(initialContent))) {
 				return await ChatEditingModifiedNotebookEntry.create(notebookUri, multiDiffEntryDelegate, telemetryInfo, chatKind, initialContent, this._instantiationService);
 			} else {
 				const ref = await this._textModelService.createModelReference(resource);
@@ -1221,7 +1221,7 @@ interface ISnapshotEntryDTO {
 	readonly originalHash: string;
 	readonly currentHash: string;
 	readonly originalToCurrentEdit: IOffsetEdit;
-	readonly state: WorkingSetEntryState;
+	readonly state: ModifiedFileEntryState;
 	readonly snapshotUri: string;
 	readonly telemetryInfo: IModifiedEntryTelemetryInfoDTO;
 }

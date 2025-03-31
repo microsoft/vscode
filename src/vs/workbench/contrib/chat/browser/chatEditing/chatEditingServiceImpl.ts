@@ -35,7 +35,7 @@ import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMul
 import { CellUri } from '../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
-import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingResourceContextKey, ChatEditingSessionState, chatEditingSnapshotScheme, IChatEditingService, IChatEditingSession, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, IStreamingEdits, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingResourceContextKey, ChatEditingSessionState, chatEditingSnapshotScheme, IChatEditingService, IChatEditingSession, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, IStreamingEdits, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { ChatModel, IChatResponseModel, isCellTextEditOperation } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
@@ -394,7 +394,7 @@ class ChatDecorationsProvider extends Disposable implements IDecorationsProvider
 
 	private readonly _modifiedUris = derived<URI[]>(this, (r) => {
 		const uri = this._currentEntries.read(r);
-		return uri.filter(entry => !entry.isCurrentlyBeingModifiedBy.read(r) && entry.state.read(r) === WorkingSetEntryState.Modified).map(entry => entry.modifiedURI);
+		return uri.filter(entry => !entry.isCurrentlyBeingModifiedBy.read(r) && entry.state.read(r) === ModifiedFileEntryState.Modified).map(entry => entry.modifiedURI);
 	});
 
 	public readonly onDidChange = Event.any(

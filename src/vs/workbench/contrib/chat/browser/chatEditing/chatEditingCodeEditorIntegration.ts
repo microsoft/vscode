@@ -36,7 +36,7 @@ import { EditorsOrder, IEditorIdentifier, isDiffEditorInput } from '../../../../
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { overviewRulerModifiedForeground, minimapGutterModifiedBackground, overviewRulerAddedForeground, minimapGutterAddedBackground, overviewRulerDeletedForeground, minimapGutterDeletedBackground } from '../../../scm/common/quickDiff.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
-import { IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { isTextDiffEditorForEntry } from './chatEditing.js';
 import { IEditorDecorationsCollection } from '../../../../../editor/common/editorCommon.js';
 import { ChatAgentLocation } from '../../common/constants.js';
@@ -642,7 +642,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 				// close diff editor when entry is decided
 				const d = autorun(r => {
 					const state = this._entry.state.read(r);
-					if (state === WorkingSetEntryState.Accepted || state === WorkingSetEntryState.Rejected) {
+					if (state === ModifiedFileEntryState.Accepted || state === ModifiedFileEntryState.Rejected) {
 						d.dispose();
 
 						const editorIdents: IEditorIdentifier[] = [];
