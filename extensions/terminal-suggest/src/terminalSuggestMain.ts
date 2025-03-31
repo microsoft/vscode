@@ -88,6 +88,20 @@ export async function activate(context: vscode.ExtensionContext) {
 	pathExecutableCache = new PathExecutableCache();
 	context.subscriptions.push(pathExecutableCache);
 	let currentTerminalEnv: ITerminalEnvironment = process.env;
+	(vscode.tasks as any).onDidStartTaskProblemMatchers((e: { execution: { task: { name: any } } }) => {
+		console.log('Matchers started:', e.execution.task.name);
+	});
+	(vscode.tasks as any).onDidEndTaskProblemMatchers((e: { execution: { task: { name: any } }; hasErrors: boolean }) => {
+		console.log('Matchers ended:', e.execution.task.name, 'errors?', e.hasErrors);
+	});
+	vscode.languages.onDidChangeDiagnostics(e => {
+		console.log('  Diagnostics changed:', e.uris.map(uri => uri.toString()));
+		if (e.uris.length === 0) {
+			return;
+		}
+
+		console.log('  Diagnostics:', vscode.languages.getDiagnostics(e.uris[0]));
+	});
 	context.subscriptions.push(vscode.window.registerTerminalCompletionProvider({
 		id: 'terminal-suggest',
 		async provideTerminalCompletions(terminal: vscode.Terminal, terminalContext: vscode.TerminalCompletionContext, token: vscode.CancellationToken): Promise<vscode.TerminalCompletionItem[] | vscode.TerminalCompletionList | undefined> {
