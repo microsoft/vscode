@@ -61,7 +61,7 @@ import { IChatRequestVariableValue } from '../../contrib/chat/common/chatVariabl
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IChatMessage, IChatResponseFragment, ILanguageModelChatMetadata, ILanguageModelChatSelector, ILanguageModelsChangeEvent } from '../../contrib/chat/common/languageModels.js';
 import { IPreparedToolInvocation, IToolData, IToolInvocation, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
-import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode, IDebugTestRunReference, IDebugVisualization, IDebugVisualizationContext, IDebugVisualizationTreeItem, MainThreadDebugVisualization } from '../../contrib/debug/common/debug.js';
+import { DataBreakpointOrigin, DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDataBreakpointInfoResponse, IDebugSessionReplMode, IDebugTestRunReference, IDebugVisualization, IDebugVisualizationContext, IDebugVisualizationTreeItem, MainThreadDebugVisualization } from '../../contrib/debug/common/debug.js';
 import { McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch } from '../../contrib/mcp/common/mcpTypes.js';
 import * as notebookCommon from '../../contrib/notebook/common/notebookCommon.js';
 import { CellExecutionUpdateType } from '../../contrib/notebook/common/notebookExecutionService.js';
@@ -2577,11 +2577,13 @@ export interface IFunctionBreakpointDto extends IBreakpointDto {
 	mode?: string;
 }
 
+export type IDataBreakpointInfos = [string, IDataBreakpointInfoResponse][];
+
 export interface IDataBreakpointDto extends IBreakpointDto {
 	type: 'data';
-	source: vscode.DataBreakpointSource;
-	resolution: vscode.DataBreakpointResolution;
-	accessType: DebugProtocol.DataBreakpointAccessType;
+	origin: DataBreakpointOrigin;
+	infos?: IDataBreakpointInfos;
+	accessType?: DebugProtocol.DataBreakpointAccessType;
 	mode?: string;
 }
 

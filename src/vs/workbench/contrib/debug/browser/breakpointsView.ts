@@ -50,7 +50,7 @@ import { IEditorPane } from '../../../common/editor.js';
 import { IViewDescriptorService } from '../../../common/views.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { BREAKPOINTS_VIEW_ID, BREAKPOINT_EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINTS_EXIST, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_BREAKPOINT_HAS_MODES, CONTEXT_BREAKPOINT_INPUT_FOCUSED, CONTEXT_BREAKPOINT_ITEM_IS_DATA_BYTES, CONTEXT_BREAKPOINT_ITEM_TYPE, CONTEXT_BREAKPOINT_SUPPORTS_CONDITION, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_IN_DEBUG_MODE, CONTEXT_SET_DATA_BREAKPOINT_BYTES_SUPPORTED, DEBUG_SCHEME, DataBreakpointSetType, DataBreakpointSource, DebuggerString, IBaseBreakpoint, IBreakpoint, IBreakpointEditorContribution, IBreakpointUpdateData, IDataBreakpoint, IDataBreakpointInfoResponse, IDebugModel, IDebugService, IEnablement, IExceptionBreakpoint, IFunctionBreakpoint, IInstructionBreakpoint, State } from '../common/debug.js';
+import { BREAKPOINTS_VIEW_ID, BREAKPOINT_EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINTS_EXIST, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_BREAKPOINT_HAS_MODES, CONTEXT_BREAKPOINT_INPUT_FOCUSED, CONTEXT_BREAKPOINT_ITEM_IS_DATA_BYTES, CONTEXT_BREAKPOINT_ITEM_TYPE, CONTEXT_BREAKPOINT_SUPPORTS_CONDITION, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_IN_DEBUG_MODE, CONTEXT_SET_DATA_BREAKPOINT_BYTES_SUPPORTED, DEBUG_SCHEME, DataBreakpointSetType, DataBreakpointOrigin, DebuggerString, IBaseBreakpoint, IBreakpoint, IBreakpointEditorContribution, IBreakpointUpdateData, IDataBreakpoint, IDataBreakpointInfoResponse, IDebugModel, IDebugService, IEnablement, IExceptionBreakpoint, IFunctionBreakpoint, IInstructionBreakpoint, State } from '../common/debug.js';
 import { Breakpoint, DataBreakpoint, ExceptionBreakpoint, FunctionBreakpoint, InstructionBreakpoint } from '../common/debugModel.js';
 import { DisassemblyViewInput } from '../common/disassemblyViewInput.js';
 import * as icons from './debugIcons.js';
@@ -270,7 +270,7 @@ export class BreakpointsView extends ViewPane {
 		const session = this.debugService.getViewModel().focusedSession;
 		const conditionSupported = element instanceof ExceptionBreakpoint ? element.supportsCondition : (!session || !!session.capabilities.supportsConditionalBreakpoints);
 		this.breakpointSupportsCondition.set(conditionSupported);
-		this.breakpointIsDataBytes.set(element instanceof DataBreakpoint && element.src.type === DataBreakpointSetType.Address);
+		this.breakpointIsDataBytes.set(element instanceof DataBreakpoint && element.origin.type === DataBreakpointSetType.Address);
 		this.breakpointHasMultipleModes.set(this.debugService.getModel().getBreakpointModes(getModeKindForBreakpoint(element as IBreakpoint)).length > 1);
 
 		const { secondary } = getContextMenuActions(this.menu.getActions({ arg: e.element, shouldForwardArgs: false }), 'inline');
@@ -813,7 +813,7 @@ class DataBreakpointsRenderer implements IListRenderer<DataBreakpoint, IDataBrea
 
 	renderElement(dataBreakpoint: DataBreakpoint, _index: number, data: IDataBreakpointTemplateData): void {
 		data.context = dataBreakpoint;
-		data.name.textContent = dataBreakpoint.resolution.description;
+		data.name.textContent = dataBreakpoint.origin.description;
 		const { icon, message } = getBreakpointMessageAndIcon(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), dataBreakpoint, this.labelService, this.debugService.getModel());
 		data.icon.className = ThemeIcon.asClassName(icon);
 		data.elementDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), data.icon, message ? message : ''));
@@ -848,7 +848,7 @@ class DataBreakpointsRenderer implements IListRenderer<DataBreakpoint, IDataBrea
 		this.breakpointSupportsCondition.set(!session || !!session.capabilities.supportsConditionalBreakpoints);
 		this.breakpointHasMultipleModes.set(this.debugService.getModel().getBreakpointModes('data').length > 1);
 		this.breakpointItemType.set('dataBreakpoint');
-		this.breakpointIsDataBytes.set(dataBreakpoint.src.type === DataBreakpointSetType.Address);
+		this.breakpointIsDataBytes.set(dataBreakpoint.origin.type === DataBreakpointSetType.Address);
 		const { primary } = getActionBarActions(this.menu.getActions({ arg: dataBreakpoint, shouldForwardArgs: true }), 'inline');
 		data.actionBar.clear();
 		data.actionBar.push(primary, { icon: true, label: false });
@@ -1512,8 +1512,8 @@ abstract class MemoryBreakpointAction extends Action2 {
 		}
 
 		let defaultValue = undefined;
-		if (existingBreakpoint && existingBreakpoint.src.type === DataBreakpointSetType.Address) {
-			defaultValue = `${existingBreakpoint.src.address} + ${existingBreakpoint.src.bytes}`;
+		if (existingBreakpoint && existingBreakpoint.origin.type === DataBreakpointSetType.Address) {
+			defaultValue = `${existingBreakpoint.origin.address} + ${existingBreakpoint.origin.bytes}`;
 		}
 
 		const quickInput = accessor.get(IQuickInputService);
@@ -1545,11 +1545,11 @@ abstract class MemoryBreakpointAction extends Action2 {
 			accessType = selectedAccessType.label;
 		}
 
-		const src: DataBreakpointSource = { type: DataBreakpointSetType.Address, ...range };
+		const origin: DataBreakpointOrigin = { type: DataBreakpointSetType.Address, description: `Address '${range.address}${range.bytes ? `,${range.bytes}'` : ''}`, ...range };
 		if (existingBreakpoint) {
 			await debugService.removeDataBreakpoints(existingBreakpoint.getId());
 		}
-		await debugService.addDataBreakpoint({ src, resolution: { ...info, dataId: info.dataId }, accessType });
+		await debugService.addDataBreakpoint({ origin, infos: [[session.getId(), info]], accessType });
 	}
 
 	private getRange(quickInput: IQuickInputService, defaultValue?: string) {

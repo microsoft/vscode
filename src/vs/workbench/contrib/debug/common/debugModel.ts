@@ -22,7 +22,7 @@ import * as nls from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IEditorPane } from '../../../common/editor.js';
-import { DEBUG_MEMORY_SCHEME, DataBreakpointResolution, DataBreakpointSetType, DataBreakpointSource, DebugTreeItemCollapsibleState, IBaseBreakpoint, IBreakpoint, IBreakpointData, IBreakpointUpdateData, IBreakpointsChangeEvent, IDataBreakpoint, IDebugEvaluatePosition, IDebugModel, IDebugSession, IDebugVisualizationTreeItem, IEnablement, IExceptionBreakpoint, IExceptionInfo, IExpression, IExpressionContainer, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryInvalidationEvent, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IScope, IStackFrame, IThread, ITreeElement, MemoryRange, MemoryRangeType, State, isFrameDeemphasized } from './debug.js';
+import { DEBUG_MEMORY_SCHEME, DataBreakpointSetType, DataBreakpointOrigin, DebugTreeItemCollapsibleState, IBaseBreakpoint, IBreakpoint, IBreakpointData, IBreakpointUpdateData, IBreakpointsChangeEvent, IDataBreakpoint, IDebugEvaluatePosition, IDebugModel, IDebugSession, IDebugVisualizationTreeItem, IEnablement, IExceptionBreakpoint, IExceptionInfo, IExpression, IExpressionContainer, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryInvalidationEvent, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IScope, IStackFrame, IThread, ITreeElement, MemoryRange, MemoryRangeType, ResolvedDataBreakpointOrigin, State, isFrameDeemphasized, IDataBreakpointInfoResponse } from './debug.js';
 import { Source, UNKNOWN_SOURCE_LABEL, getUriFromSource } from './debugSource.js';
 import { DebugStorage } from './debugStorage.js';
 import { IDebugVisualizerService } from './debugVisualizers.js';
@@ -1174,16 +1174,19 @@ export class FunctionBreakpoint extends BaseBreakpoint implements IFunctionBreak
 	}
 }
 
+/** Mapping from session id to data breakpoint info. */
+export type IDataBreakpointInfos = [string, IDataBreakpointInfoResponse][];
+
 export interface IDataBreakpointOptions extends IBaseBreakpointOptions {
-	src: DataBreakpointSource;
-	resolution: DataBreakpointResolution;
-	accessType: DebugProtocol.DataBreakpointAccessType;
+	origin: DataBreakpointOrigin;
+	accessType?: DebugProtocol.DataBreakpointAccessType;
+	infos?: IDataBreakpointInfos;
 }
 
 export class DataBreakpoint extends BaseBreakpoint implements IDataBreakpoint {
-	public readonly src: DataBreakpointSource;
-	public readonly resolution: DataBreakpointResolution;
-	public readonly accessType: DebugProtocol.DataBreakpointAccessType;
+	private readonly sessionInfo = new Map<string, IDataBreakpointInfoResponse>();
+	public readonly origin: DataBreakpointOrigin;
+	public readonly accessType?: DebugProtocol.DataBreakpointAccessType;
 
 	constructor(
 		opts: IDataBreakpointOptions,
@@ -1191,28 +1194,74 @@ export class DataBreakpoint extends BaseBreakpoint implements IDataBreakpoint {
 	) {
 		super(id, opts);
 		if ('dataId' in opts) { //  back compat with old saved variables in 1.87
-			opts.src = { type: DataBreakpointSetType.Variable, dataId: opts.dataId as string };
+			opts.origin = { type: DataBreakpointSetType.Variable, dataId: opts.dataId as string, description: opts.origin.description } satisfies ResolvedDataBreakpointOrigin;
 		}
-		this.src = opts.src;
+		this.origin = opts.origin;
 		this.accessType = opts.accessType;
-		this.resolution = opts.resolution;
+		for (const [sessionId, info] of opts.infos ?? []) {
+			this.sessionInfo.set(sessionId, info);
+		}
+	}
+
+	get canPersist(): boolean {
+		// we persist this data breakpoint if at least one session supports it
+		return this.infos.some(([_, info]) => !!info.canPersist);
+	}
+
+	info(sessionId: string): IDataBreakpointInfoResponse | undefined {
+		return this.sessionInfo.get(sessionId);
+	}
+
+	get infos(): IDataBreakpointInfos {
+		return Array.from(this.sessionInfo.entries());
 	}
 
 	async toDAP(session: IDebugSession): Promise<DebugProtocol.DataBreakpoint | undefined> {
-		return !this.resolution.dataId ? undefined : {
-			dataId: this.resolution.dataId,
+		const info = await this.requestInfo(session);
+		// we could evaluate whether the provided access type is part of the supported access types but we rely on the DAP to throw an error when actually sending the breakpoint
+		return !info?.dataId ? undefined : {
+			dataId: info.dataId,
 			accessType: this.accessType,
 			condition: this.condition,
 			hitCondition: this.hitCondition,
 		};
 	}
 
+	protected async requestInfo(session: IDebugSession): Promise<IDataBreakpointInfoResponse | undefined> {
+		let info = this.sessionInfo.get(session.getId());
+		if (info) {
+			return info;
+		}
+		switch (this.origin.type) {
+			case DataBreakpointSetType.Variable:
+				info = this.origin;
+				break;
+			case DataBreakpointSetType.Expression:
+				info = await session.dataBreakpointInfo(this.origin.expression);
+				break;
+			case DataBreakpointSetType.Address:
+				info = await session.dataBytesBreakpointInfo(this.origin.address, this.origin.bytes);
+				break;
+			case DataBreakpointSetType.FrameScoped:
+				info = await session.dataBreakpointInfo(this.origin.expression, undefined, this.origin.frameId);
+				break;
+			case DataBreakpointSetType.VariableScoped:
+				info = await session.dataBreakpointInfo(this.origin.variable, this.origin.variablesReference, undefined);
+				break;
+		}
+		if (info) {
+			this.sessionInfo.set(session.getId(), info);
+		}
+		return info ?? undefined;
+
+	}
+
 	override toJSON(): IDataBreakpointOptions & { id: string } {
 		return {
 			...super.toJSON(),
-			resolution: this.resolution,
-			src: this.src,
-			accessType: this.accessType
+			origin: this.origin,
+			accessType: this.accessType,
+			infos: Array.from(this.sessionInfo.entries()).filter(([_, info]) => !!info.canPersist),
 		};
 	}
 
@@ -1221,7 +1270,7 @@ export class DataBreakpoint extends BaseBreakpoint implements IDataBreakpoint {
 	}
 
 	override toString(): string {
-		return this.resolution.description;
+		return this.origin.description;
 	}
 }
 
@@ -1973,8 +2022,8 @@ export class DebugModel extends Disposable implements IDebugModel {
 		this._onDidChangeBreakpoints.fire({ removed, sessionOnly: false });
 	}
 
-	addInstructionBreakpoint(opts: IInstructionBreakpointOptions): void {
-		const newInstructionBreakpoint = new InstructionBreakpoint(opts);
+	addInstructionBreakpoint(opts: IInstructionBreakpointOptions, id?: string): void {
+		const newInstructionBreakpoint = new InstructionBreakpoint(opts, id);
 		this.instructionBreakpoints.push(newInstructionBreakpoint);
 		this._onDidChangeBreakpoints.fire({ added: [newInstructionBreakpoint], sessionOnly: true });
 	}

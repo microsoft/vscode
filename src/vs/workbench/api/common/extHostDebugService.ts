@@ -412,9 +412,9 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 			return false;
 		});
 
-		// resolve any data breakpoints
+		// retrieve info early for any new data breakpoints to make sure we have the right session before sending it to main
 		if (this.activeDebugSession) {
-			await Promise.allSettled(breakpoints.filter(bp => bp instanceof DataBreakpoint).map(bp => (bp as DataBreakpoint).resolve(this.activeDebugSession!)));
+			await Promise.allSettled(breakpoints.filter(bp => bp instanceof DataBreakpoint).map(bp => (bp as DataBreakpoint).info(this.activeDebugSession!)));
 		}
 
 		// send notification for added breakpoints
@@ -456,19 +456,8 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 					functionName: bp.functionName,
 					mode: bp.mode,
 				});
-			} else if (bp instanceof DataBreakpoint && bp.resolution) {
-				dtos.push({
-					type: 'data',
-					id: bp.id,
-					enabled: bp.enabled,
-					hitCondition: bp.hitCondition,
-					logMessage: bp.logMessage,
-					condition: bp.condition,
-					source: bp.source,
-					resolution: bp.resolution,
-					accessType: bp.accessType,
-					mode: bp.mode
-				});
+			} else if (bp instanceof DataBreakpoint) {
+				dtos.push(Convert.DataBreakpoint.from(bp));
 			}
 		}
 
@@ -756,7 +745,7 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 					if (bpd.type === 'function') {
 						bp = new FunctionBreakpoint(bpd.functionName, bpd.enabled, bpd.condition, bpd.hitCondition, bpd.logMessage, bpd.mode);
 					} else if (bpd.type === 'data') {
-						bp = new DataBreakpoint(bpd.source, bpd.accessType, bpd.enabled, bpd.hitCondition, bpd.condition, bpd.logMessage, bpd.mode).set(bpd.resolution);
+						bp = Convert.DataBreakpoint.to(bpd);
 					} else {
 						const uri = URI.revive(bpd.uri);
 						bp = new SourceBreakpoint(new Location(uri, new Position(bpd.line, bpd.character)), bpd.enabled, bpd.condition, bpd.hitCondition, bpd.logMessage, bpd.mode);
@@ -806,9 +795,9 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 							dbp.hitCondition = bpd.hitCondition;
 							dbp.logMessage = bpd.logMessage;
 							dbp.mode = bpd.mode;
-							dbp.source = bpd.source;
+							dbp.origin = Convert.DataBreakpointOrigin.to(bpd.origin);
 							dbp.accessType = bpd.accessType;
-							dbp.set(bpd.resolution);
+							dbp.setInfos(bpd.infos ?? []);
 						}
 						c.push(bp);
 					}

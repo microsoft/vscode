@@ -1839,11 +1839,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatErrorLevel: extHostTypes.ChatErrorLevel,
 			McpSSEServerDefinition: extHostTypes.McpSSEServerDefinition,
 			McpStdioServerDefinition: extHostTypes.McpStdioServerDefinition,
-			ResolvedDataBreakpointSource: extHostTypes.ResolvedDataBreakpointSource,
-			AddressDataBreakpointSource: extHostTypes.AddressDataBreakpointSource,
-			ExpressionDataBreakpointSource: extHostTypes.ExpressionDataBreakpointSource,
-			VariableScopedDataBreakpointSource: extHostTypes.VariableScopedDataBreakpointSource,
-			FrameScopedDataBreakpointSource: extHostTypes.FrameScopedDataBreakpointSource,
+			ResolvedDataBreakpointOrigin: extHostTypes.ResolvedDataBreakpointOrigin,
+			AddressDataBreakpointOrigin: extHostTypes.AddressDataBreakpointOrigin,
+			ExpressionDataBreakpointOrigin: extHostTypes.ExpressionDataBreakpointOrigin,
+			VariableScopedDataBreakpointOrigin: extHostTypes.VariableScopedDataBreakpointOrigin,
+			FrameScopedDataBreakpointOrigin: extHostTypes.FrameScopedDataBreakpointOrigin,
 		};
 	};
 }

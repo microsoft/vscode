@@ -757,8 +757,8 @@ export class DebugService implements IDebugService {
 					this.paneCompositeService.openPaneComposite(EXPLORER_VIEWLET_ID, ViewContainerLocation.Sidebar);
 				}
 
-				// Data breakpoints that can not be persisted should be cleared when a session ends
-				const dataBreakpoints = this.model.getDataBreakpoints().filter(dbp => !dbp.resolution.canPersist);
+				// Data breakpoints that can not be persisted or were never actually resolved should be cleared when a session ends
+				const dataBreakpoints = this.model.getDataBreakpoints().filter(dbp => !dbp.info(session.getId())?.canPersist);
 				dataBreakpoints.forEach(dbp => this.model.removeDataBreakpoints(dbp.getId()));
 
 				if (this.configurationService.getValue<IDebugConfiguration>('debug').console.closeOnEnd) {
@@ -1132,8 +1132,8 @@ export class DebugService implements IDebugService {
 		await this.sendFunctionBreakpoints();
 	}
 
-	async addDataBreakpoint(opts: IDataBreakpointOptions): Promise<void> {
-		this.model.addDataBreakpoint(opts);
+	async addDataBreakpoint(opts: IDataBreakpointOptions, id?: string): Promise<void> {
+		this.model.addDataBreakpoint(opts, id);
 		this.debugStorage.storeBreakpoints(this.model);
 		await this.sendDataBreakpoints();
 		this.debugStorage.storeBreakpoints(this.model);
@@ -1151,8 +1151,8 @@ export class DebugService implements IDebugService {
 		await this.sendDataBreakpoints();
 	}
 
-	async addInstructionBreakpoint(opts: IInstructionBreakpointOptions): Promise<void> {
-		this.model.addInstructionBreakpoint(opts);
+	async addInstructionBreakpoint(opts: IInstructionBreakpointOptions, id?: string): Promise<void> {
+		this.model.addInstructionBreakpoint(opts, id);
 		this.debugStorage.storeBreakpoints(this.model);
 		await this.sendInstructionBreakpoints();
 		this.debugStorage.storeBreakpoints(this.model);

@@ -313,17 +313,16 @@ suite('Debug - Breakpoints', () => {
 		let eventCount = 0;
 		disposables.add(model.onDidChangeBreakpoints(() => eventCount++));
 
-		model.addDataBreakpoint({ src: { type: DataBreakpointSetType.Variable, dataId: 'id' }, resolution: { description: 'label', dataId: 'id', canPersist: true, accessTypes: ['read'] }, accessType: 'read' }, '1');
-		model.addDataBreakpoint({ src: { type: DataBreakpointSetType.Variable, dataId: 'secondId' }, resolution: { description: 'second', dataId: 'secondId', canPersist: true, accessTypes: ['readWrite'] }, accessType: 'readWrite' }, '2');
+		model.addDataBreakpoint({ origin: { type: DataBreakpointSetType.Variable, dataId: 'id', description: 'label', canPersist: true, accessTypes: ['read'] }, accessType: 'read' }, '1');
+		model.addDataBreakpoint({ origin: { type: DataBreakpointSetType.Variable, dataId: 'secondId', description: 'second', canPersist: true, accessTypes: ['readWrite'] }, accessType: 'readWrite' }, '2');
 		model.updateDataBreakpoint('1', { condition: 'aCondition' });
 		model.updateDataBreakpoint('2', { hitCondition: '10' });
 		const dataBreakpoints = model.getDataBreakpoints();
-		assert.strictEqual(dataBreakpoints[0].resolution.canPersist, true);
-		assert.deepStrictEqual(dataBreakpoints[0].src, { type: DataBreakpointSetType.Variable, dataId: 'id' });
+		assert.strictEqual(dataBreakpoints[0].origin.type, 'variable');
+		assert.deepStrictEqual(dataBreakpoints[0].origin, { type: DataBreakpointSetType.Variable, dataId: 'id', description: 'label', canPersist: true, accessTypes: ['read'] });
 		assert.strictEqual(dataBreakpoints[0].accessType, 'read');
 		assert.strictEqual(dataBreakpoints[0].condition, 'aCondition');
-		assert.strictEqual(dataBreakpoints[1].resolution.canPersist, false);
-		assert.strictEqual(dataBreakpoints[1].resolution.description, 'second');
+		assert.deepStrictEqual(dataBreakpoints[1].origin, { type: DataBreakpointSetType.Variable, dataId: 'secondId', description: 'second', canPersist: true, accessTypes: ['readWrite'] });
 		assert.strictEqual(dataBreakpoints[1].accessType, 'readWrite');
 		assert.strictEqual(dataBreakpoints[1].hitCondition, '10');
 
@@ -374,7 +373,7 @@ suite('Debug - Breakpoints', () => {
 		assert.strictEqual(result.message, 'Disabled Logpoint');
 		assert.strictEqual(result.icon.id, 'debug-breakpoint-log-disabled');
 
-		model.addDataBreakpoint({ src: { type: DataBreakpointSetType.Variable, dataId: 'id' }, resolution: { description: 'label', dataId: 'id', canPersist: true, accessTypes: ['read'] }, accessType: 'read' });
+		model.addDataBreakpoint({ origin: { type: DataBreakpointSetType.Variable, dataId: 'id', description: 'label', canPersist: true, accessTypes: ['read'] }, accessType: 'read' });
 		const dataBreakpoints = model.getDataBreakpoints();
 		result = getBreakpointMessageAndIcon(State.Stopped, true, dataBreakpoints[0], ls, model);
 		assert.strictEqual(result.message, 'Data Breakpoint');

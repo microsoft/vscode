@@ -793,8 +793,7 @@ CommandsRegistry.registerCommand({
 		const debugService = accessor.get(IDebugService);
 		if (dataBreakpointInfoResponse) {
 			await debugService.addDataBreakpoint({
-				src: { type: DataBreakpointSetType.Variable, dataId: dataBreakpointInfoResponse.dataId! },
-				resolution: { description: dataBreakpointInfoResponse.description, dataId: dataBreakpointInfoResponse.dataId!, canPersist: !!dataBreakpointInfoResponse.canPersist, accessTypes: dataBreakpointInfoResponse.accessTypes },
+				origin: { type: DataBreakpointSetType.Variable, ...dataBreakpointInfoResponse, dataId: dataBreakpointInfoResponse.dataId! },
 				accessType: 'write'
 			});
 		}
@@ -808,8 +807,7 @@ CommandsRegistry.registerCommand({
 		const debugService = accessor.get(IDebugService);
 		if (dataBreakpointInfoResponse) {
 			await debugService.addDataBreakpoint({
-				src: { type: DataBreakpointSetType.Variable, dataId: dataBreakpointInfoResponse.dataId! },
-				resolution: { description: dataBreakpointInfoResponse.description, dataId: dataBreakpointInfoResponse.dataId!, canPersist: !!dataBreakpointInfoResponse.canPersist, accessTypes: dataBreakpointInfoResponse.accessTypes },
+				origin: { type: DataBreakpointSetType.Variable, ...dataBreakpointInfoResponse, dataId: dataBreakpointInfoResponse.dataId! },
 				accessType: 'readWrite'
 			});
 		}
@@ -823,8 +821,7 @@ CommandsRegistry.registerCommand({
 		const debugService = accessor.get(IDebugService);
 		if (dataBreakpointInfoResponse) {
 			await debugService.addDataBreakpoint({
-				src: { type: DataBreakpointSetType.Variable, dataId: dataBreakpointInfoResponse.dataId! },
-				resolution: { description: dataBreakpointInfoResponse.description, dataId: dataBreakpointInfoResponse.dataId!, canPersist: !!dataBreakpointInfoResponse.canPersist, accessTypes: dataBreakpointInfoResponse.accessTypes },
+				origin: { type: DataBreakpointSetType.Variable, ...dataBreakpointInfoResponse, dataId: dataBreakpointInfoResponse.dataId! },
 				accessType: 'read'
 			});
 		}
