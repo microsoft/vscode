@@ -29,6 +29,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { SeverityIcon } from '../../../../base/browser/ui/severityIcon/severityIcon.js';
 import { contrastBorder, editorBackground, editorErrorBorder, editorErrorForeground, editorInfoBorder, editorInfoForeground, editorWarningBorder, editorWarningForeground, oneOf, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
 import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 class MessageWidget {
 
@@ -248,11 +249,13 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		@IMenuService private readonly _menuService: IMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@ILabelService private readonly _labelService: ILabelService
+		@ILabelService private readonly _labelService: ILabelService,
+		@IConfigurationService private readonly _configService: IConfigurationService
 	) {
 		super(editor, { showArrow: true, showFrame: true, isAccessible: true, frameWidth: 1 }, instantiationService);
 		this._severity = MarkerSeverity.Warning;
 		this._backgroundColor = Color.white;
+		this.options.showOverlay = this._configService.getValue<boolean>('problems.gotoError.showOverlay');
 
 		this._applyTheme(_themeService.getColorTheme());
 		this._callOnDispose.add(_themeService.onDidColorThemeChange(this._applyTheme.bind(this)));

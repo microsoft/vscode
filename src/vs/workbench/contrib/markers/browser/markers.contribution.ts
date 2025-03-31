@@ -105,6 +105,11 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			'default': 'tree',
 			'enum': ['table', 'tree'],
 		},
+		'problems.gotoError.showOverlay': {
+			'description': Messages.PROBLEMS_GOTOERROR_CONFIGURATION_SHOWOVERLAY,
+			'type': 'boolean',
+			'default': true
+		},
 		'problems.showCurrentInStatus': {
 			'description': Messages.PROBLEMS_PANEL_CONFIGURATION_SHOW_CURRENT_STATUS,
 			'type': 'boolean',
