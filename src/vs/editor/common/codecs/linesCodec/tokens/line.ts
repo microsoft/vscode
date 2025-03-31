@@ -58,6 +58,6 @@ export class Line extends BaseToken {
 	 * Returns a string representation of the token.
 	 */
 	public override toString(): string {
-		return `line("${this.text}")${this.range}`;
+		return `line("${this.shortText()}")${this.range}`;
 	}
 }
