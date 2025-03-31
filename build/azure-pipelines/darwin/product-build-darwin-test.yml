@@ -9,6 +9,13 @@ parameters:
     type: boolean
 
 steps:
+  - script: |
+      set -e
+      sudo spctl --master-disable
+      sudo spctl --status
+    displayName: Disable Gatekeeper
+    timeoutInMinutes: 20
+
   - script: npm exec -- npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
