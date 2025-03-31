@@ -249,7 +249,13 @@ export class CodeBlockPart extends Disposable {
 		}));
 
 		this._register(this.toolbar.onDidChangeDropdownVisibility(e => {
-			toolbarElement.classList.toggle('force-visibility', e);
+			if (!e) {
+				// Wait so that focus can move to the toolbar
+				// before we hide the toolbar
+				setTimeout(() => toolbarElement.classList.toggle('force-visibility', e), 30);
+			} else {
+				toolbarElement.classList.toggle('force-visibility', e);
+			}
 		}));
 
 		this._configureForScreenReader();

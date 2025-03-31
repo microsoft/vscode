@@ -52,7 +52,7 @@
 	border-radius: 2px;
 }
 
-.interactive-result-code-block .interactive-result-code-block-toolbar.force-visibility .monaco-toolbar {
+.interactive-result-code-block .interactive-result-code-block-toolbar.force-visibility {
 	display: initial !important;
 }
 
