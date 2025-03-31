@@ -5,7 +5,7 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorAction, EditorCommand, EditorContributionInstantiation, IActionOptions, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from '../../../browser/editorExtensions.js';
@@ -38,6 +38,8 @@ export class MarkerController implements IEditorContribution {
 
 	private readonly _widgetVisible: IContextKey<boolean>;
 	private readonly _sessionDisposables = new DisposableStore();
+	private readonly _settingsDisposable: IDisposable;
+	private _showOverlayOnNavigate: boolean;
 
 	private _model?: MarkerList;
 	private _widget?: MarkerNavigationWidget;
@@ -52,11 +54,20 @@ export class MarkerController implements IEditorContribution {
 	) {
 		this._editor = editor;
 		this._widgetVisible = CONTEXT_MARKERS_NAVIGATION_VISIBLE.bindTo(this._contextKeyService);
+
+		this._showOverlayOnNavigate = this._configService.getValue<boolean>('problems.gotoError.showOverlay');
+		this._settingsDisposable = this._configService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('problems.gotoError.showOverlay')) {
+				this._showOverlayOnNavigate = this._configService.getValue<boolean>('problems.gotoError.showOverlay');
+				this._cleanUp();
+			}
+		});
 	}
 
 	dispose(): void {
 		this._cleanUp();
 		this._sessionDisposables.dispose();
+		this._settingsDisposable.dispose();
 	}
 
 	private _cleanUp(): void {
@@ -182,7 +193,7 @@ export class MarkerController implements IEditorContribution {
 	}
 
 	get showsOverlayOnNavigate() {
-		return this._configService.getValue<boolean>('problems.gotoError.showOverlay');
+		return this._showOverlayOnNavigate;
 	}
 }
 
