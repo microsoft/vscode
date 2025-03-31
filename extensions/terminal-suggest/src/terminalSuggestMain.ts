@@ -284,7 +284,6 @@ export async function getCompletionItemsFromSpecs(
 
 				existingItem.documentation ??= command.documentation;
 				existingItem.detail ??= command.detail;
-				existingItem.kind ??= command.kind;
 			}
 		}
 		filesRequested = true;
