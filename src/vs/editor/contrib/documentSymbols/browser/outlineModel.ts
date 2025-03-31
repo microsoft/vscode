@@ -244,8 +244,20 @@ export class OutlineModel extends TreeElement {
 		const id = TreeElement.findId(info, container);
 		const res = new OutlineElement(id, container, info);
 		if (info.children) {
+			const stack: { info: DocumentSymbol, container: OutlineElement }[] = [];
 			for (const childInfo of info.children) {
-				OutlineModel._makeOutlineElement(childInfo, res);
+				stack.push({ info: childInfo, container: res });
+			}
+			while (stack.length > 0) {
+				const { info, container } = stack.pop()!;
+				const id = TreeElement.findId(info, container);
+				const res = new OutlineElement(id, container, info);
+				container.children.set(res.id, res);
+				if (info.children) {
+					for (const childInfo of info.children) {
+						stack.push({ info: childInfo, container: res });
+					}
+				}
 			}
 		}
 		container.children.set(res.id, res);
@@ -368,7 +380,12 @@ export class OutlineModel extends TreeElement {
 	}
 
 	private static _flattenDocumentSymbols(bucket: DocumentSymbol[], entries: DocumentSymbol[], overrideContainerLabel: string): void {
+		const stack: { entry: DocumentSymbol, overrideContainerLabel: string }[] = [];
 		for (const entry of entries) {
+			stack.push({ entry, overrideContainerLabel });
+		}
+		while (stack.length > 0) {
+			const { entry, overrideContainerLabel } = stack.pop()!;
 			bucket.push({
 				kind: entry.kind,
 				tags: entry.tags,
@@ -379,10 +396,10 @@ export class OutlineModel extends TreeElement {
 				selectionRange: entry.selectionRange,
 				children: undefined, // we flatten it...
 			});
-
-			// Recurse over children
 			if (entry.children) {
-				OutlineModel._flattenDocumentSymbols(bucket, entry.children, entry.name);
+				for (const child of entry.children) {
+					stack.push({ entry: child, overrideContainerLabel: entry.name });
+				}
 			}
 		}
 	}
