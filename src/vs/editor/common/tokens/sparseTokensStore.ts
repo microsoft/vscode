@@ -35,16 +35,18 @@ export class SparseTokensStore {
 		return (this._pieces.length === 0);
 	}
 
-	public set(pieces: SparseMultilineTokens[] | null, isComplete: boolean, textModel: ITextModel): void {
+	public set(pieces: SparseMultilineTokens[] | null, isComplete: boolean, textModel: ITextModel | undefined = undefined): void {
 		this._pieces = pieces || [];
 		this._isComplete = isComplete;
 
-		for (const p of this._pieces) {
-			p.reportIfInvalid(textModel);
+		if (textModel) {
+			for (const p of this._pieces) {
+				p.reportIfInvalid(textModel);
+			}
 		}
 	}
 
-	public setPartial(_range: Range, pieces: SparseMultilineTokens[], _textModel: ITextModel): Range {
+	public setPartial(_range: Range, pieces: SparseMultilineTokens[]): Range {
 		// console.log(`setPartial ${_range} ${pieces.map(p => p.toString()).join(', ')}`);
 
 		let range = _range;
