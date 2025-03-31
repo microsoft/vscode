@@ -37,6 +37,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IChatStatusItemService, ChatStatusEntry } from './chatStatusItemService.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
+import { getCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 
 const gaugeBackground = registerColor('gauge.background', {
 	dark: inputValidationInfoBorder,
@@ -103,6 +104,8 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 	private dashboard = new Lazy<ChatStatusDashboard>(() => this.instantiationService.createInstance(ChatStatusDashboard));
 
+	private readonly activeCodeEditorListener = this._register(new MutableDisposable());
+
 	constructor(
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -136,12 +139,28 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		this._register(this.chatEntitlementService.onDidChangeQuotaExceeded(() => this.entry?.update(this.getEntryProps())));
 		this._register(this.chatEntitlementService.onDidChangeSentiment(() => this.entry?.update(this.getEntryProps())));
 		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => this.entry?.update(this.getEntryProps())));
-		this._register(this.editorService.onDidActiveEditorChange(() => this.entry?.update(this.getEntryProps())));
+
+		this._register(this.editorService.onDidActiveEditorChange(() => this.onDidActiveEditorChange()));
+
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(defaultChat.completionsEnablementSetting)) {
 				this.entry?.update(this.getEntryProps());
 			}
 		}));
+	}
+
+	private onDidActiveEditorChange(): void {
+		this.entry?.update(this.getEntryProps());
+
+		this.activeCodeEditorListener.clear();
+
+		// Listen to language changes in the active code editor
+		const activeCodeEditor = getCodeEditor(this.editorService.activeTextEditorControl);
+		if (activeCodeEditor) {
+			this.activeCodeEditorListener.value = activeCodeEditor.onDidChangeModelLanguage(() => {
+				this.entry?.update(this.getEntryProps());
+			});
+		}
 	}
 
 	private getEntryProps(): IStatusbarEntry {
