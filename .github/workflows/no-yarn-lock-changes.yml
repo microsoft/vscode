@@ -12,7 +12,7 @@ jobs:
           route: GET /repos/microsoft/vscode/collaborators/{username}/permission
           username: ${{ github.event.pull_request.user.login }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ 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 }}
       - name: Set control output variable
         id: control
         run: |
