@@ -93,8 +93,9 @@ export class MarkdownDecoder extends BaseDecoder<TMarkdownToken, TSimpleDecoderT
 			// then reset the current parser object
 			for (const token of this.current.tokens) {
 				this._onData.fire(token);
-				delete this.current;
 			}
+
+			delete this.current;
 		}
 
 		// if token was not consumed by the parser, call `onStreamData` again
@@ -120,11 +121,12 @@ export class MarkdownDecoder extends BaseDecoder<TMarkdownToken, TSimpleDecoderT
 
 			// in all other cases, re-emit existing parser tokens
 			const { tokens } = this.current;
-			delete this.current;
 
 			for (const token of [...tokens]) {
 				this._onData.fire(token);
 			}
+
+			delete this.current;
 		}
 
 		super.onStreamEnd();

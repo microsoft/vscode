@@ -13,8 +13,6 @@ import { PartialFrontMatterHeader, PartialFrontMatterStartMarker } from './parse
 
 /**
  * TODO: @legomushroom - list
- * - split to multiple commits/branches
- * - use the decoder
  * - add tests
  */
 
@@ -40,9 +38,9 @@ export class MarkdownExtensionsDecoder extends BaseDecoder<TMarkdownExtensionsTo
 	}
 
 	protected override onStreamData(token: TSimpleDecoderToken): void {
-		// `markdown links` start with `[` character, so here we can
-		// initiate the process of parsing a markdown link
-		if (token instanceof Dash && !this.current) {
+		// front matter headers start with a `-` at the first column of a line
+		const maybeFrontMatter = (token instanceof Dash) && (token.range.startColumn === 1);
+		if ((this.current === undefined) && maybeFrontMatter) {
 			this.current = new PartialFrontMatterStartMarker(token);
 
 			return;
@@ -76,8 +74,9 @@ export class MarkdownExtensionsDecoder extends BaseDecoder<TMarkdownExtensionsTo
 			// then reset the currently initialized parser object
 			for (const token of this.current.tokens) {
 				this._onData.fire(token);
-				delete this.current;
 			}
+
+			delete this.current;
 		}
 
 		// if token was not consumed by the parser, call `onStreamData` again
@@ -105,11 +104,11 @@ export class MarkdownExtensionsDecoder extends BaseDecoder<TMarkdownExtensionsTo
 
 			// in all other cases, re-emit existing parser tokens
 			const { tokens } = this.current;
-			delete this.current;
-
 			for (const token of [...tokens]) {
 				this._onData.fire(token);
 			}
+
+			delete this.current;
 		}
 
 		super.onStreamEnd();
