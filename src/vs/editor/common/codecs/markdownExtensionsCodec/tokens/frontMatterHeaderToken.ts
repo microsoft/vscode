@@ -5,10 +5,10 @@
 
 import { Range } from '../../../core/range.js';
 import { BaseToken } from '../../baseToken.js';
+import { NewLine } from '../../linesCodec/tokens/newLine.js';
 import { assert } from '../../../../../base/common/assert.js';
 import { MarkdownExtensionsToken } from './markdownExtensionsToken.js';
 import { TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
-import { NewLine } from '../../linesCodec/tokens/newLine.js';
 
 /**
  * Token that represents a `Front Matter` header in a text.
@@ -93,7 +93,6 @@ export class FrontMatterHeaderToken extends MarkdownExtensionsToken {
 	 * Returns a string representation of the token.
 	 */
 	public override toString(): string {
-		// TODO: @legomushroom - add an utility to truncate strings
-		return `frontmatter("${this.text.slice(0, 10)}")${this.range}`;
+		return `frontmatter("${this.shortText()}")${this.range}`;
 	}
 }

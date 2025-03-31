@@ -10,8 +10,8 @@ import { TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
 import { assert, assertNever } from '../../../../../base/common/assert.js';
 import { CarriageReturn } from '../../linesCodec/tokens/carriageReturn.js';
 import { FrontMatterHeaderToken } from '../tokens/frontMatterHeaderToken.js';
-import { assertNotConsumed, IAcceptTokenSuccess, ParserBase, TAcceptTokenResult } from '../../simpleCodec/parserBase.js';
 import { FrontMatterHeaderMarkerToken, TMarkerToken } from '../tokens/frontMatterHeaderMarkerToken.js';
+import { assertNotConsumed, IAcceptTokenSuccess, ParserBase, TAcceptTokenResult } from '../../simpleCodec/parserBase.js';
 
 /**
  * Parses the start marker of a Front Matter header.

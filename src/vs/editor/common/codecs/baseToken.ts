@@ -107,4 +107,17 @@ export abstract class BaseToken {
 			lastToken.range.endColumn,
 		);
 	}
+
+	/**
+	 * Shorten version of the {@link text} property.
+	 */
+	public shortText(
+		maxLength: number = 32,
+	): string {
+		if (this.text.length <= maxLength) {
+			return this.text;
+		}
+
+		return `${this.text.slice(0, maxLength - 1)}...`;
+	}
 }
