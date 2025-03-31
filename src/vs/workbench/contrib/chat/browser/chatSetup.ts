@@ -29,7 +29,7 @@ import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/c
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -187,6 +187,7 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 	}
@@ -244,6 +245,12 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 		const whenAgentReady = this.whenAgentReady(chatAgentService);
 
 		if (whenLanguageModelReady instanceof Promise || whenAgentReady instanceof Promise) {
+			const switchToReleaseChannel = this.contextKeyService.getContextKeyValue<boolean>('github.copilot.interactiveSession.switchToReleaseChannel');
+			if (switchToReleaseChannel) {
+				this._onUnresolvableError.fire();
+				return;
+			}
+
 			const timeoutHandle = setTimeout(() => {
 				progress({
 					kind: 'progressMessage',
