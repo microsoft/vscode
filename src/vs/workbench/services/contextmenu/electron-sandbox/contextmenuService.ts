@@ -48,14 +48,14 @@ export class ContextMenuService implements IContextMenuService {
 	) {
 
 		// Custom context menu: Linux/Windows if custom title is enabled
-		if (!isMacintosh && !hasNativeTitlebar(configurationService)) {
-			this.impl = new HTMLContextMenuService(telemetryService, notificationService, contextViewService, keybindingService, menuService, contextKeyService);
-		}
+		// if (!isMacintosh && !hasNativeTitlebar(configurationService)) {
+		this.impl = new HTMLContextMenuService(telemetryService, notificationService, contextViewService, keybindingService, menuService, contextKeyService);
+		// }
 
 		// Native context menu: otherwise
-		else {
-			this.impl = new NativeContextMenuService(notificationService, telemetryService, keybindingService, menuService, contextKeyService);
-		}
+		// else {
+		// 	this.impl = new NativeContextMenuService(notificationService, telemetryService, keybindingService, menuService, contextKeyService);
+		// }
 	}
 
 	dispose(): void {

@@ -10,6 +10,7 @@
 
 .interactive-result-code-block .interactive-result-code-block-toolbar {
 	opacity: 0;
+	pointer-events: none;
 }
 
 .interactive-result-code-block .interactive-result-code-block-toolbar > .monaco-action-bar,
@@ -50,10 +51,12 @@
 .interactive-result-code-block.focused .interactive-result-code-block-toolbar {
 	opacity: 1;
 	border-radius: 2px;
+	pointer-events: auto !important;
 }
 
 .interactive-result-code-block .interactive-result-code-block-toolbar.force-visibility {
 	opacity: 1 !important;
+	pointer-events: auto !important;
 }
 
 .interactive-item-container .value .rendered-markdown [data-code] {
