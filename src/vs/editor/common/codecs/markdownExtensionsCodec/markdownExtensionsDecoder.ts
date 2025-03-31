@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dash } from '../simpleCodec/tokens/dash.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { ReadableStream } from '../../../../base/common/stream.js';
 import { BaseDecoder } from '../../../../base/common/codecs/baseDecoder.js';
@@ -12,17 +11,13 @@ import { SimpleDecoder, TSimpleDecoderToken } from '../simpleCodec/simpleDecoder
 import { PartialFrontMatterHeader, PartialFrontMatterStartMarker } from './parsers/frontMatterHeader.js';
 
 /**
- * TODO: @legomushroom - list
- * - add tests
- */
-
-/**
  * Tokens produced by this decoder.
  */
 export type TMarkdownExtensionsToken = MarkdownExtensionsToken | TSimpleDecoderToken;
 
 /**
- * TODO: @legomushroom
+ * Decoder responsible for decoding extensions of markdown syntax,
+ * e.g., a `Front Matter` header, etc.
  */
 export class MarkdownExtensionsDecoder extends BaseDecoder<TMarkdownExtensionsToken, TSimpleDecoderToken> {
 	/**
@@ -39,8 +34,7 @@ export class MarkdownExtensionsDecoder extends BaseDecoder<TMarkdownExtensionsTo
 
 	protected override onStreamData(token: TSimpleDecoderToken): void {
 		// front matter headers start with a `-` at the first column of the first line
-		const maybeFrontMatter = (token instanceof Dash) && (token.range.startLineNumber === 1) && (token.range.startColumn === 1);
-		if ((this.current === undefined) && maybeFrontMatter) {
+		if ((this.current === undefined) && PartialFrontMatterStartMarker.mayStartHeader(token)) {
 			this.current = new PartialFrontMatterStartMarker(token);
 
 			return;
