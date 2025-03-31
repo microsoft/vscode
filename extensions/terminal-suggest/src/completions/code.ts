@@ -547,11 +547,6 @@ export const codeTunnelSubcommands = [
 				},
 			},
 			{
-				name: 'status',
-				description: 'Print process usage and diagnostics information',
-				options: [...globalTunnelOptions, ...tunnelHelpOptions],
-			},
-			{
 				name: 'unregister',
 				description: 'Remove this machine\'s association with the port forwarding service',
 				options: [...globalTunnelOptions, ...tunnelHelpOptions],
