@@ -77,7 +77,6 @@ export const codeTunnelSpecOptions: Fig.Option[] = [
 const codeTunnelCompletionSpec: Fig.Spec = {
 	...code,
 	name: 'code-tunnel',
-	description: 'Create a tunnel that\'s accessible on vscode.dev from anywhere.',
 	subcommands: [
 		...codeTunnelSubcommands,
 		extTunnelSubcommand

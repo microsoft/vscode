@@ -8,7 +8,6 @@ import codeTunnelCompletionSpec, { codeTunnelSpecOptions } from './code-tunnel';
 const codeTunnelInsidersCompletionSpec: Fig.Spec = {
 	...codeTunnelCompletionSpec,
 	name: 'code-tunnel-insiders',
-	description: 'Create a tunnel that\'s accessible on vscode.dev from anywhere, with insider features.',
 	subcommands: [...codeTunnelSubcommands, extTunnelSubcommand],
 	options: [
 		...commonOptions,
