@@ -410,6 +410,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this.setChatMode(ChatMode.Edit);
 			}
 		}));
+
+		this._register(this.onDidChangeCurrentChatMode(() => this.accessibilityService.alert(this._currentMode)));
+		this._register(this._onDidChangeCurrentLanguageModel.event(() => {
+			if (this._currentLanguageModel?.metadata.name) {
+				this.accessibilityService.alert(this._currentLanguageModel.metadata.name);
+			}
+		}));
 	}
 
 	private getSelectedModelStorageKey(): string {
