@@ -13,7 +13,7 @@ import { ctxHasEditorModification, ctxHasRequestInProgress, ctxReviewModeEnabled
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
-import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, IChatEditingService, IChatEditingSession, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, IChatEditingService, IChatEditingSession, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { resolveCommandsContext } from '../../../../browser/parts/editor/editorCommandsContext.js';
 import { IListService } from '../../../../../platform/list/browser/listService.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
@@ -128,7 +128,7 @@ async function openNextOrPreviousChange(accessor: ServicesAccessor, session: ICh
 	while (true) {
 		idx = (idx + (next ? 1 : -1) + entries.length) % entries.length;
 		newEntry = entries[idx];
-		if (newEntry.state.get() === WorkingSetEntryState.Modified) {
+		if (newEntry.state.get() === ModifiedFileEntryState.Modified) {
 			break;
 		} else if (newEntry === entry) {
 			return false;

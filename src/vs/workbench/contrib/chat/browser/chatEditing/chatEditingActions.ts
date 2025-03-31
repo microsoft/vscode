@@ -28,7 +28,7 @@ import { GroupsOrder, IEditorGroupsService } from '../../../../services/editor/c
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { isChatViewTitleActionContext } from '../../common/chatActions.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, WorkingSetEntryRemovalReason, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
@@ -127,7 +127,7 @@ registerAction2(class RemoveFileFromWorkingSet extends WorkingSetAction {
 	async runWorkingSetAction(accessor: ServicesAccessor, currentEditingSession: IChatEditingSession, chatWidget: IChatWidget, ...uris: URI[]): Promise<void> {
 		const dialogService = accessor.get(IDialogService);
 
-		const pendingEntries = currentEditingSession.entries.get().filter((entry) => uris.includes(entry.modifiedURI) && entry.state.get() === WorkingSetEntryState.Modified);
+		const pendingEntries = currentEditingSession.entries.get().filter((entry) => uris.includes(entry.modifiedURI) && entry.state.get() === ModifiedFileEntryState.Modified);
 		if (pendingEntries.length > 0) {
 			// Ask for confirmation if there are any pending edits
 			const file = pendingEntries.length > 1
@@ -168,7 +168,7 @@ registerAction2(class OpenFileInDiffAction extends WorkingSetAction {
 			icon: Codicon.diffSingle,
 			menu: [{
 				id: MenuId.ChatEditingWidgetModifiedFilesToolbar,
-				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Modified),
+				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, ModifiedFileEntryState.Modified),
 				order: 2,
 				group: 'navigation'
 			}],
@@ -179,7 +179,7 @@ registerAction2(class OpenFileInDiffAction extends WorkingSetAction {
 		const editorService = accessor.get(IEditorService);
 		for (const uri of uris) {
 			const editedFile = currentEditingSession.getEntry(uri);
-			if (editedFile?.state.get() === WorkingSetEntryState.Modified) {
+			if (editedFile?.state.get() === ModifiedFileEntryState.Modified) {
 				await editorService.openEditor({
 					original: { resource: URI.from(editedFile.originalURI, true) },
 					modified: { resource: URI.from(editedFile.modifiedURI, true) },
@@ -205,7 +205,7 @@ registerAction2(class AcceptAction extends WorkingSetAction {
 				group: 'navigation',
 			}, {
 				id: MenuId.ChatEditingWidgetModifiedFilesToolbar,
-				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Modified),
+				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, ModifiedFileEntryState.Modified),
 				order: 0,
 				group: 'navigation'
 			}],
@@ -231,7 +231,7 @@ registerAction2(class DiscardAction extends WorkingSetAction {
 				group: 'navigation',
 			}, {
 				id: MenuId.ChatEditingWidgetModifiedFilesToolbar,
-				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Modified),
+				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, ModifiedFileEntryState.Modified),
 				order: 1,
 				group: 'navigation'
 			}],
