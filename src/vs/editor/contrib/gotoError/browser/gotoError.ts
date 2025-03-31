@@ -24,6 +24,7 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { IMarker } from '../../../../platform/markers/common/markers.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { MarkerNavigationWidget } from './gotoErrorWidget.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 export class MarkerController implements IEditorContribution {
 
@@ -47,6 +48,7 @@ export class MarkerController implements IEditorContribution {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ICodeEditorService private readonly _editorService: ICodeEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configService: IConfigurationService
 	) {
 		this._editor = editor;
 		this._widgetVisible = CONTEXT_MARKERS_NAVIGATION_VISIBLE.bindTo(this._contextKeyService);
@@ -80,7 +82,7 @@ export class MarkerController implements IEditorContribution {
 			this._model.move(true, this._editor.getModel()!, this._editor.getPosition()!);
 		}
 
-		this._widget = this._instantiationService.createInstance(MarkerNavigationWidget, this._editor);
+		this._widget = this._instantiationService.createInstance(MarkerNavigationWidget, this._editor, this.showsOverlayOnNavigate);
 		this._widget.onDidClose(() => this.close(), this, this._sessionDisposables);
 		this._widgetVisible.set(true);
 
@@ -127,7 +129,7 @@ export class MarkerController implements IEditorContribution {
 		}
 	}
 
-	showAtMarker(marker: IMarker): void {
+	showAtMarker(marker: IMarker, forceShowOverlay: boolean = false): void {
 		if (!this._editor.hasModel()) {
 			return;
 		}
@@ -137,7 +139,15 @@ export class MarkerController implements IEditorContribution {
 		model.resetIndex();
 		model.move(true, textModel, new Position(marker.startLineNumber, marker.startColumn));
 		if (model.selected) {
-			this._widget!.showAtMarker(model.selected.marker, model.selected.index, model.selected.total);
+			const widget = this._widget!;
+			if (widget.options.showOverlay || !forceShowOverlay) {
+				widget.showAtMarker(model.selected.marker, model.selected.index, model.selected.total);
+			} else {
+				const showOverlay = widget.options.showOverlay;
+				widget.options.showOverlay = true;
+				widget.showAtMarker(model.selected.marker, model.selected.index, model.selected.total);
+				widget.options.showOverlay = showOverlay;
+			}
 		}
 	}
 
@@ -169,6 +179,10 @@ export class MarkerController implements IEditorContribution {
 			// show in this editor
 			this._widget!.showAtMarker(model.selected.marker, model.selected.index, model.selected.total);
 		}
+	}
+
+	get showsOverlayOnNavigate() {
+		return this._configService.getValue<boolean>('problems.gotoError.showOverlay');
 	}
 }
 
