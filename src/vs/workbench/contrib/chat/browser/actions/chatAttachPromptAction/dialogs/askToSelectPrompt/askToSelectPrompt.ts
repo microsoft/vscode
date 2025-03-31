@@ -153,6 +153,7 @@ export const askToSelectPrompt = async (
 		// handle the prompt `accept` event
 		disposables.add(quickPick.onDidAccept(async (event) => {
 			const { selectedItems } = quickPick;
+			const { keyMods } = quickPick;
 
 			// sanity check to confirm our expectations
 			assert(
@@ -173,7 +174,14 @@ export const askToSelectPrompt = async (
 			}
 
 			// otherwise attach the selected prompt to a chat input
-			lastActiveWidget = await attachPrompts(selectedItems, options, quickPick.keyMods);
+			lastActiveWidget = await attachPrompts(
+				selectedItems,
+				{
+					...options,
+					inNewChat: keyMods.ctrlCmd,
+				},
+				keyMods.alt,
+			);
 
 			// if user submitted their selection, close the dialog
 			if (!event.inBackground) {

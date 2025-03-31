@@ -3,22 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assertDefined, WithUriValue } from '../../../../../../../../../base/common/types.js';
-import { IKeyMods, IQuickPickItem } from '../../../../../../../../../platform/quickinput/common/quickInput.js';
-import { IChatWidget, showChatView } from '../../../../../chat.js';
-import { ACTION_ID_NEW_CHAT } from '../../../../chatClearActions.js';
+import { IChatService } from '../../../../../../common/chatService.js';
+import { IChatWidget, showChatView, showEditsView } from '../../../../../chat.js';
 import { IChatAttachPromptActionOptions } from '../../../chatAttachPromptAction.js';
-import { ISelectPromptOptions } from '../askToSelectPrompt.js';
+import { assertDefined, WithUriValue } from '../../../../../../../../../base/common/types.js';
+import { IViewsService } from '../../../../../../../../services/views/common/viewsService.js';
+import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION } from '../../../../chatClearActions.js';
+import { ICommandService } from '../../../../../../../../../platform/commands/common/commands.js';
+
+/**
+ * TODO: @legomushroom
+ */
+export interface IAttachPromptOptions {
+	readonly widget?: IChatWidget;
+	readonly inNewChat?: boolean;
+
+	readonly chatService: IChatService;
+	readonly viewsService: IViewsService;
+	readonly commandService: ICommandService;
+}
 
 /**
  * Attaches provided prompts to a chat input.
  */
 export const attachPrompts = async (
-	files: readonly WithUriValue<IQuickPickItem>[],
-	options: ISelectPromptOptions,
-	keyMods: IKeyMods,
+	files: readonly WithUriValue<Object>[],
+	options: IAttachPromptOptions,
+	alt: boolean,
 ): Promise<IChatWidget> => {
-	const widget = await getChatWidgetObject(options, keyMods);
+	const widget = await getChatWidgetObject(options, alt);
 
 	for (const file of files) {
 		widget
@@ -39,15 +52,13 @@ export const attachPrompts = async (
  * @throws if failed to reveal a chat widget.
  */
 const getChatWidgetObject = async (
-	options: ISelectPromptOptions,
-	keyMods: IKeyMods,
+	options: IAttachPromptOptions,
+	alt: boolean,
 ): Promise<IChatWidget> => {
-	const { widget } = options;
-	const { ctrlCmd } = keyMods;
+	const { widget, inNewChat } = options;
 
-	// if `ctrl/cmd` key was pressed, create a new chat session
-	if (ctrlCmd) {
-		return await openNewChat(options);
+	if (inNewChat === true) {
+		return await openNewChat(options, alt);
 	}
 
 	// if no widget reference is present, the command was triggered from outside of
@@ -65,7 +76,8 @@ const getChatWidgetObject = async (
  * enablement, and provided `edits` flag.
  */
 const openNewChat = async (
-	options: ISelectPromptOptions,
+	options: IAttachPromptOptions,
+	edits: boolean,
 ): Promise<IChatWidget> => {
 	const { commandService, viewsService } = options;
 
@@ -87,7 +99,8 @@ const openNewChat = async (
  * enablement, and provided `edits` flag.
  */
 const showExistingChat = async (
-	options: ISelectPromptOptions,
+	options: IAttachPromptOptions,
+	edits: boolean,
 ): Promise<IChatWidget> => {
 	const { viewsService } = options;
 

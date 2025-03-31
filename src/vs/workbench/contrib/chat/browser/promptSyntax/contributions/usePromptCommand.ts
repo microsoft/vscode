@@ -30,7 +30,7 @@ export const COMMAND_ID = 'workbench.command.prompts.use';
  * The `cmd + /` is the current keybinding for 'attachment', so we use
  * the `alt` key modifier to convey the "prompt attachment" action.
  */
-const COMMAND_KEY_BINDING = KeyMod.CtrlCmd | KeyCode.Slash | KeyMod.Alt;
+export const COMMAND_KEY_BINDING = KeyMod.CtrlCmd | KeyCode.Slash | KeyMod.Alt;
 
 /**
  * Implementation of the "Use Prompt" command. The command works in the following way.
@@ -108,7 +108,7 @@ export function getActiveCodeEditor(accessor: ServicesAccessor): IActiveCodeEdit
 /**
  * Gets `URI` of a prompt file open in an active editor instance, if any.
  */
-const getActivePromptUri = (
+export const getActivePromptUri = (
 	accessor: ServicesAccessor,
 ): URI | undefined => {
 	const activeEditor = getActiveCodeEditor(accessor);
