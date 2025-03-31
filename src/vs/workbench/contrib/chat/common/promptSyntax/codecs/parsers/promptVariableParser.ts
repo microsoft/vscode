@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { pick } from '../../../../../../../base/common/arrays.js';
 import { assert } from '../../../../../../../base/common/assert.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
+import { BaseToken } from '../../../../../../../editor/common/codecs/baseToken.js';
 import { PromptVariable, PromptVariableWithData } from '../tokens/promptVariable.js';
 import { At } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/at.js';
 import { Tab } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/tab.js';
@@ -131,7 +131,7 @@ export class PartialPromptVariableName extends ParserBase<TSimpleDecoderToken, P
 
 		// render the characters above into strings, excluding the starting `#` character
 		const variableNameTokens = this.currentTokens.slice(1);
-		const variableName = variableNameTokens.map(pick('text')).join('');
+		const variableName = BaseToken.render(variableNameTokens);
 
 		return new PromptVariable(
 			new Range(
@@ -196,8 +196,8 @@ export class PartialPromptVariableWithData extends ParserBase<TSimpleDecoderToke
 			);
 
 			// render the characters above into strings
-			const variableName = variableNameTokens.map(pick('text')).join('');
-			const variableData = variableDataTokens.map(pick('text')).join('');
+			const variableName = BaseToken.render(variableNameTokens);
+			const variableData = BaseToken.render(variableDataTokens);
 
 			return {
 				result: 'success',
@@ -232,8 +232,8 @@ export class PartialPromptVariableWithData extends ParserBase<TSimpleDecoderToke
 		const variableDataTokens = this.currentTokens.slice(this.startTokensCount);
 
 		// render the characters above into strings
-		const variableName = variableNameTokens.map(pick('text')).join('');
-		const variableData = variableDataTokens.map(pick('text')).join('');
+		const variableName = BaseToken.render(variableNameTokens);
+		const variableData = BaseToken.render(variableDataTokens);
 
 		const firstToken = this.currentTokens[0];
 		const lastToken = this.currentTokens[this.currentTokens.length - 1];
