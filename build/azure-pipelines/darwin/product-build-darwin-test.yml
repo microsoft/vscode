@@ -11,8 +11,9 @@ parameters:
 steps:
   - script: |
       set -e
-      sudo spctl --master-disable
-      sudo spctl --status
+      APP_ROOT="$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+      APP_NAME="`ls $APP_ROOT | head -n 1`"
+      xattr -d com.apple.quarantine "$APP_ROOT/$APP_NAME"
     displayName: Disable Gatekeeper
     timeoutInMinutes: 20
 
