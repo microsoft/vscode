@@ -26,6 +26,8 @@ class TestMcpHostDelegate extends Disposable implements IMcpHostDelegate {
 	private readonly _transport: TestMcpMessageTransport;
 	private _canStartValue = true;
 
+	priority = 0;
+
 	constructor() {
 		super();
 		this._transport = this._register(new TestMcpMessageTransport());
