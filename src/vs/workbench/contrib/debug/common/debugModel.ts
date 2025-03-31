@@ -1489,6 +1489,7 @@ export class DebugModel extends Disposable implements IDebugModel {
 			}
 			if (s.state === State.Inactive && s.configuration.name === session.configuration.name) {
 				// Make sure to remove all inactive sessions that are using the same configuration as the new session
+				s.dispose();
 				return false;
 			}
 
