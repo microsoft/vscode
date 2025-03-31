@@ -91,8 +91,7 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 			this.element?.setAttribute('aria-expanded', `${visible}`);
 			this._onDidChangeVisibility.fire(visible);
 			if (!visible) {
-				// Wait for the hover to hide before focusing the action item again
-				setTimeout(() => this.element?.focus(), 30);
+				this.element?.focus();
 			}
 		}));
 
