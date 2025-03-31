@@ -90,9 +90,6 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 		this._register(this.dropdownMenu.onDidChangeVisibility(visible => {
 			this.element?.setAttribute('aria-expanded', `${visible}`);
 			this._onDidChangeVisibility.fire(visible);
-			if (!visible) {
-				this.element?.focus();
-			}
 		}));
 
 		this.dropdownMenu.menuOptions = {
