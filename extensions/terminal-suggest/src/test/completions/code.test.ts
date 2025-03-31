@@ -7,6 +7,7 @@ import 'mocha';
 import codeCompletionSpec from '../../completions/code';
 import { testPaths, type ISuiteSpec, type ITestSpec } from '../helpers';
 import codeInsidersCompletionSpec from '../../completions/code-insiders';
+import codeTunnelCompletionSpec from '../../completions/code-tunnel';
 
 export const codeSpecOptionsAndSubcommands = [
 	'-a <folder>',
@@ -104,9 +105,174 @@ export function createCodeTestSpecs(executable: string): ITestSpec[] {
 	];
 }
 
+export function createCodeTunnelTestSpecs(executable: string): ITestSpec[] {
+	const subcommandAndArgs: string[] = [
+		'-',
+		'--add <folder>',
+		'--category <category>',
+		'--cli-data-dir <cli_data_dir>',
+		'--diff <file> <file>',
+		'--disable-extension <extension-id>',
+		'--disable-extensions',
+		'--disable-gpu',
+		'--enable-proposed-api',
+		'--extensions-dir [<extensions_dir>]',
+		'--goto <file:line[:character]>',
+		'--help',
+		'--inspect-brk-extensions <port>',
+		'--inspect-extensions <port>',
+		'--install-extension <extension-id[@version] | path-to-vsix>',
+		'--list-extensions',
+		'--locale <locale>',
+		'--locate-shell-integration-path <shell>',
+		'--log [<log>]',
+		'--max-memory <memory>',
+		'--merge <path1> <path2> <base> <result>',
+		'--new-window',
+		'--pre-release',
+		'--prof-startup',
+		'--profile <settingsProfileName>',
+		'--reuse-window',
+		'--show-versions',
+		'--status',
+		'--sync <sync>',
+		'--telemetry',
+		'--uninstall-extension <extension-id>',
+		'--use-version [<use_version>]',
+		'--user-data-dir [<user_data_dir>]',
+		'--verbose',
+		'--version',
+		'--wait',
+		'-a <folder>',
+		'-d <file> <file>',
+		'-g <file:line[:character]>',
+		'-h',
+		'-m <path1> <path2> <base> <result>',
+		'-n',
+		'-r',
+		'-s',
+		'-v',
+		'-w',
+		'ext',
+		'help',
+		'serve-web',
+		'status',
+		'tunnel',
+		'version'
+	];
+	const tunnelSubcommandsAndArgs: string[] = [
+		'--accept-server-license-terms',
+		'--cli-data-dir <cli_data_dir>',
+		'--extensions-dir [<extensions_dir>]',
+		'--help',
+		'--install-extension [<install_extension>]',
+		'--log [<log>]',
+		'--name [<name>]',
+		'--no-sleep',
+		'--random-name',
+		'--server-data-dir [<server_data_dir>]',
+		'--use-version [<use_version>]',
+		'--user-data-dir [<user_data_dir>]',
+		'--verbose',
+		'-h',
+		'help',
+		'kill',
+		'prune',
+		'rename <name>',
+		'restart',
+		'service',
+		'status',
+		'unregister',
+		'user',
+	];
+	const tunnelServiceSubcommandsAndArgs: string[] = [
+		'--cli-data-dir <cli_data_dir>',
+		'--help',
+		'--log [<log>]',
+		'--verbose',
+		'-h',
+		'help',
+		'install',
+		'log',
+		'uninstall'
+	];
+
+	const helpSubcommands: string[] = [
+		'help',
+		'kill',
+		'prune',
+		'rename',
+		'restart',
+		'service',
+		'status',
+		'unregister',
+		'user'
+	];
+	const serveWebSubcommandsAndArgs: string[] = [
+		'--accept-server-license-terms',
+		'--cli-data-dir <cli_data_dir>',
+		'--connection-token [<connection_token>]',
+		'--connection-token-file [<connection_token_file>]',
+		'--help',
+		'--host [<host>]',
+		'--log [<log>]',
+		'--port [<port>]',
+		'--server-base-path [<server_base_path>]',
+		'--server-data-dir [<server_data_dir>]',
+		'--socket-path [<socket_path>]',
+		'--verbose',
+		'--without-connection-token',
+		'-h'
+	];
+
+	const extSubcommands: string[] = [
+		'install [<ext-id | id>]',
+		'list',
+		'uninstall [<ext-id | id>]',
+		'update'
+	];
+
+	const resusedArgs: string[] = [
+		'--cli-data-dir <cli_data_dir>',
+		'--log [<log>]',
+		'--verbose',
+		'--help',
+		'-h'
+	];
+
+	const typingTests: ITestSpec[] = [];
+	for (let i = 1; i < executable.length; i++) {
+		const expectedCompletions = [{ label: executable, description: executable === codeCompletionSpec.name || executable === codeTunnelCompletionSpec.name ? (codeCompletionSpec as any).description : (codeInsidersCompletionSpec as any).description }];
+		const input = `${executable.slice(0, i)}|`;
+		typingTests.push({ input, expectedCompletions, expectedResourceRequests: input.endsWith(' ') ? undefined : { type: 'both', cwd: testPaths.cwd } });
+	}
+
+	return [
+		...typingTests,
+		{ input: `${executable} |`, expectedCompletions: subcommandAndArgs, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		{ input: `${executable} tunnel |`, expectedCompletions: tunnelSubcommandsAndArgs },
+		{ input: `${executable} tunnel user |`, expectedCompletions: ['help', 'login', 'logout', 'show'] },
+		{ input: `${executable} tunnel service |`, expectedCompletions: tunnelServiceSubcommandsAndArgs },
+		{ input: `${executable} tunnel help |`, expectedCompletions: helpSubcommands },
+		{ input: `${executable} tunnel status |`, expectedCompletions: ['--cli-data-dir <cli_data_dir>', '--help', '--log [<log>]', '--verbose', '-h'] },
+		{ input: `${executable} serve-web |`, expectedCompletions: serveWebSubcommandsAndArgs },
+		{ input: `${executable} ext |`, expectedCompletions: extSubcommands },
+		{ input: `${executable} status |`, expectedCompletions: resusedArgs },
+		{ input: `${executable} version |`, expectedCompletions: resusedArgs },
+
+	];
+}
+
 export const codeTestSuite: ISuiteSpec = {
 	name: 'code',
 	completionSpecs: codeCompletionSpec,
 	availableCommands: 'code',
 	testSpecs: createCodeTestSpecs('code')
+};
+
+export const codeTunnelTestSuite: ISuiteSpec = {
+	name: 'code-tunnel',
+	completionSpecs: codeTunnelCompletionSpec,
+	availableCommands: 'code-tunnel',
+	testSpecs: createCodeTunnelTestSpecs('code-tunnel')
 };

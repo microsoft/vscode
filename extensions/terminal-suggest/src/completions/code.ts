@@ -769,11 +769,12 @@ export const codeTunnelSubcommands = [
 	{
 		name: 'status',
 		description: 'Print process usage and diagnostics information',
+		options: [...globalTunnelOptions, ...tunnelHelpOptions],
 	},
 	{
 		name: 'version',
 		description: `Changes the version of the editor you're using`,
-		options: globalTunnelOptions
+		options: [...globalTunnelOptions, ...tunnelHelpOptions],
 	},
 	{
 		name: 'serve-web',
