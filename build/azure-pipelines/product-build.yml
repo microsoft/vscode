@@ -165,6 +165,8 @@ resources:
 extends:
   template: v1/1ES.Official.PipelineTemplate.yml@1esPipelines
   parameters:
+    featureFlags:
+      incrementalSDLBinaryAnalysis: true
     sdl:
       tsa:
         enabled: true
