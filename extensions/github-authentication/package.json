@@ -39,20 +39,12 @@
       }
     ],
     "configuration": [{
-      "title": "GitHub Enterprise Server Authentication Provider",
+      "title": "%config.github-enterprise.title%",
       "properties": {
         "github-enterprise.uri": {
           "type": "string",
-          "description": "GitHub Enterprise Server URI"
-        }
-      }
-    },
-    {
-      "title": "GitHub Authentication",
-      "properties": {
-        "github.experimental.multipleAccounts": {
-          "type": "boolean",
-          "description": "Experimental support for multiple GitHub accounts"
+          "markdownDescription": "%config.github-enterprise.uri.description%",
+          "pattern": "^(?:$|(https?)://(?!github\\.com).*)"
         }
       }
     }
@@ -70,7 +62,7 @@
   },
   "dependencies": {
     "node-fetch": "2.6.7",
-    "@vscode/extension-telemetry": "^0.9.0",
+    "@vscode/extension-telemetry": "^0.9.8",
     "vscode-tas-client": "^0.1.84"
   },
   "devDependencies": {

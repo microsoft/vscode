@@ -13,8 +13,12 @@ export class TextModelText extends AbstractText {
 		super();
 	}
 
-	getValueOfRange(range: Range): string {
+	override getValueOfRange(range: Range): string {
 		return this._textModel.getValueInRange(range);
+	}
+
+	override getLineLength(lineNumber: number): number {
+		return this._textModel.getLineLength(lineNumber);
 	}
 
 	get length(): TextLength {

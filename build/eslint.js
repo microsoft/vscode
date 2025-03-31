@@ -8,17 +8,11 @@ const vfs = require('vinyl-fs');
 const { eslintFilter } = require('./filters');
 
 function eslint() {
-	const gulpeslint = require('gulp-eslint');
+	const eslint = require('./gulp-eslint');
 	return vfs
 		.src(eslintFilter, { base: '.', follow: true, allowEmpty: true })
 		.pipe(
-			gulpeslint({
-				configFile: '.eslintrc.json'
-			})
-		)
-		.pipe(gulpeslint.formatEach('compact'))
-		.pipe(
-			gulpeslint.results((results) => {
+			eslint((results) => {
 				if (results.warningCount > 0 || results.errorCount > 0) {
 					throw new Error('eslint failed with warnings and/or errors');
 				}

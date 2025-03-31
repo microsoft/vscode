@@ -126,8 +126,8 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		);
 	}
 
-	public lookupKeybinding(commandId: string, context?: IContextKeyService): ResolvedKeybinding | undefined {
-		const result = this._getResolver().lookupPrimaryKeybinding(commandId, context || this._contextKeyService);
+	public lookupKeybinding(commandId: string, context?: IContextKeyService, enforceContextCheck = false): ResolvedKeybinding | undefined {
+		const result = this._getResolver().lookupPrimaryKeybinding(commandId, context || this._contextKeyService, enforceContextCheck);
 		if (!result) {
 			return undefined;
 		}

@@ -32,15 +32,19 @@ function lookUp(tree: any, key: string) {
 	}
 }
 
-type ConfigurationInspect<T> = {
+export type ConfigurationInspect<T> = {
 	key: string;
 
 	defaultValue?: T;
+	globalLocalValue?: T;
+	globalRemoteValue?: T;
 	globalValue?: T;
 	workspaceValue?: T;
 	workspaceFolderValue?: T;
 
 	defaultLanguageValue?: T;
+	globalLocalLanguageValue?: T;
+	globalRemoteLanguageValue?: T;
 	globalLanguageValue?: T;
 	workspaceLanguageValue?: T;
 	workspaceFolderLanguageValue?: T;
@@ -262,11 +266,15 @@ export class ExtHostConfigProvider {
 						key,
 
 						defaultValue: deepClone(config.policy?.value ?? config.default?.value),
+						globalLocalValue: deepClone(config.userLocal?.value),
+						globalRemoteValue: deepClone(config.userRemote?.value),
 						globalValue: deepClone(config.user?.value ?? config.application?.value),
 						workspaceValue: deepClone(config.workspace?.value),
 						workspaceFolderValue: deepClone(config.workspaceFolder?.value),
 
 						defaultLanguageValue: deepClone(config.default?.override),
+						globalLocalLanguageValue: deepClone(config.userLocal?.override),
+						globalRemoteLanguageValue: deepClone(config.userRemote?.override),
 						globalLanguageValue: deepClone(config.user?.override ?? config.application?.override),
 						workspaceLanguageValue: deepClone(config.workspace?.override),
 						workspaceFolderLanguageValue: deepClone(config.workspaceFolder?.override),

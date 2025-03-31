@@ -22,6 +22,7 @@ import { AccessibilitySupport, IAccessibilityService } from '../../../platform/a
 import { getWindow, getWindowById } from '../../../base/browser/dom.js';
 import { PixelRatio } from '../../../base/browser/pixelRatio.js';
 import { MenuId } from '../../../platform/actions/common/actions.js';
+import { InputMode } from '../../common/inputMode.js';
 
 export interface IEditorConstructionOptions extends IEditorOptions {
 	/**
@@ -95,6 +96,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 		this._register(FontMeasurements.onDidChange(() => this._recomputeOptions()));
 		this._register(PixelRatio.getInstance(getWindow(container)).onDidChange(() => this._recomputeOptions()));
 		this._register(this._accessibilityService.onDidChangeScreenReaderOptimized(() => this._recomputeOptions()));
+		this._register(InputMode.onDidChangeInputMode(() => this._recomputeOptions()));
 	}
 
 	private _recomputeOptions(): void {
@@ -126,6 +128,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 			emptySelectionClipboard: partialEnv.emptySelectionClipboard,
 			pixelRatio: partialEnv.pixelRatio,
 			tabFocusMode: TabFocus.getTabFocusMode(),
+			inputMode: InputMode.getInputMode(),
 			accessibilitySupport: partialEnv.accessibilitySupport,
 			glyphMarginDecorationLaneCount: this._glyphMarginDecorationLaneCount
 		};

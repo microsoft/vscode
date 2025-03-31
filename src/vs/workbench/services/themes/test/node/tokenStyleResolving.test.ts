@@ -21,6 +21,7 @@ import { IStorageService } from '../../../../../platform/storage/common/storage.
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ExtensionGalleryManifestService } from '../../../../../platform/extensionManagement/common/extensionGalleryManifestService.js';
 
 const undefinedStyle = { bold: undefined, underline: undefined, italic: undefined };
 const unsetStyle = { bold: false, underline: false, italic: false };
@@ -89,7 +90,7 @@ suite('Themes - TokenStyleResolving', () => {
 	const environmentService = new (mock<IEnvironmentService>())();
 	const configurationService = new (mock<IConfigurationService>())();
 
-	const extensionResourceLoaderService = new ExtensionResourceLoaderService(fileService, storageService, TestProductService, environmentService, configurationService, requestService);
+	const extensionResourceLoaderService = new ExtensionResourceLoaderService(fileService, storageService, TestProductService, environmentService, configurationService, new ExtensionGalleryManifestService(TestProductService), requestService, new NullLogService());
 
 	const diskFileSystemProvider = new DiskFileSystemProvider(new NullLogService());
 	fileService.registerProvider(Schemas.file, diskFileSystemProvider);
@@ -190,6 +191,9 @@ suite('Themes - TokenStyleResolving', () => {
 		assertTokenStyle(tokenStyle, ts('#A6E22E', { italic: false, bold: false, underline: true }), 'entity.name.class');
 
 		tokenStyle = themeData.resolveScopes([['meta.structure.dictionary.json', 'string.quoted.double.json']]);
+		assertTokenStyle(tokenStyle, ts('#66D9EF', undefined), 'json property');
+
+		tokenStyle = themeData.resolveScopes([['source.json', 'meta.structure.dictionary.json', 'string.quoted.double.json']]);
 		assertTokenStyle(tokenStyle, ts('#66D9EF', undefined), 'json property');
 
 		tokenStyle = themeData.resolveScopes([['keyword'], ['storage.type'], ['entity.name.class']]);

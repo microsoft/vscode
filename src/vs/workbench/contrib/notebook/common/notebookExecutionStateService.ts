@@ -21,12 +21,29 @@ export interface ICellExecutionStateUpdate {
 	isPaused?: boolean;
 }
 
+export interface ICellErrorStackFrame {
+	/**
+	 * The location of this stack frame. This should be provided as a URI if the
+	 * location of the call frame can be accessed by the editor.
+	 */
+	readonly uri?: UriComponents;
+
+	readonly location?: IRange;
+
+	/**
+	 * The name of the stack frame, typically a method or function name.
+	 */
+	readonly label: string;
+}
+
 export interface ICellExecutionError {
+	name: string;
 	message: string;
-	stack: string | undefined;
+	stack: string | ICellErrorStackFrame[] | undefined;
 	uri: UriComponents;
 	location: IRange | undefined;
 }
+
 export interface ICellExecutionComplete {
 	runEndTime?: number;
 	lastRunSuccess?: boolean;
@@ -77,6 +94,7 @@ export interface INotebookExecutionStateService {
 	getExecution(notebook: URI): INotebookExecution | undefined;
 	createExecution(notebook: URI): INotebookExecution;
 	getLastFailedCellForNotebook(notebook: URI): number | undefined;
+	getLastCompletedCellForNotebook(notebook: URI): number | undefined;
 }
 
 export interface INotebookCellExecution {

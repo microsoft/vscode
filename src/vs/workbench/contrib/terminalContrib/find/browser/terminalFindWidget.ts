@@ -15,10 +15,12 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { Event } from '../../../../../base/common/event.js';
 import type { ISearchOptions } from '@xterm/addon-search';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
-import { openContextMenu } from './textInputContextMenu.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { TerminalFindCommandId } from '../common/terminal.find.js';
+import { TerminalClipboardContribution } from '../../clipboard/browser/terminal.clipboard.contribution.js';
+import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
+import { createTextInputActions } from '../../../../browser/actions/textInputActions.js';
 
 const TERMINAL_FIND_WIDGET_INITIAL_WIDTH = 419;
 
@@ -31,14 +33,14 @@ export class TerminalFindWidget extends SimpleFindWidget {
 
 	constructor(
 		private _instance: ITerminalInstance | IDetachedTerminalInstance,
-		@IContextViewService _contextViewService: IContextViewService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IContextMenuService _contextMenuService: IContextMenuService,
-		@IClipboardService _clipboardService: IClipboardService,
+		@IClipboardService clipboardService: IClipboardService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IContextViewService contextViewService: IContextViewService,
 		@IHoverService hoverService: IHoverService,
-		@IThemeService private readonly _themeService: IThemeService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IThemeService themeService: IThemeService,
 	) {
 		super({
 			showCommonFindToggles: true,
@@ -54,14 +56,14 @@ export class TerminalFindWidget extends SimpleFindWidget {
 			closeWidgetActionId: TerminalFindCommandId.FindHide,
 			type: 'Terminal',
 			matchesLimit: XtermTerminalConstants.SearchHighlightLimit
-		}, _contextViewService, _contextKeyService, hoverService, keybindingService);
+		}, contextViewService, contextKeyService, hoverService, keybindingService);
 
 		this._register(this.state.onFindReplaceStateChange(() => {
 			this.show();
 		}));
-		this._findInputFocused = TerminalContextKeys.findInputFocus.bindTo(this._contextKeyService);
-		this._findWidgetFocused = TerminalContextKeys.findFocus.bindTo(this._contextKeyService);
-		this._findWidgetVisible = TerminalContextKeys.findVisible.bindTo(this._contextKeyService);
+		this._findInputFocused = TerminalContextKeys.findInputFocus.bindTo(contextKeyService);
+		this._findWidgetFocused = TerminalContextKeys.findFocus.bindTo(contextKeyService);
+		this._findWidgetVisible = TerminalContextKeys.findVisible.bindTo(contextKeyService);
 		const innerDom = this.getDomNode().firstChild;
 		if (innerDom) {
 			this._register(dom.addDisposableListener(innerDom, 'mousedown', (event) => {
@@ -73,15 +75,23 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		}
 		const findInputDomNode = this.getFindInputDomNode();
 		this._register(dom.addDisposableListener(findInputDomNode, 'contextmenu', (event) => {
-			openContextMenu(dom.getWindow(findInputDomNode), event, _clipboardService, _contextMenuService);
+			const targetWindow = dom.getWindow(findInputDomNode);
+			const standardEvent = new StandardMouseEvent(targetWindow, event);
+			const actions = createTextInputActions(clipboardService);
+
+			contextMenuService.showContextMenu({
+				getAnchor: () => standardEvent,
+				getActions: () => actions,
+				getActionsContext: () => event.target,
+			});
 			event.stopPropagation();
 		}));
-		this._register(this._themeService.onDidColorThemeChange(() => {
+		this._register(themeService.onDidColorThemeChange(() => {
 			if (this.isVisible()) {
 				this.find(true, true);
 			}
 		}));
-		this._register(this._configurationService.onDidChangeConfiguration((e) => {
+		this._register(configurationService.onDidChangeConfiguration((e) => {
 			if (e.affectsConfiguration('workbench.colorCustomizations') && this.isVisible()) {
 				this.find(true, true);
 			}
@@ -149,7 +159,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 
 	protected _onFocusTrackerFocus() {
 		if ('overrideCopyOnSelection' in this._instance) {
-			this._overrideCopyOnSelectionDisposable = this._instance.overrideCopyOnSelection(false);
+			this._overrideCopyOnSelectionDisposable = TerminalClipboardContribution.get(this._instance)?.overrideCopyOnSelection(false);
 		}
 		this._findWidgetFocused.set(true);
 	}

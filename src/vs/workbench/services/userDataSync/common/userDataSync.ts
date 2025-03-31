@@ -34,6 +34,8 @@ export interface IUserDataSyncWorkbenchService {
 	readonly accountStatus: AccountStatus;
 	readonly onDidChangeAccountStatus: Event<AccountStatus>;
 
+	readonly onDidTurnOnSync: Event<void>;
+
 	turnOn(): Promise<void>;
 	turnoff(everyWhere: boolean): Promise<void>;
 	signIn(): Promise<void>;
@@ -56,6 +58,7 @@ export function getSyncAreaLabel(source: SyncResource): string {
 		case SyncResource.Settings: return localize('settings', "Settings");
 		case SyncResource.Keybindings: return localize('keybindings', "Keyboard Shortcuts");
 		case SyncResource.Snippets: return localize('snippets', "Snippets");
+		case SyncResource.Prompts: return localize('prompts', "Prompts");
 		case SyncResource.Tasks: return localize('tasks', "Tasks");
 		case SyncResource.Extensions: return localize('extensions', "Extensions");
 		case SyncResource.GlobalState: return localize('ui state label', "UI State");
@@ -65,6 +68,7 @@ export function getSyncAreaLabel(source: SyncResource): string {
 }
 
 export const enum AccountStatus {
+	Uninitialized = 'uninitialized',
 	Unavailable = 'unavailable',
 	Available = 'available',
 }
@@ -80,7 +84,7 @@ export const SYNC_VIEW_ICON = registerIcon('settings-sync-view-icon', Codicon.sy
 // Contexts
 export const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);
 export const CONTEXT_SYNC_ENABLEMENT = new RawContextKey<boolean>('syncEnabled', false);
-export const CONTEXT_ACCOUNT_STATE = new RawContextKey<string>('userDataSyncAccountStatus', AccountStatus.Unavailable);
+export const CONTEXT_ACCOUNT_STATE = new RawContextKey<string>('userDataSyncAccountStatus', AccountStatus.Uninitialized);
 export const CONTEXT_ENABLE_ACTIVITY_VIEWS = new RawContextKey<boolean>(`enableSyncActivityViews`, false);
 export const CONTEXT_ENABLE_SYNC_CONFLICTS_VIEW = new RawContextKey<boolean>(`enableSyncConflictsView`, false);
 export const CONTEXT_HAS_CONFLICTS = new RawContextKey<boolean>('hasConflicts', false);

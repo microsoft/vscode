@@ -11,12 +11,10 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IMarkerService } from '../../../../../platform/markers/common/markers.js';
 import { IActiveNotebookEditor, INotebookEditor } from '../notebookBrowser.js';
 import { CellKind } from '../../common/notebookCommon.js';
-import { INotebookExecutionStateService } from '../../common/notebookExecutionStateService.js';
 import { OutlineChangeEvent, OutlineConfigKeys } from '../../../../services/outline/browser/outline.js';
 import { OutlineEntry } from './OutlineEntry.js';
-import { IOutlineModelService } from '../../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { NotebookOutlineEntryFactory } from './notebookOutlineEntryFactory.js';
+import { INotebookOutlineEntryFactory, NotebookOutlineEntryFactory } from './notebookOutlineEntryFactory.js';
 
 export interface INotebookCellOutlineDataSource {
 	readonly activeElement: OutlineEntry | undefined;
@@ -34,16 +32,12 @@ export class NotebookCellOutlineDataSource implements INotebookCellOutlineDataSo
 	private _entries: OutlineEntry[] = [];
 	private _activeEntry?: OutlineEntry;
 
-	private readonly _outlineEntryFactory: NotebookOutlineEntryFactory;
-
 	constructor(
 		private readonly _editor: INotebookEditor,
-		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
-		@IOutlineModelService private readonly _outlineModelService: IOutlineModelService,
 		@IMarkerService private readonly _markerService: IMarkerService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@INotebookOutlineEntryFactory private readonly _outlineEntryFactory: NotebookOutlineEntryFactory
 	) {
-		this._outlineEntryFactory = new NotebookOutlineEntryFactory(this._notebookExecutionStateService);
 		this.recomputeState();
 	}
 
@@ -61,20 +55,26 @@ export class NotebookCellOutlineDataSource implements INotebookCellOutlineDataSo
 	}
 
 	public async computeFullSymbols(cancelToken: CancellationToken) {
-		const notebookEditorWidget = this._editor;
+		try {
+			const notebookEditorWidget = this._editor;
 
-		const notebookCells = notebookEditorWidget?.getViewModel()?.viewCells.filter((cell) => cell.cellKind === CellKind.Code);
+			const notebookCells = notebookEditorWidget?.getViewModel()?.viewCells.filter((cell) => cell.cellKind === CellKind.Code);
 
-		if (notebookCells) {
-			const promises: Promise<void>[] = [];
-			// limit the number of cells so that we don't resolve an excessive amount of text models
-			for (const cell of notebookCells.slice(0, 100)) {
-				// gather all symbols asynchronously
-				promises.push(this._outlineEntryFactory.cacheSymbols(cell, this._outlineModelService, cancelToken));
+			if (notebookCells) {
+				const promises: Promise<void>[] = [];
+				// limit the number of cells so that we don't resolve an excessive amount of text models
+				for (const cell of notebookCells.slice(0, 50)) {
+					// gather all symbols asynchronously
+					promises.push(this._outlineEntryFactory.cacheSymbols(cell, cancelToken));
+				}
+				await Promise.allSettled(promises);
 			}
-			await Promise.allSettled(promises);
+			this.recomputeState();
+		} catch (err) {
+			console.error('Failed to compute notebook outline symbols:', err);
+			// Still recompute state with whatever symbols we have
+			this.recomputeState();
 		}
-		this.recomputeState();
 	}
 
 	public recomputeState(): void {

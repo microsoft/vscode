@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+/* eslint-disable local/code-no-dangerous-type-assertions */
 
 import './media/keybindingsEditor.css';
 import { localize } from '../../../../nls.js';
@@ -364,7 +365,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 			ariaLabelledBy: 'keybindings-editor-aria-label-element',
 			recordEnter: true,
 			quoteRecordedKeys: true,
-			history: this.getMemento(StorageScope.PROFILE, StorageTarget.USER)['searchHistory'] || [],
+			history: new Set<string>(this.getMemento(StorageScope.PROFILE, StorageTarget.USER)['searchHistory'] ?? []),
 			inputBoxStyles: getInputBoxStyle({
 				inputBorder: settingsTextInputBorder
 			})

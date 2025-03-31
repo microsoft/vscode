@@ -31,7 +31,7 @@ export class TerminalHover extends Disposable implements ITerminalWidget {
 		private readonly _targetOptions: ILinkHoverTargetOptions,
 		private readonly _text: IMarkdownString,
 		private readonly _actions: IHoverAction[] | undefined,
-		private readonly _linkHandler: (url: string) => any,
+		private readonly _linkHandler: (url: string) => unknown,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
@@ -44,7 +44,7 @@ export class TerminalHover extends Disposable implements ITerminalWidget {
 			return;
 		}
 		const target = new CellHoverTarget(container, this._targetOptions);
-		const hover = this._hoverService.showHover({
+		const hover = this._hoverService.showInstantHover({
 			target,
 			content: this._text,
 			actions: this._actions,

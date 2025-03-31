@@ -6,6 +6,7 @@
 import type * as nbformat from '@jupyterlab/nbformat';
 import { extensions, NotebookCellData, NotebookCellExecutionSummary, NotebookCellKind, NotebookCellOutput, NotebookCellOutputItem, NotebookData } from 'vscode';
 import { CellMetadata, CellOutputMetadata } from './common';
+import { textMimeTypes } from './constants';
 
 const jupyterLanguageToMonacoLanguageMapping = new Map([
 	['c#', 'csharp'],
@@ -89,15 +90,6 @@ function sortOutputItemsBasedOnDisplayOrder(outputItems: NotebookCellOutputItem[
 		.sort((outputItemA, outputItemB) => outputItemA.index - outputItemB.index).map(item => item.item);
 }
 
-
-enum CellOutputMimeTypes {
-	error = 'application/vnd.code.notebook.error',
-	stderr = 'application/vnd.code.notebook.stderr',
-	stdout = 'application/vnd.code.notebook.stdout'
-}
-
-export const textMimeTypes = ['text/plain', 'text/markdown', 'text/latex', CellOutputMimeTypes.stderr, CellOutputMimeTypes.stdout];
-
 function concatMultilineString(str: string | string[], trim?: boolean): string {
 	const nonLineFeedWhiteSpaceTrim = /(^[\t\f\v\r ]+|[\t\f\v\r ]+$)/g;
 	if (Array.isArray(str)) {
@@ -157,8 +149,12 @@ function getNotebookCellMetadata(cell: nbformat.IBaseCell): {
 	// We put this only for VSC to display in diff view.
 	// Else we don't use this.
 	const cellMetadata: CellMetadata = {};
-	if (cell.cell_type === 'code' && typeof cell['execution_count'] === 'number') {
-		cellMetadata.execution_count = cell['execution_count'];
+	if (cell.cell_type === 'code') {
+		if (typeof cell['execution_count'] === 'number') {
+			cellMetadata.execution_count = cell['execution_count'];
+		} else {
+			cellMetadata.execution_count = null;
+		}
 	}
 
 	if (cell['metadata']) {

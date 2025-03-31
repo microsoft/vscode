@@ -18,10 +18,8 @@ import { CLIServer } from './extHostCLIServer.js';
 import { realpathSync } from '../../../base/node/extpath.js';
 import { ExtHostConsoleForwarder } from './extHostConsoleForwarder.js';
 import { ExtHostDiskFileSystemProvider } from './extHostDiskFileSystemProvider.js';
-// ESM-uncomment-begin
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-// ESM-uncomment-end
 
 class NodeModuleRequireInterceptor extends RequireInterceptor {
 
@@ -44,6 +42,18 @@ class NodeModuleRequireInterceptor extends RequireInterceptor {
 		const originalLookup = node_module._resolveLookupPaths;
 		node_module._resolveLookupPaths = (request: string, parent: unknown) => {
 			return originalLookup.call(this, applyAlternatives(request), parent);
+		};
+
+		const originalResolveFilename = node_module._resolveFilename;
+		node_module._resolveFilename = function resolveFilename(request: string, parent: unknown, isMain: boolean, options?: { paths?: string[] }) {
+			if (request === 'vsda' && Array.isArray(options?.paths) && options.paths.length === 0) {
+				// ESM: ever since we moved to ESM, `require.main` will be `undefined` for extensions
+				// Some extensions have been using `require.resolve('vsda', { paths: require.main.paths })`
+				// to find the `vsda` module in our app root. To be backwards compatible with this pattern,
+				// we help by filling in the `paths` array with the node modules paths of the current module.
+				options.paths = node_module._nodeModulePaths(import.meta.dirname);
+			}
+			return originalResolveFilename.call(this, request, parent, isMain, options);
 		};
 
 		const applyAlternatives = (request: string) => {
@@ -89,7 +99,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 
 		// Do this when extension service exists, but extensions are not being activated yet.
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
-		await connectProxyResolver(this._extHostWorkspace, configProvider, this, this._logService, this._mainThreadTelemetryProxy, this._initData);
+		await connectProxyResolver(this._extHostWorkspace, configProvider, this, this._logService, this._mainThreadTelemetryProxy, this._initData, this._store);
 		performance.mark('code/extHost/didInitProxyResolver');
 	}
 
@@ -113,7 +123,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 			if (extensionId) {
 				performance.mark(`code/extHost/willLoadExtensionCode/${extensionId}`);
 			}
-			r = <T>(require.__$__nodeRequire ?? require /* TODO@esm drop the first */)(module.fsPath);
+			r = <T>(require)(module.fsPath);
 		} finally {
 			if (extensionId) {
 				performance.mark(`code/extHost/didLoadExtensionCode/${extensionId}`);

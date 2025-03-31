@@ -11,6 +11,10 @@ import { ViewContext } from '../../../common/viewModel/viewContext.js';
 import * as viewEvents from '../../../common/viewEvents.js';
 import { ViewEventHandler } from '../../../common/viewEventHandler.js';
 
+/**
+ * The overview ruler appears underneath the editor scroll bar and shows things
+ * like the cursor, various decorations, etc.
+ */
 export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 
 	private readonly _context: ViewContext;

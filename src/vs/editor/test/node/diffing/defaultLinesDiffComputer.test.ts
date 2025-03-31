@@ -5,13 +5,13 @@
 
 import assert from 'assert';
 import { Range } from '../../../common/core/range.js';
-import { RangeMapping } from '../../../common/diff/rangeMapping.js';
+import { getLineRangeMapping, RangeMapping } from '../../../common/diff/rangeMapping.js';
 import { OffsetRange } from '../../../common/core/offsetRange.js';
-import { getLineRangeMapping } from '../../../common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer.js';
 import { LinesSliceCharSequence } from '../../../common/diff/defaultLinesDiffComputer/linesSliceCharSequence.js';
 import { MyersDiffAlgorithm } from '../../../common/diff/defaultLinesDiffComputer/algorithms/myersDiffAlgorithm.js';
 import { DynamicProgrammingDiffing } from '../../../common/diff/defaultLinesDiffComputer/algorithms/dynamicProgrammingDiffing.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ArrayText } from '../../../common/core/textEdit.js';
 
 suite('myers', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -35,15 +35,15 @@ suite('lineRangeMapping', () => {
 					new Range(2, 1, 3, 1),
 					new Range(2, 1, 2, 1)
 				),
-				[
+				new ArrayText([
 					'const abc = "helloworld".split("");',
 					'',
 					''
-				],
-				[
+				]),
+				new ArrayText([
 					'const asciiLower = "helloworld".split("");',
 					''
-				]
+				])
 			).toString(),
 			"{[2,3)->[2,2)}"
 		);
@@ -56,16 +56,16 @@ suite('lineRangeMapping', () => {
 					new Range(2, 1, 2, 1),
 					new Range(2, 1, 4, 1),
 				),
-				[
+				new ArrayText([
 					'',
 					'',
-				],
-				[
+				]),
+				new ArrayText([
 					'',
 					'',
 					'',
 					'',
-				]
+				])
 			).toString(),
 			"{[2,2)->[2,4)}"
 		);

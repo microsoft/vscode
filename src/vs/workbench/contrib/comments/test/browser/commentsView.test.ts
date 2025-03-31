@@ -49,6 +49,7 @@ class TestCommentThread implements CommentThread<IRange> {
 }
 
 class TestCommentController implements ICommentController {
+	activeComment: { thread: CommentThread; comment?: Comment } | undefined;
 	id: string = 'test';
 	label: string = 'Test Comments';
 	owner: string = 'test';

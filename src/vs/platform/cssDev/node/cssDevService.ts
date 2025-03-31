@@ -5,7 +5,6 @@
 
 import { spawn } from 'child_process';
 import { relative } from 'path';
-import { isESM } from '../../../base/common/amd.js';
 import { FileAccess } from '../../../base/common/network.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
@@ -32,7 +31,7 @@ export class CSSDevelopmentService implements ICSSDevelopmentService {
 	) { }
 
 	get isEnabled(): boolean {
-		return !this.envService.isBuilt && isESM;
+		return !this.envService.isBuilt;
 	}
 
 	getCssModules(): Promise<string[]> {

@@ -11,6 +11,7 @@ import { generateCodeChallenge, generateCodeVerifier, randomUUID } from './crypt
 import { BetterTokenStorage, IDidChangeInOtherWindowEvent } from './betterSecretStorage';
 import { LoopbackAuthServer } from './node/authServer';
 import { base64Decode } from './node/buffer';
+import fetch from './node/fetch';
 import { UriEventHandler } from './UriEventHandler';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { Environment } from '@azure/ms-rest-azure-env';
@@ -550,7 +551,7 @@ export class AzureActiveDirectoryService {
 			throw e;
 		}
 
-		const id = `${claims.tid}/${(claims.oid ?? (claims.altsecid ?? '' + claims.ipd ?? ''))}`;
+		const id = `${claims.tid}/${(claims.oid ?? (claims.altsecid ?? '' + claims.ipd))}`;
 		const sessionId = existingId || `${id}/${randomUUID()}`;
 		this._logger.trace(`[${scopeData.scopeStr}] '${sessionId}' Token response parsed successfully.`);
 		return {
@@ -805,11 +806,10 @@ export class AzureActiveDirectoryService {
 			let result;
 			let errorMessage: string | undefined;
 			try {
-				result = await fetch(endpoint, {
+				result = await fetch(endpoint.toString(), {
 					method: 'POST',
 					headers: {
-						'Content-Type': 'application/x-www-form-urlencoded',
-						'Content-Length': postData.length.toString()
+						'Content-Type': 'application/x-www-form-urlencoded'
 					},
 					body: postData
 				});

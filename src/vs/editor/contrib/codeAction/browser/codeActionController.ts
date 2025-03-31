@@ -10,20 +10,9 @@ import { IAction } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Color } from '../../../../base/common/color.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { ICodeEditor } from '../../../browser/editorBrowser.js';
-import { IPosition, Position } from '../../../common/core/position.js';
-import { IEditorContribution, ScrollType } from '../../../common/editorCommon.js';
-import { CodeActionTriggerType } from '../../../common/languages.js';
-import { IModelDeltaDecoration } from '../../../common/model.js';
-import { ModelDecorationOptions } from '../../../common/model/textModel.js';
-import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
-import { ApplyCodeActionReason, applyCodeAction } from './codeAction.js';
-import { CodeActionKeybindingResolver } from './codeActionKeybindingResolver.js';
-import { toMenuItems } from './codeActionMenu.js';
-import { LightBulbWidget } from './lightBulbWidget.js';
-import { MessageController } from '../../message/browser/messageController.js';
 import { localize } from '../../../../nls.js';
 import { IActionListDelegate } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
@@ -36,10 +25,20 @@ import { IEditorProgressService } from '../../../../platform/progress/common/pro
 import { editorFindMatchHighlight, editorFindMatchHighlightBorder } from '../../../../platform/theme/common/colorRegistry.js';
 import { isHighContrast } from '../../../../platform/theme/common/theme.js';
 import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { IPosition, Position } from '../../../common/core/position.js';
+import { IEditorContribution, ScrollType } from '../../../common/editorCommon.js';
+import { CodeActionTriggerType } from '../../../common/languages.js';
+import { IModelDeltaDecoration } from '../../../common/model.js';
+import { ModelDecorationOptions } from '../../../common/model/textModel.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
+import { MessageController } from '../../message/browser/messageController.js';
 import { CodeActionAutoApply, CodeActionFilter, CodeActionItem, CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types.js';
+import { ApplyCodeActionReason, applyCodeAction } from './codeAction.js';
+import { CodeActionKeybindingResolver } from './codeActionKeybindingResolver.js';
+import { toMenuItems } from './codeActionMenu.js';
 import { CodeActionModel, CodeActionsState } from './codeActionModel.js';
-import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { LightBulbWidget } from './lightBulbWidget.js';
 
 interface IActionShowOptions {
 	readonly includeDisabledActions?: boolean;
@@ -79,12 +78,12 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService
+		@IEditorProgressService private readonly _progressService: IEditorProgressService,
 	) {
 		super();
 
 		this._editor = editor;
-		this._model = this._register(new CodeActionModel(this._editor, languageFeaturesService.codeActionProvider, markerService, contextKeyService, progressService, _configurationService, this._telemetryService));
+		this._model = this._register(new CodeActionModel(this._editor, languageFeaturesService.codeActionProvider, markerService, contextKeyService, progressService, _configurationService));
 		this._register(this._model.onDidChangeState(newState => this.update(newState)));
 
 		this._lightBulbWidget = new Lazy(() => {
@@ -114,7 +113,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 					command.arguments[0] = { ...command.arguments[0], autoSend: false };
 				}
 			}
-			await this._applyCodeAction(actionItem, false, false, ApplyCodeActionReason.FromAILightbulb);
+			await this.applyCodeAction(actionItem, false, false, ApplyCodeActionReason.FromAILightbulb);
 			return;
 		}
 		await this.showCodeActionList(actions, at, { includeDisabledActions: false, fromLightbulb: true });
@@ -147,13 +146,15 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		return this._model.trigger(trigger);
 	}
 
-	private async _applyCodeAction(action: CodeActionItem, retrigger: boolean, preview: boolean, actionReason: ApplyCodeActionReason): Promise<void> {
+	async applyCodeAction(action: CodeActionItem, retrigger: boolean, preview: boolean, actionReason: ApplyCodeActionReason): Promise<void> {
+		const progress = this._progressService.show(true, 500);
 		try {
 			await this._instantiationService.invokeFunction(applyCodeAction, action, actionReason, { preview, editor: this._editor });
 		} finally {
 			if (retrigger) {
 				this._trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.QuickFix, filter: {} });
 			}
+			progress.done();
 		}
 	}
 
@@ -196,7 +197,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 				if (validActionToApply) {
 					try {
 						this.hideLightBulbWidget();
-						await this._applyCodeAction(validActionToApply, false, false, ApplyCodeActionReason.FromCodeActions);
+						await this.applyCodeAction(validActionToApply, false, false, ApplyCodeActionReason.FromCodeActions);
 					} finally {
 						actions.dispose();
 					}
@@ -288,7 +289,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 
 		const delegate: IActionListDelegate<CodeActionItem> = {
 			onSelect: async (action: CodeActionItem, preview?: boolean) => {
-				this._applyCodeAction(action, /* retrigger */ true, !!preview, options.fromLightbulb ? ApplyCodeActionReason.FromAILightbulb : ApplyCodeActionReason.FromCodeActions);
+				this.applyCodeAction(action, /* retrigger */ true, !!preview, options.fromLightbulb ? ApplyCodeActionReason.FromAILightbulb : ApplyCodeActionReason.FromCodeActions);
 				this._actionWidgetService.hide(false);
 				currentDecorations.clear();
 			},

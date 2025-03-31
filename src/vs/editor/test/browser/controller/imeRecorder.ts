@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TextAreaWrapper } from '../../../browser/controller/textAreaInput.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IRecorded, IRecordedCompositionEvent, IRecordedEvent, IRecordedInputEvent, IRecordedKeyboardEvent, IRecordedTextareaState } from './imeRecordedTypes.js';
 import * as browser from '../../../../base/browser/browser.js';
 import * as platform from '../../../../base/common/platform.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { TextAreaWrapper } from '../../../browser/controller/editContext/textArea/textAreaEditContextInput.js';
 
 (() => {
 

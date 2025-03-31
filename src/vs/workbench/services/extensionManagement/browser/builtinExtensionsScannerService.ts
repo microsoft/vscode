@@ -77,7 +77,8 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 						changelogUrl: e.changelogPath ? uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl, e.changelogPath) : undefined,
 						targetPlatform: TargetPlatform.WEB,
 						validations: [],
-						isValid: true
+						isValid: true,
+						preRelease: false,
 					};
 				});
 			}

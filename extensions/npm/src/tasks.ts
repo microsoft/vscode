@@ -10,7 +10,7 @@ import {
 } from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import * as minimatch from 'minimatch';
+import minimatch from 'minimatch';
 import { Utils } from 'vscode-uri';
 import { findPreferredPM } from './preferred-pm';
 import { readScripts } from './readScripts';
@@ -71,11 +71,16 @@ export class NpmTaskProvider implements TaskProvider {
 			} else {
 				packageJsonUri = _task.scope.uri.with({ path: _task.scope.uri.path + '/package.json' });
 			}
-			const cmd = [kind.script];
-			if (kind.script !== INSTALL_SCRIPT) {
-				cmd.unshift('run');
+			let task: Task;
+			if (kind.script === INSTALL_SCRIPT) {
+				task = await createInstallationTask(this.context, _task.scope, packageJsonUri);
+			} else {
+				task = await createScriptRunnerTask(this.context, kind.script, _task.scope, packageJsonUri);
 			}
-			return createTask(await getPackageManager(this.context, _task.scope.uri), kind, cmd, _task.scope, packageJsonUri);
+			// VSCode requires that task.definition must not change between resolutions
+			// We need to restore task.definition to its original value
+			task.definition = kind;
+			return task;
 		}
 		return undefined;
 	}
@@ -104,49 +109,60 @@ function isTestTask(name: string): boolean {
 	}
 	return false;
 }
+const preScripts: Set<string> = new Set([
+	'install', 'pack', 'pack', 'publish', 'restart', 'shrinkwrap',
+	'stop', 'test', 'uninstall', 'version'
+]);
 
-function isPrePostScript(name: string): boolean {
-	const prePostScripts: Set<string> = new Set([
-		'preuninstall', 'postuninstall', 'prepack', 'postpack', 'preinstall', 'postinstall',
-		'prepack', 'postpack', 'prepublish', 'postpublish', 'preversion', 'postversion',
-		'prestop', 'poststop', 'prerestart', 'postrestart', 'preshrinkwrap', 'postshrinkwrap',
-		'pretest', 'postest', 'prepublishOnly'
-	]);
+const postScripts: Set<string> = new Set([
+	'install', 'pack', 'pack', 'publish', 'publishOnly', 'restart', 'shrinkwrap',
+	'stop', 'test', 'uninstall', 'version'
+]);
 
-	const prepost = ['pre' + name, 'post' + name];
-	for (const knownScript of prePostScripts) {
-		if (knownScript === prepost[0] || knownScript === prepost[1]) {
-			return true;
-		}
-	}
-	return false;
+function canHavePrePostScript(name: string): boolean {
+	return preScripts.has(name) || postScripts.has(name);
 }
 
 export function isWorkspaceFolder(value: any): value is WorkspaceFolder {
 	return value && typeof value !== 'number';
 }
 
-export async function getPackageManager(extensionContext: ExtensionContext, folder: Uri, showWarning: boolean = true): Promise<string> {
-	let packageManagerName = workspace.getConfiguration('npm', folder).get<string>('packageManager', 'npm');
+export async function getScriptRunner(folder: Uri, context?: ExtensionContext, showWarning?: boolean): Promise<string> {
+	let scriptRunner = workspace.getConfiguration('npm', folder).get<string>('scriptRunner', 'npm');
 
-	if (packageManagerName === 'auto') {
-		const { name, multipleLockFilesDetected: multiplePMDetected } = await findPreferredPM(folder.fsPath);
-		packageManagerName = name;
-		const neverShowWarning = 'npm.multiplePMWarning.neverShow';
-		if (showWarning && multiplePMDetected && !extensionContext.globalState.get<boolean>(neverShowWarning)) {
-			const multiplePMWarning = l10n.t('Using {0} as the preferred package manager. Found multiple lockfiles for {1}.  To resolve this issue, delete the lockfiles that don\'t match your preferred package manager or change the setting "npm.packageManager" to a value other than "auto".', packageManagerName, folder.fsPath);
-			const neverShowAgain = l10n.t("Do not show again");
-			const learnMore = l10n.t("Learn more");
-			window.showInformationMessage(multiplePMWarning, learnMore, neverShowAgain).then(result => {
-				switch (result) {
-					case neverShowAgain: extensionContext.globalState.update(neverShowWarning, true); break;
-					case learnMore: env.openExternal(Uri.parse('https://docs.npmjs.com/cli/v9/configuring-npm/package-lock-json'));
-				}
-			});
-		}
+	if (scriptRunner === 'auto') {
+		scriptRunner = await detectPackageManager(folder, context, showWarning);
 	}
 
-	return packageManagerName;
+	return scriptRunner;
+}
+
+export async function getPackageManager(folder: Uri, context?: ExtensionContext, showWarning?: boolean): Promise<string> {
+	let packageManager = workspace.getConfiguration('npm', folder).get<string>('packageManager', 'npm');
+
+	if (packageManager === 'auto') {
+		packageManager = await detectPackageManager(folder, context, showWarning);
+	}
+
+	return packageManager;
+}
+
+export async function detectPackageManager(folder: Uri, extensionContext?: ExtensionContext, showWarning: boolean = false): Promise<string> {
+	const { name, multipleLockFilesDetected: multiplePMDetected } = await findPreferredPM(folder.fsPath);
+	const neverShowWarning = 'npm.multiplePMWarning.neverShow';
+	if (showWarning && multiplePMDetected && extensionContext && !extensionContext.globalState.get<boolean>(neverShowWarning)) {
+		const multiplePMWarning = l10n.t('Using {0} as the preferred package manager. Found multiple lockfiles for {1}.  To resolve this issue, delete the lockfiles that don\'t match your preferred package manager or change the setting "npm.packageManager" to a value other than "auto".', name, folder.fsPath);
+		const neverShowAgain = l10n.t("Do not show again");
+		const learnMore = l10n.t("Learn more");
+		window.showInformationMessage(multiplePMWarning, learnMore, neverShowAgain).then(result => {
+			switch (result) {
+				case neverShowAgain: extensionContext.globalState.update(neverShowWarning, true); break;
+				case learnMore: env.openExternal(Uri.parse('https://docs.npmjs.com/cli/v9/configuring-npm/package-lock-json'));
+			}
+		});
+	}
+
+	return name;
 }
 
 export async function hasNpmScripts(): Promise<boolean> {
@@ -154,49 +170,37 @@ export async function hasNpmScripts(): Promise<boolean> {
 	if (!folders) {
 		return false;
 	}
-	try {
-		for (const folder of folders) {
-			if (isAutoDetectionEnabled(folder) && !excludeRegex.test(Utils.basename(folder.uri))) {
-				const relativePattern = new RelativePattern(folder, '**/package.json');
-				const paths = await workspace.findFiles(relativePattern, '**/node_modules/**');
-				if (paths.length > 0) {
-					return true;
-				}
+	for (const folder of folders) {
+		if (isAutoDetectionEnabled(folder) && !excludeRegex.test(Utils.basename(folder.uri))) {
+			const relativePattern = new RelativePattern(folder, '**/package.json');
+			const paths = await workspace.findFiles(relativePattern, '**/node_modules/**');
+			if (paths.length > 0) {
+				return true;
 			}
 		}
-		return false;
-	} catch (error) {
-		return Promise.reject(error);
 	}
+	return false;
 }
 
-async function detectNpmScripts(context: ExtensionContext, showWarning: boolean): Promise<ITaskWithLocation[]> {
+async function* findNpmPackages(): AsyncGenerator<Uri> {
 
-	const emptyTasks: ITaskWithLocation[] = [];
-	const allTasks: ITaskWithLocation[] = [];
 	const visitedPackageJsonFiles: Set<string> = new Set();
 
 	const folders = workspace.workspaceFolders;
 	if (!folders) {
-		return emptyTasks;
+		return;
 	}
-	try {
-		for (const folder of folders) {
-			if (isAutoDetectionEnabled(folder) && !excludeRegex.test(Utils.basename(folder.uri))) {
-				const relativePattern = new RelativePattern(folder, '**/package.json');
-				const paths = await workspace.findFiles(relativePattern, '**/{node_modules,.vscode-test}/**');
-				for (const path of paths) {
-					if (!isExcluded(folder, path) && !visitedPackageJsonFiles.has(path.fsPath)) {
-						const tasks = await provideNpmScriptsForFolder(context, path, showWarning);
-						visitedPackageJsonFiles.add(path.fsPath);
-						allTasks.push(...tasks);
-					}
+	for (const folder of folders) {
+		if (isAutoDetectionEnabled(folder) && !excludeRegex.test(Utils.basename(folder.uri))) {
+			const relativePattern = new RelativePattern(folder, '**/package.json');
+			const paths = await workspace.findFiles(relativePattern, '**/{node_modules,.vscode-test}/**');
+			for (const path of paths) {
+				if (!isExcluded(folder, path) && !visitedPackageJsonFiles.has(path.fsPath)) {
+					yield path;
+					visitedPackageJsonFiles.add(path.fsPath);
 				}
 			}
 		}
-		return allTasks;
-	} catch (error) {
-		return Promise.reject(error);
 	}
 }
 
@@ -205,30 +209,31 @@ export async function detectNpmScriptsForFolder(context: ExtensionContext, folde
 
 	const folderTasks: IFolderTaskItem[] = [];
 
-	try {
-		if (excludeRegex.test(Utils.basename(folder))) {
-			return folderTasks;
-		}
-		const relativePattern = new RelativePattern(folder.fsPath, '**/package.json');
-		const paths = await workspace.findFiles(relativePattern, '**/node_modules/**');
-
-		const visitedPackageJsonFiles: Set<string> = new Set();
-		for (const path of paths) {
-			if (!visitedPackageJsonFiles.has(path.fsPath)) {
-				const tasks = await provideNpmScriptsForFolder(context, path, true);
-				visitedPackageJsonFiles.add(path.fsPath);
-				folderTasks.push(...tasks.map(t => ({ label: t.task.name, task: t.task })));
-			}
-		}
+	if (excludeRegex.test(Utils.basename(folder))) {
 		return folderTasks;
-	} catch (error) {
-		return Promise.reject(error);
 	}
+	const relativePattern = new RelativePattern(folder.fsPath, '**/package.json');
+	const paths = await workspace.findFiles(relativePattern, '**/node_modules/**');
+
+	const visitedPackageJsonFiles: Set<string> = new Set();
+	for (const path of paths) {
+		if (!visitedPackageJsonFiles.has(path.fsPath)) {
+			const tasks = await provideNpmScriptsForFolder(context, path, true);
+			visitedPackageJsonFiles.add(path.fsPath);
+			folderTasks.push(...tasks.map(t => ({ label: t.task.name, task: t.task })));
+		}
+	}
+	return folderTasks;
 }
 
 export async function provideNpmScripts(context: ExtensionContext, showWarning: boolean): Promise<ITaskWithLocation[]> {
 	if (!cachedTasks) {
-		cachedTasks = await detectNpmScripts(context, showWarning);
+		const allTasks: ITaskWithLocation[] = [];
+		for await (const path of findNpmPackages()) {
+			const tasks = await provideNpmScriptsForFolder(context, path, showWarning);
+			allTasks.push(...tasks);
+		}
+		cachedTasks = allTasks;
 	}
 	return cachedTasks;
 }
@@ -278,15 +283,13 @@ async function provideNpmScriptsForFolder(context: ExtensionContext, packageJson
 
 	const result: ITaskWithLocation[] = [];
 
-	const packageManager = await getPackageManager(context, folder.uri, showWarning);
-
 	for (const { name, value, nameRange } of scripts.scripts) {
-		const task = await createTask(packageManager, name, ['run', name], folder!, packageJsonUri, value, undefined);
+		const task = await createScriptRunnerTask(context, name, folder!, packageJsonUri, value, showWarning);
 		result.push({ task, location: new Location(packageJsonUri, nameRange) });
 	}
 
 	if (!workspace.getConfiguration('npm', folder).get<string[]>('scriptExplorerExclude', []).find(e => e.includes(INSTALL_SCRIPT))) {
-		result.push({ task: await createTask(packageManager, INSTALL_SCRIPT, [INSTALL_SCRIPT], folder, packageJsonUri, 'install dependencies from package', []) });
+		result.push({ task: await createInstallationTask(context, folder, packageJsonUri, 'install dependencies from package', showWarning) });
 	}
 	return result;
 }
@@ -298,55 +301,88 @@ export function getTaskName(script: string, relativePath: string | undefined) {
 	return script;
 }
 
-export async function createTask(packageManager: string, script: INpmTaskDefinition | string, cmd: string[], folder: WorkspaceFolder, packageJsonUri: Uri, scriptValue?: string, matcher?: any): Promise<Task> {
-	let kind: INpmTaskDefinition;
-	if (typeof script === 'string') {
-		kind = { type: 'npm', script: script };
-	} else {
-		kind = script;
-	}
+function escapeCommandLine(cmd: string[]): (string | ShellQuotedString)[] {
+	return cmd.map(arg => {
+		if (/\s/.test(arg)) {
+			return { value: arg, quoting: arg.includes('--') ? ShellQuoting.Weak : ShellQuoting.Strong };
+		} else {
+			return arg;
+		}
+	});
+}
 
-	function getCommandLine(cmd: string[]): (string | ShellQuotedString)[] {
-		const result: (string | ShellQuotedString)[] = new Array(cmd.length);
-		for (let i = 0; i < cmd.length; i++) {
-			if (/\s/.test(cmd[i])) {
-				result[i] = { value: cmd[i], quoting: cmd[i].includes('--') ? ShellQuoting.Weak : ShellQuoting.Strong };
-			} else {
-				result[i] = cmd[i];
-			}
+function getRelativePath(rootUri: Uri, packageJsonUri: Uri): string {
+	const absolutePath = packageJsonUri.path.substring(0, packageJsonUri.path.length - 'package.json'.length);
+	return absolutePath.substring(rootUri.path.length + 1);
+}
+
+export async function getRunScriptCommand(script: string, folder: Uri, context?: ExtensionContext, showWarning = true): Promise<string[]> {
+	const scriptRunner = await getScriptRunner(folder, context, showWarning);
+
+	if (scriptRunner === 'node') {
+		return ['node', '--run', script];
+	} else {
+		const result = [scriptRunner, 'run'];
+		if (workspace.getConfiguration('npm', folder).get<boolean>('runSilent')) {
+			result.push('--silent');
 		}
-		if (workspace.getConfiguration('npm', folder.uri).get<boolean>('runSilent')) {
-			result.unshift('--silent');
-		}
+		result.push(script);
 		return result;
 	}
+}
 
-	function getRelativePath(packageJsonUri: Uri): string {
-		const rootUri = folder.uri;
-		const absolutePath = packageJsonUri.path.substring(0, packageJsonUri.path.length - 'package.json'.length);
-		return absolutePath.substring(rootUri.path.length + 1);
-	}
+export async function createScriptRunnerTask(context: ExtensionContext, script: string, folder: WorkspaceFolder, packageJsonUri: Uri, scriptValue?: string, showWarning?: boolean): Promise<Task> {
+	const kind: INpmTaskDefinition = { type: 'npm', script };
 
-	const relativePackageJson = getRelativePath(packageJsonUri);
+	const relativePackageJson = getRelativePath(folder.uri, packageJsonUri);
 	if (relativePackageJson.length && !kind.path) {
 		kind.path = relativePackageJson.substring(0, relativePackageJson.length - 1);
 	}
-	const taskName = getTaskName(kind.script, relativePackageJson);
+	const taskName = getTaskName(script, relativePackageJson);
 	const cwd = path.dirname(packageJsonUri.fsPath);
-	const task = new Task(kind, folder, taskName, 'npm', new ShellExecution(packageManager, getCommandLine(cmd), { cwd: cwd }), matcher);
+	const args = await getRunScriptCommand(script, folder.uri, context, showWarning);
+	const scriptRunner = args.shift()!;
+	const task = new Task(kind, folder, taskName, 'npm', new ShellExecution(scriptRunner, escapeCommandLine(args), { cwd: cwd }));
 	task.detail = scriptValue;
 
-	const lowerCaseTaskName = kind.script.toLowerCase();
+	const lowerCaseTaskName = script.toLowerCase();
 	if (isBuildTask(lowerCaseTaskName)) {
 		task.group = TaskGroup.Build;
 	} else if (isTestTask(lowerCaseTaskName)) {
 		task.group = TaskGroup.Test;
-	} else if (isPrePostScript(lowerCaseTaskName)) {
+	} else if (canHavePrePostScript(lowerCaseTaskName)) {
 		task.group = TaskGroup.Clean; // hack: use Clean group to tag pre/post scripts
 	} else if (scriptValue && isDebugScript(scriptValue)) {
 		// todo@connor4312: all scripts are now debuggable, what is a 'debug script'?
 		task.group = TaskGroup.Rebuild; // hack: use Rebuild group to tag debug scripts
 	}
+	return task;
+}
+
+async function getInstallDependenciesCommand(folder: Uri, context?: ExtensionContext, showWarning = true): Promise<string[]> {
+	const packageManager = await getPackageManager(folder, context, showWarning);
+	const result = [packageManager, INSTALL_SCRIPT];
+	if (workspace.getConfiguration('npm', folder).get<boolean>('runSilent')) {
+		result.push('--silent');
+	}
+	return result;
+}
+
+export async function createInstallationTask(context: ExtensionContext, folder: WorkspaceFolder, packageJsonUri: Uri, scriptValue?: string, showWarning?: boolean): Promise<Task> {
+	const kind: INpmTaskDefinition = { type: 'npm', script: INSTALL_SCRIPT };
+
+	const relativePackageJson = getRelativePath(folder.uri, packageJsonUri);
+	if (relativePackageJson.length && !kind.path) {
+		kind.path = relativePackageJson.substring(0, relativePackageJson.length - 1);
+	}
+	const taskName = getTaskName(INSTALL_SCRIPT, relativePackageJson);
+	const cwd = path.dirname(packageJsonUri.fsPath);
+	const args = await getInstallDependenciesCommand(folder.uri, context, showWarning);
+	const packageManager = args.shift()!;
+	const task = new Task(kind, folder, taskName, 'npm', new ShellExecution(packageManager, escapeCommandLine(args), { cwd: cwd }));
+	task.detail = scriptValue;
+	task.group = TaskGroup.Clean;
+
 	return task;
 }
 
@@ -403,15 +439,17 @@ export async function runScript(context: ExtensionContext, script: string, docum
 	const uri = document.uri;
 	const folder = workspace.getWorkspaceFolder(uri);
 	if (folder) {
-		const task = await createTask(await getPackageManager(context, folder.uri), script, ['run', script], folder, uri);
+		const task = await createScriptRunnerTask(context, script, folder, uri);
 		tasks.executeTask(task);
 	}
 }
 
 export async function startDebugging(context: ExtensionContext, scriptName: string, cwd: string, folder: WorkspaceFolder) {
+	const runScriptCommand = await getRunScriptCommand(scriptName, folder.uri, context, true);
+
 	commands.executeCommand(
 		'extension.js-debug.createDebuggerTerminal',
-		`${await getPackageManager(context, folder.uri)} run ${scriptName}`,
+		runScriptCommand.join(' '),
 		folder,
 		{ cwd },
 	);

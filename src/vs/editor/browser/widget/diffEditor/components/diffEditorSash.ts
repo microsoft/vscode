@@ -5,9 +5,8 @@
 
 import { IBoundarySashes, ISashEvent, Orientation, Sash, SashState } from '../../../../../base/browser/ui/sash/sash.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, IReader, ISettableObservable, autorun, observableValue } from '../../../../../base/common/observable.js';
+import { IObservable, IReader, ISettableObservable, autorun, derivedWithSetter, observableValue } from '../../../../../base/common/observable.js';
 import { DiffEditorOptions } from '../diffEditorOptions.js';
-import { derivedWithSetter } from '../../../../../base/common/observableInternal/derived.js';
 
 export class SashLayout {
 	public readonly sashLeft = derivedWithSetter(this, reader => {
@@ -63,7 +62,7 @@ export class DiffEditorSash extends Disposable {
 		private readonly _domNode: HTMLElement,
 		private readonly _dimensions: { height: IObservable<number>; width: IObservable<number> },
 		private readonly _enabled: IObservable<boolean>,
-		private readonly _boundarySashes: IObservable<IBoundarySashes | undefined, void>,
+		private readonly _boundarySashes: IObservable<IBoundarySashes | undefined>,
 		public readonly sashLeft: ISettableObservable<number>,
 		private readonly _resetSash: () => void,
 	) {

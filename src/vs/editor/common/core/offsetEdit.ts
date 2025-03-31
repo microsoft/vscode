@@ -125,7 +125,9 @@ export class OffsetEdit {
 	 * For that, we compute `tm' := t1 o base o this.rebase(base)`
 	 * such that `tm' === tm`.
 	 */
-	tryRebase(base: OffsetEdit): OffsetEdit {
+	tryRebase(base: OffsetEdit): OffsetEdit;
+	tryRebase(base: OffsetEdit, noOverlap: true): OffsetEdit | undefined;
+	tryRebase(base: OffsetEdit, noOverlap?: true): OffsetEdit | undefined {
 		const newEdits: SingleOffsetEdit[] = [];
 
 		let baseIdx = 0;
@@ -147,8 +149,11 @@ export class OffsetEdit {
 					ourEdit.newText,
 				));
 				ourIdx++;
-			} else if (ourEdit.replaceRange.intersects(baseEdit.replaceRange)) {
+			} else if (ourEdit.replaceRange.intersectsOrTouches(baseEdit.replaceRange)) {
 				ourIdx++; // Don't take our edit, as it is conflicting -> skip
+				if (noOverlap) {
+					return undefined;
+				}
 			} else if (ourEdit.replaceRange.start < baseEdit.replaceRange.start) {
 				// Our edit starts first
 				newEdits.push(new SingleOffsetEdit(
@@ -204,6 +209,19 @@ export class OffsetEdit {
 		}
 		return postEditsOffset - accumulatedDelta;
 	}
+
+	equals(other: OffsetEdit): boolean {
+		if (this.edits.length !== other.edits.length) {
+			return false;
+		}
+		for (let i = 0; i < this.edits.length; i++) {
+			if (!this.edits[i].equals(other.edits[i])) {
+				return false;
+			}
+
+		}
+		return true;
+	}
 }
 
 export type IOffsetEdit = ISingleOffsetEdit[];
@@ -223,6 +241,10 @@ export class SingleOffsetEdit {
 		return new SingleOffsetEdit(OffsetRange.emptyAt(offset), text);
 	}
 
+	public static replace(range: OffsetRange, text: string): SingleOffsetEdit {
+		return new SingleOffsetEdit(range, text);
+	}
+
 	constructor(
 		public readonly replaceRange: OffsetRange,
 		public readonly newText: string,
@@ -234,6 +256,18 @@ export class SingleOffsetEdit {
 
 	get isEmpty() {
 		return this.newText.length === 0 && this.replaceRange.length === 0;
+	}
+
+	apply(str: string): string {
+		return str.substring(0, this.replaceRange.start) + this.newText + str.substring(this.replaceRange.endExclusive);
+	}
+
+	getRangeAfterApply(): OffsetRange {
+		return new OffsetRange(this.replaceRange.start, this.replaceRange.start + this.newText.length);
+	}
+
+	equals(other: SingleOffsetEdit): boolean {
+		return this.replaceRange.equals(other.replaceRange) && this.newText === other.newText;
 	}
 }
 
@@ -319,4 +353,71 @@ function joinEdits(edits1: OffsetEdit, edits2: OffsetEdit): OffsetEdit {
 	}
 
 	return new OffsetEdit(result).normalize();
+}
+
+export function applyEditsToRanges(sortedRanges: OffsetRange[], edits: OffsetEdit): OffsetRange[] {
+	sortedRanges = sortedRanges.slice();
+
+	// treat edits as deletion of the replace range and then as insertion that extends the first range
+	const result: OffsetRange[] = [];
+
+	let offset = 0;
+
+	for (const e of edits.edits) {
+		while (true) {
+			// ranges before the current edit
+			const r = sortedRanges[0];
+			if (!r || r.endExclusive >= e.replaceRange.start) {
+				break;
+			}
+			sortedRanges.shift();
+			result.push(r.delta(offset));
+		}
+
+		const intersecting: OffsetRange[] = [];
+		while (true) {
+			const r = sortedRanges[0];
+			if (!r || !r.intersectsOrTouches(e.replaceRange)) {
+				break;
+			}
+			sortedRanges.shift();
+			intersecting.push(r);
+		}
+
+		for (let i = intersecting.length - 1; i >= 0; i--) {
+			let r = intersecting[i];
+
+			const overlap = r.intersect(e.replaceRange)!.length;
+			r = r.deltaEnd(-overlap + (i === 0 ? e.newText.length : 0));
+
+			const rangeAheadOfReplaceRange = r.start - e.replaceRange.start;
+			if (rangeAheadOfReplaceRange > 0) {
+				r = r.delta(-rangeAheadOfReplaceRange);
+			}
+
+			if (i !== 0) {
+				r = r.delta(e.newText.length);
+			}
+
+			// We already took our offset into account.
+			// Because we add r back to the queue (which then adds offset again),
+			// we have to remove it here.
+			r = r.delta(-(e.newText.length - e.replaceRange.length));
+
+			sortedRanges.unshift(r);
+		}
+
+		offset += e.newText.length - e.replaceRange.length;
+	}
+
+	while (true) {
+		const r = sortedRanges[0];
+		if (!r) {
+			break;
+		}
+		sortedRanges.shift();
+		result.push(r.delta(offset));
+	}
+
+	return result;
 }

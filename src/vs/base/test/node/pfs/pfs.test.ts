@@ -15,7 +15,6 @@ import { isWindows } from '../../../common/platform.js';
 import { configureFlushOnWrite, Promises, RimRafMode, rimrafSync, SymlinkSupport, writeFileSync } from '../../../node/pfs.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../common/utils.js';
 import { flakySuite, getRandomTestPath } from '../testUtils.js';
-import { isESM } from '../../../common/amd.js';
 
 configureFlushOnWrite(false); // speed up all unit tests by disabling flush on write
 
@@ -175,7 +174,7 @@ flakySuite('PFS', function () {
 		assert.ok(!fs.existsSync(testDir));
 	});
 
-	(!isESM ? test.skip : test /* somehow fails in AMD with ENOENT for fixtures dir */)('copy, rename and delete', async () => {
+	test('copy, rename and delete', async () => {
 		const sourceDir = FileAccess.asFileUri('vs/base/test/node/pfs/fixtures').fsPath;
 		const parentDir = join(tmpdir(), 'vsctests', 'pfs');
 		const targetDir = randomPath(parentDir);
@@ -210,7 +209,7 @@ flakySuite('PFS', function () {
 		assert.ok(!fs.existsSync(parentDir));
 	});
 
-	(!isESM ? test.skip : test /* somehow fails in AMD with ENOENT for fixtures dir */)('rename without retry', async () => {
+	test('rename without retry', async () => {
 		const sourceDir = FileAccess.asFileUri('vs/base/test/node/pfs/fixtures').fsPath;
 		const parentDir = join(tmpdir(), 'vsctests', 'pfs');
 		const targetDir = randomPath(parentDir);

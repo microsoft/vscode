@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/969429cb9230a63f9155987f069acd4234d10e1a",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/7b75bae583f3f9802c533e021f882428872c572c",
 	"name": "LaTeX",
 	"scopeName": "text.tex.latex",
 	"patterns": [
@@ -762,6 +762,49 @@
 			]
 		},
 		{
+			"begin": "\\s*\\\\begin\\{(?:javacode|javaverbatim|javablock|javaconcode|javaconsole|javaconverbatim)\\*?\\}(?:\\[[a-zA-Z0-9_-]*\\])?(?=\\[|\\{|\\s*$)",
+			"end": "\\s*\\\\end\\{(?:javacode|javaverbatim|javablock|javaconcode|javaconsole|javaconverbatim)\\*?\\}",
+			"captures": {
+				"0": {
+					"patterns": [
+						{
+							"include": "#begin-env-tokenizer"
+						}
+					]
+				}
+			},
+			"patterns": [
+				{
+					"include": "#multiline-optional-arg-no-highlight"
+				},
+				{
+					"begin": "(?:\\G|(?<=\\]))(\\{)",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.definition.arguments.begin.latex"
+						}
+					},
+					"end": "(\\})",
+					"endCaptures": {
+						"1": {
+							"name": "punctuation.definition.arguments.end.latex"
+						}
+					},
+					"contentName": "variable.parameter.function.latex"
+				},
+				{
+					"begin": "^(?=\\s*)",
+					"end": "^\\s*(?=\\\\end\\{(?:javacode|javaverbatim|javablock|javaconcode|javaconsole|javaconverbatim)\\*?\\})",
+					"contentName": "source.java",
+					"patterns": [
+						{
+							"include": "source.java"
+						}
+					]
+				}
+			]
+		},
+		{
 			"begin": "\\s*\\\\begin\\{(?:jlcode|jlverbatim|jlblock|jlconcode|jlconsole|jlconverbatim)\\*?\\}(?:\\[[a-zA-Z0-9_-]*\\])?(?=\\[|\\{|\\s*$)",
 			"end": "\\s*\\\\end\\{(?:jlcode|jlverbatim|jlblock|jlconcode|jlconsole|jlconverbatim)\\*?\\}",
 			"captures": {
@@ -1106,7 +1149,7 @@
 			]
 		},
 		{
-			"begin": "\\s*\\\\begin\\{([a-zA-Z]*code|lstlisting|minted|pyglist)\\*?\\}(?:\\[.*\\])?(?:\\{.*\\})?",
+			"begin": "\\s*\\\\begin\\{((?:[a-zA-Z]*code|lstlisting|minted|pyglist)\\*?)\\}(?:\\[.*\\])?(?:\\{.*\\})?",
 			"captures": {
 				"0": {
 					"patterns": [
@@ -2002,7 +2045,7 @@
 					]
 				}
 			},
-			"contentName": "punctuation.definition.comment.latex",
+			"contentName": "comment.line.percentage.latex",
 			"end": "(\\\\end\\{\\2\\})",
 			"name": "meta.function.verbatim.latex"
 		},
@@ -2306,16 +2349,16 @@
 					]
 				}
 			},
-			"contentName": "meta.embedded.markdown_latex_combined",
+			"contentName": "meta.embedded.internal_only_markdown_latex_combined",
 			"end": "(\\\\end\\{markdown\\})",
 			"patterns": [
 				{
-					"include": "text.tex.markdown_latex_combined"
+					"include": "text.tex.internal_only_markdown_latex_combined"
 				}
 			]
 		},
 		{
-			"begin": "(\\s*\\\\begin\\{(\\w+\\*?)\\})",
+			"begin": "(\\s*\\\\begin\\{(\\p{Alphabetic}+\\*?)\\})",
 			"captures": {
 				"1": {
 					"patterns": [
@@ -3149,7 +3192,7 @@
 					"name": "punctuation.definition.arguments.end.latex"
 				}
 			},
-			"match": "\\s*((\\\\)(?:begin|end))(\\{)([a-zA-Z]*\\*?)(\\})(?:(\\[)([^\\]]*)(\\])){,2}(?:(\\{)([^{}]*)(\\}))?"
+			"match": "\\s*((\\\\)(?:begin|end))(\\{)(\\p{Alphabetic}+\\*?)(\\})(?:(\\[)([^\\]]*)(\\])){,2}(?:(\\{)([^{}]*)(\\}))?"
 		},
 		"definition-label": {
 			"begin": "((\\\\)z?label)((?:\\[[^\\[]*?\\])*)(\\{)",

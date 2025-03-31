@@ -29,7 +29,7 @@ import { localize } from '../../../../../../nls.js';
 import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { ChatAgentLocation } from '../../../../chat/common/chatAgents.js';
+import { ChatAgentLocation } from '../../../../chat/common/constants.js';
 import { ChatModel, IChatModel } from '../../../../chat/common/chatModel.js';
 import { IChatService } from '../../../../chat/common/chatService.js';
 import { countWords } from '../../../../chat/common/chatWordCounter.js';
@@ -255,7 +255,6 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 
 	private _strategy: EditStrategy | undefined;
 	private _sessionCtor: CancelablePromise<void> | undefined;
-	private _warmupRequestCts?: CancellationTokenSource;
 	private _activeRequestCts?: CancellationTokenSource;
 	private readonly _ctxHasActiveRequest: IContextKey<boolean>;
 	private readonly _ctxCellWidgetFocused: IContextKey<boolean>;
@@ -442,10 +441,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		inlineChatWidget.placeholder = localize('default.placeholder', "Ask a question");
 		inlineChatWidget.updateInfo(localize('welcome.1', "AI-generated code may be incorrect"));
 		widgetContainer.appendChild(inlineChatWidget.domNode);
-		this._widgetDisposableStore.add(inlineChatWidget.onDidChangeInput(() => {
-			this._warmupRequestCts?.dispose(true);
-			this._warmupRequestCts = undefined;
-		}));
+
 
 		this._notebookEditor.changeViewZones(accessor => {
 			const notebookViewZone = {

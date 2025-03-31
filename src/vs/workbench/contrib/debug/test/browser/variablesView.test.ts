@@ -8,17 +8,17 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { Scope, StackFrame, Thread, Variable } from '../../common/debugModel.js';
-import { MockDebugService, MockSession } from '../common/mockDebug.js';
-import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
-import { IDebugService, IViewModel } from '../../common/debug.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { DebugExpressionRenderer } from '../../browser/debugExpressionRenderer.js';
 import { VariablesRenderer } from '../../browser/variablesView.js';
-import { LinkDetector } from '../../browser/linkDetector.js';
-import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IDebugService, IViewModel } from '../../common/debug.js';
+import { Scope, StackFrame, Thread, Variable } from '../../common/debugModel.js';
+import { MockDebugService, MockSession } from '../common/mockDebug.js';
 
 const $ = dom.$;
 
@@ -75,18 +75,22 @@ function assertVariable(disposables: Pick<DisposableStore, "add">, variablesRend
 	assert.strictEqual(value.textContent, 'xpto');
 	assert.strictEqual(type.textContent, displayType ? 'string =' : '');
 	assert.strictEqual(label.element.textContent, displayType ? 'foo: ' : 'foo =');
+
+	variablesRenderer.disposeTemplate(data);
 }
 
 suite('Debug - Variable Debug View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let variablesRenderer: VariablesRenderer;
 	let instantiationService: TestInstantiationService;
-	let linkDetector: LinkDetector;
+	let expressionRenderer: DebugExpressionRenderer;
 	let configurationService: TestConfigurationService;
 
 	setup(() => {
 		instantiationService = workbenchInstantiationService(undefined, disposables);
-		linkDetector = instantiationService.createInstance(LinkDetector);
+		configurationService = instantiationService.createInstance(TestConfigurationService);
+		instantiationService.stub(IConfigurationService, configurationService);
+		expressionRenderer = instantiationService.createInstance(DebugExpressionRenderer);
 		const debugService = new MockDebugService();
 		instantiationService.stub(IHoverService, NullHoverService);
 		debugService.getViewModel = () => <IViewModel>{ focusedStackFrame: undefined, getSelectedExpression: () => undefined };
@@ -95,24 +99,16 @@ suite('Debug - Variable Debug View', () => {
 	});
 
 	test('variable expressions with display type', () => {
-		configurationService = new TestConfigurationService({
-			debug: {
-				showVariableTypes: true
-			}
-		});
+		configurationService.setUserConfiguration('debug.showVariableTypes', true);
 		instantiationService.stub(IConfigurationService, configurationService);
-		variablesRenderer = instantiationService.createInstance(VariablesRenderer, linkDetector);
+		variablesRenderer = instantiationService.createInstance(VariablesRenderer, expressionRenderer);
 		assertVariable(disposables, variablesRenderer, true);
 	});
 
 	test('variable expressions', () => {
-		configurationService = new TestConfigurationService({
-			debug: {
-				showVariableTypes: false
-			}
-		});
+		configurationService.setUserConfiguration('debug.showVariableTypes', false);
 		instantiationService.stub(IConfigurationService, configurationService);
-		variablesRenderer = instantiationService.createInstance(VariablesRenderer, linkDetector);
+		variablesRenderer = instantiationService.createInstance(VariablesRenderer, expressionRenderer);
 		assertVariable(disposables, variablesRenderer, false);
 	});
 });

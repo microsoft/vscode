@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { env, Uri } from 'vscode';
+import { env, Uri, window } from 'vscode';
 import * as sinon from 'sinon';
 import { UriHandlerLoopbackClient } from '../loopbackClientAndOpener';
 import { UriEventHandler } from '../../UriEventHandler';
@@ -22,7 +22,7 @@ suite('UriHandlerLoopbackClient', () => {
 		envStub.openExternal.resolves(true);
 		envStub.asExternalUri.callThrough();
 		uriHandler = new UriEventHandler();
-		client = new UriHandlerLoopbackClient(uriHandler, redirectUri);
+		client = new UriHandlerLoopbackClient(uriHandler, redirectUri, window.createOutputChannel('test', { log: true }));
 	});
 
 	teardown(() => {

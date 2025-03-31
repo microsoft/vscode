@@ -263,7 +263,7 @@ CommandsRegistry.registerCommand('_workbench.removeFromRecentlyOpened', function
 
 CommandsRegistry.registerCommand({
 	id: 'vscode.removeFromRecentlyOpened',
-	handler: (accessor: ServicesAccessor, path: string | URI): Promise<any> => {
+	handler: (accessor: ServicesAccessor, path: string | URI): Promise<void> => {
 		const workspacesService = accessor.get(IWorkspacesService);
 
 		if (typeof path === 'string') {

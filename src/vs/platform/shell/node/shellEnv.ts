@@ -129,7 +129,7 @@ async function doResolveUnixShellEnv(logService: ILogService, token: Cancellatio
 		const name = basename(systemShellUnix);
 		let command: string, shellArgs: Array<string>;
 		const extraArgs = '';
-		if (/^pwsh(-preview)?$/.test(name)) {
+		if (/^(?:pwsh|powershell)(?:-preview)?$/.test(name)) {
 			// Older versions of PowerShell removes double quotes sometimes so we use "double single quotes" which is how
 			// you escape single quotes inside of a single quoted string.
 			command = `& '${process.execPath}' ${extraArgs} -p '''${mark}'' + JSON.stringify(process.env) + ''${mark}'''`;

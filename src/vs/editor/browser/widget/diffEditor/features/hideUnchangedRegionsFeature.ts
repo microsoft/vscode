@@ -8,16 +8,11 @@ import { renderIcon, renderLabelWithIcons } from '../../../../../base/browser/ui
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, IReader, autorun, derived, derivedWithStore, observableValue, transaction } from '../../../../../base/common/observable.js';
-import { derivedDisposable } from '../../../../../base/common/observableInternal/derived.js';
+import { IObservable, IReader, autorun, derived, derivedDisposable, derivedWithStore, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isDefined } from '../../../../../base/common/types.js';
-import { ICodeEditor } from '../../../editorBrowser.js';
-import { observableCodeEditor } from '../../../observableCodeEditor.js';
-import { DiffEditorEditors } from '../components/diffEditorEditors.js';
-import { DiffEditorOptions } from '../diffEditorOptions.js';
-import { DiffEditorViewModel, RevealPreference, UnchangedRegion } from '../diffEditorViewModel.js';
-import { IObservableViewZone, PlaceholderViewZone, ViewZoneOverlayWidget, applyObservableDecorations, applyStyle } from '../utils.js';
+import { localize } from '../../../../../nls.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { LineRange } from '../../../../common/core/lineRange.js';
 import { Position } from '../../../../common/core/position.js';
@@ -25,8 +20,12 @@ import { Range } from '../../../../common/core/range.js';
 import { CursorChangeReason } from '../../../../common/cursorEvents.js';
 import { SymbolKind, SymbolKinds } from '../../../../common/languages.js';
 import { IModelDecorationOptions, IModelDeltaDecoration, ITextModel } from '../../../../common/model.js';
-import { localize } from '../../../../../nls.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ICodeEditor } from '../../../editorBrowser.js';
+import { observableCodeEditor } from '../../../observableCodeEditor.js';
+import { DiffEditorEditors } from '../components/diffEditorEditors.js';
+import { DiffEditorOptions } from '../diffEditorOptions.js';
+import { DiffEditorViewModel, RevealPreference, UnchangedRegion } from '../diffEditorViewModel.js';
+import { IObservableViewZone, PlaceholderViewZone, ViewZoneOverlayWidget, applyObservableDecorations, applyStyle } from '../utils.js';
 
 /**
  * Make sure to add the view zones to the editor!

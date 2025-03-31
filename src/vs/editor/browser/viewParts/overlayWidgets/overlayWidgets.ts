@@ -25,6 +25,11 @@ interface IWidgetMap {
 	[key: string]: IWidgetData;
 }
 
+/*
+ * This view part for rendering the overlay widgets, which are
+ * floating widgets positioned based on the editor's viewport,
+ * such as the find widget.
+ */
 export class ViewOverlayWidgets extends ViewPart {
 
 	private readonly _viewDomNode: FastDomNode<HTMLElement>;

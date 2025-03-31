@@ -10,7 +10,7 @@ import { Action2, registerAction2 } from '../../../../../platform/actions/common
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { IChatWidgetService } from '../chat.js';
-import { CONTEXT_IN_CHAT_SESSION, CONTEXT_CHAT_ENABLED } from '../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
 
 export function registerChatFileTreeActions() {
@@ -22,9 +22,9 @@ export function registerChatFileTreeActions() {
 				keybinding: {
 					primary: KeyMod.CtrlCmd | KeyCode.F9,
 					weight: KeybindingWeight.WorkbenchContrib,
-					when: CONTEXT_IN_CHAT_SESSION,
+					when: ChatContextKeys.inChatSession,
 				},
-				precondition: CONTEXT_CHAT_ENABLED,
+				precondition: ChatContextKeys.enabled,
 				f1: true,
 				category: CHAT_CATEGORY,
 			});
@@ -43,9 +43,9 @@ export function registerChatFileTreeActions() {
 				keybinding: {
 					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F9,
 					weight: KeybindingWeight.WorkbenchContrib,
-					when: CONTEXT_IN_CHAT_SESSION,
+					when: ChatContextKeys.inChatSession,
 				},
-				precondition: CONTEXT_CHAT_ENABLED,
+				precondition: ChatContextKeys.enabled,
 				f1: true,
 				category: CHAT_CATEGORY,
 			});

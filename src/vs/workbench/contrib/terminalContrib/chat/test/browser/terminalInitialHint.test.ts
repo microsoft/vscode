@@ -13,18 +13,17 @@ import { getActiveDocument } from '../../../../../../base/browser/dom.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { strictEqual } from 'assert';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
-import { ChatAgentLocation, IChatAgent } from '../../../../chat/common/chatAgents.js';
+import { IChatAgent } from '../../../../chat/common/chatAgents.js';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
-
-// Test TerminalInitialHintAddon
+import { ChatAgentLocation } from '../../../../chat/common/constants.js';
 
 suite('Terminal Initial Hint Addon', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let eventCount = 0;
 	let xterm: Terminal;
 	let initialHintAddon: InitialHintAddon;
-	const _onDidChangeAgents: Emitter<IChatAgent | undefined> = new Emitter();
-	const onDidChangeAgents = _onDidChangeAgents.event;
+	const onDidChangeAgentsEmitter: Emitter<IChatAgent | undefined> = new Emitter();
+	const onDidChangeAgents = onDidChangeAgentsEmitter.event;
 	const agent: IChatAgent = {
 		id: 'termminal',
 		name: 'terminal',
@@ -72,30 +71,30 @@ suite('Terminal Initial Hint Addon', () => {
 		});
 		test('hint is not shown when there is just an editor agent', () => {
 			eventCount = 0;
-			_onDidChangeAgents.fire(editorAgent);
+			onDidChangeAgentsEmitter.fire(editorAgent);
 			xterm.focus();
 			strictEqual(eventCount, 0);
 		});
 		test('hint is shown when there is a terminal chat agent', () => {
 			eventCount = 0;
-			_onDidChangeAgents.fire(editorAgent);
+			onDidChangeAgentsEmitter.fire(editorAgent);
 			xterm.focus();
 			strictEqual(eventCount, 0);
-			_onDidChangeAgents.fire(agent);
+			onDidChangeAgentsEmitter.fire(agent);
 			strictEqual(eventCount, 1);
 		});
 		test('hint is not shown again when another terminal chat agent is added if it has already shown', () => {
 			eventCount = 0;
-			_onDidChangeAgents.fire(agent);
+			onDidChangeAgentsEmitter.fire(agent);
 			xterm.focus();
 			strictEqual(eventCount, 1);
-			_onDidChangeAgents.fire(agent);
+			onDidChangeAgentsEmitter.fire(agent);
 			strictEqual(eventCount, 1);
 		});
 	});
 	suite('Input', () => {
 		test('hint is not shown when there has been input', () => {
-			_onDidChangeAgents.fire(agent);
+			onDidChangeAgentsEmitter.fire(agent);
 			xterm.writeln('data');
 			setTimeout(() => {
 				xterm.focus();

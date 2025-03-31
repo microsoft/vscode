@@ -32,9 +32,10 @@ import { CompletionModel } from './completionModel.js';
 import { ResizableHTMLElement } from '../../../../base/browser/ui/resizable/resizable.js';
 import { CompletionItem, Context as SuggestContext, suggestWidgetStatusbarMenu } from './suggest.js';
 import { canExpandCompletionItem, SuggestDetailsOverlay, SuggestDetailsWidget } from './suggestWidgetDetails.js';
-import { getAriaId, ItemRenderer } from './suggestWidgetRenderer.js';
+import { ItemRenderer } from './suggestWidgetRenderer.js';
 import { getListStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
+import { CompletionItemKinds } from '../../../common/languages.js';
 
 /**
  * Suggest widget colors
@@ -211,7 +212,7 @@ export class SuggestWidget implements IDisposable {
 		this._listElement = dom.append(this.element.domNode, dom.$('.tree'));
 
 		const details = this._disposables.add(instantiationService.createInstance(SuggestDetailsWidget, this.editor));
-		details.onDidClose(this.toggleDetails, this, this._disposables);
+		details.onDidClose(() => this.toggleDetails(), this, this._disposables);
 		this._details = new SuggestDetailsOverlay(details, this.editor);
 
 		const applyIconStyle = () => this.element.domNode.classList.toggle('no-icons', !this.editor.getOption(EditorOption.suggest).showIcons);
@@ -230,23 +231,25 @@ export class SuggestWidget implements IDisposable {
 			mouseSupport: false,
 			multipleSelectionSupport: false,
 			accessibilityProvider: {
-				getRole: () => 'option',
+				getRole: () => 'listitem',
 				getWidgetAriaLabel: () => nls.localize('suggest', "Suggest"),
 				getWidgetRole: () => 'listbox',
 				getAriaLabel: (item: CompletionItem) => {
 
 					let label = item.textLabel;
+					const kindLabel = CompletionItemKinds.toLabel(item.completion.kind);
 					if (typeof item.completion.label !== 'string') {
 						const { detail, description } = item.completion.label;
 						if (detail && description) {
-							label = nls.localize('label.full', '{0} {1}, {2}', label, detail, description);
+							label = nls.localize('label.full', '{0} {1}, {2}, {3}', label, detail, description, kindLabel);
 						} else if (detail) {
-							label = nls.localize('label.detail', '{0} {1}', label, detail);
+							label = nls.localize('label.detail', '{0} {1}, {2}', label, detail, kindLabel);
 						} else if (description) {
-							label = nls.localize('label.desc', '{0}, {1}', label, description);
+							label = nls.localize('label.desc', '{0}, {1}, {2}', label, description, kindLabel);
 						}
+					} else {
+						label = nls.localize('label', '{0}, {1}', label, kindLabel);
 					}
-
 					if (!item.isResolved || !this._isDetailsVisible()) {
 						return label;
 					}
@@ -367,6 +370,12 @@ export class SuggestWidget implements IDisposable {
 			return;
 		}
 
+		if (this._state === State.Details) {
+			// This can happen when focus is in the details-panel and when
+			// arrow keys are pressed to select next/prev items
+			this._setState(State.Open);
+		}
+
 		if (!e.elements.length) {
 			if (this._currentSuggestionDetails) {
 				this._currentSuggestionDetails.cancel();
@@ -399,7 +408,7 @@ export class SuggestWidget implements IDisposable {
 			this._currentSuggestionDetails = createCancelablePromise(async token => {
 				const loading = disposableTimeout(() => {
 					if (this._isDetailsVisible()) {
-						this.showDetails(true);
+						this._showDetails(true, false);
 					}
 				}, 250);
 				const sub = token.onCancellationRequested(() => loading.dispose());
@@ -423,12 +432,12 @@ export class SuggestWidget implements IDisposable {
 				this._ignoreFocusEvents = false;
 
 				if (this._isDetailsVisible()) {
-					this.showDetails(false);
+					this._showDetails(false, false);
 				} else {
 					this.element.domNode.classList.remove('docs-side');
 				}
 
-				this.editor.setAriaOptions({ activeDescendant: getAriaId(index) });
+				this.editor.setAriaOptions({ activeDescendant: this._list.getElementID(index) });
 			}).catch(onUnexpectedError);
 		}
 
@@ -497,6 +506,7 @@ export class SuggestWidget implements IDisposable {
 				dom.show(this._listElement, this._status.element);
 				this._details.show();
 				this._show();
+				this._details.widget.focus();
 				break;
 		}
 	}
@@ -563,7 +573,7 @@ export class SuggestWidget implements IDisposable {
 		try {
 			this._list.splice(0, this._list.length, this._completionModel.items);
 			this._setState(isFrozen ? State.Frozen : State.Open);
-			this._list.reveal(selectionIndex, 0);
+			this._list.reveal(selectionIndex, 0, selectionIndex === 0 ? 0 : this.getLayoutInfo().itemHeight * 0.33);
 			this._list.setFocus(noFocus ? [] : [selectionIndex]);
 		} finally {
 			this._onDidFocus.resume();
@@ -687,16 +697,20 @@ export class SuggestWidget implements IDisposable {
 
 	toggleDetailsFocus(): void {
 		if (this._state === State.Details) {
+			// Should return the focus to the list item.
+			this._list.setFocus(this._list.getFocus());
 			this._setState(State.Open);
-			this._details.widget.domNode.classList.remove('focused');
-
-		} else if (this._state === State.Open && this._isDetailsVisible()) {
+		} else if (this._state === State.Open) {
 			this._setState(State.Details);
-			this._details.widget.domNode.classList.add('focused');
+			if (!this._isDetailsVisible()) {
+				this.toggleDetails(true);
+			} else {
+				this._details.widget.focus();
+			}
 		}
 	}
 
-	toggleDetails(): void {
+	toggleDetails(focused: boolean = false): void {
 		if (this._isDetailsVisible()) {
 			// hide details widget
 			this._pendingShowDetails.clear();
@@ -709,14 +723,15 @@ export class SuggestWidget implements IDisposable {
 			// show details widget (iff possible)
 			this._ctxSuggestWidgetDetailsVisible.set(true);
 			this._setDetailsVisible(true);
-			this.showDetails(false);
+			this._showDetails(false, focused);
 		}
 	}
 
-	showDetails(loading: boolean): void {
+	private _showDetails(loading: boolean, focused: boolean): void {
 		this._pendingShowDetails.value = dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(this.element.domNode), () => {
 			this._pendingShowDetails.clear();
 			this._details.show();
+			let didFocusDetails = false;
 			if (loading) {
 				this._details.widget.renderLoading();
 			} else {
@@ -725,10 +740,16 @@ export class SuggestWidget implements IDisposable {
 			if (!this._details.widget.isEmpty) {
 				this._positionDetails();
 				this.element.domNode.classList.add('shows-details');
+				if (focused) {
+					this._details.widget.focus();
+					didFocusDetails = true;
+				}
 			} else {
 				this._details.hide();
 			}
-			this.editor.focus();
+			if (!didFocusDetails) {
+				this.editor.focus();
+			}
 		});
 	}
 
@@ -738,7 +759,7 @@ export class SuggestWidget implements IDisposable {
 			if (!this._isDetailsVisible()) {
 				this.toggleDetails();
 			} else {
-				this.showDetails(false);
+				this._showDetails(false, false);
 			}
 		}
 	}
@@ -910,7 +931,7 @@ export class SuggestWidget implements IDisposable {
 			typicalHalfwidthCharacterWidth: fontInfo.typicalHalfwidthCharacterWidth,
 			verticalPadding: 22,
 			horizontalPadding: 14,
-			defaultSize: new dom.Dimension(430, statusBarHeight + 12 * itemHeight + borderHeight)
+			defaultSize: new dom.Dimension(430, statusBarHeight + 12 * itemHeight)
 		};
 	}
 
@@ -1023,3 +1044,4 @@ export class SuggestContentWidget implements IContentWidget {
 		this._position = position;
 	}
 }
+

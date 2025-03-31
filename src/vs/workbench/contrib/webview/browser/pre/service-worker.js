@@ -18,6 +18,8 @@ const searchParams = new URL(location.toString()).searchParams;
 
 const remoteAuthority = searchParams.get('remoteAuthority');
 
+let ID = '';
+
 /**
  * Origin used for resources
  */
@@ -133,6 +135,7 @@ sw.addEventListener('message', async (event) => {
 	switch (event.data.channel) {
 		case 'version': {
 			const source = /** @type {Client} */ (event.source);
+			ID = event.data.webviewID;
 			sw.clients.get(source.id).then(client => {
 				if (client) {
 					client.postMessage({
@@ -233,12 +236,19 @@ sw.addEventListener('activate', (event) => {
  */
 async function processResourceRequest(event, requestUrlComponents) {
 	const client = await sw.clients.get(event.clientId);
+	let webviewId;
 	if (!client) {
-		console.error('Could not find inner client for request');
-		return notFound();
+		const workerClient = await getWorkerClientForId(event.clientId);
+		if (!workerClient) {
+			console.error('Could not find inner client for request');
+			return notFound();
+		} else {
+			webviewId = getWebviewIdForClient(workerClient);
+		}
+	} else {
+		webviewId = getWebviewIdForClient(client);
 	}
 
-	const webviewId = getWebviewIdForClient(client);
 	if (!webviewId) {
 		console.error('Could not resolve webview id');
 		return notFound();
@@ -439,6 +449,15 @@ async function processLocalhostRequest(event, requestUrl) {
  * @returns {string | null}
  */
 function getWebviewIdForClient(client) {
+	// Refs https://github.com/microsoft/vscode/issues/244143
+	// With PlzDedicatedWorker, worker subresources and blob wokers
+	// will use clients different from the window client.
+	// Since we cannot different a worker main resource from a worker subresource
+	// we will use the global webview ID passed in at the time of
+	// service worker registration.
+	if (client.type === 'worker' || client.type === 'sharedworker') {
+		return ID;
+	}
 	const requesterClientUrl = new URL(client.url);
 	return requesterClientUrl.searchParams.get('id');
 }
@@ -453,5 +472,18 @@ async function getOuterIframeClient(webviewId) {
 		const clientUrl = new URL(client.url);
 		const hasExpectedPathName = (clientUrl.pathname === `${rootPath}/` || clientUrl.pathname === `${rootPath}/index.html` || clientUrl.pathname === `${rootPath}/index-no-csp.html`);
 		return hasExpectedPathName && clientUrl.searchParams.get('id') === webviewId;
+	});
+}
+
+/**
+ * @param {string} clientId
+ * @returns {Promise<Client|undefined>}
+ */
+async function getWorkerClientForId(clientId) {
+	const allDedicatedWorkerClients = await sw.clients.matchAll({ type: 'worker' });
+	const allSharedWorkerClients = await sw.clients.matchAll({ type: 'sharedworker' });
+	const allWorkerClients = [...allDedicatedWorkerClients, ...allSharedWorkerClients];
+	return allWorkerClients.find(client => {
+		return client.id === clientId;
 	});
 }

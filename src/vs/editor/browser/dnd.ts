@@ -7,7 +7,7 @@ import { DataTransfers } from '../../base/browser/dnd.js';
 import { createFileDataTransferItem, createStringDataTransferItem, IDataTransferItem, UriList, VSDataTransfer } from '../../base/common/dataTransfer.js';
 import { Mimes } from '../../base/common/mime.js';
 import { URI } from '../../base/common/uri.js';
-import { CodeDataTransfers, FileAdditionalNativeProperties } from '../../platform/dnd/browser/dnd.js';
+import { CodeDataTransfers, getPathForFile } from '../../platform/dnd/browser/dnd.js';
 
 
 export function toVSDataTransfer(dataTransfer: DataTransfer) {
@@ -28,7 +28,8 @@ export function toVSDataTransfer(dataTransfer: DataTransfer) {
 }
 
 function createFileDataTransferItemFromFile(file: File): IDataTransferItem {
-	const uri = (file as FileAdditionalNativeProperties).path ? URI.parse((file as FileAdditionalNativeProperties).path!) : undefined;
+	const path = getPathForFile(file);
+	const uri = path ? URI.parse(path!) : undefined;
 	return createFileDataTransferItem(file.name, uri, async () => {
 		return new Uint8Array(await file.arrayBuffer());
 	});
@@ -55,7 +56,7 @@ export function toExternalVSDataTransfer(sourceDataTransfer: DataTransfer, overw
 			for (const item of sourceDataTransfer.items) {
 				const file = item.getAsFile();
 				if (file) {
-					const path = (file as FileAdditionalNativeProperties).path;
+					const path = getPathForFile(file);
 					try {
 						if (path) {
 							editorData.push(URI.file(path).toString());

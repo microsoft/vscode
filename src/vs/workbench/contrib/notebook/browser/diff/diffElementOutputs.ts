@@ -47,7 +47,7 @@ export class OutputElement extends Disposable {
 		let result: IInsetRenderOutput | undefined = undefined;
 
 		const [mimeTypes, pick] = this.output.resolveMimeTypes(this._notebookTextModel, undefined);
-		const pickedMimeTypeRenderer = mimeTypes[pick];
+		const pickedMimeTypeRenderer = this.output.pickedMimeType || mimeTypes[pick];
 		if (mimeTypes.length > 1) {
 			outputItemDiv.style.position = 'relative';
 			const mimeTypePicker = DOM.$('.multi-mimetype-output');

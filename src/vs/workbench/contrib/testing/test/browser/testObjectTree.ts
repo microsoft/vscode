@@ -57,10 +57,6 @@ class TestObjectTree<T> extends ObjectTree<T, any> {
 		this.layout(1000, 200);
 	}
 
-	public getModel() {
-		return this.model;
-	}
-
 	public getRendered(getProperty?: string) {
 		const elements = element.querySelectorAll<HTMLElement>('.monaco-tl-contents');
 		const sorted = [...elements].sort((a, b) => pos(a) - pos(b));

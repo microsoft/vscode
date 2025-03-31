@@ -187,6 +187,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}, 0);
 	};
 
+	const isEditableElement = (element: Element) => {
+		return element.tagName.toLowerCase() === 'input' || element.tagName.toLowerCase() === 'textarea'
+			|| ('editContext' in element && !!element.editContext);
+	};
+
 	// check if an input element is focused within the output element
 	const checkOutputInputFocus = (e: FocusEvent) => {
 		lastFocusedOutput = getOutputContainer(e);
@@ -196,7 +201,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		const id = lastFocusedOutput?.id;
-		if (id && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || activeElement.tagName === 'SELECT')) {
+		if (id && (isEditableElement(activeElement) || activeElement.tagName === 'SELECT')) {
 			postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: true, id });
 
 			activeElement.addEventListener('blur', () => {
@@ -303,7 +308,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			return;
 		}
 		const activeElement = window.document.activeElement;
-		if (activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA') {
+		if (activeElement && isEditableElement(activeElement)) {
 			(activeElement as HTMLInputElement).select();
 		}
 	};
@@ -329,7 +334,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			return;
 		}
 		const activeElement = window.document.activeElement;
-		if (activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA') {
+		if (activeElement && isEditableElement(activeElement)) {
 			// Leave for default behavior.
 			return;
 		}
@@ -357,7 +362,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			return;
 		}
 		const activeElement = window.document.activeElement;
-		if (activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA') {
+		if (activeElement && isEditableElement(activeElement)) {
 			// The input element will handle this.
 			return;
 		}
@@ -696,7 +701,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				focusableElement.tabIndex = -1;
 				postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: false, id });
 			} else {
-				const inputFocused = focusableElement.tagName === 'INPUT' || focusableElement.tagName === 'TEXTAREA';
+				const inputFocused = isEditableElement(focusableElement);
 				postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused, id });
 			}
 
@@ -1775,6 +1780,16 @@ async function webviewPreloads(ctx: PreloadContext) {
 				outputContainer?.classList.remove(...event.data.removedClassNames);
 				break;
 			}
+			case 'markupDecorations': {
+				const markupCell = window.document.getElementById(event.data.cellId);
+				// The cell may not have been added yet if it is out of view.
+				// Decorations will be added when the cell is shown.
+				if (markupCell) {
+					markupCell?.classList.add(...event.data.addedClassNames);
+					markupCell?.classList.remove(...event.data.removedClassNames);
+				}
+				break;
+			}
 			case 'customKernelMessage':
 				onDidReceiveKernelMessage.fire(event.data.message);
 				break;
@@ -2728,20 +2743,20 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			if (!!data.executionId && !!data.rendererId) {
 				let outputSize: number | undefined = undefined;
-				let mimeType: string | undefined = undefined;
 				if (data.content.type === 1 /* extension */) {
 					outputSize = data.content.output.valueBytes.length;
-					mimeType = data.content.output.mime;
 				}
 
-				postNotebookMessage<webviewMessages.IPerformanceMessage>('notebookPerformanceMessage', {
-					cellId: data.cellId,
-					executionId: data.executionId,
-					duration: Date.now() - startTime,
-					rendererId: data.rendererId,
-					outputSize,
-					mimeType
-				});
+				// Only send performance messages for non-empty outputs up to a certain size
+				if (outputSize !== undefined && outputSize > 0 && outputSize < 100 * 1024) {
+					postNotebookMessage<webviewMessages.IPerformanceMessage>('notebookPerformanceMessage', {
+						cellId: data.cellId,
+						executionId: data.executionId,
+						duration: Date.now() - startTime,
+						rendererId: data.rendererId,
+						outputSize
+					});
+				}
 			}
 		}
 

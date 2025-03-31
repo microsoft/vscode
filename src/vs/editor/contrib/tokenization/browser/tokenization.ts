@@ -12,8 +12,7 @@ class ForceRetokenizeAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.forceRetokenize',
-			label: nls.localize('forceRetokenize', "Developer: Force Retokenize"),
-			alias: 'Developer: Force Retokenize',
+			label: nls.localize2('forceRetokenize', "Developer: Force Retokenize"),
 			precondition: undefined
 		});
 	}

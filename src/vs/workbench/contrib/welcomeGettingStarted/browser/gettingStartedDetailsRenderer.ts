@@ -17,6 +17,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { gettingStartedContentRegistry } from '../common/gettingStartedContent.js';
 
 
 export class GettingStartedDetailsRenderer {
@@ -200,6 +201,30 @@ export class GettingStartedDetailsRenderer {
 		</html>`;
 	}
 
+	async renderVideo(path: URI, poster?: URI, description?: string): Promise<string> {
+		const nonce = generateUuid();
+
+		return `<!DOCTYPE html>
+		<html>
+			<head>
+				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https:; media-src https:; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}';">
+				<style nonce="${nonce}">
+					video {
+						max-width: 100%;
+						max-height: 100%;
+						object-fit: cover;
+					}
+				</style>
+			</head>
+			<body>
+				<video controls autoplay ${poster ? `poster="${poster.toString(true)}"` : ''} muted ${description ? `aria-label="${description}"` : ''}>
+					<source src="${path.toString(true)}" type="video/mp4">
+				</video>
+			</body>
+		</html>`;
+	}
+
 	private async readAndCacheSVGFile(path: URI): Promise<string> {
 		if (!this.svgCache.has(path)) {
 			const contents = await this.readContentsOfPath(path, false);
@@ -221,8 +246,14 @@ export class GettingStartedDetailsRenderer {
 		try {
 			const moduleId = JSON.parse(path.query).moduleId;
 			if (useModuleId && moduleId) {
-				const module = await import(moduleId);
-				const contents = module.default();
+				const contents = await new Promise<string>((resolve, reject) => {
+					const provider = gettingStartedContentRegistry.getProvider(moduleId);
+					if (!provider) {
+						reject(`Getting started: no provider registered for ${moduleId}`);
+					} else {
+						resolve(provider());
+					}
+				});
 				return contents;
 			}
 		} catch { }

@@ -37,6 +37,7 @@ export interface IActionListItem<T> {
 	readonly label?: string;
 	readonly keybinding?: ResolvedKeybinding;
 	canPreview?: boolean | undefined;
+	readonly hideIcon?: boolean;
 }
 
 interface IActionMenuTemplateData {
@@ -118,6 +119,8 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			return;
 		}
 
+		dom.setVisibility(!element.hideIcon, data.icon);
+
 		data.text.textContent = stripNewlines(element.label);
 
 		data.keybinding.set(element.keybinding);
@@ -139,8 +142,8 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		}
 	}
 
-	disposeTemplate(_templateData: IActionMenuTemplateData): void {
-		_templateData.keybinding.dispose();
+	disposeTemplate(templateData: IActionMenuTemplateData): void {
+		templateData.keybinding.dispose();
 	}
 }
 

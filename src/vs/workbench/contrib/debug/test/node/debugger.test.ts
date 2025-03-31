@@ -66,6 +66,7 @@ suite('Debug - Debugger', () => {
 			]
 		},
 		enabledApiProposals: undefined,
+		preRelease: false,
 	};
 
 	const extensionDescriptor1 = {
@@ -92,6 +93,7 @@ suite('Debug - Debugger', () => {
 			]
 		},
 		enabledApiProposals: undefined,
+		preRelease: false,
 	};
 
 	const extensionDescriptor2 = {
@@ -126,6 +128,7 @@ suite('Debug - Debugger', () => {
 			]
 		},
 		enabledApiProposals: undefined,
+		preRelease: false,
 	};
 
 

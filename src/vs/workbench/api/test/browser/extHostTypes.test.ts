@@ -775,4 +775,28 @@ suite('ExtHostTypes', function () {
 		assert.throws(() => types.FileDecoration.validate({ badge: 'புன்சிரிப்போடு' }));
 		assert.throws(() => types.FileDecoration.validate({ badge: 'ããã' }));
 	});
+
+	test('No longer possible to set content on LanguageModelChatMessage', function () {
+		const m = types.LanguageModelChatMessage.Assistant('');
+		m.content = [new types.LanguageModelToolCallPart('toolCall.call.callId', 'toolCall.tool.name', 'toolCall.call.parameters')];
+
+		assert.equal(m.content.length, 1);
+		assert.equal(m.content2?.length, 1);
+
+
+		m.content2 = ['foo'];
+		assert.equal(m.content.length, 1);
+		assert.ok(m.content[0] instanceof types.LanguageModelTextPart);
+
+		assert.equal(m.content2?.length, 1);
+		assert.ok(typeof m.content2[0] === 'string');
+	});
+
+	test('runtime stable, type-def changed', function () {
+		// see https://github.com/microsoft/vscode/issues/231938
+		const m = new types.LanguageModelChatMessage(types.LanguageModelChatMessageRole.User, []);
+		assert.deepStrictEqual(m.content, []);
+		m.content = 'Hello';
+		assert.deepStrictEqual(m.content, [new types.LanguageModelTextPart('Hello')]);
+	});
 });

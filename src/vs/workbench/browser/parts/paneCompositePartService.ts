@@ -69,6 +69,10 @@ export class PaneCompositePartService extends Disposable implements IPaneComposi
 		return this.getPartByLocation(viewContainerLocation).getVisiblePaneCompositeIds();
 	}
 
+	getPaneCompositeIds(viewContainerLocation: ViewContainerLocation): string[] {
+		return this.getPartByLocation(viewContainerLocation).getPaneCompositeIds();
+	}
+
 	getProgressIndicator(id: string, viewContainerLocation: ViewContainerLocation): IProgressIndicator | undefined {
 		return this.getPartByLocation(viewContainerLocation).getProgressIndicator(id);
 	}

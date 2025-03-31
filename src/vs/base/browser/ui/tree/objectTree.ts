@@ -7,7 +7,7 @@ import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelega
 import { AbstractTree, IAbstractTreeOptions, IAbstractTreeOptionsUpdate, IStickyScrollDelegate, StickyScrollNode } from './abstractTree.js';
 import { CompressibleObjectTreeModel, ElementMapper, ICompressedTreeElement, ICompressedTreeNode } from './compressedObjectTreeModel.js';
 import { IObjectTreeModel, ObjectTreeModel } from './objectTreeModel.js';
-import { ICollapseStateChangeEvent, IObjectTreeElement, ITreeModel, ITreeNode, ITreeRenderer, ITreeSorter, TreeError } from './tree.js';
+import { ICollapseStateChangeEvent, IObjectTreeElement, ITreeModel, ITreeNode, ITreeRenderer, ITreeSorter } from './tree.js';
 import { memoize } from '../../../common/decorators.js';
 import { Event } from '../../../common/event.js';
 import { Iterable } from '../../../common/iterator.js';
@@ -67,7 +67,7 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 	updateElementHeight(element: T, height: number | undefined): void {
 		const elementIndex = this.model.getListIndex(element);
 		if (elementIndex === -1) {
-			throw new TreeError(this.user, `updateElementHeight failed - index not found`);
+			return;
 		}
 
 		this.view.updateElementHeight(elementIndex, height);

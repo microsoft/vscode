@@ -7,7 +7,7 @@ import { IPointerHandlerHelper } from './mouseHandler.js';
 import { IMouseTargetContentEmptyData, IMouseTargetMarginData, IMouseTarget, IMouseTargetContentEmpty, IMouseTargetContentText, IMouseTargetContentWidget, IMouseTargetMargin, IMouseTargetOutsideEditor, IMouseTargetOverlayWidget, IMouseTargetScrollbar, IMouseTargetTextarea, IMouseTargetUnknown, IMouseTargetViewZone, IMouseTargetContentTextData, IMouseTargetViewZoneData, MouseTargetType } from '../editorBrowser.js';
 import { ClientCoordinates, EditorMouseEvent, EditorPagePosition, PageCoordinates, CoordinatesRelativeToEditor } from '../editorDom.js';
 import { PartFingerprint, PartFingerprints } from '../view/viewPart.js';
-import { ViewLine } from '../viewParts/lines/viewLine.js';
+import { ViewLine } from '../viewParts/viewLines/viewLine.js';
 import { IViewCursorRenderData } from '../viewParts/viewCursors/viewCursor.js';
 import { EditorLayoutInfo, EditorOption } from '../../common/config/editorOptions.js';
 import { Position } from '../../common/core/position.js';
@@ -22,6 +22,7 @@ import { PositionAffinity } from '../../common/model.js';
 import { InjectedText } from '../../common/modelLineProjectionData.js';
 import { Mutable } from '../../../base/common/types.js';
 import { Lazy } from '../../../base/common/lazy.js';
+import type { ViewLinesGpu } from '../viewParts/viewLinesGpu/viewLinesGpu.js';
 
 const enum HitTestResultType {
 	Unknown,
@@ -238,6 +239,7 @@ export class HitTestContext {
 	public readonly viewModel: IViewModel;
 	public readonly layoutInfo: EditorLayoutInfo;
 	public readonly viewDomNode: HTMLElement;
+	public readonly viewLinesGpu: ViewLinesGpu | undefined;
 	public readonly lineHeight: number;
 	public readonly stickyTabStops: boolean;
 	public readonly typicalHalfwidthCharacterWidth: number;
@@ -251,6 +253,7 @@ export class HitTestContext {
 		const options = context.configuration.options;
 		this.layoutInfo = options.get(EditorOption.layoutInfo);
 		this.viewDomNode = viewHelper.viewDomNode;
+		this.viewLinesGpu = viewHelper.viewLinesGpu;
 		this.lineHeight = options.get(EditorOption.lineHeight);
 		this.stickyTabStops = options.get(EditorOption.stickyTabStops);
 		this.typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
@@ -753,6 +756,32 @@ export class MouseTargetFactory {
 				const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
 				const pos = new Position(lineNumber, ctx.viewModel.getLineMaxColumn(lineNumber));
 				return request.fulfillContentEmpty(pos, detail);
+			}
+		} else {
+			if (ctx.viewLinesGpu) {
+				const lineNumber = ctx.getLineNumberAtVerticalOffset(request.mouseVerticalOffset);
+				if (ctx.viewModel.getLineLength(lineNumber) === 0) {
+					const lineWidth = ctx.getLineWidth(lineNumber);
+					const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
+					return request.fulfillContentEmpty(new Position(lineNumber, 1), detail);
+				}
+
+				const lineWidth = ctx.getLineWidth(lineNumber);
+				if (request.mouseContentHorizontalOffset >= lineWidth) {
+					// TODO: This is wrong for RTL
+					const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
+					const pos = new Position(lineNumber, ctx.viewModel.getLineMaxColumn(lineNumber));
+					return request.fulfillContentEmpty(pos, detail);
+				}
+
+				const position = ctx.viewLinesGpu.getPositionAtCoordinate(lineNumber, request.mouseContentHorizontalOffset);
+				if (position) {
+					const detail: IMouseTargetContentTextData = {
+						injectedText: null,
+						mightBeForeignElement: false
+					};
+					return request.fulfillContentText(position, EditorRange.fromPositions(position, position), detail);
+				}
 			}
 		}
 

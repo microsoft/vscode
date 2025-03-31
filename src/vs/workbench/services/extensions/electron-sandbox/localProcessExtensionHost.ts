@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { timeout } from '../../../../base/common/async.js';
-import { VSBuffer } from '../../../../base/common/buffer.js';
+import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -191,7 +191,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 		this._extensionHostProcess = new ExtensionHostProcess(extensionHostCreationResult.id, this._extensionHostStarter);
 
 		const env = objects.mixin(processEnv, {
-			VSCODE_AMD_ENTRYPOINT: 'vs/workbench/api/node/extensionHostProcess',
+			VSCODE_ESM_ENTRYPOINT: 'vs/workbench/api/node/extensionHostProcess',
 			VSCODE_HANDLES_UNCAUGHT_ERRORS: true
 		});
 
@@ -473,7 +473,6 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 				appName: this._productService.nameLong,
 				appHost: this._productService.embedderIdentifier || 'desktop',
 				appUriScheme: this._productService.urlProtocol,
-				extensionTelemetryLogResource: this._environmentService.extHostTelemetryLogFile,
 				isExtensionTelemetryLoggingOnly: isLoggingOnly(this._productService, this._environmentService),
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
@@ -511,7 +510,8 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 			loggers: [...this._loggerService.getRegisteredLoggers()],
 			logsLocation: this._environmentService.extHostLogsPath,
 			autoStart: (this.startup === ExtensionHostStartup.EagerAutoStart),
-			uiKind: UIKind.Desktop
+			uiKind: UIKind.Desktop,
+			handle: this._environmentService.window.handle ? encodeBase64(this._environmentService.window.handle) : undefined
 		};
 	}
 

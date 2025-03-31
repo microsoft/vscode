@@ -29,6 +29,9 @@ import { EditorResourceAccessor, SaveReason, SideBySideEditor } from '../../comm
 import { coalesce } from '../../../base/common/arrays.js';
 import { ICanonicalUriService } from '../../../platform/workspace/common/canonicalUri.js';
 import { revive } from '../../../base/common/marshalling.js';
+import { bufferToStream, readableToBuffer, VSBuffer } from '../../../base/common/buffer.js';
+import { ITextFileService } from '../../services/textfile/common/textfiles.js';
+import { consumeStream } from '../../../base/common/stream.js';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -36,7 +39,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	private readonly _toDispose = new DisposableStore();
 	private readonly _activeCancelTokens: { [id: number]: CancellationTokenSource } = Object.create(null);
 	private readonly _proxy: ExtHostWorkspaceShape;
-	private readonly _queryBuilder = this._instantiationService.createInstance(QueryBuilder);
+	private readonly _queryBuilder: QueryBuilder;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -53,8 +56,10 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IFileService fileService: IFileService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService
+		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@ITextFileService private readonly _textFileService: ITextFileService,
 	) {
+		this._queryBuilder = this._instantiationService.createInstance(QueryBuilder);
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostWorkspace);
 		const workspace = this._contextService.getWorkspace();
 		// The workspace file is provided be a unknown file system provider. It might come
@@ -141,7 +146,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- search ---
 
-	$startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<UriComponents[] | null> {
+	$startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions<UriComponents>, token: CancellationToken): Promise<UriComponents[] | null> {
 		const includeFolder = URI.revive(_includeFolder);
 		const workspace = this._contextService.getWorkspace();
 
@@ -160,7 +165,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		});
 	}
 
-	$startTextSearch(pattern: IPatternInfo, _folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null> {
+	$startTextSearch(pattern: IPatternInfo, _folder: UriComponents | null, options: ITextQueryBuilderOptions<UriComponents>, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null> {
 		const folder = URI.revive(_folder);
 		const workspace = this._contextService.getWorkspace();
 		const folders = folder ? [folder] : workspace.folders.map(folder => folder.uri);
@@ -297,5 +302,17 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		const disposable = this.registeredCanonicalUriProviders.get(handle);
 		disposable?.dispose();
 		this.registeredCanonicalUriProviders.delete(handle);
+	}
+
+	// --- encodings
+
+	async $decode(content: VSBuffer, resource: UriComponents | undefined, options?: { encoding: string }): Promise<string> {
+		const stream = await this._textFileService.getDecodedStream(URI.revive(resource) ?? undefined, bufferToStream(content), { acceptTextOnly: true, encoding: options?.encoding });
+		return consumeStream(stream, chunks => chunks.join());
+	}
+
+	async $encode(content: string, resource: UriComponents | undefined, options?: { encoding: string }): Promise<VSBuffer> {
+		const res = await this._textFileService.getEncodedReadable(URI.revive(resource) ?? undefined, content, { encoding: options?.encoding });
+		return res instanceof VSBuffer ? res : readableToBuffer(res);
 	}
 }

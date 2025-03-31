@@ -19,21 +19,15 @@ steps:
       nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    # Install yarn as the ARM64 build agent is using vanilla Ubuntu
-    - ${{ if eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true) }}:
-      - task: Npm@1
-        displayName: Install yarn
-        inputs:
-          command: custom
-          customCommand: install --global yarn
+    - template: ../cli/cli-apply-patches.yml@self
 
     - script: |
         set -e
-        yarn --frozen-lockfile --ignore-optional
+        npm ci
       workingDirectory: build
-      displayName: Install pipeline build
-
-    - template: ../cli/cli-apply-patches.yml@self
+      env:
+        GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      displayName: Install build dependencies
 
   - task: Npm@1
     displayName: Download openssl prebuilt

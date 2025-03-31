@@ -25,7 +25,7 @@
 		<!-- Workbench Icon/Manifest/CSS -->
 		<link rel="icon" href="{{WORKBENCH_WEB_BASE_URL}}/resources/server/favicon.ico" type="image/x-icon" />
 		<link rel="manifest" href="{{WORKBENCH_WEB_BASE_URL}}/resources/server/manifest.json" crossorigin="use-credentials" />
-		<link data-name="vs/workbench/workbench.web.main" rel="stylesheet" href="{{WORKBENCH_WEB_BASE_URL}}/out/vs/workbench/workbench.web.main.css">
+		<link rel="stylesheet" href="{{WORKBENCH_WEB_BASE_URL}}/out/vs/code/browser/workbench/workbench.css">
 
 	</head>
 
@@ -33,38 +33,16 @@
 	</body>
 
 	<!-- Startup (do not modify order of script tags!) -->
-	<script src="{{WORKBENCH_WEB_BASE_URL}}/out/vs/loader.js"></script>
-	<script src="{{WORKBENCH_WEB_BASE_URL}}/out/vs/webPackagePaths.js"></script>
 	<script>
-
-		// Packages
 		const baseUrl = new URL('{{WORKBENCH_WEB_BASE_URL}}', window.location.origin).toString();
-		Object.keys(self.webPackagePaths).map(function (key, index) {
-			self.webPackagePaths[key] = `${baseUrl}/node_modules/${key}/${self.webPackagePaths[key]}`;
-		});
-
-		// AMD Loader
-		require.config({
-			baseUrl: `${baseUrl}/out`,
-			recordStats: true,
-			trustedTypesPolicy: window.trustedTypes?.createPolicy('amdLoader', {
-				createScriptURL(value) {
-					if(value.startsWith(window.location.origin)) {
-						return value;
-					}
-					throw new Error(`Invalid script url: ${value}`)
-				}
-			}),
-			paths: self.webPackagePaths
-		});
+		globalThis._VSCODE_FILE_ROOT = baseUrl + '/out/';
 	</script>
 	<script>
 		performance.mark('code/willLoadWorkbenchMain');
 	</script>
 	<!-- always ensure built in english NLS messages -->
-	<script src="{{WORKBENCH_NLS_FALLBACK_URL}}"></script>
+	<script type="module" src="{{WORKBENCH_NLS_FALLBACK_URL}}"></script>
 	<!-- attempt to load NLS messages in case non-english -->
-	<script src="{{WORKBENCH_NLS_URL}}"></script>
-	<script src="{{WORKBENCH_WEB_BASE_URL}}/out/vs/workbench/workbench.web.main.internal.js"></script>
-	<script src="{{WORKBENCH_WEB_BASE_URL}}/out/vs/code/browser/workbench/workbench.js"></script>
+	<script type="module" src="{{WORKBENCH_NLS_URL}}"></script>
+	<script type="module" src="{{WORKBENCH_WEB_BASE_URL}}/out/vs/code/browser/workbench/workbench.js"></script>
 </html>

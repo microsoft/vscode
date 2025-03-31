@@ -37,7 +37,6 @@ suite('StorageMainService', function () {
 	const inMemoryProfile: IUserDataProfile = {
 		id: 'id',
 		name: 'inMemory',
-		shortName: 'inMemory',
 		isDefault: false,
 		location: inMemoryProfileRoot,
 		globalStorageHome: joinPath(inMemoryProfileRoot, 'globalStorageHome'),
@@ -45,6 +44,7 @@ suite('StorageMainService', function () {
 		keybindingsResource: joinPath(inMemoryProfileRoot, 'keybindingsResource'),
 		tasksResource: joinPath(inMemoryProfileRoot, 'tasksResource'),
 		snippetsHome: joinPath(inMemoryProfileRoot, 'snippetsHome'),
+		promptsHome: joinPath(inMemoryProfileRoot, 'promptsHome'),
 		extensionsResource: joinPath(inMemoryProfileRoot, 'extensionsResource'),
 		cacheHome: joinPath(inMemoryProfileRoot, 'cache'),
 	};

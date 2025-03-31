@@ -36,7 +36,7 @@ import { ILineBreaksComputer, ILineBreaksComputerFactory, InjectedText } from '.
 import { ViewEventHandler } from '../viewEventHandler.js';
 import { ICoordinatesConverter, InlineDecoration, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
 import { ViewModelDecorations } from './viewModelDecorations.js';
-import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent } from '../viewModelEventDispatcher.js';
+import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent, WidgetFocusChangedEvent } from '../viewModelEventDispatcher.js';
 import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from './viewModelLines.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { GlyphMarginLanesModel } from './glyphLanesModel.js';
@@ -214,6 +214,10 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._cursor.setHasFocus(hasFocus);
 		this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewFocusChangedEvent(hasFocus));
 		this._eventDispatcher.emitOutgoingEvent(new FocusChangedEvent(!hasFocus, hasFocus));
+	}
+
+	public setHasWidgetFocus(hasWidgetFocus: boolean): void {
+		this._eventDispatcher.emitOutgoingEvent(new WidgetFocusChangedEvent(!hasWidgetFocus, hasWidgetFocus));
 	}
 
 	public onCompositionStart(): void {
@@ -476,10 +480,15 @@ export class ViewModel extends Disposable implements IViewModel {
 	private readonly hiddenAreasModel = new HiddenAreasModel();
 	private previousHiddenAreas: readonly Range[] = [];
 
-	public setHiddenAreas(ranges: Range[], source?: unknown): void {
+	/**
+	 * @param forceUpdate If true, the hidden areas will be updated even if the new ranges are the same as the previous ranges.
+	 * This is because the model might have changed, which resets the hidden areas, but not the last cached value.
+	 * This needs a better fix in the future.
+	*/
+	public setHiddenAreas(ranges: Range[], source?: unknown, forceUpdate?: boolean): void {
 		this.hiddenAreasModel.setHiddenAreas(source, ranges);
 		const mergedRanges = this.hiddenAreasModel.getMergedRanges();
-		if (mergedRanges === this.previousHiddenAreas) {
+		if (mergedRanges === this.previousHiddenAreas && !forceUpdate) {
 			return;
 		}
 

@@ -517,8 +517,7 @@ export class SuggestController implements IEditorContribution {
 	}
 
 	private _reportSuggestionAcceptedTelemetry(item: CompletionItem, model: ITextModel, itemResolved: boolean, commandExectionDuration: number, additionalEditsAppliedAsync: number, index: number, completionItems: CompletionItem[]): void {
-		if (Math.floor(Math.random() * 100) === 0) {
-			// throttle telemetry event because accepting completions happens a lot
+		if (Math.random() > 0.0001) { // 0.01%
 			return;
 		}
 
@@ -804,8 +803,7 @@ export class TriggerSuggestAction extends EditorAction {
 	constructor() {
 		super({
 			id: TriggerSuggestAction.id,
-			label: nls.localize('suggest.trigger.label', "Trigger Suggest"),
-			alias: 'Trigger Suggest',
+			label: nls.localize2('suggest.trigger.label', "Trigger Suggest"),
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCompletionItemProvider, SuggestContext.Visible.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
@@ -1119,8 +1117,7 @@ registerEditorAction(class extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.resetSuggestSize',
-			label: nls.localize('suggest.reset.label', "Reset Suggest Widget Size"),
-			alias: 'Reset Suggest Widget Size',
+			label: nls.localize2('suggest.reset.label', "Reset Suggest Widget Size"),
 			precondition: undefined
 		});
 	}

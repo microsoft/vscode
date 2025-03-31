@@ -12,6 +12,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { IDebugModel, IEvaluate, IExpression } from './debug.js';
 import { Breakpoint, DataBreakpoint, ExceptionBreakpoint, Expression, FunctionBreakpoint } from './debugModel.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
+import { mapValues } from '../../../../base/common/objects.js';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_FUNCTION_BREAKPOINTS_KEY = 'debug.functionbreakpoint';
@@ -20,6 +21,11 @@ const DEBUG_EXCEPTION_BREAKPOINTS_KEY = 'debug.exceptionbreakpoint';
 const DEBUG_WATCH_EXPRESSIONS_KEY = 'debug.watchexpressions';
 const DEBUG_CHOSEN_ENVIRONMENTS_KEY = 'debug.chosenenvironment';
 const DEBUG_UX_STATE_KEY = 'debug.uxstate';
+
+export interface IChosenEnvironment {
+	type: string;
+	dynamicLabel?: string;
+}
 
 export class DebugStorage extends Disposable {
 	public readonly breakpoints = observableValue(this, this.loadBreakpoints());
@@ -118,11 +124,13 @@ export class DebugStorage extends Disposable {
 		return result || [];
 	}
 
-	loadChosenEnvironments(): { [key: string]: string } {
-		return JSON.parse(this.storageService.get(DEBUG_CHOSEN_ENVIRONMENTS_KEY, StorageScope.WORKSPACE, '{}'));
+	loadChosenEnvironments(): Record<string, IChosenEnvironment> {
+		const obj = JSON.parse(this.storageService.get(DEBUG_CHOSEN_ENVIRONMENTS_KEY, StorageScope.WORKSPACE, '{}'));
+		// back compat from when this was a string map:
+		return mapValues(obj, (value): IChosenEnvironment => typeof value === 'string' ? { type: value } : value);
 	}
 
-	storeChosenEnvironments(environments: { [key: string]: string }): void {
+	storeChosenEnvironments(environments: Record<string, IChosenEnvironment>): void {
 		this.storageService.store(DEBUG_CHOSEN_ENVIRONMENTS_KEY, JSON.stringify(environments), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 

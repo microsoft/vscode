@@ -147,6 +147,15 @@ export interface IContentSizeChangedEvent {
 	readonly contentHeightChanged: boolean;
 }
 
+/**
+ * @internal
+ */
+export interface ITriggerEditorOperationEvent {
+	source: string | null | undefined;
+	handlerId: string;
+	payload: any;
+}
+
 export interface INewScrollPosition {
 	scrollLeft?: number;
 	scrollTop?: number;
@@ -770,4 +779,3 @@ export interface CompositionTypePayload {
 	replaceNextCharCnt: number;
 	positionDelta: number;
 }
-

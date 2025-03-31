@@ -4,22 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { renderMarkdownAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
-import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
-import { IAccessibleViewImplentation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
-import { IChatWidgetService, IChatWidget, ChatTreeItem } from './chat.js';
-import { CONTEXT_IN_CHAT_SESSION } from '../common/chatContextKeys.js';
-import { ChatWelcomeMessageModel } from '../common/chatModel.js';
+import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { isResponseVM } from '../common/chatViewModel.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ChatTreeItem, IChatWidget, IChatWidgetService } from './chat.js';
 
-export class ChatResponseAccessibleView implements IAccessibleViewImplentation {
+export class ChatResponseAccessibleView implements IAccessibleViewImplementation {
 	readonly priority = 100;
 	readonly name = 'panelChat';
 	readonly type = AccessibleViewType.View;
-	readonly when = CONTEXT_IN_CHAT_SESSION;
+	readonly when = ChatContextKeys.inChatSession;
 	getProvider(accessor: ServicesAccessor) {
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = widgetService.lastFocusedWidget;
@@ -53,7 +52,7 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 		this._focusedItem = item;
 	}
 
-	readonly id = AccessibleViewProviderId.Chat;
+	readonly id = AccessibleViewProviderId.PanelChat;
 	readonly verbositySettingKey = AccessibilityVerbositySettingId.Chat;
 	readonly options = { type: AccessibleViewType.View };
 
@@ -62,19 +61,7 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 	}
 
 	private _getContent(item: ChatTreeItem): string {
-		const isWelcome = item instanceof ChatWelcomeMessageModel;
 		let responseContent = isResponseVM(item) ? item.response.toString() : '';
-		if (isWelcome) {
-			const welcomeReplyContents = [];
-			for (const content of item.content) {
-				if (Array.isArray(content)) {
-					welcomeReplyContents.push(...content.map(m => m.message));
-				} else {
-					welcomeReplyContents.push((content as IMarkdownString).value);
-				}
-			}
-			responseContent = welcomeReplyContents.join('\n');
-		}
 		if (!responseContent && 'errorDetails' in item && item.errorDetails) {
 			responseContent = item.errorDetails.message;
 		}
@@ -108,4 +95,3 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 		return;
 	}
 }
-

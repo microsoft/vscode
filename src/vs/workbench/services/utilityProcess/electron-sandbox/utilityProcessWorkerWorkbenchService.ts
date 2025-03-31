@@ -43,7 +43,7 @@ export interface IUtilityProcessWorkerWorkbenchService {
 	 * Will fork a new process with the provided module identifier in a utility
 	 * process and establishes a message port connection to that process.
 	 *
-	 * Requires the forked process to be AMD module that uses our IPC channel framework
+	 * Requires the forked process to be ES module that uses our IPC channel framework
 	 * to respond to the provided `channelName` as a server.
 	 *
 	 * The process will be automatically terminated when the workbench window closes,

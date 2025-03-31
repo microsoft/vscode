@@ -12,7 +12,6 @@ import * as editorCommon from '../../../../../editor/common/editorCommon.js';
 import { PrefixSumComputer } from '../../../../../editor/common/model/prefixSumComputer.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { CellEditState, CellFindMatch, CellLayoutState, CodeCellLayoutChangeEvent, CodeCellLayoutInfo, ICellOutputViewModel, ICellViewModel } from '../notebookBrowser.js';
 import { NotebookOptionsChangeEvent } from '../notebookOptions.js';
@@ -24,6 +23,7 @@ import { CellKind, INotebookFindOptions, NotebookCellOutputsSplice } from '../..
 import { ICellExecutionError, ICellExecutionStateChangedEvent } from '../../common/notebookExecutionStateService.js';
 import { INotebookService } from '../../common/notebookService.js';
 import { BaseCellViewModel } from './baseCellViewModel.js';
+import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineChatSessionService.js';
 
 export const outputDisplayLimit = 500;
 
@@ -135,7 +135,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		return this._outputViewModels;
 	}
 
-	readonly excecutionError = observableValue<ICellExecutionError | undefined>('excecutionError', undefined);
+	readonly executionErrorDiagnostic = observableValue<ICellExecutionError | undefined>('excecutionError', undefined);
 
 	constructor(
 		viewType: string,
@@ -147,9 +147,9 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		@ITextModelService modelService: ITextModelService,
 		@IUndoRedoService undoRedoService: IUndoRedoService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInlineChatSessionService inlineChatSessionService: IInlineChatSessionService
 	) {
-		super(viewType, model, UUID.generateUuid(), viewContext, configurationService, modelService, undoRedoService, codeEditorService);
+		super(viewType, model, UUID.generateUuid(), viewContext, configurationService, modelService, undoRedoService, codeEditorService, inlineChatSessionService);
 		this._outputViewModels = this.model.outputs.map(output => new CellOutputViewModel(this, output, this._notebookService));
 
 		this._register(this.model.onDidChangeOutputs((splice) => {
@@ -169,6 +169,9 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			this._onDidRemoveOutputs.fire(removedOutputs);
 			if (outputLayoutChange) {
 				this.layoutChange({ outputHeight: true }, 'CodeCellViewModel#model.onDidChangeOutputs');
+			}
+			if (!this._outputCollection.length) {
+				this.executionErrorDiagnostic.set(undefined, undefined);
 			}
 			dispose(removedOutputs);
 		}));
@@ -200,13 +203,15 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 
 	updateExecutionState(e: ICellExecutionStateChangedEvent) {
 		if (e.changed) {
+			this.executionErrorDiagnostic.set(undefined, undefined);
 			this._onDidStartExecution.fire(e);
 		} else {
 			this._onDidStopExecution.fire(e);
 		}
 	}
 
-	updateOptions(e: NotebookOptionsChangeEvent) {
+	override updateOptions(e: NotebookOptionsChangeEvent) {
+		super.updateOptions(e);
 		if (e.cellStatusBarVisibility || e.insertToolbarPosition || e.cellToolbarLocation) {
 			this.layoutChange({});
 		}
@@ -445,10 +450,16 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 
 		this._ensureOutputsTop();
 
-		if (index === 0 || height > 0) {
-			this._outputViewModels[index].setVisible(true);
-		} else if (height === 0) {
-			this._outputViewModels[index].setVisible(false);
+		try {
+			if (index === 0 || height > 0) {
+				this._outputViewModels[index].setVisible(true);
+			} else if (height === 0) {
+				this._outputViewModels[index].setVisible(false);
+			}
+		} catch (e) {
+			const errorMessage = `Failed to update output height for cell ${this.handle}, output ${index}. `
+				+ `this.outputCollection.length: ${this._outputCollection.length}, this._outputViewModels.length: ${this._outputViewModels.length}`;
+			throw new Error(`${errorMessage}.\n Error: ${e.message}`);
 		}
 
 		if (this._outputViewModels[index].visible.get() && height < 28) {

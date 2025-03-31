@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { join } from 'path';
-import * as mkdirp from 'mkdirp';
+import * as fs from 'fs';
 import { copyExtension } from './extensions';
 import { URI } from 'vscode-uri';
 import { measureAndLog } from './logger';
@@ -70,7 +70,7 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 		}
 		args.push('--enable-proposed-api=vscode.vscode-test-resolver');
 		const remoteDataDir = `${userDataDir}-server`;
-		mkdirp.sync(remoteDataDir);
+		fs.mkdirSync(remoteDataDir, { recursive: true });
 
 		env['TESTRESOLVER_DATA_FOLDER'] = remoteDataDir;
 		env['TESTRESOLVER_LOGS_FOLDER'] = join(logsPath, 'server');

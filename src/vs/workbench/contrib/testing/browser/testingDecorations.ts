@@ -5,31 +5,37 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { renderStringAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { Action, IAction, Separator, SubmenuAction } from '../../../../base/common/actions.js';
 import { equals } from '../../../../base/common/arrays.js';
+import { mapFindFirst } from '../../../../base/common/arraysFind.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
+import { clamp } from '../../../../base/common/numbers.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
+import { count, truncateMiddle } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Constants } from '../../../../base/common/uint.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidgetPosition, IEditorMouseEvent, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition, IContentWidgetRenderedCoordinate, IEditorMouseEvent, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { overviewRulerError, overviewRulerInfo } from '../../../../editor/common/core/editorColorRegistry.js';
+import { Position } from '../../../../editor/common/core/position.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
-import { GlyphMarginLane, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from '../../../../editor/common/model.js';
+import { GlyphMarginLane, IModelDecorationOptions, IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { localize } from '../../../../nls.js';
-import { createAndFillInContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -40,21 +46,23 @@ import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickin
 import { themeColorFromId } from '../../../../platform/theme/common/themeService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { EditorLineNumberContextMenu, GutterActionsRegistry } from '../../codeEditor/browser/editorLineNumberMenu.js';
-import { getTestItemContextOverlay } from './explorerProjections/testItemContextOverlay.js';
-import { testingDebugAllIcon, testingDebugIcon, testingRunAllIcon, testingRunIcon, testingStatesToIcons } from './icons.js';
-import { renderTestMessageAsText } from './testMessageColorizer.js';
 import { DefaultGutterClickAction, TestingConfigKeys, getTestingConfiguration } from '../common/configuration.js';
 import { Testing, labelForTestInState } from '../common/constants.js';
 import { TestId } from '../common/testId.js';
 import { ITestProfileService } from '../common/testProfileService.js';
-import { ITestResult, LiveTestResult } from '../common/testResult.js';
+import { ITestResult, LiveTestResult, TestResultItemChangeReason } from '../common/testResult.js';
 import { ITestResultService } from '../common/testResultService.js';
 import { ITestService, getContextForTestItem, simplifyTestsToExecute, testsInFile } from '../common/testService.js';
-import { IRichLocation, ITestMessage, ITestRunProfile, IncrementalTestCollectionItem, InternalTestItem, TestDiffOpType, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from '../common/testTypes.js';
+import { ITestErrorMessage, ITestMessage, ITestRunProfile, IncrementalTestCollectionItem, InternalTestItem, TestDiffOpType, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from '../common/testTypes.js';
 import { ITestDecoration as IPublicTestDecoration, ITestingDecorationsService, TestDecorations } from '../common/testingDecorations.js';
 import { ITestingPeekOpener } from '../common/testingPeekOpener.js';
 import { isFailedState, maxPriority } from '../common/testingStates.js';
 import { TestUriType, buildTestUri, parseTestUri } from '../common/testingUri.js';
+import { getTestItemContextOverlay } from './explorerProjections/testItemContextOverlay.js';
+import { testingDebugAllIcon, testingDebugIcon, testingRunAllIcon, testingRunIcon, testingStatesToIcons } from './icons.js';
+import { renderTestMessageAsText } from './testMessageColorizer.js';
+import { MessageSubject } from './testResultsView/testResultsSubject.js';
+import { TestingOutputPeekController } from './testingOutputPeek.js';
 
 const MAX_INLINE_MESSAGE_LENGTH = 128;
 const MAX_TESTS_IN_SUBMENU = 30;
@@ -80,10 +88,9 @@ interface ITestDecoration extends IPublicTestDecoration {
 /** Value for saved decorations, providing fast accessors for the hot 'syncDecorations' path */
 class CachedDecorations {
 	private readonly runByIdKey = new Map<string, RunTestDecoration>();
-	private readonly messages = new Map<ITestMessage, TestMessageDecoration>();
 
 	public get size() {
-		return this.runByIdKey.size + this.messages.size;
+		return this.runByIdKey.size;
 	}
 
 	/** Gets a test run decoration that contains exactly the given test IDs */
@@ -91,22 +98,6 @@ class CachedDecorations {
 		const key = testIds.sort().join('\0\0');
 		return this.runByIdKey.get(key);
 	}
-
-	/** Gets the decoration that corresponds to the given test message */
-	public getMessage(message: ITestMessage) {
-		return this.messages.get(message);
-	}
-
-	/** Removes the decoration for the given test messsage */
-	public removeMessage(message: ITestMessage) {
-		this.messages.delete(message);
-	}
-
-	/** Adds a new test message decoration */
-	public addMessage(d: TestMessageDecoration) {
-		this.messages.set(d.testMessage, d);
-	}
-
 	/** Adds a new test run decroation */
 	public addTest(d: RunTestDecoration) {
 		const key = d.testIds.sort().join('\0\0');
@@ -120,20 +111,12 @@ class CachedDecorations {
 				return d;
 			}
 		}
-		for (const d of this.messages.values()) {
-			if (d.id === decorationId) {
-				return d;
-			}
-		}
 		return undefined;
 	}
 
 	/** Iterate over all decorations */
 	*[Symbol.iterator](): IterableIterator<ITestDecoration> {
 		for (const d of this.runByIdKey.values()) {
-			yield d;
-		}
-		for (const d of this.messages.values()) {
 			yield d;
 		}
 	}
@@ -205,7 +188,6 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 			this.results.onResultsChanged,
 			this.results.onTestChanged,
 			this.testService.excluded.onTestExclusionsChanged,
-			this.testService.showInlineOutput.onDidChange,
 			Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(TestingConfigKeys.GutterEnabled)),
 		)(() => {
 			if (!debounceInvalidate.isScheduled()) {
@@ -308,7 +290,6 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 	 */
 	private applyDecorations(model: ITextModel) {
 		const gutterEnabled = getTestingConfiguration(this.configurationService, TestingConfigKeys.GutterEnabled);
-		const uriStr = model.uri.toString();
 		const cached = this.decorationCache.get(model.uri);
 		const testRangesUpdated = cached?.rangeUpdateVersionId === model.getVersionId();
 		const lastDecorations = cached?.value ?? new CachedDecorations();
@@ -347,13 +328,6 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 				}
 			}
 
-			const messageLines = new Set<number>();
-			if (getTestingConfiguration(this.configurationService, TestingConfigKeys.ShowAllMessages)) {
-				this.results.results.forEach(lastResult => this.applyDecorationsFromResult(lastResult, messageLines, uriStr, lastDecorations, model, newDecorations));
-			} else {
-				this.applyDecorationsFromResult(this.results.results[0], messageLines, uriStr, lastDecorations, model, newDecorations);
-			}
-
 			const saveFromRemoval = new Set<string>();
 			for (const decoration of newDecorations) {
 				if (decoration.id === '') {
@@ -380,53 +354,14 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 
 		return newDecorations || lastDecorations;
 	}
-
-	private applyDecorationsFromResult(lastResult: ITestResult, messageLines: Set<Number>, uriStr: string, lastDecorations: CachedDecorations, model: ITextModel, newDecorations: CachedDecorations) {
-		if (this.testService.showInlineOutput.value && lastResult instanceof LiveTestResult) {
-			for (const task of lastResult.tasks) {
-				for (const m of task.otherMessages) {
-					if (!this.invalidatedMessages.has(m) && m.location?.uri.toString() === uriStr) {
-						const decoration = lastDecorations.getMessage(m) || this.instantiationService.createInstance(TestMessageDecoration, m, undefined, model);
-						newDecorations.addMessage(decoration);
-					}
-				}
-			}
-
-			for (const test of lastResult.tests) {
-				for (let taskId = 0; taskId < test.tasks.length; taskId++) {
-					const state = test.tasks[taskId];
-					// push error decorations first so they take precedence over normal output
-					for (const kind of [TestMessageType.Error, TestMessageType.Output]) {
-						for (let i = 0; i < state.messages.length; i++) {
-							const m = state.messages[i];
-							if (m.type !== kind || this.invalidatedMessages.has(m) || m.location?.uri.toString() !== uriStr) {
-								continue;
-							}
-
-							// Only add one message per line number. Overlapping messages
-							// don't appear well, and the peek will show all of them (#134129)
-							const line = m.location.range.startLineNumber;
-							if (!messageLines.has(line)) {
-								const decoration = lastDecorations.getMessage(m) || this.instantiationService.createInstance(TestMessageDecoration, m, buildTestUri({
-									type: TestUriType.ResultActualOutput,
-									messageIndex: i,
-									taskIndex: taskId,
-									resultId: lastResult.id,
-									testExtId: test.item.extId,
-								}), model);
-
-								newDecorations.addMessage(decoration);
-								messageLines.add(line);
-							}
-						}
-					}
-				}
-			}
-		}
-	}
 }
 
 export class TestingDecorations extends Disposable implements IEditorContribution {
+	/**
+	 * Results invalidated by editor changes.
+	 */
+	public static invalidatedTests = new WeakSet<TestResultItem | ITestMessage>();
+
 	/**
 	 * Gets the decorations associated with the given code editor.
 	 */
@@ -437,8 +372,15 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 	public get currentUri() { return this._currentUri; }
 
 	private _currentUri?: URI;
-	private readonly expectedWidget = new MutableDisposable<ExpectedLensContentWidget>();
-	private readonly actualWidget = new MutableDisposable<ActualLensContentWidget>();
+	private readonly expectedWidget = this._register(new MutableDisposable<ExpectedLensContentWidget>());
+	private readonly actualWidget = this._register(new MutableDisposable<ActualLensContentWidget>());
+
+	private readonly errorContentWidgets = this._register(new DisposableMap<ITestMessage, TestErrorContentWidget>());
+	private readonly loggedMessageDecorations = new Map<ITestMessage, {
+		id: string;
+		line: number;
+		resultItem: TestResultItem | undefined;
+	}>();
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -446,6 +388,9 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 		@ITestService private readonly testService: ITestService,
 		@ITestingDecorationsService private readonly decorations: ITestingDecorationsService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@ITestResultService private readonly results: ITestResultService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -457,6 +402,13 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 				decorations.syncDecorations(this._currentUri);
 			}
 		}));
+
+		this._register(Event.any(
+			this.results.onResultsChanged,
+			editor.onDidChangeModel,
+			Event.filter(this.results.onTestChanged, c => c.reason === TestResultItemChangeReason.NewMessage),
+			this.testService.showInlineOutput.onDidChange,
+		)(() => this.applyResults()));
 
 		const win = dom.getWindow(editor.getDomNode());
 		this._register(dom.addDisposableListener(win, 'keydown', e => {
@@ -474,7 +426,6 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 				decorations.updateDecorationsAlternateAction(this._currentUri, false);
 			}
 		}));
-
 		this._register(this.editor.onKeyUp(e => {
 			if (e.keyCode === KeyCode.Alt && this._currentUri) {
 				decorations.updateDecorationsAlternateAction(this._currentUri!, false);
@@ -503,21 +454,24 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 				return;
 			}
 
-			const currentDecorations = decorations.syncDecorations(this._currentUri);
-			if (!currentDecorations.size) {
-				return;
+			let changed = false;
+			for (const [message, deco] of this.loggedMessageDecorations) {
+				// invalidate decorations if either the line they're on was changed,
+				// or if the range of the test was changed. The range of the test is
+				// not always present, so check bo.
+				const invalidate = evts.some(e => e.changes.some(c =>
+					c.range.startLineNumber <= deco.line && c.range.endLineNumber >= deco.line
+					|| (deco.resultItem?.item.range && deco.resultItem.item.range.startLineNumber <= c.range.startLineNumber && deco.resultItem.item.range.endLineNumber >= c.range.endLineNumber)
+				));
+
+				if (invalidate) {
+					changed = true;
+					TestingDecorations.invalidatedTests.add(deco.resultItem || message);
+				}
 			}
 
-			for (const e of evts) {
-				for (const change of e.changes) {
-					const modelDecorations = model.getLinesDecorations(change.range.startLineNumber, change.range.endLineNumber);
-					for (const { id } of modelDecorations) {
-						const decoration = currentDecorations.getById(id);
-						if (decoration instanceof TestMessageDecoration) {
-							decorations.invalidateResultMessage(decoration.testMessage);
-						}
-					}
-				}
+			if (changed) {
+				this.applyResults();
 			}
 		}));
 
@@ -570,6 +524,160 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 				}
 			}
 		})();
+	}
+
+	private applyResults() {
+		const model = this.editor.getModel();
+		if (!model) {
+			return this.clearResults();
+		}
+
+		const uriStr = model.uri.toString();
+		const seenLines = new Set<number>();
+		this.applyResultsContentWidgets(uriStr, seenLines);
+		this.applyResultsLoggedMessages(uriStr, seenLines);
+	}
+
+	private clearResults() {
+		this.errorContentWidgets.clearAndDisposeAll();
+	}
+
+	private isMessageInvalidated(message: ITestMessage) {
+		return TestingDecorations.invalidatedTests.has(message);
+	}
+
+	private applyResultsContentWidgets(uriStr: string, seenLines: Set<number>) {
+		const seen = new Set<ITestMessage>();
+		if (getTestingConfiguration(this.configurationService, TestingConfigKeys.ShowAllMessages)) {
+			this.results.results.forEach(lastResult => this.applyContentWidgetsFromResult(lastResult, uriStr, seen, seenLines));
+		} else if (this.results.results.length) {
+			this.applyContentWidgetsFromResult(this.results.results[0], uriStr, seen, seenLines);
+		}
+
+		for (const message of this.errorContentWidgets.keys()) {
+			if (!seen.has(message)) {
+				this.errorContentWidgets.deleteAndDispose(message);
+			}
+		}
+	}
+
+	private applyContentWidgetsFromResult(lastResult: ITestResult, uriStr: string, seen: Set<ITestMessage>, seenLines: Set<number>) {
+		for (const test of lastResult.tests) {
+			if (TestingDecorations.invalidatedTests.has(test)) {
+				continue;
+			}
+			for (let taskId = 0; taskId < test.tasks.length; taskId++) {
+				const state = test.tasks[taskId];
+				// push error decorations first so they take precedence over normal output
+				for (let i = 0; i < state.messages.length; i++) {
+					const m = state.messages[i];
+					if (m.type !== TestMessageType.Error || this.isMessageInvalidated(m)) {
+						continue;
+					}
+
+					const line: number | undefined = m.location?.uri.toString() === uriStr
+						? m.location.range.startLineNumber
+						: m.stackTrace && mapFindFirst(m.stackTrace, (f) => f.position && f.uri?.toString() === uriStr ? f.position.lineNumber : undefined);
+					if (line === undefined || seenLines.has(line)) {
+						continue;
+					}
+
+					seenLines.add(line);
+					let deco = this.errorContentWidgets.get(m);
+					if (!deco) {
+						const lineLength = this.editor.getModel()?.getLineLength(line) ?? 100;
+						deco = this.instantiationService.createInstance(
+							TestErrorContentWidget,
+							this.editor,
+							new Position(line, lineLength + 1),
+							m,
+							test,
+							buildTestUri({
+								type: TestUriType.ResultActualOutput,
+								messageIndex: i,
+								taskIndex: taskId,
+								resultId: lastResult.id,
+								testExtId: test.item.extId,
+							})
+						);
+						this.errorContentWidgets.set(m, deco);
+					}
+					seen.add(m);
+				}
+			}
+		}
+	}
+
+	private applyResultsLoggedMessages(uriStr: string, messageLines: Set<number>) {
+		this.editor.changeDecorations(accessor => {
+			const seen = new Set<ITestMessage>();
+			if (getTestingConfiguration(this.configurationService, TestingConfigKeys.ShowAllMessages)) {
+				this.results.results.forEach(r => this.applyLoggedMessageFromResult(r, uriStr, seen, messageLines, accessor));
+			} else if (this.results.results.length) {
+				this.applyLoggedMessageFromResult(this.results.results[0], uriStr, seen, messageLines, accessor);
+			}
+
+			for (const [message, { id }] of this.loggedMessageDecorations) {
+				if (!seen.has(message)) {
+					accessor.removeDecoration(id);
+				}
+			}
+		});
+	}
+
+	private applyLoggedMessageFromResult(lastResult: ITestResult, uriStr: string, seen: Set<ITestMessage>, messageLines: Set<number>, accessor: IModelDecorationsChangeAccessor) {
+		if (!this.testService.showInlineOutput.value || !(lastResult instanceof LiveTestResult)) {
+			return;
+		}
+
+		const tryAdd = (resultItem: TestResultItem | undefined, m: ITestMessage, uri?: URI) => {
+			if (this.isMessageInvalidated(m) || m.location?.uri.toString() !== uriStr) {
+				return;
+			}
+
+			seen.add(m);
+			const line = m.location.range.startLineNumber;
+			if (messageLines.has(line) || this.loggedMessageDecorations.has(m)) {
+				return;
+			}
+
+			const deco = this.instantiationService.createInstance(TestMessageDecoration, m, uri, this.editor.getModel()!);
+
+			messageLines.add(line);
+			const id = accessor.addDecoration(
+				deco.editorDecoration.range,
+				deco.editorDecoration.options,
+			);
+			this.loggedMessageDecorations.set(m, { id, line, resultItem });
+		};
+
+		for (const test of lastResult.tests) {
+			if (TestingDecorations.invalidatedTests.has(test)) {
+				continue;
+			}
+
+			for (let taskId = 0; taskId < test.tasks.length; taskId++) {
+				const state = test.tasks[taskId];
+				for (let i = state.messages.length - 1; i >= 0; i--) {
+					const m = state.messages[i];
+					if (m.type === TestMessageType.Output) {
+						tryAdd(test, m, buildTestUri({
+							type: TestUriType.ResultActualOutput,
+							messageIndex: i,
+							taskIndex: taskId,
+							resultId: lastResult.id,
+							testExtId: test.item.extId,
+						}));
+					}
+				}
+			}
+		}
+
+		for (const task of lastResult.tasks) {
+			for (const m of task.otherMessages) {
+				tryAdd(undefined, m);
+			}
+		}
 	}
 }
 
@@ -918,7 +1026,7 @@ abstract class RunTestDecoration {
 	 * Gets context menu actions relevant for a singel test.
 	 */
 	protected getTestContextMenuActions(test: InternalTestItem, resultItem?: TestResultItem): IReference<IAction[]> {
-		const testActions: IAction[] = [];
+		const testActions: Action[] = [];
 		const capabilities = this.testProfileService.capabilitiesForTest(test.item);
 
 		[
@@ -959,17 +1067,15 @@ abstract class RunTestDecoration {
 			() => this.commandService.executeCommand('_revealTestInExplorer', test.item.extId)));
 
 		const contributed = this.getContributedTestActions(test, capabilities);
-		return { object: Separator.join(testActions, contributed), dispose() { } };
+		return { object: Separator.join(testActions, contributed), dispose() { testActions.forEach(a => a.dispose()); } };
 	}
 
 	private getContributedTestActions(test: InternalTestItem, capabilities: number): IAction[] {
 		const contextOverlay = this.contextKeyService.createOverlay(getTestItemContextOverlay(test, capabilities));
 
-		const target: IAction[] = [];
 		const arg = getContextForTestItem(this.testService.collection, test.item.extId);
 		const menu = this.menuService.getMenuActions(MenuId.TestItemGutter, contextOverlay, { shouldForwardArgs: true, arg });
-		createAndFillInContextMenuActions(menu, target);
-		return target;
+		return getFlatContextMenuActions(menu);
 	}
 }
 
@@ -1004,8 +1110,8 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 	}
 
 	public override getContextMenuActions() {
-		const allActions: IAction[] = [];
-
+		const disposable = new DisposableStore();
+		const allActions: Action[] = [];
 		[
 			{ bitset: TestRunProfileBitset.Run, label: localize('run all test', 'Run All Tests') },
 			{ bitset: TestRunProfileBitset.Coverage, label: localize('run all test with coverage', 'Run All Tests with Coverage') },
@@ -1016,6 +1122,8 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 				allActions.push(new Action(`testing.gutter.run${i}`, label, undefined, undefined, () => this.runWith(bitset)));
 			}
 		});
+
+		disposable.add(toDisposable(() => allActions.forEach(a => a.dispose())));
 
 		const testItems = this.tests.map((testItem): IMultiRunTest => ({
 			currentLabel: testItem.test.item.label,
@@ -1051,7 +1159,6 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 			return (ai.sortText || ai.label).localeCompare(bi.sortText || bi.label);
 		});
 
-		const disposable = new DisposableStore();
 		let testSubmenus: IAction[] = testItems.map(({ currentLabel, testItem }) => {
 			const actions = this.getTestContextMenuActions(testItem.test, testItem.resultItem);
 			disposable.add(actions);
@@ -1147,7 +1254,6 @@ class TestMessageDecoration implements ITestDecoration {
 	public id = '';
 
 	public readonly editorDecoration: IModelDeltaDecoration;
-	public readonly location: IRichLocation;
 	public readonly line: number;
 
 	private readonly contentIdClass = `test-message-inline-content-id${generateUuid()}`;
@@ -1159,8 +1265,8 @@ class TestMessageDecoration implements ITestDecoration {
 		@ITestingPeekOpener private readonly peekOpener: ITestingPeekOpener,
 		@ICodeEditorService editorService: ICodeEditorService,
 	) {
-		this.location = testMessage.location!;
-		this.line = this.location.range.startLineNumber;
+		const location = testMessage.location!;
+		this.line = clamp(location.range.startLineNumber, 0, textModel.getLineCount());
 		const severity = testMessage.type;
 		const message = testMessage.message;
 
@@ -1178,7 +1284,7 @@ class TestMessageDecoration implements ITestDecoration {
 		}
 
 		options.after = {
-			content: ' '.repeat(4) + inlineText,
+			content: inlineText,
 			inlineClassName: `test-message-inline-content test-message-inline-content-s${severity} ${this.contentIdClass} ${messageUri ? 'test-message-inline-content-clickable' : ''}`
 		};
 		options.showIfCollapsed = true;
@@ -1191,15 +1297,15 @@ class TestMessageDecoration implements ITestDecoration {
 			options.overviewRuler = { color: themeColorFromId(rulerColor), position: OverviewRulerLane.Right };
 		}
 
-		const lineLength = textModel.getLineLength(this.location.range.startLineNumber);
-		const column = lineLength ? (lineLength + 1) : this.location.range.endColumn;
+		const lineLength = textModel.getLineLength(this.line);
+		const column = lineLength ? (lineLength + 1) : location.range.endColumn;
 		this.editorDecoration = {
 			options,
 			range: {
-				startLineNumber: this.location.range.startLineNumber,
+				startLineNumber: this.line,
 				startColumn: column,
 				endColumn: column,
-				endLineNumber: this.location.range.startLineNumber,
+				endLineNumber: this.line,
 			}
 		};
 	}
@@ -1222,5 +1328,133 @@ class TestMessageDecoration implements ITestDecoration {
 
 	getContextMenuActions() {
 		return { object: [], dispose: () => { } };
+	}
+}
+
+const ERROR_CONTENT_WIDGET_HEIGHT = 20;
+
+class TestErrorContentWidget extends Disposable implements IContentWidget {
+	private readonly id = generateUuid();
+
+	/** @inheritdoc */
+	public readonly allowEditorOverflow = false;
+
+	private readonly node = dom.h('div.test-error-content-widget', [
+		dom.h('div.inner@inner', [
+			dom.h('div.arrow@arrow'),
+			dom.h(`span${ThemeIcon.asCSSSelector(testingStatesToIcons.get(TestResultState.Failed)!)}`),
+			dom.h('span.content@name'),
+		]),
+	]);
+
+	public get line() {
+		return this.position.lineNumber;
+	}
+
+	constructor(
+		private readonly editor: ICodeEditor,
+		private position: Position,
+		public readonly message: ITestErrorMessage,
+		public readonly resultItem: TestResultItem,
+		uri: URI,
+		@ITestingPeekOpener readonly peekOpener: ITestingPeekOpener,
+	) {
+		super();
+
+		const setMarginTop = () => {
+			const lineHeight = editor.getOption(EditorOption.lineHeight);
+			this.node.root.style.marginTop = (lineHeight - ERROR_CONTENT_WIDGET_HEIGHT) / 2 + 'px';
+		};
+
+		setMarginTop();
+		this._register(editor.onDidChangeConfiguration(e => {
+			if (e.hasChanged(EditorOption.lineHeight)) {
+				setMarginTop();
+			}
+		}));
+
+		let text: string;
+		if (message.expected !== undefined && message.actual !== undefined) {
+			text = `${truncateMiddle(message.actual.replace(/\s+/g, ' '), 30)} != ${truncateMiddle(message.expected.replace(/\s+/g, ' '), 30)}`;
+		} else {
+			const msg = renderStringAsPlaintext(message.message);
+			const lf = msg.indexOf('\n');
+			text = lf === -1 ? msg : msg.slice(0, lf);
+		}
+
+		this.node.root.addEventListener('click', e => {
+			this.peekOpener.peekUri(uri);
+			e.preventDefault();
+		});
+
+		const ctrl = TestingOutputPeekController.get(editor);
+		if (ctrl) {
+			this._register(autorun(reader => {
+				const subject = ctrl.subject.read(reader);
+				const isCurrent = subject instanceof MessageSubject && subject.message === message;
+				this.node.root.classList.toggle('is-current', isCurrent);
+			}));
+		}
+
+		this.node.name.innerText = text || 'Test Failed';
+
+		const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+		svg.setAttribute('width', '15');
+		svg.setAttribute('height', '10');
+		svg.setAttribute('preserveAspectRatio', 'none');
+		svg.setAttribute('viewBox', '0 0 15 10');
+
+		const leftArrow = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+		leftArrow.setAttribute('d', 'M15 0 L10 0 L0 5 L10 10 L15 10 Z');
+		svg.append(leftArrow);
+
+		this.node.arrow.appendChild(svg);
+
+		this._register(editor.onDidChangeModelContent(e => {
+			for (const c of e.changes) {
+				if (c.range.startLineNumber > this.line) {
+					continue;
+				}
+				if (
+					c.range.startLineNumber <= this.line && c.range.endLineNumber >= this.line
+					|| (resultItem.item.range && resultItem.item.range.startLineNumber <= c.range.startLineNumber && resultItem.item.range.endLineNumber >= c.range.endLineNumber)
+				) {
+					TestingDecorations.invalidatedTests.add(this.resultItem);
+					this.dispose(); // todo
+				}
+
+				const adjust = count(c.text, '\n') - (c.range.endLineNumber - c.range.startLineNumber);
+				if (adjust !== 0) {
+					this.position = this.position.delta(adjust);
+					this.editor.layoutContentWidget(this);
+				}
+			}
+		}));
+
+		editor.addContentWidget(this);
+		this._register(toDisposable(() => editor.removeContentWidget(this)));
+	}
+
+	public getId(): string {
+		return this.id;
+	}
+
+	public getDomNode(): HTMLElement {
+		return this.node.root;
+	}
+
+	public getPosition(): IContentWidgetPosition | null {
+		return {
+			position: this.position,
+			preference: [ContentWidgetPositionPreference.EXACT],
+		};
+	}
+
+	afterRender(_position: ContentWidgetPositionPreference | null, coordinate: IContentWidgetRenderedCoordinate | null): void {
+		if (coordinate) {
+			const { verticalScrollbarWidth } = this.editor.getLayoutInfo();
+			const scrollWidth = this.editor.getScrollWidth();
+			this.node.inner.style.maxWidth = `${scrollWidth - verticalScrollbarWidth - coordinate.left - 20}px`;
+		}
 	}
 }

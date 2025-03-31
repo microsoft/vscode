@@ -67,8 +67,6 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 
 	readonly onDidResetWorkspaces: Event<void>;
 
-	private enabled: boolean = true;
-
 	constructor(
 		profiles: readonly UriDto<IUserDataProfile>[],
 		readonly profilesHome: URI,
@@ -84,14 +82,6 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 			this._onDidChangeProfiles.fire({ added, removed, updated, all: this.profiles });
 		}));
 		this.onDidResetWorkspaces = this.channel.listen<void>('onDidResetWorkspaces');
-	}
-
-	setEnablement(enabled: boolean) {
-		this.enabled = enabled;
-	}
-
-	isEnabled(): boolean {
-		return this.enabled;
 	}
 
 	async createNamedProfile(name: string, options?: IUserDataProfileOptions, workspaceIdentifier?: IAnyWorkspaceIdentifier): Promise<IUserDataProfile> {

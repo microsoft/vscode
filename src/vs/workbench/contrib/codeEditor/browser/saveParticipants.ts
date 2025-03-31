@@ -6,7 +6,6 @@
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { StopWatch } from '../../../../base/common/stopwatch.js';
 import * as strings from '../../../../base/common/strings.js';
 import { IActiveCodeEditor, isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
@@ -28,14 +27,13 @@ import { ExtensionIdentifier } from '../../../../platform/extensions/common/exte
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProgress, IProgressStep, Progress } from '../../../../platform/progress/common/progress.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from '../../../common/contributions.js';
 import { SaveReason } from '../../../common/editor.js';
-import { getModifiedRanges } from '../../format/browser/formatModified.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { ITextFileEditorModel, ITextFileSaveParticipant, ITextFileSaveParticipantContext, ITextFileService } from '../../../services/textfile/common/textfiles.js';
+import { getModifiedRanges } from '../../format/browser/formatModified.js';
 
 export class TrimWhitespaceParticipant implements ITextFileSaveParticipant {
 
@@ -280,7 +278,6 @@ class CodeActionOnSaveParticipant extends Disposable implements ITextFileSavePar
 		@IHostService private readonly hostService: IHostService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 
@@ -396,7 +393,7 @@ class CodeActionOnSaveParticipant extends Disposable implements ITextFileSavePar
 				progress.report({
 					message: localize(
 						{ key: 'codeaction.get2', comment: ['[configure]({1}) is a link. Only translate `configure`. Do not change brackets and parentheses or {1}'] },
-						"Getting code actions from '{0}' ([configure]({1})).",
+						"Getting code actions from {0} ([configure]({1})).",
 						[...this._names].map(name => `'${name}'`).join(', '),
 						'command:workbench.action.openSettings?%5B%22editor.codeActionsOnSave%22%5D'
 					)
@@ -411,26 +408,7 @@ class CodeActionOnSaveParticipant extends Disposable implements ITextFileSavePar
 		};
 
 		for (const codeActionKind of codeActionsOnSave) {
-			const sw = new StopWatch();
-
 			const actionsToRun = await this.getActionsToRun(model, codeActionKind, excludes, getActionProgress, token);
-
-			// Telemetry for duration of each code action on save.
-			type CodeActionOnSave = {
-				codeAction: string;
-				duration: number;
-			};
-			type CodeActionOnSaveClassification = {
-				owner: 'justschen';
-				comment: 'Information about the code action that was accepted on save.';
-				codeAction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Kind of the code action setting that is run.' };
-				duration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Duration it took for TS to return the action to run for each kind. ' };
-			};
-
-			this.telemetryService.publicLog2<CodeActionOnSave, CodeActionOnSaveClassification>('codeAction.appliedOnSave', {
-				codeAction: codeActionKind.value,
-				duration: sw.elapsed()
-			});
 
 			if (token.isCancellationRequested) {
 				actionsToRun.dispose();

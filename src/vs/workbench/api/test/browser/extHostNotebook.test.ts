@@ -97,7 +97,8 @@ suite('NotebookCell#Document', function () {
 				documentUri: notebookUri,
 				id: '_notebook_editor_0',
 				selections: [{ start: 0, end: 1 }],
-				visibleRanges: []
+				visibleRanges: [],
+				viewType: 'test'
 			}]
 		}));
 		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({ newActiveEditor: '_notebook_editor_0' }));
@@ -219,7 +220,8 @@ suite('NotebookCell#Document', function () {
 				lines: doc.getText().split('\n'),
 				languageId: doc.languageId,
 				uri: doc.uri,
-				versionId: doc.version
+				versionId: doc.version,
+				encoding: 'utf8'
 			});
 		}
 
@@ -369,7 +371,8 @@ suite('NotebookCell#Document', function () {
 				documentUri: notebookUri,
 				id: '_notebook_editor_2',
 				selections: [{ start: 0, end: 1 }],
-				visibleRanges: []
+				visibleRanges: [],
+				viewType: 'test'
 			}]
 		}));
 

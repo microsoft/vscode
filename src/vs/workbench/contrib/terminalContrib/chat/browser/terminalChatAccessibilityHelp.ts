@@ -5,7 +5,7 @@
 
 import { localize } from '../../../../../nls.js';
 import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from '../../../../../platform/accessibility/browser/accessibleView.js';
-import { IAccessibleViewImplentation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
@@ -13,7 +13,7 @@ import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { TerminalChatCommandId, TerminalChatContextKeys } from './terminalChat.js';
 import { TerminalChatController } from './terminalChatController.js';
 
-export class TerminalChatAccessibilityHelp implements IAccessibleViewImplentation {
+export class TerminalChatAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 110;
 	readonly name = 'terminalChat';
 	readonly when = TerminalChatContextKeys.focused;
@@ -31,7 +31,7 @@ export class TerminalChatAccessibilityHelp implements IAccessibleViewImplentatio
 			AccessibleViewProviderId.TerminalChat,
 			{ type: AccessibleViewType.Help },
 			() => helpText,
-			() => TerminalChatController.get(instance)?.focus(),
+			() => TerminalChatController.get(instance)?.terminalChatWidget?.focus(),
 			AccessibilityVerbositySettingId.TerminalChat,
 		);
 	}
@@ -45,8 +45,8 @@ export function getAccessibilityHelpText(accessor: ServicesAccessor): string {
 	const insertCommandKeybinding = keybindingService.lookupKeybinding(TerminalChatCommandId.InsertCommand)?.getAriaLabel();
 	const makeRequestKeybinding = keybindingService.lookupKeybinding(TerminalChatCommandId.MakeRequest)?.getAriaLabel();
 	const startChatKeybinding = keybindingService.lookupKeybinding(TerminalChatCommandId.Start)?.getAriaLabel();
-	const focusResponseKeybinding = keybindingService.lookupKeybinding(TerminalChatCommandId.FocusResponse)?.getAriaLabel();
-	const focusInputKeybinding = keybindingService.lookupKeybinding(TerminalChatCommandId.FocusInput)?.getAriaLabel();
+	const focusResponseKeybinding = keybindingService.lookupKeybinding('chat.action.focus')?.getAriaLabel();
+	const focusInputKeybinding = keybindingService.lookupKeybinding('workbench.action.chat.focusInput')?.getAriaLabel();
 	content.push(localize('inlineChat.overview', "Inline chat occurs within a terminal. It is useful for suggesting terminal commands. Keep in mind that AI generated code may be incorrect."));
 	content.push(localize('inlineChat.access', "It can be activated using the command: Terminal: Start Chat ({0}), which will focus the input box.", startChatKeybinding));
 	content.push(makeRequestKeybinding ? localize('inlineChat.input', "The input box is where the user can type a request and can make the request ({0}). The widget will be closed and all content will be discarded when the Escape key is pressed and the terminal will regain focus.", makeRequestKeybinding) : localize('inlineChat.inputNoKb', "The input box is where the user can type a request and can make the request by tabbing to the Make Request button, which is not currently triggerable via keybindings. The widget will be closed and all content will be discarded when the Escape key is pressed and the terminal will regain focus."));

@@ -291,9 +291,6 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	uninstallAllAutoReplies(): Promise<void> {
 		return this._proxy.uninstallAllAutoReplies();
 	}
-	uninstallAutoReply(match: string): Promise<void> {
-		return this._proxy.uninstallAutoReply(match);
-	}
 
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
 		return this._optionalProxy?.getDefaultSystemShell(osOverride) ?? getSystemShell(osOverride ?? OS, process.env);

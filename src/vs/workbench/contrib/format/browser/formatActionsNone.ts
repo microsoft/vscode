@@ -12,26 +12,16 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { VIEWLET_ID, IExtensionsViewPaneContainer } from '../../extensions/common/extensions.js';
+import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
-import { ViewContainerLocation } from '../../../common/views.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
-
-async function showExtensionQuery(paneCompositeService: IPaneCompositePartService, query: string) {
-	const viewlet = await paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
-	if (viewlet) {
-		(viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer).search(query);
-	}
-}
 
 registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 
 	constructor() {
 		super({
 			id: 'editor.action.formatDocument.none',
-			label: nls.localize('formatDocument.label.multiple', "Format Document"),
-			alias: 'Format Document',
+			label: nls.localize2('formatDocument.label.multiple', "Format Document"),
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasDocumentFormattingProvider.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -48,7 +38,7 @@ registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 		}
 
 		const commandService = accessor.get(ICommandService);
-		const paneCompositeService = accessor.get(IPaneCompositePartService);
+		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		const notificationService = accessor.get(INotificationService);
 		const dialogService = accessor.get(IDialogService);
 		const languageFeaturesService = accessor.get(ILanguageFeaturesService);
@@ -70,7 +60,7 @@ registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 				primaryButton: nls.localize({ key: 'install.formatter', comment: ['&& denotes a mnemonic'] }, "&&Install Formatter...")
 			});
 			if (confirmed) {
-				showExtensionQuery(paneCompositeService, `category:formatters ${langName}`);
+				extensionsWorkbenchService.openSearch(`category:formatters ${langName}`);
 			}
 		}
 	}

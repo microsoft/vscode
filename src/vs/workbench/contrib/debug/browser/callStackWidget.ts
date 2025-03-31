@@ -17,7 +17,6 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Constants } from '../../../../base/common/uint.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import './media/callStackWidget.css';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { EditorContributionCtor, EditorContributionInstantiation, IEditorContributionDescription } from '../../../../editor/browser/editorExtensions.js';
 import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
@@ -41,8 +40,9 @@ import { WorkbenchList } from '../../../../platform/list/browser/listService.js'
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { ResourceLabel } from '../../../browser/labels.js';
-import { makeStackFrameColumnDecoration, TOP_STACK_FRAME_DECORATION } from './callStackEditorContribution.js';
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import { makeStackFrameColumnDecoration, TOP_STACK_FRAME_DECORATION } from './callStackEditorContribution.js';
+import './media/callStackWidget.css';
 
 
 export class CallStackFrame {
@@ -82,7 +82,7 @@ class WrappedCallStackFrame extends CallStackFrame implements IFrameLikeItem {
 	public readonly collapsed = observableValue('WrappedCallStackFrame.collapsed', false);
 
 	public readonly height = derived(reader => {
-		return this.collapsed.read(reader) ? HEADER_HEIGHT : HEADER_HEIGHT + this.editorHeight.read(reader);
+		return this.collapsed.read(reader) ? CALL_STACK_WIDGET_HEADER_HEIGHT : CALL_STACK_WIDGET_HEADER_HEIGHT + this.editorHeight.read(reader);
 	});
 
 	constructor(original: CallStackFrame) {
@@ -94,7 +94,7 @@ class WrappedCustomStackFrame implements IFrameLikeItem {
 	public readonly collapsed = observableValue('WrappedCallStackFrame.collapsed', false);
 
 	public readonly height = derived(reader => {
-		const headerHeight = this.original.showHeader.read(reader) ? HEADER_HEIGHT : 0;
+		const headerHeight = this.original.showHeader.read(reader) ? CALL_STACK_WIDGET_HEADER_HEIGHT : 0;
 		return this.collapsed.read(reader) ? headerHeight : headerHeight + this.original.height.read(reader);
 	});
 
@@ -118,6 +118,18 @@ export class CallStackWidget extends Disposable {
 	private readonly layoutEmitter = this._register(new Emitter<void>());
 	private readonly currentFramesDs = this._register(new DisposableStore());
 	private cts?: CancellationTokenSource;
+
+	public get onDidChangeContentHeight() {
+		return this.list.onDidChangeContentHeight;
+	}
+
+	public get onDidScroll() {
+		return this.list.onDidScroll;
+	}
+
+	public get contentHeight() {
+		return this.list.contentHeight;
+	}
 
 	constructor(
 		container: HTMLElement,
@@ -145,6 +157,7 @@ export class CallStackWidget extends Disposable {
 				mouseSupport: false,
 				keyboardSupport: false,
 				setRowLineHeight: false,
+				alwaysConsumeMouseWheel: false,
 				accessibilityProvider: instantiationService.createInstance(StackAccessibilityProvider),
 			}
 		) as WorkbenchList<ListItem>);
@@ -251,7 +264,7 @@ class StackDelegate implements IListVirtualDelegate<ListItem> {
 			return element.height.get();
 		}
 		if (element instanceof SkippedCallFrames) {
-			return HEADER_HEIGHT;
+			return CALL_STACK_WIDGET_HEADER_HEIGHT;
 		}
 
 		assertNever(element);
@@ -306,7 +319,7 @@ const makeFrameElements = () => dom.h('div.multiCallStackFrame', [
 	])
 ]);
 
-const HEADER_HEIGHT = 24;
+export const CALL_STACK_WIDGET_HEADER_HEIGHT = 24;
 
 interface IAbstractFrameRendererTemplateData {
 	container: HTMLElement;

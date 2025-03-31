@@ -85,7 +85,7 @@ export class ElectronPtyHostStarter extends Disposable implements IPtyHostStarte
 		this._environmentMainService.unsetSnapExportedVariables();
 		const config: { [key: string]: string } = {
 			...deepClone(process.env),
-			VSCODE_AMD_ENTRYPOINT: 'vs/platform/terminal/node/ptyHostMain',
+			VSCODE_ESM_ENTRYPOINT: 'vs/platform/terminal/node/ptyHostMain',
 			VSCODE_PIPE_LOGGING: 'true',
 			VSCODE_VERBOSE_LOGGING: 'true', // transmit console logs from server to client,
 			VSCODE_RECONNECT_GRACE_TIME: String(this._reconnectConstants.graceTime),

@@ -60,6 +60,7 @@ const testLinks: ITestLink[] = [
 	{ link: 'foo 339.12', prefix: undefined, suffix: ' 339.12', hasRow: true, hasCol: true },
 	{ link: 'foo 339.12-789', prefix: undefined, suffix: ' 339.12-789', hasRow: true, hasCol: true, hasRowEnd: false, hasColEnd: true },
 	{ link: 'foo 339.12-341.789', prefix: undefined, suffix: ' 339.12-341.789', hasRow: true, hasCol: true, hasRowEnd: true, hasColEnd: true },
+	{ link: 'foo, 339', prefix: undefined, suffix: ', 339', hasRow: true, hasCol: false },
 
 	// Double quotes
 	{ link: '"foo",339', prefix: '"', suffix: '",339', hasRow: true, hasCol: false },
@@ -125,6 +126,8 @@ const testLinks: ITestLink[] = [
 	{ link: 'foo: (339)', prefix: undefined, suffix: ': (339)', hasRow: true, hasCol: false },
 	{ link: 'foo: (339,12)', prefix: undefined, suffix: ': (339,12)', hasRow: true, hasCol: true },
 	{ link: 'foo: (339, 12)', prefix: undefined, suffix: ': (339, 12)', hasRow: true, hasCol: true },
+	{ link: 'foo(339:12)', prefix: undefined, suffix: '(339:12)', hasRow: true, hasCol: true },
+	{ link: 'foo (339:12)', prefix: undefined, suffix: ' (339:12)', hasRow: true, hasCol: true },
 
 	// Square brackets
 	{ link: 'foo[339]', prefix: undefined, suffix: '[339]', hasRow: true, hasCol: false },
@@ -136,6 +139,8 @@ const testLinks: ITestLink[] = [
 	{ link: 'foo: [339]', prefix: undefined, suffix: ': [339]', hasRow: true, hasCol: false },
 	{ link: 'foo: [339,12]', prefix: undefined, suffix: ': [339,12]', hasRow: true, hasCol: true },
 	{ link: 'foo: [339, 12]', prefix: undefined, suffix: ': [339, 12]', hasRow: true, hasCol: true },
+	{ link: 'foo[339:12]', prefix: undefined, suffix: '[339:12]', hasRow: true, hasCol: true },
+	{ link: 'foo [339:12]', prefix: undefined, suffix: ' [339:12]', hasRow: true, hasCol: true },
 
 	// OCaml-style
 	{ link: '"foo", line 339, character 12', prefix: '"', suffix: '", line 339, character 12', hasRow: true, hasCol: true },
@@ -251,7 +256,7 @@ suite('TerminalLinkParsing', () => {
 			strictEqual(removeLinkQueryString('foo?a=b&c=d'), 'foo');
 		});
 		test('should respect ? in UNC paths', () => {
-			strictEqual(removeLinkQueryString('\\\\?\\foo?a=b'), '\\\\?\\foo',);
+			strictEqual(removeLinkQueryString('\\\\?\\foo?a=b'), '\\\\?\\foo');
 		});
 	});
 	suite('detectLinks', () => {

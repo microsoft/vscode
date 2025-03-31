@@ -11,19 +11,48 @@ import { TextLength } from './textLength.js';
 
 export class PositionOffsetTransformer {
 	private readonly lineStartOffsetByLineIdx: number[];
+	private readonly lineEndOffsetByLineIdx: number[];
 
 	constructor(public readonly text: string) {
 		this.lineStartOffsetByLineIdx = [];
+		this.lineEndOffsetByLineIdx = [];
+
 		this.lineStartOffsetByLineIdx.push(0);
 		for (let i = 0; i < text.length; i++) {
 			if (text.charAt(i) === '\n') {
 				this.lineStartOffsetByLineIdx.push(i + 1);
+				if (i > 0 && text.charAt(i - 1) === '\r') {
+					this.lineEndOffsetByLineIdx.push(i - 1);
+				} else {
+					this.lineEndOffsetByLineIdx.push(i);
+				}
 			}
 		}
+		this.lineEndOffsetByLineIdx.push(text.length);
 	}
 
 	getOffset(position: Position): number {
-		return this.lineStartOffsetByLineIdx[position.lineNumber - 1] + position.column - 1;
+		const valPos = this._validatePosition(position);
+		return this.lineStartOffsetByLineIdx[valPos.lineNumber - 1] + valPos.column - 1;
+	}
+
+	private _validatePosition(position: Position): Position {
+		if (position.lineNumber < 1) {
+			return new Position(1, 1);
+		}
+		const lineCount = this.textLength.lineCount + 1;
+		if (position.lineNumber > lineCount) {
+			const lineLength = this.getLineLength(lineCount);
+			return new Position(lineCount, lineLength + 1);
+		}
+		if (position.column < 1) {
+			return new Position(position.lineNumber, 1);
+		}
+		const lineLength = this.getLineLength(position.lineNumber);
+		if (position.column - 1 > lineLength) {
+			return new Position(position.lineNumber, lineLength + 1);
+		}
+		return position;
 	}
 
 	getOffsetRange(range: Range): OffsetRange {
@@ -54,5 +83,9 @@ export class PositionOffsetTransformer {
 	get textLength(): TextLength {
 		const lineIdx = this.lineStartOffsetByLineIdx.length - 1;
 		return new TextLength(lineIdx, this.text.length - this.lineStartOffsetByLineIdx[lineIdx]);
+	}
+
+	getLineLength(lineNumber: number): number {
+		return this.lineEndOffsetByLineIdx[lineNumber - 1] - this.lineStartOffsetByLineIdx[lineNumber - 1];
 	}
 }

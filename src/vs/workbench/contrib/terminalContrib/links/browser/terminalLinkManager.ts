@@ -33,6 +33,7 @@ import { ITerminalLogService } from '../../../../../platform/terminal/common/ter
 import { TerminalMultiLineLinkDetector } from './terminalMultiLineLinkDetector.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import type { IHoverAction } from '../../../../../base/browser/ui/hover/hover.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 
 export type XtermLinkMatcherHandler = (event: MouseEvent | undefined, link: string) => Promise<void>;
 
@@ -54,11 +55,12 @@ export class TerminalLinkManager extends DisposableStore {
 		capabilities: ITerminalCapabilityStore,
 		private readonly _linkResolver: ITerminalLinkResolver,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@INotificationService private readonly _notificationService: INotificationService,
+		@INotificationService notificationService: INotificationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@ITerminalConfigurationService terminalConfigurationService: ITerminalConfigurationService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
-		@ITunnelService private readonly _tunnelService: ITunnelService
+		@ITunnelService private readonly _tunnelService: ITunnelService,
 	) {
 		super();
 
@@ -112,13 +114,13 @@ export class TerminalLinkManager extends DisposableStore {
 					throw new Error(`Could not find scheme in link "${text}"`);
 				}
 				const scheme = text.substring(0, colonIndex);
-				if (this._terminalConfigurationService.config.allowedLinkSchemes.indexOf(scheme) === -1) {
-					this._notificationService.prompt(Severity.Warning, nls.localize('scheme', 'Opening URIs can be insecure, do you want to allow opening links with the scheme {0}?', scheme), [
+				if (terminalConfigurationService.config.allowedLinkSchemes.indexOf(scheme) === -1) {
+					notificationService.prompt(Severity.Warning, nls.localize('scheme', 'Opening URIs can be insecure, do you want to allow opening links with the scheme {0}?', scheme), [
 						{
 							label: nls.localize('allow', 'Allow {0}', scheme),
 							run: () => {
 								const allowedLinkSchemes = [
-									...this._terminalConfigurationService.config.allowedLinkSchemes,
+									...terminalConfigurationService.config.allowedLinkSchemes,
 									scheme
 								];
 								this._configurationService.updateValue(`terminal.integrated.allowedLinkSchemes`, allowedLinkSchemes);
@@ -191,6 +193,13 @@ export class TerminalLinkManager extends DisposableStore {
 		if (!opener) {
 			throw new Error(`No matching opener for link type "${link.type}"`);
 		}
+		this._telemetryService.publicLog2<{
+			linkType: TerminalBuiltinLinkType | string;
+		}, {
+			owner: 'tyriar';
+			comment: 'When the user opens a link in the terminal';
+			linkType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of link being opened' };
+		}>('terminal/openLink', { linkType: typeof link.type === 'string' ? link.type : `extension:${link.type.id}` });
 		await opener.open(link);
 	}
 

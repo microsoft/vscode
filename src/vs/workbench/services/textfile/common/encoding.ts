@@ -8,7 +8,6 @@ import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../../
 import { importAMDNodeModule } from '../../../../amdX.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { coalesce } from '../../../../base/common/arrays.js';
-import { isESM } from '../../../../base/common/amd.js';
 
 export const UTF8 = 'utf8';
 export const UTF8_with_bom = 'utf8bom';
@@ -321,11 +320,7 @@ const IGNORE_ENCODINGS = ['ascii', 'utf-16', 'utf-32'];
  * Guesses the encoding from buffer.
  */
 async function guessEncodingByBuffer(buffer: VSBuffer, candidateGuessEncodings?: string[]): Promise<string | null> {
-
-	// TODO@bpasero TODO@esm: this used to be `dist/jschardet.min.js`, but we are running into an issue that
-	// https://github.com/aadsm/jschardet/pull/96 mitigates. Long-term we should just add minification
-	// of dependencies into our build process so that we do not depend on how others are doing it.
-	const jschardet = await importAMDNodeModule<typeof import('jschardet')>('jschardet', isESM ? 'dist/jschardet.js' : 'dist/jschardet.min.js');
+	const jschardet = await importAMDNodeModule<typeof import('jschardet')>('jschardet', 'dist/jschardet.min.js');
 
 	// ensure to limit buffer for guessing due to https://github.com/aadsm/jschardet/issues/53
 	const limitedBuffer = buffer.slice(0, AUTO_ENCODING_GUESS_MAX_BYTES);
@@ -343,7 +338,13 @@ async function guessEncodingByBuffer(buffer: VSBuffer, candidateGuessEncodings?:
 		}
 	}
 
-	const guessed = jschardet.detect(binaryString, candidateGuessEncodings ? { detectEncodings: candidateGuessEncodings } : undefined);
+	let guessed: { encoding: string | undefined } | undefined;
+	try {
+		guessed = jschardet.detect(binaryString, candidateGuessEncodings ? { detectEncodings: candidateGuessEncodings } : undefined);
+	} catch (error) {
+		return null; // jschardet throws for unknown encodings (https://github.com/microsoft/vscode/issues/239928)
+	}
+
 	if (!guessed || !guessed.encoding) {
 		return null;
 	}
@@ -376,7 +377,7 @@ function toJschardetEncoding(encodingName: string): string | undefined {
 	const normalizedEncodingName = normalizeEncoding(encodingName);
 	const mapped = GUESSABLE_ENCODINGS[normalizedEncodingName];
 
-	return mapped.guessableName;
+	return mapped ? mapped.guessableName : undefined;
 }
 
 function encodeLatin1(buffer: Uint8Array): string {
@@ -620,151 +621,157 @@ export const SUPPORTED_ENCODINGS: EncodingsMap = {
 		order: 20,
 		guessableName: 'IBM866'
 	},
+	cp1125: {
+		labelLong: 'Cyrillic (CP 1125)',
+		labelShort: 'CP 1125',
+		order: 21,
+		guessableName: 'IBM1125'
+	},
 	iso88595: {
 		labelLong: 'Cyrillic (ISO 8859-5)',
 		labelShort: 'ISO 8859-5',
-		order: 21,
+		order: 22,
 		guessableName: 'ISO-8859-5'
 	},
 	koi8r: {
 		labelLong: 'Cyrillic (KOI8-R)',
 		labelShort: 'KOI8-R',
-		order: 22,
+		order: 23,
 		guessableName: 'KOI8-R'
 	},
 	koi8u: {
 		labelLong: 'Cyrillic (KOI8-U)',
 		labelShort: 'KOI8-U',
-		order: 23
+		order: 24
 	},
 	iso885913: {
 		labelLong: 'Estonian (ISO 8859-13)',
 		labelShort: 'ISO 8859-13',
-		order: 24
+		order: 25
 	},
 	windows1253: {
 		labelLong: 'Greek (Windows 1253)',
 		labelShort: 'Windows 1253',
-		order: 25,
+		order: 26,
 		guessableName: 'windows-1253'
 	},
 	iso88597: {
 		labelLong: 'Greek (ISO 8859-7)',
 		labelShort: 'ISO 8859-7',
-		order: 26,
+		order: 27,
 		guessableName: 'ISO-8859-7'
 	},
 	windows1255: {
 		labelLong: 'Hebrew (Windows 1255)',
 		labelShort: 'Windows 1255',
-		order: 27,
+		order: 28,
 		guessableName: 'windows-1255'
 	},
 	iso88598: {
 		labelLong: 'Hebrew (ISO 8859-8)',
 		labelShort: 'ISO 8859-8',
-		order: 28,
+		order: 29,
 		guessableName: 'ISO-8859-8'
 	},
 	iso885910: {
 		labelLong: 'Nordic (ISO 8859-10)',
 		labelShort: 'ISO 8859-10',
-		order: 29
+		order: 30
 	},
 	iso885916: {
 		labelLong: 'Romanian (ISO 8859-16)',
 		labelShort: 'ISO 8859-16',
-		order: 30
+		order: 31
 	},
 	windows1254: {
 		labelLong: 'Turkish (Windows 1254)',
 		labelShort: 'Windows 1254',
-		order: 31
+		order: 32
 	},
 	iso88599: {
 		labelLong: 'Turkish (ISO 8859-9)',
 		labelShort: 'ISO 8859-9',
-		order: 32
+		order: 33
 	},
 	windows1258: {
 		labelLong: 'Vietnamese (Windows 1258)',
 		labelShort: 'Windows 1258',
-		order: 33
+		order: 34
 	},
 	gbk: {
 		labelLong: 'Simplified Chinese (GBK)',
 		labelShort: 'GBK',
-		order: 34
+		order: 35
 	},
 	gb18030: {
 		labelLong: 'Simplified Chinese (GB18030)',
 		labelShort: 'GB18030',
-		order: 35
+		order: 36
 	},
 	cp950: {
 		labelLong: 'Traditional Chinese (Big5)',
 		labelShort: 'Big5',
-		order: 36,
+		order: 37,
 		guessableName: 'Big5'
 	},
 	big5hkscs: {
 		labelLong: 'Traditional Chinese (Big5-HKSCS)',
 		labelShort: 'Big5-HKSCS',
-		order: 37
+		order: 38
 	},
 	shiftjis: {
 		labelLong: 'Japanese (Shift JIS)',
 		labelShort: 'Shift JIS',
-		order: 38,
+		order: 39,
 		guessableName: 'SHIFT_JIS'
 	},
 	eucjp: {
 		labelLong: 'Japanese (EUC-JP)',
 		labelShort: 'EUC-JP',
-		order: 39,
+		order: 40,
 		guessableName: 'EUC-JP'
 	},
 	euckr: {
 		labelLong: 'Korean (EUC-KR)',
 		labelShort: 'EUC-KR',
-		order: 40,
+		order: 41,
 		guessableName: 'EUC-KR'
 	},
 	windows874: {
 		labelLong: 'Thai (Windows 874)',
 		labelShort: 'Windows 874',
-		order: 41
+		order: 42
 	},
 	iso885911: {
 		labelLong: 'Latin/Thai (ISO 8859-11)',
 		labelShort: 'ISO 8859-11',
-		order: 42
+		order: 43
 	},
 	koi8ru: {
 		labelLong: 'Cyrillic (KOI8-RU)',
 		labelShort: 'KOI8-RU',
-		order: 43
+		order: 44
 	},
 	koi8t: {
 		labelLong: 'Tajik (KOI8-T)',
 		labelShort: 'KOI8-T',
-		order: 44
+		order: 45
 	},
 	gb2312: {
 		labelLong: 'Simplified Chinese (GB 2312)',
 		labelShort: 'GB 2312',
-		order: 45,
+		order: 46,
 		guessableName: 'GB2312'
 	},
 	cp865: {
 		labelLong: 'Nordic DOS (CP 865)',
 		labelShort: 'CP 865',
-		order: 46
+		order: 47
 	},
 	cp850: {
 		labelLong: 'Western European DOS (CP 850)',
 		labelShort: 'CP 850',
-		order: 47
+		order: 48
 	}
 };
 

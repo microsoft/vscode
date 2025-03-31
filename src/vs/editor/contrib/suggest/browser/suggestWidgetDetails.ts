@@ -65,6 +65,8 @@ export class SuggestDetailsWidget {
 		this._header = dom.append(this._body, dom.$('.header'));
 		this._close = dom.append(this._header, dom.$('span' + ThemeIcon.asCSSSelector(Codicon.close)));
 		this._close.title = nls.localize('details.close', "Close");
+		this._close.role = 'button';
+		this._close.tabIndex = -1;
 		this._type = dom.append(this._header, dom.$('p.type'));
 
 		this._docs = dom.append(this._body, dom.$('p.docs'));
@@ -172,14 +174,17 @@ export class SuggestDetailsWidget {
 		} else if (documentation) {
 			this._docs.classList.add('markdown-docs');
 			dom.clearNode(this._docs);
-			const renderedContents = this._markdownRenderer.render(documentation);
+			const renderedContents = this._markdownRenderer.render(documentation, {
+				asyncRenderCallback: () => {
+					this.layout(this._size.width, this._type.clientHeight + this._docs.clientHeight);
+					this._onDidChangeContents.fire(this);
+				}
+			});
 			this._docs.appendChild(renderedContents.element);
 			this._renderDisposeable.add(renderedContents);
-			this._renderDisposeable.add(this._markdownRenderer.onDidRenderAsync(() => {
-				this.layout(this._size.width, this._type.clientHeight + this._docs.clientHeight);
-				this._onDidChangeContents.fire(this);
-			}));
 		}
+
+		this.domNode.classList.toggle('detail-and-doc', !!detail && !!documentation);
 
 		this.domNode.style.userSelect = 'text';
 		this.domNode.tabIndex = -1;
@@ -253,6 +258,10 @@ export class SuggestDetailsWidget {
 
 	get borderWidth() {
 		return this._borderWidth;
+	}
+
+	focus() {
+		this.domNode.focus();
 	}
 }
 

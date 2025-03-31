@@ -29,6 +29,7 @@ import { Source } from './debugSource.js';
 import { ITaskIdentifier } from '../../tasks/common/tasks.js';
 import { LiveTestResult } from '../../testing/common/testResult.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IView } from '../../../common/views.js';
 
 export const VIEWLET_ID = 'workbench.view.debug';
 
@@ -60,6 +61,7 @@ export const CONTEXT_CALLSTACK_ITEM_TYPE = new RawContextKey<string>('callStackI
 export const CONTEXT_CALLSTACK_SESSION_IS_ATTACH = new RawContextKey<boolean>('callStackSessionIsAttach', false, { type: 'boolean', description: nls.localize('callStackSessionIsAttach', "True when the session in the CALL STACK view is attach, false otherwise. Used internally for inline menus in the CALL STACK view.") });
 export const CONTEXT_CALLSTACK_ITEM_STOPPED = new RawContextKey<boolean>('callStackItemStopped', false, { type: 'boolean', description: nls.localize('callStackItemStopped', "True when the focused item in the CALL STACK is stopped. Used internaly for inline menus in the CALL STACK view.") });
 export const CONTEXT_CALLSTACK_SESSION_HAS_ONE_THREAD = new RawContextKey<boolean>('callStackSessionHasOneThread', false, { type: 'boolean', description: nls.localize('callStackSessionHasOneThread', "True when the focused session in the CALL STACK view has exactly one thread. Used internally for inline menus in the CALL STACK view.") });
+export const CONTEXT_CALLSTACK_FOCUSED = new RawContextKey<boolean>('callStackFocused', true, { type: 'boolean', description: nls.localize('callStackFocused', "True when the CALLSTACK view is focused, false otherwise.") });
 export const CONTEXT_WATCH_ITEM_TYPE = new RawContextKey<string>('watchItemType', undefined, { type: 'string', description: nls.localize('watchItemType', "Represents the item type of the focused element in the WATCH view. For example: 'expression', 'variable'") });
 export const CONTEXT_CAN_VIEW_MEMORY = new RawContextKey<boolean>('canViewMemory', undefined, { type: 'boolean', description: nls.localize('canViewMemory', "Indicates whether the item in the view has an associated memory refrence.") });
 export const CONTEXT_BREAKPOINT_ITEM_TYPE = new RawContextKey<string>('breakpointItemType', undefined, { type: 'string', description: nls.localize('breakpointItemType', "Represents the item type of the focused element in the BREAKPOINTS view. For example: 'breakpoint', 'exceptionBreakppint', 'functionBreakpoint', 'dataBreakpoint'") });
@@ -114,6 +116,10 @@ export const INTERNAL_CONSOLE_OPTIONS_SCHEMA = {
 	description: nls.localize('internalConsoleOptions', "Controls when the internal Debug Console should open.")
 };
 
+export interface IDebugViewWithVariables extends IView {
+	readonly treeSelection: IExpression[];
+}
+
 // raw
 
 export interface IRawModelUpdate {
@@ -164,11 +170,13 @@ export interface IExpressionValue {
 
 export interface IExpressionContainer extends ITreeElement, IExpressionValue {
 	readonly hasChildren: boolean;
+	getSession(): IDebugSession | undefined;
 	evaluateLazy(): Promise<void>;
 	getChildren(): Promise<IExpression[]>;
 	readonly reference?: number;
 	readonly memoryReference?: string;
 	readonly presentationHint?: DebugProtocol.VariablePresentationHint | undefined;
+	readonly valueLocationReference?: number;
 }
 
 export interface IExpression extends IExpressionContainer {
@@ -404,14 +412,18 @@ export interface IDebugSession extends ITreeElement {
 	removeReplExpressions(): void;
 	addReplExpression(stackFrame: IStackFrame | undefined, name: string): Promise<void>;
 	appendToRepl(data: INewReplElementData): void;
+	/** Cancel any associated test run set through the DebugSessionOptions */
+	cancelCorrelatedTestRun(): void;
 
 	// session events
 	readonly onDidEndAdapter: Event<AdapterEndEvent | undefined>;
 	readonly onDidChangeState: Event<void>;
 	readonly onDidChangeReplElements: Event<IReplElement | undefined>;
 
-	// DA capabilities
+	/** DA capabilities. Set only when there is a running session available. */
 	readonly capabilities: DebugProtocol.Capabilities;
+	/** DA capabilities. These are retained on the session even after is implementation ends. */
+	readonly rememberedCapabilities?: DebugProtocol.Capabilities;
 
 	// DAP events
 
@@ -463,7 +475,7 @@ export interface IDebugSession extends ITreeElement {
 	pause(threadId: number): Promise<void>;
 	terminateThreads(threadIds: number[]): Promise<void>;
 
-	completions(frameId: number | undefined, threadId: number, text: string, position: Position, overwriteBefore: number, token: CancellationToken): Promise<DebugProtocol.CompletionsResponse | undefined>;
+	completions(frameId: number | undefined, threadId: number, text: string, position: Position, token: CancellationToken): Promise<DebugProtocol.CompletionsResponse | undefined>;
 	setVariable(variablesReference: number | undefined, name: string, value: string): Promise<DebugProtocol.SetVariableResponse | undefined>;
 	setExpression(frameId: number, expression: string, value: string): Promise<DebugProtocol.SetExpressionResponse | undefined>;
 	loadSource(resource: uri): Promise<DebugProtocol.SourceResponse | undefined>;
@@ -625,7 +637,7 @@ export interface IBreakpoint extends IBaseBreakpoint {
 	readonly pending: boolean;
 
 	/** Marks that a session did trigger the breakpoint. */
-	setSessionDidTrigger(sessionId: string): void;
+	setSessionDidTrigger(sessionId: string, didTrigger?: boolean): void;
 	/** Gets whether the `triggeredBy` condition has been met in the given sesison ID. */
 	getSessionDidTrigger(sessionId: string): boolean;
 
@@ -878,6 +890,7 @@ export interface IDebugConfiguration {
 	autoExpandLazyVariables: 'auto' | 'off' | 'on';
 	enableStatusBarColor: boolean;
 	showVariableTypes: boolean;
+	hideSlowPreLaunchWarning: boolean;
 }
 
 export interface IGlobalConfig {
@@ -978,7 +991,6 @@ export interface IDebugAdapterInlineImpl extends IDisposable {
 
 export interface IDebugAdapterImpl {
 	readonly type: 'implementation';
-	readonly implementation: IDebugAdapterInlineImpl;
 }
 
 export type IAdapterDescriptor = IDebugAdapterExecutable | IDebugAdapterServer | IDebugAdapterNamedPipeServer | IDebugAdapterImpl;
@@ -1082,7 +1094,8 @@ export interface IConfigurationManager {
 	onDidChangeConfigurationProviders: Event<void>;
 
 	hasDebugConfigurationProvider(debugType: string, triggerKind?: DebugConfigurationProviderTriggerKind): boolean;
-	getDynamicProviders(): Promise<{ label: string; type: string; pick: () => Promise<{ launch: ILaunch; config: IConfig } | undefined> }[]>;
+	getDynamicProviders(): Promise<{ label: string; type: string; pick: () => Promise<{ launch: ILaunch; config: IConfig; label: string } | undefined> }[]>;
+	getDynamicConfigurationsByType(type: string, token?: CancellationToken): Promise<{ launch: ILaunch; config: IConfig; label: string }[]>;
 
 	registerDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): IDisposable;
 	unregisterDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): void;
@@ -1113,9 +1126,18 @@ export interface IAdapterManager {
 	substituteVariables(debugType: string, folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig>;
 	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined>;
 	getEnabledDebugger(type: string): (IDebugger & IDebuggerMetadata) | undefined;
-	guessDebugger(gettingConfigurations: boolean): Promise<(IDebugger & IDebuggerMetadata) | undefined>;
+	guessDebugger(gettingConfigurations: boolean): Promise<IGuessedDebugger | undefined>;
 
 	get onDidDebuggersExtPointRead(): Event<void>;
+}
+
+export interface IGuessedDebugger {
+	debugger: IDebugger;
+	withConfig?: {
+		label: string;
+		launch: ILaunch;
+		config: IConfig;
+	};
 }
 
 export interface ILaunch {

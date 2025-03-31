@@ -50,7 +50,7 @@ export function getNWords(str: string, numWordsToCount: number): IWordCountResul
 
 	const targetWords = allWordMatches.slice(0, numWordsToCount);
 
-	const endIndex = numWordsToCount > allWordMatches.length
+	const endIndex = numWordsToCount >= allWordMatches.length
 		? str.length // Reached end of string
 		: targetWords.length ? targetWords.at(-1)!.index + targetWords.at(-1)![0].length : 0;
 

@@ -24,6 +24,7 @@ import { IPtyHostProcessReplayEvent } from '../../../../../platform/terminal/com
 import { ISerializableEnvironmentDescriptionMap as ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariableCollection } from '../../../../../platform/terminal/common/environmentVariable.js';
 import type * as performance from '../../../../../base/common/performance.js';
 import { RemoteTerminalChannelEvent, RemoteTerminalChannelRequest } from './terminal.js';
+import { ConfigurationResolverExpression } from '../../../../services/configurationResolver/common/configurationResolverExpression.js';
 
 export const REMOTE_TERMINAL_CHANNEL_NAME = 'remoteterminal';
 
@@ -133,20 +134,15 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 		// But then we will keep only some variables, since the rest need to be resolved on the remote side
 		const resolvedVariables = Object.create(null);
 		const lastActiveWorkspace = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) ?? undefined : undefined;
-		let allResolvedVariables: Map<string, string> | undefined = undefined;
+		const expr = ConfigurationResolverExpression.parse({ shellLaunchConfig, configuration });
 		try {
-			allResolvedVariables = (await this._resolverService.resolveAnyMap(lastActiveWorkspace, {
-				shellLaunchConfig,
-				configuration
-			})).resolvedVariables;
+			await this._resolverService.resolveAsync(lastActiveWorkspace, expr);
 		} catch (err) {
 			this._logService.error(err);
 		}
-		if (allResolvedVariables) {
-			for (const [name, value] of allResolvedVariables.entries()) {
-				if (/^config:/.test(name) || name === 'selectedText' || name === 'lineNumber') {
-					resolvedVariables[name] = value;
-				}
+		for (const [{ inner }, resolved] of expr.resolved()) {
+			if (/^config:/.test(inner) || inner === 'selectedText' || inner === 'lineNumber') {
+				resolvedVariables[inner] = resolved.value;
 			}
 		}
 
@@ -250,12 +246,6 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 	freePortKillProcess(port: string): Promise<{ port: string; processId: string }> {
 		return this._channel.call(RemoteTerminalChannelRequest.FreePortKillProcess, [port]);
 	}
-	installAutoReply(match: string, reply: string): Promise<void> {
-		return this._channel.call(RemoteTerminalChannelRequest.InstallAutoReply, [match, reply]);
-	}
-	uninstallAllAutoReplies(): Promise<void> {
-		return this._channel.call(RemoteTerminalChannelRequest.UninstallAllAutoReplies, []);
-	}
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
 		return this._channel.call(RemoteTerminalChannelRequest.GetDefaultSystemShell, [osOverride]);
 	}
@@ -318,4 +308,15 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 	serializeTerminalState(ids: number[]): Promise<string> {
 		return this._channel.call(RemoteTerminalChannelRequest.SerializeTerminalState, [ids]);
 	}
+
+	// #region Pty service contribution RPC calls
+
+	installAutoReply(match: string, reply: string): Promise<void> {
+		return this._channel.call(RemoteTerminalChannelRequest.InstallAutoReply, [match, reply]);
+	}
+	uninstallAllAutoReplies(): Promise<void> {
+		return this._channel.call(RemoteTerminalChannelRequest.UninstallAllAutoReplies, []);
+	}
+
+	// #endregion
 }

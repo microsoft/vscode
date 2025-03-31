@@ -46,6 +46,7 @@ import { Selection } from '../../../common/core/selection.js';
 import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IHistory } from '../../../../base/common/history.js';
 
 const findCollapsedIcon = registerIcon('find-collapsed', Codicon.chevronRight, nls.localize('findCollapsedIcon', 'Icon to indicate that the editor find widget is collapsed.'));
 const findExpandedIcon = registerIcon('find-expanded', Codicon.chevronDown, nls.localize('findExpandedIcon', 'Icon to indicate that the editor find widget is expanded.'));
@@ -173,6 +174,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		storageService: IStorageService,
 		notificationService: INotificationService,
 		private readonly _hoverService: IHoverService,
+		private readonly _findWidgetSearchHistory: IHistory<string> | undefined,
+		private readonly _replaceWidgetHistory: IHistory<string> | undefined,
 	) {
 		super();
 		this._codeEditor = codeEditor;
@@ -939,6 +942,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		const flexibleHeight = true;
 		const flexibleWidth = true;
 		// Find input
+		const findSearchHistoryConfig = this._codeEditor.getOption(EditorOption.find).history;
+		const replaceHistoryConfig = this._codeEditor.getOption(EditorOption.find).replaceHistory;
 		this._findInput = this._register(new ContextScopedFindInput(null, this._contextViewProvider, {
 			width: FIND_INPUT_AREA_WIDTH,
 			label: NLS_FIND_INPUT_LABEL,
@@ -964,7 +969,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			showCommonFindToggles: true,
 			showHistoryHint: () => showHistoryKeybindingHint(this._keybindingService),
 			inputBoxStyles: defaultInputBoxStyles,
-			toggleStyles: defaultToggleStyles
+			toggleStyles: defaultToggleStyles,
+			history: findSearchHistoryConfig === 'workspace' ? this._findWidgetSearchHistory : new Set([]),
 		}, this._contextKeyService));
 		this._findInput.setRegex(!!this._state.isRegex);
 		this._findInput.setCaseSensitive(!!this._state.matchCase);
@@ -1108,13 +1114,13 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			label: NLS_REPLACE_INPUT_LABEL,
 			placeholder: NLS_REPLACE_INPUT_PLACEHOLDER,
 			appendPreserveCaseLabel: this._keybindingLabelFor(FIND_IDS.TogglePreserveCaseCommand),
-			history: [],
+			history: replaceHistoryConfig === 'workspace' ? this._replaceWidgetHistory : new Set([]),
 			flexibleHeight,
 			flexibleWidth,
 			flexibleMaxHeight: 118,
 			showHistoryHint: () => showHistoryKeybindingHint(this._keybindingService),
 			inputBoxStyles: defaultInputBoxStyles,
-			toggleStyles: defaultToggleStyles
+			toggleStyles: defaultToggleStyles,
 		}, this._contextKeyService, true));
 		this._replaceInput.setPreserveCase(!!this._state.preserveCase);
 		this._register(this._replaceInput.onKeyDown((e) => this._onReplaceInputKeyDown(e)));

@@ -8,7 +8,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import * as perf from '../../../../../base/common/performance.js';
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from '../../../../../base/common/actions.js';
 import { memoize } from '../../../../../base/common/decorators.js';
-import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext, VIEW_ID, ExplorerResourceNotReadonlyContext, ViewHasSomeCollapsibleRootItemContext, FoldersViewVisibleContext } from '../../common/files.js';
+import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext, VIEW_ID, ExplorerResourceWritableContext, ViewHasSomeCollapsibleRootItemContext, FoldersViewVisibleContext, ExplorerResourceParentReadOnlyContext, ExplorerFindProviderActive } from '../../common/files.js';
 import { FileCopiedContext, NEW_FILE_COMMAND_ID, NEW_FOLDER_COMMAND_ID } from '../fileActions.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
@@ -27,7 +27,7 @@ import { DelayedDragHandler } from '../../../../../base/browser/dnd.js';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IViewPaneOptions, ViewPane } from '../../../../browser/parts/views/viewPane.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { ExplorerDelegate, ExplorerDataSource, FilesRenderer, ICompressedNavigationController, FilesFilter, FileSorter, FileDragAndDrop, ExplorerCompressionDelegate, isCompressedFolderName } from './explorerViewer.js';
+import { ExplorerDelegate, ExplorerDataSource, FilesRenderer, ICompressedNavigationController, FilesFilter, FileSorter, FileDragAndDrop, ExplorerCompressionDelegate, isCompressedFolderName, ExplorerFindProvider } from './explorerViewer.js';
 import { IThemeService, IFileIconTheme } from '../../../../../platform/theme/common/themeService.js';
 import { IWorkbenchThemeService } from '../../../../services/themes/common/workbenchThemeService.js';
 import { ITreeContextMenuEvent, TreeVisibility } from '../../../../../base/browser/ui/tree/tree.js';
@@ -53,7 +53,6 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IEditorResolverService } from '../../../../services/editor/common/editorResolverService.js';
 import { EditorOpenSource } from '../../../../../platform/editor/common/editor.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
-import { isInputElement } from '../../../../../base/browser/ui/list/listWidget.js';
 import { AbstractTreePart } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 
@@ -156,9 +155,11 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 	private tree!: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>;
 	private filter!: FilesFilter;
+	private findProvider!: ExplorerFindProvider;
 
 	private resourceContext: ResourceContextKey;
 	private folderContext: IContextKey<boolean>;
+	private parentReadonlyContext: IContextKey<boolean>;
 	private readonlyContext: IContextKey<boolean>;
 	private availableEditorIdsContext: IContextKey<string>;
 
@@ -200,7 +201,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		@IDecorationsService private readonly decorationService: IDecorationsService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IThemeService themeService: IWorkbenchThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -210,12 +211,13 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		@ICommandService private readonly commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		this.delegate = options.delegate;
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
 		this._register(this.resourceContext);
 
+		this.parentReadonlyContext = ExplorerResourceParentReadOnlyContext.bindTo(contextKeyService);
 		this.folderContext = ExplorerFolderContext.bindTo(contextKeyService);
 		this.readonlyContext = ExplorerResourceReadonlyContext.bindTo(contextKeyService);
 		this.availableEditorIdsContext = ExplorerResourceAvailableEditorIdsContext.bindTo(contextKeyService);
@@ -433,8 +435,10 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		const explorerLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
 		this._register(explorerLabels);
 
+		this.findProvider = this.instantiationService.createInstance(ExplorerFindProvider, this.filter, () => this.tree);
+
 		const updateWidth = (stat: ExplorerItem) => this.tree.updateWidth(stat);
-		this.renderer = this.instantiationService.createInstance(FilesRenderer, container, explorerLabels, updateWidth);
+		this.renderer = this.instantiationService.createInstance(FilesRenderer, container, explorerLabels, this.findProvider.highlightTree, updateWidth);
 		this._register(this.renderer);
 
 		this._register(createFileIconThemableTreeContainerScope(container, this.themeService));
@@ -443,8 +447,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 		const getFileNestingSettings = (item?: ExplorerItem) => this.configurationService.getValue<IFilesConfiguration>({ resource: item?.root.resource }).explorer.fileNesting;
 
-		this.tree = <WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>>this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree, 'FileExplorer', container, new ExplorerDelegate(), new ExplorerCompressionDelegate(), [this.renderer],
-			this.instantiationService.createInstance(ExplorerDataSource, this.filter), {
+		this.tree = this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>, 'FileExplorer', container, new ExplorerDelegate(), new ExplorerCompressionDelegate(), [this.renderer],
+			this.instantiationService.createInstance(ExplorerDataSource, this.filter, this.findProvider), {
 			compressionEnabled: isCompressionEnabled(),
 			accessibilityProvider: this.renderer,
 			identityProvider,
@@ -473,6 +477,9 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 					if (e.hasNests && getFileNestingSettings(e).expand) {
 						return false;
 					}
+					if (this.findProvider.isShowingFilterResults()) {
+						return false;
+					}
 				}
 				return true;
 			},
@@ -489,7 +496,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 				return false;
 			},
 			paddingBottom: ExplorerDelegate.ITEM_HEIGHT,
-			overrideStyles: this.getLocationBasedColors().listOverrideStyles
+			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
+			findProvider: this.findProvider,
 		});
 		this._register(this.tree);
 		this._register(this.themeService.onDidColorThemeChange(() => this.tree.rerender()));
@@ -591,6 +599,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this.resourceContext.set(resource);
 		this.folderContext.set(!!stat && stat.isDirectory);
 		this.readonlyContext.set(!!stat && !!stat.isReadonly);
+		this.parentReadonlyContext.set(Boolean(stat?.parent?.isReadonly));
 		this.rootContext.set(!!stat && stat.isRoot);
 
 		if (resource) {
@@ -602,7 +611,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	}
 
 	private async onContextMenu(e: ITreeContextMenuEvent<ExplorerItem>): Promise<void> {
-		if (isInputElement(e.browserEvent.target as HTMLElement)) {
+		if (DOM.isEditableElement(e.browserEvent.target as HTMLElement)) {
 			return;
 		}
 
@@ -687,7 +696,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	 * If the item is passed we refresh only that level of the tree, otherwise we do a full refresh.
 	 */
 	refresh(recursive: boolean, item?: ExplorerItem, cancelEditing: boolean = true): Promise<void> {
-		if (!this.tree || !this.isBodyVisible() || (item && !this.tree.hasNode(item))) {
+		if (!this.tree || !this.isBodyVisible() || (item && !this.tree.hasNode(item)) || (this.findProvider?.isShowingFilterResults() && recursive)) {
 			// Tree node doesn't exist yet, when it becomes visible we will refresh
 			return Promise.resolve(undefined);
 		}
@@ -954,6 +963,10 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this.storeTreeViewState();
 	}
 
+	hasPhantomElements(): boolean {
+		return !!this.findProvider?.isShowingFilterResults();
+	}
+
 	override dispose(): void {
 		this.dragHandler?.dispose();
 		super.dispose();
@@ -973,6 +986,13 @@ export function createFileIconThemableTreeContainerScope(container: HTMLElement,
 	return themeService.onDidFileIconThemeChange(onDidChangeFileIconTheme);
 }
 
+const CanCreateContext = ContextKeyExpr.or(
+	// Folder: can create unless readonly
+	ContextKeyExpr.and(ExplorerFolderContext, ExplorerResourceWritableContext),
+	// File: can create unless parent is readonly
+	ContextKeyExpr.and(ExplorerFolderContext.toNegated(), ExplorerResourceParentReadOnlyContext.toNegated())
+);
+
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -980,7 +1000,7 @@ registerAction2(class extends Action2 {
 			title: nls.localize('createNewFile', "New File..."),
 			f1: false,
 			icon: Codicon.newFile,
-			precondition: ExplorerResourceNotReadonlyContext,
+			precondition: CanCreateContext,
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
@@ -1003,7 +1023,7 @@ registerAction2(class extends Action2 {
 			title: nls.localize('createNewFolder', "New Folder..."),
 			f1: false,
 			icon: Codicon.newFolder,
-			precondition: ExplorerResourceNotReadonlyContext,
+			precondition: CanCreateContext,
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
@@ -1030,11 +1050,12 @@ registerAction2(class extends Action2 {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
 				when: ContextKeyExpr.equals('view', VIEW_ID),
-				order: 30
+				order: 30,
 			},
 			metadata: {
 				description: nls.localize2('refreshExplorerMetadata', "Forces a refresh of the Explorer.")
-			}
+			},
+			precondition: ExplorerFindProviderActive.negate()
 		});
 	}
 

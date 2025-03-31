@@ -169,8 +169,9 @@ export class SharedProcess extends Disposable {
 
 		this.utilityProcess.start({
 			type: 'shared-process',
-			entryPoint: 'vs/code/node/sharedProcess/sharedProcessMain',
+			entryPoint: 'vs/code/electron-utility/sharedProcess/sharedProcessMain',
 			payload: this.createSharedProcessConfiguration(),
+			respondToAuthRequestsFromMainProcess: true,
 			execArgv
 		});
 
@@ -189,7 +190,7 @@ export class SharedProcess extends Disposable {
 			},
 			args: this.environmentMainService.args,
 			logLevel: this.loggerMainService.getLogLevel(),
-			loggers: this.loggerMainService.getRegisteredLoggers(),
+			loggers: this.loggerMainService.getGlobalLoggers(),
 			policiesData: this.policyService.serialize()
 		};
 	}

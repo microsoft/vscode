@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from '../../dnd.js';
-import { asCssValueWithDefault, createStyleSheet, Dimension, EventHelper, getActiveElement, getWindow, isActiveElement, isHTMLElement, isMouseEvent } from '../../dom.js';
+import { Dimension, EventHelper, getActiveElement, getWindow, isActiveElement, isEditableElement, isHTMLElement, isMouseEvent } from '../../dom.js';
+import { createStyleSheet } from '../../domStylesheets.js';
+import { asCssValueWithDefault } from '../../cssValue.js';
 import { DomEmitter } from '../../event.js';
 import { IKeyboardEvent, StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { Gesture } from '../../touch.js';
@@ -246,10 +248,6 @@ class TraitSpliceable<T> implements ISpliceable<T> {
 	}
 }
 
-export function isInputElement(e: HTMLElement): boolean {
-	return e.tagName === 'INPUT' || e.tagName === 'TEXTAREA';
-}
-
 function isListElementDescendantOfClass(e: HTMLElement, className: string): boolean {
 	if (e.classList.contains(className)) {
 		return true;
@@ -317,7 +315,7 @@ class KeyboardController<T> implements IDisposable {
 	private get onKeyDown(): Event<StandardKeyboardEvent> {
 		return Event.chain(
 			this.disposables.add(new DomEmitter(this.view.domNode, 'keydown')).event, $ =>
-			$.filter(e => !isInputElement(e.target as HTMLElement))
+			$.filter(e => !isEditableElement(e.target as HTMLElement))
 				.map(e => new StandardKeyboardEvent(e))
 		);
 	}
@@ -493,7 +491,7 @@ class TypeNavigationController<T> implements IDisposable {
 		let typing = false;
 
 		const onChar = Event.chain(this.enabledDisposables.add(new DomEmitter(this.view.domNode, 'keydown')).event, $ =>
-			$.filter(e => !isInputElement(e.target as HTMLElement))
+			$.filter(e => !isEditableElement(e.target as HTMLElement))
 				.filter(() => this.mode === TypeNavigationMode.Automatic || this.triggered)
 				.map(event => new StandardKeyboardEvent(event))
 				.filter(e => typing || this.keyboardNavigationEventFilter(e))
@@ -607,7 +605,7 @@ class DOMFocusController<T> implements IDisposable {
 		private view: IListView<T>
 	) {
 		const onKeyDown = Event.chain(this.disposables.add(new DomEmitter(view.domNode, 'keydown')).event, $ => $
-			.filter(e => !isInputElement(e.target as HTMLElement))
+			.filter(e => !isEditableElement(e.target as HTMLElement))
 			.map(e => new StandardKeyboardEvent(e))
 		);
 
@@ -739,7 +737,7 @@ export class MouseController<T> implements IDisposable {
 	}
 
 	protected onContextMenu(e: IListContextMenuEvent<T>): void {
-		if (isInputElement(e.browserEvent.target as HTMLElement) || isMonacoEditor(e.browserEvent.target as HTMLElement)) {
+		if (isEditableElement(e.browserEvent.target as HTMLElement) || isMonacoEditor(e.browserEvent.target as HTMLElement)) {
 			return;
 		}
 
@@ -752,7 +750,7 @@ export class MouseController<T> implements IDisposable {
 			return;
 		}
 
-		if (isInputElement(e.browserEvent.target as HTMLElement) || isMonacoEditor(e.browserEvent.target as HTMLElement)) {
+		if (isEditableElement(e.browserEvent.target as HTMLElement) || isMonacoEditor(e.browserEvent.target as HTMLElement)) {
 			return;
 		}
 
@@ -785,7 +783,7 @@ export class MouseController<T> implements IDisposable {
 	}
 
 	protected onDoubleClick(e: IListMouseEvent<T>): void {
-		if (isInputElement(e.browserEvent.target as HTMLElement) || isMonacoEditor(e.browserEvent.target as HTMLElement)) {
+		if (isEditableElement(e.browserEvent.target as HTMLElement) || isMonacoEditor(e.browserEvent.target as HTMLElement)) {
 			return;
 		}
 
@@ -901,14 +899,14 @@ export class DefaultStyleController implements IStyleController {
 
 		if (styles.listFocusAndSelectionBackground) {
 			content.push(`
-				.monaco-drag-image,
+				.monaco-drag-image${suffix},
 				.monaco-list${suffix}:focus .monaco-list-row.selected.focused { background-color: ${styles.listFocusAndSelectionBackground}; }
 			`);
 		}
 
 		if (styles.listFocusAndSelectionForeground) {
 			content.push(`
-				.monaco-drag-image,
+				.monaco-drag-image${suffix},
 				.monaco-list${suffix}:focus .monaco-list-row.selected.focused { color: ${styles.listFocusAndSelectionForeground}; }
 			`);
 		}
@@ -954,8 +952,8 @@ export class DefaultStyleController implements IStyleController {
 
 		if (styles.listFocusOutline) { // default: set
 			content.push(`
-				.monaco-drag-image,
-				.monaco-list${suffix}:focus .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }
+				.monaco-drag-image${suffix},
+				.monaco-list${suffix}:focus .monaco-list-row.focused,
 				.monaco-workbench.context-menu-visible .monaco-list${suffix}.last-focused .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }
 			`);
 		}
@@ -1058,6 +1056,7 @@ export interface IListOptions<T> extends IListOptionsUpdate {
 	readonly setRowHeight?: boolean;
 	readonly supportDynamicHeights?: boolean;
 	readonly mouseSupport?: boolean;
+	readonly userSelection?: boolean;
 	readonly horizontalScrolling?: boolean;
 	readonly scrollByPage?: boolean;
 	readonly transformOptimization?: boolean;

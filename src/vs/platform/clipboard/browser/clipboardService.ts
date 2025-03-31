@@ -45,6 +45,29 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		}, { window: mainWindow, disposables: this._store }));
 	}
 
+	async readImage(): Promise<Uint8Array> {
+		try {
+			const clipboardItems = await navigator.clipboard.read();
+			const clipboardItem = clipboardItems[0];
+
+			const supportedImageTypes = ['image/png', 'image/jpeg', 'image/gif', 'image/tiff', 'image/bmp'];
+			const mimeType = supportedImageTypes.find(type => clipboardItem.types.includes(type));
+
+			if (mimeType) {
+				const blob = await clipboardItem.getType(mimeType);
+				const buffer = await blob.arrayBuffer();
+				return new Uint8Array(buffer);
+			} else {
+				console.error('No supported image type found in the clipboard');
+			}
+		} catch (error) {
+			console.error('Error reading image from clipboard:', error);
+		}
+
+		// Return an empty Uint8Array if no image is found or an error occurs
+		return new Uint8Array(0);
+	}
+
 	private webKitPendingClipboardWritePromise: DeferredPromise<string> | undefined;
 
 	// In Safari, it has the following note:
@@ -81,6 +104,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 				}
 			});
 		};
+
 
 		this._register(Event.runAndSubscribe(this.layoutService.onDidAddContainer, ({ container, disposables }) => {
 			disposables.add(addDisposableListener(container, 'click', handler));

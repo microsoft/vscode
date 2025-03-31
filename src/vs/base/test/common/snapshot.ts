@@ -44,7 +44,7 @@ export class SnapshotContext {
 			throw new Error('currentTest.file is not set, please open an issue with the test you\'re trying to run');
 		}
 
-		const src = FileAccess.asFileUri('');
+		const src = URI.joinPath(FileAccess.asFileUri(''), '../src');
 		const parts = test.file.split(/[/\\]/g);
 
 		this.namePrefix = sanitizeName(test.fullTitle()) + '.';

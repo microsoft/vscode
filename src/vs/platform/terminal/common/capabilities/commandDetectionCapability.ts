@@ -12,9 +12,6 @@ import { CommandInvalidationReason, ICommandDetectionCapability, ICommandInvalid
 import { ITerminalOutputMatcher } from '../terminal.js';
 import { ICurrentPartialCommand, PartialTerminalCommand, TerminalCommand } from './commandDetection/terminalCommand.js';
 import { PromptInputModel, type IPromptInputModel } from './commandDetection/promptInputModel.js';
-
-// Importing types is safe in any layer
-// eslint-disable-next-line local/code-import-patterns
 import type { IBuffer, IDisposable, IMarker, Terminal } from '@xterm/headless';
 
 interface ITerminalDimensions {
@@ -36,20 +33,27 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	private _dimensions: ITerminalDimensions;
 	private __isCommandStorageDisabled: boolean = false;
 	private _handleCommandStartOptions?: IHandleCommandOptions;
-
-	private _commitCommandFinished?: RunOnceScheduler;
+	private _hasRichCommandDetection: boolean = false;
+	get hasRichCommandDetection() { return this._hasRichCommandDetection; }
+	private _promptType: string | undefined;
+	get promptType(): string | undefined { return this._promptType; }
 
 	private _ptyHeuristicsHooks: ICommandDetectionHeuristicsHooks;
 	private readonly _ptyHeuristics: MandatoryMutableDisposable<IPtyHeuristics>;
 
 	get commands(): readonly TerminalCommand[] { return this._commands; }
 	get executingCommand(): string | undefined { return this._currentCommand.command; }
-	// TODO: as is unsafe here and it duplicates behavor of executingCommand
 	get executingCommandObject(): ITerminalCommand | undefined {
 		if (this._currentCommand.commandStartMarker) {
-			return { marker: this._currentCommand.commandStartMarker } as ITerminalCommand;
+			// HACK: This does a lot more than the consumer of the API needs. It's also a little
+			//       misleading since it's not promoting the current command yet.
+			return this._currentCommand.promoteToFullCommand(this._cwd, undefined, this._handleCommandStartOptions?.ignoreCommandLine ?? false, undefined);
 		}
 		return undefined;
+	}
+	get executingCommandConfidence(): 'low' | 'medium' | 'high' | undefined {
+		const casted = this._currentCommand as PartialTerminalCommand | ITerminalCommand;
+		return 'commandLineConfidence' in casted ? casted.commandLineConfidence : undefined;
 	}
 	get currentCommand(): ICurrentPartialCommand {
 		return this._currentCommand;
@@ -59,6 +63,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	private readonly _onCommandStarted = this._register(new Emitter<ITerminalCommand>());
 	readonly onCommandStarted = this._onCommandStarted.event;
+	private readonly _onCommandStartChanged = this._register(new Emitter<void>());
+	readonly onCommandStartChanged = this._onCommandStartChanged.event;
 	private readonly _onBeforeCommandFinished = this._register(new Emitter<ITerminalCommand>());
 	readonly onBeforeCommandFinished = this._onBeforeCommandFinished.event;
 	private readonly _onCommandFinished = this._register(new Emitter<ITerminalCommand>());
@@ -69,6 +75,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	readonly onCommandInvalidated = this._onCommandInvalidated.event;
 	private readonly _onCurrentCommandInvalidated = this._register(new Emitter<ICommandInvalidationRequest>());
 	readonly onCurrentCommandInvalidated = this._onCurrentCommandInvalidated.event;
+	private readonly _onSetRichCommandDetection = this._register(new Emitter<boolean>());
+	readonly onSetRichCommandDetection = this._onSetRichCommandDetection.event;
 
 	constructor(
 		private readonly _terminal: Terminal,
@@ -76,7 +84,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	) {
 		super();
 
-		this._promptInputModel = this._register(new PromptInputModel(this._terminal, this.onCommandStarted, this.onCommandExecuted, this._logService));
+		this._promptInputModel = this._register(new PromptInputModel(this._terminal, this.onCommandStarted, this.onCommandStartChanged, this.onCommandExecuted, this._logService));
 
 		// Pull command line from the buffer if it was not set explicitly
 		this._register(this.onCommandExecuted(command => {
@@ -126,10 +134,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			get commandMarkers() { return that._commandMarkers; }
 			set commandMarkers(value) { that._commandMarkers = value; }
 			get clearCommandsInViewport() { return that._clearCommandsInViewport.bind(that); }
-			commitCommandFinished() {
-				that._commitCommandFinished?.flush();
-				that._commitCommandFinished = undefined;
-			}
 		};
 		this._ptyHeuristics = this._register(new MandatoryMutableDisposable(new UnixPtyHeuristics(this._terminal, this, this._ptyHeuristicsHooks, this._logService)));
 
@@ -217,16 +221,21 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 					get commandMarkers() { return that._commandMarkers; }
 					set commandMarkers(value) { that._commandMarkers = value; }
 					get clearCommandsInViewport() { return that._clearCommandsInViewport.bind(that); }
-					commitCommandFinished() {
-						that._commitCommandFinished?.flush();
-						that._commitCommandFinished = undefined;
-					}
 				},
 				this._logService
 			);
 		} else if (!value && !(this._ptyHeuristics.value instanceof UnixPtyHeuristics)) {
 			this._ptyHeuristics.value = new UnixPtyHeuristics(this._terminal, this, this._ptyHeuristicsHooks, this._logService);
 		}
+	}
+
+	setHasRichCommandDetection(value: boolean): void {
+		this._hasRichCommandDetection = value;
+		this._onSetRichCommandDetection.fire(value);
+	}
+
+	setPromptType(value: string): void {
+		this._promptType = value;
 	}
 
 	setIsCommandStorageDisabled(): void {
@@ -328,20 +337,11 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._currentCommand.commandStartMarker = options?.marker || this._currentCommand.commandStartMarker;
 		if (this._currentCommand.commandStartMarker?.line === this._terminal.buffer.active.cursorY) {
 			this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
+			this._onCommandStartChanged.fire();
 			this._logService.debug('CommandDetectionCapability#handleCommandStart', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
 			return;
 		}
 		this._ptyHeuristics.value.handleCommandStart(options);
-	}
-
-	handleGenericCommand(options?: IHandleCommandOptions): void {
-		if (options?.markProperties?.disableCommandStorage) {
-			this.setIsCommandStorageDisabled();
-		}
-		this.handlePromptStart(options);
-		this.handleCommandStart(options);
-		this.handleCommandExecuted(options);
-		this.handleCommandFinished(undefined, options);
 	}
 
 	handleCommandExecuted(options?: IHandleCommandOptions): void {
@@ -350,13 +350,21 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	}
 
 	handleCommandFinished(exitCode: number | undefined, options?: IHandleCommandOptions): void {
+		// Command executed may not have happened yet, if not handle it now so the expected events
+		// properly propogate. This may cause the output to show up in the computed command line,
+		// but the command line confidence will be low in the extension host for example and
+		// therefore cannot be trusted anyway.
+		if (!this._currentCommand.commandExecutedMarker) {
+			this.handleCommandExecuted();
+		}
+
 		this._currentCommand.markFinishedTime();
 		this._ptyHeuristics.value.preHandleCommandFinished?.();
 
 		this._logService.debug('CommandDetectionCapability#handleCommandFinished', this._terminal.buffer.active.cursorX, options?.marker?.line, this._currentCommand.command, this._currentCommand);
 
 		// HACK: Handle a special case on some versions of bash where identical commands get merged
-		// in the output of `history`, this detects that case and sets the exit code to the the last
+		// in the output of `history`, this detects that case and sets the exit code to the last
 		// command's exit code. This covered the majority of cases but will fail if the same command
 		// runs with a different exit code, that will need a more robust fix where we send the
 		// command ID and exit code over to the capability to adjust there.
@@ -379,14 +387,11 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 		if (newCommand) {
 			this._commands.push(newCommand);
-			this._commitCommandFinished = new RunOnceScheduler(() => {
-				this._onBeforeCommandFinished.fire(newCommand);
-				if (!this._currentCommand.isInvalid) {
-					this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
-					this._onCommandFinished.fire(newCommand);
-				}
-			}, 50);
-			this._commitCommandFinished.schedule();
+			this._onBeforeCommandFinished.fire(newCommand);
+			if (!this._currentCommand.isInvalid) {
+				this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
+				this._onCommandFinished.fire(newCommand);
+			}
 		}
 		this._currentCommand = new PartialTerminalCommand(this._terminal);
 		this._handleCommandStartOptions = undefined;
@@ -411,6 +416,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		}
 		return {
 			isWindowsPty: this._ptyHeuristics.value instanceof WindowsPtyHeuristics,
+			hasRichCommandDetection: this._hasRichCommandDetection,
 			commands,
 			promptInputModel: this._promptInputModel.serialize(),
 		};
@@ -419,6 +425,9 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	deserialize(serialized: ISerializedCommandDetectionCapability): void {
 		if (serialized.isWindowsPty) {
 			this.setIsWindowsPty(serialized.isWindowsPty);
+		}
+		if (serialized.hasRichCommandDetection) {
+			this.setHasRichCommandDetection(serialized.hasRichCommandDetection);
 		}
 		const buffer = this._terminal.buffer.normal;
 		for (const e of serialized.commands) {
@@ -433,6 +442,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 				this._currentCommand.commandStartX = e.startX;
 				this._currentCommand.promptStartMarker = e.promptStartLine !== undefined ? this._terminal.registerMarker(e.promptStartLine - (buffer.baseY + buffer.cursorY)) : undefined;
 				this._cwd = e.cwd;
+				// eslint-disable-next-line local/code-no-dangerous-type-assertions
 				this._onCommandStarted.fire({ marker } as ITerminalCommand);
 				continue;
 			}
@@ -467,7 +477,6 @@ interface ICommandDetectionHeuristicsHooks {
 	commandMarkers: IMarker[];
 
 	clearCommandsInViewport(): void;
-	commitCommandFinished(): void;
 }
 
 type IPtyHeuristics = (
@@ -499,8 +508,6 @@ class UnixPtyHeuristics extends Disposable {
 	}
 
 	handleCommandStart(options?: IHandleCommandOptions) {
-		this._hooks.commitCommandFinished();
-
 		const currentCommand = this._capability.currentCommand;
 		currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
 		currentCommand.commandStartMarker = options?.marker || this._terminal.registerMarker(0);
@@ -514,6 +521,7 @@ class UnixPtyHeuristics extends Disposable {
 		}
 		this._hooks.commandMarkers.length = 0;
 
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		this._hooks.onCommandStartedEmitter.fire({ marker: options?.marker || currentCommand.commandStartMarker, markProperties: options?.markProperties } as ITerminalCommand);
 		this._logService.debug('CommandDetectionCapability#handleCommandStart', currentCommand.commandStartX, currentCommand.commandStartMarker?.line);
 	}
@@ -754,8 +762,6 @@ class WindowsPtyHeuristics extends Disposable {
 			this._tryAdjustCommandStartMarkerScheduler = undefined;
 		}
 
-		this._hooks.commitCommandFinished();
-
 		if (!this._capability.currentCommand.commandExecutedMarker) {
 			this._onCursorMoveListener.value = this._terminal.onCursorMove(() => {
 				if (this._hooks.commandMarkers.length === 0 || this._hooks.commandMarkers[this._hooks.commandMarkers.length - 1].line !== this._terminal.buffer.active.cursorY) {
@@ -773,6 +779,7 @@ class WindowsPtyHeuristics extends Disposable {
 				this._capability.currentCommand.commandStartLineContent = line.translateToString(true);
 			}
 		}
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		this._hooks.onCommandStartedEmitter.fire({ marker: this._capability.currentCommand.commandStartMarker } as ITerminalCommand);
 		this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows', this._capability.currentCommand.commandStartX, this._capability.currentCommand.commandStartMarker?.line);
 	}

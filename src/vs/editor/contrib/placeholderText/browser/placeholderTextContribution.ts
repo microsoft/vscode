@@ -6,9 +6,7 @@
 import { h } from '../../../../base/browser/dom.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derivedObservableWithCache, derivedOpts, IObservable, IReader } from '../../../../base/common/observable.js';
-import { DebugOwner } from '../../../../base/common/observableInternal/debugName.js';
-import { derivedWithStore } from '../../../../base/common/observableInternal/derived.js';
+import { autorun, constObservable, DebugOwner, derivedObservableWithCache, derivedOpts, derivedWithStore, IObservable, IReader } from '../../../../base/common/observable.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../browser/observableCodeEditor.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';

@@ -540,7 +540,7 @@ suite('TasksSync', () => {
 				await fileService.del(tasksResource);
 			}
 
-			const preview = (await testObject.preview(await client.getResourceManifest(), {}))!;
+			const preview = (await testObject.sync(await client.getResourceManifest(), true))!;
 
 			server.reset();
 			const content = await testObject.resolveContent(preview.resourcePreviews[0].remoteResource);

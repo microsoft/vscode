@@ -211,7 +211,11 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 				preserveFocus: options.preserveFocus,
 				selections: options.selections && options.selections.map(typeConverters.NotebookRange.from),
 				pinned: typeof options.preview === 'boolean' ? !options.preview : undefined,
-				label: options?.label
+				label: typeof options.asRepl === 'string' ?
+					options.asRepl :
+					typeof options.asRepl === 'object' ?
+						options.asRepl.label :
+						undefined,
 			};
 		} else {
 			resolvedOptions = {
@@ -220,7 +224,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			};
 		}
 
-		const viewType = options?.asRepl ? 'repl' : notebook.notebookType;
+		const viewType = !!options?.asRepl ? 'repl' : notebook.notebookType;
 		const editorId = await this._notebookEditorsProxy.$tryShowNotebookDocument(notebook.uri, viewType, resolvedOptions);
 		const editor = editorId && this._editors.get(editorId)?.apiEditor;
 
@@ -588,7 +592,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			document,
 			data.visibleRanges.map(typeConverters.NotebookRange.to),
 			data.selections.map(typeConverters.NotebookRange.to),
-			typeof data.viewColumn === 'number' ? typeConverters.ViewColumn.to(data.viewColumn) : undefined
+			typeof data.viewColumn === 'number' ? typeConverters.ViewColumn.to(data.viewColumn) : undefined,
+			data.viewType
 		);
 
 		this._editors.set(editorId, editor);

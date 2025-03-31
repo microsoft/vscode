@@ -473,6 +473,7 @@ class Uri extends URI {
 	}
 
 	override toJSON(): UriComponents {
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		const res = <UriState>{
 			$mid: MarshalledId.Uri
 		};

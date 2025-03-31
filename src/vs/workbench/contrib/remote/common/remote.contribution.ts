@@ -26,6 +26,11 @@ import { PersistentConnection } from '../../../../platform/remote/common/remoteA
 import { IDownloadService } from '../../../../platform/download/common/download.js';
 import { DownloadServiceChannel } from '../../../../platform/download/common/downloadIpc.js';
 import { RemoteLoggerChannelClient } from '../../../../platform/log/common/logIpc.js';
+import { REMOTE_DEFAULT_IF_LOCAL_EXTENSIONS } from '../../../../platform/remote/common/remote.js';
+import product from '../../../../platform/product/common/product.js';
+
+
+const EXTENSION_IDENTIFIER_PATTERN = '([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$';
 
 export class LabelContribution implements IWorkbenchContribution {
 
@@ -205,7 +210,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				type: 'object',
 				markdownDescription: localize('remote.extensionKind', "Override the kind of an extension. `ui` extensions are installed and run on the local machine while `workspace` extensions are run on the remote. By overriding an extension's default kind using this setting, you specify if that extension should be installed and enabled locally or remotely."),
 				patternProperties: {
-					'([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
+					[EXTENSION_IDENTIFIER_PATTERN]: {
 						oneOf: [{ type: 'array', items: extensionKindSchema }, extensionKindSchema],
 						default: ['ui'],
 					},
@@ -221,12 +226,12 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			},
 			'remote.autoForwardPorts': {
 				type: 'boolean',
-				markdownDescription: localize('remote.autoForwardPorts', "When enabled, new running processes are detected and ports that they listen on are automatically forwarded. Disabling this setting will not prevent all ports from being forwarded. Even when disabled, extensions will still be able to cause ports to be forwarded, and opening some URLs will still cause ports to forwarded."),
+				markdownDescription: localize('remote.autoForwardPorts', "When enabled, new running processes are detected and ports that they listen on are automatically forwarded. Disabling this setting will not prevent all ports from being forwarded. Even when disabled, extensions will still be able to cause ports to be forwarded, and opening some URLs will still cause ports to forwarded. Also see {0}.", '`#remote.autoForwardPortsSource#`'),
 				default: true
 			},
 			'remote.autoForwardPortsSource': {
 				type: 'string',
-				markdownDescription: localize('remote.autoForwardPortsSource', "Sets the source from which ports are automatically forwarded when {0} is true. On Windows and macOS remotes, the `process` and `hybrid` options have no effect and `output` will be used.", '`#remote.autoForwardPorts#`'),
+				markdownDescription: localize('remote.autoForwardPortsSource', "Sets the source from which ports are automatically forwarded when {0} is true. When {0} is false, {1} will be used to find information about ports that have already been forwarded. On Windows and macOS remotes, the `process` and `hybrid` options have no effect and `output` will be used.", '`#remote.autoForwardPorts#`', '`#remote.autoForwardPortsSource#`'),
 				enum: ['process', 'output', 'hybrid'],
 				enumDescriptions: [
 					localize('remote.autoForwardPortsSource.process', "Ports will be automatically forwarded when discovered by watching for processes that are started and include a port."),
@@ -355,6 +360,16 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				enum: ['localhost', 'allInterfaces'],
 				default: 'localhost',
 				description: localize('remote.localPortHost', "Specifies the local host name that will be used for port forwarding.")
+			},
+			[REMOTE_DEFAULT_IF_LOCAL_EXTENSIONS]: {
+				type: 'array',
+				markdownDescription: localize('remote.defaultExtensionsIfInstalledLocally.markdownDescription', 'List of extensions to install upon connection to a remote when already installed locally.'),
+				default: product?.remoteDefaultExtensionsIfInstalledLocally || [],
+				items: {
+					type: 'string',
+					pattern: EXTENSION_IDENTIFIER_PATTERN,
+					patternErrorMessage: localize('remote.defaultExtensionsIfInstalledLocally.invalidFormat', 'Extension identifier must be in format "publisher.name".')
+				},
 			}
 		}
 	});

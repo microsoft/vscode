@@ -6,7 +6,7 @@
 import { localize } from '../../../nls.js';
 import { ActionBar, ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from '../../common/activity.js';
-import { IActivity, IActivityService, NumberBadge } from '../../services/activity/common/activity.js';
+import { IActivityService } from '../../services/activity/common/activity.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore, Disposable } from '../../../base/common/lifecycle.js';
 import { IColorTheme, IThemeService } from '../../../platform/theme/common/themeService.js';
@@ -24,7 +24,7 @@ import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { EventType as TouchEventType, GestureEvent } from '../../../base/browser/touch.js';
 import { AnchorAlignment, AnchorAxisAlignment } from '../../../base/browser/ui/contextview/contextview.js';
 import { Lazy } from '../../../base/common/lazy.js';
-import { createAndFillInActionBarActions } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getActionBarActions } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
@@ -67,7 +67,7 @@ export class GlobalCompositeBar extends Disposable {
 	) {
 		super();
 
-		this.element = document.createElement('div');
+		this.element = $('div');
 		const contextMenuAlignmentOptions = () => ({
 			anchorAlignment: configurationService.getValue('workbench.sideBar.location') === 'left' ? AnchorAlignment.RIGHT : AnchorAlignment.LEFT,
 			anchorAxisAlignment: AnchorAxisAlignment.HORIZONTAL
@@ -183,33 +183,7 @@ abstract class AbstractGlobalActivityActionViewItem extends CompositeBarActionVi
 	}
 
 	private updateItemActivity(): void {
-		const activities = this.activityService.getActivity(this.compositeBarActionItem.id);
-		let activity = activities[0];
-		if (activity) {
-			const { badge, priority } = activity;
-			if (badge instanceof NumberBadge && activities.length > 1) {
-				const cumulativeNumberBadge = this.getCumulativeNumberBadge(activities, priority ?? 0);
-				activity = { badge: cumulativeNumberBadge };
-			}
-		}
-		(this.action as CompositeBarAction).activity = activity;
-	}
-
-	private getCumulativeNumberBadge(activityCache: IActivity[], priority: number): NumberBadge {
-		const numberActivities = activityCache.filter(activity => activity.badge instanceof NumberBadge && (activity.priority ?? 0) === priority);
-		const number = numberActivities.reduce((result, activity) => { return result + (<NumberBadge>activity.badge).number; }, 0);
-		const descriptorFn = (): string => {
-			return numberActivities.reduce((result, activity, index) => {
-				result = result + (<NumberBadge>activity.badge).getDescription();
-				if (index < numberActivities.length - 1) {
-					result = `${result}\n`;
-				}
-
-				return result;
-			}, '');
-		};
-
-		return new NumberBadge(number, descriptorFn);
+		(this.action as CompositeBarAction).activities = this.activityService.getActivity(this.compositeBarActionItem.id);
 	}
 
 	override render(container: HTMLElement): void {
@@ -277,9 +251,7 @@ abstract class AbstractGlobalActivityActionViewItem extends CompositeBarActionVi
 	}
 
 	protected async resolveMainMenuActions(menu: IMenu, _disposable: DisposableStore): Promise<IAction[]> {
-		const actions: IAction[] = [];
-		createAndFillInActionBarActions(menu, { renderShortTitle: true }, { primary: [], secondary: actions });
-		return actions;
+		return getActionBarActions(menu.getActions({ renderShortTitle: true })).secondary;
 	}
 }
 
@@ -434,11 +406,6 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 				const providerSubMenu = new SubmenuAction('activitybar.submenu', `${account.label} (${providerLabel})`, providerSubMenuActions);
 				menus.push(providerSubMenu);
 			}
-		}
-
-		if (providers.length && !menus.length) {
-			const noAccountsAvailableAction = disposables.add(new Action('noAccountsAvailable', localize('noAccounts', "You are not signed in to any accounts"), undefined, false));
-			menus.push(noAccountsAvailableAction);
 		}
 
 		if (menus.length && otherCommands.length) {
@@ -597,13 +564,12 @@ export class GlobalActivityActionViewItem extends AbstractGlobalActivityActionVi
 			return;
 		}
 
-		if ((this.action as CompositeBarAction).activity) {
+		if ((this.action as CompositeBarAction).activities.length > 0) {
 			return;
 		}
 
 		show(this.profileBadge);
-		this.profileBadgeContent.classList.toggle('profile-text-overlay', true);
-		this.profileBadgeContent.classList.toggle('profile-icon-overlay', false);
+		this.profileBadgeContent.classList.add('profile-text-overlay');
 		this.profileBadgeContent.textContent = this.userDataProfileService.currentProfile.name.substring(0, 2).toUpperCase();
 	}
 

@@ -6,16 +6,16 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { IAction } from '../../../../base/common/actions.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Color } from '../../../../base/common/color.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Event } from '../../../../base/common/event.js';
 import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Lazy } from '../../../../base/common/lazy.js';
-import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../base/common/observable.js';
-import { count } from '../../../../base/common/strings.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { derived, disposableObservableValue, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor, isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { EditorAction2 } from '../../../../editor/browser/editorExtensions.js';
@@ -31,7 +31,7 @@ import { ITextModelService } from '../../../../editor/common/services/resolverSe
 import { IPeekViewService, PeekViewWidget, peekViewTitleForeground, peekViewTitleInfoForeground } from '../../../../editor/contrib/peekView/browser/peekView.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { createAndFillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { fillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Action2, IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -47,16 +47,13 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IViewPaneOptions, ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { IViewDescriptorService } from '../../../common/views.js';
-import { renderTestMessageAsText } from './testMessageColorizer.js';
-import { InspectSubject, MessageSubject, TaskSubject, TestOutputSubject, inspectSubjectHasStack, mapFindTestMessage } from './testResultsView/testResultsSubject.js';
-import { TestResultsViewContent } from './testResultsView/testResultsViewContent.js';
-import { testingMessagePeekBorder, testingPeekBorder, testingPeekHeaderBackground, testingPeekMessageHeaderBackground } from './theme.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { AutoOpenPeekViewWhen, TestingConfigKeys, getTestingConfiguration } from '../common/configuration.js';
 import { Testing } from '../common/constants.js';
 import { MutableObservableValue, staticObservableValue } from '../common/observableValue.js';
@@ -69,21 +66,46 @@ import { TestingContextKeys } from '../common/testingContextKeys.js';
 import { IShowResultOptions, ITestingPeekOpener } from '../common/testingPeekOpener.js';
 import { isFailedState } from '../common/testingStates.js';
 import { ParsedTestUri, TestUriType, buildTestUri, parseTestUri } from '../common/testingUri.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { renderTestMessageAsText } from './testMessageColorizer.js';
+import { InspectSubject, MessageSubject, TaskSubject, TestOutputSubject, inspectSubjectHasStack, mapFindTestMessage } from './testResultsView/testResultsSubject.js';
+import { TestResultsViewContent } from './testResultsView/testResultsViewContent.js';
+import { testingMessagePeekBorder, testingPeekBorder, testingPeekHeaderBackground, testingPeekMessageHeaderBackground } from './theme.js';
 
 
 /** Iterates through every message in every result */
-function* allMessages(results: readonly ITestResult[]) {
-	for (const result of results) {
-		for (const test of result.tests) {
-			for (let taskIndex = 0; taskIndex < test.tasks.length; taskIndex++) {
-				for (let messageIndex = 0; messageIndex < test.tasks[taskIndex].messages.length; messageIndex++) {
+function* allMessages([result]: readonly ITestResult[]) {
+	if (!result) {
+		return;
+	}
+
+	for (const test of result.tests) {
+		for (let taskIndex = 0; taskIndex < test.tasks.length; taskIndex++) {
+			const messages = test.tasks[taskIndex].messages;
+			for (let messageIndex = 0; messageIndex < messages.length; messageIndex++) {
+
+				if (messages[messageIndex].type === TestMessageType.Error) {
 					yield { result, test, taskIndex, messageIndex };
 				}
 			}
 		}
 	}
+}
+
+interface IMessageIteratedReference {
+	messageIndex: number;
+	taskIndex: number;
+	result: ITestResult;
+	test: TestResultItem;
+}
+
+function messageItReferenceToUri({ result, test, taskIndex, messageIndex }: IMessageIteratedReference) {
+	return buildTestUri({
+		type: TestUriType.ResultMessage,
+		resultId: result.id,
+		testExtId: test.item.extId,
+		taskIndex,
+		messageIndex,
+	});
 }
 
 type TestUriWithDocument = ParsedTestUri & { documentUri: URI };
@@ -230,7 +252,7 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 	private getActiveControl(): InspectSubject | undefined {
 		const editor = getPeekedEditorFromFocus(this.codeEditorService);
 		const controller = editor && TestingOutputPeekController.get(editor);
-		return controller?.subject ?? this.viewsService.getActiveViewWithId<TestResultsView>(Testing.ResultsViewId)?.subject;
+		return controller?.subject.get() ?? this.viewsService.getActiveViewWithId<TestResultsView>(Testing.ResultsViewId)?.subject;
 	}
 
 	/** @inheritdoc */
@@ -280,7 +302,8 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 		// and this test is not in any of the editors' models.
 		switch (cfg) {
 			case AutoOpenPeekViewWhen.FailureVisible: {
-				const editorUris = new Set(editors.map(e => e.getModel()?.uri.toString()));
+				const visibleEditors = this.editorService.visibleTextEditorControls;
+				const editorUris = new Set(visibleEditors.filter(isCodeEditor).map(e => e.getModel()?.uri.toString()));
 				if (!Iterable.some(resultItemParents(evt.result, evt.item), i => i.item.uri && editorUris.has(i.item.uri.toString()))) {
 					return;
 				}
@@ -294,7 +317,7 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 		}
 
 		const controllers = editors.map(TestingOutputPeekController.get);
-		if (controllers.some(c => c?.subject)) {
+		if (controllers.some(c => c?.subject.get())) {
 			return;
 		}
 
@@ -412,7 +435,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 	/**
 	 * Currently-shown peek view.
 	 */
-	private readonly peek = this._register(new MutableDisposable<TestResultsPeek>());
+	private readonly peek = this._register(disposableObservableValue<TestResultsPeek | undefined>('TestingOutputPeek', undefined));
 
 	/**
 	 * Context key updated when the peek is visible/hidden.
@@ -422,9 +445,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 	/**
 	 * Gets the currently display subject. Undefined if the peek is not open.
 	 */
-	public get subject() {
-		return this.peek.value?.current;
-	}
+	public readonly subject = derived(reader => this.peek.read(reader)?.current.read(reader));
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -433,9 +454,10 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 		@ITestResultService private readonly testResults: ITestResultService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
+
 		super();
 		this.visible = TestingContextKeys.isPeekVisible.bindTo(contextKeyService);
-		this._register(editor.onDidChangeModel(() => this.peek.clear()));
+		this._register(editor.onDidChangeModel(() => this.peek.set(undefined, undefined)));
 		this._register(testResults.onResultsChanged(this.closePeekOnCertainResultEvents, this));
 		this._register(testResults.onTestChanged(this.closePeekOnTestChange, this));
 	}
@@ -454,22 +476,23 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 	 * Shows a peek for the existing inspect subject.
 	 */
 	public async showSubject(subject: InspectSubject) {
-		if (!this.peek.value) {
-			this.peek.value = this.instantiationService.createInstance(TestResultsPeek, this.editor);
-			this.peek.value.onDidClose(() => {
+		if (!this.peek.get()) {
+			const peek = this.instantiationService.createInstance(TestResultsPeek, this.editor);
+			this.peek.set(peek, undefined);
+			peek.onDidClose(() => {
 				this.visible.set(false);
-				this.peek.value = undefined;
+				this.peek.set(undefined, undefined);
 			});
 
 			this.visible.set(true);
-			this.peek.value.create();
+			peek.create();
 		}
 
 		if (subject instanceof MessageSubject) {
 			alert(renderTestMessageAsText(subject.message.message));
 		}
 
-		this.peek.value.setModel(subject);
+		this.peek.get()!.setModel(subject);
 	}
 
 	public async openAndShow(uri: URI) {
@@ -497,49 +520,50 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 	 * Disposes the peek view, if any.
 	 */
 	public removePeek() {
-		this.peek.clear();
+		this.peek.set(undefined, undefined);
 	}
 
 	/**
 	 * Collapses all displayed stack frames.
 	 */
 	public collapseStack() {
-		this.peek.value?.collapseStack();
+		this.peek.get()?.collapseStack();
 	}
 
 	/**
 	 * Shows the next message in the peek, if possible.
 	 */
 	public next() {
-		const subject = this.peek.value?.current;
+		const subject = this.peek.get()?.current.get();
 		if (!subject) {
 			return;
 		}
 
+		let first: IMessageIteratedReference | undefined;
+
 		let found = false;
-		for (const { messageIndex, taskIndex, result, test } of allMessages(this.testResults.results)) {
-			if (subject instanceof TaskSubject && result.id === subject.result.id) {
+		for (const m of allMessages(this.testResults.results)) {
+			first ??= m;
+			if (subject instanceof TaskSubject && m.result.id === subject.result.id) {
 				found = true; // open the first message found in the current result
 			}
 
 			if (found) {
-				this.openAndShow(buildTestUri({
-					type: TestUriType.ResultMessage,
-					messageIndex,
-					taskIndex,
-					resultId: result.id,
-					testExtId: test.item.extId
-				}));
+				this.openAndShow(messageItReferenceToUri(m));
 				return;
 			}
 
-			if (subject instanceof TestOutputSubject && subject.test.item.extId === test.item.extId && subject.taskIndex === taskIndex && subject.result.id === result.id) {
+			if (subject instanceof TestOutputSubject && subject.test.item.extId === m.test.item.extId && subject.taskIndex === m.taskIndex && subject.result.id === m.result.id) {
 				found = true;
 			}
 
-			if (subject instanceof MessageSubject && subject.test.extId === test.item.extId && subject.messageIndex === messageIndex && subject.taskIndex === taskIndex && subject.result.id === result.id) {
+			if (subject instanceof MessageSubject && subject.test.extId === m.test.item.extId && subject.messageIndex === m.messageIndex && subject.taskIndex === m.taskIndex && subject.result.id === m.result.id) {
 				found = true;
 			}
+		}
+
+		if (first) {
+			this.openAndShow(messageItReferenceToUri(first));
 		}
 	}
 
@@ -547,42 +571,44 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 	 * Shows the previous message in the peek, if possible.
 	 */
 	public previous() {
-		const subject = this.peek.value?.current;
+		const subject = this.subject.get();
 		if (!subject) {
 			return;
 		}
 
-		let previous: { messageIndex: number; taskIndex: number; result: ITestResult; test: TestResultItem } | undefined;
+		let previous: IMessageIteratedReference | undefined; // pointer to the last message
+		let previousLockedIn = false; // whether the last message was verified as previous to the current subject
+		let last: IMessageIteratedReference | undefined; // overall last message
 		for (const m of allMessages(this.testResults.results)) {
-			if (subject instanceof TaskSubject) {
-				if (m.result.id === subject.result.id) {
-					break;
+			last = m;
+
+			if (!previousLockedIn) {
+				if (subject instanceof TaskSubject) {
+					if (m.result.id === subject.result.id) {
+						previousLockedIn = true;
+					}
+					continue;
 				}
-				continue;
-			}
 
-			if (subject instanceof TestOutputSubject) {
-				if (m.test.item.extId === subject.test.item.extId && m.result.id === subject.result.id && m.taskIndex === subject.taskIndex) {
-					break;
+				if (subject instanceof TestOutputSubject) {
+					if (m.test.item.extId === subject.test.item.extId && m.result.id === subject.result.id && m.taskIndex === subject.taskIndex) {
+						previousLockedIn = true;
+					}
+					continue;
 				}
-				continue;
-			}
 
-			if (subject.test.extId === m.test.item.extId && subject.messageIndex === m.messageIndex && subject.taskIndex === m.taskIndex && subject.result.id === m.result.id) {
-				break;
-			}
+				if (subject.test.extId === m.test.item.extId && subject.messageIndex === m.messageIndex && subject.taskIndex === m.taskIndex && subject.result.id === m.result.id) {
+					previousLockedIn = true;
+					continue;
+				}
 
-			previous = m;
+				previous = m;
+			}
 		}
 
-		if (previous) {
-			this.openAndShow(buildTestUri({
-				type: TestUriType.ResultMessage,
-				messageIndex: previous.messageIndex,
-				taskIndex: previous.taskIndex,
-				resultId: previous.result.id,
-				testExtId: previous.test.item.extId
-			}));
+		const target = previous || last;
+		if (target) {
+			this.openAndShow(messageItReferenceToUri(target));
 		}
 	}
 
@@ -590,9 +616,9 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 	 * Removes the peek view if it's being displayed on the given test ID.
 	 */
 	public removeIfPeekingForTest(testId: string) {
-		const c = this.peek.value?.current;
+		const c = this.subject.get();
 		if (c && c instanceof MessageSubject && c.test.extId === testId) {
-			this.peek.clear();
+			this.peek.set(undefined, undefined);
 		}
 	}
 
@@ -610,11 +636,11 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 
 	private closePeekOnCertainResultEvents(evt: ResultChangeEvent) {
 		if ('started' in evt) {
-			this.peek.clear(); // close peek when runs start
+			this.peek.set(undefined, undefined); // close peek when runs start
 		}
 
 		if ('removed' in evt && this.testResults.results.length === 0) {
-			this.peek.clear(); // close the peek if results are cleared
+			this.peek.set(undefined, undefined); // close the peek if results are cleared
 		}
 	}
 
@@ -651,17 +677,11 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 
 
 class TestResultsPeek extends PeekViewWidget {
-	private static lastHeightInLines?: number;
-
-	private readonly visibilityChange = this._disposables.add(new Emitter<boolean>());
-	private readonly _current = observableValue<InspectSubject | undefined>('testPeekCurrent', undefined);
+	public readonly current = observableValue<InspectSubject | undefined>('testPeekCurrent', undefined);
+	private resizeOnNextContentHeightUpdate = false;
 	private content!: TestResultsViewContent;
 	private scopedContextKeyService!: IContextKeyService;
 	private dimension?: dom.Dimension;
-
-	public get current() {
-		return this._current.get();
-	}
 
 	constructor(
 		editor: ICodeEditor,
@@ -678,13 +698,32 @@ class TestResultsPeek extends PeekViewWidget {
 		super(editor, { showFrame: true, frameWidth: 1, showArrow: true, isResizeable: true, isAccessible: true, className: 'test-output-peek' }, instantiationService);
 
 		this._disposables.add(themeService.onDidColorThemeChange(this.applyTheme, this));
-		this._disposables.add(this.onDidClose(() => this.visibilityChange.fire(false)));
 		peekViewService.addExclusiveWidget(editor, this);
+	}
+
+	protected override _getMaximumHeightInLines(): number | undefined {
+		const defaultMaxHeight = super._getMaximumHeightInLines();
+		const contentHeight = this.content?.contentHeight;
+		if (!contentHeight) { // undefined or 0
+			return defaultMaxHeight;
+		}
+
+		if (this.testingPeek.historyVisible.value) { // don't cap height with the history split
+			return defaultMaxHeight;
+		}
+
+		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
+		// 41 is experimentally determined to be the overhead of the peek view itself
+		// to avoid showing scrollbars by default in its content.
+		const basePeekOverhead = 41;
+
+		return Math.min(defaultMaxHeight || Infinity, (contentHeight + basePeekOverhead) / lineHeight + 1);
 	}
 
 	private applyTheme() {
 		const theme = this.themeService.getColorTheme();
-		const isError = this.current instanceof MessageSubject && this.current.message.type === TestMessageType.Error;
+		const current = this.current.get();
+		const isError = current instanceof MessageSubject && current.message.type === TestMessageType.Error;
 		const borderColor = (isError ? theme.getColor(testingPeekBorder) : theme.getColor(testingMessagePeekBorder)) || Color.transparent;
 		const headerBg = (isError ? theme.getColor(testingPeekHeaderBackground) : theme.getColor(testingPeekMessageHeaderBackground)) || Color.transparent;
 		const editorBg = theme.getColor(editorBackground);
@@ -719,14 +758,14 @@ class TestResultsPeek extends PeekViewWidget {
 		this._disposables.add(bindContextKey(
 			TestingContextKeys.peekHasStack,
 			menuContextKeyService,
-			reader => inspectSubjectHasStack(this._current.read(reader)),
+			reader => inspectSubjectHasStack(this.current.read(reader)),
 		));
 
 		const menu = this.menuService.createMenu(MenuId.TestPeekTitle, menuContextKeyService);
 		const actionBar = this._actionbarWidget!;
 		this._disposables.add(menu.onDidChange(() => {
 			actions.length = 0;
-			createAndFillInActionBarActions(menu, undefined, actions);
+			fillInActionBarActions(menu.getActions(), actions);
 			while (actionBar.getAction(1)) {
 				actionBar.pull(0); // remove all but the view's default "close" button
 			}
@@ -734,12 +773,33 @@ class TestResultsPeek extends PeekViewWidget {
 		}));
 
 		const actions: IAction[] = [];
-		createAndFillInActionBarActions(menu, undefined, actions);
+		fillInActionBarActions(menu.getActions(), actions);
 		actionBar.push(actions, { label: false, icon: true, index: 0 });
 	}
 
 	protected override _fillBody(containerElement: HTMLElement): void {
 		this.content.fillBody(containerElement);
+
+		// Resize on height updates for a short time to allow any heights made
+		// by editor contributions to come into effect before.
+		const contentHeightSettleTimer = this._disposables.add(new RunOnceScheduler(() => {
+			this.resizeOnNextContentHeightUpdate = false;
+		}, 500));
+
+		this._disposables.add(this.content.onDidChangeContentHeight(height => {
+			if (!this.resizeOnNextContentHeightUpdate || !height) {
+				return;
+			}
+
+			const displayed = this._getMaximumHeightInLines();
+			if (displayed) {
+				this._relayout(Math.min(displayed, this.getVisibleEditorLines() / 2), true);
+				if (!contentHeightSettleTimer.isScheduled()) {
+					contentHeightSettleTimer.schedule();
+				}
+			}
+		}));
+
 		this._disposables.add(this.content.onDidRequestReveal(sub => {
 			TestingOutputPeekController.get(this.editor)?.show(sub instanceof MessageSubject
 				? sub.messageUri
@@ -752,29 +812,23 @@ class TestResultsPeek extends PeekViewWidget {
 	 */
 	public setModel(subject: InspectSubject): Promise<void> {
 		if (subject instanceof TaskSubject || subject instanceof TestOutputSubject) {
-			this._current.set(subject, undefined);
+			this.current.set(subject, undefined);
 			return this.showInPlace(subject);
 		}
 
-		const message = subject.message;
 		const previous = this.current;
 		const revealLocation = subject.revealLocation?.range.getStartPosition();
 		if (!revealLocation && !previous) {
 			return Promise.resolve();
 		}
 
-		this._current.set(subject, undefined);
+		this.current.set(subject, undefined);
 		if (!revealLocation) {
 			return this.showInPlace(subject);
 		}
 
-		// If there is a stack we want to display, ensure the default size is large-ish
-		const peekLines = TestResultsPeek.lastHeightInLines || Math.max(
-			inspectSubjectHasStack(subject) ? Math.ceil(this.getVisibleEditorLines() / 2) : 0,
-			hintMessagePeekHeight(message)
-		);
-
-		this.show(revealLocation, peekLines);
+		this.resizeOnNextContentHeightUpdate = true;
+		this.show(revealLocation, 10); // 10 is just a random number, we resize once content is available
 		this.editor.revealRangeNearTopIfOutsideViewport(Range.fromPositions(revealLocation), ScrollType.Smooth);
 
 		return this.showInPlace(subject);
@@ -806,11 +860,6 @@ class TestResultsPeek extends PeekViewWidget {
 		}
 		this.applyTheme();
 		await this.content.reveal({ subject, preserveFocus: false });
-	}
-
-	protected override _relayout(newHeightInLines: number): void {
-		super._relayout(newHeightInLines);
-		TestResultsPeek.lastHeightInLines = newHeightInLines;
 	}
 
 	/** @override */
@@ -847,11 +896,10 @@ export class TestResultsView extends ViewPane {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@ITestResultService private readonly resultService: ITestResultService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 	}
 
 	public get subject() {
@@ -895,22 +943,10 @@ export class TestResultsView extends ViewPane {
 	}
 }
 
-const hintMessagePeekHeight = (msg: ITestMessage) => {
-	const msgHeight = ITestMessage.isDiffable(msg)
-		? Math.max(hintPeekStrHeight(msg.actual), hintPeekStrHeight(msg.expected))
-		: hintPeekStrHeight(typeof msg.message === 'string' ? msg.message : msg.message.value);
-
-	// add 8ish lines for the size of the title and decorations in the peek.
-	return msgHeight + 8;
-};
-
 const firstLine = (str: string) => {
 	const index = str.indexOf('\n');
 	return index === -1 ? str : str.slice(0, index);
 };
-
-
-const hintPeekStrHeight = (str: string) => Math.min(count(str, '\n'), 24);
 
 function getOuterEditorFromDiffEditor(codeEditorService: ICodeEditorService): ICodeEditor | null {
 	const diffEditors = codeEditorService.listDiffEditors();
@@ -964,7 +1000,7 @@ const getPeekedEditorFromFocus = (codeEditorService: ICodeEditorService) => {
  * editor is embedded (i.e. inside a peek already).
  */
 const getPeekedEditor = (codeEditorService: ICodeEditorService, editor: ICodeEditor) => {
-	if (TestingOutputPeekController.get(editor)?.subject) {
+	if (TestingOutputPeekController.get(editor)?.subject.get()) {
 		return editor;
 	}
 

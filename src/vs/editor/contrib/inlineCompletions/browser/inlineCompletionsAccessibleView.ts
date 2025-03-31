@@ -9,17 +9,21 @@ import { ICodeEditorService } from '../../../browser/services/codeEditorService.
 import { InlineCompletionContextKeys } from './controller/inlineCompletionContextKeys.js';
 import { InlineCompletionsController } from './controller/inlineCompletionsController.js';
 import { AccessibleViewType, AccessibleViewProviderId, IAccessibleViewContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
-import { IAccessibleViewImplentation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { InlineCompletionsModel } from './model/inlineCompletionsModel.js';
+import { TextEdit } from '../../../common/core/textEdit.js';
+import { LineEdit } from '../../../common/core/lineEdit.js';
+import { TextModelText } from '../../../common/model/textModelText.js';
+import { localize } from '../../../../nls.js';
 
-export class InlineCompletionsAccessibleView implements IAccessibleViewImplentation {
+export class InlineCompletionsAccessibleView implements IAccessibleViewImplementation {
 	readonly type = AccessibleViewType.View;
 	readonly priority = 95;
 	readonly name = 'inline-completions';
-	readonly when = ContextKeyExpr.and(InlineCompletionContextKeys.inlineSuggestionVisible);
+	readonly when = ContextKeyExpr.or(InlineCompletionContextKeys.inlineSuggestionVisible, InlineCompletionContextKeys.inlineEditVisible);
 	getProvider(accessor: ServicesAccessor) {
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const editor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
@@ -55,12 +59,19 @@ class InlineCompletionsAccessibleViewContentProvider extends Disposable implemen
 		if (!state) {
 			throw new Error('Inline completion is visible but state is not available');
 		}
-		const lineText = this._model.textModel.getLineContent(state.primaryGhostText.lineNumber);
-		const ghostText = state.primaryGhostText.renderForScreenReader(lineText);
-		if (!ghostText) {
-			throw new Error('Inline completion is visible but ghost text is not available');
+		if (state.kind === 'ghostText') {
+
+			const lineText = this._model.textModel.getLineContent(state.primaryGhostText.lineNumber);
+			const ghostText = state.primaryGhostText.renderForScreenReader(lineText);
+			if (!ghostText) {
+				throw new Error('Inline completion is visible but ghost text is not available');
+			}
+			return lineText + ghostText;
+		} else {
+			const text = new TextModelText(this._model.textModel);
+			const lineEdit = LineEdit.fromTextEdit(new TextEdit(state.edits), text);
+			return localize('inlineEditAvailable', 'There is an inline edit available:') + '\n' + lineEdit.humanReadablePatch(text.getLines());
 		}
-		return lineText + ghostText;
 	}
 	public provideNextContent(): string | undefined {
 		// asynchronously update the model and fire the event

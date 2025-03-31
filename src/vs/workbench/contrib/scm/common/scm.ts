@@ -13,7 +13,7 @@ import { IMenu } from '../../../../platform/actions/common/actions.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { ResourceTree } from '../../../../base/common/resourceTree.js';
-import { ISCMHistoryProvider, ISCMHistoryProviderMenus } from './history.js';
+import { ISCMHistoryProvider } from './history.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IObservable } from '../../../../base/common/observable.js';
 
@@ -56,6 +56,7 @@ export interface ISCMResourceGroup {
 	readonly onDidChangeResources: Event<void>;
 
 	readonly label: string;
+	contextValue: string | undefined;
 	readonly hideWhenEmpty: boolean;
 	readonly onDidChange: Event<void>;
 
@@ -78,9 +79,8 @@ export interface ISCMProvider extends IDisposable {
 	readonly commitTemplate: IObservable<string>;
 	readonly historyProvider: IObservable<ISCMHistoryProvider | undefined>;
 	readonly acceptInputCommand?: Command;
-	readonly actionButton?: ISCMActionButtonDescriptor;
+	readonly actionButton: IObservable<ISCMActionButtonDescriptor | undefined>;
 	readonly statusBarCommands: IObservable<readonly Command[] | undefined>;
-	readonly onDidChange: Event<void>;
 
 	getOriginalResource(uri: URI): Promise<URI | null>;
 }
@@ -116,16 +116,15 @@ export interface ISCMInputChangeEvent {
 }
 
 export interface ISCMActionButtonDescriptor {
-	command: Command;
+	command: Command & { shortTitle?: string };
 	secondaryCommands?: Command[][];
-	description?: string;
 	enabled: boolean;
 }
 
 export interface ISCMActionButton {
 	readonly type: 'actionButton';
 	readonly repository: ISCMRepository;
-	readonly button?: ISCMActionButtonDescriptor;
+	readonly button: ISCMActionButtonDescriptor;
 }
 
 export interface ISCMInput {
@@ -186,7 +185,6 @@ export interface ISCMTitleMenu {
 
 export interface ISCMRepositoryMenus {
 	readonly titleMenu: ISCMTitleMenu;
-	readonly historyProviderMenu: ISCMHistoryProviderMenus | undefined;
 	readonly repositoryMenu: IMenu;
 	readonly repositoryContextMenu: IMenu;
 	getResourceGroupMenu(group: ISCMResourceGroup): IMenu;
@@ -230,6 +228,12 @@ export interface ISCMViewService {
 	readonly focusedRepository: ISCMRepository | undefined;
 	readonly onDidFocusRepository: Event<ISCMRepository | undefined>;
 	focus(repository: ISCMRepository): void;
+
+	/**
+	 * Focused repository or the repository for the active editor
+	 */
+	readonly activeRepository: IObservable<ISCMRepository | undefined>;
+	pinActiveRepository(repository: ISCMRepository | undefined): void;
 }
 
 export const SCM_CHANGES_EDITOR_ID = 'workbench.editor.scmChangesEditor';

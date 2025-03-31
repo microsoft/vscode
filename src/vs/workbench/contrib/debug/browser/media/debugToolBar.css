@@ -10,6 +10,8 @@
 	display: flex;
 	padding-left: 7px;
 	border-radius: 4px;
+	left: 0;
+	top: 0;
 	-webkit-app-region: no-drag;
 }
 

@@ -76,6 +76,11 @@ export interface ITestProfileService {
 	 * Gets the profiles for a controller, in priority order.
 	 */
 	getControllerProfiles(controllerId: string): ITestRunProfile[];
+
+	/**
+	 * Gets the preferred profile, if any, to run the test.
+	 */
+	getDefaultProfileForTest(group: TestRunProfileBitset, test: InternalTestItem): ITestRunProfile | undefined;
 }
 
 /**
@@ -300,6 +305,10 @@ export class TestProfileService extends Disposable implements ITestProfileServic
 
 		this.userDefaults.store(next);
 		this.changeEmitter.fire();
+	}
+
+	getDefaultProfileForTest(group: TestRunProfileBitset, test: InternalTestItem): ITestRunProfile | undefined {
+		return this.getControllerProfiles(test.controllerId).find(p => (p.group & group) !== 0 && canUseProfileWithTest(p, test));
 	}
 
 	private refreshContextKeys() {

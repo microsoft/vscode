@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { autorun, autorunWithStore, derived } from '../../../../base/common/observable.js';
+import { autorun, autorunWithStore, derived, IObservable } from '../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -28,8 +28,8 @@ interface ISCMRepositoryWorkingSet {
 export class SCMWorkingSetController extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.scmWorkingSets';
 
+	private _enabledConfig: IObservable<boolean>;
 	private _workingSets!: Map<string, ISCMRepositoryWorkingSet>;
-	private _enabledConfig = observableConfigValue<boolean>('scm.workingSets.enabled', false, this.configurationService);
 
 	private readonly _repositoryDisposables = new DisposableMap<ISCMRepository>();
 
@@ -41,6 +41,8 @@ export class SCMWorkingSetController extends Disposable implements IWorkbenchCon
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super();
+
+		this._enabledConfig = observableConfigValue<boolean>('scm.workingSets.enabled', false, this.configurationService);
 
 		this._store.add(autorunWithStore((reader, store) => {
 			if (!this._enabledConfig.read(reader)) {
@@ -63,17 +65,17 @@ export class SCMWorkingSetController extends Disposable implements IWorkbenchCon
 	private _onDidAddRepository(repository: ISCMRepository): void {
 		const disposables = new DisposableStore();
 
-		const currentHistoryItemGroupId = derived(reader => {
+		const historyItemRefId = derived(reader => {
 			const historyProvider = repository.provider.historyProvider.read(reader);
-			const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup.read(reader);
+			const historyItemRef = historyProvider?.historyItemRef.read(reader);
 
-			return currentHistoryItemGroup?.id;
+			return historyItemRef?.id;
 		});
 
 		disposables.add(autorun(async reader => {
-			const historyItemGroupId = currentHistoryItemGroupId.read(reader);
+			const historyItemRefIdValue = historyItemRefId.read(reader);
 
-			if (!historyItemGroupId) {
+			if (!historyItemRefIdValue) {
 				return;
 			}
 
@@ -81,20 +83,20 @@ export class SCMWorkingSetController extends Disposable implements IWorkbenchCon
 			const repositoryWorkingSets = this._workingSets.get(providerKey);
 
 			if (!repositoryWorkingSets) {
-				this._workingSets.set(providerKey, { currentHistoryItemGroupId: historyItemGroupId, editorWorkingSets: new Map() });
+				this._workingSets.set(providerKey, { currentHistoryItemGroupId: historyItemRefIdValue, editorWorkingSets: new Map() });
 				return;
 			}
 
 			// Editors for the current working set are automatically restored
-			if (repositoryWorkingSets.currentHistoryItemGroupId === historyItemGroupId) {
+			if (repositoryWorkingSets.currentHistoryItemGroupId === historyItemRefIdValue) {
 				return;
 			}
 
 			// Save the working set
-			this._saveWorkingSet(providerKey, historyItemGroupId, repositoryWorkingSets);
+			this._saveWorkingSet(providerKey, historyItemRefIdValue, repositoryWorkingSets);
 
 			// Restore the working set
-			await this._restoreWorkingSet(providerKey, historyItemGroupId);
+			await this._restoreWorkingSet(providerKey, historyItemRefIdValue);
 		}));
 
 		this._repositoryDisposables.set(repository, disposables);

@@ -13,10 +13,21 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 
 	constructor() { }
 
+	cancelToolCallsForRequest(requestId: string): void {
+	}
+
 	onDidChangeTools: Event<void> = Event.None;
 
 	registerToolData(toolData: IToolData): IDisposable {
 		return Disposable.None;
+	}
+
+	resetToolAutoConfirmation(): void {
+
+	}
+
+	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile', autoConfirm?: boolean): void {
+
 	}
 
 	registerToolImplementation(name: string, tool: IToolImpl): IDisposable {
@@ -37,7 +48,7 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 
 	async invokeTool(dto: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
 		return {
-			string: ''
+			content: [{ kind: 'text', value: 'result' }]
 		};
 	}
 }

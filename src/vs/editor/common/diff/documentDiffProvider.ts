@@ -45,6 +45,8 @@ export interface IDocumentDiffProviderOptions {
 	 * If set, the diff computation should compute moves in addition to insertions and deletions.
 	 */
 	computeMoves: boolean;
+
+	extendToSubwords?: boolean;
 }
 
 /**
@@ -73,3 +75,11 @@ export interface IDocumentDiff {
 	 */
 	readonly moves: readonly MovedText[];
 }
+
+
+export const nullDocumentDiff: IDocumentDiff = Object.freeze({
+	identical: true,
+	quitEarly: false,
+	changes: Object.freeze([]),
+	moves: Object.freeze([])
+});
