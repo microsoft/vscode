@@ -38,8 +38,8 @@ export class MarkdownExtensionsDecoder extends BaseDecoder<TMarkdownExtensionsTo
 	}
 
 	protected override onStreamData(token: TSimpleDecoderToken): void {
-		// front matter headers start with a `-` at the first column of a line
-		const maybeFrontMatter = (token instanceof Dash) && (token.range.startColumn === 1);
+		// front matter headers start with a `-` at the first column of the first line
+		const maybeFrontMatter = (token instanceof Dash) && (token.range.startLineNumber === 1) && (token.range.startColumn === 1);
 		if ((this.current === undefined) && maybeFrontMatter) {
 			this.current = new PartialFrontMatterStartMarker(token);
 
@@ -72,11 +72,7 @@ export class MarkdownExtensionsDecoder extends BaseDecoder<TMarkdownExtensionsTo
 			// if failed to parse a sequence of a tokens as a single markdown
 			// entity (e.g., a link), re-emit the tokens accumulated so far
 			// then reset the currently initialized parser object
-			for (const token of this.current.tokens) {
-				this._onData.fire(token);
-			}
-
-			delete this.current;
+			this.reEmitCurrentTokens();
 		}
 
 		// if token was not consumed by the parser, call `onStreamData` again
@@ -88,9 +84,11 @@ export class MarkdownExtensionsDecoder extends BaseDecoder<TMarkdownExtensionsTo
 	}
 
 	protected override onStreamEnd(): void {
-		// if the stream has ended and there is a current incomplete parser
-		// object present, handle the remaining parser object
-		if (this.current) {
+		try {
+			if (this.current === undefined) {
+				return;
+			}
+
 			// if current parser can be converted into a valid Front Matter
 			// header, then emit it and reset the current parser object
 			if (this.current instanceof PartialFrontMatterHeader) {
@@ -102,15 +100,27 @@ export class MarkdownExtensionsDecoder extends BaseDecoder<TMarkdownExtensionsTo
 				}
 			}
 
-			// in all other cases, re-emit existing parser tokens
-			const { tokens } = this.current;
-			for (const token of [...tokens]) {
-				this._onData.fire(token);
-			}
-
+		} catch (_error) {
+			// if failed to convert current parser object to a token,
+			// re-emit the tokens accumulated so far
+			this.reEmitCurrentTokens();
+		} finally {
 			delete this.current;
+			super.onStreamEnd();
+		}
+	}
+
+	/**
+	 * Re-emit tokens accumulated so far in the current parser object.
+	 */
+	protected reEmitCurrentTokens(): void {
+		if (this.current === undefined) {
+			return;
 		}
 
-		super.onStreamEnd();
+		for (const token of this.current.tokens) {
+			this._onData.fire(token);
+		}
+		delete this.current;
 	}
 }

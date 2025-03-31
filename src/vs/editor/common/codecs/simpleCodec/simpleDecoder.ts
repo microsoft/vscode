@@ -100,6 +100,7 @@ export class SimpleDecoder extends BaseDecoder<TSimpleDecoderToken, TLineToken> 
 			// check if the current character is a well-known token
 			const tokenConstructor = WELL_KNOWN_TOKENS
 				.find((wellKnownToken) => {
+					// TODO: @legomushroom - indexing inside the string is incorrect
 					return wellKnownToken.symbol === line.text[i];
 				});
 
@@ -116,6 +117,7 @@ export class SimpleDecoder extends BaseDecoder<TSimpleDecoderToken, TLineToken> 
 			// read all the characters until a stop character is encountered
 			let word = '';
 			while (i < line.text.length && !(WORD_STOP_CHARACTERS.includes(line.text[i]))) {
+				// TODO: @legomushroom - indexing inside the string is incorrect
 				word += line.text[i];
 				i++;
 			}

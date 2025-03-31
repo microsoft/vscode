@@ -82,7 +82,6 @@ export class PartialFrontMatterStartMarker extends ParserBase<TMarkerToken, Part
 		const previousToken = this.currentTokens[this.currentTokens.length - 1];
 
 		// collect a sequence of dash tokens that may end with a CR token
-		// TODO: @legomushroom - include `Space` token?
 		if ((token instanceof Dash) || (token instanceof CarriageReturn)) {
 			// a dash or CR tokens can go only after another dash token
 			if ((previousToken instanceof Dash) === false) {
@@ -93,7 +92,6 @@ export class PartialFrontMatterStartMarker extends ParserBase<TMarkerToken, Part
 					wasTokenConsumed: false,
 				};
 			}
-
 
 			this.currentTokens.push(token);
 
@@ -136,12 +134,7 @@ export class PartialFrontMatterHeader extends ParserBase<TSimpleDecoderToken, Pa
 	/**
 	 * TODO: @legomushroom
 	 */
-	private partialEndMarker?: PartialFrontMatterEndMarker;
-
-	/**
-	 * TODO: @legomushroom
-	 */
-	private maybeEndMarker?: FrontMatterMarker;
+	private maybeEndMarker?: PartialFrontMatterEndMarker;
 
 	constructor(
 		public readonly startMarker: FrontMatterMarker,
@@ -150,10 +143,14 @@ export class PartialFrontMatterHeader extends ParserBase<TSimpleDecoderToken, Pa
 	}
 
 	public override get tokens(): readonly TSimpleDecoderToken[] {
+		const endMarkerTokens = (this.maybeEndMarker !== undefined)
+			? this.maybeEndMarker.tokens
+			: [];
+
 		return [
 			...this.startMarker.tokens,
 			...this.currentTokens,
-			...(this.maybeEndMarker?.tokens ?? []), // TODO: @legomushroom
+			...endMarkerTokens,
 		];
 	}
 
@@ -167,11 +164,11 @@ export class PartialFrontMatterHeader extends ParserBase<TSimpleDecoderToken, Pa
 	 *       hence it should not be used after this method is called.
 	 */
 	public asFrontMatterHeader(): FrontMatterHeaderToken | null {
-		if (this.partialEndMarker === undefined) {
+		if (this.maybeEndMarker === undefined) {
 			return null;
 		}
 
-		if (this.partialEndMarker.dashCount !== this.startMarker.dashCount) {
+		if (this.maybeEndMarker.dashCount !== this.startMarker.dashCount) {
 			return null;
 		}
 
@@ -180,19 +177,17 @@ export class PartialFrontMatterHeader extends ParserBase<TSimpleDecoderToken, Pa
 		return FrontMatterHeaderToken.fromTokens(
 			this.startMarker.tokens,
 			this.currentTokens,
-			this.partialEndMarker.tokens,
+			this.maybeEndMarker.tokens,
 		);
 	}
 
 	@assertNotConsumed
 	public accept(token: TSimpleDecoderToken): TAcceptTokenResult<PartialFrontMatterHeader | FrontMatterHeaderToken> {
-
 		// if in the mode of parsing the end marker sequence, forward
 		// the token to the current end marker parser instance
-		if (this.partialEndMarker !== undefined) {
+		if (this.maybeEndMarker !== undefined) {
 			return this.acceptEndMarkerToken(token);
 		}
-
 
 		// collect all tokens until a `dash token at the beginning of a line` is found
 		if (((token instanceof Dash) === false) || (token.range.startColumn !== 1)) {
@@ -208,10 +203,10 @@ export class PartialFrontMatterHeader extends ParserBase<TSimpleDecoderToken, Pa
 		// a dash token at the beginning of the line might be a start of the `end marker`
 		// sequence of the front matter header, hence initialize appropriate parser object
 		assert(
-			this.partialEndMarker === undefined,
+			this.maybeEndMarker === undefined,
 			`End marker parser must not be present.`,
 		);
-		this.partialEndMarker = new PartialFrontMatterEndMarker(token);
+		this.maybeEndMarker = new PartialFrontMatterEndMarker(token);
 
 		return {
 			result: 'success',
@@ -228,13 +223,13 @@ export class PartialFrontMatterHeader extends ParserBase<TSimpleDecoderToken, Pa
 		token: TSimpleDecoderToken,
 	): TAcceptTokenResult<PartialFrontMatterHeader | FrontMatterHeaderToken> {
 		assertDefined(
-			this.partialEndMarker,
+			this.maybeEndMarker,
 			`Partial end marker parser must be initialized.`,
 		);
 
 		// if we have a partial end marker, we are in the process of parsing
 		// the end marker, so just pass the token to it and return
-		const acceptResult = this.partialEndMarker.accept(token);
+		const acceptResult = this.maybeEndMarker.accept(token);
 		const { result, wasTokenConsumed } = acceptResult;
 
 		// TODO: @legomushroom
@@ -256,16 +251,11 @@ export class PartialFrontMatterHeader extends ParserBase<TSimpleDecoderToken, Pa
 			// if they don't match, we would like to continue parsing the header
 			// until we find an end marker with the same number of dashes
 			if (endMarker.dashCount !== this.startMarker.dashCount) {
-				return this.handleEndMarkerParsingFailure(
-					endMarker.tokens,
+				return {
+					result: 'failure',
 					wasTokenConsumed,
-					token,
-				);
+				};
 			}
-
-			// found a valid end marker, so the parsing process is complete
-			this.maybeEndMarker = endMarker;
-			delete this.partialEndMarker;
 
 			this.isConsumed = true;
 			return {
@@ -282,41 +272,16 @@ export class PartialFrontMatterHeader extends ParserBase<TSimpleDecoderToken, Pa
 		// if failed to parse the end marker, we would like to continue parsing
 		// the header until we find a valid end marker
 		if (result === 'failure') {
-			return this.handleEndMarkerParsingFailure(
-				this.partialEndMarker.tokens,
+			return {
+				result: 'failure',
 				wasTokenConsumed,
-				token,
-			);
+			};
 		}
 
 		assertNever(
 			result,
 			`Unexpected result '${result}' while parsing the end marker.`,
 		);
-	}
-
-	/**
-	 * TODO: @legomushroom
-	 */
-	private handleEndMarkerParsingFailure(
-		accumulatedTokens: readonly TSimpleDecoderToken[],
-		wasTokenConsumed: boolean,
-		token: TSimpleDecoderToken,
-	): TAcceptTokenResult<PartialFrontMatterHeader> {
-		this.currentTokens.push(...accumulatedTokens);
-
-		if (wasTokenConsumed === false) {
-			this.currentTokens.push(token);
-		}
-
-		delete this.partialEndMarker;
-		delete this.maybeEndMarker;
-
-		return {
-			result: 'success',
-			wasTokenConsumed: true,
-			nextParser: this,
-		};
 	}
 }
 
@@ -361,7 +326,6 @@ class PartialFrontMatterEndMarker extends ParserBase<TMarkerToken, PartialFrontM
 				};
 			}
 
-
 			this.currentTokens.push(token);
 
 			return {
@@ -374,13 +338,13 @@ class PartialFrontMatterEndMarker extends ParserBase<TMarkerToken, PartialFrontM
 		// stop collecting dash tokens when a new line token is encountered
 		if (token instanceof NewLine) {
 			this.isConsumed = true;
+			this.currentTokens.push(token);
 
 			return {
 				result: 'success',
 				wasTokenConsumed: true,
 				nextParser: new FrontMatterMarker([
 					...this.currentTokens,
-					token,
 				]),
 			};
 		}

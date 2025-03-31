@@ -46,7 +46,11 @@ export class FrontMatterHeaderToken extends MarkdownExtensionsToken {
 			return false;
 		}
 
-		return this.text === other.text;
+		if (this.text.length !== other.text.length) {
+			return false;
+		}
+
+		return (this.text === other.text);
 	}
 
 	/**
