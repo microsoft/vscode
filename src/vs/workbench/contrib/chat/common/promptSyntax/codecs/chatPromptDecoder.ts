@@ -169,7 +169,7 @@ export class ChatPromptDecoder extends BaseDecoder<TChatPromptToken, TMarkdownTo
 				this.current,
 				`Unknown parser object '${this.current}'`,
 			);
-		} catch (error) {
+		} catch (_error) {
 			// if failed to convert current parser object to a token,
 			// re-emit the tokens accumulated so far
 			this.reEmitCurrentTokens();
