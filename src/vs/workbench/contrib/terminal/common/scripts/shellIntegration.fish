@@ -18,7 +18,7 @@
 status is-interactive
 and string match --quiet "$TERM_PROGRAM" "vscode"
 and ! set --query VSCODE_SHELL_INTEGRATION
-or exit
+or exit 0
 
 set --global VSCODE_SHELL_INTEGRATION 1
 set --global __vscode_shell_env_reporting $VSCODE_SHELL_ENV_REPORTING
