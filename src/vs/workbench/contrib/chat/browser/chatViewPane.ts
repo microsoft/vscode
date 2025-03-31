@@ -127,7 +127,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}));
 
 		this._register(this.contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(ChatContextKeys.SetupViewKeys)) {
+			if (e.affectsSome(ChatContextKeys.SetupViewKeys) || e.affectsSome(new Set(['github.copilot.interactiveSession.switchToReleaseChannel']))) {
 				this._onDidChangeViewWelcomeState.fire();
 			}
 		}));
@@ -162,11 +162,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	override shouldShowWelcome(): boolean {
+		const switchToReleaseChannel = this.contextKeyService.getContextKeyValue<boolean>('github.copilot.interactiveSession.switchToReleaseChannel');
 		const showSetup = this.contextKeyService.contextMatchesRules(ChatContextKeys.SetupViewCondition);
 		const noPersistedSessions = !this.chatService.hasSessions();
 		const hasCoreAgent = this.chatAgentService.getAgents().some(agent => agent.isCore && agent.locations.includes(this.chatOptions.location));
-		const shouldShow = !hasCoreAgent && (this.didUnregisterProvider || !this._widget?.viewModel && noPersistedSessions || this.defaultParticipantRegistrationFailed || showSetup);
-		this.logService.trace(`ChatViewPane#shouldShowWelcome(${this.chatOptions.location}) = ${shouldShow}: hasCoreAgent=${hasCoreAgent} didUnregister=${this.didUnregisterProvider} || noViewModel=${!this._widget?.viewModel} && noPersistedSessions=${noPersistedSessions} || defaultParticipantRegistrationFailed=${this.defaultParticipantRegistrationFailed} || showSetup=${showSetup}`);
+		const shouldShow = !hasCoreAgent && (this.didUnregisterProvider || !this._widget?.viewModel && noPersistedSessions || this.defaultParticipantRegistrationFailed || showSetup || switchToReleaseChannel);
+		this.logService.trace(`ChatViewPane#shouldShowWelcome(${this.chatOptions.location}) = ${shouldShow}: hasCoreAgent=${hasCoreAgent} didUnregister=${this.didUnregisterProvider} || noViewModel=${!this._widget?.viewModel} && noPersistedSessions=${noPersistedSessions} || defaultParticipantRegistrationFailed=${this.defaultParticipantRegistrationFailed} || showSetup=${showSetup} || switchToReleaseChannel=${switchToReleaseChannel}`);
 		return !!shouldShow;
 	}
 
