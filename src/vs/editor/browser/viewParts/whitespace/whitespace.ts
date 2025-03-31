@@ -17,8 +17,6 @@ import { CharCode } from '../../../../base/common/charCode.js';
 import { LineRange } from '../../../common/viewLayout/viewLineRenderer.js';
 import { Position } from '../../../common/core/position.js';
 import { editorWhitespaces } from '../../../common/core/editorColorRegistry.js';
-import { CharWidthRequest, CharWidthRequestType, readCharWidths } from '../../config/charWidthReader.js';
-import { getActiveWindow } from '../../../../base/browser/dom.js';
 
 /**
  * The whitespace overlay will visual certain whitespace depending on the
@@ -212,7 +210,10 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 			if (!visibleRange) {
 				continue;
 			}
-			const { middotWidth, wsmiddotWidth, spaceWidth } = this._getRenderedCharacterWidths(ctx, position);
+			const fontInfo = ctx.getFontInfoForPosition(position);
+			const spaceWidth = fontInfo.spaceWidth;
+			const middotWidth = fontInfo.middotWidth;
+			const wsmiddotWidth = fontInfo.wsmiddotWidth;
 			const wsmiddotDiff = Math.abs(wsmiddotWidth - spaceWidth);
 			const middotDiff = Math.abs(middotWidth - spaceWidth);
 			const renderSpaceCharCode = (wsmiddotDiff < middotDiff ? 0x2E31 : 0xB7);
@@ -244,28 +245,6 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 		}
 
 		return result;
-	}
-
-	private _getRenderedCharacterWidths(ctx: RenderingContext, position: Position): { middotWidth: number; wsmiddotWidth: number; spaceWidth: number } {
-		let middotWidth: number;
-		let wsmiddotWidth: number;
-		let spaceWidth: number;
-		const fontInfo = ctx.getFontInfoForPosition(position);
-		const defaultFontInfo = this._context.configuration.options.get(EditorOption.fontInfo);
-		if (!fontInfo.equals(defaultFontInfo)) {
-			const space = new CharWidthRequest(' ', CharWidthRequestType.Regular);
-			const middot = new CharWidthRequest('·', CharWidthRequestType.Regular);
-			const wsmiddot = new CharWidthRequest(String.fromCharCode(0x2E31), CharWidthRequestType.Regular);
-			readCharWidths(getActiveWindow(), fontInfo, [space, middot, wsmiddot]);
-			middotWidth = middot.width;
-			wsmiddotWidth = wsmiddot.width;
-			spaceWidth = space.width;
-		} else {
-			middotWidth = this._options.middotWidth;
-			wsmiddotWidth = this._options.wsmiddotWidth;
-			spaceWidth = this._options.spaceWidth;
-		}
-		return { middotWidth, wsmiddotWidth, spaceWidth };
 	}
 
 	private _renderArrow(lineHeight: number, spaceWidth: number, left: number): string {

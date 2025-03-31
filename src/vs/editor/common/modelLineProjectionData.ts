@@ -336,6 +336,6 @@ export interface ILineBreaksComputer {
 	/**
 	 * Pass in `previousLineBreakData` if the only difference is in breaking columns!!!
 	 */
-	addRequest(lineText: string, injectedText: LineInjectedText[] | null, previousLineBreakData: ModelLineProjectionData | null): void;
+	addRequest(fromLineNumber: number, toLineNumber: number, lineText: string, fontDecorations: { startCharacterOffset: number; endCharacterOffset: number; fontInfo: FontInfo }[], injectedText: LineInjectedText[] | null, previousLineBreakData: ModelLineProjectionData | null): void;
 	finalize(): (ModelLineProjectionData | null)[];
 }

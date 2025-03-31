@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BareFontInfo } from '../../common/config/fontInfo.js';
+import { FontInfo } from '../../common/config/fontInfo.js';
 import { Position } from '../../common/core/position.js';
 import { Range } from '../../common/core/range.js';
 import { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
@@ -66,7 +66,7 @@ export abstract class RestrictedRenderingContext {
 		return this._viewLayout.getLineHeightForLineNumber(lineNumber);
 	}
 
-	public getFontInfoForPosition(position: Position): BareFontInfo {
+	public getFontInfoForPosition(position: Position): FontInfo {
 		return this.viewportData.getFontInfoForPosition(position);
 	}
 

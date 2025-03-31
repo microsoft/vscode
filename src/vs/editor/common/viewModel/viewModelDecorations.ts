@@ -115,9 +115,6 @@ export class ViewModelDecorations implements IDisposable {
 		const modelDecorations = this.model.getDecorationsInRange(range, this.editorId, false, false, false);
 		for (let i = 0, len = modelDecorations.length; i < len; i++) {
 			const modelDecoration = modelDecorations[i];
-			if (!isModelDecorationVisible(this.model, modelDecoration)) {
-				continue;
-			}
 			const decorationOptions = modelDecoration.options;
 			if (!decorationOptions.fontFamily && !decorationOptions.fontWeight && !decorationOptions.fontSize) {
 				continue;

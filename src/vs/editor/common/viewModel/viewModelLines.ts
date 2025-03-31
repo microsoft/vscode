@@ -6,7 +6,7 @@
 import * as arrays from '../../../base/common/arrays.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { WrappingIndent } from '../config/editorOptions.js';
-import { FontInfo } from '../config/fontInfo.js';
+import { BareFontInfo, FontInfo } from '../config/fontInfo.js';
 import { IPosition, Position } from '../core/position.js';
 import { Range } from '../core/range.js';
 import { IModelDecoration, IModelDeltaDecoration, ITextModel, PositionAffinity } from '../model.js';
@@ -57,9 +57,14 @@ export interface IViewModelLines extends IDisposable {
 	getLineIndentColumn(lineNumber: number): number;
 }
 
+export interface IViewModelLinesContext {
+	getFontDecorationsOnLine(lineNumber: number): { startCharacterOffset: number; endCharacterOffset: number; fontInfo: FontInfo }[];
+}
+
 export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	private readonly _editorId: number;
 	private readonly model: ITextModel;
+	private readonly context: IViewModelLinesContext;
 	private _validModelVersionId: number;
 
 	private readonly _domLineBreaksComputerFactory: ILineBreaksComputerFactory;
@@ -84,6 +89,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	constructor(
 		editorId: number,
 		model: ITextModel,
+		context: IViewModelLinesContext,
 		domLineBreaksComputerFactory: ILineBreaksComputerFactory,
 		monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory,
 		fontInfo: FontInfo,
@@ -95,6 +101,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	) {
 		this._editorId = editorId;
 		this.model = model;
+		this.context = context;
 		this._validModelVersionId = -1;
 		this._domLineBreaksComputerFactory = domLineBreaksComputerFactory;
 		this._monospaceLineBreaksComputerFactory = monospaceLineBreaksComputerFactory;
@@ -131,7 +138,9 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		const injectedTextQueue = new arrays.ArrayQueue(LineInjectedText.fromDecorations(injectedTextDecorations));
 		for (let i = 0; i < lineCount; i++) {
 			const lineInjectedText = injectedTextQueue.takeWhile(t => t.lineNumber === i + 1);
-			lineBreaksComputer.addRequest(linesContent[i], lineInjectedText, previousLineBreaks ? previousLineBreaks[i] : null);
+			// console.log('this.context : ', this.context);
+			const fontDecorations = this.context.getFontDecorationsOnLine(i + 1);
+			lineBreaksComputer.addRequest(i, i, linesContent[i], fontDecorations, lineInjectedText, previousLineBreaks ? previousLineBreaks[i] : null);
 		}
 		const linesBreaks = lineBreaksComputer.finalize();
 
@@ -1142,7 +1151,7 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 	public createLineBreaksComputer(): ILineBreaksComputer {
 		const result: null[] = [];
 		return {
-			addRequest: (lineText: string, injectedText: LineInjectedText[] | null, previousLineBreakData: ModelLineProjectionData | null) => {
+			addRequest: (fromLineNumber: number, toLineNumber: number, lineText: string, fontInfo: { startCharacterOffset: number; endCharacterOffset: number; fontInfo: BareFontInfo }[], injectedText: LineInjectedText[] | null, previousLineBreakData: ModelLineProjectionData | null) => {
 				result.push(null);
 			},
 			finalize: () => {

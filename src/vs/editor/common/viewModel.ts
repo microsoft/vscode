@@ -6,7 +6,7 @@
 import * as arrays from '../../base/common/arrays.js';
 import { IScrollPosition, Scrollable } from '../../base/common/scrollable.js';
 import * as strings from '../../base/common/strings.js';
-import { BareFontInfo } from './config/fontInfo.js';
+import { FontInfo } from './config/fontInfo.js';
 import { IPosition, Position } from './core/position.js';
 import { Range } from './core/range.js';
 import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData, ICursorSimpleModel, PartialCursorState } from './cursorCommon.js';
@@ -76,7 +76,7 @@ export interface IViewModel extends ICursorSimpleModel {
 	deduceModelPositionRelativeToViewPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position;
 	getPlainTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): string | string[];
 	getRichTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean): { html: string; mode: string } | null;
-	getFontInfoForPosition(position: Position): BareFontInfo;
+	getFontInfoForPosition(position: Position): FontInfo;
 	getFontDecorationsInRange(range: Range): ViewModelDecoration[];
 
 	createLineBreaksComputer(): ILineBreaksComputer;

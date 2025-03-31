@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BareFontInfo } from '../config/fontInfo.js';
+import { FontInfo } from '../config/fontInfo.js';
 import { Position } from '../core/position.js';
 import { Range } from '../core/range.js';
 import { Selection } from '../core/selection.js';
@@ -82,7 +82,7 @@ export class ViewportData {
 		return this._model.getDecorationsInViewport(this.visibleRange);
 	}
 
-	public getFontInfoForPosition(position: Position): BareFontInfo {
+	public getFontInfoForPosition(position: Position): FontInfo {
 		return this._model.getFontInfoForPosition(position);
 	}
 }

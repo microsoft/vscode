@@ -60,7 +60,8 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import { editorErrorForeground, editorHintForeground, editorInfoForeground, editorWarningForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
-import { BareFontInfo } from '../../../common/config/fontInfo.js';
+import { getWindow } from '../../../../base/browser/dom.js';
+import { FontInfo } from '../../../common/config/fontInfo.js';
 
 export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
 
@@ -598,7 +599,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.viewModel.viewLayout.getLineHeightForLineNumber(viewPosition.lineNumber);
 	}
 
-	public getFontInfoForPosition(position: Position): BareFontInfo | undefined {
+	public getFontInfoForPosition(position: Position): FontInfo | undefined {
 		if (!this._modelData) {
 			return;
 		}
@@ -1669,9 +1670,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._configuration.setModelLineCount(model.getLineCount());
 
 		const attachedView = model.onBeforeAttached();
+		const windowId = getWindow(this._domElement).vscodeWindowId;
 
 		const viewModel = new ViewModel(
 			this._id,
+			windowId,
 			this._configuration,
 			model,
 			DOMLineBreaksComputerFactory.create(dom.getWindow(this._domElement)),
