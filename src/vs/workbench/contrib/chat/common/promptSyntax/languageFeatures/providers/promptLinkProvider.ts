@@ -3,20 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LANGUAGE_SELECTOR } from '../constants.js';
-import { IPromptsService } from '../service/types.js';
-import { assert } from '../../../../../../base/common/assert.js';
-import { ITextModel } from '../../../../../../editor/common/model.js';
-import { assertDefined } from '../../../../../../base/common/types.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { CancellationError } from '../../../../../../base/common/errors.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { Registry } from '../../../../../../platform/registry/common/platform.js';
-import { FolderReference, NotPromptFile } from '../../promptFileReferenceErrors.js';
-import { LifecyclePhase } from '../../../../../services/lifecycle/common/lifecycle.js';
-import { ILink, ILinksList, LinkProvider } from '../../../../../../editor/common/languages.js';
-import { IWorkbenchContributionsRegistry, Extensions } from '../../../../../common/contributions.js';
-import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures.js';
+import { LANGUAGE_SELECTOR } from '../../constants.js';
+import { IPromptsService } from '../../service/types.js';
+import { assert } from '../../../../../../../base/common/assert.js';
+import { ITextModel } from '../../../../../../../editor/common/model.js';
+import { assertDefined } from '../../../../../../../base/common/types.js';
+import { Disposable } from '../../../../../../../base/common/lifecycle.js';
+import { CancellationError } from '../../../../../../../base/common/errors.js';
+import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
+import { FolderReference, NotPromptFile } from '../../../promptFileReferenceErrors.js';
+import { ILink, ILinksList, LinkProvider } from '../../../../../../../editor/common/languages.js';
+import { ILanguageFeaturesService } from '../../../../../../../editor/common/services/languageFeatures.js';
 
 /**
  * Provides link references for prompt files.
@@ -96,7 +93,3 @@ export class PromptLinkProvider extends Disposable implements LinkProvider {
 		};
 	}
 }
-
-// register the provider as a workbench contribution
-Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench)
-	.registerWorkbenchContribution(PromptLinkProvider, LifecyclePhase.Eventually);

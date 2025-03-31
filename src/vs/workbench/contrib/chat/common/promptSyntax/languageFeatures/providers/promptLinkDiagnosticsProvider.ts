@@ -3,26 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPromptsService } from '../service/types.js';
-import { IPromptFileReference } from '../parsers/types.js';
-import { assert } from '../../../../../../base/common/assert.js';
-import { NotPromptFile } from '../../promptFileReferenceErrors.js';
-import { ITextModel } from '../../../../../../editor/common/model.js';
-import { assertDefined } from '../../../../../../base/common/types.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { IEditor } from '../../../../../../editor/common/editorCommon.js';
-import { ObjectCache } from '../../../../../../base/common/objectCache.js';
-import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
-import { Registry } from '../../../../../../platform/registry/common/platform.js';
-import { PromptsConfig } from '../../../../../../platform/prompts/common/config.js';
-import { isPromptFile } from '../../../../../../platform/prompts/common/constants.js';
-import { LifecyclePhase } from '../../../../../services/lifecycle/common/lifecycle.js';
-import { IEditorService } from '../../../../../services/editor/common/editorService.js';
-import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
-import { IWorkbenchContributionsRegistry, Extensions } from '../../../../../common/contributions.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../platform/markers/common/markers.js';
+import { IPromptsService } from '../../service/types.js';
+import { IPromptFileReference } from '../../parsers/types.js';
+import { assert } from '../../../../../../../base/common/assert.js';
+import { NotPromptFile } from '../../../promptFileReferenceErrors.js';
+import { ITextModel } from '../../../../../../../editor/common/model.js';
+import { assertDefined } from '../../../../../../../base/common/types.js';
+import { Disposable } from '../../../../../../../base/common/lifecycle.js';
+import { IEditor } from '../../../../../../../editor/common/editorCommon.js';
+import { ObjectCache } from '../../../../../../../base/common/objectCache.js';
+import { TextModelPromptParser } from '../../parsers/textModelPromptParser.js';
+import { PromptsConfig } from '../../../../../../../platform/prompts/common/config.js';
+import { isPromptFile } from '../../../../../../../platform/prompts/common/constants.js';
+import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
+import { ObservableDisposable } from '../../../../../../../base/common/observableDisposable.js';
+import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../../platform/markers/common/markers.js';
 
 /**
  * Unique ID of the markers provider class.
@@ -218,7 +215,3 @@ export class PromptLinkDiagnosticsInstanceManager extends Disposable {
 		return this;
 	}
 }
-
-// register the provider as a workbench contribution
-Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench)
-	.registerWorkbenchContribution(PromptLinkDiagnosticsInstanceManager, LifecyclePhase.Eventually);
