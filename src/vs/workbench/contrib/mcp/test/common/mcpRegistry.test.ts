@@ -72,6 +72,8 @@ class TestConfigurationResolverService implements Partial<IConfigurationResolver
 }
 
 class TestMcpHostDelegate implements IMcpHostDelegate {
+	priority = 0;
+
 	canStart(): boolean {
 		return true;
 	}

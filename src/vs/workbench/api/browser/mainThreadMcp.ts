@@ -40,6 +40,8 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		const proxy = _extHostContext.getProxy(ExtHostContext.ExtHostMcp);
 		this._mcpEnabled = observableConfigValue(mcpEnabledSection, true, configurationService);
 		this._register(this._mcpRegistry.registerDelegate({
+			// Prefer Node.js extension hosts when they're available. No CORS issues etc.
+			priority: _extHostContext.extensionHostKind === ExtensionHostKind.LocalWebWorker ? 0 : 1,
 			waitForInitialProviderPromises() {
 				return proxy.$waitForInitialCollectionProviders();
 			},
