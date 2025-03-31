@@ -53,7 +53,7 @@ import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
-import { IChatEditingService, WorkingSetEntryState } from '../../chat/common/chatEditingService.js';
+import { IChatEditingService, ModifiedFileEntryState } from '../../chat/common/chatEditingService.js';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -1403,7 +1403,7 @@ export class InlineChatController2 implements IEditorContribution {
 
 		await Event.toPromise(session.editingSession.onDidDispose);
 
-		const rejected = session.editingSession.getEntry(uri)?.state.get() === WorkingSetEntryState.Rejected;
+		const rejected = session.editingSession.getEntry(uri)?.state.get() === ModifiedFileEntryState.Rejected;
 		return !rejected;
 	}
 
@@ -1455,7 +1455,7 @@ export async function reviewEdits(accessor: ServicesAccessor, editor: ICodeEdito
 			return false;
 		}
 		const state = entry.state.read(r);
-		return state === WorkingSetEntryState.Accepted || state === WorkingSetEntryState.Rejected;
+		return state === ModifiedFileEntryState.Accepted || state === ModifiedFileEntryState.Rejected;
 	});
 
 	const whenDecided = waitForState(isSettled, Boolean);

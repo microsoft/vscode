@@ -85,6 +85,9 @@ const CORE_TYPES = [
     'SubtleCrypto',
     'JsonWebKey',
     'MessageEvent',
+    // node web types
+    'ReadableStreamDefaultReader',
+    'DOMException',
 ];
 // Types that are defined in a common layer but are known to be only
 // available in native environments should not be allowed in browser
