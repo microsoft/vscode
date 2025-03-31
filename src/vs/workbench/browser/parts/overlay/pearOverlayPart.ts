@@ -30,8 +30,8 @@ import { URI } from "../../../../base/common/uri.js";
 import { ExtensionIdentifier } from "../../../../platform/extensions/common/extensions.js";
 import { IEditorGroupsService } from "../../../../workbench/services/editor/common/editorGroupsService.js";
 import { PEARAI_FIRST_LAUNCH_KEY } from "./common.js";
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-
+import { IConfigurationService } from "../../../../platform/configuration/common/configuration.js";
+import { ICommandService } from "../../../../platform/commands/common/commands.js";
 
 // const PEARAI_FIRST_LAUNCH_KEY = "pearai.firstLaunch";
 
@@ -68,6 +68,7 @@ export class PearOverlayPart extends Part {
 		private readonly _instantiationService: IInstantiationService,
 		@IEditorGroupsService
 		private readonly _editorGroupsService: IEditorGroupsService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super(
 			PearOverlayPart.ID,
@@ -97,9 +98,12 @@ export class PearOverlayPart extends Part {
 			this.lock();
 
 			// setting the theme to PearAI Dark on first launch here to avoid flicker
-			this._instantiationService.invokeFunction(accessor => {
+			this._instantiationService.invokeFunction((accessor) => {
 				const configurationService = accessor.get(IConfigurationService);
-					configurationService.updateValue('workbench.colorTheme', "Default PearAI Dark");
+				configurationService.updateValue(
+					"workbench.colorTheme",
+					"Default PearAI Dark",
+				);
 			});
 		} else {
 			this.state = "closed";
@@ -216,25 +220,25 @@ export class PearOverlayPart extends Part {
 		this.element.appendChild(this.popupAreaOverlay);
 
 		if (this.isFirstLaunch) {
-
 			// Create loading overlay with higher z-index and pointer-events handling
-			this.loadingOverlay = $('div.pearai-loading-overlay');
-			this.loadingOverlay.style.position = 'fixed'; // Change to fixed positioning
-			this.loadingOverlay.style.top = '0';
-			this.loadingOverlay.style.left = '0';
-			this.loadingOverlay.style.right = '0';
-			this.loadingOverlay.style.bottom = '0';
-			this.loadingOverlay.style.backgroundColor = 'var(--vscode-editor-background)';
-			this.loadingOverlay.style.zIndex = '9999'; // Much higher z-index
-			this.loadingOverlay.style.display = 'flex';
-			this.loadingOverlay.style.alignItems = 'center';
-			this.loadingOverlay.style.justifyContent = 'center';
-			this.loadingOverlay.style.pointerEvents = 'all'; // Ensure it blocks interactions
+			this.loadingOverlay = $("div.pearai-loading-overlay");
+			this.loadingOverlay.style.position = "fixed"; // Change to fixed positioning
+			this.loadingOverlay.style.top = "0";
+			this.loadingOverlay.style.left = "0";
+			this.loadingOverlay.style.right = "0";
+			this.loadingOverlay.style.bottom = "0";
+			this.loadingOverlay.style.backgroundColor =
+				"var(--vscode-editor-background)";
+			this.loadingOverlay.style.zIndex = "9999"; // Much higher z-index
+			this.loadingOverlay.style.display = "flex";
+			this.loadingOverlay.style.alignItems = "center";
+			this.loadingOverlay.style.justifyContent = "center";
+			this.loadingOverlay.style.pointerEvents = "all"; // Ensure it blocks interactions
 
-			const loadingText = $('div.loading-text');
-			loadingText.textContent = 'Getting ready to make something great...';
-			loadingText.style.color = '#839497';
-			loadingText.style.fontSize = '20px';
+			const loadingText = $("div.loading-text");
+			loadingText.textContent = "Getting ready to make something great...";
+			loadingText.style.color = "#839497";
+			loadingText.style.fontSize = "20px";
 			// loadingText.addEventListener('click', () => {
 			// 	this.hideOverlayLoadingMessage();
 			// });
@@ -256,8 +260,7 @@ export class PearOverlayPart extends Part {
 			// Only open on first launch
 			if (this.isFirstLaunch) {
 				this.open();
-			}
-			else {
+			} else {
 				// createContentArea is called within the workbench and layout when instantiating the overlay.
 				// If we don't close it here, it will open up by default when editor starts, or appear for half a second.
 				// If we remove this completely, it gets stuck in the loading stage, so we must close it.
@@ -306,11 +309,13 @@ export class PearOverlayPart extends Part {
 		this.state = "open";
 		this.fullScreenOverlay!.style.zIndex = "95";
 
+		this._commandService.executeCommand("pearai.notifyOverlayOpened");
+
 		const container = this.webviewView!.webview.container;
 		container.style.display = "flex";
 		container.style.zIndex = "1000";
-		container.style.display = 'flex';
-		container.style.opacity = '1';
+		container.style.display = "flex";
+		container.style.opacity = "1";
 
 		// Show loading overlay if extension is not ready
 		if (!this.isExtensionReady && this.loadingOverlay) {
@@ -400,36 +405,36 @@ export class PearOverlayPart extends Part {
 	public hideOverlayLoadingMessage(): void {
 		if (this.loadingOverlay) {
 			// Start fade out of loading overlay
-			this.loadingOverlay.style.transition = 'all 0.3s ease-out';
-			this.loadingOverlay.style.opacity = '0';
-			this.loadingOverlay.style.pointerEvents = 'none';
+			this.loadingOverlay.style.transition = "all 0.3s ease-out";
+			this.loadingOverlay.style.opacity = "0";
+			this.loadingOverlay.style.pointerEvents = "none";
 
 			// Only show webview if we're in the "open" state
 			const container = this.webviewView!.webview.container;
 			if (this.state === "open") {
 				// Ensure proper z-index stacking
-				container.style.zIndex = '1000';
-				this.fullScreenOverlay!.style.zIndex = '95';
+				container.style.zIndex = "1000";
+				this.fullScreenOverlay!.style.zIndex = "95";
 
-				container.style.display = 'flex';
-				container.style.opacity = '0';
-				container.style.transition = 'opacity 0.3s ease-in';
+				container.style.display = "flex";
+				container.style.opacity = "0";
+				container.style.transition = "opacity 0.3s ease-in";
 
 				// Slight delay to ensure smooth transition
 				setTimeout(() => {
-					container.style.opacity = '1';
+					container.style.opacity = "1";
 				}, 50);
 			} else {
-				container.style.display = 'none';
-				container.style.opacity = '0';
-				this.fullScreenOverlay!.style.zIndex = '-10';
+				container.style.display = "none";
+				container.style.opacity = "0";
+				this.fullScreenOverlay!.style.zIndex = "-10";
 			}
 
 			// Clean up after animations complete
 			setTimeout(() => {
 				if (this.loadingOverlay) {
-					this.loadingOverlay.style.display = 'none';
-					this.loadingOverlay.style.zIndex = '-1'; // Move it below everything
+					this.loadingOverlay.style.display = "none";
+					this.loadingOverlay.style.zIndex = "-1"; // Move it below everything
 					this.isExtensionReady = true;
 				}
 			}, 300);

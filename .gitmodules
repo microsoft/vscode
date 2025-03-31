@@ -2,3 +2,6 @@
 	path = extensions/pearai-submodule
 	url = https://github.com/trypear/pearai-submodule.git
 	branch = main
+[submodule "extensions/PearAI-Roo-Code"]
+	path = extensions/PearAI-Roo-Code
+	url = https://github.com/trypear/PearAI-Roo-Code

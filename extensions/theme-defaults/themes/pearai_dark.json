@@ -54,6 +54,7 @@
 		"inputOption.activeBackground": "#FFFFFF82",
 		"inputOption.activeBorder": "#FFFFFF",
 		"keybindingLabel.foreground": "#CCCCCC",
+		"menu.selectionForeground": "#000000",
 		"menu.background": "#1F1F1F",
 		"menu.selectionBackground": "#FFFFFF",
 		"notificationCenterHeader.background": "#1F1F1F",
