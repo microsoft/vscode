@@ -36,7 +36,7 @@ export class MarkerController implements IEditorContribution {
 	private readonly _editor: ICodeEditor;
 
 	private readonly _widgetVisible: IContextKey<boolean>;
-	private readonly _sessionDispoables = new DisposableStore();
+	private readonly _sessionDisposables = new DisposableStore();
 
 	private _model?: MarkerList;
 	private _widget?: MarkerNavigationWidget;
@@ -54,12 +54,12 @@ export class MarkerController implements IEditorContribution {
 
 	dispose(): void {
 		this._cleanUp();
-		this._sessionDispoables.dispose();
+		this._sessionDisposables.dispose();
 	}
 
 	private _cleanUp(): void {
 		this._widgetVisible.reset();
-		this._sessionDispoables.clear();
+		this._sessionDisposables.clear();
 		this._widget = undefined;
 		this._model = undefined;
 	}
@@ -81,21 +81,21 @@ export class MarkerController implements IEditorContribution {
 		}
 
 		this._widget = this._instantiationService.createInstance(MarkerNavigationWidget, this._editor);
-		this._widget.onDidClose(() => this.close(), this, this._sessionDispoables);
+		this._widget.onDidClose(() => this.close(), this, this._sessionDisposables);
 		this._widgetVisible.set(true);
 
-		this._sessionDispoables.add(this._model);
-		this._sessionDispoables.add(this._widget);
+		this._sessionDisposables.add(this._model);
+		this._sessionDisposables.add(this._widget);
 
 		// follow cursor
-		this._sessionDispoables.add(this._editor.onDidChangeCursorPosition(e => {
+		this._sessionDisposables.add(this._editor.onDidChangeCursorPosition(e => {
 			if (!this._model?.selected || !Range.containsPosition(this._model?.selected.marker, e.position)) {
 				this._model?.resetIndex();
 			}
 		}));
 
 		// update markers
-		this._sessionDispoables.add(this._model.onDidChange(() => {
+		this._sessionDisposables.add(this._model.onDidChange(() => {
 			if (!this._widget || !this._widget.position || !this._model) {
 				return;
 			}
@@ -108,14 +108,14 @@ export class MarkerController implements IEditorContribution {
 		}));
 
 		// open related
-		this._sessionDispoables.add(this._widget.onDidSelectRelatedInformation(related => {
+		this._sessionDisposables.add(this._widget.onDidSelectRelatedInformation(related => {
 			this._editorService.openCodeEditor({
 				resource: related.resource,
 				options: { pinned: true, revealIfOpened: true, selection: Range.lift(related).collapseToStart() }
 			}, this._editor);
 			this.close(false);
 		}));
-		this._sessionDispoables.add(this._editor.onDidChangeModel(() => this._cleanUp()));
+		this._sessionDisposables.add(this._editor.onDidChangeModel(() => this._cleanUp()));
 
 		return this._model;
 	}
