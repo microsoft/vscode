@@ -66,6 +66,7 @@ import { resizeImage } from '../imageUtils.js';
 import { COMMAND_ID as USE_PROMPT_COMMAND_ID } from '../promptSyntax/contributions/usePromptCommand.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { ATTACH_PROMPT_ACTION_ID, AttachPromptAction, IChatAttachPromptActionOptions } from './chatAttachPromptAction/chatAttachPromptAction.js';
+import { RunCurrentPromptAction, RunCurrentPromptInNewChatAction } from './chatAttachPromptAction/chatRunPromptAction.js';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
@@ -965,4 +966,40 @@ export class AttachContextAction extends Action2 {
 	}
 }
 
+registerAction2(class AttachFilesAction extends AttachContextAction {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.editing.attachContext',
+			title: localize2('workbench.action.chat.editing.attachContext.label', "Add Context to Copilot Edits"),
+			shortTitle: localize2('workbench.action.chat.editing.attachContext.shortLabel', "Add Context..."),
+			f1: false,
+			category: CHAT_CATEGORY,
+			menu: {
+				when: ChatContextKeyExprs.inEditsOrUnified,
+				id: MenuId.ChatInputAttachmentToolbar,
+				group: 'navigation',
+				order: 3
+			},
+			icon: Codicon.attach,
+			precondition: ChatContextKeyExprs.inEditsOrUnified,
+			keybinding: {
+				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeyExprs.inEditsOrUnified),
+				primary: KeyMod.CtrlCmd | KeyCode.Slash,
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+		const context = args[0];
+		const attachFilesContext = { ...context, showFilesOnly: true };
+		return super.run(accessor, attachFilesContext);
+	}
+});
+
+/**
+ * TODO: @legomushroom - create a single register function
+ */
 registerAction2(AttachPromptAction);
+registerAction2(RunCurrentPromptAction);
+registerAction2(RunCurrentPromptInNewChatAction);
