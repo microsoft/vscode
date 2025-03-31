@@ -112,6 +112,8 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 
 	public registerDelegate(delegate: IMcpHostDelegate): IDisposable {
 		this._delegates.push(delegate);
+		this._delegates.sort((a, b) => b.priority - a.priority);
+
 		return {
 			dispose: () => {
 				const index = this._delegates.indexOf(delegate);
