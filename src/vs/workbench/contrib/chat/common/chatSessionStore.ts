@@ -224,19 +224,17 @@ export class ChatSessionStore extends Disposable {
 
 		const fileOperationReason = error && toFileOperationResult(error);
 		type ChatSessionStoreErrorData = {
-			reason: string;
+			errorReason: string;
 			fileOperationReason: number;
-			// error: Error;
 		};
 		type ChatSessionStoreErrorClassification = {
 			owner: 'roblourens';
 			comment: 'Detect issues related to managing chat sessions';
-			reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Info about the error that occurred' };
+			errorReason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Info about the error that occurred' };
 			fileOperationReason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'An error code from the file service' };
-			// error: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Info about the error that occurred' };
 		};
 		this.telemetryService.publicLog2<ChatSessionStoreErrorData, ChatSessionStoreErrorClassification>('chatSessionStoreError', {
-			reason: reasonForTelemetry,
+			errorReason: reasonForTelemetry,
 			fileOperationReason: fileOperationReason ?? -1
 		});
 	}
