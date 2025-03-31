@@ -106,7 +106,7 @@ export function createCodeTestSpecs(executable: string): ITestSpec[] {
 }
 
 export function createCodeTunnelTestSpecs(executable: string): ITestSpec[] {
-	const subcommandAndArgs: string[] = [
+	const subcommandAndFlags: string[] = [
 		'-',
 		'--add <folder>',
 		'--category <category>',
@@ -160,7 +160,7 @@ export function createCodeTunnelTestSpecs(executable: string): ITestSpec[] {
 		'tunnel',
 		'version'
 	];
-	const tunnelSubcommandsAndArgs: string[] = [
+	const tunnelSubcommandsAndFlags: string[] = [
 		'--accept-server-license-terms',
 		'--cli-data-dir <cli_data_dir>',
 		'--extensions-dir [<extensions_dir>]',
@@ -185,17 +185,6 @@ export function createCodeTunnelTestSpecs(executable: string): ITestSpec[] {
 		'unregister',
 		'user',
 	];
-	const tunnelServiceSubcommandsAndArgs: string[] = [
-		'--cli-data-dir <cli_data_dir>',
-		'--help',
-		'--log [<log>]',
-		'--verbose',
-		'-h',
-		'help',
-		'install',
-		'log',
-		'uninstall'
-	];
 
 	const helpSubcommands: string[] = [
 		'help',
@@ -208,7 +197,7 @@ export function createCodeTunnelTestSpecs(executable: string): ITestSpec[] {
 		'unregister',
 		'user'
 	];
-	const serveWebSubcommandsAndArgs: string[] = [
+	const serveWebSubcommandsAndFlags: string[] = [
 		'--accept-server-license-terms',
 		'--cli-data-dir <cli_data_dir>',
 		'--connection-token [<connection_token>]',
@@ -232,7 +221,7 @@ export function createCodeTunnelTestSpecs(executable: string): ITestSpec[] {
 		'update'
 	];
 
-	const resusedArgs: string[] = [
+	const commonFlags: string[] = [
 		'--cli-data-dir <cli_data_dir>',
 		'--log [<log>]',
 		'--verbose',
@@ -249,24 +238,24 @@ export function createCodeTunnelTestSpecs(executable: string): ITestSpec[] {
 
 	return [
 		...typingTests,
-		{ input: `${executable} |`, expectedCompletions: subcommandAndArgs, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
-		{ input: `${executable} tunnel |`, expectedCompletions: tunnelSubcommandsAndArgs },
+		{ input: `${executable} |`, expectedCompletions: subcommandAndFlags, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		{ input: `${executable} tunnel |`, expectedCompletions: tunnelSubcommandsAndFlags },
 		{ input: `${executable} tunnel user |`, expectedCompletions: ['help', 'login', 'logout', 'show'] },
-		{ input: `${executable} tunnel prune |`, expectedCompletions: [...resusedArgs] },
-		{ input: `${executable} tunnel kill |`, expectedCompletions: [...resusedArgs] },
-		{ input: `${executable} tunnel restart |`, expectedCompletions: [...resusedArgs] },
-		{ input: `${executable} tunnel status |`, expectedCompletions: [...resusedArgs] },
-		{ input: `${executable} tunnel rename |`, expectedCompletions: [...resusedArgs] },
-		{ input: `${executable} tunnel unregister |`, expectedCompletions: [...resusedArgs] },
-		{ input: `${executable} tunnel service |`, expectedCompletions: tunnelServiceSubcommandsAndArgs },
+		{ input: `${executable} tunnel prune |`, expectedCompletions: [...commonFlags] },
+		{ input: `${executable} tunnel kill |`, expectedCompletions: [...commonFlags] },
+		{ input: `${executable} tunnel restart |`, expectedCompletions: [...commonFlags] },
+		{ input: `${executable} tunnel status |`, expectedCompletions: [...commonFlags] },
+		{ input: `${executable} tunnel rename |`, expectedCompletions: [...commonFlags] },
+		{ input: `${executable} tunnel unregister |`, expectedCompletions: [...commonFlags] },
+		{ input: `${executable} tunnel service |`, expectedCompletions: [...commonFlags, 'help', 'install', 'log', 'uninstall'] },
 		{ input: `${executable} tunnel help |`, expectedCompletions: helpSubcommands },
-		{ input: `${executable} serve-web |`, expectedCompletions: serveWebSubcommandsAndArgs },
+		{ input: `${executable} serve-web |`, expectedCompletions: serveWebSubcommandsAndFlags },
 		{ input: `${executable} ext |`, expectedCompletions: extSubcommands },
-		{ input: `${executable} ext list |`, expectedCompletions: [...resusedArgs, '--category [<category>]', '--show-versions'] },
-		{ input: `${executable} ext install |`, expectedCompletions: [...resusedArgs, '--pre-release', '--donot-include-pack-and-dependencies', '--force'] },
-		{ input: `${executable} ext update |`, expectedCompletions: [...resusedArgs] },
-		{ input: `${executable} status |`, expectedCompletions: resusedArgs },
-		{ input: `${executable} version |`, expectedCompletions: resusedArgs },
+		{ input: `${executable} ext list |`, expectedCompletions: [...commonFlags, '--category [<category>]', '--show-versions'] },
+		{ input: `${executable} ext install |`, expectedCompletions: [...commonFlags, '--pre-release', '--donot-include-pack-and-dependencies', '--force'] },
+		{ input: `${executable} ext update |`, expectedCompletions: [...commonFlags] },
+		{ input: `${executable} status |`, expectedCompletions: commonFlags },
+		{ input: `${executable} version |`, expectedCompletions: commonFlags },
 
 	];
 }
