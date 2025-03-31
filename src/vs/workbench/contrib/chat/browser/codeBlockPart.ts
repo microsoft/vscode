@@ -250,9 +250,10 @@ export class CodeBlockPart extends Disposable {
 
 		this._register(this.toolbar.onDidChangeDropdownVisibility(e => {
 			if (!e) {
-				// Wait so that focus can move to the toolbar
-				// before we hide the toolbar
-				setTimeout(() => toolbarElement.classList.toggle('force-visibility', e), 30);
+				// If the dropdown has just been hidden, wait for the next frame to
+				// remove the force visibility class so that the toolbar remains visible
+				// long enough to get focused. #244990
+				setTimeout(() => toolbarElement.classList.toggle('force-visibility', e), 0);
 			} else {
 				toolbarElement.classList.toggle('force-visibility', e);
 			}
