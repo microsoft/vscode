@@ -36,8 +36,11 @@ suite('MarkdownExtensionsDecoder', () => {
 	/**
 	 * Create a Front Matter header start/end marker with a random length.
 	 */
-	const randomMarker = (max: number = 10): string => {
-		const dashCount = randomInt(max, 1);
+	const randomMarker = (
+		maxDashCount: number = 10,
+		minDashCount: number = 1,
+	): string => {
+		const dashCount = randomInt(maxDashCount, minDashCount);
 
 		return new Array(dashCount).fill('-').join('');
 	};
@@ -78,6 +81,52 @@ suite('MarkdownExtensionsDecoder', () => {
 						new Word(new Range(5, 1, 5, 1 + 4), 'some'),
 						new Space(new Range(5, 5, 5, 6)),
 						new Word(new Range(5, 6, 5, 6 + 4), 'text'),
+					],
+				);
+			});
+
+
+			test('• can contain dashes in the header contents', async () => {
+				const test = disposables.add(
+					new TestMarkdownExtensionsDecoder(),
+				);
+
+				const marker = randomMarker(10, 4);
+				const dashes = randomMarker(3, 1);
+
+				const headerContents = [
+					'variables:',
+					'  - name: value',
+					dashes,
+					'\t\t',
+				];
+
+				const promptContents = [
+					marker,
+					...headerContents,
+					marker,
+					'some text',
+				];
+
+				// both line ending should result in the same result
+				const newLine = (randomBoolean())
+					? '\n'
+					: '\r\n';
+
+				await test.run(
+					promptContents.join(newLine),
+					[
+						// header
+						new FrontMatterHeaderToken(
+							new Range(1, 1, headerContents.length + 2, 1 + marker.length + newLine.length),
+							`${marker}${newLine}`,
+							headerContents.join(newLine) + newLine,
+							`${marker}${newLine}`,
+						),
+						// content after the header
+						new Word(new Range(7, 1, 7, 1 + 4), 'some'),
+						new Space(new Range(7, 5, 7, 6)),
+						new Word(new Range(7, 6, 7, 6 + 4), 'text'),
 					],
 				);
 			});
@@ -160,44 +209,43 @@ suite('MarkdownExtensionsDecoder', () => {
 					(await simpleDecoder.receiveTokens()),
 				);
 			});
-		});
 
-		test('• fails if header markers do not match (end marker is longer)', async () => {
-			const test = disposables.add(
-				new TestMarkdownExtensionsDecoder(),
-			);
+			test('• fails if header markers do not match (end marker is longer)', async () => {
+				const test = disposables.add(
+					new TestMarkdownExtensionsDecoder(),
+				);
 
-			const simpleDecoder = disposables.add(
-				new TestSimpleDecoder(),
-			);
+				const simpleDecoder = disposables.add(
+					new TestSimpleDecoder(),
+				);
 
-			const marker = randomMarker(5);
+				const marker = randomMarker(5);
 
-			// prompt contents
-			const contents = [
-				marker,
-				'variables:',
-				'  - name: value',
-				`${marker}${marker}`,
-				'some text',
-			];
+				const promptContents = [
+					marker,
+					'variables:',
+					'  - name: value',
+					`${marker}${marker}`,
+					'some text',
+				];
 
-			// both line ending should result in the same result
-			const newLine = (randomBoolean())
-				? '\n'
-				: '\r\n';
+				// both line ending should result in the same result
+				const newLine = (randomBoolean())
+					? '\n'
+					: '\r\n';
 
-			const stringContents = contents.join(newLine);
+				const stringContents = promptContents.join(newLine);
 
-			// send the same contents to the simple decoder
-			simpleDecoder.sendData(stringContents);
+				// send the same contents to the simple decoder
+				simpleDecoder.sendData(stringContents);
 
-			// in the failure case we expect tokens to be re-emitted, therefore
-			// the list of tokens produced must be equal to the one of SimpleDecoder
-			await test.run(
-				stringContents,
-				(await simpleDecoder.receiveTokens()),
-			);
+				// in the failure case we expect tokens to be re-emitted, therefore
+				// the list of tokens produced must be equal to the one of SimpleDecoder
+				await test.run(
+					stringContents,
+					(await simpleDecoder.receiveTokens()),
+				);
+			});
 		});
 	});
 });

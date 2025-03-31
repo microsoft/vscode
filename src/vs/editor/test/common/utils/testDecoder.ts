@@ -155,7 +155,7 @@ export class TestDecoder<T extends BaseToken, D extends BaseDecoder<T>> extends 
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Receive all tokens from the decoder stream using the specified consume method.
 	 */
 	public async receiveTokens(
 		tokensConsumeMethod: TTokensConsumeMethod = this.randomTokensConsumeMethod(),

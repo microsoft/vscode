@@ -6,6 +6,6 @@
 import { MarkdownToken } from '../../markdownCodec/tokens/markdownToken.js';
 
 /**
- * TODO: @legomushroom
+ * Base class for all tokens produced by the `MarkdownExtensionsDecoder`.
  */
 export abstract class MarkdownExtensionsToken extends MarkdownToken { }

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BaseToken } from '../../baseToken.js';
 import { Dash } from '../../simpleCodec/tokens/dash.js';
 import { NewLine } from '../../linesCodec/tokens/newLine.js';
 import { assertDefined } from '../../../../../base/common/types.js';
@@ -11,54 +10,11 @@ import { TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
 import { assert, assertNever } from '../../../../../base/common/assert.js';
 import { CarriageReturn } from '../../linesCodec/tokens/carriageReturn.js';
 import { FrontMatterHeaderToken } from '../tokens/frontMatterHeaderToken.js';
-import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../simpleCodec/parserBase.js';
+import { assertNotConsumed, IAcceptTokenSuccess, ParserBase, TAcceptTokenResult } from '../../simpleCodec/parserBase.js';
+import { FrontMatterHeaderMarkerToken, TMarkerToken } from '../tokens/frontMatterHeaderMarkerToken.js';
 
 /**
- * TODO: @legomushroom
- */
-class FrontMatterMarker {
-	/**
-	 * TODO: @legomushroom
-	 */
-	public readonly dashCount: number;
-
-	/**
-	 * Full range of the token.
-	 */
-	public get range() {
-		return BaseToken.fullRange(this.tokens);
-	}
-
-	constructor(
-		public readonly tokens: readonly (Dash | CarriageReturn | NewLine)[],
-	) {
-		const lastToken = tokens[tokens.length - 1];
-
-		assert(
-			lastToken instanceof NewLine,
-			`Front Matter header must end with a new line token, got '${lastToken}'.`,
-		);
-
-		this.dashCount = this.tokens
-			.filter((token) => { return token instanceof Dash; })
-			.length;
-	}
-
-	/**
-	 * Returns a string representation of the token.
-	 */
-	public toString(): string {
-		return `frontmatter-marker(${this.dashCount}:${this.range})`;
-	}
-}
-
-/**
- * TODO: @legomushroom
- */
-type TMarkerToken = Dash | CarriageReturn | NewLine;
-
-/**
- * TODO: @legomushroom
+ * Parses the start marker of a Front Matter header.
  */
 export class PartialFrontMatterStartMarker extends ParserBase<TMarkerToken, PartialFrontMatterStartMarker | PartialFrontMatterHeader> {
 	constructor(token: Dash) {
@@ -110,7 +66,7 @@ export class PartialFrontMatterStartMarker extends ParserBase<TMarkerToken, Part
 				result: 'success',
 				wasTokenConsumed: true,
 				nextParser: new PartialFrontMatterHeader(
-					new FrontMatterMarker([
+					new FrontMatterHeaderMarkerToken([
 						...this.currentTokens,
 						token,
 					]),
@@ -125,19 +81,29 @@ export class PartialFrontMatterStartMarker extends ParserBase<TMarkerToken, Part
 			wasTokenConsumed: false,
 		};
 	}
+
+	/**
+	 * Check if provided dash token can be a start of a Front Matter header.
+	 */
+	public static mayStartHeader(token: TSimpleDecoderToken): token is Dash {
+		return (token instanceof Dash)
+			&& (token.range.startLineNumber === 1)
+			&& (token.range.startColumn === 1);
+	}
 }
 
 /**
- * TODO: @legomushroom
+ * Parses a Front Matter header that already has a start marker
+ * and possibly some content that follows.
  */
 export class PartialFrontMatterHeader extends ParserBase<TSimpleDecoderToken, PartialFrontMatterHeader | FrontMatterHeaderToken> {
 	/**
-	 * TODO: @legomushroom
+	 * Parser instance for the end marker of the Front Matter header.
 	 */
 	private maybeEndMarker?: PartialFrontMatterEndMarker;
 
 	constructor(
-		public readonly startMarker: FrontMatterMarker,
+		public readonly startMarker: FrontMatterHeaderMarkerToken,
 	) {
 		super([]);
 	}
@@ -155,22 +121,21 @@ export class PartialFrontMatterHeader extends ParserBase<TSimpleDecoderToken, Pa
 	}
 
 	/**
-	 * TODO: @legomushroom
-	 */
-	/**
-	 * Convert the current token sequence into a {@link MarkdownComment} token.
+	 * Convert the current token sequence into a {@link FrontMatterHeaderToken} token.
 	 *
 	 * Note! that this method marks the current parser object as "consumed"
 	 *       hence it should not be used after this method is called.
 	 */
 	public asFrontMatterHeader(): FrontMatterHeaderToken | null {
-		if (this.maybeEndMarker === undefined) {
-			return null;
-		}
+		assertDefined(
+			this.maybeEndMarker,
+			'Cannot convert to Front Matter header token without an end marker.',
+		);
 
-		if (this.maybeEndMarker.dashCount !== this.startMarker.dashCount) {
-			return null;
-		}
+		assert(
+			this.maybeEndMarker.dashCount === this.startMarker.dashCount,
+			`Start and end markers must have the same number of dashes, got ${this.startMarker.dashCount} / ${this.maybeEndMarker.dashCount}.`,
+		);
 
 		this.isConsumed = true;
 
@@ -216,8 +181,8 @@ export class PartialFrontMatterHeader extends ParserBase<TSimpleDecoderToken, Pa
 	}
 
 	/**
-	 * TODO: @legomushroom
-	 * @throws
+	 * When a end marker parser is present, we pass all tokens to it
+	 * until it is completes the parsing process(either success or failure).
 	 */
 	private acceptEndMarkerToken(
 		token: TSimpleDecoderToken,
@@ -232,10 +197,9 @@ export class PartialFrontMatterHeader extends ParserBase<TSimpleDecoderToken, Pa
 		const acceptResult = this.maybeEndMarker.accept(token);
 		const { result, wasTokenConsumed } = acceptResult;
 
-		// TODO: @legomushroom
 		if (result === 'success') {
 			const { nextParser } = acceptResult;
-			const endMarkerParsingComplete = (nextParser instanceof FrontMatterMarker);
+			const endMarkerParsingComplete = (nextParser instanceof FrontMatterHeaderMarkerToken);
 
 			if (endMarkerParsingComplete === false) {
 				return {
@@ -251,10 +215,10 @@ export class PartialFrontMatterHeader extends ParserBase<TSimpleDecoderToken, Pa
 			// if they don't match, we would like to continue parsing the header
 			// until we find an end marker with the same number of dashes
 			if (endMarker.dashCount !== this.startMarker.dashCount) {
-				return {
-					result: 'failure',
+				return this.handleEndMarkerParsingFailure(
+					endMarker.tokens,
 					wasTokenConsumed,
-				};
+				);
 			}
 
 			this.isConsumed = true;
@@ -272,10 +236,10 @@ export class PartialFrontMatterHeader extends ParserBase<TSimpleDecoderToken, Pa
 		// if failed to parse the end marker, we would like to continue parsing
 		// the header until we find a valid end marker
 		if (result === 'failure') {
-			return {
-				result: 'failure',
+			return this.handleEndMarkerParsingFailure(
+				this.maybeEndMarker.tokens,
 				wasTokenConsumed,
-			};
+			);
 		}
 
 		assertNever(
@@ -283,12 +247,32 @@ export class PartialFrontMatterHeader extends ParserBase<TSimpleDecoderToken, Pa
 			`Unexpected result '${result}' while parsing the end marker.`,
 		);
 	}
+
+	/**
+	 * On failure to parse the end marker, we need to continue parsing
+	 * the header because there might be another valid end marker in
+	 * the stream of tokens. Therefore we copy over the end marker tokens
+	 * into the list of "content" tokens and reset the end marker parser.
+	 */
+	private handleEndMarkerParsingFailure(
+		tokens: readonly TSimpleDecoderToken[],
+		wasTokenConsumed: boolean,
+	): IAcceptTokenSuccess<PartialFrontMatterHeader> {
+		this.currentTokens.push(...tokens);
+		delete this.maybeEndMarker;
+
+		return {
+			result: 'success',
+			wasTokenConsumed,
+			nextParser: this,
+		};
+	}
 }
 
 /**
- * TODO: @legomushroom
+ * Parser the end marker sequence of a Front Matter header.
  */
-class PartialFrontMatterEndMarker extends ParserBase<TMarkerToken, PartialFrontMatterEndMarker | FrontMatterMarker> {
+class PartialFrontMatterEndMarker extends ParserBase<TMarkerToken, PartialFrontMatterEndMarker | FrontMatterHeaderMarkerToken> {
 	constructor(token: Dash) {
 		const { range } = token;
 
@@ -301,7 +285,7 @@ class PartialFrontMatterEndMarker extends ParserBase<TMarkerToken, PartialFrontM
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Number of dashes in the marker.
 	 */
 	public get dashCount(): number {
 		return this.tokens
@@ -310,11 +294,10 @@ class PartialFrontMatterEndMarker extends ParserBase<TMarkerToken, PartialFrontM
 	}
 
 	@assertNotConsumed
-	public accept(token: TSimpleDecoderToken): TAcceptTokenResult<PartialFrontMatterEndMarker | FrontMatterMarker> {
+	public accept(token: TSimpleDecoderToken): TAcceptTokenResult<PartialFrontMatterEndMarker | FrontMatterHeaderMarkerToken> {
 		const previousToken = this.currentTokens[this.currentTokens.length - 1];
 
 		// collect a sequence of dash tokens that may end with a CR token
-		// TODO: @legomushroom - include `Space` token?
 		if ((token instanceof Dash) || (token instanceof CarriageReturn)) {
 			// a dash or CR tokens can go only after another dash token
 			if ((previousToken instanceof Dash) === false) {
@@ -343,7 +326,7 @@ class PartialFrontMatterEndMarker extends ParserBase<TMarkerToken, PartialFrontM
 			return {
 				result: 'success',
 				wasTokenConsumed: true,
-				nextParser: new FrontMatterMarker([
+				nextParser: new FrontMatterHeaderMarkerToken([
 					...this.currentTokens,
 				]),
 			};

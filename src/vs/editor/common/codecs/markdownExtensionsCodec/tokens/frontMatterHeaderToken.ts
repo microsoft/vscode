@@ -5,11 +5,13 @@
 
 import { Range } from '../../../core/range.js';
 import { BaseToken } from '../../baseToken.js';
+import { assert } from '../../../../../base/common/assert.js';
 import { MarkdownExtensionsToken } from './markdownExtensionsToken.js';
 import { TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
+import { NewLine } from '../../linesCodec/tokens/newLine.js';
 
 /**
- * TODO: @legomushroom
+ * Token that represents a `Front Matter` header in a text.
  */
 export class FrontMatterHeaderToken extends MarkdownExtensionsToken {
 	constructor(
@@ -18,13 +20,31 @@ export class FrontMatterHeaderToken extends MarkdownExtensionsToken {
 		public readonly contents: string,
 		public readonly endMarker: string,
 	) {
-		// TODO: @legomushroom - validate text?
+		// sanity check of the `start marker` string
+		assert(
+			startMarker.length > 0,
+			'Front Matter header start marker must not be empty.',
+		);
+		assert(
+			startMarker.endsWith(NewLine.symbol),
+			'Front Matter header start marker must end with a new line.',
+		);
+
+		// sanity check of the `end marker` string
+		assert(
+			endMarker.length > 0,
+			'Front Matter header end marker must not be empty.',
+		);
+		assert(
+			endMarker.endsWith(NewLine.symbol),
+			'Front Matter header end marker must end with a new line.',
+		);
 
 		super(range);
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Return complete text representation of the token.
 	 */
 	public get text(): string {
 		return [
@@ -54,7 +74,7 @@ export class FrontMatterHeaderToken extends MarkdownExtensionsToken {
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Create new instance of the token from the given tokens.
 	 */
 	public static fromTokens(
 		startMarkerTokens: readonly TSimpleDecoderToken[],
@@ -74,6 +94,6 @@ export class FrontMatterHeaderToken extends MarkdownExtensionsToken {
 	 */
 	public override toString(): string {
 		// TODO: @legomushroom - add an utility to truncate strings
-		return `frontmatter("${this.text.slice(0, 16)}")${this.range}`;
+		return `frontmatter("${this.text.slice(0, 10)}")${this.range}`;
 	}
 }

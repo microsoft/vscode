@@ -56,7 +56,6 @@ export class PartialPromptTemplateVariable extends ParserBase<TSimpleDecoderToke
 	@assertNotConsumed
 	public accept(token: TSimpleDecoderToken): TAcceptTokenResult<PartialPromptTemplateVariable | PromptTemplateVariable> {
 		// template variables are terminated by the `}` character
-		// TODO: @legomushroom - support escaped `}` characters?
 		if (token instanceof RightCurlyBrace) {
 			this.currentTokens.push(token);
 

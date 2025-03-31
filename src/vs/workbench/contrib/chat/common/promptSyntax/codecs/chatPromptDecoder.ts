@@ -182,7 +182,7 @@ export class ChatPromptDecoder extends BaseDecoder<TChatPromptToken, TMarkdownTo
 	/**
 	 * Re-emit tokens accumulated so far in the current parser object.
 	 */
-	// TODO: @legomushroom - move to a base class
+	// TODO: @legomushroom - move to a base class?
 	protected reEmitCurrentTokens(): void {
 		if (this.current === undefined) {
 			return;
