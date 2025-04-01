@@ -6,7 +6,6 @@
 import { equals as arraysEqual, binarySearch2 } from '../../../../../base/common/arrays.js';
 import { DeferredPromise, ITask, Sequencer, SequencerByKey, timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { StringSHA1 } from '../../../../../base/common/hash.js';
@@ -25,7 +24,6 @@ import { IEditorWorkerService } from '../../../../../editor/common/services/edit
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../nls.js';
-import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { EditorActivation } from '../../../../../platform/editor/common/editor.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
@@ -39,16 +37,18 @@ import { IEditorGroupsService } from '../../../../services/editor/common/editorG
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { MultiDiffEditor } from '../../../multiDiffEditor/browser/multiDiffEditor.js';
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
-import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
-import { ChatEditingSessionState, ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, IStreamingEdits, ModifiedFileEntryState, WorkingSetDisplayMetadata } from '../../common/chatEditingService.js';
-import { ICellTextEditOperation, IChatRequestDisablement, IChatResponseModel, isCellTextEditOperation } from '../../common/chatModel.js';
+import { ChatEditingSessionState, ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, IStreamingEdits, WorkingSetDisplayMetadata, ModifiedFileEntryState } from '../../common/chatEditingService.js';
+import { IChatRequestDisablement, IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
-import { ChatEditingModifiedDocumentEntry } from './chatEditingModifiedDocumentEntry.js';
 import { AbstractChatEditingModifiedFileEntry, IModifiedEntryTelemetryInfo, ISnapshotEntry } from './chatEditingModifiedFileEntry.js';
-import { ChatEditingModifiedNotebookEntry } from './chatEditingModifiedNotebookEntry.js';
+import { ChatEditingModifiedDocumentEntry } from './chatEditingModifiedDocumentEntry.js';
 import { ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
+import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
+import { ChatEditingModifiedNotebookEntry } from './chatEditingModifiedNotebookEntry.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ChatEditingModifiedNotebookDiff } from './notebook/chatEditingModifiedNotebookDiff.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 
 const STORAGE_CONTENTS_FOLDER = 'contents';
 const STORAGE_STATE_FILE = 'state.json';
@@ -630,7 +630,21 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		let didComplete = false;
 
 		return {
-			pushEdits: (edits) => {
+			pushText: (edits) => {
+				sequencer.queue(async () => {
+					if (!this.isDisposed) {
+						await this._acceptEdits(resource, edits, false, responseModel);
+					}
+				});
+			},
+			pushNotebookCellText: (cell, edits) => {
+				sequencer.queue(async () => {
+					if (!this.isDisposed) {
+						await this._acceptEdits(cell, edits, false, responseModel);
+					}
+				});
+			},
+			pushNotebook: edits => {
 				sequencer.queue(async () => {
 					if (!this.isDisposed) {
 						await this._acceptEdits(resource, edits, false, responseModel);
@@ -791,31 +805,9 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._linearHistory.set(newHistory, tx);
 	}
 
-	private async _acceptEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation | ICellTextEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
-		const editsTodo = new ResourceMap<(TextEdit | ICellEditOperation)[]>();
-		for (const edit of textEdits) {
-			let uri: URI;
-			let textEdit: TextEdit | ICellEditOperation;
-			if (isCellTextEditOperation(edit)) {
-				uri = edit.uri;
-				textEdit = edit.edit;
-			} else {
-				uri = resource;
-				textEdit = edit;
-			}
-
-			const entry = editsTodo.get(uri);
-			if (entry) {
-				entry.push(textEdit);
-			} else {
-				editsTodo.set(uri, [textEdit]);
-			}
-		}
-
-		await Promise.all([...editsTodo.entries()].map(async ([uri, textEdits]) => {
-			const entry = await this._getOrCreateModifiedFileEntry(resource, this._getTelemetryInfoForModel(responseModel));
-			await entry.acceptAgentEdits(uri, textEdits, isLastEdits, responseModel);
-		}));
+	private async _acceptEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
+		const entry = await this._getOrCreateModifiedFileEntry(resource, this._getTelemetryInfoForModel(responseModel));
+		await entry.acceptAgentEdits(resource, textEdits, isLastEdits, responseModel);
 	}
 
 	private _getTelemetryInfoForModel(responseModel: IChatResponseModel): IModifiedEntryTelemetryInfo {
