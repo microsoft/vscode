@@ -45,7 +45,7 @@ steps:
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Registry
 
-  - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js darwin $VSCODE_ARCH > .build/packagelockhash
+  - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js darwin $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
     displayName: Prepare node_modules cache key
 
   - task: Cache@2
@@ -120,6 +120,11 @@ steps:
       displayName: Mixin distro quality
 
   - template: ../common/install-builtin-extensions.yml@self
+
+  - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
+    - script: node build/lib/policies darwin
+      displayName: Generate policy definitions
+      retryCountOnTaskFailure: 3
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: |

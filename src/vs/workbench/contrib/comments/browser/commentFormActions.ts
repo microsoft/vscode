@@ -52,11 +52,11 @@ export class CommentFormActions implements IDisposable {
 				const button = dropDownActions.length ? new ButtonWithDropdown(this.container, {
 					contextMenuProvider: this.contextMenuService,
 					actions: dropDownActions,
-					actionRunner: new class extends ActionRunner {
+					actionRunner: this._toDispose.add(new class extends ActionRunner {
 						protected override async runAction(action: IAction, context?: unknown): Promise<void> {
 							return actionHandler(action);
 						}
-					},
+					}),
 					secondary: !isPrimary,
 					title,
 					addPrimaryActionToDropdown: false,

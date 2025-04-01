@@ -15,7 +15,6 @@ import { Categories } from '../../../../platform/action/common/actionCommonCateg
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ExtensionKind } from '../../../../platform/environment/common/environment.js';
 import { IExtensionGalleryService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
@@ -414,7 +413,13 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 				return this._startLocalExtensionHost(emitter);
 			}
 
-			updateProxyConfigurationsScope(remoteEnv.useHostProxy ? ConfigurationScope.APPLICATION : ConfigurationScope.MACHINE);
+			const useHostProxyDefault = remoteEnv.useHostProxy;
+			this._register(this._configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration('http.useLocalProxyConfiguration')) {
+					updateProxyConfigurationsScope(this._configurationService.getValue('http.useLocalProxyConfiguration'), useHostProxyDefault);
+				}
+			}));
+			updateProxyConfigurationsScope(this._configurationService.getValue('http.useLocalProxyConfiguration'), useHostProxyDefault);
 		} else {
 
 			this._remoteAuthorityResolverService._setCanonicalURIProvider(async (uri) => uri);
@@ -462,16 +467,6 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 		if (!recommendation) {
 			return false;
 		}
-		const sendTelemetry = (userReaction: 'install' | 'enable' | 'cancel') => {
-			/* __GDPR__
-			"remoteExtensionRecommendations:popup" : {
-				"owner": "sandy081",
-				"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
-			}
-			*/
-			this._telemetryService.publicLog('remoteExtensionRecommendations:popup', { userReaction, extensionId: resolverExtensionId });
-		};
 
 		const resolverExtensionId = recommendation.extensionId;
 		const allExtensions = await this._scanAllLocalExtensions();
@@ -483,7 +478,6 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 					[{
 						label: nls.localize('enable', 'Enable and Reload'),
 						run: async () => {
-							sendTelemetry('enable');
 							await this._extensionEnablementService.setEnablement([toExtension(extension)], EnablementState.EnabledGlobally);
 							await this._hostService.reload();
 						}
@@ -501,7 +495,6 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 				[{
 					label: nls.localize('install', 'Install and Reload'),
 					run: async () => {
-						sendTelemetry('install');
 						const [galleryExtension] = await this._extensionGalleryService.getExtensions([{ id: resolverExtensionId }], CancellationToken.None);
 						if (galleryExtension) {
 							await this._extensionManagementService.installFromGallery(galleryExtension);
@@ -515,7 +508,6 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 				{
 					sticky: true,
 					priority: NotificationPriority.URGENT,
-					onCancel: () => sendTelemetry('cancel')
 				}
 			);
 

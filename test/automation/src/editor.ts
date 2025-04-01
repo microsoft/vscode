@@ -36,7 +36,7 @@ export class Editor {
 		await this.code.waitForActiveElement(RENAME_INPUT);
 		await this.code.waitForSetValue(RENAME_INPUT, to);
 
-		await this.code.dispatchKeybinding('enter');
+		await this.code.sendKeybinding('enter');
 	}
 
 	async gotoDefinition(filename: string, term: string, line: number): Promise<void> {
@@ -99,6 +99,11 @@ export class Editor {
 		await this.code.waitForTypeInEditor(editContext, text);
 
 		await this.waitForEditorContents(filename, c => c.indexOf(text) > -1, selectorPrefix);
+	}
+
+	async waitForEditorSelection(filename: string, accept: (selection: { selectionStart: number; selectionEnd: number }) => boolean): Promise<void> {
+		const selector = `${EDITOR(filename)} ${this._editContextSelector()}`;
+		await this.code.waitForEditorSelection(selector, accept);
 	}
 
 	private _editContextSelector() {

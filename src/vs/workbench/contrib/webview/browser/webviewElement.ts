@@ -5,7 +5,9 @@
 
 import { isFirefox } from '../../../../base/browser/browser.js';
 import { addDisposableListener, EventType, getWindowById } from '../../../../base/browser/dom.js';
+import { parentOriginHash } from '../../../../base/browser/iframe.js';
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
+import { CodeWindow } from '../../../../base/browser/window.js';
 import { promiseWithResolvers, ThrottledDelayer } from '../../../../base/common/async.js';
 import { streamToBuffer, VSBufferReadableStream } from '../../../../base/common/buffer.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -26,18 +28,15 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ITunnelService } from '../../../../platform/tunnel/common/tunnel.js';
 import { WebviewPortMappingManager } from '../../../../platform/webview/common/webviewPortMapping.js';
-import { parentOriginHash } from '../../../../base/browser/iframe.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { decodeAuthority, webviewGenericCspSource, webviewRootResourceAuthority } from '../common/webview.js';
 import { loadLocalResource, WebviewResourceResponse } from './resourceLoading.js';
 import { WebviewThemeDataProvider } from './themeing.js';
 import { areWebviewContentOptionsEqual, IWebview, WebviewContentOptions, WebviewExtensionDescription, WebviewInitInfo, WebviewMessageReceivedEvent, WebviewOptions } from './webview.js';
 import { WebviewFindDelegate, WebviewFindWidget } from './webviewFindWidget.js';
 import { FromWebviewMessage, KeyEvent, ToWebviewMessage, WebViewDragEvent } from './webviewMessages.js';
-import { decodeAuthority, webviewGenericCspSource, webviewRootResourceAuthority } from '../common/webview.js';
-import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
-import { CodeWindow } from '../../../../base/browser/window.js';
 
 interface WebviewContent {
 	readonly html: string;
@@ -158,7 +157,6 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ITunnelService private readonly _tunnelService: ITunnelService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
@@ -588,18 +586,6 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			if (this._environmentService.isExtensionDevelopment) {
 				this._onMissingCsp.fire(this.extension.id);
 			}
-
-			const payload = {
-				extension: this.extension.id.value
-			} as const;
-
-			type Classification = {
-				extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the extension that created the webview.' };
-				owner: 'mjbz';
-				comment: 'Helps find which extensions are contributing webviews with invalid CSPs';
-			};
-
-			this._telemetryService.publicLog2<typeof payload, Classification>('webviewMissingCsp', payload);
 		}
 	}
 

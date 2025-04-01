@@ -5,9 +5,9 @@
 
 (function () {
 
-	type ISandboxConfiguration = import('vs/base/parts/sandbox/common/sandboxTypes.js').ISandboxConfiguration;
-	type ILoadResult<M, T extends ISandboxConfiguration> = import('vs/platform/window/electron-sandbox/window.js').ILoadResult<M, T>;
-	type ILoadOptions<T extends ISandboxConfiguration> = import('vs/platform/window/electron-sandbox/window.js').ILoadOptions<T>;
+	type ISandboxConfiguration = import('./vs/base/parts/sandbox/common/sandboxTypes.js').ISandboxConfiguration;
+	type ILoadResult<M, T extends ISandboxConfiguration> = import('./vs/platform/window/electron-sandbox/window.js').ILoadResult<M, T>;
+	type ILoadOptions<T extends ISandboxConfiguration> = import('./vs/platform/window/electron-sandbox/window.js').ILoadOptions<T>;
 	type IMainWindowSandboxGlobals = import('./vs/base/parts/sandbox/electron-sandbox/globals.js').IMainWindowSandboxGlobals;
 
 	const preloadGlobals: IMainWindowSandboxGlobals = (window as any).vscode; // defined by preload.ts

@@ -7,10 +7,10 @@
 	margin: 0;
 	padding: 0;
 	position: absolute;
-	overflow: hidden;
+	overflow-y: scroll;
+	scrollbar-width: none;
 	z-index: -10;
 	white-space: pre-wrap;
-	text-wrap: nowrap;
 }
 
 .monaco-editor .native-edit-context-textarea {

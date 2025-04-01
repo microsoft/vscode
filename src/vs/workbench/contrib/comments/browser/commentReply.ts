@@ -359,11 +359,11 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		this._register(dom.addDisposableListener(this._reviewThreadReplyButton, 'click', _ => this.clearAndExpandReplyArea()));
 		this._register(dom.addDisposableListener(this._reviewThreadReplyButton, 'focus', _ => this.clearAndExpandReplyArea()));
 
-		commentEditor.onDidBlurEditorWidget(() => {
+		this._register(commentEditor.onDidBlurEditorWidget(() => {
 			if (commentEditor.getModel()!.getValueLength() === 0 && commentForm.classList.contains('expand')) {
 				commentForm.classList.remove('expand');
 			}
-		});
+		}));
 	}
 
 	override dispose(): void {

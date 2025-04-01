@@ -19,6 +19,7 @@ import { MenuId, MenuRegistry, isIMenuItem } from '../../../../platform/actions/
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { isLocalizedString } from '../../../../platform/action/common/action.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { KeybindingsRegistry } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 
 export class ConfigureLanguageBasedSettingsAction extends Action {
 
@@ -119,6 +120,27 @@ CommandsRegistry.registerCommand('_getAllCommands', function (accessor, filterBy
 			});
 		}
 	}
+	for (const command of KeybindingsRegistry.getDefaultKeybindings()) {
+		if (filterByPrecondition && !contextKeyService.contextMatchesRules(command.when ?? undefined)) {
+			continue;
+		}
+
+		const keybinding = keybindingService.lookupKeybinding(command.command ?? '');
+		if (!keybinding) {
+			continue;
+		}
+
+		if (actions.some(a => a.command === command.command)) {
+			continue;
+		}
+		actions.push({
+			command: command.command ?? '',
+			label: command.command ?? '',
+			keybinding: keybinding?.getLabel() ?? 'Not set',
+			precondition: command.when?.serialize()
+		});
+	}
+
 	return actions;
 });
 //#endregion

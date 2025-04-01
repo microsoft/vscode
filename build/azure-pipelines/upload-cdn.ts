@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as es from 'event-stream';
-import * as Vinyl from 'vinyl';
-import * as vfs from 'vinyl-fs';
-import * as filter from 'gulp-filter';
-import * as gzip from 'gulp-gzip';
-import * as mime from 'mime';
+import es from 'event-stream';
+import Vinyl from 'vinyl';
+import vfs from 'vinyl-fs';
+import filter from 'gulp-filter';
+import gzip from 'gulp-gzip';
+import mime from 'mime';
 import { ClientAssertionCredential } from '@azure/identity';
 const azure = require('gulp-azure-storage');
 
@@ -79,8 +79,8 @@ async function main(): Promise<void> {
 	const options = (compressed: boolean) => ({
 		account: process.env.AZURE_STORAGE_ACCOUNT,
 		credential,
-		container: process.env.VSCODE_QUALITY,
-		prefix: commit + '/',
+		container: '$web',
+		prefix: `${process.env.VSCODE_QUALITY}/${commit}/`,
 		contentSettings: {
 			contentEncoding: compressed ? 'gzip' : undefined,
 			cacheControl: 'max-age=31536000, public'

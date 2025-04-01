@@ -5,12 +5,12 @@
 
 import { spawnSync, execSync } from 'child_process';
 import { tmpdir } from 'os';
-import * as fs from 'fs';
-import * as https from 'https';
-import * as path from 'path';
+import fs from 'fs';
+import https from 'https';
+import path from 'path';
 import { createHash } from 'crypto';
 import { DebianArchString } from './types';
-import * as ansiColors from 'ansi-colors';
+import ansiColors from 'ansi-colors';
 
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:build/linux/sysroot_scripts/install-sysroot.py.
 const URL_PREFIX = 'https://msftelectronbuild.z5.web.core.windows.net';

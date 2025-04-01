@@ -574,6 +574,28 @@ suite('ExtensionsProfileScannerService', () => {
 		assert.ok(target4.notCalled);
 	});
 
+	test('read extension when uuid is different in identifier and manifest', async () => {
+		const extensionsManifest = joinPath(extensionsLocation, 'extensions.json');
+		await instantiationService.get(IFileService).writeFile(extensionsManifest, VSBuffer.fromString(JSON.stringify([{
+			identifier: {
+				id: 'pub.a',
+				uuid: 'uuid1`'
+			},
+			version: '1.0.0',
+			location: joinPath(extensionsLocation, 'pub.a-1.0.0').toString(),
+			relativeLocation: 'pub.a-1.0.0',
+			metadata: {
+				id: 'uuid',
+			}
+		}])));
+
+		const testObject = disposables.add(instantiationService.createInstance(TestObject, extensionsLocation));
+		const actual = await testObject.scanProfileExtensions(extensionsManifest);
+		assert.deepStrictEqual(actual.length, 1);
+		assert.deepStrictEqual(actual[0].identifier.id, 'pub.a');
+		assert.deepStrictEqual(actual[0].identifier.uuid, 'uuid');
+	});
+
 	function aExtension(id: string, location: URI, e?: Partial<IExtension>, manifest?: Partial<IExtensionManifest>): IExtension {
 		return {
 			identifier: { id },

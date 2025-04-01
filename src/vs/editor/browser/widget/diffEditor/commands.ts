@@ -20,6 +20,7 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import './registrations.contribution.js';
 import { DiffEditorSelectionHunkToolbarContext } from './features/gutterFeature.js';
 import { URI } from '../../../../base/common/uri.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
 
 export class ToggleCollapseUnchangedRegions extends Action2 {
 	constructor() {
@@ -255,7 +256,7 @@ export function findFocusedDiffEditor(accessor: ServicesAccessor): IDiffEditor |
 	if (activeElement) {
 		for (const d of diffEditors) {
 			const container = d.getContainerDomNode();
-			if (isElementOrParentOf(container, activeElement)) {
+			if (container.contains(activeElement)) {
 				return d;
 			}
 		}
@@ -264,13 +265,24 @@ export function findFocusedDiffEditor(accessor: ServicesAccessor): IDiffEditor |
 	return null;
 }
 
-function isElementOrParentOf(elementOrParent: Element, element: Element): boolean {
-	let e: Element | null = element;
-	while (e) {
-		if (e === elementOrParent) {
-			return true;
-		}
-		e = e.parentElement;
+
+/**
+ * If `editor` is the original or modified editor of a diff editor, it returns it.
+ * It returns null otherwise.
+ */
+export function findDiffEditorContainingCodeEditor(accessor: ServicesAccessor, editor: ICodeEditor): IDiffEditor | null {
+	if (!editor.getOption(EditorOption.inDiffEditor)) {
+		return null;
 	}
-	return false;
+
+	const codeEditorService = accessor.get(ICodeEditorService);
+
+	for (const diffEditor of codeEditorService.listDiffEditors()) {
+		const originalEditor = diffEditor.getOriginalEditor();
+		const modifiedEditor = diffEditor.getModifiedEditor();
+		if (originalEditor === editor || modifiedEditor === editor) {
+			return diffEditor;
+		}
+	}
+	return null;
 }

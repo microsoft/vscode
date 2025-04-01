@@ -36,12 +36,6 @@ import {
 } from './userDataSync.js';
 import { IUserDataProfile, IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
 
-type IncompatibleSyncSourceClassification = {
-	owner: 'sandy081';
-	comment: 'Information about the sync resource that is incompatible';
-	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'settings sync resource. eg., settings, keybindings...' };
-};
-
 export function isRemoteUserData(thing: any): thing is IRemoteUserData {
 	if (thing
 		&& (thing.ref !== undefined && typeof thing.ref === 'string' && thing.ref !== '')
@@ -325,8 +319,6 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 
 	private async performSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, strategy: SyncStrategy, userDataSyncConfiguration: IUserDataSyncConfiguration): Promise<SyncStatus> {
 		if (remoteUserData.syncData && remoteUserData.syncData.version > this.version) {
-			// current version is not compatible with cloud version
-			this.telemetryService.publicLog2<{ source: string }, IncompatibleSyncSourceClassification>('sync/incompatible', { source: this.resource });
 			throw new UserDataSyncError(localize({ key: 'incompatible', comment: ['This is an error while syncing a resource that its local version is not compatible with its remote version.'] }, "Cannot sync {0} as its local version {1} is not compatible with its remote version {2}", this.resource, this.version, remoteUserData.syncData.version), UserDataSyncErrorCode.IncompatibleLocalContent, this.resource);
 		}
 

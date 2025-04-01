@@ -18,7 +18,6 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { DragAndDropObserver, getWindow } from '../../../../../base/browser/dom.js';
 import { ILocalizedString } from '../../../../../platform/action/common/action.js';
@@ -42,10 +41,9 @@ export class EmptyView extends ViewPane {
 		@ILabelService private labelService: ILabelService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService openerService: IOpenerService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.refreshTitle()));
 		this._register(this.labelService.onDidChangeFormatters(() => this.refreshTitle()));

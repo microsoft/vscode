@@ -9,8 +9,12 @@ import { installAllHandlers } from '../../utils';
 export function setup(logger: Logger) {
 
 	describe('Localization', () => {
+
 		// Shared before/after handling
-		installAllHandlers(logger);
+		installAllHandlers(logger, opts => {
+			opts.snapshots = true; // enable network tab in devtools for tracing since we install an extension
+			return opts;
+		});
 
 		it('starts with "DE" locale and verifies title and viewlets text is in German', async function () {
 			const app = this.app as Application;

@@ -19,6 +19,13 @@ export class VerticalTab extends BaseToken {
 	public static readonly symbol: string = '\v';
 
 	/**
+	 * Return text representation of the token.
+	 */
+	public get text(): string {
+		return VerticalTab.symbol;
+	}
+
+	/**
 	 * Create new `VerticalTab` token with range inside
 	 * the given `Line` at the given `column number`.
 	 */

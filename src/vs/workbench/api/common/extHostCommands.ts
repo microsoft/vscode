@@ -28,7 +28,7 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
-import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { TelemetryTrustedValue } from '../../../platform/telemetry/common/telemetryUtils.js';
 import { IExtHostTelemetry } from './extHostTelemetry.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -41,7 +41,7 @@ interface CommandHandler {
 }
 
 export interface ArgumentProcessor {
-	processArgument(arg: any, extensionId: ExtensionIdentifier | undefined): any;
+	processArgument(arg: any, extension: IExtensionDescription | undefined): any;
 }
 
 export class ExtHostCommands implements ExtHostCommandsShape {
@@ -310,7 +310,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		if (!cmdHandler) {
 			return Promise.reject(new Error(`Contributed command '${id}' does not exist.`));
 		} else {
-			args = args.map(arg => this._argumentProcessors.reduce((r, p) => p.processArgument(r, cmdHandler.extension?.identifier), arg));
+			args = args.map(arg => this._argumentProcessors.reduce((r, p) => p.processArgument(r, cmdHandler.extension), arg));
 			return this._executeContributedCommand(id, args, true);
 		}
 	}

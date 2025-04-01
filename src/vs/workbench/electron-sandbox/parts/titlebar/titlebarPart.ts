@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
-import { getZoomFactor, isWCOEnabled } from '../../../../base/browser/browser.js';
+import { getZoomFactor } from '../../../../base/browser/browser.js';
 import { $, addDisposableListener, append, EventType, getWindow, getWindowId, hide, show } from '../../../../base/browser/dom.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationService, IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-sandbox/environmentService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
-import { isMacintosh, isWindows, isLinux, isNative, isBigSurOrNewer } from '../../../../base/common/platform.js';
+import { isMacintosh, isWindows, isLinux, isBigSurOrNewer } from '../../../../base/common/platform.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { BrowserTitlebarPart as BrowserTitlebarPart, BrowserTitleService, IAuxiliaryTitlebarPart } from '../../../browser/parts/titlebar/titlebarPart.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -27,7 +27,6 @@ import { IEditorGroupsContainer, IEditorGroupsService } from '../../../services/
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { CodeWindow, mainWindow } from '../../../../base/browser/window.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
 
 export class NativeTitlebarPart extends BrowserTitlebarPart {
 
@@ -55,6 +54,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 
 	private maxRestoreControl: HTMLElement | undefined;
 	private resizer: HTMLElement | undefined;
+
 	private cachedWindowControlStyles: { bgColor: string; fgColor: string } | undefined;
 	private cachedWindowControlHeight: number | undefined;
 
@@ -71,7 +71,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService hostService: IHostService,
-		@INativeHostService protected readonly nativeHostService: INativeHostService,
+		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
 		@IMenuService menuService: IMenuService,
@@ -157,8 +157,12 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 			})));
 		}
 
-		// Window Controls (Native Linux when WCO is disabled)
-		if (isLinux && !hasNativeTitlebar(this.configurationService) && !isWCOEnabled() && this.windowControlsContainer) {
+		// Custom Window Controls (Native Windows/Linux)
+		if (
+			!hasNativeTitlebar(this.configurationService) &&		// not for native title bars
+			!useWindowControlsOverlay(this.configurationService) &&	// not when controls are natively drawn
+			this.windowControlsContainer
+		) {
 
 			// Minimize
 			const minimizeIcon = append(this.windowControlsContainer, $('div.window-icon.window-minimize' + ThemeIcon.asCSSSelector(Codicon.chromeMinimize)));
@@ -231,18 +235,20 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 	override updateStyles(): void {
 		super.updateStyles();
 
-		// WCO styles only supported on Windows currently
-		if (useWindowControlsOverlay(this.configurationService)) {
-			if (
-				!this.cachedWindowControlStyles ||
-				this.cachedWindowControlStyles.bgColor !== this.element.style.backgroundColor ||
-				this.cachedWindowControlStyles.fgColor !== this.element.style.color
-			) {
-				this.nativeHostService.updateWindowControls({
-					targetWindowId: getWindowId(getWindow(this.element)),
-					backgroundColor: this.element.style.backgroundColor,
-					foregroundColor: this.element.style.color
-				});
+		// Part container
+		if (this.element) {
+			if (useWindowControlsOverlay(this.configurationService)) {
+				if (
+					!this.cachedWindowControlStyles ||
+					this.cachedWindowControlStyles.bgColor !== this.element.style.backgroundColor ||
+					this.cachedWindowControlStyles.fgColor !== this.element.style.color
+				) {
+					this.nativeHostService.updateWindowControls({
+						targetWindowId: getWindowId(getWindow(this.element)),
+						backgroundColor: this.element.style.backgroundColor,
+						foregroundColor: this.element.style.color
+					});
+				}
 			}
 		}
 	}
@@ -250,10 +256,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 	override layout(width: number, height: number): void {
 		super.layout(width, height);
 
-		if (
-			useWindowControlsOverlay(this.configurationService) ||
-			(isMacintosh && isNative && !hasNativeTitlebar(this.configurationService))
-		) {
+		if (useWindowControlsOverlay(this.configurationService)) {
 
 			// When the user goes into full screen mode, the height of the title bar becomes 0.
 			// Instead, set it back to the default titlebar height for Catalina users
@@ -288,38 +291,9 @@ export class MainNativeTitlebarPart extends NativeTitlebarPart {
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
 		@IMenuService menuService: IMenuService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IProductService productService: IProductService
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		super(Parts.TITLEBAR_PART, mainWindow, 'main', contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, nativeHostService, editorGroupService, editorService, menuService, keybindingService);
-
-		if (isLinux && productService.quality === 'stable') {
-			this.handleDefaultTitlebarStyle(); // TODO@bpasero remove me eventually once settled
-		}
-	}
-
-	private handleDefaultTitlebarStyle(): void {
-		this.updateDefaultTitlebarStyle();
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('window.titleBarStyle')) {
-				this.updateDefaultTitlebarStyle();
-			}
-		}));
-	}
-
-	private updateDefaultTitlebarStyle(): void {
-		const titleBarStyle = this.configurationService.inspect('window.titleBarStyle');
-
-		let titleBarStyleOverride: 'custom' | undefined;
-		if (titleBarStyle.applicationValue || titleBarStyle.userValue || titleBarStyle.userLocalValue) {
-			// configured by user or application: clear override
-			titleBarStyleOverride = undefined;
-		} else {
-			// not configured: set override if experiment is active
-			titleBarStyleOverride = titleBarStyle.defaultValue === 'native' ? undefined : 'custom';
-		}
-
-		this.nativeHostService.overrideDefaultTitlebarStyle(titleBarStyleOverride);
 	}
 }
 

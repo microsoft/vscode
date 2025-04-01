@@ -5,31 +5,22 @@
 
 /**
  * @param {string} name
- * @param {string[]=} exclude
  * @returns {import('./lib/bundle').IEntryPoint}
  */
-function createModuleDescription(name, exclude) {
+function createModuleDescription(name) {
 	return {
-		name,
-		exclude
+		name
 	};
 }
 
-/**
- * @param {string} name
- */
-function createEditorWorkerModuleDescription(name) {
-	return createModuleDescription(name, ['vs/base/common/worker/simpleWorker', 'vs/editor/common/services/editorSimpleWorker']);
-}
-
-exports.workerEditor = createEditorWorkerModuleDescription('vs/editor/common/services/editorSimpleWorkerMain');
-exports.workerExtensionHost = createEditorWorkerModuleDescription('vs/workbench/api/worker/extensionHostWorkerMain');
-exports.workerNotebook = createEditorWorkerModuleDescription('vs/workbench/contrib/notebook/common/services/notebookSimpleWorkerMain');
-exports.workerLanguageDetection = createEditorWorkerModuleDescription('vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorkerMain');
-exports.workerLocalFileSearch = createEditorWorkerModuleDescription('vs/workbench/services/search/worker/localFileSearchMain');
-exports.workerProfileAnalysis = createEditorWorkerModuleDescription('vs/platform/profiling/electron-sandbox/profileAnalysisWorkerMain');
-exports.workerOutputLinks = createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputerMain');
-exports.workerBackgroundTokenization = createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.workerMain');
+exports.workerEditor = createModuleDescription('vs/editor/common/services/editorWebWorkerMain');
+exports.workerExtensionHost = createModuleDescription('vs/workbench/api/worker/extensionHostWorkerMain');
+exports.workerNotebook = createModuleDescription('vs/workbench/contrib/notebook/common/services/notebookWebWorkerMain');
+exports.workerLanguageDetection = createModuleDescription('vs/workbench/services/languageDetection/browser/languageDetectionWebWorkerMain');
+exports.workerLocalFileSearch = createModuleDescription('vs/workbench/services/search/worker/localFileSearchMain');
+exports.workerProfileAnalysis = createModuleDescription('vs/platform/profiling/electron-sandbox/profileAnalysisWorkerMain');
+exports.workerOutputLinks = createModuleDescription('vs/workbench/contrib/output/common/outputLinkComputerMain');
+exports.workerBackgroundTokenization = createModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.workerMain');
 
 exports.workbenchDesktop = [
 	createModuleDescription('vs/workbench/contrib/debug/node/telemetryApp'),
