@@ -86,7 +86,7 @@ export class Application {
 		this._workspacePathOrFolder = workspaceOrFolder;
 
 		// Launch Code...
-		const code = await this.startApplication(extraArgs);
+		const code = await this.startApplication([...extraArgs, '--force-node-api-uncaught-exceptions-policy=true']);
 
 		// ...and make sure the window is ready to interact
 		await measureAndLog(() => this.checkWindowReady(code), 'Application#checkWindowReady()', this.logger);
