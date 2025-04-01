@@ -154,17 +154,17 @@ export class Code {
 
 					switch (retries) {
 
-						// after 5 / 10 seconds: try to exit gracefully again
+						// after 10 / 20 seconds: try to exit gracefully again
 						case 10:
 						case 20: {
-							this.logger.log('Smoke test exit call did not terminate process after 5-10s, gracefully trying to exit the application again...');
+							this.logger.log('Smoke test exit call did not terminate process after 10-20s, gracefully trying to exit the application again...');
 							this.driver.exitApplication();
 							break;
 						}
 
-						// after 20 seconds: forcefully kill
+						// after 40 seconds: forcefully kill
 						case 40: {
-							this.logger.log('Smoke test exit call did not terminate process after 20s, forcefully exiting the application...');
+							this.logger.log('Smoke test exit call did not terminate process after 40s, forcefully exiting the application...');
 
 							// no need to await since we're polling for the process to die anyways
 							treekill(pid, err => {
@@ -179,16 +179,18 @@ export class Code {
 							break;
 						}
 
-						// after 30 seconds: give up
+						// after 60 seconds: give up
 						case 60: {
 							done = true;
-							this.logger.log('Smoke test exit call did not terminate process after 30s, giving up');
+							this.logger.log('Smoke test exit call did not terminate process after 60s, giving up');
 							resolve();
 						}
 					}
 
 					try {
 						process.kill(pid, 0); // throws an exception if the process doesn't exist anymore.
+						const isAlive = await this.driver.isAlive();
+						this.logger.log('Smoke test ext(): application isAlive: ' + isAlive);
 						await this.wait(500);
 					} catch (error) {
 						done = true;
