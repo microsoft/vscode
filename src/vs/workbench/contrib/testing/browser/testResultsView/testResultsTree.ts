@@ -843,6 +843,14 @@ class TreeActionsProvider {
 				...getTestItemContextOverlay(element.test, capabilities),
 			);
 
+			primary.push(new Action(
+				'testing.outputPeek.goToTest',
+				localize('testing.goToTest', "Go to Test"),
+				ThemeIcon.asClassName(Codicon.goToFile),
+				undefined,
+				() => this.commandService.executeCommand('vscode.revealTest', element.test.item.extId),
+			));
+
 			const extId = element.test.item.extId;
 			if (element.test.tasks[element.taskIndex].messages.some(m => m.type === TestMessageType.Output)) {
 				primary.push(new Action(
@@ -887,14 +895,6 @@ class TreeActionsProvider {
 		if (element instanceof TestMessageElement) {
 			id = MenuId.TestMessageContext;
 			contextKeys.push([TestingContextKeys.testMessageContext.key, element.contextValue]);
-
-			primary.push(new Action(
-				'testing.outputPeek.goToTest',
-				localize('testing.goToTest', "Go to Test"),
-				ThemeIcon.asClassName(Codicon.goToFile),
-				undefined,
-				() => this.commandService.executeCommand('vscode.revealTest', element.test.item.extId),
-			));
 
 			if (this.showRevealLocationOnMessages && element.location) {
 				primary.push(new Action(
