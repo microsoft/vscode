@@ -26,6 +26,12 @@
 	font-size: 12px;
 }
 
+.monaco-workbench .workbench-hover.compact .monaco-action-bar .action-item .codicon {
+	/* Given our font-size, adjust action icons accordingly */
+	width: 12px;
+	height: 12px;
+}
+
 .monaco-workbench .workbench-hover.compact .hover-contents {
 	padding: 2px 8px;
 }
