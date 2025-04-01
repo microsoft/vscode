@@ -25,7 +25,9 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 				logsPath: suiteLogsPath(this.defaultOptions, 'test_verifies_opened_editors_are_restored'),
 				crashesPath: suiteCrashPath(this.defaultOptions, 'test_verifies_opened_editors_are_restored')
 			});
+			logger.log('Starting app...');
 			await app.start();
+			logger.log('App started');
 
 			// Open 3 editors
 			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'bin', 'www'));
@@ -34,15 +36,19 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 			await app.workbench.quickaccess.runCommand('View: Keep Editor');
 			await app.workbench.editors.newUntitledFile();
 
+			logger.log('Restarting app...');
 			await app.restart();
+			logger.log('App restarted');
 
 			// Verify 3 editors are open
 			await app.workbench.editors.selectTab('Untitled-1');
 			await app.workbench.editors.selectTab('app.js');
 			await app.workbench.editors.selectTab('www');
 
+			logger.log('Stopping app...');
 			await app.stop();
 			app = undefined;
+			logger.log('App stopped');
 		});
 
 		it('verifies editors can save and restore', async function () {

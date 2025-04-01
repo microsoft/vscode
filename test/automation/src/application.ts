@@ -69,8 +69,10 @@ export class Application {
 	get profiler(): Profiler { return this._profiler!; }
 
 	async start(): Promise<void> {
-		await this._start();
-		await this.code.waitForElement('.explorer-folders-view');
+		await measureAndLog(async () => {
+			await this._start();
+			await this.code.waitForElement('.explorer-folders-view');
+		}, 'Application#start()', this.logger);
 	}
 
 	async restart(options?: { workspaceOrFolder?: string; extraArgs?: string[] }): Promise<void> {
@@ -91,13 +93,15 @@ export class Application {
 	}
 
 	async stop(): Promise<void> {
-		if (this._code) {
-			try {
-				await this._code.exit();
-			} finally {
-				this._code = undefined;
+		await measureAndLog(async () => {
+			if (this._code) {
+				try {
+					await this._code.exit();
+				} finally {
+					this._code = undefined;
+				}
 			}
-		}
+		}, 'Application#stop()', this.logger);
 	}
 
 	async startTracing(name: string): Promise<void> {
