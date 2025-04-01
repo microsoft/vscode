@@ -157,14 +157,14 @@ export class Code {
 						// after 10 / 20 seconds: try to exit gracefully again
 						case 10:
 						case 20: {
-							this.logger.log('Smoke test exit call did not terminate process after 10-20s, gracefully trying to exit the application again...');
+							this.logger.log('Smoke test exit() call did not terminate process after 10-20s, gracefully trying to exit the application again...');
 							this.driver.exitApplication();
 							break;
 						}
 
 						// after 40 seconds: forcefully kill
 						case 40: {
-							this.logger.log('Smoke test exit call did not terminate process after 40s, forcefully exiting the application...');
+							this.logger.log('Smoke test exit() call did not terminate process after 40s, forcefully exiting the application...');
 							this.kill(pid); // no need to await since we're polling for the process to die anyways
 
 							break;
@@ -173,7 +173,7 @@ export class Code {
 						// after 60 seconds: give up
 						case 60: {
 							done = true;
-							this.logger.log('Smoke test exit call did not terminate process after 60s, giving up');
+							this.logger.log('Smoke test exit() call did not terminate process after 60s, giving up');
 							resolve();
 						}
 					}
@@ -183,7 +183,7 @@ export class Code {
 
 						const isAlive = await this.driver.isAlive();
 						if (!isAlive) {
-							this.logger.log('Smoke test exit call did not terminate process, but process is not alive anymore, forcefully existing the application...');
+							this.logger.log('Smoke test exit() call did not terminate process, but process is not alive anymore, forcefully exiting the application...');
 							this.kill(pid); // no need to await since we're polling for the process to die anyways
 						}
 
@@ -191,7 +191,9 @@ export class Code {
 
 						process.kill(pid, 0); // throws an exception if the process doesn't exist anymore.
 					} catch (error) {
+						this.logger.log('Smoke test exit() call terminated process successfully');
 						done = true;
+
 						resolve();
 					}
 				}
