@@ -26,7 +26,7 @@ import { ISelectPromptOptions, askToSelectPrompt } from './dialogs/askToSelectPr
 /**
  * Action ID for the `Attach Prompt` action.
  */
-export const ATTACH_PROMPT_ACTION_ID = 'workbench.action.chat.attach.prompt';
+const ATTACH_PROMPT_ACTION_ID = 'workbench.action.chat.attach.prompt';
 
 /**
  * Options for the {@link AttachPromptAction} action.
@@ -94,7 +94,14 @@ class AttachPromptAction extends Action2 {
 			const widget = await attachPrompts(
 				[{ value: resource }],
 				attachOptions,
-				// TODO: @legomushroom - get real alt key mod
+				/**
+				 * The `alt` option is always set to `false` here, but it should not
+				 * matter - it signifies usage of the `Edit` view which isn't enabled
+				 * in the `unified view` mode which is currently the only mode that
+				 * produces the `skipSelectionDialog: true` option. Furthermore,
+				 * the `unified view` mode will be the default and the only mode
+				 * supported in the next iteration and this option will be removed.
+				 */
 				false,
 			);
 
@@ -119,6 +126,21 @@ class AttachPromptAction extends Action2 {
 		});
 	}
 }
+
+/**
+ * Runs the `Attach Prompt` action with provided options. We export this
+ * function instead of {@link ATTACH_PROMPT_ACTION_ID} directly to
+ * encapsulate/enforce the correct options to be passed to the action.
+ */
+export const runAttachPromptAction = async (
+	options: IChatAttachPromptActionOptions,
+	commandService: ICommandService,
+): Promise<void> => {
+	return await commandService.executeCommand(
+		ATTACH_PROMPT_ACTION_ID,
+		options,
+	);
+};
 
 /**
  * Helper to register the `Attach Prompt` action.

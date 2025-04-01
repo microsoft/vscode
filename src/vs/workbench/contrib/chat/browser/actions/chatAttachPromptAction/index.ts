@@ -13,3 +13,5 @@ export const registerReusablePromptActions = () => {
 	registerRunPromptActions();
 	registerAttachPromptActions();
 };
+
+export { runAttachPromptAction } from './chatAttachPromptAction.js';

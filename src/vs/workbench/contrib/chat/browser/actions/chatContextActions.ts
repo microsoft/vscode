@@ -65,8 +65,7 @@ import { convertBufferToScreenshotVariable, ScreenshotVariableId } from '../cont
 import { resizeImage } from '../imageUtils.js';
 import { COMMAND_ID as USE_PROMPT_COMMAND_ID } from '../promptSyntax/contributions/usePromptCommand.js';
 import { CHAT_CATEGORY } from './chatActions.js';
-import { ATTACH_PROMPT_ACTION_ID, IChatAttachPromptActionOptions } from './chatAttachPromptAction/chatAttachPromptAction.js';
-import { registerReusablePromptActions } from './chatAttachPromptAction/index.js';
+import { runAttachPromptAction, registerReusablePromptActions } from './chatAttachPromptAction/index.js';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
@@ -617,8 +616,7 @@ export class AttachContextAction extends Action2 {
 					toAttach.push(convertBufferToScreenshotVariable(blob));
 				}
 			} else if (isPromptInstructionsQuickPickItem(pick)) {
-				const options: IChatAttachPromptActionOptions = { widget };
-				await commandService.executeCommand(ATTACH_PROMPT_ACTION_ID, options);
+				await runAttachPromptAction({ widget }, commandService);
 			} else {
 				// Anything else is an attachment
 				const attachmentPick = pick as IAttachmentQuickPickItem;
