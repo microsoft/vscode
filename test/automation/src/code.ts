@@ -165,16 +165,7 @@ export class Code {
 						// after 40 seconds: forcefully kill
 						case 40: {
 							this.logger.log('Smoke test exit call did not terminate process after 40s, forcefully exiting the application...');
-
-							// no need to await since we're polling for the process to die anyways
-							treekill(pid, err => {
-								try {
-									process.kill(pid, 0); // throws an exception if the process doesn't exist anymore
-									this.logger.log('Failed to kill Electron process tree:', err?.message);
-								} catch (error) {
-									// Expected when process is gone
-								}
-							});
+							this.kill(pid); // no need to await since we're polling for the process to die anyways
 
 							break;
 						}
@@ -190,7 +181,11 @@ export class Code {
 					try {
 						process.kill(pid, 0); // throws an exception if the process doesn't exist anymore.
 						const isAlive = await this.driver.isAlive();
-						this.logger.log('Smoke test ext(): application isAlive: ' + isAlive);
+						if (!isAlive) {
+							this.logger.log('Smoke test exit call did not terminate process, but process is not alive anymore, forcefully existing the application...');
+							this.kill(pid); // no need to await since we're polling for the process to die anyways
+						}
+
 						await this.wait(500);
 					} catch (error) {
 						done = true;
@@ -199,6 +194,21 @@ export class Code {
 				}
 			})();
 		}), 'Code#exit()', this.logger);
+	}
+
+	private kill(pid: number): Promise<void> {
+		return new Promise<void>(resolve => {
+			treekill(pid, err => {
+				try {
+					process.kill(pid, 0); // throws an exception if the process doesn't exist anymore
+					this.logger.log('Failed to kill Electron process tree:', err?.message);
+				} catch (error) {
+					// Expected when process is gone
+				}
+
+				resolve();
+			});
+		});
 	}
 
 	async getElement(selector: string): Promise<IElement | undefined> {
