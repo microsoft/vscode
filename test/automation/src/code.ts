@@ -180,6 +180,7 @@ export class Code {
 
 					try {
 						process.kill(pid, 0); // throws an exception if the process doesn't exist anymore.
+
 						const isAlive = await this.driver.isAlive();
 						if (!isAlive) {
 							this.logger.log('Smoke test exit call did not terminate process, but process is not alive anymore, forcefully existing the application...');
@@ -187,6 +188,8 @@ export class Code {
 						}
 
 						await this.wait(500);
+
+						process.kill(pid, 0); // throws an exception if the process doesn't exist anymore.
 					} catch (error) {
 						done = true;
 						resolve();
