@@ -144,7 +144,7 @@ export class Code {
 			let done = false;
 
 			// Start the exit flow via driver
-			this.driver.exitApplication();
+			this.driver.close();
 
 			// Await the exit of the application
 			(async () => {
@@ -158,7 +158,7 @@ export class Code {
 						case 10:
 						case 20: {
 							this.logger.log('Smoke test exit() call did not terminate process after 5-10s, gracefully trying to exit the application again...');
-							this.driver.exitApplication();
+							this.driver.close();
 							break;
 						}
 
