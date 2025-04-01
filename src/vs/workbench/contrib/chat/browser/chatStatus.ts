@@ -344,20 +344,21 @@ class ChatStatusDashboard extends Disposable {
 		{
 			for (const item of this.chatStatusItemService.getEntries()) {
 				addSeparator();
-				const chatItemDisposables = disposables.add(new MutableDisposable());
+
+				const itemDisposables = disposables.add(new MutableDisposable());
 
 				let rendered = this.renderContributedChatStatusItem(item);
-				chatItemDisposables.value = rendered.disposables;
+				itemDisposables.value = rendered.disposables;
 				this.element.appendChild(rendered.element);
 
 				disposables.add(this.chatStatusItemService.onDidChange(e => {
 					if (e.entry.id === item.id) {
-						const oldEl = rendered.element;
+						const previousElement = rendered.element;
 
 						rendered = this.renderContributedChatStatusItem(e.entry);
-						chatItemDisposables.value = rendered.disposables;
+						itemDisposables.value = rendered.disposables;
 
-						oldEl.replaceWith(rendered.element);
+						previousElement.replaceWith(rendered.element);
 					}
 				}));
 			}
@@ -397,21 +398,21 @@ class ChatStatusDashboard extends Disposable {
 	private renderContributedChatStatusItem(item: ChatStatusEntry): { element: HTMLElement; disposables: DisposableStore } {
 		const disposables = new DisposableStore();
 
-		const entryEl = $('div.contribution');
+		const itemElement = $('div.contribution');
 
-		entryEl.appendChild($('div.header', undefined, item.label));
+		itemElement.appendChild($('div.header', undefined, item.label));
 
-		const bodyEl = entryEl.appendChild($('div.body'));
+		const itemBody = itemElement.appendChild($('div.body'));
 
-		const descriptionEl = bodyEl.appendChild($('span.description'));
-		this.renderTextPlus(descriptionEl, item.description, disposables);
+		const description = itemBody.appendChild($('span.description'));
+		this.renderTextPlus(description, item.description, disposables);
 
 		if (item.detail) {
-			const itemElement = bodyEl.appendChild($('div.detail-item'));
-			this.renderTextPlus(itemElement, item.detail, disposables);
+			const detail = itemBody.appendChild($('div.detail-item'));
+			this.renderTextPlus(detail, item.detail, disposables);
 		}
 
-		return { element: entryEl, disposables };
+		return { element: itemElement, disposables };
 	}
 
 	private renderTextPlus(target: HTMLElement, text: string, store: DisposableStore): void {
