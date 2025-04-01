@@ -65,7 +65,7 @@ import { convertBufferToScreenshotVariable, ScreenshotVariableId } from '../cont
 import { resizeImage } from '../imageUtils.js';
 import { COMMAND_ID as USE_PROMPT_COMMAND_ID } from '../promptSyntax/contributions/usePromptCommand.js';
 import { CHAT_CATEGORY } from './chatActions.js';
-import { runAttachPromptAction, registerReusablePromptActions } from './chatAttachPromptAction/index.js';
+import { runAttachPromptAction, registerReusablePromptActions } from './reusablePromptActions/index.js';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);

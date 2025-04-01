@@ -11,7 +11,7 @@ import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { KeyMod, KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { PromptsConfig } from '../../../../../../platform/prompts/common/config.js';
 import { isPromptFile } from '../../../../../../platform/prompts/common/constants.js';
-import { runAttachPromptAction } from '../../actions/chatAttachPromptAction/index.js';
+import { runAttachPromptAction } from '../../actions/reusablePromptActions/index.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
