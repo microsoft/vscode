@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
-import { EditOperation, ISingleEditOperation } from '../../../common/core/editOperation.js';
+import { EditOperation, ISingleEditOperation } from '../../../common/core.js';
 import { Range } from '../../../common/core/range.js';
 import { EndOfLineSequence } from '../../../common/model.js';
 import { TextEdit } from '../../../common/languages.js';

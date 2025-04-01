@@ -9,8 +9,7 @@ import { ITransaction, IObservable, observableValue, autorun, transaction } from
 import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
 import { themeColorFromId } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { EditOperation, ISingleEditOperation } from '../../../../../../editor/common/core/editOperation.js';
-import { OffsetEdit } from '../../../../../../editor/common/core/offsetEdit.js';
+import { EditOperation, ISingleEditOperation, OffsetEdit } from '../../../../../../editor/common/core.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { IDocumentDiff, nullDocumentDiff } from '../../../../../../editor/common/diff/documentDiffProvider.js';
 import { DetailedLineRangeMapping } from '../../../../../../editor/common/diff/rangeMapping.js';

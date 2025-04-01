@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ISingleEditOperation } from '../../../common/core/editOperation.js';
+import { ISingleEditOperation } from '../../../common/core.js';
 import { Position } from '../../../common/core/position.js';
 import { EndOfLinePreference, EndOfLineSequence } from '../../../common/model.js';
 import { MirrorTextModel } from '../../../common/model/mirrorTextModel.js';

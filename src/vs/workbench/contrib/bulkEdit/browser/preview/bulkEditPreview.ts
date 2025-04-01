@@ -12,7 +12,7 @@ import { WorkspaceEditMetadata } from '../../../../../editor/common/languages.js
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { coalesceInPlace } from '../../../../../base/common/arrays.js';
 import { Range } from '../../../../../editor/common/core/range.js';
-import { EditOperation, ISingleEditOperation } from '../../../../../editor/common/core/editOperation.js';
+import { EditOperation, ISingleEditOperation } from '../../../../../editor/common/core.js';
 import { ServicesAccessor, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';

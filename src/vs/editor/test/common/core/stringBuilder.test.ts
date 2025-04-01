@@ -7,7 +7,7 @@ import assert from 'assert';
 import { writeUInt16LE } from '../../../../base/common/buffer.js';
 import { CharCode } from '../../../../base/common/charCode.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { decodeUTF16LE, StringBuilder } from '../../../common/core/stringBuilder.js';
+import { decodeUTF16LE, StringBuilder } from '../../../common/core.js';
 
 suite('decodeUTF16LE', () => {
 

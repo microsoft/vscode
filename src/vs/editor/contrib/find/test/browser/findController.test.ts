@@ -9,7 +9,7 @@ import * as platform from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
 import { EditorAction } from '../../../../browser/editorExtensions.js';
-import { EditOperation } from '../../../../common/core/editOperation.js';
+import { EditOperation } from '../../../../common/core.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';

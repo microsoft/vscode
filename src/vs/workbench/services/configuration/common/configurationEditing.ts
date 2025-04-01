@@ -24,7 +24,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IDisposable, IReference } from '../../../../base/common/lifecycle.js';
 import { Range } from '../../../../editor/common/core/range.js';
-import { EditOperation } from '../../../../editor/common/core/editOperation.js';
+import { EditOperation } from '../../../../editor/common/core.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';

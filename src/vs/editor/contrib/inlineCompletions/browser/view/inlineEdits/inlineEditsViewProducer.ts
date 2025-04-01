@@ -9,9 +9,8 @@ import { derived, IObservable, ISettableObservable } from '../../../../../../bas
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor, observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
-import { LineRange } from '../../../../../common/core/lineRange.js';
+import { LineRange, SingleTextEdit, TextEdit } from '../../../../../common/core.js';
 import { Range } from '../../../../../common/core/range.js';
-import { SingleTextEdit, TextEdit } from '../../../../../common/core/textEdit.js';
 import { TextModelText } from '../../../../../common/model/textModelText.js';
 import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
 import { InlineEdit } from '../../model/inlineEdit.js';

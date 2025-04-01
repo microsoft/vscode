@@ -17,7 +17,7 @@ import { assertType } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IActiveCodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { CodeEditorWidget } from '../../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
-import { ISingleEditOperation } from '../../../../../../editor/common/core/editOperation.js';
+import { ISingleEditOperation } from '../../../../../../editor/common/core.js';
 import { Position } from '../../../../../../editor/common/core/position.js';
 import { Selection } from '../../../../../../editor/common/core/selection.js';
 import { TextEdit } from '../../../../../../editor/common/languages.js';

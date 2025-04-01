@@ -6,7 +6,7 @@
 import { CharCode } from '../../../../base/common/charCode.js';
 import * as strings from '../../../../base/common/strings.js';
 import { Constants } from '../../../../base/common/uint.js';
-import { EditOperation, ISingleEditOperation } from '../../../common/core/editOperation.js';
+import { EditOperation, ISingleEditOperation } from '../../../common/core.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { Selection } from '../../../common/core/selection.js';

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { ISingleEditOperation } from '../../../common/core/editOperation.js';
+import { ISingleEditOperation } from '../../../common/core.js';
 import { Range } from '../../../common/core/range.js';
 import { EndOfLinePreference, EndOfLineSequence } from '../../../common/model.js';
 import { MirrorTextModel } from '../../../common/model/mirrorTextModel.js';

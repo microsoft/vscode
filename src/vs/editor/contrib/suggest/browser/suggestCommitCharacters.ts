@@ -7,7 +7,7 @@ import { isNonEmptyArray } from '../../../../base/common/arrays.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
-import { CharacterSet } from '../../../common/core/characterClassifier.js';
+import { CharacterSet } from '../../../common/core.js';
 import { State, SuggestModel } from './suggestModel.js';
 import { ISelectedSuggestion, SuggestWidget } from './suggestWidget.js';
 

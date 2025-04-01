@@ -9,7 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { CoreEditingCommands, CoreNavigationCommands } from '../../../browser/coreCommands.js';
 import { IEditorOptions } from '../../../common/config/editorOptions.js';
-import { EditOperation } from '../../../common/core/editOperation.js';
+import { EditOperation } from '../../../common/core.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { Selection } from '../../../common/core/selection.js';

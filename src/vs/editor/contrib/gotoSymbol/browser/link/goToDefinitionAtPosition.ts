@@ -28,7 +28,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { DefinitionAction } from '../goToCommands.js';
 import { getDefinitionsAtPosition } from '../goToSymbol.js';
-import { IWordAtPosition } from '../../../../common/core/wordHelper.js';
+import { IWordAtPosition } from '../../../../common/core.js';
 import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
 import { ModelDecorationInjectedTextOptions } from '../../../../common/model/textModel.js';
 

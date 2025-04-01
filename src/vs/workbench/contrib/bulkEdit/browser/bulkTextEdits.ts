@@ -6,7 +6,7 @@
 import { dispose, IDisposable, IReference } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
-import { EditOperation, ISingleEditOperation } from '../../../../editor/common/core/editOperation.js';
+import { EditOperation, ISingleEditOperation } from '../../../../editor/common/core.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { EndOfLineSequence, ITextModel } from '../../../../editor/common/model.js';

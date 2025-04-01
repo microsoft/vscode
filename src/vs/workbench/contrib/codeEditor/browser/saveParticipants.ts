@@ -10,7 +10,7 @@ import * as strings from '../../../../base/common/strings.js';
 import { IActiveCodeEditor, isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { trimTrailingWhitespace } from '../../../../editor/common/commands/trimTrailingWhitespaceCommand.js';
-import { EditOperation } from '../../../../editor/common/core/editOperation.js';
+import { EditOperation } from '../../../../editor/common/core.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { Selection } from '../../../../editor/common/core/selection.js';

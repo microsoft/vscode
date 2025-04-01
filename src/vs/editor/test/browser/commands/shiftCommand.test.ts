@@ -8,7 +8,7 @@ import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.j
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ShiftCommand } from '../../../common/commands/shiftCommand.js';
 import { EditorAutoIndentStrategy } from '../../../common/config/editorOptions.js';
-import { ISingleEditOperation } from '../../../common/core/editOperation.js';
+import { ISingleEditOperation } from '../../../common/core.js';
 import { Range } from '../../../common/core/range.js';
 import { Selection } from '../../../common/core/selection.js';
 import { ILanguageService } from '../../../common/languages/language.js';

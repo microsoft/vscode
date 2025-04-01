@@ -14,8 +14,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { InlineCompletionsModel } from './model/inlineCompletionsModel.js';
-import { TextEdit } from '../../../common/core/textEdit.js';
-import { LineEdit } from '../../../common/core/lineEdit.js';
+import { TextEdit, LineEdit } from '../../../common/core.js';
 import { TextModelText } from '../../../common/model/textModelText.js';
 import { localize } from '../../../../nls.js';
 

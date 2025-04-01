@@ -7,7 +7,7 @@ import { FastDomNode, createFastDomNode } from '../../../base/browser/fastDomNod
 import { createTrustedTypesPolicy } from '../../../base/browser/trustedTypes.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
 import { EditorOption } from '../../common/config/editorOptions.js';
-import { StringBuilder } from '../../common/core/stringBuilder.js';
+import { StringBuilder } from '../../common/core.js';
 import * as viewEvents from '../../common/viewEvents.js';
 import { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
 

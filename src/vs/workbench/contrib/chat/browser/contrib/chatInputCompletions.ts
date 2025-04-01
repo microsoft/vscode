@@ -15,7 +15,7 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { isCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
-import { IWordAtPosition, getWordAtText } from '../../../../../editor/common/core/wordHelper.js';
+import { IWordAtPosition, getWordAtText } from '../../../../../editor/common/core.js';
 import { CompletionContext, CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, DocumentSymbol, Location, ProviderResult, SymbolKind, SymbolKinds } from '../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';

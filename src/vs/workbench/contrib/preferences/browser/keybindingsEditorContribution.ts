@@ -19,7 +19,7 @@ import { parseTree, Node } from '../../../../base/common/json.js';
 import { WindowsNativeResolvedKeybinding } from '../../../services/keybinding/common/windowsKeyboardMapper.js';
 import { themeColorFromId } from '../../../../platform/theme/common/themeService.js';
 import { ThemeColor } from '../../../../base/common/themables.js';
-import { overviewRulerInfo, overviewRulerError } from '../../../../editor/common/core/editorColorRegistry.js';
+import { overviewRulerInfo, overviewRulerError } from '../../../../editor/common/core.js';
 import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness, OverviewRulerLane } from '../../../../editor/common/model.js';
 import { KeybindingParser } from '../../../../base/common/keybindingParser.js';
 import { assertIsDefined } from '../../../../base/common/types.js';

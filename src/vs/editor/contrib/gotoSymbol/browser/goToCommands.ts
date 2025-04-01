@@ -36,7 +36,7 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';
 import { getDeclarationsAtPosition, getDefinitionsAtPosition, getImplementationsAtPosition, getReferencesAtPosition, getTypeDefinitionsAtPosition } from './goToSymbol.js';
-import { IWordAtPosition } from '../../../common/core/wordHelper.js';
+import { IWordAtPosition } from '../../../common/core.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';

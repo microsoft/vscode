@@ -14,7 +14,7 @@ import {
 	editorCursorBackground, editorCursorForeground,
 	editorMultiCursorPrimaryForeground, editorMultiCursorPrimaryBackground,
 	editorMultiCursorSecondaryForeground, editorMultiCursorSecondaryBackground
-} from '../../../common/core/editorColorRegistry.js';
+} from '../../../common/core.js';
 import { RenderingContext, RestrictedRenderingContext } from '../../view/renderingContext.js';
 import { ViewContext } from '../../../common/viewModel/viewContext.js';
 import * as viewEvents from '../../../common/viewEvents.js';

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BugIndicatingError } from '../../base/common/errors.js';
-import { OffsetRange } from '../common/core/offsetRange.js';
+import { OffsetRange } from '../common/core.js';
 import { Point } from './point.js';
 
 export class Rect {

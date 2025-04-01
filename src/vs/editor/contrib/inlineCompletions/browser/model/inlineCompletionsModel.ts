@@ -17,14 +17,10 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../browser/observableCodeEditor.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
-import { CursorColumns } from '../../../../common/core/cursorColumns.js';
-import { EditOperation } from '../../../../common/core/editOperation.js';
-import { LineRange } from '../../../../common/core/lineRange.js';
+import { CursorColumns, EditOperation, LineRange, SingleTextEdit, TextEdit, TextLength } from '../../../../common/core.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
-import { SingleTextEdit, TextEdit } from '../../../../common/core/textEdit.js';
-import { TextLength } from '../../../../common/core/textLength.js';
 import { ScrollType } from '../../../../common/editorCommon.js';
 import { Command, InlineCompletion, InlineCompletionContext, InlineCompletionTriggerKind, PartialAcceptTriggerKind } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';

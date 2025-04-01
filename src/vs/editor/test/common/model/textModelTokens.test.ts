@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { OffsetRange } from '../../../common/core/offsetRange.js';
+import { OffsetRange } from '../../../common/core.js';
 import { RangePriorityQueueImpl } from '../../../common/model/textModelTokens.js';
 
 suite('RangePriorityQueueImpl', () => {

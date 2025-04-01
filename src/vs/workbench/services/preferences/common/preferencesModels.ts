@@ -12,7 +12,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { ITextModel } from '../../../../editor/common/model.js';
-import { ISingleEditOperation } from '../../../../editor/common/core/editOperation.js';
+import { ISingleEditOperation } from '../../../../editor/common/core.js';
 import { ITextEditorModel } from '../../../../editor/common/services/resolverService.js';
 import * as nls from '../../../../nls.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';

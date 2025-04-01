@@ -14,7 +14,7 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { DEBUG_SCHEME, IDebugService, IDebugSession } from './debug.js';
 import { Source } from './debugSource.js';
 import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
-import { EditOperation } from '../../../../editor/common/core/editOperation.js';
+import { EditOperation } from '../../../../editor/common/core.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modesRegistry.js';

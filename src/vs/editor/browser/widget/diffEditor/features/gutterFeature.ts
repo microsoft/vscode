@@ -17,10 +17,8 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { WorkbenchHoverDelegate } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
-import { LineRange, LineRangeSet } from '../../../../common/core/lineRange.js';
-import { OffsetRange } from '../../../../common/core/offsetRange.js';
+import { LineRange, LineRangeSet, OffsetRange, TextEdit } from '../../../../common/core.js';
 import { Range } from '../../../../common/core/range.js';
-import { TextEdit } from '../../../../common/core/textEdit.js';
 import { DetailedLineRangeMapping } from '../../../../common/diff/rangeMapping.js';
 import { TextModelText } from '../../../../common/model/textModelText.js';
 import { ActionRunnerWithContext } from '../../multiDiffEditor/utils.js';

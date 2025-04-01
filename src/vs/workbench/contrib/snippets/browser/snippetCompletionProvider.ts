@@ -19,7 +19,7 @@ import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { ILanguageConfigurationService } from '../../../../editor/common/languages/languageConfigurationRegistry.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
-import { IWordAtPosition } from '../../../../editor/common/core/wordHelper.js';
+import { IWordAtPosition } from '../../../../editor/common/core.js';
 
 
 const markSnippetAsUsed = '_snippet.markAsUsed';

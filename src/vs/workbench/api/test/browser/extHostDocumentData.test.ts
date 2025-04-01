@@ -12,7 +12,7 @@ import { MainThreadDocumentsShape } from '../../common/extHost.protocol.js';
 import { IModelChangedEvent } from '../../../../editor/common/model/mirrorTextModel.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import * as perfData from './extHostDocumentData.test.perf-data.js';
-import { setDefaultGetWordAtTextConfig } from '../../../../editor/common/core/wordHelper.js';
+import { setDefaultGetWordAtTextConfig } from '../../../../editor/common/core.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 suite('ExtHostDocumentData', () => {

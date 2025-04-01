@@ -15,7 +15,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ILanguageConfiguration, LanguageConfigurationFileHandler } from '../../common/languageConfigurationExtensionPoint.js';
 import { parse } from '../../../../../base/common/json.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
-import { ISingleEditOperation } from '../../../../../editor/common/core/editOperation.js';
+import { ISingleEditOperation } from '../../../../../editor/common/core.js';
 import { trimTrailingWhitespace } from '../../../../../editor/common/commands/trimTrailingWhitespaceCommand.js';
 import { execSync } from 'child_process';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';

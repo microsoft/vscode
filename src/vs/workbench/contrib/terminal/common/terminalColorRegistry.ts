@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { editorOverviewRulerBorder } from '../../../../editor/common/core/editorColorRegistry.js';
+import { editorOverviewRulerBorder } from '../../../../editor/common/core.js';
 import * as nls from '../../../../nls.js';
 
 import { registerColor, ColorIdentifier, ColorDefaults, editorFindMatch, editorFindMatchHighlight, overviewRulerFindMatchForeground, editorSelectionBackground, transparent, editorHoverHighlight } from '../../../../platform/theme/common/colorRegistry.js';

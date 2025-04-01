@@ -18,11 +18,9 @@ import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEd
 import { Point } from '../../../../../../browser/point.js';
 import { Rect } from '../../../../../../browser/rect.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
-import { LineRange } from '../../../../../../common/core/lineRange.js';
-import { OffsetRange } from '../../../../../../common/core/offsetRange.js';
+import { LineRange, OffsetRange, SingleTextEdit, TextEdit } from '../../../../../../common/core.js';
 import { Position } from '../../../../../../common/core/position.js';
 import { Range } from '../../../../../../common/core/range.js';
-import { SingleTextEdit, TextEdit } from '../../../../../../common/core/textEdit.js';
 import { RangeMapping } from '../../../../../../common/diff/rangeMapping.js';
 import { ITextModel } from '../../../../../../common/model.js';
 import { indentOfLine } from '../../../../../../common/model/textModel.js';

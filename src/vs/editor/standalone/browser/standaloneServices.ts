@@ -22,7 +22,7 @@ import Severity from '../../../base/common/severity.js';
 import { URI } from '../../../base/common/uri.js';
 import { IBulkEditOptions, IBulkEditResult, IBulkEditService, ResourceEdit, ResourceTextEdit } from '../../browser/services/bulkEditService.js';
 import { isDiffEditorConfigurationKey, isEditorConfigurationKey } from '../../common/config/editorConfigurationSchema.js';
-import { EditOperation, ISingleEditOperation } from '../../common/core/editOperation.js';
+import { EditOperation, ISingleEditOperation } from '../../common/core.js';
 import { IPosition, Position as Pos } from '../../common/core/position.js';
 import { Range } from '../../common/core/range.js';
 import { ITextModel, ITextSnapshot } from '../../common/model.js';

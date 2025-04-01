@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { EditOperation } from '../../../common/core/editOperation.js';
+import { EditOperation } from '../../../common/core.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import * as languages from '../../../common/languages.js';

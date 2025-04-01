@@ -8,7 +8,7 @@ import { ReadonlyError, illegalArgument } from '../../../base/common/errors.js';
 import { IdGenerator } from '../../../base/common/idGenerator.js';
 import { TextEditorCursorStyle } from '../../../editor/common/config/editorOptions.js';
 import { IRange } from '../../../editor/common/core/range.js';
-import { ISingleEditOperation } from '../../../editor/common/core/editOperation.js';
+import { ISingleEditOperation } from '../../../editor/common/core.js';
 import { IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, MainThreadTextEditorsShape } from './extHost.protocol.js';
 import * as TypeConverters from './extHostTypeConverters.js';
 import { EndOfLine, Position, Range, Selection, SnippetString, TextEditorLineNumbersStyle, TextEditorRevealType } from './extHostTypes.js';

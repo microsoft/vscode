@@ -12,7 +12,7 @@ import { TrimTrailingWhitespaceCommand } from '../../../common/commands/trimTrai
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { TypeOperations } from '../../../common/cursor/cursorTypeOperations.js';
 import { EnterOperation } from '../../../common/cursor/cursorTypeEditOperations.js';
-import { EditOperation, ISingleEditOperation } from '../../../common/core/editOperation.js';
+import { EditOperation, ISingleEditOperation } from '../../../common/core.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { Selection } from '../../../common/core/selection.js';

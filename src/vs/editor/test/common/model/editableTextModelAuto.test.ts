@@ -5,7 +5,7 @@
 
 import { CharCode } from '../../../../base/common/charCode.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { ISingleEditOperation } from '../../../common/core/editOperation.js';
+import { ISingleEditOperation } from '../../../common/core.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { testApplyEditsWithSyncedModels } from './editableTextModelTestUtils.js';

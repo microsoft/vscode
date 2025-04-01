@@ -17,8 +17,7 @@ import { observableCodeEditor } from '../../../../../../browser/observableCodeEd
 import { Rect } from '../../../../../../browser/rect.js';
 import { EmbeddedCodeEditorWidget } from '../../../../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
-import { LineRange } from '../../../../../../common/core/lineRange.js';
-import { OffsetRange } from '../../../../../../common/core/offsetRange.js';
+import { LineRange, OffsetRange } from '../../../../../../common/core.js';
 import { Position } from '../../../../../../common/core/position.js';
 import { Range } from '../../../../../../common/core/range.js';
 import { ITextModel } from '../../../../../../common/model.js';

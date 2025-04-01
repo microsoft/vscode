@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { FindMatch, ITextBuffer, ValidAnnotatedEditOperation } from '../../../../../../editor/common/model.js';
-import { USUAL_WORD_SEPARATORS } from '../../../../../../editor/common/core/wordHelper.js';
+import { USUAL_WORD_SEPARATORS } from '../../../../../../editor/common/core.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { FindReplaceState } from '../../../../../../editor/contrib/find/browser/findState.js';
 import { IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';

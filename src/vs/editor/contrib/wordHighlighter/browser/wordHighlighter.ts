@@ -26,7 +26,7 @@ import { EditorOption } from '../../../common/config/editorOptions.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { Selection } from '../../../common/core/selection.js';
-import { IWordAtPosition } from '../../../common/core/wordHelper.js';
+import { IWordAtPosition } from '../../../common/core.js';
 import { CursorChangeReason, ICursorPositionChangedEvent } from '../../../common/cursorEvents.js';
 import { IDiffEditor, IEditorContribution, IEditorDecorationsCollection } from '../../../common/editorCommon.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';

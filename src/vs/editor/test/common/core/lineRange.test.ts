@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { LineRange, LineRangeSet } from '../../../common/core/lineRange.js';
+import { LineRange, LineRangeSet } from '../../../common/core.js';
 
 suite('LineRange', () => {
 

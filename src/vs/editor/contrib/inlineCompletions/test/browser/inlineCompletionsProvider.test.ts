@@ -15,7 +15,7 @@ import { LanguageFeaturesService } from '../../../../common/services/languageFea
 import { ViewModel } from '../../../../common/viewModel/viewModelImpl.js';
 import { InlineCompletionsController } from '../../browser/controller/inlineCompletionsController.js';
 import { InlineCompletionsModel } from '../../browser/model/inlineCompletionsModel.js';
-import { SingleTextEdit } from '../../../../common/core/textEdit.js';
+import { SingleTextEdit } from '../../../../common/core.js';
 import { GhostTextContext, MockInlineCompletionsProvider } from './utils.js';
 import { ITestCodeEditor, TestCodeEditorInstantiationOptions, withAsyncTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 import { createTextModel } from '../../../../test/common/testTextModel.js';

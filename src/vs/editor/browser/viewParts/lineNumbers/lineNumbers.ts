@@ -13,7 +13,7 @@ import { RenderingContext } from '../../view/renderingContext.js';
 import { ViewContext } from '../../../common/viewModel/viewContext.js';
 import * as viewEvents from '../../../common/viewEvents.js';
 import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
-import { editorDimmedLineNumber, editorLineNumbers } from '../../../common/core/editorColorRegistry.js';
+import { editorDimmedLineNumber, editorLineNumbers } from '../../../common/core.js';
 
 /**
  * Renders line numbers to the left of the main view lines content.

@@ -12,7 +12,7 @@ import type { ViewGpuContext } from '../../gpu/viewGpuContext.js';
 import type { IObjectCollectionBufferEntry } from '../../gpu/objectCollectionBuffer.js';
 import type { RectangleRenderer, RectangleRendererEntrySpec } from '../../gpu/rectangleRenderer.js';
 import { Color } from '../../../../base/common/color.js';
-import { editorRuler } from '../../../common/core/editorColorRegistry.js';
+import { editorRuler } from '../../../common/core.js';
 import { autorun, type IReader } from '../../../../base/common/observable.js';
 
 /**

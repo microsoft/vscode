@@ -11,7 +11,7 @@ import { getCodeEditor, isDiffEditor } from '../../../browser/editorBrowser.js';
 import { IRange } from '../../../common/core/range.js';
 import { IDiffEditor, IEditor, ScrollType } from '../../../common/editorCommon.js';
 import { IModelDeltaDecoration, ITextModel, OverviewRulerLane } from '../../../common/model.js';
-import { overviewRulerRangeHighlight } from '../../../common/core/editorColorRegistry.js';
+import { overviewRulerRangeHighlight } from '../../../common/core.js';
 import { IQuickAccessProvider, IQuickAccessProviderRunOptions } from '../../../../platform/quickinput/common/quickAccess.js';
 import { IKeyMods, IQuickPick, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { themeColorFromId } from '../../../../platform/theme/common/themeService.js';

@@ -10,7 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IPosition } from '../../../../common/core/position.js';
 import { IRange } from '../../../../common/core/range.js';
-import { DEFAULT_WORD_REGEXP } from '../../../../common/core/wordHelper.js';
+import { DEFAULT_WORD_REGEXP } from '../../../../common/core.js';
 import * as languages from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { EditorWorker } from '../../../../common/services/editorWebWorker.js';

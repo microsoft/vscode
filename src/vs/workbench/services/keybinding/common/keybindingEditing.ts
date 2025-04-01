@@ -10,7 +10,7 @@ import * as objects from '../../../../base/common/objects.js';
 import { setProperty } from '../../../../base/common/jsonEdit.js';
 import { Edit } from '../../../../base/common/jsonFormatter.js';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
-import { EditOperation } from '../../../../editor/common/core/editOperation.js';
+import { EditOperation } from '../../../../editor/common/core.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { ITextModel } from '../../../../editor/common/model.js';

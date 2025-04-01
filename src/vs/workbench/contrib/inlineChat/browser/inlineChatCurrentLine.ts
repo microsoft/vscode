@@ -11,7 +11,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '
 import { InlineChatController } from './inlineChatController.js';
 import { ACTION_START, CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_VISIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
 import { EditorAction2, ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
-import { EditOperation } from '../../../../editor/common/core/editOperation.js';
+import { EditOperation } from '../../../../editor/common/core.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { IPosition, Position } from '../../../../editor/common/core/position.js';
 import { AbstractInline1ChatAction } from './inlineChatActions.js';

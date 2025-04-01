@@ -31,7 +31,7 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 import { registerColor } from '../../../../platform/theme/common/colorRegistry.js';
 import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry.js';
-import { ISingleEditOperation } from '../../../common/core/editOperation.js';
+import { ISingleEditOperation } from '../../../common/core.js';
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from '../../../common/services/languageFeatureDebounce.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import './linkedEditing.css';

@@ -15,7 +15,7 @@ import { IModelService } from '../../../../editor/common/services/model.js';
 import { ILanguageSelection } from '../../../../editor/common/languages/language.js';
 import { Disposable, toDisposable, IDisposable, MutableDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isNumber } from '../../../../base/common/types.js';
-import { EditOperation, ISingleEditOperation } from '../../../../editor/common/core/editOperation.js';
+import { EditOperation, ISingleEditOperation } from '../../../../editor/common/core.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { compressConsecutiveTextChanges, TextChange } from '../../../common/core/textChange.js';
+import { compressConsecutiveTextChanges, TextChange } from '../../../common/core.js';
 
 const GENERATE_TESTS = false;
 

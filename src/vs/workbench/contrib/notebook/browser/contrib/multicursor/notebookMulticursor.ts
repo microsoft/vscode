@@ -19,7 +19,7 @@ import { cursorBlinkingStyleFromString, cursorStyleFromString, TextEditorCursorB
 import { Position } from '../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { Selection, SelectionDirection } from '../../../../../../editor/common/core/selection.js';
-import { IWordAtPosition, USUAL_WORD_SEPARATORS } from '../../../../../../editor/common/core/wordHelper.js';
+import { IWordAtPosition, USUAL_WORD_SEPARATORS } from '../../../../../../editor/common/core.js';
 import { CommandExecutor, CursorsController } from '../../../../../../editor/common/cursor/cursor.js';
 import { DeleteOperations } from '../../../../../../editor/common/cursor/cursorDeleteOperations.js';
 import { CursorConfiguration, ICursorSimpleModel } from '../../../../../../editor/common/cursorCommon.js';

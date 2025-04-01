@@ -10,10 +10,9 @@ import { Disposable, RefCountedDisposable } from '../../../../base/common/lifecy
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../browser/services/codeEditorService.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
-import { ISingleEditOperation } from '../../../common/core/editOperation.js';
+import { ISingleEditOperation, IWordAtPosition } from '../../../common/core.js';
 import { IPosition, Position } from '../../../common/core/position.js';
 import { IRange, Range } from '../../../common/core/range.js';
-import { IWordAtPosition } from '../../../common/core/wordHelper.js';
 import { registerEditorFeature } from '../../../common/editorFeatures.js';
 import { Command, CompletionItemInsertTextRule, CompletionItemProvider, CompletionTriggerKind, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider } from '../../../common/languages.js';
 import { ITextModel } from '../../../common/model.js';

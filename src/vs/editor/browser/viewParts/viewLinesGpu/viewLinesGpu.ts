@@ -22,7 +22,7 @@ import { FloatHorizontalRange, HorizontalPosition, HorizontalRange, IViewLines, 
 import { ViewPart } from '../../view/viewPart.js';
 import { ViewLineOptions } from '../viewLines/viewLineOptions.js';
 import type * as viewEvents from '../../../common/viewEvents.js';
-import { CursorColumns } from '../../../common/core/cursorColumns.js';
+import { CursorColumns } from '../../../common/core.js';
 import { TextureAtlas } from '../../gpu/atlas/textureAtlas.js';
 import { createContentSegmenter, type IContentSegmenter } from '../../gpu/contentSegmenter.js';
 import { ViewportRenderStrategy } from '../../gpu/renderStrategy/viewportRenderStrategy.js';

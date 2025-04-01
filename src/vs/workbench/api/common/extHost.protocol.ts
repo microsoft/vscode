@@ -15,7 +15,7 @@ import Severity from '../../../base/common/severity.js';
 import { ThemeColor, ThemeIcon } from '../../../base/common/themables.js';
 import { URI, UriComponents, UriDto } from '../../../base/common/uri.js';
 import { RenderLineNumbersType, TextEditorCursorStyle } from '../../../editor/common/config/editorOptions.js';
-import { ISingleEditOperation } from '../../../editor/common/core/editOperation.js';
+import { ISingleEditOperation } from '../../../editor/common/core.js';
 import { IPosition } from '../../../editor/common/core/position.js';
 import { IRange } from '../../../editor/common/core/range.js';
 import { ISelection, Selection } from '../../../editor/common/core/selection.js';

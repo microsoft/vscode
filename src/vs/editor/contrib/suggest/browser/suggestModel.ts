@@ -25,7 +25,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { CompletionModel } from './completionModel.js';
 import { CompletionDurations, CompletionItem, CompletionOptions, getSnippetSuggestSupport, provideSuggestionItems, QuickSuggestionsOptions, SnippetSortOrder } from './suggest.js';
-import { IWordAtPosition } from '../../../common/core/wordHelper.js';
+import { IWordAtPosition } from '../../../common/core.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 import { FuzzyScoreOptions } from '../../../../base/common/filters.js';
 import { assertType } from '../../../../base/common/types.js';

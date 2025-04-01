@@ -11,7 +11,7 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IBulkEditService } from '../../../../editor/browser/services/bulkEditService.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
-import { EditOperation } from '../../../../editor/common/core/editOperation.js';
+import { EditOperation } from '../../../../editor/common/core.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { ITextSnapshot } from '../../../../editor/common/model.js';

@@ -15,7 +15,7 @@ import { Range as EditorRange } from '../../common/core/range.js';
 import { HorizontalPosition } from '../view/renderingContext.js';
 import { ViewContext } from '../../common/viewModel/viewContext.js';
 import { IViewModel } from '../../common/viewModel.js';
-import { CursorColumns } from '../../common/core/cursorColumns.js';
+import { CursorColumns } from '../../common/core.js';
 import * as dom from '../../../base/browser/dom.js';
 import { AtomicTabMoveOperations, Direction } from '../../common/cursor/cursorAtomicMoveOperations.js';
 import { PositionAffinity } from '../../common/model.js';

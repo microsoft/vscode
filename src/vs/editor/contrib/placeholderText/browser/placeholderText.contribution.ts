@@ -5,7 +5,7 @@
 
 import './placeholderText.css';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../browser/editorExtensions.js';
-import { ghostTextForeground } from '../../../common/core/editorColorRegistry.js';
+import { ghostTextForeground } from '../../../common/core.js';
 import { localize } from '../../../../nls.js';
 import { registerColor } from '../../../../platform/theme/common/colorUtils.js';
 import { PlaceholderTextContribution } from './placeholderTextContribution.js';

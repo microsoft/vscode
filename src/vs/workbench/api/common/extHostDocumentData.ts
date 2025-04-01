@@ -8,7 +8,7 @@ import { Schemas } from '../../../base/common/network.js';
 import { regExpLeadsToEndlessLoop } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
 import { MirrorTextModel } from '../../../editor/common/model/mirrorTextModel.js';
-import { ensureValidWordDefinition, getWordAtText } from '../../../editor/common/core/wordHelper.js';
+import { ensureValidWordDefinition, getWordAtText } from '../../../editor/common/core.js';
 import { MainThreadDocumentsShape } from './extHost.protocol.js';
 import { EndOfLine, Position, Range } from './extHostTypes.js';
 import type * as vscode from 'vscode';

@@ -8,7 +8,7 @@ import { FastDomNode, createFastDomNode } from '../../../../base/browser/fastDom
 import * as platform from '../../../../base/common/platform.js';
 import { IVisibleLine } from '../../view/viewLayer.js';
 import { RangeUtil } from './rangeUtil.js';
-import { StringBuilder } from '../../../common/core/stringBuilder.js';
+import { StringBuilder } from '../../../common/core.js';
 import { FloatHorizontalRange, VisibleRanges } from '../../view/renderingContext.js';
 import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
 import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine, LineRange, DomPosition } from '../../../common/viewLayout/viewLineRenderer.js';

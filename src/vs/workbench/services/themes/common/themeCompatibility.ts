@@ -7,7 +7,7 @@ import { ITextMateThemingRule, IColorMap } from './workbenchThemeService.js';
 import { Color } from '../../../../base/common/color.js';
 import * as colorRegistry from '../../../../platform/theme/common/colorRegistry.js';
 
-import * as editorColorRegistry from '../../../../editor/common/core/editorColorRegistry.js';
+import * as editorColorRegistry from '../../../../editor/common/core.js';
 
 const settingToColorIdMapping: { [settingId: string]: string[] } = {};
 function addSettingMapping(settingId: string, colorId: string) {

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { Selection } from '../../../common/core/selection.js';
-import { TextChange } from '../../../common/core/textChange.js';
+import { TextChange } from '../../../common/core.js';
 import { EndOfLineSequence } from '../../../common/model.js';
 import { SingleModelEditStackData } from '../../../common/model/editStack.js';
 

@@ -11,7 +11,7 @@ import { ICodeEditorService } from '../../../editor/browser/services/codeEditorS
 import { IRange } from '../../../editor/common/core/range.js';
 import { ISelection } from '../../../editor/common/core/selection.js';
 import { IDecorationOptions, IDecorationRenderOptions } from '../../../editor/common/editorCommon.js';
-import { ISingleEditOperation } from '../../../editor/common/core/editOperation.js';
+import { ISingleEditOperation } from '../../../editor/common/core.js';
 import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
 import { ITextEditorOptions, IResourceEditorInput, EditorActivation, EditorResolution, ITextEditorDiffInformation, isTextEditorDiffInformationEqual, ITextEditorChange } from '../../../platform/editor/common/editor.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';

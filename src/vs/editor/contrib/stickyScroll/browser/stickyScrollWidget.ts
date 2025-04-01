@@ -14,7 +14,7 @@ import { getColumnOfNodeOffset } from '../../../browser/viewParts/viewLines/view
 import { EmbeddedCodeEditorWidget } from '../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { EditorLayoutInfo, EditorOption, RenderLineNumbersType } from '../../../common/config/editorOptions.js';
 import { Position } from '../../../common/core/position.js';
-import { StringBuilder } from '../../../common/core/stringBuilder.js';
+import { StringBuilder } from '../../../common/core.js';
 import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
 import { CharacterMapping, RenderLineInput, renderViewLine } from '../../../common/viewLayout/viewLineRenderer.js';
 import { foldingCollapsedIcon, foldingExpandedIcon } from '../../folding/browser/foldingDecorations.js';

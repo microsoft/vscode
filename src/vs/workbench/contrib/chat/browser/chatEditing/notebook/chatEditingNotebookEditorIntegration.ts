@@ -8,7 +8,7 @@ import { autorun, IObservable, ISettableObservable, observableFromEvent, observa
 import { debouncedObservable } from '../../../../../../base/common/observableInternal/utils.js';
 import { basename } from '../../../../../../base/common/resources.js';
 import { assertType } from '../../../../../../base/common/types.js';
-import { LineRange } from '../../../../../../editor/common/core/lineRange.js';
+import { LineRange } from '../../../../../../editor/common/core.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { nullDocumentDiff } from '../../../../../../editor/common/diff/documentDiffProvider.js';
 import { localize } from '../../../../../../nls.js';

@@ -12,7 +12,7 @@ import { instantiateTestCodeEditor, createCodeEditorServices } from './testCodeE
 import { instantiateTextModel } from '../common/testTextModel.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
-import { ISingleEditOperation } from '../../common/core/editOperation.js';
+import { ISingleEditOperation } from '../../common/core.js';
 
 export function testCommand(
 	lines: string[],

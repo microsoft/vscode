@@ -10,9 +10,8 @@ import { autorunWithStore, derived, IObservable, observableFromEvent } from '../
 import { ICodeEditor, MouseTargetType } from '../../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
 import { rangeIsSingleLine } from '../../../../../../browser/widget/diffEditor/components/diffEditorViewZones/diffEditorViewZones.js';
-import { OffsetRange } from '../../../../../../common/core/offsetRange.js';
+import { OffsetRange, AbstractText } from '../../../../../../common/core.js';
 import { Range } from '../../../../../../common/core/range.js';
-import { AbstractText } from '../../../../../../common/core/textEdit.js';
 import { DetailedLineRangeMapping } from '../../../../../../common/diff/rangeMapping.js';
 import { EndOfLinePreference, IModelDeltaDecoration, InjectedTextCursorStops, ITextModel } from '../../../../../../common/model.js';
 import { ModelDecorationOptions } from '../../../../../../common/model/textModel.js';

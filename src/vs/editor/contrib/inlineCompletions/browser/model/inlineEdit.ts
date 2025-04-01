@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SingleTextEdit } from '../../../../common/core/textEdit.js';
+import { SingleTextEdit } from '../../../../common/core.js';
 import { Command } from '../../../../common/languages.js';
 import { InlineCompletionItem } from './provideInlineCompletions.js';
 

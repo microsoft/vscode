@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { CoreEditingCommands } from '../../../../browser/coreCommands.js';
 import { IPosition, Position } from '../../../../common/core/position.js';
 import { IRange, Range } from '../../../../common/core/range.js';
-import { USUAL_WORD_SEPARATORS } from '../../../../common/core/wordHelper.js';
+import { USUAL_WORD_SEPARATORS } from '../../../../common/core.js';
 import { Handler } from '../../../../common/editorCommon.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../../common/model.js';

@@ -10,7 +10,7 @@ import { setProperty } from '../../../../base/common/jsonEdit.js';
 import { Queue } from '../../../../base/common/async.js';
 import { Edit } from '../../../../base/common/jsonFormatter.js';
 import { IDisposable, IReference } from '../../../../base/common/lifecycle.js';
-import { EditOperation } from '../../../../editor/common/core/editOperation.js';
+import { EditOperation } from '../../../../editor/common/core.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { ITextFileService } from '../../textfile/common/textfiles.js';

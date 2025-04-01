@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Color, RGBA } from '../../../../base/common/color.js';
 import { IActiveCodeEditor } from '../../../browser/editorBrowser.js';
-import { ISingleEditOperation } from '../../../common/core/editOperation.js';
+import { ISingleEditOperation } from '../../../common/core.js';
 import { DocumentColorProvider, IColorInformation } from '../../../common/languages.js';
 import { ITextModel, TrackedRangeStickiness } from '../../../common/model.js';
 import { getColorPresentations } from './color.js';

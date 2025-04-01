@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { editorActiveIndentGuide1, editorIndentGuide1 } from '../../common/core/editorColorRegistry.js';
+import { editorActiveIndentGuide1, editorIndentGuide1 } from '../../common/core.js';
 import { IStandaloneThemeData } from './standaloneTheme.js';
 import { editorBackground, editorForeground, editorInactiveSelection, editorSelectionHighlight } from '../../../platform/theme/common/colorRegistry.js';
 

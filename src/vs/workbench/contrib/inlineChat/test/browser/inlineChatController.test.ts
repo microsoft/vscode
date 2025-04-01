@@ -12,7 +12,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { IActiveCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { IDiffProviderFactoryService } from '../../../../../editor/browser/widget/diffEditor/diffProviderFactoryService.js';
-import { EditOperation } from '../../../../../editor/common/core/editOperation.js';
+import { EditOperation } from '../../../../../editor/common/core.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { EndOfLineSequence, ITextModel } from '../../../../../editor/common/model.js';
 import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';

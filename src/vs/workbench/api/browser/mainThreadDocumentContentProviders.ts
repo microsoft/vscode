@@ -6,7 +6,7 @@
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { dispose, DisposableMap } from '../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
-import { EditOperation } from '../../../editor/common/core/editOperation.js';
+import { EditOperation } from '../../../editor/common/core.js';
 import { Range } from '../../../editor/common/core/range.js';
 import { ITextModel } from '../../../editor/common/model.js';
 import { IEditorWorkerService } from '../../../editor/common/services/editorWorker.js';

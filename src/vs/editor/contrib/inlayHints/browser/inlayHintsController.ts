@@ -17,7 +17,7 @@ import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, MouseTargetType } fr
 import { ClassNameReference, CssProperties, DynamicCssRules } from '../../../browser/editorDom.js';
 import { StableEditorScrollState } from '../../../browser/stableEditorScroll.js';
 import { EditorOption, EDITOR_FONT_DEFAULTS } from '../../../common/config/editorOptions.js';
-import { EditOperation } from '../../../common/core/editOperation.js';
+import { EditOperation } from '../../../common/core.js';
 import { Range } from '../../../common/core/range.js';
 import { IEditorContribution } from '../../../common/editorCommon.js';
 import * as languages from '../../../common/languages.js';

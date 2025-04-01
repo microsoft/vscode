@@ -18,10 +18,9 @@ import { IEditorConstructionOptions } from '../../../../../editor/browser/config
 import { EditorExtensionsRegistry } from '../../../../../editor/browser/editorExtensions.js';
 import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { IEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
-import { EditOperation } from '../../../../../editor/common/core/editOperation.js';
+import { EditOperation, ensureValidWordDefinition, getWordAtText } from '../../../../../editor/common/core.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
-import { ensureValidWordDefinition, getWordAtText } from '../../../../../editor/common/core/wordHelper.js';
 import * as languages from '../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';

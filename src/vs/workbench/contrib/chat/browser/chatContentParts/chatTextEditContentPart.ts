@@ -12,7 +12,7 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { ISingleEditOperation } from '../../../../../editor/common/core/editOperation.js';
+import { ISingleEditOperation } from '../../../../../editor/common/core.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { createTextBufferFactoryFromSnapshot } from '../../../../../editor/common/model/textModel.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';

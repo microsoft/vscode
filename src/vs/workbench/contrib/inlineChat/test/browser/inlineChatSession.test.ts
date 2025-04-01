@@ -32,7 +32,7 @@ import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionSer
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { assertType } from '../../../../../base/common/types.js';
-import { EditOperation } from '../../../../../editor/common/core/editOperation.js';
+import { EditOperation } from '../../../../../editor/common/core.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
 import { TestWorkerService } from './testWorkerService.js';

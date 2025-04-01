@@ -8,7 +8,7 @@ import { applyFontInfo } from '../../../../config/domFontInfo.js';
 import { ICodeEditor } from '../../../../editorBrowser.js';
 import { EditorFontLigatures, EditorOption, FindComputedEditorOptionValueById } from '../../../../../common/config/editorOptions.js';
 import { FontInfo } from '../../../../../common/config/fontInfo.js';
-import { StringBuilder } from '../../../../../common/core/stringBuilder.js';
+import { StringBuilder } from '../../../../../common/core.js';
 import { ModelLineProjectionData } from '../../../../../common/modelLineProjectionData.js';
 import { IViewLineTokens, LineTokens } from '../../../../../common/tokens/lineTokens.js';
 import { LineDecoration } from '../../../../../common/viewLayout/lineDecorations.js';

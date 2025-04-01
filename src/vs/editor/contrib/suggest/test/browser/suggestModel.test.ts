@@ -8,7 +8,7 @@ import { Disposable, DisposableStore, toDisposable } from '../../../../../base/c
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { CoreEditingCommands } from '../../../../browser/coreCommands.js';
-import { EditOperation } from '../../../../common/core/editOperation.js';
+import { EditOperation } from '../../../../common/core.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';

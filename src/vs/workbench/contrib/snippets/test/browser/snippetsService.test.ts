@@ -12,7 +12,7 @@ import { Snippet, SnippetSource } from '../../browser/snippetsFile.js';
 import { CompletionContext, CompletionItemLabel, CompletionItemRanges, CompletionTriggerKind } from '../../../../../editor/common/languages.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { TestLanguageConfigurationService } from '../../../../../editor/test/common/modes/testLanguageConfigurationService.js';
-import { EditOperation } from '../../../../../editor/common/core/editOperation.js';
+import { EditOperation } from '../../../../../editor/common/core.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';

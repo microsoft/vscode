@@ -20,7 +20,7 @@ import { IEncodingSupport, ILanguageSupport, ITextFileService } from '../../text
 import { IModelContentChangedEvent } from '../../../../editor/common/textModelEvents.js';
 import { assertIsDefined } from '../../../../base/common/types.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
-import { ensureValidWordDefinition } from '../../../../editor/common/core/wordHelper.js';
+import { ensureValidWordDefinition } from '../../../../editor/common/core.js';
 import { IEditorService } from '../../editor/common/editorService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { getCharContainingOffset } from '../../../../base/common/strings.js';

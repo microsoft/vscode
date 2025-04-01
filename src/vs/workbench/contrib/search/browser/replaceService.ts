@@ -22,7 +22,7 @@ import { createTextBufferFactoryFromSnapshot } from '../../../../editor/common/m
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { IBulkEditService, ResourceTextEdit } from '../../../../editor/browser/services/bulkEditService.js';
 import { Range } from '../../../../editor/common/core/range.js';
-import { EditOperation, ISingleEditOperation } from '../../../../editor/common/core/editOperation.js';
+import { EditOperation, ISingleEditOperation } from '../../../../editor/common/core.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { dirname } from '../../../../base/common/resources.js';
 import { Promises } from '../../../../base/common/async.js';

@@ -5,7 +5,7 @@
 import assert from 'assert';
 import { CharCode } from '../../../../base/common/charCode.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { CharacterClassifier } from '../../../common/core/characterClassifier.js';
+import { CharacterClassifier } from '../../../common/core.js';
 
 suite('CharacterClassifier', () => {
 

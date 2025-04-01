@@ -11,7 +11,7 @@ import { IRange, Range } from '../../../editor/common/core/range.js';
 import { ISelection, Selection } from '../../../editor/common/core/selection.js';
 import { IDecorationOptions, ScrollType } from '../../../editor/common/editorCommon.js';
 import { ITextModel, ITextModelUpdateOptions } from '../../../editor/common/model.js';
-import { ISingleEditOperation } from '../../../editor/common/core/editOperation.js';
+import { ISingleEditOperation } from '../../../editor/common/core.js';
 import { IModelService } from '../../../editor/common/services/model.js';
 import { SnippetController2 } from '../../../editor/contrib/snippet/browser/snippetController2.js';
 import { IApplyEditsOptions, IEditorPropertiesChangeData, IResolvedTextEditorConfiguration, ISnippetOptions, ITextEditorConfigurationUpdate, TextEditorRevealType } from '../common/extHost.protocol.js';

@@ -9,10 +9,9 @@ import { IIdentifiedSingleEditOperation, IModelDecorationOptions, IModelDeltaDec
 import { CTX_INLINE_CHAT_HAS_STASHED_SESSION } from '../common/inlineChat.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { ModelDecorationOptions } from '../../../../editor/common/model/textModel.js';
-import { EditOperation, ISingleEditOperation } from '../../../../editor/common/core/editOperation.js';
+import { EditOperation, ISingleEditOperation, LineRange } from '../../../../editor/common/core.js';
 import { DetailedLineRangeMapping, LineRangeMapping, RangeMapping } from '../../../../editor/common/diff/rangeMapping.js';
 import { IInlineChatSessionService } from './inlineChatSessionService.js';
-import { LineRange } from '../../../../editor/common/core/lineRange.js';
 import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
 import { coalesceInPlace } from '../../../../base/common/arrays.js';
 import { Iterable } from '../../../../base/common/iterator.js';
