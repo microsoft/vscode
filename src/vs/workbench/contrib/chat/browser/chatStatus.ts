@@ -29,7 +29,7 @@ import { ILanguageService } from '../../../../editor/common/languages/language.j
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from '../../../../base/common/actions.js';
+import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, IAction, toAction } from '../../../../base/common/actions.js';
 import { parseLinkedText } from '../../../../base/common/linkedText.js';
 import { Link } from '../../../../platform/opener/browser/link.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -38,6 +38,10 @@ import { IChatStatusItemService, ChatStatusEntry } from './chatStatusItemService
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
 import { getCodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { URI } from '../../../../base/common/uri.js';
 
 const gaugeBackground = registerColor('gauge.background', {
 	dark: inputValidationInfoBorder,
@@ -93,7 +97,8 @@ registerColor('gauge.errorForeground', {
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
 	completionsEnablementSetting: product.defaultChatAgent?.completionsEnablementSetting ?? '',
-	nextEditSuggestionsSetting: product.defaultChatAgent?.nextEditSuggestionsSetting ?? ''
+	nextEditSuggestionsSetting: product.defaultChatAgent?.nextEditSuggestionsSetting ?? '',
+	manageSettingsUrl: product.defaultChatAgent?.manageSettingsUrl ?? '',
 };
 
 export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribution {
@@ -282,14 +287,18 @@ class ChatStatusDashboard extends Disposable {
 		disposables.add(token.onCancellationRequested(() => disposables.dispose()));
 
 		let needsSeparator = false;
-		const addSeparator = (label: string | undefined) => {
+		const addSeparator = (label?: string, action?: IAction) => {
 			if (needsSeparator) {
 				this.element.appendChild($('hr'));
-				needsSeparator = false;
 			}
 
-			if (label) {
-				this.element.appendChild($('div.header', undefined, label));
+			if (label || action) {
+				const header = this.element.appendChild($('div.header', undefined, label ?? ''));
+
+				if (action) {
+					const toolbar = disposables.add(new ActionBar(header));
+					toolbar.push([action], { icon: true, label: false });
+				}
 			}
 
 			needsSeparator = true;
@@ -299,7 +308,13 @@ class ChatStatusDashboard extends Disposable {
 		if (this.chatEntitlementService.entitlement === ChatEntitlement.Limited) {
 			const { chatTotal, chatRemaining, completionsTotal, completionsRemaining, quotaResetDate, chatQuotaExceeded, completionsQuotaExceeded } = this.chatEntitlementService.quotas;
 
-			addSeparator(localize('usageTitle', "Copilot Free Plan Usage"));
+			addSeparator(localize('usageTitle', "Copilot Free Plan Usage"), toAction({
+				id: 'workbench.action.openChatSettings',
+				label: localize('quotaLabel', "Manage Copilot"),
+				tooltip: localize('quotaTooltip', "Manage Copilot"),
+				class: ThemeIcon.asClassName(Codicon.settings),
+				run: () => this.runCommandAndClose(() => this.openerService.open(URI.parse(defaultChat.manageSettingsUrl))),
+			}));
 
 			const chatQuotaIndicator = this.createQuotaIndicator(this.element, chatTotal, chatRemaining, localize('chatsLabel', "Chat messages"));
 			const completionsQuotaIndicator = this.createQuotaIndicator(this.element, completionsTotal, completionsRemaining, localize('completionsLabel', "Code completions"));
@@ -328,7 +343,7 @@ class ChatStatusDashboard extends Disposable {
 		// Contributions
 		{
 			for (const item of this.chatStatusItemService.getEntries()) {
-				addSeparator(undefined);
+				addSeparator();
 				const chatItemDisposables = disposables.add(new MutableDisposable());
 
 				let rendered = this.renderContributedChatStatusItem(item);
@@ -350,7 +365,13 @@ class ChatStatusDashboard extends Disposable {
 
 		// Settings
 		{
-			addSeparator(localize('settingsTitle', "Settings"));
+			addSeparator(localize('settingsTitle', "Settings"), this.chatEntitlementService.sentiment === ChatSentiment.Installed ? toAction({
+				id: 'workbench.action.openChatSettings',
+				label: localize('settingsLabel', "Settings"),
+				tooltip: localize('settingsTooltip', "Open Settings"),
+				class: ThemeIcon.asClassName(Codicon.settingsGear),
+				run: () => this.runCommandAndClose(() => this.commandService.executeCommand('workbench.action.openSettings', { query: `@id:${defaultChat.completionsEnablementSetting} @id:${defaultChat.nextEditSuggestionsSetting}` })),
+			}) : undefined);
 
 			this.createSettings(this.element, disposables);
 		}
@@ -360,7 +381,7 @@ class ChatStatusDashboard extends Disposable {
 			const newUser = isNewUser(this.chatEntitlementService);
 			const signedOut = this.chatEntitlementService.entitlement === ChatEntitlement.Unknown;
 			if (newUser || signedOut) {
-				addSeparator(undefined);
+				addSeparator();
 
 				this.element.appendChild($('div.description', undefined, newUser ? localize('activateDescription', "Set up Copilot to use AI features.") : localize('signInDescription', "Sign in to use Copilot AI features.")));
 
