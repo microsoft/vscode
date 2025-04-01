@@ -18,6 +18,12 @@
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 }
 
+.monaco-workbench .workbench-hover .monaco-action-bar .action-item .codicon {
+	/* Given our font-size, adjust action icons accordingly */
+	width: 13px;
+	height: 13px;
+}
+
 .monaco-workbench .workbench-hover hr {
 	border-bottom: none;
 }
