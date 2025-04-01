@@ -189,6 +189,7 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IChatService private readonly chatService: IChatService,
 	) {
 		super();
 	}
@@ -264,13 +265,17 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 			try {
 				const ready = await Promise.race([
 					timeout(20000).then(() => 'timedout'),
+					this.whenDefaultAgentFailed().then(() => 'error'),
 					Promise.allSettled([whenLanguageModelReady, whenAgentReady])
 				]);
 
-				if (ready === 'timedout') {
+				if (ready === 'error' || ready === 'timedout') {
 					progress({
 						kind: 'warning',
-						content: new MarkdownString(localize('copilotTookLongWarning', "Copilot took too long to get ready. Please try again."))
+						content: new MarkdownString(ready === 'timedout' ?
+							localize('copilotTookLongWarning', "Copilot took too long to get ready. Please try again.") :
+							localize('copilotFailedWarning', "Copilot failed to get ready. Please try again.")
+						)
 					});
 
 					// This means Copilot is unhealthy and we cannot retry the
@@ -311,6 +316,12 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 			const defaultAgent = chatAgentService.getDefaultAgent(this.location);
 			return Boolean(defaultAgent && !defaultAgent.isCore);
 		}));
+	}
+
+	private async whenDefaultAgentFailed(): Promise<void> {
+		return new Promise<void>(resolve => {
+			this.chatService.activateDefaultAgent(this.location).catch(() => resolve());
+		});
 	}
 
 	private async doInvokeWithSetup(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService, chatAgentService: IChatAgentService): Promise<IChatAgentResult> {
