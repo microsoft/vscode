@@ -174,7 +174,7 @@ export class PlaywrightDriver {
 		await this.page.reload();
 	}
 
-	async exitApplication() {
+	async close() {
 
 		// Stop tracing
 		try {
