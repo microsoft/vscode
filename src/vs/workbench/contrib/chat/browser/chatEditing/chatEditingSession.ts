@@ -121,6 +121,26 @@ function getCurrentAndNextStop(requestId: string, stopId: string | undefined, hi
 	return { current, next };
 }
 
+function getFirstAndLastStop(uri: URI, history: readonly IChatEditingSessionSnapshot[]) {
+	let firstStopWithUri: IChatEditingSessionStop | undefined;
+	for (const snapshot of history) {
+		const stop = snapshot.stops.find(s => s.entries.has(uri));
+		if (stop) {
+			firstStopWithUri = stop;
+			break;
+		}
+	}
+	const lastSnapshot = history.at(-1);
+
+	const last = lastSnapshot?.postEdit ?? lastSnapshot?.stops.at(-1)?.entries;
+
+	if (!firstStopWithUri || !last) {
+		return undefined;
+	}
+
+	return { current: firstStopWithUri.entries, next: last };
+}
+
 export class ChatEditingSession extends Disposable implements IChatEditingSession {
 
 	private readonly _state = observableValue<ChatEditingSessionState>(this, ChatEditingSessionState.Initial);
@@ -262,6 +282,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 
 	private _diffsBetweenStops = new Map<string, IObservable<IEditSessionEntryDiff | undefined>>();
+	private _fullDiffs = new Map<string, IObservable<IEditSessionEntryDiff | undefined>>();
 
 	private readonly _ignoreTrimWhitespaceObservable: IObservable<boolean>;
 
@@ -292,7 +313,8 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		});
 
 		return derived((reader): ObservablePromise<IEditSessionEntryDiff> | undefined => {
-			const refs = modelRefsPromise.read(reader)?.promiseResult.read(reader)?.data;
+			const refs2 = modelRefsPromise.read(reader)?.promiseResult.read(reader);
+			const refs = refs2?.data;
 			if (!refs) {
 				return;
 			}
@@ -333,13 +355,15 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		});
 	}
 
-	private _createDiffBetweenStopsObservable(uri: URI, requestId: string, stopId: string | undefined): IObservable<IEditSessionEntryDiff | undefined> {
+	private _createDiffBetweenStopsObservable(uri: URI, requestId: string | undefined, stopId: string | undefined): IObservable<IEditSessionEntryDiff | undefined> {
 		const entries = derivedOpts<undefined | { before: ISnapshotEntry; after: ISnapshotEntry }>(
 			{
 				equalsFn: (a, b) => snapshotsEqualForDiff(a?.before, b?.before) && snapshotsEqualForDiff(a?.after, b?.after),
 			},
 			reader => {
-				const stops = getCurrentAndNextStop(requestId, stopId, this._linearHistory.read(reader));
+				const stops = requestId ?
+					getCurrentAndNextStop(requestId, stopId, this._linearHistory.read(reader)) :
+					getFirstAndLastStop(uri, this._linearHistory.read(reader));
 				if (!stops) { return undefined; }
 				const before = stops.current.get(uri);
 				const after = stops.next.get(uri);
@@ -362,15 +386,26 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		});
 	}
 
-	public getEntryDiffBetweenStops(uri: URI, requestId: string, stopId: string | undefined) {
-		const key = `${uri}\0${requestId}\0${stopId}`;
-		let observable = this._diffsBetweenStops.get(key);
-		if (!observable) {
-			observable = this._createDiffBetweenStopsObservable(uri, requestId, stopId);
-			this._diffsBetweenStops.set(key, observable);
-		}
+	public getEntryDiffBetweenStops(uri: URI, requestId: string | undefined, stopId: string | undefined) {
+		if (requestId) {
+			const key = `${uri}\0${requestId}\0${stopId}`;
+			let observable = this._diffsBetweenStops.get(key);
+			if (!observable) {
+				observable = this._createDiffBetweenStopsObservable(uri, requestId, stopId);
+				this._diffsBetweenStops.set(key, observable);
+			}
 
-		return observable;
+			return observable;
+		} else {
+			const key = uri.toString();
+			let observable = this._fullDiffs.get(key);
+			if (!observable) {
+				observable = this._createDiffBetweenStopsObservable(uri, requestId, stopId);
+				this._fullDiffs.set(key, observable);
+			}
+
+			return observable;
+		}
 	}
 
 	public createSnapshot(requestId: string, undoStop: string | undefined): void {
@@ -548,7 +583,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.editsUndone, { allowManyInParallel: true });
 	}
 
-	async show(): Promise<void> {
+	async show(previousChanges?: boolean): Promise<void> {
 		this._assertNotDisposed();
 		if (this._editorPane) {
 			if (this._editorPane.isVisible()) {
@@ -559,7 +594,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			}
 		}
 		const input = MultiDiffEditorInput.fromResourceMultiDiffEditorInput({
-			multiDiffSource: getMultiDiffSourceUri(this),
+			multiDiffSource: getMultiDiffSourceUri(this, previousChanges),
 			label: localize('multiDiffEditorInput.name', "Suggested Edits")
 		}, this._instantiationService);
 
@@ -777,7 +812,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		// special case: put the last change in the pendingSnapshot as needed
 		if (next) {
 			if (stopIndex === snap.stops.length - 1) {
-				const postEdit = new ResourceMap(snap.postEdit || this._createSnapshot(undefined, undefined).entries);
+				const postEdit = new ResourceMap(snap.postEdit || this._createSnapshot(requestId, undefined).entries);
 				if (!snap.postEdit || !entry.equalsSnapshot(postEdit.get(entry.modifiedURI))) {
 					postEdit.set(entry.modifiedURI, entry.createSnapshot(requestId, POST_EDIT_STOP_ID));
 					const newHistory = history.slice();
@@ -806,6 +841,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 
 	private async _acceptEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
+		this._fullDiffs.delete(resource.toString());
 		const entry = await this._getOrCreateModifiedFileEntry(resource, this._getTelemetryInfoForModel(responseModel));
 		await entry.acceptAgentEdits(resource, textEdits, isLastEdits, responseModel);
 	}

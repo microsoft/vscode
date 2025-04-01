@@ -687,3 +687,32 @@ registerAction2(class ResolveSymbolsContextAction extends EditingSessionAction {
 		return implementations.flat();
 	}
 });
+
+export class ViewPreviousEditsAction extends EditingSessionAction {
+	static readonly Id = 'chatEditing.viewPreviousEdits';
+	static readonly Label = localize('chatEditing.viewPreviousEdits', 'View Previous Edits');
+
+	constructor() {
+		super({
+			id: ViewPreviousEditsAction.Id,
+			title: ViewPreviousEditsAction.Label,
+			tooltip: ViewPreviousEditsAction.Label,
+			f1: false,
+			icon: Codicon.diffMultiple,
+			precondition: hasUndecidedChatEditingResourceContextKey.negate(),
+			menu: [
+				{
+					id: MenuId.ChatEditingWidgetToolbar,
+					group: 'navigation',
+					order: 4,
+					when: ContextKeyExpr.and(applyingChatEditsFailedContextKey.negate(), ContextKeyExpr.and(hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey.negate()))
+				}
+			],
+		});
+	}
+
+	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]): Promise<void> {
+		await editingSession.show(true);
+	}
+}
+registerAction2(ViewPreviousEditsAction);
