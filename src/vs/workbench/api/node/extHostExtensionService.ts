@@ -232,13 +232,13 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		return extensionDescription.main;
 	}
 
-	private async _doLoadModule<T>(extension: IExtensionDescription | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder, loader: () => T | Promise<T>): Promise<T> {
+	private async _doLoadModule<T>(extension: IExtensionDescription | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder, mode: 'esm' | 'cjs'): Promise<T> {
 		if (module.scheme !== Schemas.file) {
 			throw new Error(`Cannot load URI: '${module}', must be of file-scheme`);
 		}
 		let r: T | null = null;
 		activationTimesBuilder.codeLoadingStart();
-		this._logService.trace(`ExtensionService#loadModule ${module.toString(true)}`);
+		this._logService.trace(`ExtensionService#loadModule [${mode}] -> ${module.toString(true)}`);
 		this._logService.flush();
 		const extensionId = extension?.identifier.value;
 		if (extension) {
@@ -248,7 +248,11 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 			if (extensionId) {
 				performance.mark(`code/extHost/willLoadExtensionCode/${extensionId}`);
 			}
-			r = await loader();
+			if (mode === 'esm') {
+				r = <T>await import(module.fsPath);
+			} else {
+				r = <T>require(module.fsPath);
+			}
 		} finally {
 			if (extensionId) {
 				performance.mark(`code/extHost/didLoadExtensionCode/${extensionId}`);
@@ -259,11 +263,11 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 	}
 
 	protected async _loadCommonJSModule<T>(extension: IExtensionDescription | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
-		return this._doLoadModule<T>(extension, module, activationTimesBuilder, () => <T>(require)(module.fsPath));
+		return this._doLoadModule<T>(extension, module, activationTimesBuilder, 'cjs');
 	}
 
 	protected async _loadESMModule<T>(extension: IExtensionDescription | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
-		return this._doLoadModule<T>(extension, module, activationTimesBuilder, async () => <T>await import(module.fsPath));
+		return this._doLoadModule<T>(extension, module, activationTimesBuilder, 'esm');
 	}
 
 	public async $setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void> {

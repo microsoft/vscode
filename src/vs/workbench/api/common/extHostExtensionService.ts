@@ -747,8 +747,16 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			throw new Error(nls.localize('extensionTestError1', "Cannot load test runner."));
 		}
 
+		let isESM = extensionTestsLocationURI.path.endsWith('.mjs');
+		if (!isESM) {
+			const extensionDesc = (await this.getExtensionPathIndex()).findSubstr(extensionTestsLocationURI);
+			isESM = extensionDesc?.type === 'module';
+		}
+
 		// Require the test runner via node require from the provided path
-		const testRunner = await this._loadCommonJSModule<ITestRunner | INewTestRunner | undefined>(null, extensionTestsLocationURI, new ExtensionActivationTimesBuilder(false));
+		const testRunner = await (isESM
+			? this._loadESMModule<ITestRunner | INewTestRunner | undefined>(null, extensionTestsLocationURI, new ExtensionActivationTimesBuilder(false))
+			: this._loadCommonJSModule<ITestRunner | INewTestRunner | undefined>(null, extensionTestsLocationURI, new ExtensionActivationTimesBuilder(false)));
 
 		if (!testRunner || typeof testRunner.run !== 'function') {
 			throw new Error(nls.localize('extensionTestError', "Path {0} does not point to a valid extension test runner.", extensionTestsLocationURI.toString()));
