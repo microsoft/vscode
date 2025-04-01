@@ -263,7 +263,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 					markdownDetails: [{
 						markdown: new MarkdownString(localize('mcp.trust.details', '{0} discovered Model Context Protocol servers from {1} (`{2}`). {0} can use their capabilities in Chat.\n\nDo you want to allow running MCP servers from {3}?', this._productService.nameShort, collection.label, collection.serverDefinitions.get().map(s => s.label).join('`, `'), labelWithOrigin)),
 						actionHandler: () => {
-							const editor = this._editorService.openEditor({ resource: collection.presentation!.origin!, options: { transient: true } }, AUX_WINDOW_GROUP);
+							const editor = this._editorService.openEditor({ resource: collection.presentation!.origin! }, AUX_WINDOW_GROUP);
 							return editor.then(Boolean);
 						},
 					}]
