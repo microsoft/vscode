@@ -428,7 +428,8 @@ class AiRelatedInformationSearchProvider implements IRemoteSearchProvider {
 		this._keysProvider.updateModel(preferencesModel);
 
 		return {
-			filterMatches: await this.getAiRelatedInformationItems(token)
+			filterMatches: await this.getAiRelatedInformationItems(token),
+			exactMatch: false
 		};
 	}
 
@@ -522,7 +523,8 @@ class TfIdfSearchProvider implements IRemoteSearchProvider {
 		}
 
 		return {
-			filterMatches: await this.getTfIdfItems(token)
+			filterMatches: await this.getTfIdfItems(token),
+			exactMatch: false
 		};
 	}
 
@@ -593,12 +595,15 @@ class RemoteSearchProvider implements IRemoteSearchProvider {
 		}
 
 		// Use TF-IDF search as a fallback, ref https://github.com/microsoft/vscode/issues/224946
-		const results = await this.adaSearchProvider.searchModel(preferencesModel, token);
+		let results = await this.adaSearchProvider.searchModel(preferencesModel, token);
 		if (results?.filterMatches.length) {
 			return results;
 		}
 		if (!token.isCancellationRequested) {
-			return this.tfIdfSearchProvider!.searchModel(preferencesModel, token);
+			results = await this.tfIdfSearchProvider!.searchModel(preferencesModel, token);
+			if (results?.filterMatches.length) {
+				return results;
+			}
 		}
 		return null;
 	}

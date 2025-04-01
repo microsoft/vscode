@@ -93,7 +93,7 @@ import { ITimerService, TimerService } from './services/timer/browser/timerServi
 import { IDiagnosticsService, NullDiagnosticsService } from '../platform/diagnostics/common/diagnostics.js';
 import { ILanguagePackService } from '../platform/languagePacks/common/languagePacks.js';
 import { WebLanguagePacksService } from '../platform/languagePacks/browser/languagePacks.js';
-import { IWebContentExtractorService, NullWebContentExtractorService } from '../platform/webContentExtractor/common/webContentExtractor.js';
+import { IWebContentExtractorService, NullWebContentExtractorService, ISharedWebContentExtractorService, NullSharedWebContentExtractorService } from '../platform/webContentExtractor/common/webContentExtractor.js';
 import { IDefaultAccountService, NullDefaultAccountService } from './services/accounts/common/defaultAccount.js';
 
 registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService, InstantiationType.Delayed);
@@ -113,6 +113,7 @@ registerSingleton(ICustomEndpointTelemetryService, NullEndpointTelemetryService,
 registerSingleton(IDiagnosticsService, NullDiagnosticsService, InstantiationType.Delayed);
 registerSingleton(ILanguagePackService, WebLanguagePacksService, InstantiationType.Delayed);
 registerSingleton(IWebContentExtractorService, NullWebContentExtractorService, InstantiationType.Delayed);
+registerSingleton(ISharedWebContentExtractorService, NullSharedWebContentExtractorService, InstantiationType.Delayed);
 registerSingleton(IDefaultAccountService, NullDefaultAccountService, InstantiationType.Delayed);
 
 //#endregion

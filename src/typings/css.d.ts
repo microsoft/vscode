@@ -3,12 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare module 'vscode' {
 
-	// https://github.com/microsoft/vscode/issues/243615
-
-	export namespace env {
-		export function isTrustedExternalUris(uri: Uri[]): boolean[];
-		export function extractExternalUris(uris: Uri[]): Thenable<string[]>;
-	}
-}
+// Recognize all CSS files as valid module imports
+declare module "vs/css!*" { }
+declare module "*.css" { }

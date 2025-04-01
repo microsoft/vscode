@@ -8,12 +8,24 @@ export enum ChatConfiguration {
 	UseFileStorage = 'chat.useFileStorage',
 	AgentEnabled = 'chat.agent.enabled',
 	Edits2Enabled = 'chat.edits2.enabled',
+	ExtensionToolsEnabled = 'chat.extensionTools.enabled',
 }
 
 export enum ChatMode {
 	Ask = 'ask',
 	Edit = 'edit',
 	Agent = 'agent'
+}
+
+export function validateChatMode(mode: unknown): ChatMode | undefined {
+	switch (mode) {
+		case ChatMode.Ask:
+		case ChatMode.Edit:
+		case ChatMode.Agent:
+			return mode as ChatMode;
+		default:
+			return undefined;
+	}
 }
 
 export type RawChatParticipantLocation = 'panel' | 'terminal' | 'notebook' | 'editing-session';

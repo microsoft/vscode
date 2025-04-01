@@ -186,7 +186,7 @@ class ChatToolInvocationSubPart extends Disposable {
 				data: ConfirmationOutcome.Allow,
 				tooltip: continueTooltip,
 				moreActions: !allowAutoConfirm ? undefined : [
-					{ label: localize('allowSession', 'Allow in this Session'), data: ConfirmationOutcome.AllowWorkspace, tooltip: localize('allowSesssionTooltip', 'Allow this tool to run in this session without confirmation.') },
+					{ label: localize('allowSession', 'Allow in this Session'), data: ConfirmationOutcome.AllowSession, tooltip: localize('allowSesssionTooltip', 'Allow this tool to run in this session without confirmation.') },
 					{ label: localize('allowWorkspace', 'Allow in this Workspace'), data: ConfirmationOutcome.AllowWorkspace, tooltip: localize('allowWorkspaceTooltip', 'Allow this tool to run in this workspace without confirmation.') },
 					{ label: localize('allowGlobally', 'Always Allow'), data: ConfirmationOutcome.AllowGlobally, tooltip: localize('allowGloballTooltip', 'Always allow this tool to run without confirmation.') },
 				],
@@ -231,6 +231,7 @@ class ChatToolInvocationSubPart extends Disposable {
 				const codeBlockRenderOptions: ICodeBlockRenderOptions = {
 					hideToolbar: true,
 					reserveWidth: 19,
+					maxHeightInLines: 13,
 					verticalPadding: 5,
 					editorOptions: {
 						wordWrap: 'on',
@@ -480,6 +481,7 @@ class ChatToolInvocationSubPart extends Disposable {
 			{
 				hideToolbar: true,
 				reserveWidth: 19,
+				maxHeightInLines: 13,
 				verticalPadding: 5,
 				editorOptions: {
 					wordWrap: 'on'

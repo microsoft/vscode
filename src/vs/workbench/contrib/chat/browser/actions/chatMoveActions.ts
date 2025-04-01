@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceTimeout } from '../../../../../base/common/async.js';
-import { Event } from '../../../../../base/common/event.js';
 import { localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -22,6 +20,7 @@ import { ChatEditor, IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { CHAT_CATEGORY } from './chatActions.js';
+import { waitForChatSessionCleared } from './chatClearActions.js';
 
 enum MoveToNewLocation {
 	Editor = 'Editor',
@@ -113,11 +112,7 @@ async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNew
 	const viewState = widget.getViewState();
 
 	widget.clear();
-	// The ChatWidget just signals cancellation to its host viewpane or editor. Clearing the session is now async, we need to wait for it to finish.
-	// This is expected to always happen.
-	await raceTimeout(Event.toPromise(
-		Event.filter(chatService.onDidDisposeSession, e => e.sessionId === sessionId),
-	), 2000);
+	await waitForChatSessionCleared(sessionId, chatService);
 
 	const options: IChatEditorOptions = { target: { sessionId }, pinned: true, viewState: viewState };
 	await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);

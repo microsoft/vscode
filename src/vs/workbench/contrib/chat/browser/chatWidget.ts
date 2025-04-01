@@ -41,7 +41,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { checkModeOption } from '../common/chat.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService, IChatWelcomeMessageContent, isChatWelcomeMessageContent } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, WorkingSetEntryState } from '../common/chatEditingService.js';
+import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, ModifiedFileEntryState } from '../common/chatEditingService.js';
 import { ChatPauseState, IChatModel, IChatRequestVariableEntry, IChatResponseModel } from '../common/chatModel.js';
 import { chatAgentLeader, ChatRequestAgentPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../common/chatParserTypes.js';
 import { ChatRequestParser } from '../common/chatRequestParser.js';
@@ -276,13 +276,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				return;
 			}
 			const entries = currentSession.entries.read(reader);
-			const decidedEntries = entries.filter(entry => entry.state.read(reader) !== WorkingSetEntryState.Modified);
+			const decidedEntries = entries.filter(entry => entry.state.read(reader) !== ModifiedFileEntryState.Modified);
 			return decidedEntries.map(entry => entry.entryId);
 		}));
 		this._register(bindContextKey(hasUndecidedChatEditingResourceContextKey, contextKeyService, (reader) => {
 			const currentSession = this._editingSession.read(reader);
 			const entries = currentSession?.entries.read(reader) ?? []; // using currentSession here
-			const decidedEntries = entries.filter(entry => entry.state.read(reader) === WorkingSetEntryState.Modified);
+			const decidedEntries = entries.filter(entry => entry.state.read(reader) === ModifiedFileEntryState.Modified);
 			return decidedEntries.length > 0;
 		}));
 		this._register(bindContextKey(hasAppliedChatEditsContextKey, contextKeyService, (reader) => {
@@ -334,11 +334,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				return;
 			}
 
+			session.entries.read(r); // SIGNAL
+
 			this._editingSession.set(session, undefined);
 
-			store.add(session.onDidChange(() => {
-				this.renderChatEditingSessionState();
-			}));
 			store.add(session.onDidDispose(() => {
 				this._editingSession.set(undefined, undefined);
 				this.renderChatEditingSessionState();
@@ -1218,7 +1217,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight - 2;
 
 		const listHeight = Math.max(0, height - inputPartHeight);
-		this.listContainer.style.setProperty('--chat-current-response-min-height', listHeight * .75 + 'px');
+		if (this.viewOptions.renderStyle === 'compact' || this.viewOptions.renderStyle === 'minimal') {
+			this.listContainer.style.removeProperty('--chat-current-response-min-height');
+		} else {
+			this.listContainer.style.setProperty('--chat-current-response-min-height', listHeight * .75 + 'px');
+		}
 
 		this.tree.layout(listHeight, width);
 		this.tree.getHTMLElement().style.height = `${listHeight}px`;

@@ -35,6 +35,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	private _handleCommandStartOptions?: IHandleCommandOptions;
 	private _hasRichCommandDetection: boolean = false;
 	get hasRichCommandDetection() { return this._hasRichCommandDetection; }
+	private _promptType: string | undefined;
+	get promptType(): string | undefined { return this._promptType; }
 
 	private _ptyHeuristicsHooks: ICommandDetectionHeuristicsHooks;
 	private readonly _ptyHeuristics: MandatoryMutableDisposable<IPtyHeuristics>;
@@ -230,6 +232,10 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	setHasRichCommandDetection(value: boolean): void {
 		this._hasRichCommandDetection = value;
 		this._onSetRichCommandDetection.fire(value);
+	}
+
+	setPromptType(value: string): void {
+		this._promptType = value;
 	}
 
 	setIsCommandStorageDisabled(): void {

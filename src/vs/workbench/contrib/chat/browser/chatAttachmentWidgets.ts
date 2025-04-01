@@ -25,10 +25,9 @@ import { IOpenerService, OpenInternalOptions } from '../../../../platform/opener
 import { IThemeService, FolderThemeIcon } from '../../../../platform/theme/common/themeService.js';
 import { IResourceLabel, ResourceLabels, IFileLabelOptions } from '../../../browser/labels.js';
 import { revealInSideBarCommand } from '../../files/browser/fileActions.contribution.js';
-import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, isImageVariableEntry } from '../common/chatModel.js';
+import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry } from '../common/chatModel.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { hookUpResourceAttachmentDragAndContextMenu, hookUpSymbolAttachmentDragAndContextMenu } from './chatContentParts/chatAttachmentsContentPart.js';
-import { convertUint8ArrayToString } from './imageUtils.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { basename, dirname } from '../../../../base/common/path.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -174,19 +173,18 @@ export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 	}
 
 	private renderOmittedWarning(friendlyName: string, ariaLabel: string, hoverDelegate: IHoverDelegate) {
-		const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$(this.modelSupportsVision() ? 'span.codicon.codicon-file-media' : 'span.codicon.codicon-warning'));
+		const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$('span.codicon.codicon-warning'));
 		const textLabel = dom.$('span.chat-attached-context-custom-text', {}, friendlyName);
 		this.element.appendChild(pillIcon);
 		this.element.appendChild(textLabel);
 
 		const hoverElement = dom.$('div.chat-attached-context-hover');
 		hoverElement.setAttribute('aria-label', ariaLabel);
+		this.element.classList.add('warning');
 
-		if (!this.modelSupportsVision()) {
-			this.element.classList.add('warning');
-			hoverElement.textContent = localize('chat.fileAttachmentHover', "{0} does not support this {1} type.", this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name : this.currentLanguageModel, 'file');
-			this._register(this.hoverService.setupManagedHover(hoverDelegate, this.element, hoverElement, { trapFocus: true }));
-		}
+		hoverElement.textContent = localize('chat.fileAttachmentHover', "{0} does not support this {1} type.", this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name : this.currentLanguageModel, 'file');
+		this._register(this.hoverService.setupManagedHover(hoverDelegate, this.element, hoverElement, { trapFocus: true }));
+
 	}
 }
 
@@ -255,11 +253,6 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 			this._register(this.hoverService.setupManagedHover(hoverDelegate, this.element, hoverElement, { trapFocus: true }));
 		} else {
 			const buffer = attachment.value as Uint8Array;
-			const isURL = isImageVariableEntry(attachment) && attachment.isURL;
-			if (isURL) {
-				hoverElement.textContent = localize('chat.imageAttachmentHover', "{0}", convertUint8ArrayToString(buffer));
-				this._register(this.hoverService.setupManagedHover(hoverDelegate, this.element, hoverElement, { trapFocus: true }));
-			}
 			this.createImageElements(buffer, this.element, hoverElement);
 			this._register(this.hoverService.setupManagedHover(hoverDelegate, this.element, hoverElement, { trapFocus: false }));
 		}

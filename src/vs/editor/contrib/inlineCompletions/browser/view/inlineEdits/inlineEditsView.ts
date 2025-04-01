@@ -22,6 +22,7 @@ import { TextModel } from '../../../../../common/model/textModel.js';
 import { InlineEditsGutterIndicator } from './components/gutterIndicatorView.js';
 import { InlineEditWithChanges } from './inlineEditWithChanges.js';
 import { GhostTextIndicator, InlineEditHost, InlineEditModel } from './inlineEditsModel.js';
+import { InlineEditsOnboardingExperience } from './inlineEditsNewUsers.js';
 import { IInlineEditModel, InlineEditTabAction } from './inlineEditsViewInterface.js';
 import { InlineEditsCollapsedView } from './inlineEditsViews/inlineEditsCollapsedView.js';
 import { InlineEditsDeletionView } from './inlineEditsViews/inlineEditsDeletionView.js';
@@ -90,6 +91,9 @@ export class InlineEditsView extends Disposable {
 		this._wordReplacementViews.recomputeInitiallyAndOnChange(this._store);
 
 		this._indicatorCyclicDependencyCircuitBreaker.set(true, undefined);
+
+		this._register(this._instantiationService.createInstance(InlineEditsOnboardingExperience, this._host, this._model, this._indicator, this._inlineCollapsedView));
+
 		this._constructorDone.set(true, undefined); // TODO: remove and use correct initialization order
 	}
 
@@ -204,7 +208,6 @@ export class InlineEditsView extends Disposable {
 			this._editorObs,
 			indicatorDisplayRange,
 			this._gutterIndicatorOffset,
-			this._host,
 			modelWithGhostTextSupport,
 			this._inlineEditsIsHovered,
 			this._focusIsInMenu,
@@ -296,12 +299,7 @@ export class InlineEditsView extends Disposable {
 	));
 
 	private getCacheId(model: IInlineEditModel) {
-		const inlineEdit = model.inlineEdit;
-		if (this._host.get()?.inPartialAcceptFlow.get()) {
-			return `${inlineEdit.inlineCompletion.id}_${inlineEdit.edit.edits.map(innerEdit => innerEdit.range.toString() + innerEdit.text).join(',')}`;
-		}
-
-		return inlineEdit.inlineCompletion.id;
+		return model.inlineEdit.inlineCompletion.id;
 	}
 
 	private determineView(model: IInlineEditModel, reader: IReader, diff: DetailedLineRangeMapping[], newText: StringText, originalDisplayRange: LineRange): string {
@@ -352,7 +350,7 @@ export class InlineEditsView extends Disposable {
 			}
 		}
 		if (numOriginalLines > 0 && numModifiedLines > 0) {
-			if (this._renderSideBySide.read(reader) !== 'never' && InlineEditsSideBySideView.fitsInsideViewport(this._editor, inlineEdit, originalDisplayRange, reader)) {
+			if (this._renderSideBySide.read(reader) !== 'never' && InlineEditsSideBySideView.fitsInsideViewport(this._editor, this._previewTextModel, inlineEdit, originalDisplayRange, reader)) {
 				return 'sideBySide';
 			}
 

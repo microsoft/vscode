@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceTimeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
@@ -18,13 +19,14 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { isChatViewTitleActionContext } from '../../common/chatActions.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../common/chatContextKeys.js';
 import { hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingSession } from '../../common/chatEditingService.js';
+import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
 import { ChatViewId, EditsViewId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { EditingSessionAction } from '../chatEditing/chatEditingActions.js';
 import { ctxIsGlobalEditingSession } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
-import { CHAT_CATEGORY, getEditsViewId, handleCurrentEditingSession, IChatViewOpenOptions } from './chatActions.js';
+import { CHAT_CATEGORY, handleCurrentEditingSession, IChatViewOpenOptions } from './chatActions.js';
 import { clearChatEditor } from './chatClear.js';
 
 export const ACTION_ID_NEW_CHAT = `workbench.action.chat.newChat`;
@@ -162,6 +164,7 @@ export function registerNewChatActions() {
 			const context: INewEditSessionActionContext | undefined = args[0];
 			const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
 			const dialogService = accessor.get(IDialogService);
+			const chatService = accessor.get(IChatService);
 
 			if (!(await handleCurrentEditingSession(editingSession, undefined, dialogService))) {
 				return;
@@ -171,6 +174,7 @@ export function registerNewChatActions() {
 
 			await editingSession.stop();
 			widget.clear();
+			await waitForChatSessionCleared(editingSession.chatSessionId, chatService);
 			widget.attachmentModel.clear();
 			widget.input.relatedFiles?.clear();
 			widget.focusInput();
@@ -193,7 +197,7 @@ export function registerNewChatActions() {
 		}
 	});
 
-	registerAction2(class GlobalEditsDoneAction extends Action2 {
+	registerAction2(class GlobalEditsDoneAction extends EditingSessionAction {
 		constructor() {
 			super({
 				id: ChatDoneActionId,
@@ -210,14 +214,12 @@ export function registerNewChatActions() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor, ...args: any[]) {
+		override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, widget: IChatWidget, ...args: any[]) {
 			const context = args[0];
 			const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
-			const widgetService = accessor.get(IChatWidgetService);
 			if (isChatViewTitleActionContext(context)) {
 				// Is running in the Chat view title
 				announceChatCleared(accessibilitySignalService);
-				const widget = widgetService.getWidgetBySessionId(context.sessionId);
 				if (widget) {
 					widget.clear();
 					widget.attachmentModel.clear();
@@ -225,16 +227,6 @@ export function registerNewChatActions() {
 				}
 			} else {
 				// Is running from f1 or keybinding
-				const viewsService = accessor.get(IViewsService);
-
-				const viewId = getEditsViewId(accessor);
-				const chatView = await viewsService.openView<ChatViewPane>(viewId);
-				if (!chatView) {
-					return;
-				}
-
-				const widget = chatView.widget;
-
 				announceChatCleared(accessibilitySignalService);
 				widget.clear();
 				widget.attachmentModel.clear();
@@ -365,4 +357,16 @@ export function registerNewChatActions() {
 
 function announceChatCleared(accessibilitySignalService: IAccessibilitySignalService): void {
 	accessibilitySignalService.playSignal(AccessibilitySignal.clear);
+}
+
+export async function waitForChatSessionCleared(sessionId: string, chatService: IChatService): Promise<void> {
+	if (!chatService.getSession(sessionId)) {
+		return;
+	}
+
+	// The ChatWidget just signals cancellation to its host viewpane or editor. Clearing the session is now async, we need to wait for it to finish.
+	// This is expected to always happen.
+	await raceTimeout(Event.toPromise(
+		Event.filter(chatService.onDidDisposeSession, e => e.sessionId === sessionId),
+	), 2000);
 }

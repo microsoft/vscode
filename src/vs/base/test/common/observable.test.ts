@@ -8,6 +8,7 @@ import { setUnexpectedErrorHandler } from '../../common/errors.js';
 import { Emitter, Event } from '../../common/event.js';
 import { DisposableStore } from '../../common/lifecycle.js';
 import { autorun, autorunHandleChanges, derived, derivedDisposable, IObservable, IObserver, ISettableObservable, ITransaction, keepObserved, observableFromEvent, observableSignal, observableValue, transaction, waitForState } from '../../common/observable.js';
+// eslint-disable-next-line local/code-no-deep-import-of-internal
 import { BaseObservable, IObservableWithChange } from '../../common/observableInternal/base.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 

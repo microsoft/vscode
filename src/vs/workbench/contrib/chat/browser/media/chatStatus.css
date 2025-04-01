@@ -16,9 +16,15 @@
 }
 
 .chat-status-bar-entry-tooltip div.header {
+	display: flex;
+	align-items: center;
 	color: var(--vscode-descriptionForeground);
 	margin-bottom: 4px;
 	font-weight: 600;
+}
+
+.chat-status-bar-entry-tooltip div.header .monaco-action-bar {
+	margin-left: auto;
 }
 
 .chat-status-bar-entry-tooltip div.description {
@@ -110,4 +116,17 @@
 
 .chat-status-bar-entry-tooltip .settings .setting.disabled .setting-label {
 	color: var(--vscode-disabledForeground);
+}
+
+/* Contributions */
+
+.chat-status-bar-entry-tooltip .contribution .body {
+	display: flex;
+	flex-direction: row;
+	gap: 6px;
+
+	.detail-item {
+		margin-left: auto;
+		color: var(--vscode-descriptionForeground);
+	}
 }

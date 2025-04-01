@@ -57,14 +57,6 @@ div.chat-welcome-view {
 		margin-top: 5px;
 		gap: 9px;
 		justify-content: center;
-
-		& > .chat-welcome-view-indicator {
-			font-size: 11px;
-			color: var(--vscode-badge-foreground);
-			background: var(--vscode-badge-background);
-			padding: 1px 8px;
-			border-radius: 14px;
-		}
 	}
 
 	& > .chat-welcome-view-message {

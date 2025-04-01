@@ -228,7 +228,7 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 			const ghostState = ghostCtrl?.model.read(r)?.state.read(r);
 
 			const textFocus = editorObs.isTextFocused.read(r);
-			const position = editorObs.cursorPosition.read(r);
+			let position = editorObs.cursorPosition.read(r);
 			const model = editorObs.model.read(r);
 
 			const kb = keyObs.read(r);
@@ -241,11 +241,15 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 				return undefined;
 			}
 
+
 			// DEBT - I cannot use `model.onDidChangeContent` directly here
 			// https://github.com/microsoft/vscode/issues/242059
 			const emitter = store.add(new Emitter<void>());
 			store.add(model.onDidChangeContent(() => emitter.fire()));
 			observableFromEvent(emitter.event, () => model.getVersionId()).read(r);
+
+			// position can be wrong
+			position = model.validatePosition(position);
 
 			const visible = this._visibilityObs.read(r);
 			const isEol = model.getLineMaxColumn(position.lineNumber) === position.column;

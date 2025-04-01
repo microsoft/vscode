@@ -545,6 +545,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		const disposables = new DisposableStore();
 
 		let dialog: Dialog;
+		let taskCompleted = false;
 
 		const createDialog = (message: string) => {
 			const buttons = options.buttons || [];
@@ -571,8 +572,15 @@ export class ProgressService extends Disposable implements IProgressService {
 			disposables.add(dialog);
 
 			dialog.show().then(dialogResult => {
-				onDidCancel?.(dialogResult.button);
-
+				// The dialog may close as a result of disposing it after the
+				// task has completed. In that case, we do not want to trigger
+				// the `onDidCancel` callback.
+				// However, if the task is still running, this means that the
+				// user has clicked the cancel button and we want to trigger
+				// the `onDidCancel` callback.
+				if (!taskCompleted) {
+					onDidCancel?.(dialogResult.button);
+				}
 				dispose(dialog);
 			});
 
@@ -611,6 +619,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		});
 
 		promise.finally(() => {
+			taskCompleted = true;
 			dispose(disposables);
 		});
 

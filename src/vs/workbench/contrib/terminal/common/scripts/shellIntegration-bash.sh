@@ -198,6 +198,12 @@ if [ "$__vsc_stable" = "0" ]; then
 	builtin printf "\e]633;P;ContinuationPrompt=$(echo "$PS2" | sed 's/\x1b/\\\\x1b/g')\a"
 fi
 
+if [ -n "$STARSHIP_SESSION_KEY" ]; then
+	builtin printf '\e]633;P;PromptType=starship\a'
+elif [ -n "$POSH_SESSION_ID" ]; then
+	builtin printf '\e]633;P;PromptType=oh-my-posh\a'
+fi
+
 # Report this shell supports rich command detection
 builtin printf '\e]633;P;HasRichCommandDetection=True\a'
 

@@ -35,10 +35,11 @@ import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMul
 import { CellUri } from '../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
-import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingResourceContextKey, ChatEditingSessionState, chatEditingSnapshotScheme, IChatEditingService, IChatEditingSession, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, IStreamingEdits, parseChatMultiDiffUri, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingResourceContextKey, ChatEditingSessionState, chatEditingSnapshotScheme, IChatEditingService, IChatEditingSession, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, IStreamingEdits, ModifiedFileEntryState, parseChatMultiDiffUri } from '../../common/chatEditingService.js';
 import { ChatModel, IChatResponseModel, isCellTextEditOperation } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
+import { ChatEditorInput } from '../chatEditorInput.js';
 import { AbstractChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingSession } from './chatEditingSession.js';
 import { ChatEditingSnapshotTextModelContentProvider, ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
@@ -232,7 +233,8 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 					return;
 				}
 				const activeUri = this._editorService.activeEditorPane?.input.resource;
-				const inactive = Boolean(activeUri && session.entries.get().find(entry => isEqual(activeUri, entry.modifiedURI)));
+				const inactive = this._editorService.activeEditorPane?.input instanceof ChatEditorInput && this._editorService.activeEditorPane.input.sessionId === session.chatSessionId ||
+					Boolean(activeUri && session.entries.get().find(entry => isEqual(activeUri, entry.modifiedURI)));
 				this._editorService.openEditor({ resource: uri, options: { inactive, preserveFocus: true, pinned: true } });
 			}));
 		};
@@ -392,7 +394,7 @@ class ChatDecorationsProvider extends Disposable implements IDecorationsProvider
 
 	private readonly _modifiedUris = derived<URI[]>(this, (r) => {
 		const uri = this._currentEntries.read(r);
-		return uri.filter(entry => !entry.isCurrentlyBeingModifiedBy.read(r) && entry.state.read(r) === WorkingSetEntryState.Modified).map(entry => entry.modifiedURI);
+		return uri.filter(entry => !entry.isCurrentlyBeingModifiedBy.read(r) && entry.state.read(r) === ModifiedFileEntryState.Modified).map(entry => entry.modifiedURI);
 	});
 
 	public readonly onDidChange = Event.any(

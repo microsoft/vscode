@@ -54,6 +54,19 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 				toolInvocationHint = localize('toolInvocationsHint', "Action required: {0} ", titles.join(', '));
 			}
 		}
+		const tableCount = marked.lexer(element.response.toString()).filter(token => token.type === 'table')?.length ?? 0;
+		let tableCountHint = '';
+		switch (tableCount) {
+			case 0:
+				break;
+			case 1:
+				tableCountHint = localize('singleTableHint', "1 table ");
+				break;
+			default:
+				tableCountHint = localize('multiTableHint', "{0} tables ", tableCount);
+				break;
+		}
+
 		const fileTreeCount = element.response.value.filter(v => v.kind === 'treeData').length ?? 0;
 		let fileTreeCountHint = '';
 		switch (fileTreeCount) {
@@ -69,13 +82,13 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 		const codeBlockCount = marked.lexer(element.response.toString()).filter(token => token.type === 'code')?.length ?? 0;
 		switch (codeBlockCount) {
 			case 0:
-				label = accessibleViewHint ? localize('noCodeBlocksHint', "{0}{1}{2} {3}", toolInvocationHint, fileTreeCountHint, element.response.toString(), accessibleViewHint) : localize('noCodeBlocks', "{0} {1}", fileTreeCountHint, element.response.toString());
+				label = accessibleViewHint ? localize('noCodeBlocksHint', "{0}{1}{2}{3} {4}", toolInvocationHint, fileTreeCountHint, tableCountHint, element.response.toString(), accessibleViewHint) : localize('noCodeBlocks', "{0} {1}", fileTreeCountHint, element.response.toString());
 				break;
 			case 1:
-				label = accessibleViewHint ? localize('singleCodeBlockHint', "{0}{1}1 code block: {2} {3}", fileTreeCountHint, element.response.toString(), accessibleViewHint) : localize('singleCodeBlock', "{0} 1 code block: {1}", fileTreeCountHint, element.response.toString());
+				label = accessibleViewHint ? localize('singleCodeBlockHint', "{0}{1}1 code block: {2} {3}{4}", toolInvocationHint, fileTreeCountHint, tableCountHint, element.response.toString(), accessibleViewHint) : localize('singleCodeBlock', "{0} 1 code block: {1}", fileTreeCountHint, element.response.toString());
 				break;
 			default:
-				label = accessibleViewHint ? localize('multiCodeBlockHint', "{0}{1}{2} code blocks: {3}", toolInvocationHint, fileTreeCountHint, codeBlockCount, element.response.toString(), accessibleViewHint) : localize('multiCodeBlock', "{0} {1} code blocks", fileTreeCountHint, codeBlockCount, element.response.toString());
+				label = accessibleViewHint ? localize('multiCodeBlockHint', "{0}{1}{2} code blocks: {3}{4}", toolInvocationHint, fileTreeCountHint, tableCountHint, codeBlockCount, element.response.toString(), accessibleViewHint) : localize('multiCodeBlock', "{0} {1} code blocks", fileTreeCountHint, codeBlockCount, element.response.toString());
 				break;
 		}
 		return label;

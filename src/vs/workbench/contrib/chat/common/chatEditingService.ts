@@ -65,7 +65,7 @@ export interface IChatRelatedFilesProvider {
 }
 
 export interface WorkingSetDisplayMetadata {
-	state: WorkingSetEntryState;
+	state: ModifiedFileEntryState;
 	description?: string;
 }
 
@@ -82,12 +82,11 @@ export const chatEditingSnapshotScheme = 'chat-editing-snapshot-text-model';
 export interface IChatEditingSession extends IDisposable {
 	readonly isGlobalEditingSession: boolean;
 	readonly chatSessionId: string;
-	readonly onDidChange: Event<ChatEditingSessionChangeType>;
 	readonly onDidDispose: Event<void>;
 	readonly state: IObservable<ChatEditingSessionState>;
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
 	show(previousChanges?: boolean): Promise<void>;
-	remove(reason: WorkingSetEntryRemovalReason, ...uris: URI[]): void;
+	remove(...uris: URI[]): void;
 	accept(...uris: URI[]): Promise<void>;
 	reject(...uris: URI[]): Promise<void>;
 	getEntry(uri: URI): IModifiedFileEntry | undefined;
@@ -142,23 +141,10 @@ export interface IEditSessionEntryDiff {
 	removed: number;
 }
 
-export const enum WorkingSetEntryRemovalReason {
-	User,
-	Programmatic
-}
-
-export const enum WorkingSetEntryState {
+export const enum ModifiedFileEntryState {
 	Modified,
 	Accepted,
 	Rejected,
-	Transient, // TODO@joyceerhl remove this
-	Attached, // TODO@joyceerhl remove this
-	Sent, // TODO@joyceerhl remove this
-}
-
-export const enum ChatEditingSessionChangeType {
-	WorkingSet,
-	Other,
 }
 
 /**
@@ -222,7 +208,7 @@ export interface IModifiedFileEntry {
 
 	readonly lastModifyingRequestId: string;
 
-	readonly state: IObservable<WorkingSetEntryState>;
+	readonly state: IObservable<ModifiedFileEntryState>;
 	readonly isCurrentlyBeingModifiedBy: IObservable<IChatResponseModel | undefined>;
 	readonly rewriteRatio: IObservable<number>;
 
@@ -255,7 +241,7 @@ export const enum ChatEditingSessionState {
 
 export const CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME = 'chat-editing-multi-diff-source';
 
-export const chatEditingWidgetFileStateContextKey = new RawContextKey<WorkingSetEntryState>('chatEditingWidgetFileState', undefined, localize('chatEditingWidgetFileState', "The current state of the file in the chat editing widget"));
+export const chatEditingWidgetFileStateContextKey = new RawContextKey<ModifiedFileEntryState>('chatEditingWidgetFileState', undefined, localize('chatEditingWidgetFileState', "The current state of the file in the chat editing widget"));
 export const chatEditingAgentSupportsReadonlyReferencesContextKey = new RawContextKey<boolean>('chatEditingAgentSupportsReadonlyReferences', undefined, localize('chatEditingAgentSupportsReadonlyReferences', "Whether the chat editing agent supports readonly references (temporary)"));
 export const decidedChatEditingResourceContextKey = new RawContextKey<string[]>('decidedChatEditingResource', []);
 export const chatEditingResourceContextKey = new RawContextKey<string | undefined>('chatEditingResource', undefined);
