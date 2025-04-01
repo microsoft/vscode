@@ -52,6 +52,10 @@
 	height: 100%;
 }
 
+.extensions-viewlet > .header  > .extensions-search-container >  .extensions-search-actions-container > .monaco-toolbar > .monaco-action-bar {
+	background-color: blue;
+}
+
 .extensions-viewlet > .header > .notification-container {
 	margin-top: 10px;
 	display: flex;
