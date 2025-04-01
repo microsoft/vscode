@@ -28,6 +28,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IMcpConfigurationStdio, mcpConfigurationSection, mcpStdioServerSchema } from '../common/mcpConfiguration.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
+import { IMcpService, McpConnectionState } from '../common/mcpTypes.js';
 import { McpServerOptionsCommand } from './mcpCommands.js';
 
 const enum AddConfigurationType {
@@ -110,6 +111,7 @@ export class McpAddConfigurationCommand {
 		@IFileService private readonly _fileService: IFileService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IMcpService private readonly _mcpService: IMcpService,
 	) { }
 
 	private async getServerType(): Promise<AddConfigurationType | undefined> {
@@ -323,9 +325,11 @@ export class McpAddConfigurationCommand {
 		const store = new DisposableStore();
 		store.add(autorun(reader => {
 			const colls = this._mcpRegistry.collections.read(reader);
+			const servers = this._mcpService.servers.read(reader);
 			const match = mapFindFirst(colls, collection => mapFindFirst(collection.serverDefinitions.read(reader),
 				server => server.label === name ? { server, collection } : undefined));
-			if (match) {
+			const server = match && servers.find(s => s.definition.id === match.server.id);
+			if (match && server) {
 				if (match.collection.presentation?.origin) {
 					this._openerService.openEditor({
 						resource: match.collection.presentation.origin,
@@ -337,6 +341,12 @@ export class McpAddConfigurationCommand {
 				} else {
 					this._commandService.executeCommand(McpServerOptionsCommand.id, name);
 				}
+
+				server.start(true).then(state => {
+					if (state.state === McpConnectionState.Kind.Error) {
+						server.showOutput();
+					}
+				});
 
 				store.dispose();
 			}

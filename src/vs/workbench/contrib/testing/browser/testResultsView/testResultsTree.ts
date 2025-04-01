@@ -137,7 +137,9 @@ class OlderResultsElement implements ITreeElement {
 	public readonly label: string;
 
 	constructor(private readonly n: number) {
-		this.label = localize('nOlderResults', '{0} older results', n);
+		this.label = n === 1
+			? localize('oneOlderResult', '1 older result')
+			: localize('nOlderResults', '{0} older results', n);
 		this.id = `older-${this.n}`;
 
 	}

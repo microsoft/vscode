@@ -573,6 +573,23 @@ suite('Workbench - MCP - Registry', () => {
 			assert.strictEqual(prefix2, '');
 		});
 
+		test('prefix does not start with a number', () => {
+			const collection: McpCollectionDefinition = {
+				id: 'foo',
+				label: 'Collection 1',
+				remoteAuthority: null,
+				serverDefinitions: observableValue('serverDefs', []),
+				isTrustedByDefault: true,
+				scope: StorageScope.APPLICATION
+			};
+
+			const disposable = registry.registerCollection(collection);
+			store.add(disposable);
+
+			const prefix1 = registry.collectionToolPrefix(collection).get();
+			assert.strictEqual(prefix1, 'bee.'); // normally 0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33
+		});
+
 		test('prefix is empty for unknown collections', () => {
 			const unknownCollection: McpCollectionReference = {
 				id: 'unknown',

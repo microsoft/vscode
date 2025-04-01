@@ -285,7 +285,7 @@
 		"workbench-fonts": {"assign": []},
 		"workbench-history": {"assign": ["bpasero"]},
 		"workbench-hot-exit": {"assign": ["bpasero"]},
-		"workbench-hover": {"assign": ["Tyriar"]},
+		"workbench-hover": {"assign": ["Tyriar", "benibenj"]},
 		"workbench-launch": {"assign": []},
 		"workbench-link": {"assign": []},
 		"workbench-multiroot": {"assign": ["bpasero"]},

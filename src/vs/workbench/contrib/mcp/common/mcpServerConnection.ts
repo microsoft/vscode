@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
@@ -84,11 +85,17 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 						}
 					},
 					err => {
-						store.dispose();
 						if (!store.isDisposed) {
-							this._logger.error(err);
-							this._state.set({ state: McpConnectionState.Kind.Error, message: `Could not initialize MCP server: ${err.message}` }, undefined);
+							let message = err.message;
+							if (err instanceof CancellationError) {
+								message = 'Server exited before responding to `initialize` request.';
+								this._logger.error(message);
+							} else {
+								this._logger.error(err);
+							}
+							this._state.set({ state: McpConnectionState.Kind.Error, message }, undefined);
 						}
+						store.dispose();
 					},
 				);
 			}

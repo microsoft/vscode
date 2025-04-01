@@ -266,6 +266,14 @@ export function splitLinesIncludeSeparators(str: string): string[] {
 	return linesWithSeparators;
 }
 
+export function indexOfPattern(str: string, re: RegExp) {
+	const match = re.exec(str);
+	if (match) {
+		return match.index;
+	}
+	return -1;
+}
+
 /**
  * Returns first index of the string that is not whitespace.
  * If string is empty or contains only whitespaces, returns -1

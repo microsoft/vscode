@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { StringSHA1 } from '../../../../base/common/hash.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
@@ -10,6 +11,7 @@ import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
+import { indexOfPattern } from '../../../../base/common/strings.js';
 import { localize } from '../../../../nls.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -62,7 +64,9 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		const hashes = c.map((collection): CollectionHash => {
 			const sha = new StringSHA1();
 			sha.update(collection.id);
-			return { view: 0, hash: sha.digest(), collection };
+			const hash = sha.digest();
+			// Gemini errors if the name starts with a number (microsoft/vscode-copilot-release#7152)
+			return { view: indexOfPattern(hash, /[a-z]/i), hash, collection };
 		});
 
 		const view = (h: CollectionHash) => h.hash.slice(h.view, h.view + collectionPrefixLen);
@@ -260,6 +264,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 			{
 				message: localize('trustTitleWithOrigin', 'Trust MCP servers from {0}?', collection.label),
 				custom: {
+					icon: Codicon.shield,
 					markdownDetails: [{
 						markdown: new MarkdownString(localize('mcp.trust.details', '{0} discovered Model Context Protocol servers from {1} (`{2}`). {0} can use their capabilities in Chat.\n\nDo you want to allow running MCP servers from {3}?', this._productService.nameShort, collection.label, collection.serverDefinitions.get().map(s => s.label).join('`, `'), labelWithOrigin)),
 						actionHandler: () => {

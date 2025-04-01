@@ -2867,6 +2867,7 @@ export class CommandCenter {
 		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar')!;
 		const branchValidationRegex = config.get<string>('branchValidationRegex')!;
 		const branchRandomNameEnabled = config.get<boolean>('branchRandomName.enable', false);
+		const refs = await repository.getRefs({ pattern: 'refs/heads' });
 
 		if (defaultName) {
 			return sanitizeBranchName(defaultName, branchWhitespaceChar);
@@ -2884,6 +2885,13 @@ export class CommandCenter {
 		const getValidationMessage = (name: string): string | InputBoxValidationMessage | undefined => {
 			const validateName = new RegExp(branchValidationRegex);
 			const sanitizedName = sanitizeBranchName(name, branchWhitespaceChar);
+
+			// Check if branch name already exists
+			const existingBranch = refs.find(ref => ref.name === sanitizedName);
+			if (existingBranch) {
+				return l10n.t('Branch "{0}" already exists', sanitizedName);
+			}
+
 			if (validateName.test(sanitizedName)) {
 				// If the sanitized name that we will use is different than what is
 				// in the input box, show an info message to the user informing them
