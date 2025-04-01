@@ -88,35 +88,35 @@ suite('vscode API - debug', function () {
 
 	test('data breakpoint - expression', async function () {
 		debug.addBreakpoints([new DataBreakpoint(new ExpressionDataBreakpointOrigin('i'), 'readWrite', false, 'condition', 'hitCondition', 'logMessage')]);
-		const dynamicVariableDbp = debug.breakpoints[debug.breakpoints.length - 1] as DataBreakpoint & { origin: ExpressionDataBreakpointOrigin };
-		assert.strictEqual(dynamicVariableDbp.condition, 'condition');
-		assert.strictEqual(dynamicVariableDbp.hitCondition, 'hitCondition');
-		assert.strictEqual(dynamicVariableDbp.logMessage, 'logMessage');
-		assert.strictEqual(dynamicVariableDbp.enabled, false);
-		assert.strictEqual(dynamicVariableDbp.origin.expression, 'i');
-		assert.strictEqual(dynamicVariableDbp.accessType, 'readWrite');
+		const expressionDbp = debug.breakpoints[debug.breakpoints.length - 1] as DataBreakpoint & { origin: ExpressionDataBreakpointOrigin };
+		assert.strictEqual(expressionDbp.condition, 'condition');
+		assert.strictEqual(expressionDbp.hitCondition, 'hitCondition');
+		assert.strictEqual(expressionDbp.logMessage, 'logMessage');
+		assert.strictEqual(expressionDbp.enabled, false);
+		assert.strictEqual(expressionDbp.origin.expression, 'i');
+		assert.strictEqual(expressionDbp.accessType, 'readWrite');
 	});
 
 	test('data breakpoint - scoped', async function () {
 		debug.addBreakpoints([new DataBreakpoint(new FrameScopedDataBreakpointOrigin(1, 'exp()'), 'readWrite', false, 'condition', 'hitCondition', 'logMessage')]);
-		const scopedExpression = debug.breakpoints[debug.breakpoints.length - 1] as DataBreakpoint & { origin: FrameScopedDataBreakpointOrigin };
-		assert.strictEqual(scopedExpression.condition, 'condition');
-		assert.strictEqual(scopedExpression.hitCondition, 'hitCondition');
-		assert.strictEqual(scopedExpression.logMessage, 'logMessage');
-		assert.strictEqual(scopedExpression.enabled, false);
-		assert.strictEqual(scopedExpression.origin.frameId, 1);
-		assert.strictEqual(scopedExpression.origin.expression, 'exp()');
-		assert.strictEqual(scopedExpression.accessType, 'readWrite');
+		const scopedExpressionDbp = debug.breakpoints[debug.breakpoints.length - 1] as DataBreakpoint & { origin: FrameScopedDataBreakpointOrigin };
+		assert.strictEqual(scopedExpressionDbp.condition, 'condition');
+		assert.strictEqual(scopedExpressionDbp.hitCondition, 'hitCondition');
+		assert.strictEqual(scopedExpressionDbp.logMessage, 'logMessage');
+		assert.strictEqual(scopedExpressionDbp.enabled, false);
+		assert.strictEqual(scopedExpressionDbp.origin.frameId, 1);
+		assert.strictEqual(scopedExpressionDbp.origin.expression, 'exp()');
+		assert.strictEqual(scopedExpressionDbp.accessType, 'readWrite');
 
 		debug.addBreakpoints([new DataBreakpoint(new VariableScopedDataBreakpointOrigin(1, 'var'), 'readWrite', false, 'condition', 'hitCondition', 'logMessage')]);
-		const scopedVariable = debug.breakpoints[debug.breakpoints.length - 1] as DataBreakpoint & { origin: VariableScopedDataBreakpointOrigin };
-		assert.strictEqual(scopedVariable.condition, 'condition');
-		assert.strictEqual(scopedVariable.hitCondition, 'hitCondition');
-		assert.strictEqual(scopedVariable.logMessage, 'logMessage');
-		assert.strictEqual(scopedVariable.enabled, false);
-		assert.strictEqual(scopedVariable.origin.variablesReference, 1);
-		assert.strictEqual(scopedVariable.origin.variable, 'exp()');
-		assert.strictEqual(scopedVariable.accessType, 'readWrite');
+		const scopedVariableDbp = debug.breakpoints[debug.breakpoints.length - 1] as DataBreakpoint & { origin: VariableScopedDataBreakpointOrigin };
+		assert.strictEqual(scopedVariableDbp.condition, 'condition');
+		assert.strictEqual(scopedVariableDbp.hitCondition, 'hitCondition');
+		assert.strictEqual(scopedVariableDbp.logMessage, 'logMessage');
+		assert.strictEqual(scopedVariableDbp.enabled, false);
+		assert.strictEqual(scopedVariableDbp.origin.variablesReference, 1);
+		assert.strictEqual(scopedVariableDbp.origin.variable, 'var');
+		assert.strictEqual(scopedVariableDbp.accessType, 'readWrite');
 	});
 
 	test('start debugging', async function () {
