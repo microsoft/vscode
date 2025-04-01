@@ -141,7 +141,7 @@ class NodeModuleESMInterceptor extends RequireInterceptor {
 
 		let apiModuleFactory: INodeModuleFactory | undefined;
 
-		port1.onmessage = (e: { data: Message }) => {
+		port1.onmessage = (e) => {
 
 			// Get the vscode-module factory - which is the same logic that's also used by
 			// the CommonJS require interceptor
