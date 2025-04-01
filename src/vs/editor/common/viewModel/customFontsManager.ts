@@ -64,7 +64,7 @@ export class CustomFontsManager {
 		// Implementation for committing changes
 	}
 
-	public getFontsOnLine(lineNumber: number): { startCharacterOffset: number; endCharacterOffset: number; fontInfo: CustomFont }[] {
+	public getFontsOnLine(lineNumber: number): { startCharacterOffset: number; endCharacterOffset: number; fontInfo: FontInfo }[] {
 		return [];
 	}
 

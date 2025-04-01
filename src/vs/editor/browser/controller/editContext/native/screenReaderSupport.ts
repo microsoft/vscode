@@ -137,7 +137,7 @@ export class ScreenReaderSupport {
 		}
 
 		const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(positionLineNumber);
-		const fontInfo = this._context.viewModel.getFontInfoForPosition(position);
+		const fontInfo = this._context.viewModel.getFontInfoForPosition(position).getFont();
 		const lineNumberWithinState = positionLineNumber - this._screenReaderContentState.startPositionWithinEditor.lineNumber;
 		const scrollTop = lineNumberWithinState * lineHeight;
 		const left = this._computeLeftOffset(position, this._primaryCursorVisibleRange, fontInfo);
