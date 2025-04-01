@@ -12,10 +12,17 @@ import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION } from '../../../../chat
 import { ICommandService } from '../../../../../../../../../platform/commands/common/commands.js';
 
 /**
- * TODO: @legomushroom
+ * Options for the {@link attachPrompts} function.
  */
 export interface IAttachPromptOptions {
+	/**
+	 * Chat widget instance to attach the prompt to.
+	 */
 	readonly widget?: IChatWidget;
+	/**
+	 * Whether to create a new chat session and
+	 * attach the prompt to it.
+	 */
 	readonly inNewChat?: boolean;
 
 	readonly chatService: IChatService;

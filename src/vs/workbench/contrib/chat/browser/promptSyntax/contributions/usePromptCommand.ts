@@ -30,7 +30,7 @@ export const COMMAND_ID = 'workbench.command.prompts.use';
  * The `cmd + /` is the current keybinding for 'attachment', so we use
  * the `alt` key modifier to convey the "prompt attachment" action.
  */
-export const COMMAND_KEY_BINDING = KeyMod.CtrlCmd | KeyCode.Slash | KeyMod.Alt;
+const COMMAND_KEY_BINDING = KeyMod.CtrlCmd | KeyCode.Slash | KeyMod.Alt;
 
 /**
  * Implementation of the "Use Prompt" command. The command works in the following way.
