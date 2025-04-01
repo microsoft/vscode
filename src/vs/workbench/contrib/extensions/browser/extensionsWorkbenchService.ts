@@ -933,7 +933,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private readonly _onReset = new Emitter<void>();
 	get onReset() { return this._onReset.event; }
 
-	readonly preferPreReleases = this.productService.quality !== 'stable';
+	readonly preferPreReleases: boolean;
 
 	private installing: IExtension[] = [];
 	private tasksInProgress: CancelablePromise<any>[] = [];
@@ -978,10 +978,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@IAllowedExtensionsService private readonly allowedExtensionsService: IAllowedExtensionsService,
 	) {
 		super();
-		const preferPreReleasesValue = configurationService.getValue('_extensions.preferPreReleases');
-		if (!isUndefined(preferPreReleasesValue)) {
-			this.preferPreReleases = !!preferPreReleasesValue;
-		}
+		this.preferPreReleases = productService.quality !== 'stable';
+
 		this.hasOutdatedExtensionsContextKey = HasOutdatedExtensionsContext.bindTo(contextKeyService);
 		if (extensionManagementServerService.localExtensionManagementServer) {
 			this.localExtensions = this._register(instantiationService.createInstance(Extensions,
