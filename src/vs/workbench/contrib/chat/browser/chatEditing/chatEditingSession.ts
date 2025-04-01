@@ -41,7 +41,7 @@ import { MultiDiffEditor } from '../../../multiDiffEditor/browser/multiDiffEdito
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
-import { ChatEditingSessionChangeType, ChatEditingSessionState, ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, IStreamingEdits, ModifiedFileEntryState, WorkingSetDisplayMetadata, WorkingSetEntryRemovalReason } from '../../common/chatEditingService.js';
+import { ChatEditingSessionChangeType, ChatEditingSessionState, ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, IStreamingEdits, ModifiedFileEntryState, WorkingSetDisplayMetadata } from '../../common/chatEditingService.js';
 import { ICellTextEditOperation, IChatRequestDisablement, IChatResponseModel, isCellTextEditOperation } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatEditingModifiedDocumentEntry } from './chatEditingModifiedDocumentEntry.js';
@@ -137,8 +137,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._assertNotDisposed();
 		return this._entriesObs;
 	}
-
-	private _workingSet = new ResourceMap<WorkingSetDisplayMetadata>();
 
 	private _editorPane: MultiDiffEditor | undefined;
 
@@ -384,9 +382,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 	public createSnapshot(requestId: string, undoStop: string | undefined): void {
 		const snapshot = this._createSnapshot(requestId, undoStop);
-		for (const [uri, _] of this._workingSet) {
-			this._workingSet.set(uri, { state: ModifiedFileEntryState.Sent });
-		}
 
 		const linearHistoryPtr = this._linearHistoryIndex.get();
 		const newLinearHistory: IChatEditingSessionSnapshot[] = [];
@@ -413,7 +408,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 
 	private _createSnapshot(requestId: string | undefined, undoStop: string | undefined): IChatEditingSessionStop {
-		const workingSet = new ResourceMap<WorkingSetDisplayMetadata>(this._workingSet);
+
 		const entries = new ResourceMap<ISnapshotEntry>();
 		for (const entry of this._entriesObs.get()) {
 			entries.set(entry.modifiedURI, entry.createSnapshot(requestId, undoStop));
@@ -421,7 +416,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 		return {
 			stopId: undoStop,
-			workingSet,
+			workingSet: new ResourceMap(),
 			entries,
 		};
 	}
@@ -473,7 +468,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 
 	private async _restoreSnapshot({ workingSet, entries }: IChatEditingSessionStop, tx: ITransaction | undefined, restoreResolvedToDisk = true): Promise<void> {
-		this._workingSet = new ResourceMap(workingSet);
 
 		// Reset all the files which are modified in this session state
 		// but which are not found in the snapshot
@@ -497,7 +491,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._entriesObs.set(entriesArr, tx);
 	}
 
-	remove(reason: WorkingSetEntryRemovalReason, ...uris: URI[]): void {
+	remove(...uris: URI[]): void {
 		this._assertNotDisposed();
 
 		let didRemoveUris = false;
@@ -511,10 +505,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				didRemoveUris = true;
 			}
 
-			const state = this._workingSet.get(uri);
-			if (state !== undefined) {
-				didRemoveUris = this._workingSet.delete(uri) || didRemoveUris;
-			}
 		}
 
 		if (!didRemoveUris) {
@@ -905,7 +895,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		const listener = entry.onDidDelete(() => {
 			const newEntries = this._entriesObs.get().filter(e => !isEqual(e.modifiedURI, entry.modifiedURI));
 			this._entriesObs.set(newEntries, undefined);
-			this._workingSet.delete(entry.modifiedURI);
 			this._editorService.closeEditors(this._editorService.findEditors(entry.modifiedURI));
 
 			if (!existingExternalEntry) {
