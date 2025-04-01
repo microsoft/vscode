@@ -219,8 +219,9 @@ export class CodeBlockPart extends Disposable {
 		const editorScopedInstantiationService = this._register(scopedInstantiationService.createChild(new ServiceCollection([IContextKeyService, editorScopedService])));
 		this.toolbar = this._register(editorScopedInstantiationService.createInstance(MenuWorkbenchToolBar, toolbarElement, menuId, {
 			menuOptions: {
-				shouldForwardArgs: true
-			}
+				shouldForwardArgs: true,
+			},
+			renderDropdownAsChildElement: true,
 		}));
 
 		const vulnsContainer = dom.append(this.element, $('.interactive-result-vulns'));
@@ -246,10 +247,6 @@ export class CodeBlockPart extends Disposable {
 			this.element.classList.toggle('chat-vulnerabilities-collapsed', !element.vulnerabilitiesListExpanded);
 			this._onDidChangeContentHeight.fire();
 			// this.updateAriaLabel(collapseButton.element, referencesLabel, element.usedReferencesExpanded);
-		}));
-
-		this._register(this.toolbar.onDidChangeDropdownVisibility(e => {
-			toolbarElement.classList.toggle('force-visibility', e);
 		}));
 
 		this._configureForScreenReader();
