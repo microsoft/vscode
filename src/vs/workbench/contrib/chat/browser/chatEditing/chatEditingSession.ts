@@ -416,7 +416,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 		return {
 			stopId: undoStop,
-			workingSet: new ResourceMap(),
 			entries,
 		};
 	}
@@ -467,7 +466,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		}
 	}
 
-	private async _restoreSnapshot({ workingSet, entries }: IChatEditingSessionStop, tx: ITransaction | undefined, restoreResolvedToDisk = true): Promise<void> {
+	private async _restoreSnapshot({ entries }: IChatEditingSessionStop, tx: ITransaction | undefined, restoreResolvedToDisk = true): Promise<void> {
 
 		// Reset all the files which are modified in this session state
 		// but which are not found in the snapshot
@@ -985,12 +984,6 @@ class ChatEditingSessionStorage {
 			}
 			return readPromise;
 		};
-		const deserializeResourceMap = <T>(resourceMap: ResourceMapDTO<T>, deserialize: (value: any) => T, result: ResourceMap<T>): ResourceMap<T> => {
-			resourceMap.forEach(([resourceURI, value]) => {
-				result.set(URI.parse(resourceURI), deserialize(value));
-			});
-			return result;
-		};
 		const deserializeSnapshotEntriesDTO = async (dtoEntries: ISnapshotEntryDTO[]): Promise<ResourceMap<ISnapshotEntry>> => {
 			const entries = new ResourceMap<ISnapshotEntry>();
 			for (const entryDTO of dtoEntries) {
@@ -1001,14 +994,13 @@ class ChatEditingSessionStorage {
 		};
 		const deserializeChatEditingStopDTO = async (stopDTO: IChatEditingSessionStopDTO | IChatEditingSessionSnapshotDTO): Promise<IChatEditingSessionStop> => {
 			const entries = await deserializeSnapshotEntriesDTO(stopDTO.entries);
-			const workingSet = deserializeResourceMap(stopDTO.workingSet, (value) => value, new ResourceMap());
-			return { stopId: 'stopId' in stopDTO ? stopDTO.stopId : undefined, workingSet, entries };
+			return { stopId: 'stopId' in stopDTO ? stopDTO.stopId : undefined, entries };
 		};
 		const normalizeSnapshotDtos = (snapshot: IChatEditingSessionSnapshotDTO | IChatEditingSessionSnapshotDTO2): IChatEditingSessionSnapshotDTO2 => {
 			if ('stops' in snapshot) {
 				return snapshot;
 			}
-			return { requestId: snapshot.requestId, stops: [{ stopId: undefined, entries: snapshot.entries, workingSet: snapshot.workingSet }], postEdit: undefined };
+			return { requestId: snapshot.requestId, stops: [{ stopId: undefined, entries: snapshot.entries }], postEdit: undefined };
 		};
 		const deserializeChatEditingSessionSnapshot = async (startIndex: number, snapshot: IChatEditingSessionSnapshotDTO2): Promise<IChatEditingSessionSnapshot> => {
 			const stops = await Promise.all(snapshot.stops.map(deserializeChatEditingStopDTO));
@@ -1104,7 +1096,6 @@ class ChatEditingSessionStorage {
 		const serializeChatEditingSessionStop = (stop: IChatEditingSessionStop): IChatEditingSessionStopDTO => {
 			return {
 				stopId: stop.stopId,
-				workingSet: serializeResourceMap(stop.workingSet, value => value),
 				entries: Array.from(stop.entries.values()).map(serializeSnapshotEntry)
 			};
 		};
@@ -1190,13 +1181,11 @@ interface IChatEditingSessionStop {
 	/** Edit stop ID, first for a request is always undefined. */
 	stopId: string | undefined;
 
-	readonly workingSet: ResourceMap<WorkingSetDisplayMetadata>;
 	readonly entries: ResourceMap<ISnapshotEntry>;
 }
 
 interface IChatEditingSessionStopDTO {
 	readonly stopId: string | undefined;
-	readonly workingSet: ResourceMapDTO<WorkingSetDisplayMetadata>;
 	readonly entries: ISnapshotEntryDTO[];
 }
 
