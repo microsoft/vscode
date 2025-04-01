@@ -19,7 +19,7 @@ import { ServicesAccessor } from '../../../../../../platform/instantiation/commo
 import { IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
-import { IChatWidget, IChatWidgetService } from '../../../../chat/browser/chat.js';
+import { IChatWidget, IChatWidgetService, showChatView } from '../../../../chat/browser/chat.js';
 import { ChatInputPart } from '../../../../chat/browser/chatInputPart.js';
 import { ChatDynamicVariableModel } from '../../../../chat/browser/contrib/chatDynamicVariables.js';
 import { computeCompletionRanges } from '../../../../chat/browser/contrib/chatInputCompletions.js';
@@ -37,6 +37,7 @@ import { INotebookOutputActionContext, NOTEBOOK_ACTIONS_CATEGORY } from '../core
 import { CellUri } from '../../../common/notebookCommon.js';
 import './cellChatActions.js';
 import { CTX_NOTEBOOK_CHAT_HAS_AGENT } from './notebookChatContext.js';
+import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 
 const NotebookKernelVariableKey = 'kernelVariable';
 const NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT_CONST = ['text/plain', 'text/html',
@@ -276,6 +277,7 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, outputContext: INotebookOutputActionContext | { outputViewModel: ICellOutputViewModel } | undefined): Promise<void> {
 		const notebookEditor = this.getNoteboookEditor(accessor.get(IEditorService), outputContext);
+		const viewService = accessor.get(IViewsService);
 
 		if (!notebookEditor) {
 			return;
@@ -364,6 +366,7 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 				isFile: true,
 			};
 			widget.attachmentModel.addContext(l);
+			(await showChatView(viewService))?.focusInput();
 		}
 	}
 
