@@ -154,26 +154,26 @@ export class Code {
 
 					switch (retries) {
 
-						// after 10 / 20 seconds: try to exit gracefully again
+						// after 5 / 10 seconds: try to exit gracefully again
 						case 10:
 						case 20: {
-							this.logger.log('Smoke test exit() call did not terminate process after 10-20s, gracefully trying to exit the application again...');
+							this.logger.log('Smoke test exit() call did not terminate process after 5-10s, gracefully trying to exit the application again...');
 							this.driver.exitApplication();
 							break;
 						}
 
-						// after 40 seconds: forcefully kill
+						// after 20 seconds: forcefully kill
 						case 40: {
-							this.logger.log('Smoke test exit() call did not terminate process after 40s, forcefully exiting the application...');
+							this.logger.log('Smoke test exit() call did not terminate process after 20s, forcefully exiting the application...');
 							this.kill(pid); // no need to await since we're polling for the process to die anyways
 
 							break;
 						}
 
-						// after 60 seconds: give up
+						// after 30 seconds: give up
 						case 60: {
 							done = true;
-							this.logger.log('Smoke test exit() call did not terminate process after 60s, giving up');
+							this.logger.log('Smoke test exit() call did not terminate process after 30s, giving up');
 							resolve();
 						}
 					}
