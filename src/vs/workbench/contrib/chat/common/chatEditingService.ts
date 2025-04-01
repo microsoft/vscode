@@ -82,12 +82,11 @@ export const chatEditingSnapshotScheme = 'chat-editing-snapshot-text-model';
 export interface IChatEditingSession extends IDisposable {
 	readonly isGlobalEditingSession: boolean;
 	readonly chatSessionId: string;
-	readonly onDidChange: Event<ChatEditingSessionChangeType>;
 	readonly onDidDispose: Event<void>;
 	readonly state: IObservable<ChatEditingSessionState>;
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
 	show(): Promise<void>;
-	remove(reason: WorkingSetEntryRemovalReason, ...uris: URI[]): void;
+	remove(...uris: URI[]): void;
 	accept(...uris: URI[]): Promise<void>;
 	reject(...uris: URI[]): Promise<void>;
 	getEntry(uri: URI): IModifiedFileEntry | undefined;
@@ -142,23 +141,10 @@ export interface IEditSessionEntryDiff {
 	removed: number;
 }
 
-export const enum WorkingSetEntryRemovalReason {
-	User,
-	Programmatic
-}
-
 export const enum ModifiedFileEntryState {
 	Modified,
 	Accepted,
 	Rejected,
-
-	Attached, // TODO@joyceerhl remove this
-	Sent, // TODO@joyceerhl remove this
-}
-
-export const enum ChatEditingSessionChangeType {
-	WorkingSet,
-	Other,
 }
 
 /**

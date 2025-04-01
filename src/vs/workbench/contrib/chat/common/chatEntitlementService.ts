@@ -275,8 +275,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 
 	//#region --- Sentiment
 
-	private readonly _onDidChangeSentiment = this._register(new Emitter<void>());
-	readonly onDidChangeSentiment = this._onDidChangeSentiment.event;
+	readonly onDidChangeSentiment: Event<void>;
 
 	get sentiment(): ChatSentiment {
 		if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.installed.key) === true) {

@@ -334,11 +334,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				return;
 			}
 
+			session.entries.read(r); // SIGNAL
+
 			this._editingSession.set(session, undefined);
 
-			store.add(session.onDidChange(() => {
-				this.renderChatEditingSessionState();
-			}));
 			store.add(session.onDidDispose(() => {
 				this._editingSession.set(undefined, undefined);
 				this.renderChatEditingSessionState();
