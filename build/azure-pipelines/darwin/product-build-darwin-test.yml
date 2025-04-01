@@ -9,13 +9,13 @@ parameters:
     type: boolean
 
 steps:
-  - script: |
-      set -e
-      APP_ROOT="$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)"
-      APP_NAME="`ls $APP_ROOT | head -n 1`"
-      xattr -d com.apple.quarantine "$APP_ROOT/$APP_NAME"
-    displayName: Disable Gatekeeper
-    timeoutInMinutes: 20
+  # - script: |
+  #     set -e
+  #     APP_ROOT="$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+  #     APP_NAME="`ls $APP_ROOT | head -n 1`"
+  #     xattr -d com.apple.quarantine "$APP_ROOT/$APP_NAME"
+  #   displayName: Disable Gatekeeper
+  #   timeoutInMinutes: 20
 
   - script: npm exec -- npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
     env:

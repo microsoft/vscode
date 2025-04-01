@@ -339,6 +339,8 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 				this.trace('Lifecycle#app.on(will-quit) - calling app.quit()');
 
 				electron.app.quit();
+
+				this.trace('Lifecycle#app.on(will-quit) - app.quit() completed');
 			});
 		});
 	}
@@ -654,6 +656,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 			// and only if no window vetoed the shutdown, we will get the will-quit event
 			this.trace('Lifecycle#quit() - calling app.quit()');
 			electron.app.quit();
+			this.trace('Lifecycle#quit() - app.quit() completed');
 		});
 
 		return this.pendingQuitPromise;
