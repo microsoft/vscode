@@ -812,7 +812,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		// special case: put the last change in the pendingSnapshot as needed
 		if (next) {
 			if (stopIndex === snap.stops.length - 1) {
-				const postEdit = new ResourceMap(snap.postEdit || this._createSnapshot(undefined, undefined).entries);
+				const postEdit = new ResourceMap(snap.postEdit || this._createSnapshot(requestId, undefined).entries);
 				if (!snap.postEdit || !entry.equalsSnapshot(postEdit.get(entry.modifiedURI))) {
 					postEdit.set(entry.modifiedURI, entry.createSnapshot(requestId, POST_EDIT_STOP_ID));
 					const newHistory = history.slice();
