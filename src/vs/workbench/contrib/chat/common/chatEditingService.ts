@@ -14,7 +14,7 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorPane } from '../../../common/editor.js';
 import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
-import { ChatModel, ICellTextEditOperation, IChatResponseModel } from './chatModel.js';
+import { ChatModel, IChatResponseModel } from './chatModel.js';
 
 export const IChatEditingService = createDecorator<IChatEditingService>('chatEditingService');
 
@@ -70,7 +70,9 @@ export interface WorkingSetDisplayMetadata {
 }
 
 export interface IStreamingEdits {
-	pushEdits(edits: (ICellTextEditOperation | ICellEditOperation | TextEdit)[]): void;
+	pushText(edits: TextEdit[]): void;
+	pushNotebookCellText(cell: URI, edits: TextEdit[]): void;
+	pushNotebook(edits: ICellEditOperation[]): void;
 	/** Marks edits as done, idempotent */
 	complete(): void;
 }
@@ -80,7 +82,6 @@ export const chatEditingSnapshotScheme = 'chat-editing-snapshot-text-model';
 export interface IChatEditingSession extends IDisposable {
 	readonly isGlobalEditingSession: boolean;
 	readonly chatSessionId: string;
-	readonly onDidChange: Event<ChatEditingSessionChangeType>;
 	readonly onDidDispose: Event<void>;
 	readonly state: IObservable<ChatEditingSessionState>;
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
@@ -144,11 +145,6 @@ export const enum ModifiedFileEntryState {
 	Modified,
 	Accepted,
 	Rejected,
-}
-
-export const enum ChatEditingSessionChangeType {
-	WorkingSet,
-	Other,
 }
 
 /**
