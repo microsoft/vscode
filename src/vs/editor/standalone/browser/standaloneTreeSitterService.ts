@@ -6,7 +6,7 @@
 import type * as Parser from '@vscode/tree-sitter-wasm';
 import { Event } from '../../../base/common/event.js';
 import { ITextModel } from '../../common/model.js';
-import { ITextModelTreeSitter, ITreeSitterParseResult, ITreeSitterParserService, TreeUpdateEvent } from '../../common/services/treeSitterParserService.js';
+import { ITextModelTreeSitter, ITreeSitterParserService, TreeUpdateEvent } from '../../common/services/treeSitterParserService.js';
 
 /**
  * The monaco build doesn't like the dynamic import of tree sitter in the real service.
@@ -32,7 +32,7 @@ export class StandaloneTreeSitterParserService implements ITreeSitterParserServi
 	getOrInitLanguage(_languageId: string): Parser.Language | undefined {
 		return undefined;
 	}
-	getParseResult(textModel: ITextModel): ITreeSitterParseResult | undefined {
+	getParseResult(textModel: ITextModel): ITextModelTreeSitter | undefined {
 		return undefined;
 	}
 }

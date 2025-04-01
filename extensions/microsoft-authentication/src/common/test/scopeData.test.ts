@@ -56,4 +56,21 @@ suite('ScopeData', () => {
 		const scopeData = new ScopeData(['custom_scope', 'VSCODE_TENANT:some_tenant']);
 		assert.strictEqual(scopeData.tenant, 'some_tenant');
 	});
+
+	test('should have tenantId be undefined if no VSCODE_TENANT scope is present', () => {
+		const scopeData = new ScopeData(['custom_scope']);
+		assert.strictEqual(scopeData.tenantId, undefined);
+	});
+
+	test('should have tenantId be undefined if typical tenant values are present', () => {
+		for (const element of ['common', 'organizations', 'consumers']) {
+			const scopeData = new ScopeData(['custom_scope', `VSCODE_TENANT:${element}`]);
+			assert.strictEqual(scopeData.tenantId, undefined);
+		}
+	});
+
+	test('should have tenantId be the value of VSCODE_TENANT scope if set to a specific value', () => {
+		const scopeData = new ScopeData(['custom_scope', 'VSCODE_TENANT:some_guid']);
+		assert.strictEqual(scopeData.tenantId, 'some_guid');
+	});
 });

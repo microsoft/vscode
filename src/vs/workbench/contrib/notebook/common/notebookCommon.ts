@@ -19,7 +19,6 @@ import { ISplice } from '../../../../base/common/sequence.js';
 import { ThemeColor } from '../../../../base/common/themables.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { Range } from '../../../../editor/common/core/range.js';
-import { ILineChange } from '../../../../editor/common/diff/legacyLinesDiffComputer.js';
 import * as editorCommon from '../../../../editor/common/editorCommon.js';
 import { Command, WorkspaceEditMetadata } from '../../../../editor/common/languages.js';
 import { IReadonlyTextBuffer, ITextModel } from '../../../../editor/common/model.js';
@@ -34,7 +33,7 @@ import { ICellExecutionError } from './notebookExecutionStateService.js';
 import { INotebookTextModelLike } from './notebookKernelService.js';
 import { ICellRange } from './notebookRange.js';
 import { RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
-import { generateMetadataUri, generate as generateUri, parseMetadataUri, parse as parseUri } from '../../../services/notebook/common/notebookDocumentService.js';
+import { generateMetadataUri, generate as generateUri, extractCellOutputDetails, parseMetadataUri, parse as parseUri } from '../../../services/notebook/common/notebookDocumentService.js';
 import { IWorkingCopyBackupMeta, IWorkingCopySaveEvent } from '../../../services/workingCopy/common/workingCopy.js';
 import { SnapshotContext } from '../../../services/workingCopy/common/fileWorkingCopy.js';
 
@@ -121,7 +120,12 @@ export interface NotebookCellMetadata {
 }
 
 export interface NotebookCellInternalMetadata {
-	cellId?: string;
+	/**
+	 * Used only for diffing of Notebooks.
+	 * This is not persisted and generally useful only when diffing two notebooks.
+	 * Useful only after we've manually matched a few cells together so we know which cells are matching.
+	 */
+	internalId?: string;
 	executionId?: string;
 	executionOrder?: number;
 	lastRunSuccess?: boolean;
@@ -613,32 +617,37 @@ export namespace CellUri {
 		return parseUri(cell);
 	}
 
-	export function generateCellOutputUri(notebook: URI, outputId?: string) {
+	/**
+	 * Generates a URI for a cell output in a notebook using the output ID.
+	 * Used when URI should be opened as text in the editor.
+	 */
+	export function generateCellOutputUriWithId(notebook: URI, outputId?: string) {
 		return notebook.with({
 			scheme: Schemas.vscodeNotebookCellOutput,
-			fragment: `op${outputId ?? ''},${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
+			query: new URLSearchParams({
+				openIn: 'editor',
+				outputId: outputId ?? '',
+				notebookScheme: notebook.scheme !== Schemas.file ? notebook.scheme : '',
+			}).toString()
+		});
+	}
+	/**
+	 * Generates a URI for a cell output in a notebook using the output index.
+	 * Used when URI should be opened in notebook editor.
+	 */
+	export function generateCellOutputUriWithIndex(notebook: URI, cellUri: URI, outputIndex: number): URI {
+		return notebook.with({
+			scheme: Schemas.vscodeNotebookCellOutput,
+			fragment: cellUri.fragment,
+			query: new URLSearchParams({
+				openIn: 'notebook',
+				outputIndex: String(outputIndex),
+			}).toString()
 		});
 	}
 
-	export function parseCellOutputUri(uri: URI): { notebook: URI; outputId?: string } | undefined {
-		if (uri.scheme !== Schemas.vscodeNotebookCellOutput) {
-			return;
-		}
-
-		const match = /^op([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?\,(.*)$/i.exec(uri.fragment);
-		if (!match) {
-			return undefined;
-		}
-
-		const outputId = (match[1] && match[1] !== '') ? match[1] : undefined;
-		const scheme = match[2];
-		return {
-			outputId,
-			notebook: uri.with({
-				scheme: scheme || Schemas.file,
-				fragment: null
-			})
-		};
+	export function parseCellOutputUri(uri: URI): { notebook: URI; openIn: string; outputId?: string; cellFragment?: string; outputIndex?: number; cellHandle?: number } | undefined {
+		return extractCellOutputDetails(uri);
 	}
 
 	export function generateCellPropertyUri(notebook: URI, handle: number, scheme: string): URI {
@@ -955,7 +964,6 @@ export interface INotebookCellStatusBarItemProvider {
 export interface INotebookDiffResult {
 	cellsDiff: IDiffResult;
 	metadataChanged: boolean;
-	linesDiff?: { originalCellhandle: number; modifiedCellhandle: number; lineChanges: ILineChange[] }[];
 }
 
 export interface INotebookCellStatusBarItem {

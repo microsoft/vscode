@@ -13,11 +13,12 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
 import { TestExtensionService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
-import { ChatAgentLocation, ChatAgentService, IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../common/chatAgents.js';
+import { ChatAgentService, IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatRequestParser } from '../../common/chatRequestParser.js';
 import { IChatService } from '../../common/chatService.js';
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
+import { ChatMode, ChatAgentLocation } from '../../common/constants.js';
 import { ILanguageModelToolsService, IToolData } from '../../common/languageModelToolsService.js';
 import { MockChatService } from './mockChatService.js';
 import { MockChatVariablesService } from './mockChatVariables.js';
@@ -142,6 +143,16 @@ suite('ChatRequestParser', () => {
 		await assertSnapshot(result);
 	});
 
+	test('agent but edit mode', async () => {
+		const agentsService = mockObject<IChatAgentService>()({});
+		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([])]);
+		instantiationService.stub(IChatAgentService, agentsService as any);
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const result = parser.parseChatRequest('1', '@agent hello', undefined, { mode: ChatMode.Edit });
+		await assertSnapshot(result);
+	});
+
 	test('agent with question mark', async () => {
 		const agentsService = mockObject<IChatAgentService>()({});
 		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([{ name: 'subCommand', description: '' }])]);
@@ -187,8 +198,8 @@ suite('ChatRequestParser', () => {
 		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([{ name: 'subCommand', description: '' }])]);
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
-		toolsService.getToolByName.onCall(0).returns({ id: 'get_selection', canBeReferencedInPrompt: true, displayName: '', modelDescription: '' } satisfies IToolData);
-		toolsService.getToolByName.onCall(1).returns({ id: 'get_debugConsole', canBeReferencedInPrompt: true, displayName: '', modelDescription: '' } satisfies IToolData);
+		toolsService.getToolByName.onCall(0).returns({ id: 'get_selection', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: { type: 'internal' } } satisfies IToolData);
+		toolsService.getToolByName.onCall(1).returns({ id: 'get_debugConsole', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: { type: 'internal' } } satisfies IToolData);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const result = parser.parseChatRequest('1', '@agent /subCommand \nPlease do with #selection\nand #debugConsole');
@@ -200,8 +211,8 @@ suite('ChatRequestParser', () => {
 		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([{ name: 'subCommand', description: '' }])]);
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
-		toolsService.getToolByName.onCall(0).returns({ id: 'get_selection', canBeReferencedInPrompt: true, displayName: '', modelDescription: '' } satisfies IToolData);
-		toolsService.getToolByName.onCall(1).returns({ id: 'get_debugConsole', canBeReferencedInPrompt: true, displayName: '', modelDescription: '' } satisfies IToolData);
+		toolsService.getToolByName.onCall(0).returns({ id: 'get_selection', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: { type: 'internal' } } satisfies IToolData);
+		toolsService.getToolByName.onCall(1).returns({ id: 'get_debugConsole', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: { type: 'internal' } } satisfies IToolData);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const result = parser.parseChatRequest('1', '@agent Please \ndo /subCommand with #selection\nand #debugConsole');

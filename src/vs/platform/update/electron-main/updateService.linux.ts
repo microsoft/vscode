@@ -11,16 +11,14 @@ import { ILogService } from '../../log/common/log.js';
 import { INativeHostMainService } from '../../native/electron-main/nativeHostMainService.js';
 import { IProductService } from '../../product/common/productService.js';
 import { asJson, IRequestService } from '../../request/common/request.js';
-import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AvailableForDownload, IUpdate, State, UpdateType } from '../common/update.js';
-import { AbstractUpdateService, createUpdateURL, UpdateNotAvailableClassification } from './abstractUpdateService.js';
+import { AbstractUpdateService, createUpdateURL } from './abstractUpdateService.js';
 
 export class LinuxUpdateService extends AbstractUpdateService {
 
 	constructor(
 		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
 		@IRequestService requestService: IRequestService,
 		@ILogService logService: ILogService,
@@ -44,8 +42,6 @@ export class LinuxUpdateService extends AbstractUpdateService {
 			.then<IUpdate | null>(asJson)
 			.then(update => {
 				if (!update || !update.url || !update.version || !update.productVersion) {
-					this.telemetryService.publicLog2<{ explicit: boolean }, UpdateNotAvailableClassification>('update:notAvailable', { explicit: !!context });
-
 					this.setState(State.Idle(UpdateType.Archive));
 				} else {
 					this.setState(State.AvailableForDownload(update));

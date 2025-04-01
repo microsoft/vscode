@@ -100,14 +100,12 @@ export interface IThemingParticipant {
 	(theme: IColorTheme, collector: ICssStyleCollector, environment: IEnvironmentService): void;
 }
 
-export type IThemeChangeEvent = { theme: IColorTheme };
-
 export interface IThemeService {
 	readonly _serviceBrand: undefined;
 
 	getColorTheme(): IColorTheme;
 
-	readonly onDidColorThemeChange: Event<IThemeChangeEvent>;
+	readonly onDidColorThemeChange: Event<IColorTheme>;
 
 	getFileIconTheme(): IFileIconTheme;
 
@@ -184,7 +182,7 @@ export class Themable extends Disposable {
 		this.theme = themeService.getColorTheme();
 
 		// Hook up to theme changes
-		this._register(this.themeService.onDidColorThemeChange(e => this.onThemeChange(e.theme)));
+		this._register(this.themeService.onDidColorThemeChange(theme => this.onThemeChange(theme)));
 	}
 
 	protected onThemeChange(theme: IColorTheme): void {

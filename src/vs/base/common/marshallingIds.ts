@@ -26,4 +26,5 @@ export const enum MarshalledId {
 	LanguageModelToolResult,
 	LanguageModelTextPart,
 	LanguageModelPromptTsxPart,
+	LanguageModelDataPart
 }

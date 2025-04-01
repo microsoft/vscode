@@ -7,10 +7,8 @@ import * as dom from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { generateUuid } from '../../../../base/common/uuid.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
@@ -92,8 +90,6 @@ export class InlineAnchorWidget extends Disposable {
 		const contextKeyService = this._register(originalContextKeyService.createScoped(element));
 		this._chatResourceContext = chatAttachmentResourceContextKey.bindTo(contextKeyService);
 
-		const anchorId = new Lazy(generateUuid);
-
 		element.classList.add(InlineAnchorWidget.className, 'show-file-icons');
 
 		let iconText: string;
@@ -108,18 +104,6 @@ export class InlineAnchorWidget extends Disposable {
 			location = this.data.symbol.location;
 			iconText = this.data.symbol.name;
 			iconClasses = ['codicon', ...getIconClasses(modelService, languageService, undefined, undefined, SymbolKinds.toIcon(symbol.kind))];
-
-			this._register(dom.addDisposableListener(element, 'click', () => {
-				telemetryService.publicLog2<{
-					anchorId: string;
-				}, {
-					anchorId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Unique identifier for the current anchor.' };
-					owner: 'mjbvz';
-					comment: 'Provides insight into the usage of Chat features.';
-				}>('chat.inlineAnchor.openSymbol', {
-					anchorId: anchorId.value
-				});
-			}));
 
 			this._store.add(instantiationService.invokeFunction(accessor => hookUpSymbolAttachmentDragAndContextMenu(accessor, element, contextKeyService, { value: symbol.location, name: symbol.name, kind: symbol.kind }, MenuId.ChatInlineSymbolAnchorContext)));
 		} else {
@@ -155,18 +139,6 @@ export class InlineAnchorWidget extends Disposable {
 					}
 				})
 				.catch(() => { });
-
-			this._register(dom.addDisposableListener(element, 'click', () => {
-				telemetryService.publicLog2<{
-					anchorId: string;
-				}, {
-					anchorId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Unique identifier for the current anchor.' };
-					owner: 'mjbvz';
-					comment: 'Provides insight into the usage of Chat features.';
-				}>('chat.inlineAnchor.openResource', {
-					anchorId: anchorId.value
-				});
-			}));
 
 			// Context menu
 			this._register(dom.addDisposableListener(element, dom.EventType.CONTEXT_MENU, async domEvent => {
@@ -393,11 +365,12 @@ registerAction2(class GoToDefinitionAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, location: Location): Promise<void> {
 		const editorService = accessor.get(ICodeEditorService);
+		const instantiationService = accessor.get(IInstantiationService);
 
 		await openEditorWithSelection(editorService, location);
 
 		const action = new DefinitionAction({ openToSide: false, openInPeek: false, muteMessage: true }, { title: { value: '', original: '' }, id: '', precondition: undefined });
-		return action.run(accessor);
+		return instantiationService.invokeFunction(accessor => action.run(accessor));
 	}
 });
 

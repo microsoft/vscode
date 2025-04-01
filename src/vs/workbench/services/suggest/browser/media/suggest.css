@@ -32,6 +32,7 @@
 	z-index: 40;
 	display: flex;
 	flex-direction: column;
+	border-radius: 3px;
 }
 
 .workbench-suggest-widget.message {
@@ -94,6 +95,12 @@
 .monaco-workbench .workbench-suggest-widget.with-status-bar .monaco-list .monaco-list-row > .contents > .main > .right > .readMore,
 .monaco-workbench .workbench-suggest-widget.with-status-bar .monaco-list .monaco-list-row.focused.string-label > .contents > .main > .right > .readMore {
 	display: none;
+}
+
+/* Styles for Message element for when widget is loading or is empty */
+
+.monaco-workbench .workbench-suggest-widget > .message {
+	padding-left: 22px;
 }
 
 /** Styles for each row in the list element **/

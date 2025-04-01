@@ -112,7 +112,7 @@ class InputEditorDecorations extends Disposable {
 		}
 
 		if (!inputValue) {
-			const defaultAgent = this.chatAgentService.getDefaultAgent(this.widget.location);
+			const defaultAgent = this.chatAgentService.getDefaultAgent(this.widget.location, this.widget.input.currentMode);
 			const decoration: IDecorationOptions[] = [
 				{
 					range: {
@@ -301,7 +301,7 @@ class ChatTokenDeleter extends Disposable {
 
 			// If this was a simple delete, try to find out whether it was inside a token
 			if (!change.text && this.widget.viewModel) {
-				const previousParsedValue = parser.parseChatRequest(this.widget.viewModel.sessionId, previousInputValue, widget.location, { selectedAgent: previousSelectedAgent });
+				const previousParsedValue = parser.parseChatRequest(this.widget.viewModel.sessionId, previousInputValue, widget.location, { selectedAgent: previousSelectedAgent, mode: this.widget.input.currentMode });
 
 				// For dynamic variables, this has to happen in ChatDynamicVariableModel with the other bookkeeping
 				const deletableTokens = previousParsedValue.parts.filter(p => p instanceof ChatRequestAgentPart || p instanceof ChatRequestAgentSubcommandPart || p instanceof ChatRequestSlashCommandPart || p instanceof ChatRequestToolPart);

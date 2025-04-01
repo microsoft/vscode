@@ -201,7 +201,7 @@ export class CodeCell extends Disposable {
 		const cts = new CancellationTokenSource();
 		this._register({ dispose() { cts.dispose(true); } });
 		raceCancellation(this.viewCell.resolveTextModel(), cts.token).then(model => {
-			if (this._isDisposed) {
+			if (this._isDisposed || model?.isDisposed()) {
 				return;
 			}
 

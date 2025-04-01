@@ -23,6 +23,7 @@ import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CommentThread, Comment } from '../../../../editor/common/languages.js';
 import { IRange } from '../../../../editor/common/core/range.js';
+import { IAction } from '../../../../base/common/actions.js';
 
 export class CommentsAccessibleView extends Disposable implements IAccessibleViewImplementation {
 	readonly priority = 90;
@@ -72,30 +73,33 @@ export class CommentThreadAccessibleView extends Disposable implements IAccessib
 
 
 class CommentsAccessibleContentProvider extends Disposable implements IAccessibleViewContentProvider {
+	public readonly actions: IAction[];
 	constructor(
 		private readonly _commentsView: CommentsPanel,
 		private readonly _focusedCommentNode: any,
 		private readonly _menus: CommentsMenus,
 	) {
 		super();
+
+		this.actions = [...this._menus.getResourceContextActions(this._focusedCommentNode)].filter(i => i.enabled).map(action => {
+			return {
+				...action,
+				run: () => {
+					this._commentsView.focus();
+					action.run({
+						thread: this._focusedCommentNode.thread,
+						$mid: MarshalledId.CommentThread,
+						commentControlHandle: this._focusedCommentNode.controllerHandle,
+						commentThreadHandle: this._focusedCommentNode.threadHandle,
+					});
+				}
+			};
+		});
 	}
 	readonly id = AccessibleViewProviderId.Comments;
 	readonly verbositySettingKey = AccessibilityVerbositySettingId.Comments;
 	readonly options = { type: AccessibleViewType.View };
-	public actions = [...this._menus.getResourceContextActions(this._focusedCommentNode)].filter(i => i.enabled).map(action => {
-		return {
-			...action,
-			run: () => {
-				this._commentsView.focus();
-				action.run({
-					thread: this._focusedCommentNode.thread,
-					$mid: MarshalledId.CommentThread,
-					commentControlHandle: this._focusedCommentNode.controllerHandle,
-					commentThreadHandle: this._focusedCommentNode.threadHandle,
-				});
-			}
-		};
-	});
+
 	provideContent(): string {
 		const commentNode = this._commentsView.focusedCommentNode;
 		const content = this._commentsView.focusedCommentInfo?.toString();

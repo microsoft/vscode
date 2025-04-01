@@ -3,118 +3,60 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+
+import { PromptVariableWithData } from './promptVariable.js';
 import { assert } from '../../../../../../../base/common/assert.js';
 import { IRange, Range } from '../../../../../../../editor/common/core/range.js';
 import { BaseToken } from '../../../../../../../editor/common/codecs/baseToken.js';
-import { Word } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/word.js';
 
 /**
- * Start sequence for a file reference token in a prompt.
+ * Name of the variable.
  */
-const TOKEN_START: string = '#file:';
+const VARIABLE_NAME: string = 'file';
 
 /**
  * Object represents a file reference token inside a chatbot prompt.
  */
-export class FileReference extends BaseToken {
-	/**
-	 * Start sequence for a file reference token in a prompt.
-	 */
-	public static readonly TOKEN_START = TOKEN_START;
-
+export class FileReference extends PromptVariableWithData {
 	constructor(
 		range: Range,
 		public readonly path: string,
 	) {
-		super(range);
+		super(range, VARIABLE_NAME, path);
 	}
 
 	/**
-	 * Get full text of the file reference token.
+	 * Create a {@link FileReference} from a {@link PromptVariableWithData} instance.
+	 * @throws if variable name is not equal to {@link VARIABLE_NAME}.
 	 */
-	public get text(): string {
-		return `${TOKEN_START}${this.path}`;
-	}
-
-	/**
-	 * Create a file reference token out of a generic `Word`.
-	 * @throws if the word does not conform to the expected format or if
-	 *         the reference is an invalid `URI`.
-	 */
-	public static fromWord(word: Word): FileReference {
-		const { text } = word;
-
+	public static from(variable: PromptVariableWithData) {
 		assert(
-			text.startsWith(TOKEN_START),
-			`The reference must start with "${TOKEN_START}", got ${text}.`,
+			variable.name === VARIABLE_NAME,
+			`Variable name must be '${VARIABLE_NAME}', got '${variable.name}'.`,
 		);
 
-		const maybeReference = text.split(TOKEN_START);
-
-		assert(
-			maybeReference.length === 2,
-			`The expected reference format is "${TOKEN_START}:filesystem-path", got ${text}.`,
+		return new FileReference(
+			variable.range,
+			variable.data,
 		);
-
-		const [first, second] = maybeReference;
-
-		assert(
-			first === '',
-			`The reference must start with "${TOKEN_START}", got ${first}.`,
-		);
-
-		assert(
-			// Note! this accounts for both cases when second is `undefined` or `empty`
-			// 		 and we don't care about rest of the "falsy" cases here
-			!!second,
-			`The reference path must be defined, got ${second}.`,
-		);
-
-		const reference = new FileReference(
-			word.range,
-			second,
-		);
-
-		return reference;
 	}
 
 	/**
 	 * Check if this token is equal to another one.
 	 */
 	public override equals<T extends BaseToken>(other: T): boolean {
-		if (!super.sameRange(other.range)) {
+		if ((other instanceof FileReference) === false) {
 			return false;
 		}
 
-		if (!(other instanceof FileReference)) {
-			return false;
-		}
-
-		return this.text === other.text;
+		return super.equals(other);
 	}
 
 	/**
-	 * Get the range of the `link part` of the token (e.g.,
+	 * Get the range of the `link` part of the token (e.g.,
 	 * the `/path/to/file.md` part of `#file:/path/to/file.md`).
 	 */
 	public get linkRange(): IRange | undefined {
-		if (this.path.length === 0) {
-			return undefined;
-		}
-
-		const { range } = this;
-		return new Range(
-			range.startLineNumber,
-			range.startColumn + TOKEN_START.length,
-			range.endLineNumber,
-			range.endColumn,
-		);
-	}
-
-	/**
-	 * Return a string representation of the token.
-	 */
-	public override toString(): string {
-		return `file-ref("${this.text}")${this.range}`;
+		return super.dataRange;
 	}
 }

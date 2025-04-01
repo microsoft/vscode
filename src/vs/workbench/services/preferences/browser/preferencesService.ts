@@ -70,6 +70,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	private readonly _requestedDefaultSettings = new ResourceSet();
 
 	private _settingsGroups: ISettingsGroup[] | undefined = undefined;
+	private _cachedSettingsEditor2Input: SettingsEditor2Input | undefined = undefined;
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -122,8 +123,13 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return workspace.configuration || workspace.folders[0].toResource(FOLDER_SETTINGS_PATH);
 	}
 
-	createSettingsEditor2Input(): SettingsEditor2Input {
-		return new SettingsEditor2Input(this);
+	createOrGetCachedSettingsEditor2Input(): SettingsEditor2Input {
+		if (!this._cachedSettingsEditor2Input || this._cachedSettingsEditor2Input.isDisposed()) {
+			// Recreate the input if the user never opened the Settings editor,
+			// or if they closed it and want to reopen it.
+			this._cachedSettingsEditor2Input = new SettingsEditor2Input(this);
+		}
+		return this._cachedSettingsEditor2Input;
 	}
 
 	getFolderSettingsResource(resource: URI): URI | null {
@@ -243,14 +249,14 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			this.openSettings2(options);
 	}
 
-	private async openSettings2(options: IOpenSettingsOptions): Promise<IEditorPane> {
-		const input = this.createSettingsEditor2Input();
+	private async openSettings2(options: IOpenSettingsOptions): Promise<IEditorPane | undefined> {
+		const input = this.createOrGetCachedSettingsEditor2Input();
 		options = {
 			...options,
 			focusSearch: true
 		};
 		const group = await this.getEditorGroupFromOptions(options);
-		return (await group.openEditor(input, validateSettingsEditorOptions(options)))!;
+		return group.openEditor(input, validateSettingsEditorOptions(options));
 	}
 
 	openApplicationSettings(options: IOpenSettingsOptions = {}): Promise<IEditorPane | undefined> {
@@ -665,6 +671,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	public override dispose(): void {
+		if (this._cachedSettingsEditor2Input && !this._cachedSettingsEditor2Input.isDisposed()) {
+			this._cachedSettingsEditor2Input.dispose();
+		}
 		this._onDispose.fire();
 		super.dispose();
 	}

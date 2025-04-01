@@ -76,71 +76,19 @@
 		}
 	}
 
-	.inline-edits-view {
-		&.toolbarDropdownVisible, .editorContainer.showHover:hover {
-			.toolbar {
-				display: block;
+	.inline-edits-view .editorContainer {
+		.preview .monaco-editor {
+			.view-overlays .current-line-exact {
+				border: none;
+			}
+
+			.current-line-margin {
+				border: none;
 			}
 		}
 
-		.editorContainer {
-			color: var(--vscode-editorHoverWidget-foreground);
-
-			.toolbar {
-				display: none;
-				border-top: 1px solid rgba(69, 69, 69, 0.5);
-				background-color: var(--vscode-editorHoverWidget-statusBarBackground);
-
-				a {
-					color: var(--vscode-foreground);
-				}
-
-				a:hover {
-					color: var(--vscode-foreground);
-				}
-
-				.keybinding {
-					display: flex;
-					margin-left: 4px;
-					opacity: 0.6;
-				}
-
-				.keybinding .monaco-keybinding-key {
-					font-size: 8px;
-					padding: 2px 3px;
-				}
-
-				.availableSuggestionCount a {
-					display: flex;
-					min-width: 19px;
-					justify-content: center;
-				}
-
-				.inlineSuggestionStatusBarItemLabel {
-					margin-right: 2px;
-				}
-
-			}
-
-			.preview {
-				.monaco-editor {
-					.view-overlays .current-line-exact {
-						border: none;
-					}
-
-					.current-line-margin {
-						border: none;
-					}
-				}
-
-				.monaco-editor-background {
-					background-color: var(--vscode-inlineEdit-modifiedChangedLineBackground)
-				}
-			}
-
-			.inline-edits-view-zone.diagonal-fill {
-				opacity: 0.5;
-			}
+		.inline-edits-view-zone.diagonal-fill {
+			opacity: 0.5;
 		}
 	}
 
@@ -175,25 +123,23 @@
 	}
 
 	.inlineCompletions-char-delete.single-line-inline { /* Editor Decoration */
-		border-radius: 4px;
 		border: 1px solid var(--vscode-editorHoverWidget-border);
 		margin: -2px 0 0 -2px;
 	}
 
 	.inlineCompletions-char-insert.single-line-inline { /* Inline Decoration */
-		padding: 1px 0;
-		border-top: 1px solid var(--vscode-editorHoverWidget-border); /* TODO: Do not set border inline but create overlaywidget (like deletion view) */
-		border-bottom: 1px solid var(--vscode-editorHoverWidget-border); /* TODO: Do not set border inline but create overlaywidget (like deletion view) */
+		border-top: 1px solid var(--vscode-inlineEdit-modifiedBorder); /* TODO: Do not set border inline but create overlaywidget (like deletion view) */
+		border-bottom: 1px solid var(--vscode-inlineEdit-modifiedBorder); /* TODO: Do not set border inline but create overlaywidget (like deletion view) */
 	}
 	.inlineCompletions-char-insert.single-line-inline.start {
 		border-top-left-radius: 4px;
 		border-bottom-left-radius: 4px;
-		border-left: 1px solid var(--vscode-editorHoverWidget-border); /* TODO: Do not set border inline but create overlaywidget (like deletion view) */
+		border-left: 1px solid var(--vscode-inlineEdit-modifiedBorder); /* TODO: Do not set border inline but create overlaywidget (like deletion view) */
 	}
 	.inlineCompletions-char-insert.single-line-inline.end {
 		border-top-right-radius: 4px;
 		border-bottom-right-radius: 4px;
-		border-right: 1px solid var(--vscode-editorHoverWidget-border); /* TODO: Do not set border inline but create overlaywidget (like deletion view) */
+		border-right: 1px solid var(--vscode-inlineEdit-modifiedBorder); /* TODO: Do not set border inline but create overlaywidget (like deletion view) */
 	}
 
 	.inlineCompletions-char-delete.single-line-inline.empty,
@@ -213,23 +159,12 @@
 
 	.inlineCompletions-original-bubble{
 		background: var(--vscode-inlineEdit-originalChangedTextBackground);
-		border-radius: 4px;
 	}
 
 	.inlineCompletions-modified-bubble,
 	.inlineCompletions-original-bubble {
 		pointer-events: none;
 		display: inline-block;
-	}
-
-	.inlineCompletions-modified-bubble.start {
-		border-top-left-radius: 4px;
-		border-bottom-left-radius: 4px;
-	}
-
-	.inlineCompletions-modified-bubble.end {
-		border-top-right-radius: 4px;
-		border-bottom-right-radius: 4px;
 	}
 
 	.inline-edit.ghost-text,

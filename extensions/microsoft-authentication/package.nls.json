@@ -12,9 +12,6 @@
 	},
 	"microsoft-authentication.implementation.enumDescriptions.msal": "Use the Microsoft Authentication Library (MSAL) to sign in with a Microsoft account.",
 	"microsoft-authentication.implementation.enumDescriptions.classic": "(deprecated) Use the classic authentication flow to sign in with a Microsoft account.",
-	"microsoft-authentication.clientIdVersion.description": "The version of the Microsoft Account client ID to use for signing in with a Microsoft account. Only change this if you have been asked to. The default is `v1`.",
-	"microsoft-authentication.clientIdVersion.enumDescriptions.v1": "Use the v1 Microsoft Account client ID to sign in with a Microsoft account.",
-	"microsoft-authentication.clientIdVersion.enumDescriptions.v2": "Use the v2 Microsoft Account client ID to sign in with a Microsoft account.",
 	"microsoft-sovereign-cloud.environment.description": {
 		"message": "The Sovereign Cloud to use for authentication. If you select `custom`, you must also set the `#microsoft-sovereign-cloud.customEnvironment#` setting.",
 		"comment": [

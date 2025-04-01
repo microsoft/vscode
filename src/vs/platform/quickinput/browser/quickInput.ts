@@ -912,7 +912,7 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 				this.onDidChangeActiveEmitter.fire(focusedItems as T[]);
 			}));
 			this.visibleDisposables.add(this.ui.list.onDidChangeSelection(({ items: selectedItems, event }) => {
-				if (this.canSelectMany) {
+				if (this.canSelectMany && !selectedItems.some(i => i.pickable === false)) {
 					if (selectedItems.length) {
 						this.ui.list.setSelectedElements([]);
 					}
@@ -1296,7 +1296,7 @@ export class QuickInputHoverDelegate extends WorkbenchHoverDelegate {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService hoverService: IHoverService
 	) {
-		super('element', false, (options) => this.getOverrideOptions(options), configurationService, hoverService);
+		super('element', undefined, (options) => this.getOverrideOptions(options), configurationService, hoverService);
 	}
 
 	private getOverrideOptions(options: IHoverDelegateOptions): Partial<IHoverOptions> {

@@ -7,7 +7,7 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Event } from '../../../../../base/common/event.js';
-import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
@@ -17,7 +17,8 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
+import { IChatAgentService } from '../../common/chatAgents.js';
+import { ChatAgentLocation } from '../../common/constants.js';
 import { chatViewsWelcomeRegistry, IChatViewsWelcomeDescriptor } from './chatViewsWelcome.js';
 
 const $ = dom.$;
@@ -116,14 +117,14 @@ export interface IChatViewWelcomeContent {
 export interface IChatViewWelcomeRenderOptions {
 	firstLinkToButton?: boolean;
 	location: ChatAgentLocation;
-	isWidgetWelcomeViewContent?: boolean;
+	isWidgetAgentWelcomeViewContent?: boolean;
 }
 
 export class ChatViewWelcomePart extends Disposable {
 	public readonly element: HTMLElement;
 
 	constructor(
-		content: IChatViewWelcomeContent,
+		public readonly content: IChatViewWelcomeContent,
 		options: IChatViewWelcomeRenderOptions | undefined,
 		@IOpenerService private openerService: IOpenerService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -147,13 +148,9 @@ export class ChatViewWelcomePart extends Disposable {
 			title.textContent = content.title;
 
 			// Preview indicator
-			if (options?.location === ChatAgentLocation.EditingSession && typeof content.message !== 'function' && chatAgentService.toolsAgentModeEnabled && options.isWidgetWelcomeViewContent) {
-				// Override welcome message for the agent. Sort of a hack, should it come from the participant? This case is different because the welcome content typically doesn't change per ChatWidget
-				const agentMessage = localize({ key: 'agentMessage', comment: ['{Locked="["}', '{Locked="]({0})"}'] }, "Ask Copilot to edit your files in [agent mode]({0}). Copilot will automatically use multiple requests to pick files to edit, run terminal commands, and iterate on errors.\n\nCopilot is powered by AI, so mistakes are possible. Review output carefully before use.", 'https://aka.ms/vscode-copilot-agent');
-				content.message = new MarkdownString(agentMessage);
+			if (typeof content.message !== 'function' && options?.isWidgetAgentWelcomeViewContent) {
 				const container = dom.append(this.element, $('.chat-welcome-view-indicator-container'));
 				dom.append(container, $('.chat-welcome-view-subtitle', undefined, localize('agentModeSubtitle', "Agent Mode")));
-				dom.append(container, $('.chat-welcome-view-indicator', undefined, localize('experimental', "EXPERIMENTAL")));
 			}
 
 			// Message

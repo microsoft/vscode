@@ -1,0 +1,76 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-welcome-view .chat-setup-view {
+
+	text-align: center;
+
+	.chat-features-container {
+		display: flex;
+		justify-content: center;
+		text-align: initial;
+		border-radius: 2px;
+		border: 1px solid var(--vscode-chat-requestBorder);
+		background-color: var(--vscode-chat-requestBackground);
+	}
+}
+
+.dialog-message-body .chat-setup-view {
+
+	p {
+		margin-top: 0;
+		margin-bottom: 0;
+	}
+
+	p.setup-legal {
+		font-size: 12px;
+		color: var(--vscode-descriptionForeground);
+		margin-top: 2em;
+	}
+
+	p.setup-settings {
+		font-size: 12px;
+		color: var(--vscode-descriptionForeground);
+		margin-top: 1em;
+	}
+}
+
+.dialog-message-body .chat-setup-view,
+.chat-welcome-view .chat-setup-view {
+
+	p {
+		width: 100%;
+	}
+
+	.chat-feature-container {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		padding: 5px 10px 5px 10px;
+	}
+
+	.chat-feature-container .codicon[class*='codicon-'] {
+		font-size: 16px;
+	}
+
+	.codicon[class*='codicon-'] {
+		font-size: 13px;
+		line-height: 1.4em;
+		vertical-align: bottom;
+	}
+
+	.button-container {
+		padding-top: 20px;
+	}
+
+	/** Dropdown Button */
+	.monaco-button-dropdown {
+		width: 100%;
+	}
+
+	.monaco-button-dropdown .monaco-text-button {
+		width: 100%;
+	}
+}

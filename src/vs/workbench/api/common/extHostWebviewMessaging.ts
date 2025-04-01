@@ -7,9 +7,9 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import * as extHostProtocol from './extHost.protocol.js';
 
 class ArrayBufferSet {
-	public readonly buffers: ArrayBuffer[] = [];
+	public readonly buffers: ArrayBufferLike[] = [];
 
-	public add(buffer: ArrayBuffer): number {
+	public add(buffer: ArrayBufferLike): number {
 		let index = this.buffers.indexOf(buffer);
 		if (index < 0) {
 			index = this.buffers.length;

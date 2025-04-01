@@ -504,7 +504,7 @@ export class FileService extends Disposable implements IFileService {
 			buffer = await this.peekBufferForWriting(provider, bufferOrReadableOrStream);
 			if (buffer instanceof VSBuffer && buffer.byteLength === stat.size) {
 				try {
-					const { value } = await this.readFile(resource);
+					const { value } = await this.readFile(resource, { limits: { size: stat.size } });
 					if (buffer.equals(value)) {
 						return { stat, buffer }; // allow writing since contents are identical
 					}

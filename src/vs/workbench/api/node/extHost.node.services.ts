@@ -27,6 +27,8 @@ import { SyncDescriptor } from '../../../platform/instantiation/common/descripto
 import { ISignService } from '../../../platform/sign/common/sign.js';
 import { SignService } from '../../../platform/sign/node/signService.js';
 import { ExtHostTelemetry, IExtHostTelemetry } from '../common/extHostTelemetry.js';
+import { IExtHostMpcService } from '../common/extHostMcp.js';
+import { NodeExtHostMpcService } from './extHostMpcNode.js';
 
 // #########################################################################
 // ###                                                                   ###
@@ -47,3 +49,4 @@ registerSingleton(IExtHostTask, ExtHostTask, InstantiationType.Eager);
 registerSingleton(IExtHostTerminalService, ExtHostTerminalService, InstantiationType.Eager);
 registerSingleton(IExtHostTunnelService, NodeExtHostTunnelService, InstantiationType.Eager);
 registerSingleton(IExtHostVariableResolverProvider, NodeExtHostVariableResolverProviderService, InstantiationType.Eager);
+registerSingleton(IExtHostMpcService, NodeExtHostMpcService, InstantiationType.Eager);

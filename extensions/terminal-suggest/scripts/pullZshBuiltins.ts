@@ -3,16 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { platform } from 'os';
+import { checkWindows, execAsync, copyright } from './terminalScriptHelpers';
 
-if (platform() === 'win32') {
-	console.error('\x1b[31mThis command is not supported on Windows\x1b[0m');
-	process.exit(1);
-}
+checkWindows();
 
 const latestZshVersion = 5.9;
 
@@ -126,14 +121,14 @@ const shortDescriptions: Map<string, string> = new Map([
 	['ztcp', 'Manipulate TCP sockets'],
 ]);
 
-const execAsync = promisify(exec);
-
 interface ICommandDetails {
 	description: string;
 	args: string | undefined;
 	shortDescription?: string;
 }
+
 let zshBuiltinsCommandDescriptionsCache = new Map<string, ICommandDetails>();
+
 async function createCommandDescriptionsCache(): Promise<void> {
 	const cachedCommandDescriptions: Map<string, { shortDescription?: string; description: string; args: string | undefined }> = new Map();
 	let output = '';
@@ -248,11 +243,12 @@ const main = async () => {
 			console.log('\x1b[31mmissing short description for commands:\n' + missingShortDescription.join('\n') + '\x1b[0m');
 		}
 
-		// Save the cache to a JSON file
-		const cacheFilePath = path.join(__dirname, '../src/shell/zshBuiltinsCache.json');
+		// Save the cache to a TypeScript file
+		const cacheFilePath = path.join(__dirname, '../src/shell/zshBuiltinsCache.ts');
 		const cacheObject = Object.fromEntries(zshBuiltinsCommandDescriptionsCache);
-		await fs.writeFile(cacheFilePath, JSON.stringify(cacheObject, null, 2), 'utf8');
-		console.log('saved command descriptions cache to zshBuiltinsCache.json with ', Object.keys(cacheObject).length, 'entries');
+		const tsContent = `${copyright}\n\nexport const zshBuiltinsCommandDescriptionsCache = ${JSON.stringify(cacheObject, null, 2)} as const;`;
+		await fs.writeFile(cacheFilePath, tsContent, 'utf8');
+		console.log('saved command descriptions cache to zshBuiltinsCache.ts with ', Object.keys(cacheObject).length, 'entries');
 	} catch (error) {
 		console.error('Error:', error);
 	}

@@ -5,6 +5,7 @@
 
 import { Emitter, Event } from '../../../base/common/event.js';
 import { getCompressedContent, IJSONSchema } from '../../../base/common/jsonSchema.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import * as platform from '../../registry/common/platform.js';
 
 export const Extensions = {
@@ -18,12 +19,14 @@ export interface ISchemaContributions {
 export interface IJSONContributionRegistry {
 
 	readonly onDidChangeSchema: Event<string>;
+	readonly onDidChangeSchemaAssociations: Event<void>;
 
 	/**
 	 * Register a schema to the registry.
 	 */
-	registerSchema(uri: string, unresolvedSchemaContent: IJSONSchema): void;
+	registerSchema(uri: string, unresolvedSchemaContent: IJSONSchema, store?: DisposableStore): void;
 
+	registerSchemaAssociation(uri: string, glob: string): IDisposable;
 
 	/**
 	 * Notifies all listeners that the content of the given schema has changed.
@@ -35,6 +38,8 @@ export interface IJSONContributionRegistry {
 	 * Get all schemas
 	 */
 	getSchemaContributions(): ISchemaContributions;
+
+	getSchemaAssociations(): { [uri: string]: string[] };
 
 	/**
 	 * Gets the (compressed) content of the schema with the given schema ID (if any)
@@ -62,18 +67,51 @@ function normalizeId(id: string) {
 
 class JSONContributionRegistry implements IJSONContributionRegistry {
 
-	private schemasById: { [id: string]: IJSONSchema };
+	private readonly schemasById: { [id: string]: IJSONSchema } = {};
+	private readonly schemaAssociations: { [uri: string]: string[] } = {};
 
 	private readonly _onDidChangeSchema = new Emitter<string>();
 	readonly onDidChangeSchema: Event<string> = this._onDidChangeSchema.event;
 
-	constructor() {
-		this.schemasById = {};
+	private readonly _onDidChangeSchemaAssociations = new Emitter<void>();
+	readonly onDidChangeSchemaAssociations: Event<void> = this._onDidChangeSchemaAssociations.event;
+
+	public registerSchema(uri: string, unresolvedSchemaContent: IJSONSchema, store?: DisposableStore): void {
+		const normalizedUri = normalizeId(uri);
+		this.schemasById[normalizedUri] = unresolvedSchemaContent;
+		this._onDidChangeSchema.fire(uri);
+
+		if (store) {
+			store.add(toDisposable(() => {
+				delete this.schemasById[normalizedUri];
+				this._onDidChangeSchema.fire(uri);
+			}));
+		}
 	}
 
-	public registerSchema(uri: string, unresolvedSchemaContent: IJSONSchema): void {
-		this.schemasById[normalizeId(uri)] = unresolvedSchemaContent;
-		this._onDidChangeSchema.fire(uri);
+	public registerSchemaAssociation(uri: string, glob: string): IDisposable {
+		const normalizedUri = normalizeId(uri);
+		if (!this.schemaAssociations[normalizedUri]) {
+			this.schemaAssociations[normalizedUri] = [];
+		}
+		if (!this.schemaAssociations[normalizedUri].includes(glob)) {
+			this.schemaAssociations[normalizedUri].push(glob);
+			this._onDidChangeSchemaAssociations.fire();
+		}
+
+		return toDisposable(() => {
+			const associations = this.schemaAssociations[normalizedUri];
+			if (associations) {
+				const index = associations.indexOf(glob);
+				if (index !== -1) {
+					associations.splice(index, 1);
+					if (associations.length === 0) {
+						delete this.schemaAssociations[normalizedUri];
+					}
+					this._onDidChangeSchemaAssociations.fire();
+				}
+			}
+		});
 	}
 
 	public notifySchemaChanged(uri: string): void {
@@ -93,6 +131,10 @@ class JSONContributionRegistry implements IJSONContributionRegistry {
 
 	public hasSchemaContent(uri: string): boolean {
 		return !!this.schemasById[uri];
+	}
+
+	public getSchemaAssociations(): { [uri: string]: string[] } {
+		return this.schemaAssociations;
 	}
 
 }

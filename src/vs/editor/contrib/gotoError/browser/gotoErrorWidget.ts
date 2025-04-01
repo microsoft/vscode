@@ -26,9 +26,9 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IMarker, IRelatedInformation, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { SeverityIcon } from '../../../../platform/severityIcon/browser/severityIcon.js';
+import { SeverityIcon } from '../../../../base/browser/ui/severityIcon/severityIcon.js';
 import { contrastBorder, editorBackground, editorErrorBorder, editorErrorForeground, editorInfoBorder, editorInfoForeground, editorWarningBorder, editorWarningForeground, oneOf, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
-import { IColorTheme, IThemeChangeEvent, IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
 
 class MessageWidget {
 
@@ -255,13 +255,9 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		this._backgroundColor = Color.white;
 
 		this._applyTheme(_themeService.getColorTheme());
-		this._callOnDispose.add(_themeService.onDidColorThemeChange(this._ondDidColorThemeChange.bind(this)));
+		this._callOnDispose.add(_themeService.onDidColorThemeChange(this._applyTheme.bind(this)));
 
 		this.create();
-	}
-
-	private _ondDidColorThemeChange(e: IThemeChangeEvent) {
-		this._applyTheme(e.theme);
 	}
 
 	private _applyTheme(theme: IColorTheme) {

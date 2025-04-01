@@ -58,7 +58,9 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: readonly string[], options: vscode.AuthenticationGetSessionOptions = {}): Promise<vscode.AuthenticationSession | undefined> {
 		const extensionId = ExtensionIdentifier.toKey(requestingExtension.identifier);
 		const sortedScopes = [...scopes].sort().join(' ');
-		return await this._getSessionTaskSingler.getOrCreate(`${extensionId} ${providerId} ${sortedScopes}`, async () => {
+		const keys: (keyof vscode.AuthenticationGetSessionOptions)[] = Object.keys(options) as (keyof vscode.AuthenticationGetSessionOptions)[];
+		const optionsStr = keys.sort().map(key => `${key}:${!!options[key]}`).join(', ');
+		return await this._getSessionTaskSingler.getOrCreate(`${extensionId} ${providerId} ${sortedScopes} ${optionsStr}`, async () => {
 			await this._proxy.$ensureProvider(providerId);
 			const extensionName = requestingExtension.displayName || requestingExtension.name;
 			return this._proxy.$getSession(providerId, scopes, extensionId, extensionName, options);

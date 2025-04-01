@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PROMPT_FILE_EXTENSION } from '../../../../../platform/prompts/common/constants.js';
+import { LanguageFilter } from '../../../../../editor/common/languageSelector.js';
+import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, PROMPT_FILE_EXTENSION } from '../../../../../platform/prompts/common/constants.js';
 
 /**
  * Documentation link for the reusable prompts feature.
@@ -11,8 +12,24 @@ import { PROMPT_FILE_EXTENSION } from '../../../../../platform/prompts/common/co
 export const DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-prompt-snippets';
 
 /**
+ * Supported reusable prompt file patterns.
+ */
+const REUSABLE_PROMPT_FILE_PATTERNS = Object.freeze([
+	/**
+	 * Any file that has the prompt file extension.
+	 * See {@link PROMPT_FILE_EXTENSION}.
+	 */
+	`**/*${PROMPT_FILE_EXTENSION}`,
+
+	/**
+	 * Copilot custom instructions file inside a `.github` folder.
+	 */
+	`**/.github/${COPILOT_CUSTOM_INSTRUCTIONS_FILENAME}`,
+]);
+
+/**
  * Prompt files language selector.
  */
-export const LANGUAGE_SELECTOR = Object.freeze({
-	pattern: `**/*${PROMPT_FILE_EXTENSION}`,
+export const LANGUAGE_SELECTOR: LanguageFilter = Object.freeze({
+	pattern: `{${REUSABLE_PROMPT_FILE_PATTERNS.join(',')}}`,
 });

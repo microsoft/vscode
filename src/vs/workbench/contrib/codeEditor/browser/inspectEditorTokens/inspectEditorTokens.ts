@@ -31,7 +31,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { SEMANTIC_HIGHLIGHTING_SETTING_ID, IEditorSemanticHighlightingOptions } from '../../../../../editor/contrib/semanticTokens/common/semanticTokensConfig.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
-import { ITreeSitterParserService } from '../../../../../editor/common/services/treeSitterParserService.js';
+import { ITextModelTreeSitter, ITreeSitterParserService } from '../../../../../editor/common/services/treeSitterParserService.js';
 import type * as Parser from '@vscode/tree-sitter-wasm';
 
 const $ = dom.$;
@@ -254,7 +254,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			if (this._isDisposed) {
 				return;
 			}
-			this._compute(grammar, semanticTokens, tree?.tree, position);
+			this._compute(grammar, semanticTokens, tree, position);
 			this._domNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
 			this._editor.layoutContentWidget(this);
 		}, (err) => {
@@ -275,7 +275,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		return this._themeService.getColorTheme().semanticHighlighting;
 	}
 
-	private _compute(grammar: IGrammar | null, semanticTokens: SemanticTokensResult | null, tree: Parser.Tree | undefined, position: Position) {
+	private _compute(grammar: IGrammar | null, semanticTokens: SemanticTokensResult | null, tree: ITextModelTreeSitter | undefined, position: Position) {
 		const textMateTokenInfo = grammar && this._getTokensAtPosition(grammar, position);
 		const semanticTokenInfo = semanticTokens && this._getSemanticTokenAtPosition(semanticTokens, position);
 		const treeSitterTokenInfo = tree && this._getTreeSitterTokenAtPosition(tree, position);
@@ -400,26 +400,28 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		}
 
 		if (treeSitterTokenInfo) {
+			const lastTokenInfo = treeSitterTokenInfo[treeSitterTokenInfo.length - 1];
 			dom.append(this._domNode, $('hr.tiw-metadata-separator'));
 			const table = dom.append(this._domNode, $('table.tiw-metadata-table'));
 			const tbody = dom.append(table, $('tbody'));
 
 			dom.append(tbody, $('tr', undefined,
-				$('td.tiw-metadata-key', undefined, `tree-sitter token ${treeSitterTokenInfo.id}` as string),
-				$('td.tiw-metadata-value', undefined, `${treeSitterTokenInfo.text}`)
+				$('td.tiw-metadata-key', undefined, `tree-sitter token ${lastTokenInfo.id}` as string),
+				$('td.tiw-metadata-value', undefined, `${lastTokenInfo.text}`)
 			));
 			const scopes = new Array<HTMLElement | string>();
-			let node = treeSitterTokenInfo;
-			while (node.parent) {
+			let i = treeSitterTokenInfo.length - 1;
+			let node = treeSitterTokenInfo[i];
+			while (node.parent || i > 0) {
 				scopes.push(node.type);
-				node = node.parent;
+				node = node.parent ?? treeSitterTokenInfo[--i];
 				if (node) {
 					scopes.push($('br'));
 				}
 			}
 
 			dom.append(tbody, $('tr', undefined,
-				$('td.tiw-metadata-key', undefined, 'tree-sitter scopes' as string),
+				$('td.tiw-metadata-key', undefined, 'tree-sitter tree' as string),
 				$('td.tiw-metadata-value.tiw-metadata-scopes', undefined, ...scopes),
 			));
 
@@ -428,7 +430,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			if (captures && captures.length > 0) {
 				dom.append(tbody, $('tr', undefined,
 					$('td.tiw-metadata-key', undefined, 'foreground'),
-					$('td.tiw-metadata-value', undefined, captures[captures.length - 1].name),
+					$('td.tiw-metadata-value', undefined, captures.map(cap => cap.name).join(' ')),
 				));
 			}
 		}
@@ -662,10 +664,23 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		return lastGoodNode;
 	}
 
-	private _getTreeSitterTokenAtPosition(tree: Parser.Tree, pos: Position): Parser.Node | null {
-		const cursor = tree.walk();
-
-		return this._walkTreeforPosition(cursor, pos);
+	private _getTreeSitterTokenAtPosition(textModelTreeSitter: ITextModelTreeSitter, pos: Position): Parser.Node[] | null {
+		let tree = textModelTreeSitter.parseResult;
+		if (!tree?.tree) {
+			return null;
+		}
+		const nodes: Parser.Node[] = [];
+		do {
+			const cursor = tree.tree.walk();
+			const node = this._walkTreeforPosition(cursor, pos);
+			if (node) {
+				nodes.push(node);
+				tree = textModelTreeSitter.getInjection(node.startIndex, tree.languageId);
+			} else {
+				tree = undefined;
+			}
+		} while (tree?.tree);
+		return nodes.length > 0 ? nodes : null;
 	}
 
 	private _renderTokenStyleDefinition(definition: TokenStyleDefinition | undefined, property: keyof TokenStyleData): Array<HTMLElement | string> {

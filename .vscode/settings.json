@@ -49,6 +49,7 @@
 		"out-vscode-reh/**": true,
 		"extensions/**/dist/**": true,
 		"extensions/**/out/**": true,
+		"extensions/terminal-suggest/src/completions/upstream/**": true,
 		"test/smoke/out/**": true,
 		"test/automation/out/**": true,
 		"test/integration/browser/out/**": true
@@ -156,6 +157,7 @@
 	"application.experimental.rendererProfiling": true,
 	"editor.experimental.asyncTokenization": true,
 	"editor.experimental.asyncTokenizationVerification": true,
+	"terminal.integrated.suggest.enabled": true,
 	"typescript.preferences.autoImportFileExcludePatterns": [
 		"@xterm/xterm",
 		"@xterm/headless",

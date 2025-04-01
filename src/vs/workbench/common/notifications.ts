@@ -29,7 +29,7 @@ export interface INotificationsModel {
 	//#endregion
 
 
-	//#region  Notifications as Status
+	//#region Notifications as Status
 
 	readonly statusMessage: IStatusMessageViewItem | undefined;
 

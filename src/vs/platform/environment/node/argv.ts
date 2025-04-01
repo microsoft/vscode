@@ -104,6 +104,8 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'update-extensions': { type: 'boolean', cat: 'e', description: localize('updateExtensions', "Update the installed extensions.") },
 	'enable-proposed-api': { type: 'string[]', allowEmptyValue: true, cat: 'e', args: 'ext-id', description: localize('experimentalApis', "Enables proposed API features for extensions. Can receive one or more extension IDs to enable individually.") },
 
+	'add-mcp': { type: 'string[]', cat: 'o', args: 'json', description: localize('addMcp', "Adds a Model Context Protocol server definition to the user profile, or workspace or folder when used with --mcp-workspace. Accepts JSON input in the form '{\"name\":\"server-name\",\"command\":...}'") },
+
 	'version': { type: 'boolean', cat: 't', alias: 'v', description: localize('version', "Print version.") },
 	'verbose': { type: 'boolean', cat: 't', global: true, description: localize('verbose', "Print verbose output (implies --wait).") },
 	'log': { type: 'string[]', cat: 't', args: 'level', global: true, description: localize('log', "Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'. You can also configure the log level of an extension by passing extension id and log level in the following format: '${publisher}.${name}:${logLevel}'. For example: 'vscode.csharp:trace'. Can receive one or more such entries.") },
@@ -125,6 +127,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'disable-gpu': { type: 'boolean', cat: 't', description: localize('disableGPU', "Disable GPU hardware acceleration.") },
 	'disable-chromium-sandbox': { type: 'boolean', cat: 't', description: localize('disableChromiumSandbox', "Use this option only when there is requirement to launch the application as sudo user on Linux or when running as an elevated user in an applocker environment on Windows.") },
 	'sandbox': { type: 'boolean' },
+	'locate-shell-integration-path': { type: 'string', cat: 't', args: ['shell'], description: localize('locateShellIntegrationPath', "Print the path to a terminal shell integration script. Allowed values are 'bash', 'pwsh', 'zsh' or 'fish'.") },
 	'telemetry': { type: 'boolean', cat: 't', description: localize('telemetry', "Shows all telemetry events which VS code collects.") },
 
 	'remote': { type: 'string', allowEmptyValue: true },
@@ -179,9 +182,9 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'__enable-file-policy': { type: 'boolean' },
 	'editSessionId': { type: 'string' },
 	'continueOn': { type: 'string' },
-	'locate-shell-integration-path': { type: 'string', args: ['bash', 'pwsh', 'zsh', 'fish'] },
-
 	'enable-coi': { type: 'boolean' },
+	'unresponsive-sample-interval': { type: 'string' },
+	'unresponsive-sample-period': { type: 'string' },
 
 	// chromium flags
 	'no-proxy-server': { type: 'boolean' },
@@ -410,9 +413,12 @@ function indent(count: number): string {
 function wrapText(text: string, columns: number): string[] {
 	const lines: string[] = [];
 	while (text.length) {
-		const index = text.length < columns ? text.length : text.lastIndexOf(' ', columns);
+		let index = text.length < columns ? text.length : text.lastIndexOf(' ', columns);
+		if (index === 0) {
+			index = columns;
+		}
 		const line = text.slice(0, index).trim();
-		text = text.slice(index);
+		text = text.slice(index).trimStart();
 		lines.push(line);
 	}
 	return lines;

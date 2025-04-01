@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { autorun } from '../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
-import { IChatEditingService, IChatEditingSession, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { IChatEditingService, IChatEditingSession } from '../../common/chatEditingService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 
 export class ChatRelatedFilesContribution extends Disposable implements IWorkbenchContribution {
@@ -22,7 +23,7 @@ export class ChatRelatedFilesContribution extends Disposable implements IWorkben
 
 	constructor(
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super();
 
@@ -50,7 +51,7 @@ export class ChatRelatedFilesContribution extends Disposable implements IWorkben
 
 		this._currentRelatedFilesRetrievalOperation = this.chatEditingService.getRelatedFiles(currentEditingSession.chatSessionId, widget.getInput(), widget.attachmentModel.fileAttachments, CancellationToken.None)
 			.then((files) => {
-				if (!files?.length || !widget.viewModel?.sessionId) {
+				if (!files?.length || !widget.viewModel?.sessionId || !widget.input.relatedFiles) {
 					return;
 				}
 
@@ -59,13 +60,13 @@ export class ChatRelatedFilesContribution extends Disposable implements IWorkben
 					return; // Might have disposed while we were calculating
 				}
 
-				const existingFiles = new ResourceSet(widget.attachmentModel.fileAttachments);
+				const existingFiles = new ResourceSet([...widget.attachmentModel.fileAttachments, ...widget.input.relatedFiles.removedFiles]);
 				if (!existingFiles.size) {
 					return;
 				}
 
 				// Pick up to 2 related files
-				const newSuggestions = new ResourceMap<{ description: string; group: string }>();
+				const newSuggestions = new ResourceMap<string>();
 				for (const group of files) {
 					for (const file of group.files) {
 						if (newSuggestions.size >= 2) {
@@ -74,24 +75,12 @@ export class ChatRelatedFilesContribution extends Disposable implements IWorkben
 						if (existingFiles.has(file.uri)) {
 							continue;
 						}
-						newSuggestions.set(file.uri, { group: group.group, description: file.description });
+						newSuggestions.set(file.uri, localize('relatedFile', "{0} (Suggested)", file.description));
 						existingFiles.add(file.uri);
 					}
 				}
 
-				// Remove the existing related file suggestions from the working set
-				const existingSuggestedEntriesToRemove: URI[] = [];
-				for (const entry of currentEditingSession.workingSet) {
-					if (entry[1].state === WorkingSetEntryState.Suggested && !newSuggestions.has(entry[0])) {
-						existingSuggestedEntriesToRemove.push(entry[0]);
-					}
-				}
-				currentEditingSession?.remove(WorkingSetEntryRemovalReason.Programmatic, ...existingSuggestedEntriesToRemove);
-
-				// Add the new related file suggestions to the working set
-				for (const [uri, data] of newSuggestions) {
-					currentEditingSession.addFileToWorkingSet(uri, localize('relatedFile', "{0} (Suggested)", data.description), WorkingSetEntryState.Suggested);
-				}
+				widget.input.relatedFiles.value = [...newSuggestions.entries()].map(([uri, description]) => ({ uri, description }));
 			})
 			.finally(() => {
 				this._currentRelatedFilesRetrievalOperation = undefined;
@@ -115,6 +104,10 @@ export class ChatRelatedFilesContribution extends Disposable implements IWorkben
 		disposableStore.add(currentEditingSession.onDidDispose(() => {
 			disposableStore.dispose();
 		}));
+		disposableStore.add(widget.onDidAcceptInput(() => {
+			widget.input.relatedFiles?.clear();
+			this._updateRelatedFileSuggestions(currentEditingSession, widget);
+		}));
 		this.chatEditingSessionDisposables.set(currentEditingSession.chatSessionId, disposableStore);
 	}
 
@@ -123,5 +116,46 @@ export class ChatRelatedFilesContribution extends Disposable implements IWorkben
 			store.dispose();
 		}
 		super.dispose();
+	}
+}
+
+export interface IChatRelatedFile {
+	uri: URI;
+	description: string;
+}
+export class ChatRelatedFiles extends Disposable {
+
+	private readonly _onDidChange = this._register(new Emitter<void>());
+	readonly onDidChange: Event<void> = this._onDidChange.event;
+
+	private _removedFiles = new ResourceSet();
+	get removedFiles() {
+		return this._removedFiles;
+	}
+
+	private _value: IChatRelatedFile[] = [];
+	get value() {
+		return this._value;
+	}
+
+	set value(value: IChatRelatedFile[]) {
+		this._value = value;
+		this._onDidChange.fire();
+	}
+
+	remove(uri: URI) {
+		this._value = this._value.filter(file => !isEqual(file.uri, uri));
+		this._removedFiles.add(uri);
+		this._onDidChange.fire();
+	}
+
+	clearRemovedFiles() {
+		this._removedFiles.clear();
+	}
+
+	clear() {
+		this._value = [];
+		this._removedFiles.clear();
+		this._onDidChange.fire();
 	}
 }

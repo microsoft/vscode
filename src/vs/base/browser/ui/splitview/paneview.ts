@@ -18,6 +18,7 @@ import { ScrollEvent } from '../../../common/scrollable.js';
 import './paneview.css';
 import { localize } from '../../../../nls.js';
 import { IView, Sizing, SplitView } from './splitview.js';
+import { applyDragImage } from '../dnd/dnd.js';
 
 export interface IPaneOptions {
 	minimumBodySize?: number;
@@ -381,16 +382,16 @@ class PaneDraggable extends Disposable {
 			return;
 		}
 
+		const label = this.pane.draggableElement?.textContent || '';
+
 		e.dataTransfer.effectAllowed = 'move';
 
 		if (isFirefox) {
 			// Firefox: requires to set a text data transfer to get going
-			e.dataTransfer?.setData(DataTransfers.TEXT, this.pane.draggableElement?.textContent || '');
+			e.dataTransfer?.setData(DataTransfers.TEXT, label);
 		}
 
-		const dragImage = append(this.pane.element.ownerDocument.body, $('.monaco-drag-image', {}, this.pane.draggableElement?.textContent || ''));
-		e.dataTransfer.setDragImage(dragImage, -10, -10);
-		setTimeout(() => dragImage.remove(), 0);
+		applyDragImage(e, this.pane.element, label);
 
 		this.context.draggable = this;
 	}

@@ -7,7 +7,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { MainThreadTestCollection } from '../../common/mainThreadTestCollection.js';
 import { ITestItem, TestsDiff } from '../../common/testTypes.js';
 import { TestId } from '../../common/testId.js';
-import { createTestItemChildren, ITestItemApi, ITestItemLike, TestItemCollection, TestItemEventOp } from '../../common/testItemCollection.js';
+import { createTestItemChildren, ITestItemApi, ITestItemChildren, ITestItemLike, TestItemCollection, TestItemEventOp } from '../../common/testItemCollection.js';
 
 export class TestTestItem implements ITestItemLike {
 	private readonly props: ITestItem;
@@ -39,15 +39,17 @@ export class TestTestItem implements ITestItemLike {
 		return this._extId.localId;
 	}
 
-	public api: ITestItemApi<TestTestItem> = { controllerId: this._extId.controllerId };
+	public api: ITestItemApi<TestTestItem>;
 
-	public children = createTestItemChildren(this.api, i => i.api, TestTestItem);
+	public children: ITestItemChildren<TestTestItem>;
 
 	constructor(
 		private readonly _extId: TestId,
 		label: string,
 		uri?: URI,
 	) {
+		this.api = { controllerId: this._extId.controllerId };
+		this.children = createTestItemChildren(this.api, i => i.api, TestTestItem);
 		this.props = {
 			extId: _extId.toString(),
 			busy: false,

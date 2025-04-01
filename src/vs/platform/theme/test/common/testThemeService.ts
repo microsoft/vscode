@@ -7,7 +7,7 @@ import { Color } from '../../../../base/common/color.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IconContribution } from '../../common/iconRegistry.js';
 import { ColorScheme } from '../../common/theme.js';
-import { IColorTheme, IFileIconTheme, IProductIconTheme, IThemeChangeEvent, IThemeService, ITokenStyle } from '../../common/themeService.js';
+import { IColorTheme, IFileIconTheme, IProductIconTheme, IThemeService, ITokenStyle } from '../../common/themeService.js';
 
 export class TestColorTheme implements IColorTheme {
 
@@ -58,7 +58,7 @@ export class TestThemeService implements IThemeService {
 	_colorTheme: IColorTheme;
 	_fileIconTheme: IFileIconTheme;
 	_productIconTheme: IProductIconTheme;
-	_onThemeChange = new Emitter<IThemeChangeEvent>();
+	_onThemeChange = new Emitter<IColorTheme>();
 	_onFileIconThemeChange = new Emitter<IFileIconTheme>();
 	_onProductIconThemeChange = new Emitter<IProductIconTheme>();
 
@@ -78,10 +78,10 @@ export class TestThemeService implements IThemeService {
 	}
 
 	fireThemeChange() {
-		this._onThemeChange.fire({ theme: this._colorTheme });
+		this._onThemeChange.fire(this._colorTheme);
 	}
 
-	public get onDidColorThemeChange(): Event<IThemeChangeEvent> {
+	public get onDidColorThemeChange(): Event<IColorTheme> {
 		return this._onThemeChange.event;
 	}
 

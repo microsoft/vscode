@@ -37,7 +37,6 @@ import { IListService, IOpenEvent, IWorkbenchObjectTreeOptions, WorkbenchObjectT
 import { IMarkerService, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { IOpenerService, withSelection } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -132,7 +131,6 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IMarkerService private readonly markerService: IMarkerService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
@@ -155,7 +153,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 				text: panelState['filter'] || '',
 				history: panelState['filterHistory'] || []
 			}
-		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.memento = memento;
 		this.panelState = panelState;
 

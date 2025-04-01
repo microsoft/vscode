@@ -7,6 +7,7 @@ import { AccountInfo } from '@azure/msal-node';
 import { SecretStorage, LogOutputChannel, Disposable, EventEmitter, Memento, Event } from 'vscode';
 import { ICachedPublicClientApplication, ICachedPublicClientApplicationManager } from '../common/publicClientCache';
 import { CachedPublicClientApplication } from './cachedPublicClientApplication';
+import { IAccountAccess, ScopedAccountAccess } from '../common/accountAccess';
 
 export interface IPublicClientApplicationInfo {
 	clientId: string;
@@ -14,56 +15,68 @@ export interface IPublicClientApplicationInfo {
 }
 
 export class CachedPublicClientApplicationManager implements ICachedPublicClientApplicationManager {
-	// The key is the clientId and authority JSON stringified
-	private readonly _pcas = new Map<string, CachedPublicClientApplication>();
+	// The key is the clientId
+	private readonly _pcas = new Map<string, ICachedPublicClientApplication>();
 	private readonly _pcaDisposables = new Map<string, Disposable>();
 
 	private _disposable: Disposable;
-	private _pcasSecretStorage: PublicClientApplicationsSecretStorage;
 
 	private readonly _onDidAccountsChangeEmitter = new EventEmitter<{ added: AccountInfo[]; changed: AccountInfo[]; deleted: AccountInfo[] }>();
 	readonly onDidAccountsChange = this._onDidAccountsChangeEmitter.event;
 
-	constructor(
-		private readonly _globalMemento: Memento,
+	private constructor(
+		private readonly _pcasSecretStorage: IPublicClientApplicationSecretStorage,
+		private readonly _accountAccess: IAccountAccess,
 		private readonly _secretStorage: SecretStorage,
 		private readonly _logger: LogOutputChannel,
-		private readonly _cloudName: string
+		disposables: Disposable[]
 	) {
-		this._pcasSecretStorage = new PublicClientApplicationsSecretStorage(_secretStorage, _cloudName);
 		this._disposable = Disposable.from(
-			this._pcasSecretStorage,
+			...disposables,
 			this._registerSecretStorageHandler(),
 			this._onDidAccountsChangeEmitter
 		);
+	}
+
+	static async create(
+		secretStorage: SecretStorage,
+		logger: LogOutputChannel,
+		cloudName: string
+	): Promise<CachedPublicClientApplicationManager> {
+		const pcasSecretStorage = await PublicClientApplicationsSecretStorage.create(secretStorage, cloudName);
+		// TODO: Remove the migrations in a version
+		const migrations = await pcasSecretStorage.getOldValue();
+		const accountAccess = await ScopedAccountAccess.create(secretStorage, cloudName, logger, migrations);
+		const manager = new CachedPublicClientApplicationManager(pcasSecretStorage, accountAccess, secretStorage, logger, [pcasSecretStorage, accountAccess]);
+		await manager.initialize();
+		return manager;
 	}
 
 	private _registerSecretStorageHandler() {
 		return this._pcasSecretStorage.onDidChange(() => this._handleSecretStorageChange());
 	}
 
-	async initialize() {
+	private async initialize() {
 		this._logger.debug('[initialize] Initializing PublicClientApplicationManager');
-		let keys: string[] | undefined;
+		let clientIds: string[] | undefined;
 		try {
-			keys = await this._pcasSecretStorage.get();
+			clientIds = await this._pcasSecretStorage.get();
 		} catch (e) {
 			// data is corrupted
 			this._logger.error('[initialize] Error initializing PublicClientApplicationManager:', e);
 			await this._pcasSecretStorage.delete();
 		}
-		if (!keys) {
+		if (!clientIds) {
 			return;
 		}
 
 		const promises = new Array<Promise<ICachedPublicClientApplication>>();
-		for (const key of keys) {
+		for (const clientId of clientIds) {
 			try {
-				const { clientId, authority } = JSON.parse(key) as IPublicClientApplicationInfo;
 				// Load the PCA in memory
-				promises.push(this._doCreatePublicClientApplication(clientId, authority, key));
+				promises.push(this._doCreatePublicClientApplication(clientId));
 			} catch (e) {
-				this._logger.error('[initialize] Error intitializing PCA:', key);
+				this._logger.error('[initialize] Error intitializing PCA:', clientId);
 			}
 		}
 
@@ -75,11 +88,11 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 			} else {
 				if (!result.value.accounts.length) {
 					pcasChanged = true;
-					const pcaKey = JSON.stringify({ clientId: result.value.clientId, authority: result.value.authority });
-					this._pcaDisposables.get(pcaKey)?.dispose();
-					this._pcaDisposables.delete(pcaKey);
-					this._pcas.delete(pcaKey);
-					this._logger.debug(`[initialize] [${result.value.clientId}] [${result.value.authority}] PCA disposed because it's empty.`);
+					const clientId = result.value.clientId;
+					this._pcaDisposables.get(clientId)?.dispose();
+					this._pcaDisposables.delete(clientId);
+					this._pcas.delete(clientId);
+					this._logger.debug(`[initialize] [${clientId}] PCA disposed because it's empty.`);
 				}
 			}
 		}
@@ -94,43 +107,39 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 		Disposable.from(...this._pcaDisposables.values()).dispose();
 	}
 
-	async getOrCreate(clientId: string, authority: string, refreshTokensToMigrate?: string[]): Promise<ICachedPublicClientApplication> {
-		// Use the clientId and authority as the key
-		const pcasKey = JSON.stringify({ clientId, authority });
-		let pca = this._pcas.get(pcasKey);
+	async getOrCreate(clientId: string, refreshTokensToMigrate?: string[]): Promise<ICachedPublicClientApplication> {
+		let pca = this._pcas.get(clientId);
 		if (pca) {
-			this._logger.debug(`[getOrCreate] [${clientId}] [${authority}] PublicClientApplicationManager cache hit`);
+			this._logger.debug(`[getOrCreate] [${clientId}] PublicClientApplicationManager cache hit`);
 		} else {
-			this._logger.debug(`[getOrCreate] [${clientId}] [${authority}] PublicClientApplicationManager cache miss, creating new PCA...`);
-			pca = await this._doCreatePublicClientApplication(clientId, authority, pcasKey);
+			this._logger.debug(`[getOrCreate] [${clientId}] PublicClientApplicationManager cache miss, creating new PCA...`);
+			pca = await this._doCreatePublicClientApplication(clientId);
 			await this._storePublicClientApplications();
-			this._logger.debug(`[getOrCreate] [${clientId}] [${authority}] PCA created.`);
+			this._logger.debug(`[getOrCreate] [${clientId}] PCA created.`);
 		}
 
 		// TODO: MSAL Migration. Remove this when we remove the old flow.
 		if (refreshTokensToMigrate?.length) {
-			this._logger.debug(`[getOrCreate] [${clientId}] [${authority}] Migrating refresh tokens to PCA...`);
+			this._logger.debug(`[getOrCreate] [${clientId}] Migrating refresh tokens to PCA...`);
 			for (const refreshToken of refreshTokensToMigrate) {
 				try {
 					// Use the refresh token to acquire a result. This will cache the refresh token for future operations.
 					// The scopes don't matter here since we can create any token from the refresh token.
 					const result = await pca.acquireTokenByRefreshToken({ refreshToken, forceCache: true, scopes: [] });
 					if (result?.account) {
-						this._logger.debug(`[getOrCreate] [${clientId}] [${authority}] Refresh token migrated to PCA.`);
+						this._logger.debug(`[getOrCreate] [${clientId}] Refresh token migrated to PCA.`);
 					}
 				} catch (e) {
-					this._logger.error(`[getOrCreate] [${clientId}] [${authority}] Error migrating refresh token:`, e);
+					this._logger.error(`[getOrCreate] [${clientId}] Error migrating refresh token:`, e);
 				}
 			}
-			// reinitialize the PCA so the account is properly cached
-			await pca.initialize();
 		}
 		return pca;
 	}
 
-	private async _doCreatePublicClientApplication(clientId: string, authority: string, pcasKey: string) {
-		const pca = new CachedPublicClientApplication(clientId, authority, this._cloudName, this._globalMemento, this._secretStorage, this._logger);
-		this._pcas.set(pcasKey, pca);
+	private async _doCreatePublicClientApplication(clientId: string): Promise<ICachedPublicClientApplication> {
+		const pca = await CachedPublicClientApplication.create(clientId, this._secretStorage, this._accountAccess, this._logger);
+		this._pcas.set(clientId, pca);
 		const disposable = Disposable.from(
 			pca,
 			pca.onDidAccountsChange(e => this._onDidAccountsChangeEmitter.fire(e)),
@@ -138,15 +147,17 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 				// The PCA has no more accounts, so we can dispose it so we're not keeping it
 				// around forever.
 				disposable.dispose();
-				this._pcaDisposables.delete(pcasKey);
-				this._pcas.delete(pcasKey);
-				this._logger.debug(`[_doCreatePublicClientApplication] [${clientId}] [${authority}] PCA disposed. Firing off storing of PCAs...`);
+				this._pcaDisposables.delete(clientId);
+				this._pcas.delete(clientId);
+				this._logger.debug(`[_doCreatePublicClientApplication] [${clientId}] PCA disposed. Firing off storing of PCAs...`);
 				void this._storePublicClientApplications();
 			})
 		);
-		this._pcaDisposables.set(pcasKey, disposable);
-		// Intialize the PCA after the `onDidAccountsChange` is set so we get initial state.
-		await pca.initialize();
+		this._pcaDisposables.set(clientId, disposable);
+		// Fire for the initial state and only if accounts exist
+		if (pca.accounts.length > 0) {
+			this._onDidAccountsChangeEmitter.fire({ added: pca.accounts, changed: [], deleted: [] });
+		}
 		return pca;
 	}
 
@@ -183,15 +194,14 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 		}
 
 		// Handle the new ones
-		for (const newPca of pcaKeysFromStorage) {
+		for (const clientId of pcaKeysFromStorage) {
 			try {
-				const { clientId, authority } = JSON.parse(newPca);
-				this._logger.debug(`[_handleSecretStorageChange] [${clientId}] [${authority}] Creating new PCA that was created in another window...`);
-				await this._doCreatePublicClientApplication(clientId, authority, newPca);
-				this._logger.debug(`[_handleSecretStorageChange] [${clientId}] [${authority}] PCA created.`);
+				this._logger.debug(`[_handleSecretStorageChange] [${clientId}] Creating new PCA that was created in another window...`);
+				await this._doCreatePublicClientApplication(clientId);
+				this._logger.debug(`[_handleSecretStorageChange] [${clientId}] PCA created.`);
 			} catch (_e) {
 				// This really shouldn't happen, but should we do something about this?
-				this._logger.error(`Failed to parse new PublicClientApplication: ${newPca}`);
+				this._logger.error(`Failed to create new PublicClientApplication: ${clientId}`);
 				continue;
 			}
 		}
@@ -204,15 +214,24 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 	}
 }
 
-class PublicClientApplicationsSecretStorage {
+interface IPublicClientApplicationSecretStorage {
+	get(): Promise<string[] | undefined>;
+	getOldValue(): Promise<{ clientId: string; authority: string }[] | undefined>;
+	store(value: string[]): Thenable<void>;
+	delete(): Thenable<void>;
+	onDidChange: Event<void>;
+}
+
+class PublicClientApplicationsSecretStorage implements IPublicClientApplicationSecretStorage, Disposable {
 	private _disposable: Disposable;
 
 	private readonly _onDidChangeEmitter = new EventEmitter<void>;
 	readonly onDidChange: Event<void> = this._onDidChangeEmitter.event;
 
-	private readonly _key = `publicClientApplications-${this._cloudName}`;
+	private readonly _oldKey = `publicClientApplications-${this._cloudName}`;
+	private readonly _key = `publicClients-${this._cloudName}`;
 
-	constructor(private readonly _secretStorage: SecretStorage, private readonly _cloudName: string) {
+	private constructor(private readonly _secretStorage: SecretStorage, private readonly _cloudName: string) {
 		this._disposable = Disposable.from(
 			this._onDidChangeEmitter,
 			this._secretStorage.onDidChange(e => {
@@ -223,12 +242,55 @@ class PublicClientApplicationsSecretStorage {
 		);
 	}
 
+	static async create(secretStorage: SecretStorage, cloudName: string): Promise<PublicClientApplicationsSecretStorage> {
+		const storage = new PublicClientApplicationsSecretStorage(secretStorage, cloudName);
+		await storage.initialize();
+		return storage;
+	}
+
+	/**
+	 * Runs the migration.
+	 * TODO: Remove this after a version.
+	 */
+	private async initialize() {
+		const oldValue = await this.getOldValue();
+		if (!oldValue) {
+			return;
+		}
+		const newValue = await this.get() ?? [];
+		for (const { clientId } of oldValue) {
+			if (!newValue.includes(clientId)) {
+				newValue.push(clientId);
+			}
+		}
+		await this.store(newValue);
+	}
+
 	async get(): Promise<string[] | undefined> {
 		const value = await this._secretStorage.get(this._key);
 		if (!value) {
 			return undefined;
 		}
 		return JSON.parse(value);
+	}
+
+	/**
+	 * Old representation of data that included the authority. This should be removed in a version or 2.
+	 * @returns An array of objects with clientId and authority
+	 */
+	async getOldValue(): Promise<{ clientId: string; authority: string }[] | undefined> {
+		const value = await this._secretStorage.get(this._oldKey);
+		if (!value) {
+			return undefined;
+		}
+		const result: { clientId: string; authority: string }[] = [];
+		for (const stringifiedObj of JSON.parse(value)) {
+			const obj = JSON.parse(stringifiedObj);
+			if (obj.clientId && obj.authority) {
+				result.push(obj);
+			}
+		}
+		return result;
 	}
 
 	store(value: string[]): Thenable<void> {

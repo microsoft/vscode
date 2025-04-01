@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type * as vscode from 'vscode';
 import { asArray, coalesce, isFalsyOrEmpty, isNonEmptyArray } from '../../../base/common/arrays.js';
 import { raceCancellationError } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
@@ -16,6 +17,7 @@ import { regExpLeadsToEndlessLoop } from '../../../base/common/strings.js';
 import { assertType, isObject } from '../../../base/common/types.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { IURITransformer } from '../../../base/common/uriIpc.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 import { IPosition } from '../../../editor/common/core/position.js';
 import { Range as EditorRange, IRange } from '../../../editor/common/core/range.js';
 import { ISelection, Selection } from '../../../editor/common/core/selection.js';
@@ -25,17 +27,16 @@ import { encodeSemanticTokensDto } from '../../../editor/common/services/semanti
 import { localize } from '../../../nls.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
+import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { Cache } from './cache.js';
+import * as extHostProtocol from './extHost.protocol.js';
 import { IExtHostApiDeprecationService } from './extHostApiDeprecationService.js';
 import { CommandsConverter, ExtHostCommands } from './extHostCommands.js';
 import { ExtHostDiagnostics } from './extHostDiagnostics.js';
 import { ExtHostDocuments } from './extHostDocuments.js';
 import { ExtHostTelemetry, IExtHostTelemetry } from './extHostTelemetry.js';
 import * as typeConvert from './extHostTypeConverters.js';
-import { CodeAction, CodeActionKind, CompletionList, Disposable, DocumentDropOrPasteEditKind, DocumentSymbol, InlineCompletionTriggerKind, InlineEditTriggerKind, InternalDataTransferItem, Location, NewSymbolNameTriggerKind, Range, SemanticTokens, SemanticTokensEdit, SemanticTokensEdits, SnippetString, SymbolInformation, SyntaxTokenType } from './extHostTypes.js';
-import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
-import type * as vscode from 'vscode';
-import { Cache } from './cache.js';
-import * as extHostProtocol from './extHost.protocol.js';
+import { CodeAction, CodeActionKind, CompletionList, DataTransfer, Disposable, DocumentDropOrPasteEditKind, DocumentSymbol, InlineCompletionTriggerKind, InlineEditTriggerKind, InternalDataTransferItem, Location, NewSymbolNameTriggerKind, Range, SemanticTokens, SemanticTokensEdit, SemanticTokensEdits, SnippetString, SymbolInformation, SyntaxTokenType } from './extHostTypes.js';
 
 // --- adapter
 
@@ -586,7 +587,9 @@ class CodeActionAdapter {
 
 class DocumentPasteEditProvider {
 
-	private readonly _cache = new Cache<vscode.DocumentPasteEdit>('DocumentPasteEdit');
+	private _cachedPrepare?: Map<string, vscode.DataTransferItem>;
+
+	private readonly _editsCache = new Cache<vscode.DocumentPasteEdit>('DocumentPasteEdit.edits');
 
 	constructor(
 		private readonly _proxy: extHostProtocol.MainThreadLanguageFeaturesShape,
@@ -601,6 +604,8 @@ class DocumentPasteEditProvider {
 			return;
 		}
 
+		this._cachedPrepare = undefined;
+
 		const doc = this._documents.getDocument(resource);
 		const vscodeRanges = ranges.map(range => typeConvert.Range.to(range));
 
@@ -613,8 +618,20 @@ class DocumentPasteEditProvider {
 		}
 
 		// Only send back values that have been added to the data transfer
-		const entries = Array.from(dataTransfer).filter(([, value]) => !(value instanceof InternalDataTransferItem));
-		return typeConvert.DataTransfer.from(entries);
+		const newEntries = Array.from(dataTransfer).filter(([, value]) => !(value instanceof InternalDataTransferItem));
+
+		// Store off original data transfer items so we can retrieve them on paste
+		const newCache = new Map<string, vscode.DataTransferItem>();
+
+		const items = await Promise.all(Array.from(newEntries, async ([mime, value]) => {
+			const id = generateUuid();
+			newCache.set(id, value);
+			return [mime, await typeConvert.DataTransferItem.from(mime, value, id)] as const;
+		}));
+
+		this._cachedPrepare = newCache;
+
+		return { items };
 	}
 
 	async providePasteEdits(requestId: number, resource: URI, ranges: IRange[], dataTransferDto: extHostProtocol.DataTransferDTO, context: extHostProtocol.IDocumentPasteContextDto, token: CancellationToken): Promise<extHostProtocol.IPasteEditDto[]> {
@@ -625,9 +642,21 @@ class DocumentPasteEditProvider {
 		const doc = this._documents.getDocument(resource);
 		const vscodeRanges = ranges.map(range => typeConvert.Range.to(range));
 
-		const dataTransfer = typeConvert.DataTransfer.toDataTransfer(dataTransferDto, async (id) => {
-			return (await this._proxy.$resolvePasteFileData(this._handle, requestId, id)).buffer;
+		const items = dataTransferDto.items.map(([mime, value]): [string, vscode.DataTransferItem] => {
+			const cached = this._cachedPrepare?.get(value.id);
+			if (cached) {
+				return [mime, cached];
+			}
+
+			return [
+				mime,
+				typeConvert.DataTransferItem.to(mime, value, async id => {
+					return (await this._proxy.$resolvePasteFileData(this._handle, requestId, id)).buffer;
+				})
+			];
 		});
+
+		const dataTransfer = new DataTransfer(items);
 
 		const edits = await this._provider.provideDocumentPasteEdits(doc, vscodeRanges, dataTransfer, {
 			only: context.only ? new DocumentDropOrPasteEditKind(context.only) : undefined,
@@ -637,7 +666,7 @@ class DocumentPasteEditProvider {
 			return [];
 		}
 
-		const cacheId = this._cache.add(edits);
+		const cacheId = this._editsCache.add(edits);
 
 		return edits.map((edit, i): extHostProtocol.IPasteEditDto => ({
 			_cacheId: [cacheId, i],
@@ -651,7 +680,7 @@ class DocumentPasteEditProvider {
 
 	async resolvePasteEdit(id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<{ insertText?: string | vscode.SnippetString; additionalEdit?: extHostProtocol.IWorkspaceEditDto }> {
 		const [sessionId, itemId] = id;
-		const item = this._cache.get(sessionId, itemId);
+		const item = this._editsCache.get(sessionId, itemId);
 		if (!item || !this._provider.resolveDocumentPasteEdit) {
 			return {}; // this should not happen...
 		}
@@ -664,7 +693,7 @@ class DocumentPasteEditProvider {
 	}
 
 	releasePasteEdits(id: number): any {
-		this._cache.delete(id);
+		this._editsCache.delete(id);
 	}
 }
 

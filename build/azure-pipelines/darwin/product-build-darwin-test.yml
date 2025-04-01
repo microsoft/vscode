@@ -23,10 +23,10 @@ steps:
       - script: npm run test-node
         displayName: Run unit tests (node.js)
         timeoutInMinutes: 15
-      - script: npm run test-browser-no-install -- --sequential --browser chromium --browser webkit --tfs "Browser Unit Tests"
+      - script: npm run test-browser-no-install -- --browser webkit --tfs "Browser Unit Tests"
         env:
           DEBUG: "*browser*"
-        displayName: Run unit tests (Browser, Chromium & Webkit)
+        displayName: Run unit tests (Browser, Webkit)
         timeoutInMinutes: 30
 
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
@@ -36,10 +36,10 @@ steps:
       - script: npm run test-node -- --build
         displayName: Run unit tests (node.js)
         timeoutInMinutes: 15
-      - script: npm run test-browser-no-install -- --sequential --build --browser chromium --browser webkit --tfs "Browser Unit Tests"
+      - script: npm run test-browser-no-install -- --build --browser webkit --tfs "Browser Unit Tests"
         env:
           DEBUG: "*browser*"
-        displayName: Run unit tests (Browser, Chromium & Webkit)
+        displayName: Run unit tests (Browser, Webkit)
         timeoutInMinutes: 30
 
   - ${{ if eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true) }}:

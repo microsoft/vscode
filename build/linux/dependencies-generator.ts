@@ -25,7 +25,7 @@ import product = require('../../product.json');
 // are valid, are in dep-lists.ts
 const FAIL_BUILD_FOR_NEW_DEPENDENCIES: boolean = true;
 
-// Based on https://source.chromium.org/chromium/chromium/src/+/refs/tags/132.0.6834.196:chrome/installer/linux/BUILD.gn;l=64-80
+// Based on https://source.chromium.org/chromium/chromium/src/+/refs/tags/132.0.6834.210:chrome/installer/linux/BUILD.gn;l=64-80
 // and the Linux Archive build
 // Shared library dependencies that we already bundle.
 const bundledDeps = [

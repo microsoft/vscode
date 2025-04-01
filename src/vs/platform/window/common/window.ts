@@ -152,6 +152,7 @@ export interface IWindowSettings {
 	readonly restoreFullscreen: boolean;
 	readonly zoomLevel: number;
 	readonly titleBarStyle: TitlebarStyle;
+	readonly controlsStyle: WindowControlsStyle;
 	readonly autoDetectHighContrast: boolean;
 	readonly autoDetectColorScheme: boolean;
 	readonly menuBarVisibility: MenuBarVisibility;
@@ -177,6 +178,12 @@ export const enum TitleBarSetting {
 export const enum TitlebarStyle {
 	NATIVE = 'native',
 	CUSTOM = 'custom',
+}
+
+export const enum WindowControlsStyle {
+	NATIVE = 'native',
+	CUSTOM = 'custom',
+	HIDDEN = 'hidden'
 }
 
 export const enum CustomTitleBarVisibility {
@@ -225,6 +232,20 @@ export function getTitleBarStyle(configurationService: IConfigurationService): T
 	return TitlebarStyle.CUSTOM; // default to custom on all OS
 }
 
+export function getWindowControlsStyle(configurationService: IConfigurationService): WindowControlsStyle {
+	if (isWeb || isMacintosh || getTitleBarStyle(configurationService) === TitlebarStyle.NATIVE) {
+		return WindowControlsStyle.NATIVE; // only supported on Windows/Linux desktop with custom titlebar
+	}
+
+	const configuration = configurationService.getValue<IWindowSettings | undefined>('window');
+	const style = configuration?.controlsStyle;
+	if (style === WindowControlsStyle.CUSTOM || style === WindowControlsStyle.HIDDEN) {
+		return style;
+	}
+
+	return WindowControlsStyle.NATIVE; // default to native on all OS
+}
+
 export const DEFAULT_CUSTOM_TITLEBAR_HEIGHT = 35; // includes space for command center
 
 export function useWindowControlsOverlay(configurationService: IConfigurationService): boolean {
@@ -234,6 +255,13 @@ export function useWindowControlsOverlay(configurationService: IConfigurationSer
 
 	if (hasNativeTitlebar(configurationService)) {
 		return false; // only supported when title bar is custom
+	}
+
+	if (!isMacintosh) {
+		const setting = getWindowControlsStyle(configurationService);
+		if (setting === WindowControlsStyle.CUSTOM || setting === WindowControlsStyle.HIDDEN) {
+			return false; // explicitly disabled by choice
+		}
 	}
 
 	return true; // default

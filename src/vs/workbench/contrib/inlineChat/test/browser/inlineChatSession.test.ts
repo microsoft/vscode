@@ -49,7 +49,7 @@ import { IChatVariablesService } from '../../../chat/common/chatVariables.js';
 import { IChatWidgetHistoryService, ChatWidgetHistoryService } from '../../../chat/common/chatWidgetHistoryService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { TestExtensionService, TestContextService } from '../../../../test/common/workbenchTestServices.js';
-import { IChatAgentService, ChatAgentService, ChatAgentLocation } from '../../../chat/common/chatAgents.js';
+import { IChatAgentService, ChatAgentService } from '../../../chat/common/chatAgents.js';
 import { ChatVariablesService } from '../../../chat/browser/chatVariables.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { TestCommandService } from '../../../../../editor/test/browser/editorTestServices.js';
@@ -62,6 +62,7 @@ import { IChatRequestModel } from '../../../chat/common/chatModel.js';
 import { assertSnapshot } from '../../../../../base/test/common/snapshot.js';
 import { IObservable, constObservable } from '../../../../../base/common/observable.js';
 import { IChatEditingService, IChatEditingSession } from '../../../chat/common/chatEditingService.js';
+import { ChatAgentLocation } from '../../../chat/common/constants.js';
 
 suite('InlineChatSession', function () {
 

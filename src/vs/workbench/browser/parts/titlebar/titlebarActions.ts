@@ -14,7 +14,6 @@ import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from '../../../common/activi
 import { IAction } from '../../../../base/common/actions.js';
 import { IsAuxiliaryWindowFocusedContext, IsMainWindowFullscreenContext, TitleBarStyleContext, TitleBarVisibleContext } from '../../../common/contextkeys.js';
 import { CustomTitleBarVisibility, TitleBarSetting, TitlebarStyle } from '../../../../platform/window/common/window.js';
-import { isLinux, isNative } from '../../../../base/common/platform.js';
 
 // --- Context Menu Actions --- //
 
@@ -258,26 +257,6 @@ registerAction2(class ToggleEditorActions extends Action2 {
 		}
 	}
 });
-
-if (isLinux && isNative) {
-	registerAction2(class ToggleCustomTitleBar extends Action2 {
-		constructor() {
-			super({
-				id: `toggle.${TitleBarSetting.TITLE_BAR_STYLE}`,
-				title: localize('toggle.titleBarStyle', 'Restore Native Title Bar'),
-				menu: [
-					{ id: MenuId.TitleBarContext, order: 0, when: ContextKeyExpr.equals(TitleBarStyleContext.key, TitlebarStyle.CUSTOM), group: '4_restore_native_title' },
-					{ id: MenuId.TitleBarTitleContext, order: 0, when: ContextKeyExpr.equals(TitleBarStyleContext.key, TitlebarStyle.CUSTOM), group: '4_restore_native_title' },
-				]
-			});
-		}
-
-		run(accessor: ServicesAccessor): void {
-			const configService = accessor.get(IConfigurationService);
-			configService.updateValue(TitleBarSetting.TITLE_BAR_STYLE, TitlebarStyle.NATIVE);
-		}
-	});
-}
 
 // --- Toolbar actions --- //
 

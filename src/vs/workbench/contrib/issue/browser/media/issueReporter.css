@@ -97,7 +97,6 @@
 	line-height: 1.5;
 	color: #495057;
 	background-color: #fff;
-	border: none;
 }
 
 .issue-reporter * {
@@ -184,7 +183,7 @@
 
 .issue-reporter body {
 	margin: 0;
-	overflow-y: scroll;
+	overflow-y: auto;
 	height: 100%;
 }
 
@@ -213,12 +212,11 @@
 	padding-bottom: 2em;
 	display: flex;
 	flex-direction: column;
-	min-height: 100%;
 	overflow: visible;
 }
 
 .issue-reporter .description-section {
-	flex-grow: 1;
+	flex-grow: 0;
 	display: flex;
 	flex-direction: column;
 	flex-shrink: 0;
@@ -226,12 +224,13 @@
 
 .issue-reporter textarea {
 	flex-grow: 1;
-	min-height: 150px;
+	height: 200px;
 }
 
 .issue-reporter .block-info-text {
 	display: flex;
-	flex-grow: 1;
+	flex-grow: 0;
+	flex-direction: column;
 }
 
 .issue-reporter #github-submit-btn {
@@ -320,7 +319,6 @@
 .issue-reporter select,
 .issue-reporter textarea {
 	background-color: #3c3c3c;
-	border: none;
 	color: #cccccc;
 }
 
@@ -456,3 +454,4 @@
 .issue-reporter a {
 	color: var(--vscode-textLink-foreground);
 }
+

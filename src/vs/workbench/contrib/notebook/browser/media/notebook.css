@@ -334,10 +334,6 @@
 	flex-direction: row-reverse;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row .codicon:not(.suggest-icon) {
-	color: var(--vscode-icon-foreground);
-}
-
 .monaco-workbench .notebookOverlay > .cell-list-container .notebook-overview-ruler-container {
 	position: absolute;
 	top: 0;

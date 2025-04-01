@@ -31,7 +31,7 @@ import { IView, IViewDescriptorService } from '../../../../common/views.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
-import { ChatAgentLocation, ChatAgentService, IChatAgentData, IChatAgentNameService, IChatAgentService } from '../../../chat/common/chatAgents.js';
+import { ChatAgentService, IChatAgentData, IChatAgentNameService, IChatAgentService } from '../../../chat/common/chatAgents.js';
 import { IChatResponseViewModel } from '../../../chat/common/chatViewModel.js';
 import { InlineChatController1, State } from '../../browser/inlineChatController.js';
 import { CTX_INLINE_CHAT_RESPONSE_TYPE, InlineChatConfigKeys, InlineChatResponseType } from '../../common/inlineChat.js';
@@ -71,6 +71,7 @@ import { ChatInputBoxContentProvider } from '../../../chat/browser/chatEdinputIn
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { ILanguageModelToolsService } from '../../../chat/common/languageModelToolsService.js';
 import { MockLanguageModelToolsService } from '../../../chat/test/common/mockLanguageModelToolsService.js';
+import { ChatAgentLocation } from '../../../chat/common/constants.js';
 
 suite('InlineChatController', function () {
 

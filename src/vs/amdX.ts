@@ -212,7 +212,7 @@ export async function importAMDNodeModule<T>(nodeModuleName: string, pathInsideN
 	let scriptSrc: string;
 	if (/^\w[\w\d+.-]*:\/\//.test(nodeModulePath)) {
 		// looks like a URL
-		// bit of a special case for: src/vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker.ts
+		// bit of a special case for: src/vs/workbench/services/languageDetection/browser/languageDetectionWebWorker.ts
 		scriptSrc = nodeModulePath;
 	} else {
 		const useASAR = (canASAR && isBuilt && !platform.isWeb);

@@ -29,7 +29,7 @@ import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys
 import { Promises } from '../../../../base/common/async.js';
 import { IUserDataSyncWorkbenchService } from '../../../services/userDataSync/common/userDataSync.js';
 import { Event } from '../../../../base/common/event.js';
-import { Action } from '../../../../base/common/actions.js';
+import { toAction } from '../../../../base/common/actions.js';
 
 export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Uninitialized);
 export const MAJOR_MINOR_UPDATE_AVAILABLE = new RawContextKey<boolean>('majorMinorUpdateAvailable', false);
@@ -215,8 +215,10 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 						message: nls.localize('update service disabled', "Updates are disabled because you are running the user-scope installation of {0} as Administrator.", this.productService.nameLong),
 						actions: {
 							primary: [
-								new Action('', nls.localize('learn more', "Learn More"), undefined, undefined, () => {
-									this.openerService.open('https://aka.ms/vscode-windows-setup');
+								toAction({
+									id: '',
+									label: nls.localize('learn more', "Learn More"),
+									run: () => this.openerService.open('https://aka.ms/vscode-windows-setup')
 								})
 							]
 						},

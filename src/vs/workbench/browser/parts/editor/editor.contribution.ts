@@ -72,6 +72,8 @@ import { DynamicEditorConfigurations } from './editorConfiguration.js';
 import { ConfigureEditorAction, ConfigureEditorTabsAction, EditorActionsDefaultAction, EditorActionsTitleBarAction, HideEditorActionsAction, HideEditorTabsAction, ShowMultipleEditorTabsAction, ShowSingleEditorTabAction, ZenHideEditorTabsAction, ZenShowMultipleEditorTabsAction, ZenShowSingleEditorTabAction } from '../../actions/layoutActions.js';
 import { ICommandAction } from '../../../../platform/action/common/action.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { getFontSnippets } from '../../../../base/browser/fonts.js';
+import { registerEditorFontConfigurations } from '../../../../editor/common/config/editorConfigurationSchema.js';
 
 //#region Editor Registrations
 
@@ -1102,3 +1104,6 @@ MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
 });
 
 //#endregion
+
+
+registerEditorFontConfigurations(getFontSnippets);

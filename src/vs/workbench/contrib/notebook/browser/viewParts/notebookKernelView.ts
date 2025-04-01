@@ -140,11 +140,13 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
 		@INotebookKernelHistoryService private readonly _notebookKernelHistoryService: INotebookKernelHistoryService,
 	) {
+		const action = new Action('fakeAction', undefined, ThemeIcon.asClassName(selectKernelIcon), true, (event) => actualAction.run(event));
 		super(
 			undefined,
-			new Action('fakeAction', undefined, ThemeIcon.asClassName(selectKernelIcon), true, (event) => actualAction.run(event)),
+			action,
 			{ ...options, label: false, icon: true }
 		);
+		this._register(action);
 		this._register(_editor.onDidChangeModel(this._update, this));
 		this._register(_notebookKernelService.onDidAddKernel(this._update, this));
 		this._register(_notebookKernelService.onDidRemoveKernel(this._update, this));

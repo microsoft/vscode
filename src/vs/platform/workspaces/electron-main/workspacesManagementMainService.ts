@@ -64,7 +64,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 	private readonly _onDidEnterWorkspace = this._register(new Emitter<IWorkspaceEnteredEvent>());
 	readonly onDidEnterWorkspace: Event<IWorkspaceEnteredEvent> = this._onDidEnterWorkspace.event;
 
-	private readonly untitledWorkspacesHome = this.environmentMainService.untitledWorkspacesHome; // local URI that contains all untitled workspaces
+	private readonly untitledWorkspacesHome: URI; // local URI that contains all untitled workspaces
 
 	private untitledWorkspaces: IUntitledWorkspaceInfo[] = [];
 
@@ -76,6 +76,8 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		@IDialogMainService private readonly dialogMainService: IDialogMainService
 	) {
 		super();
+
+		this.untitledWorkspacesHome = this.environmentMainService.untitledWorkspacesHome;
 	}
 
 	async initialize(): Promise<void> {

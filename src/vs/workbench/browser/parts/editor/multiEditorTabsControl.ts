@@ -27,12 +27,12 @@ import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { getOrSet } from '../../../../base/common/map.js';
 import { IThemeService, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_BACKGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, WORKBENCH_BACKGROUND, TAB_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BORDER_TOP, TAB_ACTIVE_MODIFIED_BORDER, TAB_INACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_ACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_INACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_INACTIVE_BACKGROUND, TAB_HOVER_FOREGROUND, TAB_UNFOCUSED_HOVER_FOREGROUND, EDITOR_GROUP_HEADER_TABS_BORDER, TAB_LAST_PINNED_BORDER, TAB_SELECTED_BORDER_TOP } from '../../../common/theme.js';
-import { activeContrastBorder, contrastBorder, editorBackground, listActiveSelectionBackground, listActiveSelectionForeground } from '../../../../platform/theme/common/colorRegistry.js';
+import { activeContrastBorder, contrastBorder, editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { ResourcesDropHandler, DraggedEditorIdentifier, DraggedEditorGroupIdentifier, extractTreeDropData, isWindowDraggedOver } from '../../dnd.js';
 import { Color } from '../../../../base/common/color.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { MergeGroupMode, IMergeGroupOptions } from '../../../services/editor/common/editorGroupsService.js';
-import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent, getWindow } from '../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent, getWindow, $ } from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
 import { IEditorGroupsView, EditorServiceImpl, IEditorGroupView, IInternalEditorOpenOptions, IEditorPartsView, prepareMoveCopyEditors } from './editor.js';
 import { CloseEditorTabAction, UnpinEditorAction } from './editorActions.js';
@@ -57,7 +57,7 @@ import { StickyEditorGroupModel, UnstickyEditorGroupModel } from '../../../commo
 import { IReadonlyEditorGroupModel } from '../../../common/editor/editorGroupModel.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
-import { applyDragImage } from '../../../../base/browser/dnd.js';
+import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
 
 interface IEditorInputLabel {
 	readonly editor: EditorInput;
@@ -170,15 +170,14 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.titleContainer = parent;
 
 		// Tabs and Actions Container (are on a single row with flex side-by-side)
-		this.tabsAndActionsContainer = document.createElement('div');
-		this.tabsAndActionsContainer.classList.add('tabs-and-actions-container');
+		this.tabsAndActionsContainer = $('.tabs-and-actions-container');
 		this.titleContainer.appendChild(this.tabsAndActionsContainer);
 
 		// Tabs Container
-		this.tabsContainer = document.createElement('div');
-		this.tabsContainer.setAttribute('role', 'tablist');
-		this.tabsContainer.draggable = true;
-		this.tabsContainer.classList.add('tabs-container');
+		this.tabsContainer = $('.tabs-container', {
+			role: 'tablist',
+			draggable: true
+		});
 		this._register(Gesture.addTarget(this.tabsContainer));
 
 		this.tabSizingFixedDisposables = this._register(new DisposableStore());
@@ -516,16 +515,15 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// redraw of tabs.
 
 		const activeEditorChanged = this.didActiveEditorChange();
-		const oldActiveTabLabel = this.activeTabLabel;
-		const oldTabLabelsLength = this.tabLabels.length;
+		const oldTabLabels = this.tabLabels;
 		this.computeTabLabels();
 
 		// Redraw and update in these cases
 		let didChange = false;
 		if (
-			activeEditorChanged ||													// active editor changed
-			oldTabLabelsLength !== this.tabLabels.length ||							// number of tabs changed
-			!this.equalsEditorInputLabel(oldActiveTabLabel, this.activeTabLabel)	// active editor label changed
+			activeEditorChanged ||																				// active editor changed
+			oldTabLabels.length !== this.tabLabels.length ||													// number of tabs changed
+			oldTabLabels.some((label, index) => !this.equalsEditorInputLabel(label, this.tabLabels.at(index))) 	// editor labels changed
 		) {
 			this.redraw({ forceRevealActiveTab: true });
 			didChange = true;
@@ -803,25 +801,23 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private createTab(tabIndex: number, tabsContainer: HTMLElement, tabsScrollbar: ScrollableElement): HTMLElement {
 
 		// Tab Container
-		const tabContainer = document.createElement('div');
-		tabContainer.draggable = true;
-		tabContainer.setAttribute('role', 'tab');
-		tabContainer.classList.add('tab');
+		const tabContainer = $('.tab', {
+			draggable: true,
+			role: 'tab'
+		});
 
 		// Gesture Support
 		this._register(Gesture.addTarget(tabContainer));
 
 		// Tab Border Top
-		const tabBorderTopContainer = document.createElement('div');
-		tabBorderTopContainer.classList.add('tab-border-top-container');
+		const tabBorderTopContainer = $('.tab-border-top-container');
 		tabContainer.appendChild(tabBorderTopContainer);
 
 		// Tab Editor Label
 		const editorLabel = this.tabResourceLabels.create(tabContainer, { hoverTargetOverride: tabContainer });
 
 		// Tab Actions
-		const tabActionsContainer = document.createElement('div');
-		tabActionsContainer.classList.add('tab-actions');
+		const tabActionsContainer = $('.tab-actions');
 		tabContainer.appendChild(tabActionsContainer);
 
 		const that = this;
@@ -841,13 +837,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// Tab Fade Hider
 		// Hides the tab fade to the right when tab action left and sizing shrink/fixed, ::after, ::before are already used
-		const tabShadowHider = document.createElement('div');
-		tabShadowHider.classList.add('tab-fade-hider');
+		const tabShadowHider = $('.tab-fade-hider');
 		tabContainer.appendChild(tabShadowHider);
 
 		// Tab Border Bottom
-		const tabBorderBottomContainer = document.createElement('div');
-		tabBorderBottomContainer.classList.add('tab-border-bottom-container');
+		const tabBorderBottomContainer = $('.tab-border-bottom-container');
 		tabContainer.appendChild(tabBorderBottomContainer);
 
 		// Eventing
@@ -1088,7 +1082,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					e.dataTransfer.effectAllowed = 'copyMove';
 					if (selectedEditors.length > 1) {
 						const label = `${editor.getName()} + ${selectedEditors.length - 1}`;
-						applyDragImage(e, label, 'monaco-editor-group-drag-image', this.getColor(listActiveSelectionBackground), this.getColor(listActiveSelectionForeground));
+						applyDragImage(e, tab, label);
 					} else {
 						e.dataTransfer.setDragImage(tab, 0, 0); // top left corner of dragged tab set to cursor position to make room for drop-border feedback
 					}

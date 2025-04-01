@@ -98,12 +98,16 @@
 	color: var(--vscode-button-foreground);
 }
 
-.chat-editor-overlay-widget .monaco-action-bar .action-item.disabled > .action-label.codicon::before,
-.chat-editor-overlay-widget .monaco-action-bar .action-item.disabled > .action-label.codicon,
-.chat-editor-overlay-widget .monaco-action-bar .action-item.disabled > .action-label,
-.chat-editor-overlay-widget .monaco-action-bar .action-item.disabled > .action-label:hover {
-	color: var(--vscode-button-foreground);
-	opacity: 0.7;
+.chat-diff-change-content-widget .monaco-action-bar .action-item.disabled,
+.chat-editor-overlay-widget .monaco-action-bar .action-item.disabled {
+
+	> .action-label.codicon::before,
+	> .action-label.codicon,
+	> .action-label,
+	> .action-label:hover {
+		color: var(--vscode-button-foreground);
+		opacity: 0.7;
+	}
 }
 
 

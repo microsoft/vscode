@@ -13,8 +13,9 @@ import { getActiveDocument } from '../../../../../../base/browser/dom.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { strictEqual } from 'assert';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
-import { ChatAgentLocation, IChatAgent } from '../../../../chat/common/chatAgents.js';
+import { IChatAgent } from '../../../../chat/common/chatAgents.js';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
+import { ChatAgentLocation } from '../../../../chat/common/constants.js';
 
 suite('Terminal Initial Hint Addon', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

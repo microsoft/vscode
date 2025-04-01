@@ -24,7 +24,7 @@ import { IModelService } from '../../../../editor/common/services/model.js';
 import { AccessibilityHelpNLS } from '../../../../editor/common/standaloneStrings.js';
 import { CodeActionController } from '../../../../editor/contrib/codeAction/browser/codeActionController.js';
 import { localize } from '../../../../nls.js';
-import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider, ExtensionContentProvider, IAccessibleViewService, IAccessibleViewSymbol } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider, ExtensionContentProvider, IAccessibleViewService, IAccessibleViewSymbol, isIAccessibleViewContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { ACCESSIBLE_VIEW_SHOWN_STORAGE_PREFIX, IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
@@ -170,7 +170,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 			}
 		}));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (this._currentProvider instanceof AccessibleContentProvider && e.affectsConfiguration(this._currentProvider.verbositySettingKey)) {
+			if (isIAccessibleViewContentProvider(this._currentProvider) && e.affectsConfiguration(this._currentProvider.verbositySettingKey)) {
 				if (this._accessiblityHelpIsShown.get()) {
 					this.show(this._currentProvider);
 				}
@@ -345,7 +345,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		if (!this._currentProvider) {
 			return false;
 		}
-		return this._currentProvider instanceof AccessibleContentProvider ? this._configurationService.getValue(this._currentProvider.verbositySettingKey) === true : this._storageService.getBoolean(`${ACCESSIBLE_VIEW_SHOWN_STORAGE_PREFIX}${this._currentProvider.id}`, StorageScope.APPLICATION, false);
+		return isIAccessibleViewContentProvider(this._currentProvider) ? this._configurationService.getValue(this._currentProvider.verbositySettingKey) === true : this._storageService.getBoolean(`${ACCESSIBLE_VIEW_SHOWN_STORAGE_PREFIX}${this._currentProvider.id}`, StorageScope.APPLICATION, false);
 	}
 
 	goToSymbol(): void {
@@ -502,7 +502,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 	}
 
 	disableHint(): void {
-		if (!(this._currentProvider instanceof AccessibleContentProvider)) {
+		if (!isIAccessibleViewContentProvider(this._currentProvider)) {
 			return;
 		}
 		this._configurationService.updateValue(this._currentProvider?.verbositySettingKey, false);

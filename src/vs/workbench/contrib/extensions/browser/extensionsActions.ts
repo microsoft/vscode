@@ -72,6 +72,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IUpdateService } from '../../../../platform/update/common/update.js';
 import { ActionWithDropdownActionViewItem, IActionWithDropdownActionViewItemOptions } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { IAuthenticationUsageService } from '../../../services/authentication/browser/authenticationUsageService.js';
+import { IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 
 export class PromptExtensionInstallFailureAction extends Action {
 
@@ -212,9 +213,6 @@ export class PromptExtensionInstallFailureAction extends Action {
 		if (!this.extension.gallery) {
 			return undefined;
 		}
-		if (!this.productService.extensionsGallery) {
-			return undefined;
-		}
 		if (!this.extensionManagementServerService.localExtensionManagementServer && !this.extensionManagementServerService.remoteExtensionManagementServer) {
 			return undefined;
 		}
@@ -233,7 +231,18 @@ export class PromptExtensionInstallFailureAction extends Action {
 		if (targetPlatform === TargetPlatform.UNKNOWN) {
 			return undefined;
 		}
-		return URI.parse(`${this.productService.extensionsGallery.serviceUrl}/publishers/${this.extension.publisher}/vsextensions/${this.extension.name}/${this.version}/vspackage${targetPlatform !== TargetPlatform.UNDEFINED ? `?targetPlatform=${targetPlatform}` : ''}`);
+
+		const [extension] = await this.galleryService.getExtensions([{
+			...this.extension.identifier,
+			version: this.version
+		}], {
+			targetPlatform
+		}, CancellationToken.None);
+
+		if (!extension) {
+			return undefined;
+		}
+		return URI.parse(extension.assets.download.uri);
 	}
 
 }
@@ -412,6 +421,7 @@ export class InstallAction extends ExtensionAction {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IAllowedExtensionsService private readonly allowedExtensionsService: IAllowedExtensionsService,
+		@IExtensionGalleryManifestService private readonly extensionGalleryManifestService: IExtensionGalleryManifestService,
 	) {
 		super('extensions.install', localize('install', "Install"), InstallAction.CLASS, false);
 		this.hideOnDisabled = false;
@@ -460,7 +470,7 @@ export class InstallAction extends ExtensionAction {
 			return;
 		}
 
-		if (this.extension.gallery && !this.extension.gallery.isSigned) {
+		if (this.extension.gallery && !this.extension.gallery.isSigned && (await this.extensionGalleryManifestService.getExtensionGalleryManifest())?.capabilities.signing?.allRepositorySigned) {
 			const { result } = await this.dialogService.prompt({
 				type: Severity.Warning,
 				message: localize('not signed', "'{0}' is an extension from an unknown source. Are you sure you want to install?", this.extension.displayName),
@@ -1250,7 +1260,7 @@ async function getContextMenuActionsGroups(extension: IExtension | undefined | n
 			cksOverlay.push(['galleryExtensionHasPreReleaseVersion', extension.gallery?.hasPreReleaseVersion]);
 			cksOverlay.push(['extensionHasPreReleaseVersion', extension.hasPreReleaseVersion]);
 			cksOverlay.push(['extensionHasReleaseVersion', extension.hasReleaseVersion]);
-			cksOverlay.push(['extensionDisallowInstall', !!extension.deprecationInfo?.disallowInstall]);
+			cksOverlay.push(['extensionDisallowInstall', extension.isMalicious || extension.deprecationInfo?.disallowInstall]);
 			cksOverlay.push(['isExtensionAllowed', allowedExtensionsService.isAllowed({ id: extension.identifier.id, publisherDisplayName: extension.publisherDisplayName }) === true]);
 			cksOverlay.push(['isPreReleaseExtensionAllowed', allowedExtensionsService.isAllowed({ id: extension.identifier.id, publisherDisplayName: extension.publisherDisplayName, prerelease: true }) === true]);
 			cksOverlay.push(['extensionIsUnsigned', extension.gallery && !extension.gallery.isSigned]);
@@ -1438,7 +1448,8 @@ export class MenuItemExtensionAction extends ExtensionAction {
 			const extensionArg: IExtensionArg = {
 				id: this.extension.identifier.id,
 				version: this.extension.version,
-				location: this.extension.local?.location
+				location: this.extension.local?.location,
+				galleryLink: this.extension.url
 			};
 			await this.action.run(id, extensionArg);
 		}
@@ -2514,6 +2525,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 		@IAllowedExtensionsService private readonly allowedExtensionsService: IAllowedExtensionsService,
 		@IWorkbenchExtensionEnablementService private readonly workbenchExtensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IExtensionFeaturesManagementService private readonly extensionFeaturesManagementService: IExtensionFeaturesManagementService,
+		@IExtensionGalleryManifestService private readonly extensionGalleryManifestService: IExtensionGalleryManifestService,
 	) {
 		super('extensions.status', '', `${ExtensionStatusAction.CLASS} hide`, false);
 		this._register(this.labelService.onDidChangeFormatters(() => this.update(), this));
@@ -2540,7 +2552,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 			return;
 		}
 
-		if (this.extension.state === ExtensionState.Uninstalled && this.extension.gallery && !this.extension.gallery.isSigned) {
+		if (this.extension.state === ExtensionState.Uninstalled && this.extension.gallery && !this.extension.gallery.isSigned && (await this.extensionGalleryManifestService.getExtensionGalleryManifest())?.capabilities.signing?.allRepositorySigned) {
 			this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('not signed tooltip', "This extension is not signed by the Extension Marketplace.")) }, true);
 			return;
 		}
@@ -2598,11 +2610,13 @@ export class ExtensionStatusAction extends ExtensionAction {
 			return;
 		}
 
-		// Extension is disabled by its dependency
-		const result = this.allowedExtensionsService.isAllowed(this.extension.local);
-		if (result !== true) {
-			this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('disabled - not allowed', "This extension is disabled because {0}", result.value)) }, true);
-			return;
+		// Extension is disabled by allowed list
+		if (this.extension.enablementState === EnablementState.DisabledByAllowlist) {
+			const result = this.allowedExtensionsService.isAllowed(this.extension.local);
+			if (result !== true) {
+				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('disabled - not allowed', "This extension is disabled because {0}", result.value)) }, true);
+				return;
+			}
 		}
 
 		// Extension is disabled by environment

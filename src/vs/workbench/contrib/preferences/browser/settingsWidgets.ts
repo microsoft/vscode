@@ -8,30 +8,29 @@ import * as DOM from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
-import { Toggle, unthemedToggleStyles } from '../../../../base/browser/ui/toggle/toggle.js';
+import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
+import { Toggle, unthemedToggleStyles } from '../../../../base/browser/ui/toggle/toggle.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isIOS } from '../../../../base/common/platform.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { isDefined, isUndefinedOrNull } from '../../../../base/common/types.js';
-import './media/settingsWidgets.css';
 import { localize } from '../../../../nls.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
-import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { settingsDiscardIcon, settingsEditIcon, settingsRemoveIcon } from './preferencesIcons.js';
-import { settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from '../common/settingsEditorColorRegistry.js';
-import { defaultButtonStyles, getInputBoxStyle, getSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
+import { defaultButtonStyles, getInputBoxStyle, getSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { SettingValueType } from '../../../services/preferences/common/preferences.js';
+import { settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from '../common/settingsEditorColorRegistry.js';
+import './media/settingsWidgets.css';
+import { settingsDiscardIcon, settingsEditIcon, settingsRemoveIcon } from './preferencesIcons.js';
 
 const $ = DOM.$;
 
@@ -508,12 +507,6 @@ export class ListSettingWidget<TListDataItem extends IListDataItem> extends Abst
 
 	private dragDetails: ListSettingWidgetDragDetails<TListDataItem> | undefined;
 
-	private getDragImage(item: TListDataItem): HTMLElement {
-		const dragImage = $('.monaco-drag-image');
-		dragImage.textContent = item.value.data;
-		return dragImage;
-	}
-
 	protected renderItem(item: TListDataItem, idx: number): RowElementGroup {
 		const rowElement = $('.setting-list-row');
 		const valueElement = DOM.append(rowElement, $('.setting-list-value'));
@@ -541,13 +534,8 @@ export class ListSettingWidget<TListDataItem extends IListDataItem> extends Abst
 				item,
 				itemIndex: idx
 			};
-			if (ev.dataTransfer) {
-				ev.dataTransfer.dropEffect = 'move';
-				const dragImage = this.getDragImage(item);
-				rowElement.ownerDocument.body.appendChild(dragImage);
-				ev.dataTransfer.setDragImage(dragImage, -10, -10);
-				setTimeout(() => dragImage.remove(), 0);
-			}
+
+			applyDragImage(ev, rowElement, item.value.data);
 		}));
 		this.listDisposables.add(DOM.addDisposableListener(rowElement, DOM.EventType.DRAG_OVER, (ev) => {
 			if (!this.dragDetails) {
@@ -736,7 +724,7 @@ export class ListSettingWidget<TListDataItem extends IListDataItem> extends Abst
 			: localize('listSiblingHintLabel', "List item `{0}` with sibling `${1}`", value.data, sibling);
 
 		const { rowElement } = rowElementGroup;
-		this.listDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), rowElement, title));
+		this.listDisposables.add(this.hoverService.setupDelayedHover(rowElement, { content: title }));
 		rowElement.setAttribute('aria-label', title);
 	}
 
@@ -802,7 +790,7 @@ export class ExcludeSettingWidget extends ListSettingWidget<IIncludeExcludeDataI
 		const markdownTitle = new MarkdownString().appendMarkdown(title);
 
 		const { rowElement } = rowElementGroup;
-		this.listDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), rowElement, { markdown: markdownTitle, markdownNotSupportedFallback: title }));
+		this.listDisposables.add(this.hoverService.setupDelayedHover(rowElement, { content: markdownTitle }));
 		rowElement.setAttribute('aria-label', title);
 	}
 
@@ -838,7 +826,7 @@ export class IncludeSettingWidget extends ListSettingWidget<IIncludeExcludeDataI
 		const markdownTitle = new MarkdownString().appendMarkdown(title);
 
 		const { rowElement } = rowElementGroup;
-		this.listDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), rowElement, { markdown: markdownTitle, markdownNotSupportedFallback: title }));
+		this.listDisposables.add(this.hoverService.setupDelayedHover(rowElement, { content: markdownTitle }));
 		rowElement.setAttribute('aria-label', title);
 	}
 
@@ -1276,13 +1264,13 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 			accessibleDescription = localize('objectPairHintLabel', "The property `{0}` is set to `{1}`.", item.key.data, item.value.data);
 		}
 
-		const markdownString = { markdown: new MarkdownString().appendMarkdown(accessibleDescription), markdownNotSupportedFallback: accessibleDescription };
+		const markdownString = new MarkdownString().appendMarkdown(accessibleDescription);
 
-		const keyDescription: string | IManagedHoverTooltipMarkdownString = this.getEnumDescription(item.key) ?? item.keyDescription ?? markdownString;
-		this.listDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), keyElement, keyDescription));
+		const keyDescription: string | MarkdownString = this.getEnumDescription(item.key) ?? item.keyDescription ?? markdownString;
+		this.listDisposables.add(this.hoverService.setupDelayedHover(keyElement, { content: keyDescription }));
 
-		const valueDescription: string | IManagedHoverTooltipMarkdownString = this.getEnumDescription(item.value) ?? markdownString;
-		this.listDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), valueElement!, valueDescription));
+		const valueDescription: string | MarkdownString = this.getEnumDescription(item.value) ?? markdownString;
+		this.listDisposables.add(this.hoverService.setupDelayedHover(valueElement!, { content: valueDescription }));
 
 		rowElement.setAttribute('aria-label', accessibleDescription);
 	}
@@ -1452,7 +1440,7 @@ export class ObjectSettingCheckboxWidget extends AbstractListSettingWidget<IBool
 		const title = item.keyDescription ?? accessibleDescription;
 		const { rowElement, keyElement, valueElement } = rowElementGroup;
 
-		this.listDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), keyElement, title));
+		this.listDisposables.add(this.hoverService.setupDelayedHover(keyElement, { content: title }));
 		valueElement!.setAttribute('aria-label', accessibleDescription);
 		rowElement.setAttribute('aria-label', accessibleDescription);
 	}

@@ -283,6 +283,8 @@ export interface ICustomDialogOptions {
 export interface ICustomDialogMarkdown {
 	readonly markdown: IMarkdownString;
 	readonly classes?: string[];
+	/** Custom link handler for markdown content, see {@link IContentActionHandler}. Defaults to {@link openLinkFromMarkdown}. */
+	actionHandler?(link: string): Promise<boolean>;
 }
 
 /**

@@ -867,7 +867,7 @@ export class DebugService implements IDebugService {
 		// the session, then start the test run again; tests have no notion of restarts.
 		if (session.correlatedTestRun) {
 			if (!session.correlatedTestRun.completedAt) {
-				this.testService.cancelTestRun(session.correlatedTestRun.id);
+				session.cancelCorrelatedTestRun();
 				await Event.toPromise(session.correlatedTestRun.onComplete);
 				// todo@connor4312 is there any reason to wait for the debug session to
 				// terminate? I don't think so, test extension should already handle any

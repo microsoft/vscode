@@ -8,14 +8,14 @@ import { testPaths, type ISuiteSpec } from '../../helpers';
 import mkdirSpec from '../../../completions/upstream/mkdir';
 
 const allOptions = [
-	'--context',
+	'--context <CTX>',
 	'--help',
-	'--mode',
+	'--mode <MODE>',
 	'--parents',
 	'--verbose',
 	'--version',
-	'-Z',
-	'-m',
+	'-Z <CTX>',
+	'-m <MODE>',
 	'-p',
 	'-v',
 ];

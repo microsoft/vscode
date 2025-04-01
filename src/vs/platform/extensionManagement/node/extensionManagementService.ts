@@ -37,7 +37,7 @@ import {
 } from '../common/extensionManagement.js';
 import { areSameExtensions, computeTargetPlatform, ExtensionKey, getGalleryExtensionId, groupByExtension } from '../common/extensionManagementUtil.js';
 import { IExtensionsProfileScannerService, IScannedProfileExtension } from '../common/extensionsProfileScannerService.js';
-import { IExtensionsScannerService, IScannedExtension, UserExtensionsScanOptions } from '../common/extensionsScannerService.js';
+import { IExtensionsScannerService, IScannedExtension, ManifestMetadata, UserExtensionsScanOptions } from '../common/extensionsScannerService.js';
 import { ExtensionsDownloader } from './extensionDownloader.js';
 import { ExtensionsLifecycle } from './extensionLifecycle.js';
 import { fromExtractError, getManifest } from './extensionManagementUtil.js';
@@ -53,6 +53,8 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { isLinux } from '../../../base/common/platform.js';
+import { IExtensionGalleryManifestService } from '../common/extensionGalleryManifest.js';
 
 export const INativeServerExtensionManagementService = refineServiceDecorator<IExtensionManagementService, INativeServerExtensionManagementService>(IExtensionManagementService);
 export interface INativeServerExtensionManagementService extends IExtensionManagementService {
@@ -85,6 +87,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IExtensionGalleryManifestService protected readonly extensionGalleryManifestService: IExtensionGalleryManifestService,
 		@IProductService productService: IProductService,
 		@IAllowedExtensionsService allowedExtensionsService: IAllowedExtensionsService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
@@ -213,6 +216,10 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		return local;
 	}
 
+	protected removeExtension(extension: ILocalExtension): Promise<void> {
+		return this.extensionsScanner.deleteExtension(extension, 'remove');
+	}
+
 	protected copyExtension(extension: ILocalExtension, fromProfileLocation: URI, toProfileLocation: URI, metadata: Partial<Metadata>): Promise<ILocalExtension> {
 		return this.extensionsScanner.copyExtension(extension, fromProfileLocation, toProfileLocation, metadata);
 	}
@@ -327,8 +334,15 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 			verifySignature = isBoolean(value) ? value : true;
 		}
 		const { location, verificationStatus } = await this.extensionsDownloader.download(extension, operation, verifySignature, clientTargetPlatform);
+		const shouldRequireSignature = (await this.extensionGalleryManifestService.getExtensionGalleryManifest())?.capabilities.signing?.allRepositorySigned;
 
-		if (verificationStatus !== ExtensionSignatureVerificationCode.Success && verificationStatus !== ExtensionSignatureVerificationCode.NotSigned && verifySignature && this.environmentService.isBuilt) {
+		if (
+			verificationStatus !== ExtensionSignatureVerificationCode.Success
+			&& !(verificationStatus === ExtensionSignatureVerificationCode.NotSigned && !shouldRequireSignature)
+			&& verifySignature
+			&& this.environmentService.isBuilt
+			&& !(isLinux && this.productService.quality === 'stable')
+		) {
 			try {
 				await this.extensionsDownloader.delete(location);
 			} catch (e) {
@@ -351,6 +365,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 				case ExtensionSignatureVerificationCode.CertificateRevoked:
 				case ExtensionSignatureVerificationCode.SignatureIsNotValid:
 				case ExtensionSignatureVerificationCode.SignatureArchiveHasTooManyEntries:
+				case ExtensionSignatureVerificationCode.NotSigned:
 					throw new ExtensionManagementError(nls.localize('signature verification failed', "Signature verification failed with '{0}' error.", verificationStatus), ExtensionManagementErrorCode.SignatureVerificationFailed);
 			}
 
@@ -623,7 +638,7 @@ export class ExtensionsScanner extends Disposable {
 				throw fromExtractError(e);
 			}
 
-			const metadata: Metadata = { installedTimestamp: Date.now() };
+			const metadata: ManifestMetadata = { installedTimestamp: Date.now(), targetPlatform: extensionKey.targetPlatform };
 			try {
 				metadata.size = await computeSize(tempLocation, this.fileService);
 			} catch (error) {
@@ -632,7 +647,7 @@ export class ExtensionsScanner extends Disposable {
 			}
 
 			try {
-				await this.extensionsScannerService.updateMetadata(tempLocation, metadata);
+				await this.extensionsScannerService.updateManifestMetadata(tempLocation, metadata);
 			} catch (error) {
 				this.telemetryService.publicLog2<UpdateMetadataErrorEvent, UpdateMetadataErrorClassification>('extension:extract', { extensionId: extensionKey.id, code: `${toFileOperationResult(error)}` });
 				throw toExtensionManagementError(error, ExtensionManagementErrorCode.UpdateMetadata);
@@ -677,13 +692,9 @@ export class ExtensionsScanner extends Disposable {
 		return extensions.find(e => areSameExtensions(e.identifier, local.identifier));
 	}
 
-	async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation?: URI): Promise<ILocalExtension> {
+	async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation: URI): Promise<ILocalExtension> {
 		try {
-			if (profileLocation) {
-				await this.extensionsProfileScannerService.updateMetadata([[local, metadata]], profileLocation);
-			} else {
-				await this.extensionsScannerService.updateMetadata(local.location, metadata);
-			}
+			await this.extensionsProfileScannerService.updateMetadata([[local, metadata]], profileLocation);
 		} catch (error) {
 			this.telemetryService.publicLog2<UpdateMetadataErrorEvent, UpdateMetadataErrorClassification>('extension:extract', { extensionId: local.identifier.id, code: `${toFileOperationResult(error)}`, isProfile: !!profileLocation });
 			throw toExtensionManagementError(error, ExtensionManagementErrorCode.UpdateMetadata);
@@ -692,7 +703,13 @@ export class ExtensionsScanner extends Disposable {
 	}
 
 	async setExtensionsForRemoval(...extensions: IExtension[]): Promise<void> {
-		const extensionKeys: ExtensionKey[] = extensions.map(e => ExtensionKey.create(e));
+		const extensionsToRemove = [];
+		for (const extension of extensions) {
+			if (await this.fileService.exists(extension.location)) {
+				extensionsToRemove.push(extension);
+			}
+		}
+		const extensionKeys: ExtensionKey[] = extensionsToRemove.map(e => ExtensionKey.create(e));
 		await this.withRemovedExtensions(removedExtensions =>
 			extensionKeys.forEach(extensionKey => {
 				removedExtensions[extensionKey.toString()] = true;
@@ -860,6 +877,7 @@ export class ExtensionsScanner extends Disposable {
 			installedTimestamp: extension.metadata?.installedTimestamp,
 			updated: !!extension.metadata?.updated,
 			pinned: !!extension.metadata?.pinned,
+			private: !!extension.metadata?.private,
 			isWorkspaceScoped: false,
 			source: extension.metadata?.source ?? (extension.identifier.uuid ? 'gallery' : 'vsix'),
 			size: extension.metadata?.size ?? 0,
@@ -872,7 +890,7 @@ export class ExtensionsScanner extends Disposable {
 			// set size if not set before
 			if (isDefined(extension.metadata?.installedTimestamp) && isUndefined(extension.metadata?.size)) {
 				const size = await computeSize(extension.location, this.fileService);
-				await this.extensionsScannerService.updateMetadata(extension.location, { size });
+				await this.extensionsScannerService.updateManifestMetadata(extension.location, { size });
 			}
 		}));
 	}
@@ -1032,6 +1050,7 @@ class InstallExtensionInProfileTask extends AbstractExtensionTask<ILocalExtensio
 			metadata.publisherDisplayName = this.source.publisherDisplayName;
 			metadata.targetPlatform = this.source.properties.targetPlatform;
 			metadata.updated = !!existingExtension;
+			metadata.private = this.source.private;
 			metadata.isPreReleaseVersion = this.source.properties.isPreReleaseVersion;
 			metadata.hasPreReleaseVersion = existingExtension?.hasPreReleaseVersion || this.source.properties.isPreReleaseVersion;
 			metadata.preRelease = isBoolean(this.options.preRelease)

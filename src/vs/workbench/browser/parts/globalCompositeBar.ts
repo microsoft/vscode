@@ -67,7 +67,7 @@ export class GlobalCompositeBar extends Disposable {
 	) {
 		super();
 
-		this.element = document.createElement('div');
+		this.element = $('div');
 		const contextMenuAlignmentOptions = () => ({
 			anchorAlignment: configurationService.getValue('workbench.sideBar.location') === 'left' ? AnchorAlignment.RIGHT : AnchorAlignment.LEFT,
 			anchorAxisAlignment: AnchorAxisAlignment.HORIZONTAL
@@ -406,11 +406,6 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 				const providerSubMenu = new SubmenuAction('activitybar.submenu', `${account.label} (${providerLabel})`, providerSubMenuActions);
 				menus.push(providerSubMenu);
 			}
-		}
-
-		if (providers.length && !menus.length) {
-			const noAccountsAvailableAction = disposables.add(new Action('noAccountsAvailable', localize('noAccounts', "You are not signed in to any accounts"), undefined, false));
-			menus.push(noAccountsAvailableAction);
 		}
 
 		if (menus.length && otherCommands.length) {

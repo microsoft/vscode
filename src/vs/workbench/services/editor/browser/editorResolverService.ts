@@ -18,7 +18,6 @@ import { RegisteredEditorInfo, RegisteredEditorPriority, RegisteredEditorOptions
 import { QuickPickItem, IKeyMods, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { localize } from '../../../../nls.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
@@ -62,7 +61,6 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ILogService private readonly logService: ILogService
@@ -195,7 +193,6 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		}
 
 		if (input) {
-			this.sendEditorResolutionTelemetry(input.editor);
 			if (input.editor.editorId !== selectedEditor.editorInfo.id) {
 				this.logService.warn(`Editor ID Mismatch: ${input.editor.editorId} !== ${selectedEditor.editorInfo.id}. This will cause bugs. Please ensure editorInput.editorId matches the registered id`);
 			}
@@ -793,20 +790,6 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		}
 
 		return undefined;
-	}
-
-	private sendEditorResolutionTelemetry(chosenInput: EditorInput): void {
-		type editorResolutionClassification = {
-			viewType: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The id of the editor opened. Used to gain an understanding of what editors are most popular' };
-			owner: 'lramos15';
-			comment: 'An event that fires when an editor type is picked';
-		};
-		type editorResolutionEvent = {
-			viewType: string;
-		};
-		if (chosenInput.editorId) {
-			this.telemetryService.publicLog2<editorResolutionEvent, editorResolutionClassification>('override.viewType', { viewType: chosenInput.editorId });
-		}
 	}
 
 	private cacheEditors() {

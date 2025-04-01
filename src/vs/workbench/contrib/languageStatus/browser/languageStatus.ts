@@ -224,7 +224,7 @@ class LanguageStatus {
 				text: isOneBusy ? '$(loading~spin)' : text,
 			};
 			if (!this._combinedEntry) {
-				this._combinedEntry = this._statusBarService.addEntry(props, LanguageStatus._id, StatusbarAlignment.RIGHT, { id: 'status.editor.mode', alignment: StatusbarAlignment.LEFT, compact: true });
+				this._combinedEntry = this._statusBarService.addEntry(props, LanguageStatus._id, StatusbarAlignment.RIGHT, { location: { id: 'status.editor.mode', priority: 100.1 }, alignment: StatusbarAlignment.LEFT, compact: true });
 			} else {
 				this._combinedEntry.update(props);
 			}
@@ -274,7 +274,7 @@ class LanguageStatus {
 			const props = LanguageStatus._asStatusbarEntry(status);
 			let entry = this._dedicatedEntries.get(status.id);
 			if (!entry) {
-				entry = this._statusBarService.addEntry(props, status.id, StatusbarAlignment.RIGHT, { id: 'status.editor.mode', alignment: StatusbarAlignment.RIGHT });
+				entry = this._statusBarService.addEntry(props, status.id, StatusbarAlignment.RIGHT, { location: { id: 'status.editor.mode', priority: 100.1 }, alignment: StatusbarAlignment.RIGHT });
 			} else {
 				entry.update(props);
 				this._dedicatedEntries.delete(status.id);

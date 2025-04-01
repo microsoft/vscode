@@ -548,7 +548,7 @@ class WordHighlighter {
 
 		// ignore typing & other
 		// need to check if the model is a notebook cell, should not stop if nb
-		if (e.source !== 'api' && e.reason !== CursorChangeReason.Explicit && this.editor.getModel()?.uri.scheme !== Schemas.vscodeNotebookCell) {
+		if (e.source !== 'api' && e.reason !== CursorChangeReason.Explicit) {
 			this._stopAll();
 			return;
 		}

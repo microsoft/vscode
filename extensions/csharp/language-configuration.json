@@ -84,9 +84,10 @@
 	},
 	"onEnterRules": [
 		// Add // when pressing enter from inside line comment
+		// We do not want to match /// (a documentation comment)
 		{
 			"beforeText": {
-				"pattern": "\/\/.*"
+				"pattern": "[^\/]\/\/[^\/].*"
 			},
 			"afterText": {
 				"pattern": "^(?!\\s*$).+"
@@ -94,6 +95,17 @@
 			"action": {
 				"indent": "none",
 				"appendText": "// "
+			}
+		},
+		// Add /// when pressing enter from anywhere inside a documentation comment.
+		// Documentation comments are not valid after non-whitespace.
+		{
+			"beforeText": {
+				"pattern": "^\\s*\/\/\/"
+			},
+			"action": {
+				"indent": "none",
+				"appendText": "/// "
 			}
 		},
 	]

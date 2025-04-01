@@ -6,7 +6,7 @@
 import type { Terminal } from '@xterm/xterm';
 import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { localize2 } from '../../../../../nls.js';
@@ -68,7 +68,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 	private _bufferTracker: BufferContentTracker | undefined;
 	private _bufferProvider: TerminalAccessibleBufferProvider | undefined;
 	private _xterm: Pick<IXtermTerminal, 'shellIntegration' | 'getFont'> & { raw: Terminal } | undefined;
-	private readonly _onDidRunCommand: MutableDisposable<IDisposable> = new MutableDisposable();
+	private readonly _onDidRunCommand = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly _ctx: ITerminalContributionContext,
@@ -144,11 +144,11 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		}
 
 		const capability = this._ctx.instance.capabilities.get(TerminalCapability.CommandDetection)!;
-		this._onDidRunCommand.value = this._register(capability.onCommandExecuted(() => {
+		this._onDidRunCommand.value = capability.onCommandExecuted(() => {
 			if (this._ctx.instance.hasFocus) {
 				this.show();
 			}
-		}));
+		});
 	}
 
 	private _isTerminalAccessibleViewOpen(): boolean {

@@ -11,8 +11,8 @@ import * as types from '../../../base/common/types.js';
 import * as nls from '../../../nls.js';
 import { getLanguageTagSettingPlainKey } from './configuration.js';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../jsonschemas/common/jsonContributionRegistry.js';
-import { PolicyName } from '../../policy/common/policy.js';
 import { Registry } from '../../registry/common/platform.js';
+import { IPolicy, PolicyName } from '../../../base/common/policy.js';
 
 export enum EditPresentationTypes {
 	Multiline = 'multilineText',
@@ -35,7 +35,7 @@ export interface IConfigurationRegistry {
 	/**
 	 * Register a configuration to the registry.
 	 */
-	registerConfiguration(configuration: IConfigurationNode): void;
+	registerConfiguration(configuration: IConfigurationNode): IConfigurationNode;
 
 	/**
 	 * Register multiple configurations to the registry.
@@ -155,18 +155,6 @@ export const enum ConfigurationScope {
 	MACHINE_OVERRIDABLE,
 }
 
-export interface IPolicy {
-
-	/**
-	 * The policy name.
-	 */
-	readonly name: PolicyName;
-
-	/**
-	 * The Code version in which this policy was introduced.
-	 */
-	readonly minimumVersion: `${number}.${number}`;
-}
 
 export interface IConfigurationPropertySchema extends IJSONSchema {
 
@@ -325,8 +313,9 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		this.registerOverridePropertyPatternKey();
 	}
 
-	public registerConfiguration(configuration: IConfigurationNode, validate: boolean = true): void {
+	public registerConfiguration(configuration: IConfigurationNode, validate: boolean = true): IConfigurationNode {
 		this.registerConfigurations([configuration], validate);
+		return configuration;
 	}
 
 	public registerConfigurations(configurations: IConfigurationNode[], validate: boolean = true): void {
@@ -666,25 +655,28 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 					property.restricted = types.isUndefinedOrNull(property.restricted) ? !!restrictedProperties?.includes(key) : property.restricted;
 				}
 
-				// Add to properties maps
-				// Property is included by default if 'included' is unspecified
-				if (properties[key].hasOwnProperty('included') && !properties[key].included) {
+				const excluded = properties[key].hasOwnProperty('included') && !properties[key].included;
+				const policyName = properties[key].policy?.name;
+
+				if (excluded) {
 					this.excludedConfigurationProperties[key] = properties[key];
+					if (policyName) {
+						this.policyConfigurations.set(policyName, key);
+						bucket.add(key);
+					}
 					delete properties[key];
-					continue;
 				} else {
+					bucket.add(key);
+					if (policyName) {
+						this.policyConfigurations.set(policyName, key);
+					}
 					this.configurationProperties[key] = properties[key];
-					if (properties[key].policy?.name) {
-						this.policyConfigurations.set(properties[key].policy!.name, key);
+					if (!properties[key].deprecationMessage && properties[key].markdownDeprecationMessage) {
+						// If not set, default deprecationMessage to the markdown source
+						properties[key].deprecationMessage = properties[key].markdownDeprecationMessage;
 					}
 				}
 
-				if (!properties[key].deprecationMessage && properties[key].markdownDeprecationMessage) {
-					// If not set, default deprecationMessage to the markdown source
-					properties[key].deprecationMessage = properties[key].markdownDeprecationMessage;
-				}
-
-				bucket.add(key);
 			}
 		}
 		const subNodes = configuration.allOf;

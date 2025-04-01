@@ -130,12 +130,7 @@ export class WindowTitle extends Disposable {
 				this.titleUpdater.schedule();
 			}
 		}));
-		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => {
-			if (this.accessibilityService.isScreenReaderOptimized() && !this.titleIncludesEditorState
-				|| !this.accessibilityService.isScreenReaderOptimized() && this.titleIncludesEditorState) {
-				this.titleUpdater.schedule();
-			}
-		}));
+		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => this.titleUpdater.schedule()));
 	}
 
 	private onConfigurationChanged(event: IConfigurationChangeEvent): void {
@@ -413,6 +408,9 @@ export class WindowTitle extends Disposable {
 	}
 
 	isCustomTitleFormat(): boolean {
+		if (this.accessibilityService.isScreenReaderOptimized() || this.titleIncludesEditorState) {
+			return true;
+		}
 		const title = this.configurationService.inspect<string>(WindowSettingNames.title);
 		const titleSeparator = this.configurationService.inspect<string>(WindowSettingNames.titleSeparator);
 

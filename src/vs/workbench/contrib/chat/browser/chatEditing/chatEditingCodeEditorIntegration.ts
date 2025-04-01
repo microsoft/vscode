@@ -35,9 +35,11 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { EditorsOrder, IEditorIdentifier, isDiffEditorInput } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { overviewRulerModifiedForeground, minimapGutterModifiedBackground, overviewRulerAddedForeground, minimapGutterAddedBackground, overviewRulerDeletedForeground, minimapGutterDeletedBackground } from '../../../scm/common/quickDiff.js';
-import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { ChatEditingSessionState, IChatEditingService, IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { IChatAgentService } from '../../common/chatAgents.js';
+import { IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { isTextDiffEditorForEntry } from './chatEditing.js';
+import { IEditorDecorationsCollection } from '../../../../../editor/common/editorCommon.js';
+import { ChatAgentLocation } from '../../common/constants.js';
 
 export interface IDocumentDiff2 extends IDocumentDiff {
 
@@ -56,9 +58,8 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 	readonly currentIndex: IObservable<number> = this._currentIndex;
 	private readonly _store = new DisposableStore();
 
-	private readonly _diffLineDecorations = this._editor.createDecorationsCollection(); // tracks the line range w/o visuals (used for navigate)
-
-	private readonly _diffVisualDecorations = this._editor.createDecorationsCollection(); // tracks the real diff with character level inserts
+	private readonly _diffLineDecorations: IEditorDecorationsCollection;
+	private readonly _diffVisualDecorations: IEditorDecorationsCollection;
 	private readonly _diffHunksRenderStore = this._store.add(new DisposableStore());
 	private readonly _diffHunkWidgets: DiffHunkWidget[] = [];
 	private _viewZones: string[] = [];
@@ -69,7 +70,6 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		private readonly _entry: IModifiedFileEntry,
 		private readonly _editor: ICodeEditor,
 		documentDiffInfo: IObservable<IDocumentDiff2>,
-		@IChatEditingService chatEditingService: IChatEditingService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalsService: IAccessibilitySignalService,
@@ -77,6 +77,9 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 	) {
 		this._diffLineDecorations = _editor.createDecorationsCollection();
 		const codeEditorObs = observableCodeEditor(_editor);
+
+		this._diffLineDecorations = this._editor.createDecorationsCollection(); // tracks the line range w/o visuals (used for navigate)
+		this._diffVisualDecorations = this._editor.createDecorationsCollection(); // tracks the real diff with character level inserts
 
 		const enabledObs = derived(r => {
 			if (!isEqual(codeEditorObs.model.read(r)?.uri, documentDiffInfo.read(r).modifiedModel.uri)) {
@@ -210,39 +213,39 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		// ---- readonly while streaming
 
 		let actualOptions: IEditorOptions | undefined;
-		const shouldBeReadOnly = derived(this, r => {
-			const model = codeEditorObs.model.read(r);
-			if (!model) {
-				return false;
+
+		const restoreActualOptions = () => {
+			if (actualOptions !== undefined) {
+				this._editor.updateOptions(actualOptions);
+				actualOptions = undefined;
 			}
-			for (const session of chatEditingService.editingSessionsObs.read(r)) {
-				if (session.readEntry(model.uri, r) && session.state.read(r) === ChatEditingSessionState.StreamingEdits) {
-					return true;
-				}
-			}
-			return false;
+		};
+
+		this._store.add(toDisposable(restoreActualOptions));
+
+		const renderAsBeingModified = derived(this, r => {
+			return enabledObs.read(r) && Boolean(_entry.isCurrentlyBeingModifiedBy.read(r));
 		});
 
 		this._store.add(autorun(r => {
-			const value = shouldBeReadOnly.read(r);
+			const value = renderAsBeingModified.read(r);
 			if (value) {
 
 				actualOptions ??= {
 					readOnly: this._editor.getOption(EditorOption.readOnly),
-					renderValidationDecorations: this._editor.getOption(EditorOption.renderValidationDecorations),
-					stickyScroll: this._editor.getOption(EditorOption.stickyScroll)
+					stickyScroll: this._editor.getOption(EditorOption.stickyScroll),
+					codeLens: this._editor.getOption(EditorOption.codeLens),
+					guides: this._editor.getOption(EditorOption.guides)
 				};
 
 				this._editor.updateOptions({
 					readOnly: true,
-					renderValidationDecorations: 'off',
-					stickyScroll: { enabled: false }
+					stickyScroll: { enabled: false },
+					codeLens: false,
+					guides: { indentation: false, bracketPairs: false }
 				});
 			} else {
-				if (actualOptions !== undefined) {
-					this._editor.updateOptions(actualOptions);
-					actualOptions = undefined;
-				}
+				restoreActualOptions();
 			}
 		}));
 	}
@@ -414,8 +417,6 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 			this._diffHunkWidgets.length = 0;
 			diffHunkDecoCollection.clear();
 		}));
-
-
 
 		const positionObs = observableFromEvent(this._editor.onDidChangeCursorPosition, _ => this._editor.getPosition());
 
@@ -641,7 +642,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 				// close diff editor when entry is decided
 				const d = autorun(r => {
 					const state = this._entry.state.read(r);
-					if (state === WorkingSetEntryState.Accepted || state === WorkingSetEntryState.Rejected) {
+					if (state === ModifiedFileEntryState.Accepted || state === ModifiedFileEntryState.Rejected) {
 						d.dispose();
 
 						const editorIdents: IEditorIdentifier[] = [];

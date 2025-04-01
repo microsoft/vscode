@@ -161,6 +161,12 @@ export interface IActionProvider {
 	getActions(): readonly IAction[];
 }
 
+export function isActionProvider(obj: unknown): obj is IActionProvider {
+	const candidate = obj as IActionProvider | undefined;
+
+	return typeof candidate?.getActions === 'function';
+}
+
 export interface IDropdownMenuOptions extends IBaseDropdownOptions {
 	contextMenuProvider: IContextMenuProvider;
 	readonly actions?: IAction[];

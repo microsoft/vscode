@@ -17,6 +17,7 @@ import minimatch from 'minimatch';
 import minimist from 'minimist';
 import * as module from 'module';
 import { fileURLToPath, pathToFileURL } from 'url';
+import semver from 'semver';
 
 /**
  * @type {{ build: boolean; run: string; runGlob: string; coverage: boolean; help: boolean; coverageFormats: string | string[]; coveragePath: string; }}
@@ -68,10 +69,11 @@ const src = path.join(REPO_ROOT, out);
 const baseUrl = pathToFileURL(src);
 
 //@ts-ignore
-const majorRequiredNodeVersion = `v${/^target="(.*)"$/m.exec(fs.readFileSync(path.join(REPO_ROOT, 'remote', '.npmrc'), 'utf8'))[1]}`.substring(0, 3);
-const currentMajorNodeVersion = process.version.substring(0, 3);
-if (majorRequiredNodeVersion !== currentMajorNodeVersion) {
-	console.error(`node.js unit tests require a major node.js version of ${majorRequiredNodeVersion} (your version is: ${currentMajorNodeVersion})`);
+const requiredNodeVersion = semver.parse(/^target="(.*)"$/m.exec(fs.readFileSync(path.join(REPO_ROOT, 'remote', '.npmrc'), 'utf8'))[1]);
+const currentNodeVersion = semver.parse(process.version);
+//@ts-ignore
+if (currentNodeVersion?.major < requiredNodeVersion?.major) {
+	console.error(`node.js unit tests require a major node.js version of ${requiredNodeVersion?.major} (your version is: ${currentNodeVersion?.major})`);
 	process.exit(1);
 }
 

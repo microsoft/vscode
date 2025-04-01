@@ -57,12 +57,15 @@ registerAction2(class extends Action2 {
 	public run(
 		accessor: ServicesAccessor,
 		walkthroughID: string | { category: string; step: string } | undefined,
-		toSide: boolean | undefined
+		optionsOrToSide: { toSide?: boolean; inactive?: boolean } | boolean | undefined
 	) {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const instantiationService = accessor.get(IInstantiationService);
 		const editorService = accessor.get(IEditorService);
 		const commandService = accessor.get(ICommandService);
+
+		const toSide = typeof optionsOrToSide === 'object' ? optionsOrToSide.toSide : optionsOrToSide;
+		const inactive = typeof optionsOrToSide === 'object' ? optionsOrToSide.inactive : false;
 
 		if (walkthroughID) {
 			const selectedCategory = typeof walkthroughID === 'string' ? walkthroughID : walkthroughID.category;
@@ -77,7 +80,7 @@ registerAction2(class extends Action2 {
 			if (!selectedCategory && !selectedStep) {
 				editorService.openEditor({
 					resource: GettingStartedInput.RESOURCE,
-					options: { preserveFocus: toSide ?? false }
+					options: { preserveFocus: toSide ?? false, inactive }
 				}, toSide ? SIDE_GROUP : undefined);
 				return;
 			}
@@ -101,7 +104,7 @@ registerAction2(class extends Action2 {
 						editor.selectedCategory = selectedCategory;
 						editor.selectedStep = selectedStep;
 						editor.showWelcome = false;
-						group.openEditor(editor, { revealIfOpened: true });
+						group.openEditor(editor, { revealIfOpened: true, inactive });
 						return;
 					}
 				}
@@ -124,7 +127,7 @@ registerAction2(class extends Action2 {
 				}]);
 			} else {
 				// else open respecting toSide
-				const options: GettingStartedEditorOptions = { selectedCategory: selectedCategory, selectedStep: selectedStep, showWelcome: false, preserveFocus: toSide ?? false };
+				const options: GettingStartedEditorOptions = { selectedCategory: selectedCategory, selectedStep: selectedStep, showWelcome: false, preserveFocus: toSide ?? false, inactive };
 				editorService.openEditor({
 					resource: GettingStartedInput.RESOURCE,
 					options
@@ -136,7 +139,7 @@ registerAction2(class extends Action2 {
 		} else {
 			editorService.openEditor({
 				resource: GettingStartedInput.RESOURCE,
-				options: { preserveFocus: toSide ?? false }
+				options: { preserveFocus: toSide ?? false, inactive }
 			}, toSide ? SIDE_GROUP : undefined);
 		}
 	}

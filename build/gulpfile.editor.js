@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+//@ts-check
+
 const gulp = require('gulp');
 const path = require('path');
 const util = require('./lib/util');
 const { getVersion } = require('./lib/getVersion');
 const task = require('./lib/task');
-const optimize = require('./lib/optimize');
 const es = require('event-stream');
 const File = require('vinyl');
 const i18n = require('./lib/i18n');
@@ -17,38 +18,12 @@ const cp = require('child_process');
 const compilation = require('./lib/compilation');
 const monacoapi = require('./lib/monaco-api');
 const fs = require('fs');
+const filter = require('gulp-filter');
 
 const root = path.dirname(__dirname);
 const sha1 = getVersion(root);
 const semver = require('./monaco/package.json').version;
 const headerVersion = semver + '(' + sha1 + ')';
-
-// Build
-
-const editorEntryPoints = [
-	{
-		name: 'vs/editor/editor.main',
-		include: [],
-		exclude: ['vs/css'],
-		prepend: [
-			{ path: 'out-editor-build/vs/css.js', amdModuleId: 'vs/css' }
-		],
-	},
-	{
-		name: 'vs/base/common/worker/simpleWorker',
-		include: ['vs/editor/common/services/editorSimpleWorker'],
-		exclude: [],
-		prepend: [
-			{ path: 'vs/loader.js' },
-			{ path: 'vs/base/worker/workerMain.js' }
-		],
-		dest: 'vs/base/worker/workerMain.js'
-	}
-];
-
-const editorResources = [
-	'out-editor-build/vs/base/browser/ui/codicons/**/*.ttf'
-];
 
 const BUNDLED_FILE_HEADER = [
 	'/*!-----------------------------------------------------------',
@@ -60,8 +35,6 @@ const BUNDLED_FILE_HEADER = [
 	''
 ].join('\n');
 
-const languages = i18n.defaultLanguages.concat([]);  // i18n.defaultLanguages.concat(process.env.VSCODE_QUALITY !== 'stable' ? i18n.extraLanguages : []);
-
 const extractEditorSrcTask = task.define('extract-editor-src', () => {
 	const apiusages = monacoapi.execute().usageContent;
 	const extrausages = fs.readFileSync(path.join(root, 'build', 'monaco', 'monaco.usage.recipe')).toString();
@@ -69,128 +42,43 @@ const extractEditorSrcTask = task.define('extract-editor-src', () => {
 		sourcesRoot: path.join(root, 'src'),
 		entryPoints: [
 			'vs/editor/editor.main',
-			'vs/editor/editor.worker',
-			'vs/base/worker/workerMain',
+			'vs/editor/editor.worker.start',
+			'vs/editor/common/services/editorWebWorkerMain',
 		],
 		inlineEntryPoints: [
 			apiusages,
 			extrausages
 		],
+		typings: [],
 		shakeLevel: 2, // 0-Files, 1-InnerFile, 2-ClassMembers
 		importIgnorePattern: /\.css$/,
 		destRoot: path.join(root, 'out-editor-src'),
+		tsOutDir: '../out-monaco-editor-core/esm/vs',
 		redirects: {
 			'@vscode/tree-sitter-wasm': '../node_modules/@vscode/tree-sitter-wasm/wasm/web-tree-sitter',
 		}
 	});
 });
 
-// Disable mangling for the editor, as it complicates debugging & quite a few users rely on private/protected fields.
-// Disable NLS task to remove english strings to preserve backwards compatibility when we removed the `vs/nls!` AMD plugin.
-const compileEditorAMDTask = task.define('compile-editor-amd', compilation.compileTask('out-editor-src', 'out-editor-build', true, { disableMangle: true, preserveEnglish: true }));
-
-const bundleEditorAMDTask = task.define('bundle-editor-amd', optimize.bundleTask(
-	{
-		out: 'out-editor',
-		esm: {
-			src: 'out-editor-build',
-			entryPoints: editorEntryPoints,
-			resources: editorResources
-		}
-	}
-));
-
-const minifyEditorAMDTask = task.define('minify-editor-amd', optimize.minifyTask('out-editor'));
-
-const createESMSourcesAndResourcesTask = task.define('extract-editor-esm', () => {
-	standalone.createESMSourcesAndResources2({
-		srcFolder: './out-editor-src',
-		outFolder: './out-editor-esm',
-		outResourcesFolder: './out-monaco-editor-core/esm',
-		ignores: [
-			'inlineEntryPoint:0.ts',
-			'inlineEntryPoint:1.ts',
-			'vs/loader.js',
-			'vs/base/worker/workerMain.ts',
-		],
-		renames: {
-		}
-	});
-});
-
 const compileEditorESMTask = task.define('compile-editor-esm', () => {
-	const KEEP_PREV_ANALYSIS = false;
-	const FAIL_ON_PURPOSE = false;
-	console.log(`Launching the TS compiler at ${path.join(__dirname, '../out-editor-esm')}...`);
-	let result;
-	if (process.platform === 'win32') {
-		result = cp.spawnSync(`..\\node_modules\\.bin\\tsc.cmd`, {
-			cwd: path.join(__dirname, '../out-editor-esm'),
-			shell: true
-		});
-	} else {
-		result = cp.spawnSync(`node`, [`../node_modules/.bin/tsc`], {
-			cwd: path.join(__dirname, '../out-editor-esm')
-		});
-	}
 
-	console.log(result.stdout.toString());
-	console.log(result.stderr.toString());
+	const src = 'out-editor-src';
+	const out = 'out-monaco-editor-core/esm';
 
-	if (FAIL_ON_PURPOSE || result.status !== 0) {
-		console.log(`The TS Compilation failed, preparing analysis folder...`);
-		const destPath = path.join(__dirname, '../../vscode-monaco-editor-esm-analysis');
-		const keepPrevAnalysis = (KEEP_PREV_ANALYSIS && fs.existsSync(destPath));
-		const cleanDestPath = (keepPrevAnalysis ? Promise.resolve() : util.rimraf(destPath)());
-		return cleanDestPath.then(() => {
-			// build a list of files to copy
-			const files = util.rreddir(path.join(__dirname, '../out-editor-esm'));
+	const compile = compilation.createCompile(src, { build: true, emitError: true, transpileOnly: false, preserveEnglish: true });
+	const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
 
-			if (!keepPrevAnalysis) {
-				fs.mkdirSync(destPath);
-
-				// initialize a new repository
-				cp.spawnSync(`git`, [`init`], {
-					cwd: destPath
-				});
-
-				// copy files from src
-				for (const file of files) {
-					const srcFilePath = path.join(__dirname, '../src', file);
-					const dstFilePath = path.join(destPath, file);
-					if (fs.existsSync(srcFilePath)) {
-						util.ensureDir(path.dirname(dstFilePath));
-						const contents = fs.readFileSync(srcFilePath).toString().replace(/\r\n|\r|\n/g, '\n');
-						fs.writeFileSync(dstFilePath, contents);
-					}
-				}
-
-				// create an initial commit to diff against
-				cp.spawnSync(`git`, [`add`, `.`], {
-					cwd: destPath
-				});
-
-				// create the commit
-				cp.spawnSync(`git`, [`commit`, `-m`, `"original sources"`, `--no-gpg-sign`], {
-					cwd: destPath
-				});
-			}
-
-			// copy files from tree shaken src
-			for (const file of files) {
-				const srcFilePath = path.join(__dirname, '../out-editor-src', file);
-				const dstFilePath = path.join(destPath, file);
-				if (fs.existsSync(srcFilePath)) {
-					util.ensureDir(path.dirname(dstFilePath));
-					const contents = fs.readFileSync(srcFilePath).toString().replace(/\r\n|\r|\n/g, '\n');
-					fs.writeFileSync(dstFilePath, contents);
-				}
-			}
-
-			console.log(`Open in VS Code the folder at '${destPath}' and you can analyze the compilation error`);
-			throw new Error('Standalone Editor compilation failed. If this is the build machine, simply launch `npm run gulp editor-distro` on your machine to further analyze the compilation problem.');
-		});
-	}
+	return (
+		srcPipe
+			.pipe(compile())
+			.pipe(i18n.processNlsFiles({
+				out,
+				fileHeader: BUNDLED_FILE_HEADER,
+				languages: i18n.defaultLanguages,
+			}))
+			.pipe(filter(['**', '!**/inlineEntryPoint*', '!**/tsconfig.json', '!**/loader.js']))
+			.pipe(gulp.dest(out))
+	);
 });
 
 /**
@@ -237,18 +125,6 @@ function toExternalDTS(contents) {
 		}
 	}
 	return lines.join('\n').replace(/\n\n\n+/g, '\n\n');
-}
-
-/**
- * @param {{ (path: string): boolean }} testFunc
- */
-function filterStream(testFunc) {
-	return es.through(function (data) {
-		if (!testFunc(data.relative)) {
-			return;
-		}
-		this.emit('data', data);
-	});
 }
 
 const finalEditorResourcesTask = task.define('final-editor-resources', () => {
@@ -299,42 +175,6 @@ const finalEditorResourcesTask = task.define('final-editor-resources', () => {
 				}));
 			}))
 			.pipe(gulp.dest('out-monaco-editor-core')),
-
-		// dev folder
-		es.merge(
-			gulp.src('out-editor/**/*')
-		).pipe(gulp.dest('out-monaco-editor-core/dev')),
-
-		// min folder
-		es.merge(
-			gulp.src('out-editor-min/**/*')
-		).pipe(filterStream(function (path) {
-			// no map files
-			return !/(\.js\.map$)|(nls\.metadata\.json$)|(bundleInfo\.json$)/.test(path);
-		})).pipe(es.through(function (data) {
-			// tweak the sourceMappingURL
-			if (!/\.js$/.test(data.path)) {
-				this.emit('data', data);
-				return;
-			}
-
-			const relativePathToMap = path.relative(path.join(data.relative), path.join('min-maps', data.relative + '.map'));
-
-			let strContents = data.contents.toString();
-			const newStr = '//# sourceMappingURL=' + relativePathToMap.replace(/\\/g, '/');
-			strContents = strContents.replace(/\/\/# sourceMappingURL=[^ ]+$/, newStr);
-
-			data.contents = Buffer.from(strContents);
-			this.emit('data', data);
-		})).pipe(gulp.dest('out-monaco-editor-core/min')),
-
-		// min-maps folder
-		es.merge(
-			gulp.src('out-editor-min/**/*')
-		).pipe(filterStream(function (path) {
-			// no map files
-			return /\.js\.map$/.test(path);
-		})).pipe(gulp.dest('out-monaco-editor-core/min-maps'))
 	);
 });
 
@@ -349,38 +189,11 @@ gulp.task('editor-distro',
 	task.series(
 		task.parallel(
 			util.rimraf('out-editor-src'),
-			util.rimraf('out-editor-build'),
-			util.rimraf('out-editor-esm'),
-			util.rimraf('out-monaco-editor-core'),
-			util.rimraf('out-editor'),
-			util.rimraf('out-editor-min')
-		),
-		extractEditorSrcTask,
-		task.parallel(
-			task.series(
-				compileEditorAMDTask,
-				bundleEditorAMDTask,
-				minifyEditorAMDTask
-			),
-			task.series(
-				createESMSourcesAndResourcesTask,
-				compileEditorESMTask,
-			)
-		),
-		finalEditorResourcesTask
-	)
-);
-
-gulp.task('editor-esm',
-	task.series(
-		task.parallel(
-			util.rimraf('out-editor-src'),
-			util.rimraf('out-editor-esm'),
 			util.rimraf('out-monaco-editor-core'),
 		),
 		extractEditorSrcTask,
-		createESMSourcesAndResourcesTask,
 		compileEditorESMTask,
+		finalEditorResourcesTask
 	)
 );
 
@@ -393,6 +206,9 @@ gulp.task('monacodts', task.define('monacodts', () => {
 
 //#region monaco type checking
 
+/**
+ * @param {boolean} watch
+ */
 function createTscCompileTask(watch) {
 	return () => {
 		const createReporter = require('./lib/reporter').createReporter;
@@ -421,6 +237,7 @@ function createTscCompileTask(watch) {
 					report = reporter.end(false);
 
 				} else if (str.indexOf('Compilation complete') >= 0) {
+					// @ts-ignore
 					report.end();
 
 				} else if (str) {

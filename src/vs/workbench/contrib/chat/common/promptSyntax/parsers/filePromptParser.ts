@@ -22,6 +22,8 @@ export class FilePromptParser extends BasePromptParser<FilePromptContentProvider
 	) {
 		const contentsProvider = initService.createInstance(FilePromptContentProvider, uri);
 		super(contentsProvider, seenReferences, initService, logService);
+
+		this._register(contentsProvider);
 	}
 
 	/**

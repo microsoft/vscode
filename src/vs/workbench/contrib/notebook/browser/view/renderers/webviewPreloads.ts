@@ -1780,6 +1780,16 @@ async function webviewPreloads(ctx: PreloadContext) {
 				outputContainer?.classList.remove(...event.data.removedClassNames);
 				break;
 			}
+			case 'markupDecorations': {
+				const markupCell = window.document.getElementById(event.data.cellId);
+				// The cell may not have been added yet if it is out of view.
+				// Decorations will be added when the cell is shown.
+				if (markupCell) {
+					markupCell?.classList.add(...event.data.addedClassNames);
+					markupCell?.classList.remove(...event.data.removedClassNames);
+				}
+				break;
+			}
 			case 'customKernelMessage':
 				onDidReceiveKernelMessage.fire(event.data.message);
 				break;
@@ -2733,20 +2743,20 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			if (!!data.executionId && !!data.rendererId) {
 				let outputSize: number | undefined = undefined;
-				let mimeType: string | undefined = undefined;
 				if (data.content.type === 1 /* extension */) {
 					outputSize = data.content.output.valueBytes.length;
-					mimeType = data.content.output.mime;
 				}
 
-				postNotebookMessage<webviewMessages.IPerformanceMessage>('notebookPerformanceMessage', {
-					cellId: data.cellId,
-					executionId: data.executionId,
-					duration: Date.now() - startTime,
-					rendererId: data.rendererId,
-					outputSize,
-					mimeType
-				});
+				// Only send performance messages for non-empty outputs up to a certain size
+				if (outputSize !== undefined && outputSize > 0 && outputSize < 100 * 1024) {
+					postNotebookMessage<webviewMessages.IPerformanceMessage>('notebookPerformanceMessage', {
+						cellId: data.cellId,
+						executionId: data.executionId,
+						duration: Date.now() - startTime,
+						rendererId: data.rendererId,
+						outputSize
+					});
+				}
 			}
 		}
 

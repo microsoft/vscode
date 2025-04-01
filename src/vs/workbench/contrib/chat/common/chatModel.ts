@@ -5,13 +5,14 @@
 
 import { asArray } from '../../../../base/common/arrays.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { revive } from '../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals } from '../../../../base/common/objects.js';
-import { IObservable, ITransaction, observableValue } from '../../../../base/common/observable.js';
+import { IObservable, ITransaction, ObservablePromise, observableValue } from '../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI, UriComponents, UriDto, isUriComponents } from '../../../../base/common/uri.js';
@@ -21,19 +22,20 @@ import { IRange } from '../../../../editor/common/core/range.js';
 import { Location, SymbolKind, TextEdit } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { MarkerSeverity } from '../../../../platform/markers/common/markers.js';
+import { IMarker, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
-import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, IChatWelcomeMessageContent, reviveSerializedAgent } from './chatAgents.js';
+import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, reviveSerializedAgent } from './chatAgents.js';
+import { IChatEditingService, IChatEditingSession } from './chatEditingService.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatNotebookEdit, IChatProgress, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
+import { ChatAgentLocation } from './constants.js';
 
 export interface IBaseChatRequestVariableEntry {
 	id: string;
 	fullName?: string;
 	icon?: ThemeIcon;
 	name: string;
-	isMarkedReadonly?: boolean;
 	modelDescription?: string;
 	range?: IOffsetRange;
 	value: IChatRequestVariableValue;
@@ -83,33 +85,69 @@ export interface ICommandResultVariableEntry extends Omit<IBaseChatRequestVariab
 	readonly kind: 'command';
 }
 
-export interface ILinkVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
-	readonly kind: 'link';
-	readonly value: URI;
+export interface IImageVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
+	readonly kind: 'image';
+	readonly isPasted?: boolean;
+	readonly isURL?: boolean;
 }
 
 export interface IDiagnosticVariableEntryFilterData {
+	readonly owner?: string;
+	readonly problemMessage?: string;
 	readonly filterUri?: URI;
 	readonly filterSeverity?: MarkerSeverity;
 	readonly filterRange?: IRange;
 }
 
 export namespace IDiagnosticVariableEntryFilterData {
+	export const icon = Codicon.error;
+
+	export function fromMarker(marker: IMarker): IDiagnosticVariableEntryFilterData {
+		return {
+			filterUri: marker.resource,
+			owner: marker.owner,
+			problemMessage: marker.message,
+			filterRange: { startLineNumber: marker.startLineNumber, endLineNumber: marker.endLineNumber, startColumn: marker.startColumn, endColumn: marker.endColumn }
+		};
+	}
+
+	export function toEntry(data: IDiagnosticVariableEntryFilterData): IDiagnosticVariableEntry {
+		return {
+			id: id(data),
+			name: label(data),
+			icon,
+			value: data,
+			kind: 'diagnostic' as const,
+			range: data.filterRange ? new OffsetRange(data.filterRange.startLineNumber, data.filterRange.endLineNumber) : undefined,
+			...data,
+		};
+	}
+
 	export function id(data: IDiagnosticVariableEntryFilterData) {
-		return [data.filterUri, data.filterSeverity, data.filterRange?.startLineNumber].join(':');
+		return [data.filterUri, data.owner, data.filterSeverity, data.filterRange?.startLineNumber].join(':');
 	}
 
 	export function label(data: IDiagnosticVariableEntryFilterData) {
-		let labelStr: string;
-		if (data.filterSeverity) {
-			const sev = data.filterRange ? MarkerSeverity.toString(data.filterSeverity) : MarkerSeverity.toStringPlural(data.filterSeverity);
-			labelStr = data.filterUri
-				? localize('chat.attachment.problems.severity', "{0} in {1}", sev, basename(data.filterUri))
-				: localize('chat.attachment.problems.severity2', "All {0}", sev);
-		} else {
-			labelStr = data.filterUri
-				? localize('chat.attachment.problems.severity3', "Problems in {0}", basename(data.filterUri))
-				: localize('chat.attachment.problems.severity4', "All Problems");
+		const enum TrimThreshold {
+			MaxChars = 30,
+			MaxSpaceLookback = 10,
+		}
+		if (data.problemMessage) {
+			if (data.problemMessage.length < TrimThreshold.MaxChars) {
+				return data.problemMessage;
+			}
+
+			// Trim the message, on a space if it would not lose too much
+			// data (MaxSpaceLookback) or just blindly otherwise.
+			const lastSpace = data.problemMessage.lastIndexOf(' ', TrimThreshold.MaxChars);
+			if (lastSpace === -1 || lastSpace + TrimThreshold.MaxSpaceLookback < TrimThreshold.MaxChars) {
+				return data.problemMessage.substring(0, TrimThreshold.MaxChars) + '…';
+			}
+			return data.problemMessage.substring(0, lastSpace) + '…';
+		}
+		let labelStr = localize('chat.attachment.problems.all', "All Problems");
+		if (data.filterUri) {
+			labelStr = localize('chat.attachment.problems.inFile', "Problems in {0}", basename(data.filterUri));
 		}
 
 		return labelStr;
@@ -120,7 +158,7 @@ export interface IDiagnosticVariableEntry extends Omit<IBaseChatRequestVariableE
 	readonly kind: 'diagnostic';
 }
 
-export type IChatRequestVariableEntry = IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry | ISymbolVariableEntry | ICommandResultVariableEntry | ILinkVariableEntry | IBaseChatRequestVariableEntry | IDiagnosticVariableEntry;
+export type IChatRequestVariableEntry = IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry | ISymbolVariableEntry | ICommandResultVariableEntry | IBaseChatRequestVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry;
 
 export function isImplicitVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestImplicitVariableEntry {
 	return obj.kind === 'implicit';
@@ -130,8 +168,8 @@ export function isPasteVariableEntry(obj: IChatRequestVariableEntry): obj is ICh
 	return obj.kind === 'paste';
 }
 
-export function isLinkVariableEntry(obj: IChatRequestVariableEntry): obj is ILinkVariableEntry {
-	return obj.kind === 'link';
+export function isImageVariableEntry(obj: IChatRequestVariableEntry): obj is IImageVariableEntry {
+	return obj.kind === 'image';
 }
 
 export function isDiagnosticsVariableEntry(obj: IChatRequestVariableEntry): obj is IDiagnosticVariableEntry {
@@ -346,6 +384,7 @@ export class ChatRequestModel implements IChatRequestModel {
 		private _locationData?: IChatLocationData,
 		private _attachedContext?: IChatRequestVariableEntry[],
 		public readonly isCompleteAddedRequest = false,
+		public readonly modelId?: string,
 		restoredId?: string,
 	) {
 		this.id = restoredId ?? 'request_' + generateUuid();
@@ -531,8 +570,11 @@ export class Response extends AbstractResponse implements IDisposable {
 			}
 			this._updateRepr(quiet);
 		} else if (progress.kind === 'textEdit' || progress.kind === 'notebookEdit') {
+			// If the progress.uri is a cell Uri, its possible its part of the inline chat.
+			// Old approach of notebook inline chat would not start and end with notebook Uri, so we need to check for old approach.
+			const useOldApproachForInlineNotebook = progress.uri.scheme === Schemas.vscodeNotebookCell && !this._responseParts.find(part => part.kind === 'notebookEditGroup');
 			// merge edits for the same file no matter when they come in
-			const notebookUri = CellUri.parse(progress.uri)?.notebook;
+			const notebookUri = useOldApproachForInlineNotebook ? undefined : CellUri.parse(progress.uri)?.notebook;
 			const uri = notebookUri ?? progress.uri;
 			let found = false;
 			const groupKind = progress.kind === 'textEdit' && !notebookUri ? 'textEditGroup' : 'notebookEditGroup';
@@ -899,11 +941,12 @@ export interface IChatModel {
 	readonly initState: ChatModelInitState;
 	readonly initialLocation: ChatAgentLocation;
 	readonly title: string;
-	readonly welcomeMessage: IChatWelcomeMessageContent | undefined;
 	readonly sampleQuestions: IChatFollowup[] | undefined;
 	readonly requestInProgress: boolean;
 	readonly requestPausibility: ChatPauseState;
 	readonly inputPlaceholder?: string;
+	readonly editingSessionObs?: ObservablePromise<IChatEditingSession> | undefined;
+	readonly editingSession?: IChatEditingSession | undefined;
 	toggleLastRequestPaused(paused?: boolean): void;
 	/**
 	 * Sets requests as 'disabled', removing them from the UI. If a request ID
@@ -1066,6 +1109,7 @@ export type IChatChangeEvent =
 	| IChatSetAgentEvent
 	| IChatMoveEvent
 	| IChatSetHiddenEvent
+	| IChatCompletedRequestEvent
 	;
 
 export interface IChatAddRequestEvent {
@@ -1075,6 +1119,11 @@ export interface IChatAddRequestEvent {
 
 export interface IChatChangedRequestEvent {
 	kind: 'changedRequest';
+	request: IChatRequestModel;
+}
+
+export interface IChatCompletedRequestEvent {
+	kind: 'completedRequest';
 	request: IChatRequestModel;
 }
 
@@ -1152,11 +1201,6 @@ export class ChatModel extends Disposable implements IChatModel {
 	private _requests: ChatRequestModel[];
 	private _initState: ChatModelInitState = ChatModelInitState.Created;
 	private _isInitializedDeferred = new DeferredPromise<void>();
-
-	private _welcomeMessage: IChatWelcomeMessageContent | undefined;
-	get welcomeMessage(): IChatWelcomeMessageContent | undefined {
-		return this._welcomeMessage;
-	}
 
 	private _sampleQuestions: IChatFollowup[] | undefined;
 	get sampleQuestions(): IChatFollowup[] | undefined {
@@ -1258,11 +1302,21 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._initialLocation;
 	}
 
+	private _editingSession: ObservablePromise<IChatEditingSession> | undefined;
+	get editingSessionObs(): ObservablePromise<IChatEditingSession> | undefined {
+		return this._editingSession;
+	}
+
+	get editingSession(): IChatEditingSession | undefined {
+		return this._editingSession?.promiseResult.get()?.data;
+	}
+
 	constructor(
 		private readonly initialData: ISerializableChatData | IExportableChatData | undefined,
 		private readonly _initialLocation: ChatAgentLocation,
 		@ILogService private readonly logService: ILogService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
+		@IChatEditingService private readonly chatEditingService: IChatEditingService,
 	) {
 		super();
 
@@ -1282,6 +1336,14 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._initialResponderAvatarIconUri = isUriComponents(initialData?.responderAvatarIconUri) ? URI.revive(initialData.responderAvatarIconUri) : initialData?.responderAvatarIconUri;
 	}
 
+	startEditingSession(isGlobalEditingSession?: boolean): void {
+		const editingSessionPromise = isGlobalEditingSession ?
+			this.chatEditingService.startOrContinueGlobalEditingSession(this) :
+			this.chatEditingService.createEditingSession(this);
+		this._editingSession = new ObservablePromise(editingSessionPromise);
+		this._editingSession.promise.then(editingSession => this._store.isDisposed ? editingSession.dispose() : this._register(editingSession));
+	}
+
 	private _deserialize(obj: IExportableChatData): ChatRequestModel[] {
 		const requests = obj.requests;
 		if (!Array.isArray(requests)) {
@@ -1298,7 +1360,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 				// Old messages don't have variableData, or have it in the wrong (non-array) shape
 				const variableData: IChatRequestVariableData = this.reviveVariableData(raw.variableData);
-				const request = new ChatRequestModel(this, parsedRequest, variableData, raw.timestamp ?? -1, undefined, undefined, undefined, undefined, undefined, raw.requestId);
+				const request = new ChatRequestModel(this, parsedRequest, variableData, raw.timestamp ?? -1, undefined, undefined, undefined, undefined, undefined, undefined, raw.requestId);
 				request.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : raw.shouldBeRemovedOnSend;
 				if (raw.response || raw.result || (raw as any).responseErrorDetails) {
 					const agent = (raw.agent && 'metadata' in raw.agent) ? // Check for the new format, ignore entries in the old format
@@ -1379,14 +1441,13 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._isInitializedDeferred = new DeferredPromise<void>();
 	}
 
-	initialize(welcomeMessage?: IChatWelcomeMessageContent, sampleQuestions?: IChatFollowup[]): void {
+	initialize(sampleQuestions?: IChatFollowup[]): void {
 		if (this.initState !== ChatModelInitState.Initializing) {
 			// Must call startInitialize before initialize, and only call it once
 			throw new Error(`ChatModel is in the wrong state for initialize: ${ChatModelInitState[this.initState]}`);
 		}
 
 		this._initState = ChatModelInitState.Initialized;
-		this._welcomeMessage = welcomeMessage;
 		this._sampleQuestions = sampleQuestions;
 
 		this._isInitializedDeferred.complete();
@@ -1431,8 +1492,8 @@ export class ChatModel extends Disposable implements IChatModel {
 		});
 	}
 
-	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand, confirmation?: string, locationData?: IChatLocationData, attachments?: IChatRequestVariableEntry[], workingSet?: URI[], isCompleteAddedRequest?: boolean): ChatRequestModel {
-		const request = new ChatRequestModel(this, message, variableData, Date.now(), attempt, confirmation, locationData, attachments, isCompleteAddedRequest);
+	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand, confirmation?: string, locationData?: IChatLocationData, attachments?: IChatRequestVariableEntry[], isCompleteAddedRequest?: boolean, modelId?: string): ChatRequestModel {
+		const request = new ChatRequestModel(this, message, variableData, Date.now(), attempt, confirmation, locationData, attachments, isCompleteAddedRequest, modelId);
 		request.response = new ChatResponseModel([], this, chatAgent, slashCommand, request.id, undefined, undefined, undefined, undefined, undefined, undefined, isCompleteAddedRequest);
 
 		this._requests.push(request);
@@ -1537,6 +1598,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 
 		request.response.complete();
+		this._onDidChange.fire({ kind: 'completedRequest', request });
 	}
 
 	setFollowups(request: ChatRequestModel, followups: IChatFollowup[] | undefined): void {

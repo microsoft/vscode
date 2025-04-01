@@ -11,6 +11,10 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ChatPromptAttachmentsCollection } from './chatAttachmentModel/chatPromptAttachmentsCollection.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { resizeImage } from './imageUtils.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { localize } from '../../../../nls.js';
 
 export class ChatAttachmentModel extends Disposable {
 	/**
@@ -20,6 +24,8 @@ export class ChatAttachmentModel extends Disposable {
 
 	constructor(
 		@IInstantiationService private readonly initService: IInstantiationService,
+		@IFileService private readonly fileService: IFileService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super();
 
@@ -67,17 +73,50 @@ export class ChatAttachmentModel extends Disposable {
 		this._onDidChangeContext.fire();
 	}
 
-	addFile(uri: URI, range?: IRange) {
+	async addFile(uri: URI, range?: IRange) {
+		if (/\.(png|jpe?g|gif|bmp|webp)$/i.test(uri.path)) {
+			this.addContext(await this.asImageVariableEntry(uri));
+			return;
+		}
+
 		this.addContext(this.asVariableEntry(uri, range));
 	}
 
-	asVariableEntry(uri: URI, range?: IRange, isMarkedReadonly?: boolean): IChatRequestVariableEntry {
+	addFolder(uri: URI) {
+		this.addContext({
+			value: uri,
+			id: uri.toString(),
+			name: basename(uri),
+			isFile: false,
+			isDirectory: true,
+		});
+	}
+
+	asVariableEntry(uri: URI, range?: IRange): IChatRequestVariableEntry {
 		return {
 			value: range ? { uri, range } : uri,
 			id: uri.toString() + (range?.toString() ?? ''),
 			name: basename(uri),
 			isFile: true,
-			isMarkedReadonly,
+		};
+	}
+
+	async asImageVariableEntry(uri: URI): Promise<IChatRequestVariableEntry> {
+		const fileName = basename(uri);
+		const readFile = await this.fileService.readFile(uri);
+		if (readFile.size > 30 * 1024 * 1024) { // 30 MB
+			this.dialogService.error(localize('imageTooLarge', 'Image is too large'), localize('imageTooLargeMessage', 'The image {0} is too large to be attached.', fileName));
+			throw new Error('Image is too large');
+		}
+		const resizedImage = await resizeImage(readFile.value.buffer);
+		return {
+			id: uri.toString(),
+			name: fileName,
+			fullName: uri.path,
+			value: resizedImage,
+			isImage: true,
+			isFile: false,
+			references: [{ reference: uri, kind: 'reference' }]
 		};
 	}
 

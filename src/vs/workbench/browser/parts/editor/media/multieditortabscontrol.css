@@ -104,6 +104,7 @@
 	height: var(--editor-group-tab-height);
 	box-sizing: border-box;
 	padding-left: 10px;
+	outline-offset: -2px;
 }
 
 /* Tab Background Color in/active group/tab */
@@ -300,10 +301,6 @@
 	background-color: var(--tab-border-bottom-color);
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-bottom:focus > .tab-border-bottom-container {
-	background-color: var(--vscode-focusBorder);
-}
-
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty-border-top:not(:focus) > .tab-border-top-container {
 	z-index: 6;
 	top: 0;
@@ -345,7 +342,7 @@
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container >  .tab.sizing-shrink > .tab-label.tab-label-has-badge::after,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container >  .tab.sizing-fixed > .tab-label.tab-label-has-badge::after {
-	padding-right: 5px; /* with tab sizing shrink/fixed and badges, we want a right-padding because the close button is hidden */
+	margin-right: 5px; /* with tab sizing shrink/fixed and badges, we want a right-margin because the close button is hidden. Use margin instead of padding to support animating the badge (https://github.com/microsoft/vscode/issues/242661) */
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink:not(.tab-actions-left):not(.close-action-off) .tab-label {
@@ -359,6 +356,12 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit .monaco-icon-label,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit .monaco-icon-label > .monaco-icon-label-container {
 	overflow-x: visible; /* fixes https://github.com/microsoft/vscode/issues/20182 by ensuring the horizontal overflow is visible */
+
+	scrollbar-width: none; /* Firefox */
+	-ms-overflow-style: none; /* Internet Explorer 10+ */
+	&::-webkit-scrollbar {
+		display: none; /* Chrome, Safari, and Opera */
+	}
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink > .monaco-icon-label > .monaco-icon-label-container,
@@ -372,6 +375,18 @@
 .monaco-workbench.hc-black .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fixed > .monaco-icon-label > .monaco-icon-label-container,
 .monaco-workbench.hc-light .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fixed > .monaco-icon-label > .monaco-icon-label-container {
 	text-overflow: ellipsis;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab > .monaco-icon-label.italic > .monaco-icon-label-container {
+	/**
+	 * Browser rendering engines seem to have trouble to render italic labels
+	 * fully without clipping in case the parent container has `overflow: hidden`
+	 * and/or `flex: none`. We added those styles to fix other issues so a pragmatic
+	 * solution is to give the label container a bit more room to fully render.
+	 *
+	 * Refs: https://github.com/microsoft/vscode/issues/207409
+	 */
+	padding-right: 1px;
 }
 
 /* Tab Actions */

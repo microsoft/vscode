@@ -26,16 +26,16 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
  * 				 This object most likely was explicitly attached by the user.
  */
 export const toChatVariable = (
-	reference: Pick<IPromptFileReference, 'uri' | 'isPromptSnippet'>,
+	reference: Pick<IPromptFileReference, 'uri' | 'isPromptFile'>,
 	isRoot: boolean,
 ): IChatRequestVariableEntry => {
-	const { uri, isPromptSnippet } = reference;
+	const { uri, isPromptFile: isPromptFile } = reference;
 
 	// default `id` is the stringified `URI`
 	let id = `${uri}`;
 
 	// for prompt files, we add a prefix to the `id`
-	if (isPromptSnippet) {
+	if (isPromptFile) {
 		// the default prefix that is used for all prompt files
 		let prefix = 'vscode.prompt.instructions';
 		// if the reference is the root object, add the `.root` suffix
@@ -55,7 +55,6 @@ export const toChatVariable = (
 		isSelection: false,
 		enabled: true,
 		isFile: true,
-		isMarkedReadonly: isPromptSnippet,
 	};
 };
 

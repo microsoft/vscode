@@ -13,8 +13,7 @@ import { ctxHasEditorModification, ctxHasRequestInProgress, ctxReviewModeEnabled
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
-import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, IChatEditingService, IChatEditingSession, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, WorkingSetEntryState } from '../../common/chatEditingService.js';
-import { ctxNotebookHasEditorModification } from '../../../notebook/browser/contrib/chatEdit/notebookChatEditContext.js';
+import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, IChatEditingService, IChatEditingSession, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { resolveCommandsContext } from '../../../../browser/parts/editor/editorCommandsContext.js';
 import { IListService } from '../../../../../platform/list/browser/listService.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
@@ -22,6 +21,7 @@ import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiff
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { EditorResourceAccessor, SideBySideEditor, TEXT_DIFF_EDITOR_ID } from '../../../../common/editor.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
 
 
 abstract class ChatEditingEditorAction extends Action2 {
@@ -72,14 +72,14 @@ abstract class NavigateAction extends ChatEditingEditorAction {
 				? localize2('next', 'Go to Next Chat Edit')
 				: localize2('prev', 'Go to Previous Chat Edit'),
 			icon: next ? Codicon.arrowDown : Codicon.arrowUp,
-			precondition: ctxHasRequestInProgress.negate(),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ctxHasRequestInProgress.negate()),
 			keybinding: {
 				primary: next
 					? KeyMod.Alt | KeyCode.F5
 					: KeyMod.Alt | KeyMod.Shift | KeyCode.F5,
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.or(ctxHasEditorModification, ctxNotebookHasEditorModification),
+					ctxHasEditorModification,
 					EditorContextKeys.focus
 				),
 			},
@@ -128,7 +128,7 @@ async function openNextOrPreviousChange(accessor: ServicesAccessor, session: ICh
 	while (true) {
 		idx = (idx + (next ? 1 : -1) + entries.length) % entries.length;
 		newEntry = entries[idx];
-		if (newEntry.state.get() === WorkingSetEntryState.Modified) {
+		if (newEntry.state.get() === ModifiedFileEntryState.Modified) {
 			break;
 		} else if (newEntry === entry) {
 			return false;

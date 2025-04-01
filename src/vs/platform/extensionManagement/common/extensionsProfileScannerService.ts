@@ -270,8 +270,9 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 						migrate = true;
 						e.metadata.hasPreReleaseVersion = true;
 					}
+					const uuid = e.metadata?.id ?? e.identifier.uuid;
 					extensions.push({
-						identifier: e.identifier,
+						identifier: uuid ? { id: e.identifier.id, uuid } : { id: e.identifier.id },
 						location,
 						version: e.version,
 						metadata: e.metadata,

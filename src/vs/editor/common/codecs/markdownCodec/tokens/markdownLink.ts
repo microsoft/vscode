@@ -28,13 +28,13 @@ export class MarkdownLink extends MarkdownToken {
 		 */
 		columnNumber: number,
 		/**
-		 * The caption of the link, including the square brackets.
+		 * The caption of the original link, including the square brackets.
 		 */
-		private readonly caption: string,
+		public readonly caption: string,
 		/**
-		 * The reference of the link, including the parentheses.
+		 * The reference of the original link, including the parentheses.
 		 */
-		private readonly reference: string,
+		public readonly reference: string,
 	) {
 		assert(
 			!isNaN(lineNumber),

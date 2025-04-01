@@ -92,6 +92,9 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		this._dropdownContainer = DOM.$('.dropdown-action-container');
 		this._dropdown.render(DOM.append(this._container, this._dropdownContainer));
 		this._register(DOM.addDisposableListener(primaryContainer, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			if (!this.action.enabled) {
+				return;
+			}
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.RightArrow)) {
 				this._primaryAction.element!.tabIndex = -1;
@@ -100,6 +103,9 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 			}
 		}));
 		this._register(DOM.addDisposableListener(this._dropdownContainer, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			if (!this.action.enabled) {
+				return;
+			}
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.LeftArrow)) {
 				this._primaryAction.element!.tabIndex = 0;

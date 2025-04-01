@@ -66,6 +66,35 @@ export function generateMetadataUri(notebook: URI): URI {
 	return notebook.with({ scheme: Schemas.vscodeNotebookMetadata, fragment });
 }
 
+export function extractCellOutputDetails(uri: URI): { notebook: URI; openIn: string; outputId?: string; cellFragment?: string; outputIndex?: number; cellHandle?: number } | undefined {
+	if (uri.scheme !== Schemas.vscodeNotebookCellOutput) {
+		return;
+	}
+
+	const params = new URLSearchParams(uri.query);
+	const openIn = params.get('openIn');
+	if (!openIn) {
+		return;
+	}
+	const outputId = params.get('outputId') ?? undefined;
+	const parsedCell = parse(uri.with({ scheme: Schemas.vscodeNotebookCell, query: null }));
+	const outputIndex = params.get('outputIndex') ? parseInt(params.get('outputIndex') || '', 10) : undefined;
+
+	if (parsedCell?.notebook === undefined || parsedCell?.handle === undefined) {
+		throw new Error('Invalid cell URI');
+	}
+
+	return {
+		notebook: parsedCell.notebook,
+		openIn: openIn,
+		outputId: outputId,
+		outputIndex: outputIndex,
+		cellHandle: parsedCell.handle,
+		cellFragment: uri.fragment,
+	};
+}
+
+
 export interface INotebookDocumentService {
 	readonly _serviceBrand: undefined;
 
@@ -84,6 +113,15 @@ export class NotebookDocumentWorkbenchService implements INotebookDocumentServic
 			const cellUri = parse(uri);
 			if (cellUri) {
 				const document = this._documents.get(cellUri.notebook);
+				if (document) {
+					return document;
+				}
+			}
+		}
+		if (uri.scheme === Schemas.vscodeNotebookCellOutput) {
+			const parsedData = extractCellOutputDetails(uri);
+			if (parsedData) {
+				const document = this._documents.get(parsedData.notebook);
 				if (document) {
 					return document;
 				}

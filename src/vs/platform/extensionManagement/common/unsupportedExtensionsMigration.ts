@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { IExtensionGalleryService, IExtensionManagementService, IGlobalExtensionEnablementService, InstallOperation } from './extensionManagement.js';
+import { EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT, IExtensionGalleryService, IExtensionManagementService, IGlobalExtensionEnablementService, InstallOperation } from './extensionManagement.js';
 import { areSameExtensions, getExtensionId } from './extensionManagementUtil.js';
 import { IExtensionStorageService } from './extensionStorage.js';
 import { ExtensionType } from '../../extensions/common/extensions.js';
@@ -53,7 +53,7 @@ export async function migrateUnsupportedExtensions(extensionManagementService: I
 
 				let preReleaseExtension = installed.find(i => areSameExtensions(i.identifier, { id: preReleaseExtensionId }));
 				if (!preReleaseExtension || (!preReleaseExtension.isPreReleaseVersion && isUnsupportedExtensionEnabled)) {
-					preReleaseExtension = await extensionManagementService.installFromGallery(gallery, { installPreReleaseVersion: true, isMachineScoped: unsupportedExtension.isMachineScoped, operation: InstallOperation.Migrate });
+					preReleaseExtension = await extensionManagementService.installFromGallery(gallery, { installPreReleaseVersion: true, isMachineScoped: unsupportedExtension.isMachineScoped, operation: InstallOperation.Migrate, context: { [EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT]: true } });
 					logService.info(`Installed the pre-release extension '${preReleaseExtension.identifier.id}'`);
 					if (!isUnsupportedExtensionEnabled) {
 						await extensionEnablementService.disableExtension(preReleaseExtension.identifier);

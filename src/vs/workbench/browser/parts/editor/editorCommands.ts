@@ -61,6 +61,7 @@ export const LOCK_GROUP_COMMAND_ID = 'workbench.action.lockEditorGroup';
 export const UNLOCK_GROUP_COMMAND_ID = 'workbench.action.unlockEditorGroup';
 export const SHOW_EDITORS_IN_GROUP = 'workbench.action.showEditorsInGroup';
 export const REOPEN_WITH_COMMAND_ID = 'workbench.action.reopenWithEditor';
+export const REOPEN_ACTIVE_EDITOR_WITH_COMMAND_ID = 'reopenActiveEditorWith';
 
 export const PIN_EDITOR_COMMAND_ID = 'workbench.action.pinEditor';
 export const UNPIN_EDITOR_COMMAND_ID = 'workbench.action.unpinEditor';
@@ -867,73 +868,87 @@ function registerCloseEditorCommands() {
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: undefined,
 		primary: undefined,
-		handler: async (accessor, ...args: unknown[]) => {
-			const editorService = accessor.get(IEditorService);
-			const editorResolverService = accessor.get(IEditorResolverService);
-			const telemetryService = accessor.get(ITelemetryService);
-
-			const resolvedContext = resolveCommandsContext(args, editorService, accessor.get(IEditorGroupsService), accessor.get(IListService));
-			const editorReplacements = new Map<IEditorGroup, IEditorReplacement[]>();
-
-			for (const { group, editors } of resolvedContext.groupedEditors) {
-				for (const editor of editors) {
-					const untypedEditor = editor.toUntyped();
-					if (!untypedEditor) {
-						return; // Resolver can only resolve untyped editors
-					}
-
-					untypedEditor.options = { ...editorService.activeEditorPane?.options, override: EditorResolution.PICK };
-					const resolvedEditor = await editorResolverService.resolveEditor(untypedEditor, group);
-					if (!isEditorInputWithOptionsAndGroup(resolvedEditor)) {
-						return;
-					}
-
-					let editorReplacementsInGroup = editorReplacements.get(group);
-					if (!editorReplacementsInGroup) {
-						editorReplacementsInGroup = [];
-						editorReplacements.set(group, editorReplacementsInGroup);
-					}
-
-					editorReplacementsInGroup.push({
-						editor: editor,
-						replacement: resolvedEditor.editor,
-						forceReplaceDirty: editor.resource?.scheme === Schemas.untitled,
-						options: resolvedEditor.options
-					});
-
-					// Telemetry
-					type WorkbenchEditorReopenClassification = {
-						owner: 'rebornix';
-						comment: 'Identify how a document is reopened';
-						scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File system provider scheme for the resource' };
-						ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File extension for the resource' };
-						from: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The editor view type the resource is switched from' };
-						to: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The editor view type the resource is switched to' };
-					};
-
-					type WorkbenchEditorReopenEvent = {
-						scheme: string;
-						ext: string;
-						from: string;
-						to: string;
-					};
-
-					telemetryService.publicLog2<WorkbenchEditorReopenEvent, WorkbenchEditorReopenClassification>('workbenchEditorReopen', {
-						scheme: editor.resource?.scheme ?? '',
-						ext: editor.resource ? extname(editor.resource) : '',
-						from: editor.editorId ?? '',
-						to: resolvedEditor.editor.editorId ?? ''
-					});
-				}
-			}
-
-			// Replace editor with resolved one and make active
-			for (const [group, replacements] of editorReplacements) {
-				await group.replaceEditors(replacements);
-				await group.openEditor(replacements[0].replacement);
-			}
+		handler: (accessor, ...args: unknown[]) => {
+			return reopenEditorWith(accessor, EditorResolution.PICK, ...args);
 		}
 	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: REOPEN_ACTIVE_EDITOR_WITH_COMMAND_ID,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: undefined,
+		primary: undefined,
+		handler: (accessor, override?: string, ...args: unknown[]) => {
+			return reopenEditorWith(accessor, override ?? EditorResolution.PICK, ...args);
+		}
+	});
+
+	async function reopenEditorWith(accessor: ServicesAccessor, editorOverride: string | EditorResolution, ...args: unknown[]) {
+		const editorService = accessor.get(IEditorService);
+		const editorResolverService = accessor.get(IEditorResolverService);
+		const telemetryService = accessor.get(ITelemetryService);
+
+		const resolvedContext = resolveCommandsContext(args, editorService, accessor.get(IEditorGroupsService), accessor.get(IListService));
+		const editorReplacements = new Map<IEditorGroup, IEditorReplacement[]>();
+
+		for (const { group, editors } of resolvedContext.groupedEditors) {
+			for (const editor of editors) {
+				const untypedEditor = editor.toUntyped();
+				if (!untypedEditor) {
+					return; // Resolver can only resolve untyped editors
+				}
+
+				untypedEditor.options = { ...editorService.activeEditorPane?.options, override: editorOverride };
+				const resolvedEditor = await editorResolverService.resolveEditor(untypedEditor, group);
+				if (!isEditorInputWithOptionsAndGroup(resolvedEditor)) {
+					return;
+				}
+
+				let editorReplacementsInGroup = editorReplacements.get(group);
+				if (!editorReplacementsInGroup) {
+					editorReplacementsInGroup = [];
+					editorReplacements.set(group, editorReplacementsInGroup);
+				}
+
+				editorReplacementsInGroup.push({
+					editor: editor,
+					replacement: resolvedEditor.editor,
+					forceReplaceDirty: editor.resource?.scheme === Schemas.untitled,
+					options: resolvedEditor.options
+				});
+
+				// Telemetry
+				type WorkbenchEditorReopenClassification = {
+					owner: 'rebornix';
+					comment: 'Identify how a document is reopened';
+					scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File system provider scheme for the resource' };
+					ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File extension for the resource' };
+					from: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The editor view type the resource is switched from' };
+					to: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The editor view type the resource is switched to' };
+				};
+
+				type WorkbenchEditorReopenEvent = {
+					scheme: string;
+					ext: string;
+					from: string;
+					to: string;
+				};
+
+				telemetryService.publicLog2<WorkbenchEditorReopenEvent, WorkbenchEditorReopenClassification>('workbenchEditorReopen', {
+					scheme: editor.resource?.scheme ?? '',
+					ext: editor.resource ? extname(editor.resource) : '',
+					from: editor.editorId ?? '',
+					to: resolvedEditor.editor.editorId ?? ''
+				});
+			}
+		}
+
+		// Replace editor with resolved one and make active
+		for (const [group, replacements] of editorReplacements) {
+			await group.replaceEditors(replacements);
+			await group.openEditor(replacements[0].replacement);
+		}
+	}
 
 	CommandsRegistry.registerCommand(CLOSE_EDITORS_AND_GROUP_COMMAND_ID, async (accessor: ServicesAccessor, ...args: unknown[]) => {
 		const editorGroupsService = accessor.get(IEditorGroupsService);

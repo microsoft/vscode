@@ -22,6 +22,14 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 		return Disposable.None;
 	}
 
+	resetToolAutoConfirmation(): void {
+
+	}
+
+	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile', autoConfirm?: boolean): void {
+
+	}
+
 	registerToolImplementation(name: string, tool: IToolImpl): IDisposable {
 		return Disposable.None;
 	}

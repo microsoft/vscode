@@ -56,14 +56,20 @@ declare module 'vscode' {
 			/**
 			 * The {@link TextDocument.encoding encoding} of the document to use
 			 * for decoding the underlying buffer to text. If omitted, the encoding
-			 * will be guessed based on the file content and/or the editor settings.
+			 * will be guessed based on the file content and/or the editor settings
+			 * unless the document is already opened.
 			 *
 			 * See {@link TextDocument.encoding} for more information about valid
 			 * values for encoding.
 			 *
 			 * *Note* that opening a text document that was already opened with a
 			 * different encoding has the potential of changing the text contents of
-			 * the text document.
+			 * the text document. Specifically, when the encoding results in a
+			 * different set of characters than the previous encoding.
+			 *
+			 * *Note* that if you open a document with an encoding that does not
+			 * support decoding the underlying bytes, content may be replaced with
+			 * substitution characters as appropriate.
 			 */
 			encoding?: string;
 		}): Thenable<TextDocument>;
@@ -80,14 +86,20 @@ declare module 'vscode' {
 			/**
 			 * The {@link TextDocument.encoding encoding} of the document to use
 			 * for decoding the underlying buffer to text. If omitted, the encoding
-			 * will be guessed based on the file content and/or the editor settings.
+			 * will be guessed based on the file content and/or the editor settings
+			 * unless the document is already opened.
 			 *
 			 * See {@link TextDocument.encoding} for more information about valid
 			 * values for encoding.
 			 *
 			 * *Note* that opening a text document that was already opened with a
 			 * different encoding has the potential of changing the text contents of
-			 * the text document.
+			 * the text document. Specifically, when the encoding results in a
+			 * different set of characters than the previous encoding.
+			 *
+			 * *Note* that if you open a document with an encoding that does not
+			 * support decoding the underlying bytes, content may be replaced with
+			 * substitution characters as appropriate.
 			 */
 			encoding?: string;
 		}): Thenable<TextDocument>;
@@ -116,11 +128,18 @@ declare module 'vscode' {
 		}): Thenable<TextDocument>;
 
 		/**
-		 * Decodes the content from a `Uint8Array` to a `string`.
+		 * Decodes the content from a `Uint8Array` to a `string`. You MUST
+		 * provide the entire content at once to ensure that the encoding
+		 * can properly apply. Do not use this method to decode content
+		 * in chunks, as that may lead to incorrect results.
 		 *
 		 * If no encoding is provided, will try to pick an encoding based
 		 * on user settings and the content of the buffer (for example
 		 * byte order marks).
+		 *
+		 * *Note* that if you decode content that is unsupported by the
+		 * encoding, the result may contain substitution characters as
+		 * appropriate.
 		 *
 		 * @throws This method will throw an error when the content is binary.
 		 *

@@ -9,7 +9,7 @@ import { IModelService } from '../../../../../editor/common/services/model.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { DiffAlgorithmName, IEditorWorkerService, ILineChange } from '../../../../../editor/common/services/editorWorker.js';
 import { IDocumentDiff, IDocumentDiffProviderOptions } from '../../../../../editor/common/diff/documentDiffProvider.js';
-import { BaseEditorSimpleWorker } from '../../../../../editor/common/services/editorSimpleWorker.js';
+import { EditorWorker } from '../../../../../editor/common/services/editorWebWorker.js';
 import { LineRange } from '../../../../../editor/common/core/lineRange.js';
 import { MovedText } from '../../../../../editor/common/diff/linesDiffComputer.js';
 import { LineRangeMapping, DetailedLineRangeMapping, RangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
@@ -18,7 +18,7 @@ import { TextEdit } from '../../../../../editor/common/languages.js';
 
 export class TestWorkerService extends mock<IEditorWorkerService>() {
 
-	private readonly _worker = new BaseEditorSimpleWorker();
+	private readonly _worker = new EditorWorker();
 
 	constructor(@IModelService private readonly _modelService: IModelService) {
 		super();

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { createWebWorker } from '../../../base/browser/defaultWorkerFactory.js';
+import { createWebWorker } from '../../../base/browser/webWorkerFactory.js';
 import { URI } from '../../../base/common/uri.js';
-import { Proxied } from '../../../base/common/worker/simpleWorker.js';
+import { Proxied } from '../../../base/common/worker/webWorker.js';
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
@@ -14,6 +14,7 @@ import { IV8Profile } from '../common/profiling.js';
 import { BottomUpSample } from '../common/profilingModel.js';
 import { reportSample } from '../common/profilingTelemetrySpec.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { FileAccess } from '../../../base/common/network.js';
 
 export const enum ProfilingOutput {
 	Failure,
@@ -48,7 +49,7 @@ class ProfileAnalysisWorkerService implements IProfileAnalysisWorkerService {
 	private async _withWorker<R>(callback: (worker: Proxied<IProfileAnalysisWorker>) => Promise<R>): Promise<R> {
 
 		const worker = createWebWorker<IProfileAnalysisWorker>(
-			'vs/platform/profiling/electron-sandbox/profileAnalysisWorker',
+			FileAccess.asBrowserUri('vs/platform/profiling/electron-sandbox/profileAnalysisWorkerMain.js'),
 			'CpuProfileAnalysisWorker'
 		);
 

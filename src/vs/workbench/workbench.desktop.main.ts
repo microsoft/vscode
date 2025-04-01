@@ -62,6 +62,7 @@ import '../platform/extensionResourceLoader/common/extensionResourceLoaderServic
 import './services/localization/electron-sandbox/localeService.js';
 import './services/extensions/electron-sandbox/extensionsScannerService.js';
 import './services/extensionManagement/electron-sandbox/extensionManagementServerService.js';
+import './services/extensionManagement/electron-sandbox/extensionGalleryManifestService.js';
 import './services/extensionManagement/electron-sandbox/extensionTipsService.js';
 import './services/userDataSync/electron-sandbox/userDataSyncService.js';
 import './services/userDataSync/electron-sandbox/userDataAutoSyncService.js';
@@ -84,6 +85,7 @@ import './services/extensions/electron-sandbox/nativeExtensionService.js';
 import '../platform/userDataProfile/electron-sandbox/userDataProfileStorageService.js';
 import './services/auxiliaryWindow/electron-sandbox/auxiliaryWindowService.js';
 import '../platform/extensionManagement/electron-sandbox/extensionsProfileScannerService.js';
+import '../platform/webContentExtractor/electron-sandbox/webContentExtractorService.js';
 
 import { registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { IUserDataInitializationService, UserDataInitializationService } from './services/userData/browser/userDataInit.js';
@@ -123,9 +125,6 @@ import './contrib/issue/electron-sandbox/process.contribution.js';
 
 // Remote
 import './contrib/remote/electron-sandbox/remote.contribution.js';
-
-// Configuration Exporter
-import './contrib/configExporter/electron-sandbox/configurationExportHelper.contribution.js';
 
 // Terminal
 import './contrib/terminal/electron-sandbox/terminal.contribution.js';
@@ -174,6 +173,9 @@ import './contrib/encryption/electron-sandbox/encryption.contribution.js';
 
 // Emergency Alert
 import './contrib/emergencyAlert/electron-sandbox/emergencyAlert.contribution.js';
+
+// MCP
+import './contrib/mcp/electron-sandbox/mcp.contribution.js';
 
 //#endregion
 

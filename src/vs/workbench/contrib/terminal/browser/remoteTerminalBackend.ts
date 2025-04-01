@@ -190,6 +190,7 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 			type: shellLaunchConfig.type,
 			isFeatureTerminal: shellLaunchConfig.isFeatureTerminal,
 			tabActions: shellLaunchConfig.tabActions,
+			shellIntegrationEnvironmentReporting: shellLaunchConfig.shellIntegrationEnvironmentReporting,
 		};
 		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
 

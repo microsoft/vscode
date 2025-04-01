@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
-import { IWorkbenchIssueService, IssueType, IIssueFormService } from '../common/issue.js';
-import { BaseIssueContribution } from '../common/issue.contribution.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from '../../../../platform/quickinput/common/quickAccess.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { Extensions, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
-import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IDisposable } from '../../../../base/common/lifecycle.js';
-import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from '../../../../platform/quickinput/common/quickAccess.js';
 import { IssueQuickAccess } from '../browser/issueQuickAccess.js';
-import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
-import { NativeIssueService } from './issueService.js';
-import './processMainService.js';
 import '../browser/issueTroubleshoot.js';
+import { BaseIssueContribution } from '../common/issue.contribution.js';
+import { IIssueFormService, IWorkbenchIssueService, IssueType } from '../common/issue.js';
+import { NativeIssueService } from './issueService.js';
 import { NativeIssueFormService } from './nativeIssueFormService.js';
+import './processMainService.js';
 
 //#region Issue Contribution
 registerSingleton(IWorkbenchIssueService, NativeIssueService, InstantiationType.Delayed);
@@ -34,6 +34,10 @@ class NativeIssueContribution extends BaseIssueContribution {
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(productService, configurationService);
+
+		if (!configurationService.getValue<boolean>('telemetry.feedback.enabled')) {
+			return;
+		}
 
 		if (productService.reportIssueUrl) {
 			this._register(registerAction2(ReportPerformanceIssueUsingReporterAction));

@@ -11,7 +11,7 @@ import { IProgress } from '../../../../platform/progress/common/progress.js';
 import { IChatMessage } from './languageModels.js';
 import { IChatFollowup, IChatProgress, IChatResponseProgressFileTreeData } from './chatService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { ChatAgentLocation } from './chatAgents.js';
+import { ChatAgentLocation, ChatMode } from './constants.js';
 
 //#region slash service, commands etc
 
@@ -25,6 +25,7 @@ export interface IChatSlashData {
 	 */
 	executeImmediately?: boolean;
 	locations: ChatAgentLocation[];
+	modes?: ChatMode[];
 }
 
 export interface IChatSlashFragment {
@@ -42,7 +43,7 @@ export interface IChatSlashCommandService {
 	readonly onDidChangeCommands: Event<void>;
 	registerSlashCommand(data: IChatSlashData, command: IChatSlashCallback): IDisposable;
 	executeCommand(id: string, prompt: string, progress: IProgress<IChatProgress>, history: IChatMessage[], location: ChatAgentLocation, token: CancellationToken): Promise<{ followUp: IChatFollowup[] } | void>;
-	getCommands(location: ChatAgentLocation): Array<IChatSlashData>;
+	getCommands(location: ChatAgentLocation, mode: ChatMode): Array<IChatSlashData>;
 	hasCommand(id: string): boolean;
 }
 
@@ -81,8 +82,10 @@ export class ChatSlashCommandService extends Disposable implements IChatSlashCom
 		});
 	}
 
-	getCommands(location: ChatAgentLocation): Array<IChatSlashData> {
-		return Array.from(this._commands.values(), v => v.data).filter(c => c.locations.includes(location));
+	getCommands(location: ChatAgentLocation, mode: ChatMode): Array<IChatSlashData> {
+		return Array
+			.from(this._commands.values(), v => v.data)
+			.filter(c => c.locations.includes(location) && (!c.modes || c.modes.includes(mode)));
 	}
 
 	hasCommand(id: string): boolean {

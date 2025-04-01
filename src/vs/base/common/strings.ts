@@ -802,14 +802,20 @@ export function rcut(text: string, n: number, suffix = ''): string {
 	return result.trim().replace(/b$/, '') + suffix;
 }
 
-// Escape codes, compiled from https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h3-Functions-using-CSI-_-ordered-by-the-final-character_s_
-// Plus additional markers for custom `\x1b]...\x07` instructions.
-const CSI_SEQUENCE = /(?:(?:\x1b\[|\x9B)[=?>!]?[\d;:]*["$#'* ]?[a-zA-Z@^`{}|~])|(:?\x1b\].*?\x07)/g;
+// Defacto standard: https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
+const CSI_SEQUENCE = /(?:\x1b\[|\x9b)[=?>!]?[\d;:]*["$#'* ]?[a-zA-Z@^`{}|~]/;
+const OSC_SEQUENCE = /(?:\x1b\]|\x9d).*?(?:\x1b\\|\x07|\x9c)/;
+const ESC_SEQUENCE = /\x1b(?:[ #%\(\)\*\+\-\.\/]?[a-zA-Z0-9\|}~@])/;
+const CONTROL_SEQUENCES = new RegExp('(?:' + [
+	CSI_SEQUENCE.source,
+	OSC_SEQUENCE.source,
+	ESC_SEQUENCE.source,
+].join('|') + ')', 'g');
 
 /** Iterates over parts of a string with CSI sequences */
 export function* forAnsiStringParts(str: string) {
 	let last = 0;
-	for (const match of str.matchAll(CSI_SEQUENCE)) {
+	for (const match of str.matchAll(CONTROL_SEQUENCES)) {
 		if (last !== match.index) {
 			yield { isCode: false, str: str.substring(last, match.index) };
 		}
@@ -833,7 +839,7 @@ export function* forAnsiStringParts(str: string) {
  */
 export function removeAnsiEscapeCodes(str: string): string {
 	if (str) {
-		str = str.replace(CSI_SEQUENCE, '');
+		str = str.replace(CONTROL_SEQUENCES, '');
 	}
 
 	return str;

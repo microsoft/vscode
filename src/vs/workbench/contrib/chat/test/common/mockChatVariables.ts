@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { IChatRequestVariableData, IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { IParsedChatRequest } from '../../common/chatParserTypes.js';
 import { IChatVariablesService, IDynamicVariable } from '../../common/chatVariables.js';
+import { ChatAgentLocation } from '../../common/constants.js';
 
 export class MockChatVariablesService implements IChatVariablesService {
 	_serviceBrand: undefined;

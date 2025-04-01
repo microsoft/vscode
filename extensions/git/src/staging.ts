@@ -3,8 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TextDocument, Range, LineChange, Selection, Uri, TextEditor, TextEditorDiffInformation } from 'vscode';
+import { TextDocument, Range, Selection, Uri, TextEditor, TextEditorDiffInformation } from 'vscode';
 import { fromGitUri, isGitUri } from './uri';
+
+export interface LineChange {
+	readonly originalStartLineNumber: number;
+	readonly originalEndLineNumber: number;
+	readonly modifiedStartLineNumber: number;
+	readonly modifiedEndLineNumber: number;
+}
 
 export function applyLineChanges(original: TextDocument, modified: TextDocument, diffs: LineChange[]): string {
 	const result: string[] = [];

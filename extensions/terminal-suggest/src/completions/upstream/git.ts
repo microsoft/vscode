@@ -1,4 +1,4 @@
-// import { ai } from "../../fig/ai/ai";
+function ai(...args: any[]): undefined { return undefined; }
 
 const filterMessages = (out: string): string => {
 	return out.startsWith("warning:") || out.startsWith("error:")
@@ -29,7 +29,7 @@ const postProcessTrackedFiles: Fig.Generator["postProcess"] = (
 
 			try {
 				ext = file.split(".").slice(-1)[0];
-			} catch (e) { }
+			} catch (e) {}
 
 			if (file.endsWith("/")) {
 				ext = "folder";
@@ -53,69 +53,67 @@ interface PostProcessBranchesOptions {
 
 const postProcessBranches =
 	(options: PostProcessBranchesOptions = {}): Fig.Generator["postProcess"] =>
-		(out): (Fig.Suggestion | null)[] => {
-			const { insertWithoutRemotes = false } = options;
+	(out) => {
+		const { insertWithoutRemotes = false } = options;
 
-			const output = filterMessages(out);
+		const output = filterMessages(out);
 
-			if (output.startsWith("fatal:")) {
-				return [];
-			}
+		if (output.startsWith("fatal:")) {
+			return [];
+		}
 
-			const seen = new Set<string>();
-			return output
-				.split("\n")
-				.filter((line) => !line.trim().startsWith("HEAD"))
-				.map((branch) => {
-					let name = branch.trim();
-					const parts = branch.match(/\S+/g);
-					if (!parts) {
-						return null;
-					}
-					if (parts.length > 1) {
-						if (parts[0] === "*") {
-							// We are in a detached HEAD state
-							if (branch.includes("HEAD detached")) {
-								return null;
-							}
-							// Current branch
-							return {
-								name: branch.replace("*", "").trim(),
-								description: "Current branch",
-								priority: 100,
-								icon: "⭐️",
-							};
-						} else if (parts[0] === "+") {
-							// Branch checked out in another worktree.
-							name = branch.replace("+", "").trim();
+		const seen = new Set<string>();
+		return output
+			.split("\n")
+			.filter((line) => !line.trim().startsWith("HEAD"))
+			.map((branch) => {
+				let name = branch.trim();
+				const parts = branch.match(/\S+/g);
+				if (parts && parts.length > 1) {
+					if (parts[0] === "*") {
+						// We are in a detached HEAD state
+						if (branch.includes("HEAD detached")) {
+							return null;
 						}
+						// Current branch
+						return {
+							name: branch.replace("*", "").trim(),
+							description: "Current branch",
+							priority: 100,
+							icon: "⭐️",
+						};
+					} else if (parts[0] === "+") {
+						// Branch checked out in another worktree.
+						name = branch.replace("+", "").trim();
 					}
+				}
 
-					let description = "Branch";
+				let description = "Branch";
 
-					if (insertWithoutRemotes && name.startsWith("remotes/")) {
-						name = name.slice(name.indexOf("/", 8) + 1);
-						description = "Remote branch";
-					}
+				if (insertWithoutRemotes && name.startsWith("remotes/")) {
+					name = name.slice(name.indexOf("/", 8) + 1);
+					description = "Remote branch";
+				}
 
-					const space = name.indexOf(" ");
-					if (space !== -1) {
-						name = name.slice(0, space);
-					}
+				const space = name.indexOf(" ");
+				if (space !== -1) {
+					name = name.slice(0, space);
+				}
 
-					return {
-						name,
-						description,
-						icon: "fig://icon?type=git",
-						priority: 75,
-					};
-				})
-				.filter((suggestion) => {
-					if (!suggestion || seen.has(suggestion.name)) return false;
-					seen.add(suggestion.name);
-					return true;
-				});
-		};
+				return {
+					name,
+					description,
+					icon: "fig://icon?type=git",
+					priority: 75,
+				};
+			})
+			.filter((suggestion) => {
+				if (!suggestion) return false;
+				if (seen.has(suggestion.name)) return false;
+				seen.add(suggestion.name);
+				return true;
+			});
+	};
 
 export const gitGenerators: Record<string, Fig.Generator> = {
 	// Commit history
@@ -298,14 +296,16 @@ export const gitGenerators: Record<string, Fig.Generator> = {
 	remotes: {
 		script: ["git", "--no-optional-locks", "remote", "-v"],
 		postProcess: function (out) {
-			const remoteURLs = out.split("\n").reduce<Record<string, string>>((dict, line) => {
-				const pair = line.split("\t");
-				const remote = pair[0];
-				const url = pair[1].split(" ")[0];
+			const remoteURLs = out
+				.split("\n")
+				.reduce<Record<string, string>>((dict, line) => {
+					const pair = line.split("\t");
+					const remote = pair[0];
+					const url = pair[1].split(" ")[0];
 
-				dict[remote] = url;
-				return dict;
-			}, {});
+					dict[remote] = url;
+					return dict;
+				}, {});
 
 			return Object.keys(remoteURLs).map((remote) => {
 				const url = remoteURLs[remote];
@@ -426,7 +426,7 @@ export const gitGenerators: Record<string, Fig.Generator> = {
 					let ext = "";
 					try {
 						ext = file.split(".").slice(-1)[0];
-					} catch (e) { }
+					} catch (e) {}
 
 					if (file.endsWith("/")) {
 						ext = "folder";
@@ -4026,7 +4026,7 @@ const daemonServices: Fig.Suggestion[] = [
 
 const completionSpec: Fig.Spec = {
 	name: "git",
-	description: "Distributed version control system",
+	description: "The stupid content tracker",
 	generateSpec: async (_, executeShellCommand) => {
 		const { stdout } = await executeShellCommand({
 			command: "git",
@@ -4401,35 +4401,34 @@ const completionSpec: Fig.Spec = {
 					description: "Use the given message as the commit message",
 					args: {
 						name: "message",
-						// 		generators: ai({
-						// 			name: "git commit -m",
-						// 			prompt: async ({ executeCommand }) => {
-						// 				const { stdout } = await executeCommand({
-						// 					command: "git",
-						// 					args: [
-						// 						"log",
-						// 						"--pretty=format:%s",
-						// 						"--abbrev-commit",
-						// 						"--max-count=20",
-						// 					],
-						// 				});
+						generators: ai({
+							name: "git commit -m",
+							prompt: async ({ executeCommand }: any) => {
+								const { stdout } = await executeCommand({
+									command: "git",
+									args: [
+										"log",
+										"--pretty=format:%s",
+										"--abbrev-commit",
+										"--max-count=20",
+									],
+								});
 
-						// 				return (
-						// 					'Generate a git commit message summary based on this git diff, the "summary" must be no more ' +
-						// 					"than 70-75 characters, and it must describe both what the patch changes, as well as why the " +
-						// 					`patch might be necessary.\n\nHere are some examples from the repo:\n${stdout}`
-						// 				);
-						// 			},
-						// 			message: async ({ executeCommand }) =>
-						// 				(
-						// 					await executeCommand({
-						// 						command: "git",
-						// 						args: ["diff", "--staged"],
-						// 					})
-						// 				).stdout,
-						// 			splitOn: "\n",
-						// 		}),
-						// 	},
+								return (
+									'Generate a git commit message summary based on this git diff, the "summary" must be no more ' +
+									"than 70-75 characters, and it must describe both what the patch changes, as well as why the " +
+									`patch might be necessary.\n\nHere are some examples from the repo:\n${stdout}`
+								);
+							},
+							message: async ({ executeCommand }: any) =>
+								(
+									await executeCommand({
+										command: "git",
+										args: ["diff", "--staged"],
+									})
+								).stdout,
+							splitOn: "\n",
+						}),
 					},
 				},
 				{
