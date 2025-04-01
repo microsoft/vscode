@@ -22,7 +22,7 @@ import { IContextMenuService } from '../../../../../platform/contextview/browser
 import { IContextKeyService, IContextKey, ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { IDecorationsService } from '../../../../services/decorations/common/decorations.js';
-import { WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
+import { IListService, WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
 import { DelayedDragHandler } from '../../../../../base/browser/dnd.js';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IViewPaneOptions, ViewPane } from '../../../../browser/parts/views/viewPane.js';
@@ -36,7 +36,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { ExplorerItem, NewExplorerItem } from '../../common/explorerModel.js';
 import { ResourceLabels } from '../../../../browser/labels.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { IAsyncDataTreeViewState } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
+import { AsyncDataTree, IAsyncDataTreeViewState } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IFileService, FileSystemProviderCapabilities } from '../../../../../platform/files/common/files.js';
@@ -53,7 +53,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IEditorResolverService } from '../../../../services/editor/common/editorResolverService.js';
 import { EditorOpenSource } from '../../../../../platform/editor/common/editor.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
-import { AbstractTreePart } from '../../../../../base/browser/ui/tree/abstractTree.js';
+import { AbstractTree, AbstractTreePart } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 
 
@@ -1092,6 +1092,36 @@ registerAction2(class extends Action2 {
 		if (view !== null) {
 			const explorerView = view as ExplorerView;
 			explorerView.collapseAll();
+		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.files.action.findFilesInExplorer',
+			title: nls.localize('findFilesInExplorer', "Find Files in Explorer"),
+			f1: false,
+			icon: Codicon.filter,
+			precondition: CanCreateContext,
+			menu: {
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				when: ContextKeyExpr.equals('view', VIEW_ID),
+				order: 50
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const viewsService = accessor.get(IViewsService);
+		const view = viewsService.getViewWithId(VIEW_ID);
+		if (view !== null) {
+			view.focus();
+			const widget = accessor.get(IListService).lastFocusedList;
+			if (widget instanceof AbstractTree || widget instanceof AsyncDataTree) {
+				widget.openFind();
+			}
 		}
 	}
 });
