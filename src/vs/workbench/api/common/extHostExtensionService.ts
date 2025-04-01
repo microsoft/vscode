@@ -482,7 +482,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		this._logService.info(`ExtensionService#_doActivateExtension ${extensionDescription.identifier.value}, startup: ${reason.startup}, activationEvent: '${reason.activationEvent}'${extensionDescription.identifier.value !== reason.extensionId.value ? `, root cause: ${reason.extensionId.value}` : ``}`);
 		this._logService.flush();
 
-		const isESM = extensionDescription.type === 'module' || extensionDescription.main?.endsWith('.mjs');
+		const isESM = this._isESM(extensionDescription);
 
 		const extensionInternalStore = new DisposableStore(); // disposables that follow the extension lifecycle
 		const activationTimesBuilder = new ExtensionActivationTimesBuilder(reason.startup);
@@ -747,11 +747,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			throw new Error(nls.localize('extensionTestError1', "Cannot load test runner."));
 		}
 
-		let isESM = extensionTestsLocationURI.path.endsWith('.mjs');
-		if (!isESM) {
-			const extensionDesc = (await this.getExtensionPathIndex()).findSubstr(extensionTestsLocationURI);
-			isESM = extensionDesc?.type === 'module';
-		}
+		const extensionDescription = (await this.getExtensionPathIndex()).findSubstr(extensionTestsLocationURI);
+		const isESM = this._isESM(extensionDescription, extensionTestsLocationURI.path);
 
 		// Require the test runner via node require from the provided path
 		const testRunner = await (isESM
@@ -1087,6 +1084,11 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	public async $updateRemoteConnectionData(connectionData: IRemoteConnectionData): Promise<void> {
 		this._remoteConnectionData = connectionData;
 		this._onDidChangeRemoteConnectionData.fire();
+	}
+
+	protected _isESM(extensionDescription: IExtensionDescription | undefined, modulePath?: string): boolean {
+		modulePath ??= extensionDescription?.main;
+		return modulePath?.endsWith('.mjs') || extensionDescription?.type === 'module';
 	}
 
 	protected abstract _beforeAlmostReadyToRunExtensions(): Promise<void>;
