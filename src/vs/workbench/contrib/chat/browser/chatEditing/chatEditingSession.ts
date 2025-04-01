@@ -41,7 +41,7 @@ import { MultiDiffEditor } from '../../../multiDiffEditor/browser/multiDiffEdito
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
-import { ChatEditingSessionChangeType, ChatEditingSessionState, ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, IStreamingEdits, ModifiedFileEntryState, WorkingSetDisplayMetadata } from '../../common/chatEditingService.js';
+import { ChatEditingSessionState, ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, IStreamingEdits, ModifiedFileEntryState, WorkingSetDisplayMetadata } from '../../common/chatEditingService.js';
 import { ICellTextEditOperation, IChatRequestDisablement, IChatResponseModel, isCellTextEditOperation } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatEditingModifiedDocumentEntry } from './chatEditingModifiedDocumentEntry.js';
@@ -166,12 +166,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	// 	return linearHistory.slice(linearHistoryIndex).map(s => s.requestId).filter((r): r is string => !!r);
 	// });
 
-	private readonly _onDidChange = this._register(new Emitter<ChatEditingSessionChangeType>());
-	get onDidChange() {
-		this._assertNotDisposed();
-		return this._onDidChange.event;
-	}
-
 	private readonly _onDidDispose = new Emitter<void>();
 	get onDidDispose() {
 		this._assertNotDisposed();
@@ -221,7 +215,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			entries.forEach(entry => {
 				entry.state.read(reader);
 			});
-			this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
 		}));
 	}
 
@@ -510,7 +503,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			return; // noop
 		}
 
-		this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
 	}
 
 	private _assertNotDisposed(): void {
@@ -536,7 +528,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			}
 		});
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.editsKept, { allowManyInParallel: true });
-		this._onDidChange.fire(ChatEditingSessionChangeType.Other);
 	}
 
 	async reject(...uris: URI[]): Promise<void> {
@@ -555,7 +546,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			}
 		});
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.editsUndone, { allowManyInParallel: true });
-		this._onDidChange.fire(ChatEditingSessionChangeType.Other);
 	}
 
 	async show(): Promise<void> {
@@ -855,7 +845,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			return entry.acceptStreamingEditsEnd(tx);
 		});
 
-		this._onDidChange.fire(ChatEditingSessionChangeType.Other);
 	}
 
 	/**
@@ -902,13 +891,11 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			}
 
 			this._store.delete(listener);
-			this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
 		});
 		this._store.add(listener);
 
 		const entriesArr = [...this._entriesObs.get(), entry];
 		this._entriesObs.set(entriesArr, undefined);
-		this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
 
 		return entry;
 	}
