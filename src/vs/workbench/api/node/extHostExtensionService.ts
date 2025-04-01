@@ -141,7 +141,11 @@ class NodeModuleESMInterceptor extends RequireInterceptor {
 
 		let apiModuleFactory: INodeModuleFactory | undefined;
 
-		port1.onmessage = (e) => {
+		// this is a workaround for the fact that the layer checker does not understand
+		// that onmessage is NodeJS API here
+		const port1LayerCheckerWorkaround: any = port1;
+
+		port1LayerCheckerWorkaround.onmessage = (e: { data: Message }) => {
 
 			// Get the vscode-module factory - which is the same logic that's also used by
 			// the CommonJS require interceptor
@@ -150,7 +154,7 @@ class NodeModuleESMInterceptor extends RequireInterceptor {
 				assertType(apiModuleFactory);
 			}
 
-			const { id, url } = <Message>e.data;
+			const { id, url } = e.data;
 			const uri = URI.parse(url);
 
 			// Get or create the API instance. The interface is per extension and extensions are
