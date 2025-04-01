@@ -496,10 +496,20 @@ export class ChatService extends Disposable implements IChatService {
 				throw new ErrorNoTelemetry('No default agent contributed');
 			}
 
-			// Activate the default extension provided agent but do not wait
-			// for it to be ready so that the session can be used immediately
-			// without having to wait for the agent to be ready.
-			this.extensionService.activateByEvent(`onChatParticipant:${defaultAgentData.id}`);
+			if (this.configurationService.getValue('chat.setupFromDialog')) {
+				// Activate the default extension provided agent but do not wait
+				// for it to be ready so that the session can be used immediately
+				// without having to wait for the agent to be ready.
+				this.extensionService.activateByEvent(`onChatParticipant:${defaultAgentData.id}`);
+			} else {
+				// No setup participant to fall back on- wait for extension activation
+				await this.extensionService.activateByEvent(`onChatParticipant:${defaultAgentData.id}`);
+
+				const defaultAgent = this.chatAgentService.getActivatedAgents().find(agent => agent.id === defaultAgentData.id);
+				if (!defaultAgent) {
+					throw new ErrorNoTelemetry('No default agent registered');
+				}
+			}
 
 			model.initialize();
 		} catch (err) {
