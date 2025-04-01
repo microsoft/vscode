@@ -413,10 +413,10 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 
 		const expDisabledKey = ChatContextKeys.Editing.agentModeDisallowed.bindTo(contextKeyService);
 		experimentService.getTreatment<boolean>('chatAgentEnabled').then(enabled => {
-			if (enabled) {
+			if (enabled || enabled === undefined) {
 				this.registerEnablementSetting();
 				expDisabledKey.set(false);
-			} else if (this.productService.quality === 'stable' || typeof enabled === 'boolean') {
+			} else {
 				// If undefined treatment, on stable, fall back to disabled.
 				// Other qualities fall back to enabled.
 				this.deregisterSetting();
