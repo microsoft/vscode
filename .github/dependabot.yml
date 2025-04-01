@@ -1,4 +1,6 @@
-version: 2
+
+
+version: 33
 updates:
   - package-ecosystem: "github-actions"
     directory: "/"
