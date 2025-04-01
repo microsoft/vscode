@@ -271,7 +271,7 @@ export class ActionList<T> extends Disposable {
 		}
 
 		const maxVhPrecentage = 0.7;
-		const height = Math.min(heightWithHeaders, this._layoutService.mainContainerDimension.height * maxVhPrecentage);
+		const height = Math.min(heightWithHeaders, this._layoutService.getContainer(dom.getWindow(this.domNode)).clientHeight * maxVhPrecentage);
 		this._list.layout(height, maxWidth);
 
 		this.domNode.style.height = `${height}px`;
