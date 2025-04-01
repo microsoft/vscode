@@ -313,7 +313,7 @@ class ChatStatusDashboard extends Disposable {
 				label: localize('quotaLabel', "Manage Copilot"),
 				tooltip: localize('quotaTooltip', "Manage Copilot"),
 				class: ThemeIcon.asClassName(Codicon.settings),
-				run: () => this.openerService.open(URI.parse(defaultChat.manageSettingsUrl)),
+				run: () => this.runCommandAndClose(() => this.openerService.open(URI.parse(defaultChat.manageSettingsUrl))),
 			}));
 
 			const chatQuotaIndicator = this.createQuotaIndicator(this.element, chatTotal, chatRemaining, localize('chatsLabel', "Chat messages"));
@@ -370,7 +370,7 @@ class ChatStatusDashboard extends Disposable {
 				label: localize('settingsLabel', "Settings"),
 				tooltip: localize('settingsTooltip', "Open Settings"),
 				class: ThemeIcon.asClassName(Codicon.settingsGear),
-				run: () => this.commandService.executeCommand('workbench.action.openSettings', { query: `@id:${defaultChat.completionsEnablementSetting} @id:${defaultChat.nextEditSuggestionsSetting}` }),
+				run: () => this.runCommandAndClose(() => this.commandService.executeCommand('workbench.action.openSettings', { query: `@id:${defaultChat.completionsEnablementSetting} @id:${defaultChat.nextEditSuggestionsSetting}` })),
 			}));
 
 			this.createSettings(this.element, disposables);
