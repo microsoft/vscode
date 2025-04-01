@@ -65,8 +65,8 @@ import { convertBufferToScreenshotVariable, ScreenshotVariableId } from '../cont
 import { resizeImage } from '../imageUtils.js';
 import { COMMAND_ID as USE_PROMPT_COMMAND_ID } from '../promptSyntax/contributions/usePromptCommand.js';
 import { CHAT_CATEGORY } from './chatActions.js';
-import { ATTACH_PROMPT_ACTION_ID, AttachPromptAction, IChatAttachPromptActionOptions } from './chatAttachPromptAction/chatAttachPromptAction.js';
-import { RunCurrentPromptAction, RunCurrentPromptInNewChatAction } from './chatAttachPromptAction/chatRunPromptAction.js';
+import { ATTACH_PROMPT_ACTION_ID, IChatAttachPromptActionOptions } from './chatAttachPromptAction/chatAttachPromptAction.js';
+import { registerReusablePromptActions } from './chatAttachPromptAction/index.js';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
@@ -998,8 +998,6 @@ registerAction2(class AttachFilesAction extends AttachContextAction {
 });
 
 /**
- * TODO: @legomushroom - create a single register function
+ * Register all actions related to reusable prompt files.
  */
-registerAction2(AttachPromptAction);
-registerAction2(RunCurrentPromptAction);
-registerAction2(RunCurrentPromptInNewChatAction);
+registerReusablePromptActions();

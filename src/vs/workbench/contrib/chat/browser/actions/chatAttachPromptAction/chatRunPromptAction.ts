@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CHAT_CATEGORY } from '../chatActions.js';
-import { localize2 } from '../../../../../../nls.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
+import { ILocalizedString, localize2 } from '../../../../../../nls.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { TEXT_FILE_EDITOR_ID } from '../../../../files/common/files.js';
 import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
 import { PromptsConfig } from '../../../../../../platform/prompts/common/config.js';
-import { Action2, MenuId } from '../../../../../../platform/actions/common/actions.js';
+import { ICommandAction } from '../../../../../../platform/action/common/action.js';
 import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../../../editor/common/editorContextKeys.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -21,38 +22,65 @@ import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/con
 import { ActiveEditorContext, ResourceContextKey } from '../../../../../common/contextkeys.js';
 import { ATTACH_PROMPT_ACTION_ID, IChatAttachPromptActionOptions } from './chatAttachPromptAction.js';
 import { KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 
 /**
- * TODO: @legomushroom
+ * Constructor options for the `Run Prompt` base action.
  */
-export interface IRunPromptOptions {
-	resource: URI | undefined;
-	inNewChat: boolean;
+interface IRunPromptBaseActionConstructorOptions {
+	id: string;
+	title: ILocalizedString;
+	icon: ThemeIcon;
+	keybinding: number;
+	alt?: ICommandAction;
 }
 
 /**
- * TODO: @legomushroom
+ * Base class of the `Run Prompt` action.
  */
 abstract class RunPromptBaseAction extends Action2 {
+	constructor(
+		options: IRunPromptBaseActionConstructorOptions,
+	) {
+		super({
+			id: options.id,
+			title: options.title,
+			f1: false,
+			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
+			category: CHAT_CATEGORY,
+			icon: options.icon,
+			keybinding: {
+				when: EditorContextKeys.editorTextFocus,
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: options.keybinding,
+			},
+			menu: [
+				{
+					id: MenuId.EditorTitleRun,
+					group: 'navigation',
+					order: 0,
+					alt: options.alt,
+					when: EDITOR_ACTIONS_CONDITION,
+				},
+			],
+		});
+	}
+
+	/**
+	 * Executes the run prompt action with provided options.
+	 */
 	public async execute(
+		resource: URI | undefined,
+		inNewChat: boolean,
 		accessor: ServicesAccessor,
-		options: IRunPromptOptions,
 	): Promise<void> {
 		const commandService = accessor.get(ICommandService);
-		const {
-			inNewChat,
-			resource = getActivePromptUri(accessor),
-		} = options;
 
+		resource ||= getActivePromptUri(accessor);
 		assertDefined(
 			resource,
 			'Cannot find URI resource for an active text editor.',
 		);
-
-		// if (inNewChat) {
-		// 	await commandService
-		// 		.executeCommand(ACTION_ID_NEW_CHAT);
-		// }
 
 		const attachOptions: IChatAttachPromptActionOptions = {
 			resource,
@@ -66,7 +94,7 @@ abstract class RunPromptBaseAction extends Action2 {
 }
 
 /**
- * TODO: @legomushroom
+ * Condition for the `Run Current Prompt` action.
  */
 const EDITOR_ACTIONS_CONDITION = ContextKeyExpr.and(
 	ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
@@ -74,15 +102,15 @@ const EDITOR_ACTIONS_CONDITION = ContextKeyExpr.and(
 	ResourceContextKey.HasResource,
 	ContextKeyExpr.regex(
 		ResourceContextKey.Filename.key,
-		/\.prompt\.md$/, // TODO: @lego - add custom instructions file
+		/\.prompt\.md|copilot-instructions\.md$/,
 	),
 	ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID),
 );
 
 /**
- * TODO: @legomushroom
+ * Keybinding of the action.
  */
-export const COMMAND_KEY_BINDING = KeyMod.WinCtrl | KeyCode.Slash | KeyMod.Alt;
+const COMMAND_KEY_BINDING = KeyMod.WinCtrl | KeyCode.Slash | KeyMod.Alt;
 
 /**
  * Action ID for the `Run Current Prompt` action.
@@ -90,42 +118,22 @@ export const COMMAND_KEY_BINDING = KeyMod.WinCtrl | KeyCode.Slash | KeyMod.Alt;
 export const RUN_CURRENT_PROMPT_ACTION_ID = 'workbench.action.chat.run.prompt.current';
 
 /**
- * TODO: @legomushroom
+ * The default `Run Current Prompt` action.
  */
-export class RunCurrentPromptAction extends RunPromptBaseAction {
+class RunCurrentPromptAction extends RunPromptBaseAction {
 	constructor() {
 		super({
 			id: RUN_CURRENT_PROMPT_ACTION_ID,
 			title: localize2(
-				'workbench.action.chat.run.prompt.current.label',
-				"Run Prompt",
+				'run-prompt.capitalized', "Run Prompt",
 			),
-			f1: false,
-			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
-			category: CHAT_CATEGORY,
 			icon: Codicon.play,
-			// TODO: @lego - remove
-			keybinding: {
-				when: EditorContextKeys.editorTextFocus,
-				weight: KeybindingWeight.WorkbenchContrib + 99,
-				/**
-				 * TODO: @legomushroom - also add keybinding to the "in new chat" action
-				 */
-				primary: COMMAND_KEY_BINDING,
+			keybinding: COMMAND_KEY_BINDING,
+			alt: {
+				id: RUN_CURRENT_PROMPT_IN_NEW_CHAT_ACTION_ID,
+				title: RUN_IN_NEW_CHAT_ACTION_TITLE,
+				icon: RUN_IN_NEW_CHAT_ACTION_ICON,
 			},
-			menu: [
-				{
-					id: MenuId.EditorTitleRun,
-					group: 'navigation',
-					order: 0,
-					alt: {
-						id: RUN_CURRENT_PROMPT_IN_NEW_CHAT_ACTION_ID,
-						title: RUN_IN_NEW_CHAT_ACTION_TITLE,
-						icon: RUN_IN_NEW_CHAT_ACTION_ICON,
-					},
-					when: EDITOR_ACTIONS_CONDITION,
-				},
-			],
 		});
 	}
 
@@ -134,11 +142,9 @@ export class RunCurrentPromptAction extends RunPromptBaseAction {
 		resource: URI | undefined,
 	): Promise<void> {
 		return await super.execute(
+			resource,
+			false,
 			accessor,
-			{
-				resource,
-				inNewChat: false,
-			},
 		);
 	}
 }
@@ -149,43 +155,25 @@ export class RunCurrentPromptAction extends RunPromptBaseAction {
 export const RUN_CURRENT_PROMPT_IN_NEW_CHAT_ACTION_ID = 'workbench.action.chat.run-in-new-chat.prompt.current';
 
 const RUN_IN_NEW_CHAT_ACTION_TITLE = localize2(
-	'workbench.action.chat.run-in-new-chat.prompt.current.label',
+	'run-prompt-in-new-chat.capitalized',
 	"Run Prompt In New Chat",
 );
 
 /**
- * TODO: @legomushroom
+ * Icon for the `Run Current Prompt In New Chat` action.
  */
 const RUN_IN_NEW_CHAT_ACTION_ICON = Codicon.playCircle;
 
 /**
- * TODO: @legomushroom
+ * `Run Current Prompt In New Chat` action.
  */
-export class RunCurrentPromptInNewChatAction extends RunPromptBaseAction {
+class RunCurrentPromptInNewChatAction extends RunPromptBaseAction {
 	constructor() {
 		super({
 			id: RUN_CURRENT_PROMPT_IN_NEW_CHAT_ACTION_ID,
 			title: RUN_IN_NEW_CHAT_ACTION_TITLE,
-			f1: false,
-			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
-			category: CHAT_CATEGORY,
 			icon: RUN_IN_NEW_CHAT_ACTION_ICON,
-			keybinding: {
-				when: EditorContextKeys.editorTextFocus,
-				weight: KeybindingWeight.WorkbenchContrib + 99,
-				/**
-				 * TODO: @legomushroom - also add keybinding to the "in new chat" action
-				 */
-				primary: COMMAND_KEY_BINDING | KeyMod.CtrlCmd,
-			},
-			menu: [
-				{
-					id: MenuId.EditorTitleRun,
-					group: 'navigation',
-					order: 1,
-					when: EDITOR_ACTIONS_CONDITION,
-				},
-			],
+			keybinding: COMMAND_KEY_BINDING | KeyMod.CtrlCmd,
 		});
 	}
 
@@ -194,20 +182,17 @@ export class RunCurrentPromptInNewChatAction extends RunPromptBaseAction {
 		resource: URI,
 	): Promise<void> {
 		return await super.execute(
+			resource,
+			true,
 			accessor,
-			{
-				resource,
-				inNewChat: true,
-			},
 		);
 	}
 }
 
-// /**
-//  * TODO: @legomushroom
-//  */
-// export const registerReusablePromptActions = () => {
-// 	registerAction2(AttachPromptAction);
-// 	registerAction2(RunCurrentPromptAction);
-// 	registerAction2(RunCurrentPromptInNewChatAction);
-// };
+/**
+ * Helper to register all the `Run Current Prompt` actions.
+ */
+export const registerRunPromptActions = () => {
+	registerAction2(RunCurrentPromptAction);
+	registerAction2(RunCurrentPromptInNewChatAction);
+};

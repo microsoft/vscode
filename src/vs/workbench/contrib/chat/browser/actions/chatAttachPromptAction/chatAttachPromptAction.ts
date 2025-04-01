@@ -8,9 +8,7 @@ import { localize2 } from '../../../../../../nls.js';
 import { IChatService } from '../../../common/chatService.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
-import { Action2 } from '../../../../../../platform/actions/common/actions.js';
-import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { IPromptsService } from '../../../common/promptSyntax/service/types.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { PromptsConfig } from '../../../../../../platform/prompts/common/config.js';
@@ -20,6 +18,7 @@ import { IDialogService } from '../../../../../../platform/dialogs/common/dialog
 import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { Action2, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { attachPrompts, IAttachPromptOptions } from './dialogs/askToSelectPrompt/utils/attachPrompts.js';
 import { ISelectPromptOptions, askToSelectPrompt } from './dialogs/askToSelectPrompt/askToSelectPrompt.js';
@@ -36,17 +35,24 @@ export interface IChatAttachPromptActionOptions extends Pick<
 	ISelectPromptOptions, 'resource' | 'widget'
 > {
 	/**
-	 * TODO: @legomushroom
+	 * Whether to create a new chat panel or open
+	 * an existing one (if present).
+	 */
+	inNewChat?: boolean;
+
+	/**
+	 * Whether to skip the prompt files selection dialog.
+	 *
+	 * Note! if this option is set to `true`, the {@link resource}
+	 * option `must be defined`.
 	 */
 	skipSelectionDialog?: boolean;
-
-	inNewChat?: boolean;
 }
 
 /**
  * Action to attach a prompt to a chat widget input.
  */
-export class AttachPromptAction extends Action2 {
+class AttachPromptAction extends Action2 {
 	constructor() {
 		super({
 			id: ATTACH_PROMPT_ACTION_ID,
@@ -113,3 +119,10 @@ export class AttachPromptAction extends Action2 {
 		});
 	}
 }
+
+/**
+ * Helper to register the `Attach Prompt` action.
+ */
+export const registerAttachPromptActions = () => {
+	registerAction2(AttachPromptAction);
+};
