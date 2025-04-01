@@ -9,6 +9,7 @@ import { FontInfo } from './config/fontInfo.js';
 import { Position } from './core/position.js';
 import { InjectedTextCursorStops, InjectedTextOptions, PositionAffinity } from './model.js';
 import { LineInjectedText } from './textModelEvents.js';
+import { CustomFont } from './viewModel/customFontsManager.js';
 
 /**
  * *input*:
@@ -336,6 +337,6 @@ export interface ILineBreaksComputer {
 	/**
 	 * Pass in `previousLineBreakData` if the only difference is in breaking columns!!!
 	 */
-	addRequest(fromLineNumber: number, toLineNumber: number, lineText: string, fontDecorations: { startCharacterOffset: number; endCharacterOffset: number; fontInfo: FontInfo }[], injectedText: LineInjectedText[] | null, previousLineBreakData: ModelLineProjectionData | null): void;
+	addRequest(fromLineNumber: number, toLineNumber: number, lineText: string, fontDecorations: { startCharacterOffset: number; endCharacterOffset: number; fontInfo: CustomFont }[], injectedText: LineInjectedText[] | null, previousLineBreakData: ModelLineProjectionData | null): void;
 	finalize(): (ModelLineProjectionData | null)[];
 }

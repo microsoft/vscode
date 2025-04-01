@@ -209,6 +209,38 @@ export class LineInjectedText {
 }
 
 /**
+ * Represents custom font
+ * @internal
+ */
+export class CustomFontEvent {
+
+	public static fromDecorations(decorations: IModelDecoration[]): CustomFontEvent[] {
+		console.log('CustomFont.fromDecorations', decorations);
+		const result: CustomFontEvent[] = [];
+		for (const decoration of decorations) {
+			result.push(new CustomFontEvent(
+				decoration.ownerId,
+				decoration.range,
+				decoration.options.fontFamily ?? undefined,
+				decoration.options.fontSize ?? undefined,
+				decoration.options.fontWeight ?? undefined,
+				decoration.options.fontStyle ?? undefined
+			));
+		}
+		return result;
+	}
+
+	constructor(
+		public readonly ownerId: number,
+		public readonly range: IRange,
+		public readonly fontFamily: string | undefined,
+		public readonly fontSize: number | undefined,
+		public readonly fontWeight: string | undefined,
+		public readonly fontStyle: string | undefined,
+	) { }
+}
+
+/**
  * An event describing that a line has changed in a model.
  * @internal
  */
@@ -261,6 +293,36 @@ export class ModelLineHeightChanged {
 		this.decorationId = decorationId;
 		this.lineNumber = lineNumber;
 		this.lineHeight = lineHeight;
+	}
+}
+
+/**
+ * An event describing that a line height has changed in the model.
+ * @internal
+ */
+export class ModelFontChanged {
+	/**
+	 * Editor owner ID
+	 */
+	public readonly ownerId: number;
+	/**
+	 * The decoration ID that has changed.
+	 */
+	public readonly decorationId: string;
+	/**
+	 * The line that has changed.
+	 */
+	public readonly lineNumber: number;
+	/**
+	 * The fonts on the line.
+	 */
+	public readonly fonts: CustomFontEvent[];
+
+	constructor(ownerId: number, decorationId: string, lineNumber: number, fonts: CustomFontEvent[]) {
+		this.ownerId = ownerId;
+		this.decorationId = decorationId;
+		this.lineNumber = lineNumber;
+		this.fonts = fonts;
 	}
 }
 
@@ -400,6 +462,19 @@ export class ModelLineHeightChangedEvent {
 	public readonly changes: ModelLineHeightChanged[];
 
 	constructor(changes: ModelLineHeightChanged[]) {
+		this.changes = changes;
+	}
+}
+
+/**
+ * An event describing a change in fonts.
+ * @internal
+ */
+export class ModelFontChangedEvent {
+
+	public readonly changes: ModelFontChanged[];
+
+	constructor(changes: ModelFontChanged[]) {
 		this.changes = changes;
 	}
 }

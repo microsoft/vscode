@@ -34,23 +34,19 @@ import { ViewLayout } from '../viewLayout/viewLayout.js';
 import { MinimapTokensColorTracker } from './minimapTokensColorTracker.js';
 import { ILineBreaksComputer, ILineBreaksComputerFactory, InjectedText } from '../modelLineProjectionData.js';
 import { ViewEventHandler } from '../viewEventHandler.js';
-import { ICoordinatesConverter, InlineDecoration, ISpecialLineHeightChangeAccessor, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
+import { ICoordinatesConverter, ICustomFontChangeAccessor, InlineDecoration, ISpecialLineHeightChangeAccessor, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
 import { ViewModelDecorations } from './viewModelDecorations.js';
 import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent, WidgetFocusChangedEvent } from '../viewModelEventDispatcher.js';
-import { IViewModelLines, IViewModelLinesContext, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from './viewModelLines.js';
+import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from './viewModelLines.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { GlyphMarginLanesModel } from './glyphLanesModel.js';
-import { BareFontInfo, FontInfo } from '../config/fontInfo.js';
-import { getActiveWindow, getWindowById } from '../../../base/browser/dom.js';
-import { PixelRatio } from '../../../base/browser/pixelRatio.js';
-import { FontMeasurements } from '../../browser/config/fontMeasurements.js';
+import { CustomFont } from './customFontsManager.js';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
 export class ViewModel extends Disposable implements IViewModel {
 
 	private readonly _editorId: number;
-	private readonly _windowId: number;
 	private readonly _configuration: IEditorConfiguration;
 	public readonly model: ITextModel;
 	private readonly _eventDispatcher: ViewModelEventDispatcher;
@@ -82,7 +78,6 @@ export class ViewModel extends Disposable implements IViewModel {
 		super();
 
 		this._editorId = editorId;
-		this._windowId = windowId;
 		this._configuration = configuration;
 		this.model = model;
 		this._eventDispatcher = new ViewModelEventDispatcher();
@@ -94,8 +89,8 @@ export class ViewModel extends Disposable implements IViewModel {
 		this.glyphLanes = new GlyphMarginLanesModel(0);
 
 		if (USE_IDENTITY_LINES_COLLECTION && this.model.isTooLargeForTokenization()) {
-
-			this._lines = new ViewModelLinesFromModelAsIs(this.model);
+			const options = this._configuration.options;
+			this._lines = new ViewModelLinesFromModelAsIs(this.model, options.get(EditorOption.fontInfo));
 
 		} else {
 			const options = this._configuration.options;
@@ -105,83 +100,9 @@ export class ViewModel extends Disposable implements IViewModel {
 			const wrappingIndent = options.get(EditorOption.wrappingIndent);
 			const wordBreak = options.get(EditorOption.wordBreak);
 
-			const context: IViewModelLinesContext = {
-				getFontDecorationsOnLine: (lineNumber: number): { startCharacterOffset: number; endCharacterOffset: number; fontInfo: FontInfo }[] => {
-					// const defaultFontInfo = this._configuration.options.get(EditorOption.fontInfo);
-					// const lineMaxColumn = this.model.getLineMaxColumn(lineNumber);
-					// const range = new Range(lineNumber, 1, lineNumber, lineMaxColumn);
-					// console.log('getFontDecorationsOnLine range : ', range);
-					// const decorations = this.getFontDecorationsInRange(range);
-					// console.log('getFontDecorationsOnLine decorations : ', decorations);
-					// const events: { offset: number; fontFamily: string | undefined, fontWeight: string | undefined, fontSize: number | undefined, type: 'start' | 'end'; }[] = [];
-					// for (const decoration of decorations) {
-					// 	const range = decoration.range;
-					// 	const startColumn = range.startLineNumber < lineNumber ? 1 : range.startColumn;
-					// 	const startCharacterOffset = this.model.getCharacterCountInRange(new Range(lineNumber, 1, lineNumber, startColumn))
-					// 	const endColumn = range.endLineNumber > lineNumber ? this.model.getLineMaxColumn(lineNumber) : range.endColumn;
-					// 	const endCharacterOffset = this.model.getCharacterCountInRange(new Range(lineNumber, 1, lineNumber, endColumn))
-					// 	const fontFamily = decoration.options.fontFamily ?? undefined;
-					// 	const fontSize = decoration.options.fontSize ?? undefined;
-					// 	const fontWeight = decoration.options.fontWeight ?? undefined;
-					// 	events.push({ offset: startCharacterOffset, fontFamily, fontWeight, fontSize, type: 'start' });
-					// 	events.push({ offset: endCharacterOffset, fontFamily, fontWeight, fontSize, type: 'end' });
-					// }
-					// const getMergedFontInfo = (fonts: { fontFamily: string | undefined, fontWeight: string | undefined, fontSize: number | undefined }[]): FontInfo => {
-					// 	const lineHeight = this.viewLayout.getLineHeightForLineNumber(lineNumber);
-					// 	let fontFamily: string | undefined;
-					// 	let fontWeight: string | undefined;
-					// 	let fontSize: number | undefined;
-					// 	for (const font of fonts) {
-					// 		if (!fontFamily) {
-					// 			fontFamily = font.fontFamily;
-					// 		}
-					// 		if (!fontWeight) {
-					// 			fontWeight = font.fontWeight;
-					// 		}
-					// 		if (!fontSize) {
-					// 			fontSize = font.fontSize;
-					// 		}
-					// 	}
-					// 	return this._createFontInfo(fontFamily ?? defaultFontInfo.fontFamily, fontWeight ?? defaultFontInfo.fontWeight, fontSize ?? defaultFontInfo.fontSize, lineHeight);
-					// };
-					// const fontDecorations: { startCharacterOffset: number, endCharacterOffset: number, fontInfo: FontInfo }[] = [];
-					// const activeFonts: { index: number, fontFamily: string | undefined, fontWeight: string | undefined, fontSize: number | undefined }[] = [];
-					// let lastOffset = 0;
-					// for (const event of events) {
-					// 	const { offset, type, fontFamily, fontWeight, fontSize } = event;
-					// 	if (offset > lastOffset && activeFonts.length > 0) {
-					// 		const fontInfoMerged = getMergedFontInfo(activeFonts);
-					// 		fontDecorations.push({
-					// 			startCharacterOffset: lastOffset,
-					// 			endCharacterOffset: offset - 1,
-					// 			fontInfo: fontInfoMerged
-					// 		});
-					// 	}
-					// 	// How to fill this in?
-					// 	if (type === 'start') {
-					// 		const index = activeFonts.length;
-					// 		activeFonts.push({ index, fontFamily, fontSize, fontWeight });
-					// 	} else {
-					// 		activeFonts.splice(, 1);
-					// 	}
-					// 	lastOffset = offset;
-					// }
-					// const endCharacterOffsetOnLine = this.model.getCharacterCountInRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
-					// if (lastOffset < endCharacterOffsetOnLine && activeFonts.length > 0) {
-					// 	fontDecorations.push({
-					// 		startCharacterOffset: lastOffset,
-					// 		endCharacterOffset: endCharacterOffsetOnLine,
-					// 		fontInfo: getMergedFontInfo(activeFonts)
-					// 	});
-					// }
-					// return fontDecorations;
-					return [];
-				}
-			};
 			this._lines = new ViewModelLinesFromProjectedModel(
 				this._editorId,
 				this.model,
-				context,
 				domLineBreaksComputerFactory,
 				monospaceLineBreaksComputerFactory,
 				fontInfo,
@@ -524,6 +445,25 @@ export class ViewModel extends Disposable implements IViewModel {
 				}
 			});
 		}));
+		this._register(this.model.onDidChangeFonts((e) => {
+			e.changes.forEach((change) => {
+				if (change.ownerId !== this._editorId && change.ownerId !== 0) {
+					return;
+				}
+				const lineNumber = change.lineNumber;
+				const decorationId = change.decorationId;
+				const fonts = change.fonts;
+				if (fonts.length > 0) {
+					this._lines.changeCustomFonts((accessor: ICustomFontChangeAccessor) => {
+						accessor.insertOrChangeCustomFonts(decorationId, lineNumber, fonts);
+					});
+				} else {
+					this._lines.changeCustomFonts((accessor: ICustomFontChangeAccessor) => {
+						accessor.removeCustomFonts(decorationId);
+					});
+				}
+			});
+		}));
 
 		this._register(this.model.onDidChangeTokens((e) => {
 			const viewRanges: { fromLineNumber: number; toLineNumber: number }[] = [];
@@ -825,54 +765,12 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this._decorations.getDecorationsViewportData(visibleRange).decorations;
 	}
 
-	public getFontInfoForPosition(position: Position): FontInfo {
-		const range = Range.fromPositions(position);
-		const fontDecorations = this.getFontDecorationsInRange(range);
-		const defaultFontInfo = this._configuration.options.get(EditorOption.fontInfo);
-		const lineHeight = this.viewLayout.getLineHeightForLineNumber(position.lineNumber);
-		let fontFamily: string = defaultFontInfo.fontFamily;
-		let fontWeight: string = defaultFontInfo.fontWeight;
-		let fontSize: number = defaultFontInfo.fontSize;
-		if (fontDecorations.length > 0) {
-			const fontDecoration = fontDecorations[0];
-			const decorationOptions = fontDecoration.options;
-			if (decorationOptions.fontFamily) {
-				fontFamily = decorationOptions.fontFamily;
-			}
-			if (decorationOptions.fontWeight) {
-				fontWeight = decorationOptions.fontWeight;
-			}
-			if (decorationOptions.fontSize) {
-				fontSize = decorationOptions.fontSize;
-			}
-		}
-		// TODO: maybe we should also allow font-ligatures, font-variations and letter-spacing?
-		return this._createFontInfo(fontFamily, fontWeight, fontSize, lineHeight);
+	public getFontInfoForPosition(position: Position): CustomFont {
+		return this._lines.getFontInfoForPosition(position);
 	}
 
-	private _createFontInfo(fontFamily: string, fontWeight: string, fontSize: number, lineHeight: number): FontInfo {
-		const defaultFontInfo = this._configuration.options.get(EditorOption.fontInfo);
-		const bareFontInfo = BareFontInfo.createFromRawSettings({
-			fontFamily,
-			fontWeight,
-			fontSize,
-			lineHeight,
-			fontLigatures: defaultFontInfo.fontFeatureSettings,
-			fontVariations: defaultFontInfo.fontVariationSettings,
-			letterSpacing: defaultFontInfo.letterSpacing
-		}, PixelRatio.getInstance(getActiveWindow()).value);
-		return FontMeasurements.readFontInfo(getWindowById(this._windowId, true).window, bareFontInfo);
-	}
-
-	public getFontDecorationsInRange(range: Range): ViewModelDecoration[] {
-		// console.log('getFontDecorationsInRange');
-		if (!this._decorations) {
-			return [];
-		}
-		// console.log('range : ', range);
-		const dec = this._decorations.getFontDecorationsInRange(range);
-		// console.log('dec : ', dec);
-		return dec;
+	public hasFontDecorations(range: Range): boolean {
+		return this._lines.hasFontDecorations(range);
 	}
 
 	public getInjectedTextAt(viewPosition: Position): InjectedText | null {

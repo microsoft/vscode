@@ -83,6 +83,6 @@ export class ViewportData {
 	}
 
 	public getFontInfoForPosition(position: Position): FontInfo {
-		return this._model.getFontInfoForPosition(position);
+		return this._model.getFontInfoForPosition(position).getFont();
 	}
 }

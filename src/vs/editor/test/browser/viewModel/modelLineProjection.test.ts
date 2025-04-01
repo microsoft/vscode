@@ -115,11 +115,6 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 		const linesCollection = new ViewModelLinesFromProjectedModel(
 			1,
 			model,
-			{
-				getFontDecorationsOnLine(lineNumber: number) {
-					return [];
-				},
-			},
 			lineBreaksComputerFactory,
 			lineBreaksComputerFactory,
 			fontInfo,
@@ -967,11 +962,6 @@ suite('SplitLinesCollection', () => {
 		const linesCollection = new ViewModelLinesFromProjectedModel(
 			1,
 			model,
-			{
-				getFontDecorationsOnLine(lineNumber: number) {
-					return [];
-				},
-			},
 			lineBreaksComputerFactory,
 			lineBreaksComputerFactory,
 			fontInfo,
