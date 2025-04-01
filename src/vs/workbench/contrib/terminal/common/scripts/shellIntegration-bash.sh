@@ -63,8 +63,8 @@ fi
 if [ -n "${VSCODE_ENV_REPLACE:-}" ]; then
 	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_REPLACE"
 	for ITEM in "${ADDR[@]}"; do
-		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
-		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2-)"
+		VARNAME="${ITEM%%=*}"
+		VALUE="${ITEM#*=}"
 		export $VARNAME="$VALUE"
 	done
 	builtin unset VSCODE_ENV_REPLACE
@@ -72,8 +72,8 @@ fi
 if [ -n "${VSCODE_ENV_PREPEND:-}" ]; then
 	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_PREPEND"
 	for ITEM in "${ADDR[@]}"; do
-		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
-		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2-)"
+		VARNAME="${ITEM%%=*}"
+		VALUE="${ITEM#*=}"
 		export $VARNAME="$VALUE${!VARNAME}"
 	done
 	builtin unset VSCODE_ENV_PREPEND
@@ -81,8 +81,8 @@ fi
 if [ -n "${VSCODE_ENV_APPEND:-}" ]; then
 	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_APPEND"
 	for ITEM in "${ADDR[@]}"; do
-		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
-		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2-)"
+		VARNAME="${ITEM%%=*}"
+		VALUE="${ITEM#*=}"
 		export $VARNAME="${!VARNAME}$VALUE"
 	done
 	builtin unset VSCODE_ENV_APPEND
