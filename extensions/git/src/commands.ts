@@ -2889,7 +2889,7 @@ export class CommandCenter {
 			// Check if branch name already exists
 			const existingBranch = refs.find(ref => ref.name === sanitizedName);
 			if (existingBranch) {
-				return l10n.t('Branch name "{0}" already exists', sanitizedName);
+				return l10n.t('Branch "{0}" already exists', sanitizedName);
 			}
 
 			if (validateName.test(sanitizedName)) {
