@@ -1599,7 +1599,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		}
 		if (affectedFontLines && affectedFontLines.size > 0) {
 			const affectedLinesByFontChange = Array.from(affectedFontLines);
-			const fontChangeEvent = affectedLinesByFontChange.map(customFontChange => new ModelFontChanged(customFontChange.ownerId, customFontChange.decorationId, customFontChange.lineNumber, this._getCustomFontsInLine(customFontChange.lineNumber)));
+			const fontChangeEvent = affectedLinesByFontChange.map(customFontChange => new ModelFontChanged(customFontChange.ownerId, customFontChange.decorationId, customFontChange.lineNumber, this._getCustomFontsInLine(customFontChange.lineNumber, customFontChange.decorationId)));
 			this._onDidChangeFonts.fire(new ModelFontChangedEvent(fontChangeEvent));
 		}
 	}
@@ -1784,10 +1784,10 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return LineInjectedText.fromDecorations(result).filter(t => t.lineNumber === lineNumber);
 	}
 
-	private _getCustomFontsInLine(lineNumber: number): CustomFontEvent[] {
+	private _getCustomFontsInLine(lineNumber: number, decorationId: string): CustomFontEvent[] {
 		const startOffset = this._buffer.getOffsetAt(lineNumber, 1);
 		const endOffset = startOffset + this._buffer.getLineLength(lineNumber);
-		const result = this._decorationsTree.getCustomFontsInInterval(this, startOffset, endOffset, 0);
+		const result = this._decorationsTree.getCustomFontsInInterval(this, decorationId, startOffset, endOffset, 0);
 		return CustomFontEvent.fromDecorations(result);
 	}
 
@@ -2173,12 +2173,12 @@ class DecorationsTrees {
 		return this._ensureNodesHaveRanges(host, result).filter((i) => i.options.showIfCollapsed || !i.range.isEmpty());
 	}
 
-	public getCustomFontsInInterval(host: IDecorationsTreesHost, start: number, end: number, filterOwnerId: number): model.IModelDecoration[] {
+	public getCustomFontsInInterval(host: IDecorationsTreesHost, decorationId: string, start: number, end: number, filterOwnerId: number): model.IModelDecoration[] {
 		const versionId = host.getVersionId();
-		const result = this._injectedTextDecorationsTree.intervalSearch(start, end, filterOwnerId, false, versionId, false);
+		const result = this._intervalSearch(start, end, filterOwnerId, false, versionId, false);
 		return this._ensureNodesHaveRanges(host, result).filter((i) => {
 			const options = i.options;
-			return options.fontFamily !== null || options.fontSize !== null || options.fontWeight !== null || options.fontStyle !== null;
+			return i.id === decorationId && (options.fontFamily !== null || options.fontSize !== null || options.fontWeight !== null || options.fontStyle !== null);
 		});
 	}
 
@@ -2534,7 +2534,7 @@ class DidChangeDecorationsEmitter extends Disposable {
 	private _affectsGlyphMargin: boolean;
 	private _affectsLineNumber: boolean;
 
-	constructor(private readonly handleBeforeFire: (affectedInjectedTextLines: Set<number> | null, affectedLineHeights: Set<{ ownerId: number; decorationId: string; lineNumber: number }> | null, affectedFontLines: Set<{ ownerId: number; decorationId: string, lineNumber: number }> | null) => void) {
+	constructor(private readonly handleBeforeFire: (affectedInjectedTextLines: Set<number> | null, affectedLineHeights: Set<{ ownerId: number; decorationId: string; lineNumber: number }> | null, affectedFontLines: Set<{ ownerId: number; decorationId: string; lineNumber: number }> | null) => void) {
 		super();
 		this._deferredCnt = 0;
 		this._shouldFireDeferred = false;

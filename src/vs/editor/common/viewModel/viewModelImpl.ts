@@ -64,7 +64,6 @@ export class ViewModel extends Disposable implements IViewModel {
 
 	constructor(
 		editorId: number,
-		windowId: number,
 		configuration: IEditorConfiguration,
 		model: ITextModel,
 		domLineBreaksComputerFactory: ILineBreaksComputerFactory,
@@ -446,6 +445,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			});
 		}));
 		this._register(this.model.onDidChangeFonts((e) => {
+			console.log('Fonts changed', e);
 			e.changes.forEach((change) => {
 				if (change.ownerId !== this._editorId && change.ownerId !== 0) {
 					return;

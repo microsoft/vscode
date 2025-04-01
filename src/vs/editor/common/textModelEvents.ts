@@ -215,7 +215,6 @@ export class LineInjectedText {
 export class CustomFontEvent {
 
 	public static fromDecorations(decorations: IModelDecoration[]): CustomFontEvent[] {
-		console.log('CustomFont.fromDecorations', decorations);
 		const result: CustomFontEvent[] = [];
 		for (const decoration of decorations) {
 			result.push(new CustomFontEvent(

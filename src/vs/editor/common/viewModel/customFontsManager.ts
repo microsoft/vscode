@@ -11,6 +11,8 @@ import { Position } from '../core/position.js';
 import { ICustomFontChangeAccessor } from '../viewModel.js';
 import { Range } from '../core/range.js';
 import { CustomFontEvent } from '../textModelEvents.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+
 
 export class CustomFont {
 	constructor(
@@ -35,8 +37,11 @@ export class CustomFont {
 	}
 }
 
-export class CustomFontsManager {
-	constructor(private readonly defaultFontInfo: FontInfo) { }
+export class CustomFontsManager extends Disposable {
+
+	constructor(private readonly defaultFontInfo: FontInfo) {
+		super();
+	}
 
 	public changeFonts(callback: (accessor: ICustomFontChangeAccessor) => void): void {
 		try {
@@ -73,6 +78,6 @@ export class CustomFontsManager {
 	}
 
 	public hasFontDecorations(range: Range): boolean {
-		return false;
+		return true;
 	}
 }

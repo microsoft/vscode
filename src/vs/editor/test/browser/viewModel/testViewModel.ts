@@ -14,13 +14,12 @@ import { TestThemeService } from '../../../../platform/theme/test/common/testThe
 
 export function testViewModel(text: string[], options: IEditorOptions, callback: (viewModel: ViewModel, model: TextModel) => void): void {
 	const EDITOR_ID = 1;
-	const WINDOW_ID = 1;
 
 	const configuration = new TestConfiguration(options);
 	const model = createTextModel(text.join('\n'));
 	const monospaceLineBreaksComputerFactory = MonospaceLineBreaksComputerFactory.create(configuration.options);
 	const testLanguageConfigurationService = new TestLanguageConfigurationService();
-	const viewModel = new ViewModel(EDITOR_ID, WINDOW_ID, configuration, model, monospaceLineBreaksComputerFactory, monospaceLineBreaksComputerFactory, null!, testLanguageConfigurationService, new TestThemeService(), {
+	const viewModel = new ViewModel(EDITOR_ID, configuration, model, monospaceLineBreaksComputerFactory, monospaceLineBreaksComputerFactory, null!, testLanguageConfigurationService, new TestThemeService(), {
 		setVisibleLines(visibleLines, stabilized) {
 		},
 	}, {
