@@ -37,11 +37,14 @@ import { addPositions, getEndPositionsAfterApplying, substringPos, subtractPosit
 import { AnimatedValue, easeOutCubic, ObservableAnimatedValue } from './animation.js';
 import { computeGhostText } from './computeGhostText.js';
 import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals, ghostTextsOrReplacementsEqual } from './ghostText.js';
+import { InlineCompletionsSourceOld } from './inlineCompletionSourceOld.js';
 import { InlineCompletionWithUpdatedRange, InlineCompletionsSource } from './inlineCompletionsSource.js';
 import { InlineEdit } from './inlineEdit.js';
-import { InlineCompletionItem } from './provideInlineCompletions.js';
+import { InlineCompletionItemOld } from './provideInlineCompletions.js';
 import { singleTextEditAugments, singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
 import { SuggestItemInfo } from './suggestWidgetAdapter.js';
+
+() => { new InlineCompletionsSourceOld(); }
 
 export class InlineCompletionsModel extends Disposable {
 	private readonly _source = this._register(this._instantiationService.createInstance(InlineCompletionsSource, this.textModel, this._textModelVersionId, this._debounceValue));
@@ -141,8 +144,8 @@ export class InlineCompletionsModel extends Disposable {
 		this._didUndoInlineEdits.recomputeInitiallyAndOnChange(this._store);
 	}
 
-	private _lastShownInlineCompletionInfo: { alternateTextModelVersionId: number; /* already freed! */ inlineCompletion: InlineCompletionItem } | undefined = undefined;
-	private _lastAcceptedInlineCompletionInfo: { textModelVersionIdAfter: number; /* already freed! */ inlineCompletion: InlineCompletionItem } | undefined = undefined;
+	private _lastShownInlineCompletionInfo: { alternateTextModelVersionId: number; /* already freed! */ inlineCompletion: InlineCompletionItemOld } | undefined = undefined;
+	private _lastAcceptedInlineCompletionInfo: { textModelVersionIdAfter: number; /* already freed! */ inlineCompletion: InlineCompletionItemOld } | undefined = undefined;
 	private readonly _didUndoInlineEdits = derivedHandleChanges({
 		owner: this,
 		createEmptyChangeSummary: () => ({ didUndo: false }),
@@ -904,7 +907,7 @@ export class InlineCompletionsModel extends Disposable {
 		});
 	}
 
-	public async handleInlineEditShown(inlineCompletion: InlineCompletionItem): Promise<void> {
+	public async handleInlineEditShown(inlineCompletion: InlineCompletionItemOld): Promise<void> {
 		if (inlineCompletion.didShow) {
 			return;
 		}

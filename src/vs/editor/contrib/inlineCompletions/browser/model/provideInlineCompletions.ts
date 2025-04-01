@@ -60,7 +60,7 @@ export async function provideInlineCompletions(
 		return result;
 	}
 
-	type Result = Promise<InlineCompletionList | undefined>;
+	type Result = Promise<InlineCompletionListOld | undefined>;
 	const states = new Map<InlineCompletionsProvider, Result>();
 
 	const seen = new Set<InlineCompletionsProvider>();
@@ -94,7 +94,7 @@ export async function provideInlineCompletions(
 				+ ` Path: ${circle.map(s => s.toString ? s.toString() : ('' + s)).join(' -> ')}`));
 		}
 
-		const deferredPromise = new DeferredPromise<InlineCompletionList | undefined>();
+		const deferredPromise = new DeferredPromise<InlineCompletionListOld | undefined>();
 		states.set(provider, deferredPromise.p);
 
 		(async () => {
@@ -115,7 +115,7 @@ export async function provideInlineCompletions(
 		return deferredPromise.p;
 	}
 
-	async function query(provider: InlineCompletionsProvider): Promise<InlineCompletionList | undefined> {
+	async function query(provider: InlineCompletionsProvider): Promise<InlineCompletionListOld | undefined> {
 		let result: InlineCompletions | null | undefined;
 		try {
 			if (positionOrRange instanceof Position) {
@@ -129,7 +129,7 @@ export async function provideInlineCompletions(
 		}
 
 		if (!result) { return undefined; }
-		const list = new InlineCompletionList(result, provider);
+		const list = new InlineCompletionListOld(result, provider);
 
 		runWhenCancelled(token, () => list.removeRef());
 		return list;
@@ -165,16 +165,16 @@ function runWhenCancelled(token: CancellationToken, callback: () => void): IDisp
 // TODO: check cancellation token!
 async function addRefAndCreateResult(
 	context: InlineCompletionContext,
-	inlineCompletionLists: AsyncIterable<(InlineCompletionList | undefined)>,
+	inlineCompletionLists: AsyncIterable<(InlineCompletionListOld | undefined)>,
 	defaultReplaceRange: Range,
 	model: ITextModel,
 	languageConfigurationService: ILanguageConfigurationService | undefined
 ): Promise<InlineCompletionProviderResult> {
 	// for deduplication
-	const itemsByHash = new Map<string, InlineCompletionItem>();
+	const itemsByHash = new Map<string, InlineCompletionItemOld>();
 
 	let shouldStop = false;
-	const lists: InlineCompletionList[] = [];
+	const lists: InlineCompletionListOld[] = [];
 	for await (const completions of inlineCompletionLists) {
 		if (!completions) { continue; }
 		completions.addRef();
@@ -186,7 +186,7 @@ async function addRefAndCreateResult(
 			if (!context.includeInlineCompletions && !(item.isInlineEdit || item.showInlineEditMenu)) {
 				continue;
 			}
-			const inlineCompletionItem = InlineCompletionItem.from(
+			const inlineCompletionItem = InlineCompletionItemOld.from(
 				item,
 				completions,
 				defaultReplaceRange,
@@ -219,12 +219,12 @@ export class InlineCompletionProviderResult implements IDisposable {
 		/**
 		 * Free of duplicates.
 		 */
-		public readonly completions: readonly InlineCompletionItem[],
+		public readonly completions: readonly InlineCompletionItemOld[],
 		private readonly hashs: Set<string>,
-		private readonly providerResults: readonly InlineCompletionList[],
+		private readonly providerResults: readonly InlineCompletionListOld[],
 	) { }
 
-	public has(item: InlineCompletionItem): boolean {
+	public has(item: InlineCompletionItemOld): boolean {
 		return this.hashs.has(item.hash());
 	}
 
@@ -245,7 +245,7 @@ export class InlineCompletionProviderResult implements IDisposable {
  * A ref counted pointer to the computed `InlineCompletions` and the `InlineCompletionsProvider` that
  * computed them.
  */
-export class InlineCompletionList {
+export class InlineCompletionListOld {
 	private refCount = 1;
 	constructor(
 		public readonly inlineCompletions: InlineCompletions,
@@ -264,10 +264,10 @@ export class InlineCompletionList {
 	}
 }
 
-export class InlineCompletionItem {
+export class InlineCompletionItemOld {
 	public static from(
 		inlineCompletion: InlineCompletion,
-		source: InlineCompletionList,
+		source: InlineCompletionListOld,
 		defaultReplaceRange: Range,
 		textModel: ITextModel,
 		languageConfigurationService: ILanguageConfigurationService | undefined,
@@ -329,7 +329,7 @@ export class InlineCompletionItem {
 			assertNever(inlineCompletion.insertText);
 		}
 
-		return new InlineCompletionItem(
+		return new InlineCompletionItemOld(
 			insertText,
 			inlineCompletion.command,
 			inlineCompletion.shownCommand,
@@ -372,9 +372,9 @@ export class InlineCompletionItem {
 		 * A reference to the original inline completion list this inline completion has been constructed from.
 		 * Used for event data to ensure referential equality.
 		*/
-		readonly source: InlineCompletionList,
+		readonly source: InlineCompletionListOld,
 
-		readonly id = `InlineCompletion:${InlineCompletionItem.ID++}`,
+		readonly id = `InlineCompletion:${InlineCompletionItemOld.ID++}`,
 	) {
 	}
 
@@ -389,8 +389,8 @@ export class InlineCompletionItem {
 		this._didCallShow = true;
 	}
 
-	public withRangeInsertTextAndFilterText(updatedRange: Range, updatedInsertText: string, updatedFilterText: string): InlineCompletionItem {
-		return new InlineCompletionItem(
+	public withRangeInsertTextAndFilterText(updatedRange: Range, updatedInsertText: string, updatedFilterText: string): InlineCompletionItemOld {
+		return new InlineCompletionItemOld(
 			updatedFilterText,
 			this.command,
 			this.shownCommand,

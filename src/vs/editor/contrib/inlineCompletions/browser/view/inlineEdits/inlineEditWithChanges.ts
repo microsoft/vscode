@@ -7,7 +7,7 @@ import { SingleLineEdit } from '../../../../../common/core/lineEdit.js';
 import { Position } from '../../../../../common/core/position.js';
 import { AbstractText, TextEdit } from '../../../../../common/core/textEdit.js';
 import { Command } from '../../../../../common/languages.js';
-import { InlineCompletionItem } from '../../model/provideInlineCompletions.js';
+import { InlineCompletionItemOld } from '../../model/provideInlineCompletions.js';
 
 export class InlineEditWithChanges {
 	public readonly lineEdit = SingleLineEdit.fromSingleTextEdit(this.edit.toSingle(this.originalText), this.originalText);
@@ -20,7 +20,7 @@ export class InlineEditWithChanges {
 		public readonly edit: TextEdit,
 		public readonly cursorPosition: Position,
 		public readonly commands: readonly Command[],
-		public readonly inlineCompletion: InlineCompletionItem
+		public readonly inlineCompletion: InlineCompletionItemOld
 	) {
 	}
 
