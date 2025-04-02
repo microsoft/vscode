@@ -204,6 +204,9 @@ export class PlaywrightDriver {
 		}
 
 		// Desktop: exit via `driver.exitApplication`
+		//
+		// Note: we are not calling `application.close()` here because from testing we see
+		// that sometimes this does not result in an orderly shutdown of the application.
 		else {
 			try {
 				await measureAndLog(() => this.evaluateWithDriver(([driver]) => driver.exitApplication()), 'driver.exitApplication()', this.options.logger);
