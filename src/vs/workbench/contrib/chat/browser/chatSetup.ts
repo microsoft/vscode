@@ -189,7 +189,6 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IChatService private readonly chatService: IChatService,
 	) {
 		super();
 	}
@@ -265,7 +264,7 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 			try {
 				const ready = await Promise.race([
 					timeout(20000).then(() => 'timedout'),
-					this.whenDefaultAgentFailed().then(() => 'error'),
+					this.whenDefaultAgentFailed(chatService).then(() => 'error'),
 					Promise.allSettled([whenLanguageModelReady, whenAgentReady])
 				]);
 
@@ -318,9 +317,9 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 		}));
 	}
 
-	private async whenDefaultAgentFailed(): Promise<void> {
+	private async whenDefaultAgentFailed(chatService: IChatService): Promise<void> {
 		return new Promise<void>(resolve => {
-			this.chatService.activateDefaultAgent(this.location).catch(() => resolve());
+			chatService.activateDefaultAgent(this.location).catch(() => resolve());
 		});
 	}
 
