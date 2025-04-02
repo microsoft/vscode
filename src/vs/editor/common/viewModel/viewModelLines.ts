@@ -36,6 +36,7 @@ export interface IViewModelLines extends IDisposable {
 	acceptVersionId(versionId: number): void;
 	changeCustomFonts(callback: (accessor: ICustomFontChangeAccessor) => void): void;
 	getFontInfoForPosition(position: Position): FontInfo;
+	getFontSegmentsForLine(lineNumber: number): LineFontSegment[];
 	hasFontDecorations(lineNumber: number): boolean;
 
 	getViewLineCount(): number;
@@ -130,6 +131,10 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		return this._customFontsManager.getFontForPosition(position);
 	}
 
+	public getFontSegmentsForLine(lineNumber: number): LineFontSegment[] {
+		return this._customFontsManager.getFontSegmentsForLine(lineNumber);
+	}
+
 	public hasFontDecorations(lineNumber: number): boolean {
 		return this._customFontsManager.hasFontDecorations(lineNumber);
 	}
@@ -149,7 +154,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		const injectedTextQueue = new arrays.ArrayQueue(LineInjectedText.fromDecorations(injectedTextDecorations));
 		for (let i = 0; i < lineCount; i++) {
 			const lineInjectedText = injectedTextQueue.takeWhile(t => t.lineNumber === i + 1);
-			const fontSegments = this._customFontsManager.getFontsOnLine(i + 1);
+			const fontSegments = this._customFontsManager.getFontSegmentsForLine(i + 1);
 			lineBreaksComputer.addRequest(i, i, linesContent[i], fontSegments, lineInjectedText, previousLineBreaks ? previousLineBreaks[i] : null);
 		}
 		const linesBreaks = lineBreaksComputer.finalize();
@@ -1144,6 +1149,10 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 
 	public getFontInfoForPosition(position: Position): FontInfo {
 		return this.defaultFontInfo;
+	}
+
+	public getFontSegmentsForLine(lineNumber: number): LineFontSegment[] {
+		return [];
 	}
 
 	public hasFontDecorations(lineNumber: number): boolean {

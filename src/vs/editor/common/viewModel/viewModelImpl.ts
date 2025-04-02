@@ -450,6 +450,7 @@ export class ViewModel extends Disposable implements IViewModel {
 					return;
 				}
 				const decorationId = change.decorationId;
+				const lineNumber = change.lineNumber;
 				const fontDecoration = change.fontDecoration;
 				if (fontDecoration) {
 					this._lines.changeCustomFonts((accessor: ICustomFontChangeAccessor) => {
@@ -460,6 +461,10 @@ export class ViewModel extends Disposable implements IViewModel {
 						accessor.removeCustomFonts(decorationId);
 					});
 				}
+				const lineBreaksComputer = this._lines.createLineBreaksComputer();
+				const line = this.model.getLineContent(lineNumber);
+				const fontSegments = this._lines.getFontSegmentsForLine(lineNumber);
+				lineBreaksComputer.addRequest(lineNumber, lineNumber, line, fontSegments, [], null);
 			});
 		}));
 

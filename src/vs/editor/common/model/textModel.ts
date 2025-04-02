@@ -1599,7 +1599,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		}
 		if (affectedFontLines && affectedFontLines.size > 0) {
 			const affectedLinesByFontChange = Array.from(affectedFontLines);
-			const fontChangeEvent = affectedLinesByFontChange.map(customFontChange => new ModelFontChanged(customFontChange.ownerId, customFontChange.decorationId, customFontChange.fontDecoration));
+			const fontChangeEvent = affectedLinesByFontChange.map(customFontChange => new ModelFontChanged(customFontChange.ownerId, customFontChange.decorationId, customFontChange.lineNumber, customFontChange.fontDecoration));
 			this._onDidChangeFonts.fire(new ModelFontChangedEvent(fontChangeEvent));
 		}
 	}
@@ -1823,7 +1823,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			this._onDidChangeDecorations.recordLineAffectedByLineHeightChange(ownerId, decorationId, oldRange!.startLineNumber, null);
 		}
 		if (node.options.fontFamily !== null || node.options.fontSize !== null || node.options.fontStyle !== null || node.options.fontWeight !== null) {
-			this._onDidChangeDecorations.recordLineAffectedByFontChange(ownerId, node.id, null);
+			const oldRange = this.getDecorationRange(decorationId);
+			this._onDidChangeDecorations.recordLineAffectedByFontChange(ownerId, node.id, oldRange!.startLineNumber, null);
 		}
 
 		const range = this._validateRangeRelaxedNoAllocations(_range);
@@ -1856,7 +1857,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				node.options.fontStyle ?? undefined,
 				node.options.fontWeight ?? undefined
 			);
-			this._onDidChangeDecorations.recordLineAffectedByFontChange(ownerId, node.id, fontDecoration);
+			this._onDidChangeDecorations.recordLineAffectedByFontChange(ownerId, node.id, range.startLineNumber, fontDecoration);
 		}
 	}
 
@@ -1902,7 +1903,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				node.options.fontStyle ?? undefined,
 				node.options.fontWeight ?? undefined
 			);
-			this._onDidChangeDecorations.recordLineAffectedByFontChange(ownerId, node.id, fontDecoration);
+			this._onDidChangeDecorations.recordLineAffectedByFontChange(ownerId, node.id, nodeRange.startLineNumber, fontDecoration);
 		}
 
 		const movedInOverviewRuler = nodeWasInOverviewRuler !== nodeIsInOverviewRuler;
@@ -1955,7 +1956,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 							this._onDidChangeDecorations.recordLineAffectedByLineHeightChange(ownerId, decorationId, nodeRange.startLineNumber, null);
 						}
 						if (node.options.fontFamily !== null || node.options.fontSize !== null || node.options.fontStyle !== null || node.options.fontWeight !== null) {
-							this._onDidChangeDecorations.recordLineAffectedByFontChange(ownerId, node.id, null);
+							const nodeRange = this._decorationsTree.getNodeRange(this, node);
+							this._onDidChangeDecorations.recordLineAffectedByFontChange(ownerId, node.id, nodeRange.startLineNumber, null);
 						}
 						this._decorationsTree.delete(node);
 
@@ -2006,7 +2008,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 							node.options.fontStyle ?? undefined,
 							node.options.fontWeight ?? undefined
 						);
-						this._onDidChangeDecorations.recordLineAffectedByFontChange(ownerId, node.id, fontDecoration);
+						this._onDidChangeDecorations.recordLineAffectedByFontChange(ownerId, node.id, range.startLineNumber, fontDecoration);
 					}
 					if (!suppressEvents) {
 						this._onDidChangeDecorations.checkAffectedAndFire(options);
@@ -2511,6 +2513,7 @@ class LineFontChangingDecoration {
 	constructor(
 		public readonly ownerId: number,
 		public readonly decorationId: string,
+		public readonly lineNumber: number,
 		public readonly fontDecoration: FontDecoration | null
 	) { }
 }
@@ -2578,11 +2581,11 @@ class DidChangeDecorationsEmitter extends Disposable {
 		this._affectedLineHeights.add(new LineHeightChangingDecoration(ownerId, decorationId, lineNumber, lineHeight));
 	}
 
-	public recordLineAffectedByFontChange(ownerId: number, decorationId: string, fontDecoration: FontDecoration | null): void {
+	public recordLineAffectedByFontChange(ownerId: number, decorationId: string, lineNumber: number, fontDecoration: FontDecoration | null): void {
 		if (!this._affectedFontLines) {
 			this._affectedFontLines = new SetWithKey<LineFontChangingDecoration>([], LineFontChangingDecoration.toKey);
 		}
-		this._affectedFontLines.add(new LineFontChangingDecoration(ownerId, decorationId, fontDecoration));
+		this._affectedFontLines.add(new LineFontChangingDecoration(ownerId, decorationId, lineNumber, fontDecoration));
 	}
 
 	public checkAffectedAndFire(options: ModelDecorationOptions): void {

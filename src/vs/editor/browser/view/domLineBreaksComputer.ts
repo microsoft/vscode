@@ -32,7 +32,6 @@ export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory 
 		const injectedTexts: (LineInjectedText[] | null)[] = [];
 		return {
 			addRequest: (fromLineNumber: number, toLineNumber: number, lineText: string, fontSegments: LineFontSegment[], injectedText: LineInjectedText[] | null, previousLineBreakData: ModelLineProjectionData | null) => {
-				// console.log('DOMLineBreaksComputerFactory addRequest', lineText, injectedText, previousLineBreakData);
 				ranges.push({ fromLineNumber, toLineNumber });
 				requests.push(lineText);
 				injectedTexts.push(injectedText);
@@ -45,7 +44,6 @@ export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory 
 }
 
 function createLineBreaks(targetWindow: Window, ranges: { fromLineNumber: number; toLineNumber: number }[], requests: string[], fontInfo: FontInfo, tabSize: number, firstLineBreakColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', injectedTextsPerLine: (LineInjectedText[] | null)[]): (ModelLineProjectionData | null)[] {
-	// console.log('createLineBreaks', ranges, requests, fontInfo, tabSize, firstLineBreakColumn, wrappingIndent, wordBreak);
 	function createEmptyLineBreakWithPossiblyInjectedText(requestIdx: number): ModelLineProjectionData | null {
 		const injectedTexts = injectedTextsPerLine[requestIdx];
 		if (injectedTexts) {

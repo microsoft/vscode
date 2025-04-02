@@ -29,30 +29,31 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 
 	public createLineBreaksComputer(defaultFontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll'): ILineBreaksComputer {
 		const ranges: { fromLineNumber: number; toLineNumber: number }[] = [];
-		const fontInfos: LineFontSegment[][] = [];
+		const resolvedFontSegments: LineFontSegment[][] = [];
 		const requests: string[] = [];
 		const injectedTexts: (LineInjectedText[] | null)[] = [];
 		const previousBreakingData: (ModelLineProjectionData | null)[] = [];
 		return {
 			addRequest: (fromLineNumber: number, toLineNumber: number, lineText: string, fontSegments: LineFontSegment[], injectedText: LineInjectedText[] | null, previousLineBreakData: ModelLineProjectionData | null) => {
-				// console.log('MonospaceLineBreaksComputerFactory addRequest', fromLineNumber, toLineNumber, lineText, injectedText, previousLineBreakData);
 				ranges.push({ fromLineNumber, toLineNumber });
 				requests.push(lineText);
-				fontInfos.push(fontSegments);
+				resolvedFontSegments.push(fontSegments);
 				injectedTexts.push(injectedText);
 				previousBreakingData.push(previousLineBreakData);
 			},
 			finalize: () => {
-				// const columnsForFullWidthChar = fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth;
 				const result: (ModelLineProjectionData | null)[] = [];
 				for (let i = 0, len = requests.length; i < len; i++) {
 					const injectedText = injectedTexts[i];
 					const previousLineBreakData = previousBreakingData[i];
-					// console.log('previousLineBreakData ', previousLineBreakData);
+					const resolvedFontSegment = resolvedFontSegments[i];
+					console.log('range : ', ranges[i]);
+					console.log('lineText : ', requests[i]);
+					console.log('resolvedFontSegment : ', resolvedFontSegment);
 					if (previousLineBreakData && !previousLineBreakData.injectionOptions && !injectedText) {
-						result[i] = createLineBreaksFromPreviousLineBreaks(this.classifier, previousLineBreakData, requests[i], defaultFontInfo, fontInfos[i], tabSize, wrappingColumn, wrappingIndent, wordBreak);
+						result[i] = createLineBreaksFromPreviousLineBreaks(this.classifier, previousLineBreakData, requests[i], defaultFontInfo, resolvedFontSegment, tabSize, wrappingColumn, wrappingIndent, wordBreak);
 					} else {
-						result[i] = createLineBreaks(this.classifier, ranges[i], requests[i], defaultFontInfo, fontInfos[i], injectedText, tabSize, wrappingColumn, wrappingIndent, wordBreak);
+						result[i] = createLineBreaks(this.classifier, ranges[i], requests[i], defaultFontInfo, resolvedFontSegment, injectedText, tabSize, wrappingColumn, wrappingIndent, wordBreak);
 					}
 				}
 				arrPool1.length = 0;
@@ -108,8 +109,8 @@ class WrappingCharacterClassifier extends CharacterClassifier<CharacterClass> {
 let arrPool1: number[] = [];
 let arrPool2: number[] = [];
 
-function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterClassifier, previousBreakingData: ModelLineProjectionData, lineText: string, defaultFontInfo: FontInfo, fontInfos: LineFontSegment[], tabSize: number, firstLineBreakColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll'): ModelLineProjectionData | null {
-	// console.log('createLineBreaksFromPreviousLineBreaks', previousBreakingData, lineText, tabSize, firstLineBreakColumn, wrappingIndent, wordBreak);
+function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterClassifier, previousBreakingData: ModelLineProjectionData, lineText: string, defaultFontInfo: FontInfo, fontSegments: LineFontSegment[], tabSize: number, firstLineBreakColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll'): ModelLineProjectionData | null {
+	console.log('createLineBreaksFromPreviousLineBreaks');
 	if (firstLineBreakColumn === -1) {
 		return null;
 	}
@@ -126,8 +127,8 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 
 	let currentFonIndex: number = -1;
 	let currentFontInfo: FontInfo = defaultFontInfo;
-	if (fontInfos[currentFonIndex + 1] && fontInfos[currentFonIndex + 1].startColumn === 0) {
-		currentFontInfo = fontInfos[currentFonIndex + 1].fontInfo;
+	if (fontSegments[currentFonIndex + 1] && fontSegments[currentFonIndex + 1].startColumn === 0) {
+		currentFontInfo = fontSegments[currentFonIndex + 1].fontInfo;
 		currentFonIndex++;
 	}
 	const wrappedTextIndentLength = computeWrappedTextIndentLength(lineText, currentFontInfo, tabSize, firstLineBreakColumn, wrappingIndent);
@@ -189,11 +190,11 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 					charWidth = 2;
 				} else {
 					charCodeClass = classifier.get(charCode);
-					const index = binarySearch2(fontInfos.length, (index) => fontInfos[index].startColumn - i);
+					const index = binarySearch2(fontSegments.length, (index) => fontSegments[index].startColumn - i);
 					const modifiedIndex = index < 0 ? -(index + 1) : index;
 					let fontInfo: FontInfo = defaultFontInfo;
-					if (modifiedIndex >= 0 && modifiedIndex < fontInfos.length && fontInfos[modifiedIndex] && fontInfos[modifiedIndex].startColumn >= i && fontInfos[modifiedIndex].endColumn >= i) {
-						fontInfo = fontInfos[modifiedIndex].fontInfo;
+					if (modifiedIndex >= 0 && modifiedIndex < fontSegments.length && fontSegments[modifiedIndex] && fontSegments[modifiedIndex].startColumn >= i && fontSegments[modifiedIndex].endColumn >= i) {
+						fontInfo = fontSegments[modifiedIndex].fontInfo;
 					}
 					charWidth = computeCharWidth(charCode, fontInfo, visibleColumn, tabSize);
 				}
@@ -267,11 +268,11 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 					prevCharCodeClass = CharacterClass.NONE;
 					prevCharWidth = 2;
 				} else {
-					const index = binarySearch2(fontInfos.length, (index) => fontInfos[index].startColumn - i);
+					const index = binarySearch2(fontSegments.length, (index) => fontSegments[index].startColumn - i);
 					const modifiedIndex = index < 0 ? -(index + 1) : index;
 					let fontInfo: FontInfo = defaultFontInfo;
-					if (modifiedIndex >= 0 && modifiedIndex < fontInfos.length && fontInfos[modifiedIndex] && fontInfos[modifiedIndex].startColumn >= i && fontInfos[modifiedIndex].startColumn >= i) {
-						fontInfo = fontInfos[modifiedIndex].fontInfo;
+					if (modifiedIndex >= 0 && modifiedIndex < fontSegments.length && fontSegments[modifiedIndex] && fontSegments[modifiedIndex].startColumn >= i && fontSegments[modifiedIndex].startColumn >= i) {
+						fontInfo = fontSegments[modifiedIndex].fontInfo;
 					}
 					const columnsForFullWidthChar = fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth;
 
@@ -311,11 +312,11 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 						// A surrogate pair must always be considered as a single unit, so it is never to be broken
 						charWidth = 2;
 					} else {
-						const index = binarySearch2(fontInfos.length, (index) => fontInfos[index].startColumn - forcedBreakOffset);
+						const index = binarySearch2(fontSegments.length, (index) => fontSegments[index].startColumn - forcedBreakOffset);
 						const modifiedIndex = index < 0 ? -(index + 1) : index;
 						let fontInfo: FontInfo = defaultFontInfo;
-						if (modifiedIndex >= 0 && modifiedIndex < fontInfos.length && fontInfos[modifiedIndex] && fontInfos[modifiedIndex].startColumn >= forcedBreakOffset && fontInfos[modifiedIndex].endColumn >= forcedBreakOffset) {
-							fontInfo = fontInfos[modifiedIndex].fontInfo;
+						if (modifiedIndex >= 0 && modifiedIndex < fontSegments.length && fontSegments[modifiedIndex] && fontSegments[modifiedIndex].startColumn >= forcedBreakOffset && fontSegments[modifiedIndex].endColumn >= forcedBreakOffset) {
+							fontInfo = fontSegments[modifiedIndex].fontInfo;
 						}
 						charWidth = computeCharWidth(charCodeAtForcedBreakOffset, fontInfo, forcedBreakOffsetVisibleColumn, tabSize);
 					}
@@ -347,11 +348,11 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 				breakOffset = lastBreakingOffset + 2;
 				breakOffsetVisibleColumn = lastBreakingOffsetVisibleColumn + 2;
 			} else {
-				const index = binarySearch2(fontInfos.length, (index) => fontInfos[index].startColumn - lastBreakingOffset);
+				const index = binarySearch2(fontSegments.length, (index) => fontSegments[index].startColumn - lastBreakingOffset);
 				const modifiedIndex = index < 0 ? -(index + 1) : index;
 				let fontInfo: FontInfo = defaultFontInfo;
-				if (modifiedIndex >= 0 && modifiedIndex < fontInfos.length && fontInfos[modifiedIndex] && fontInfos[modifiedIndex].startColumn >= lastBreakingOffset && fontInfos[modifiedIndex].endColumn >= lastBreakingOffset) {
-					fontInfo = fontInfos[modifiedIndex].fontInfo;
+				if (modifiedIndex >= 0 && modifiedIndex < fontSegments.length && fontSegments[modifiedIndex] && fontSegments[modifiedIndex].startColumn >= lastBreakingOffset && fontSegments[modifiedIndex].endColumn >= lastBreakingOffset) {
+					fontInfo = fontSegments[modifiedIndex].fontInfo;
 				}
 				breakOffset = lastBreakingOffset + 1;
 				breakOffsetVisibleColumn = lastBreakingOffsetVisibleColumn + computeCharWidth(charCode, fontInfo, lastBreakingOffsetVisibleColumn, tabSize);
@@ -395,8 +396,8 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 	return previousBreakingData;
 }
 
-function createLineBreaks(classifier: WrappingCharacterClassifier, range: { fromLineNumber: number; toLineNumber: number }, _lineText: string, defaultFontInfo: FontInfo, fontInfos: LineFontSegment[], injectedTexts: LineInjectedText[] | null, tabSize: number, firstLineBreakColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll'): ModelLineProjectionData | null {
-	// console.log('createLineBreaks', range, _lineText, injectedTexts, tabSize, firstLineBreakColumn, wrappingIndent, wordBreak);
+function createLineBreaks(classifier: WrappingCharacterClassifier, range: { fromLineNumber: number; toLineNumber: number }, _lineText: string, defaultFontInfo: FontInfo, fontSegments: LineFontSegment[], injectedTexts: LineInjectedText[] | null, tabSize: number, firstLineBreakColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll'): ModelLineProjectionData | null {
+	console.log('createLineBreaks');
 	const lineText = LineInjectedText.applyInjectedText(_lineText, injectedTexts);
 
 	let injectionOptions: InjectedTextOptions[] | null;
@@ -420,8 +421,8 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, range: { from
 
 	let currentFonIndex: number = -1;
 	let currentFontInfo: FontInfo = defaultFontInfo;
-	if (fontInfos && fontInfos[currentFonIndex + 1] && fontInfos[currentFonIndex + 1].startColumn === 0) {
-		currentFontInfo = fontInfos[currentFonIndex + 1].fontInfo;
+	if (fontSegments && fontSegments[currentFonIndex + 1] && fontSegments[currentFonIndex + 1].startColumn === 0) {
+		currentFontInfo = fontSegments[currentFonIndex + 1].fontInfo;
 		currentFonIndex++;
 	}
 
@@ -448,6 +449,8 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, range: { from
 	let breakingColumn = firstLineBreakColumn;
 	let prevCharCode = lineText.charCodeAt(0);
 	let prevCharCodeClass = classifier.get(prevCharCode);
+	console.log('index : ', 0);
+	console.log('fontInfo : ', currentFontInfo);
 	let visibleColumn = computeCharWidth(prevCharCode, currentFontInfo, 0, tabSize);
 
 	let startOffset = 1;
@@ -464,11 +467,18 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, range: { from
 		const charCode = lineText.charCodeAt(i);
 		let charCodeClass: CharacterClass;
 		let charWidth: number;
-
-		if (fontInfos && fontInfos[currentFonIndex + 1] && fontInfos[currentFonIndex + 1].startColumn >= charStartOffset && charStartOffset <= fontInfos[currentFonIndex + 1].endColumn) {
-			currentFontInfo = fontInfos[currentFonIndex + 1].fontInfo;
-			currentFonIndex++;
+		const index = binarySearch2(fontSegments.length, (index) => fontSegments[index].startColumn - i);
+		console.log('i : ', i);
+		console.log('index : ', index);
+		const modifiedIndex = index < 0 ? -(index + 2) : index;
+		console.log('modifiedIndex : ', modifiedIndex);
+		const fontSegment = fontSegments[modifiedIndex];
+		console.log('fontSegments[modifiedIndex] : ', fontSegment);
+		let fontInfo: FontInfo = defaultFontInfo;
+		if (modifiedIndex >= 0 && modifiedIndex < fontSegments.length && fontSegment && fontSegment.startColumn <= i && i <= fontSegment.endColumn) {
+			fontInfo = fontSegment.fontInfo;
 		}
+		console.log('fontInfo : ', fontInfo);
 
 		if (strings.isHighSurrogate(charCode)) {
 			// A surrogate pair must always be considered as a single unit, so it is never to be broken
@@ -477,8 +487,9 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, range: { from
 			charWidth = 2;
 		} else {
 			charCodeClass = classifier.get(charCode);
-			charWidth = computeCharWidth(charCode, currentFontInfo, visibleColumn, tabSize);
+			charWidth = computeCharWidth(charCode, fontInfo, visibleColumn, tabSize);
 		}
+		console.log('charWidth : ', charWidth);
 
 		if (canBreak(prevCharCode, prevCharCodeClass, charCode, charCodeClass, isKeepAll)) {
 			breakOffset = charStartOffset;
@@ -516,19 +527,18 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, range: { from
 	breakingOffsets[breakingOffsetsCount] = len;
 	breakingOffsetsVisibleColumn[breakingOffsetsCount] = visibleColumn;
 
-	// console.log('injectionOffsets', injectionOffsets);
-	// console.log('injectionOptions', injectionOptions);
-	// console.log('breakingOffsets', breakingOffsets);
-	// console.log('breakingOffsetsVisibleColumn', breakingOffsetsVisibleColumn);
-	// console.log('wrappedTextIndentLength', wrappedTextIndentLength);
 	return new ModelLineProjectionData(injectionOffsets, injectionOptions, breakingOffsets, breakingOffsetsVisibleColumn, wrappedTextIndentLength);
 }
 
 function computeCharWidth(charCode: number, fontInfo: FontInfo, visibleColumn: number, tabSize: number): number {
+	console.log('computeCharWidth');
+	console.log('fontInfo : ', fontInfo);
 	const columnsForFullWidthChar = fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth;
+	console.log('columnsForFullWidthChar : ', columnsForFullWidthChar);
 	if (charCode === CharCode.Tab) {
 		return (tabSize - (visibleColumn % tabSize));
 	}
+	console.log('strings.isFullWidthCharacter(charCode) : ', strings.isFullWidthCharacter(charCode));
 	if (strings.isFullWidthCharacter(charCode)) {
 		return columnsForFullWidthChar;
 	}

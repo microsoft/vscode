@@ -308,13 +308,18 @@ export class ModelFontChanged {
 	 */
 	public readonly decorationId: string;
 	/**
+	 * The line that has changed.
+	 */
+	public readonly lineNumber: number;
+	/**
 	 * The start column of the range.
 	 */
 	public readonly fontDecoration: FontDecoration | null;
 
-	constructor(ownerId: number, decorationId: string, fontDecoration: FontDecoration | null) {
+	constructor(ownerId: number, decorationId: string, lineNumber: number, fontDecoration: FontDecoration | null) {
 		this.ownerId = ownerId;
 		this.decorationId = decorationId;
+		this.lineNumber = lineNumber;
 		this.fontDecoration = fontDecoration;
 	}
 }

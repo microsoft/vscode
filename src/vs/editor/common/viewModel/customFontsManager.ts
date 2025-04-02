@@ -61,12 +61,16 @@ export class CustomFontsManager extends Disposable {
 
 	}
 
-	public getFontsOnLine(lineNumber: number): LineFontSegment[] {
-		return this.lineNumberToFontSegmentTree.get(lineNumber)?.getSegments() ?? [];
-	}
-
 	public getFontForPosition(position: Position): FontInfo {
 		return this.lineNumberToFontSegmentTree.get(position.lineNumber)?.getFontAtColumn(position.column) ?? this.defaultFontInfo;
+	}
+
+	public getFontSegmentsForLine(lineNumber: number): LineFontSegment[] {
+		const tree = this.lineNumberToFontSegmentTree.get(lineNumber);
+		if (!tree) {
+			return [];
+		}
+		return tree.getSegments();
 	}
 
 	public hasFontDecorations(lineNumber: number): boolean {
