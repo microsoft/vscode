@@ -23,6 +23,10 @@ class FontSegmentInfo {
 			&& this.fontSize === other.fontSize
 			&& this.lineHeight === other.lineHeight;
 	}
+
+	public static fromFontDecoration(fontDecoration: FontDecoration): FontSegmentInfo {
+		return new FontSegmentInfo(fontDecoration.fontFamily, fontDecoration.fontWeight, fontDecoration.fontSize, fontDecoration.lineHeight);
+	}
 }
 
 class FontSegment {
@@ -46,6 +50,22 @@ class FontSegment {
 		}, PixelRatio.getInstance(getActiveWindow()).value);
 		return FontMeasurements.readFontInfo(getActiveWindow(), bareFontInfo);
 	}
+
+	public fontAttributesEqual(other: FontSegment): boolean {
+		const fontInfosEqual = this.fontInfo.equals(other.fontInfo);
+		if (!fontInfosEqual) {
+			return false;
+		}
+		if (this.sources.length !== other.sources.length) {
+			return false;
+		}
+		for (let i = 0; i < this.sources.length; i++) {
+			if (this.sources[i] !== other.sources[i]) {
+				return false;
+			}
+		}
+		return true;
+	}
 }
 
 export interface IFontSegmentTreeContext {
@@ -62,29 +82,89 @@ export class FontSegmentTree {
 	) { }
 
 	public insert(decorationId: string, fontDecoration: FontDecoration): void {
+
+		const newSegments: FontSegment[] = [];
+		let lastFontSegment: FontSegment | undefined;
+		const insertIntoNewSegments = (fontSegment: FontSegment) => {
+			if (lastFontSegment && fontSegment.startColumn === lastFontSegment.endColumn + 1 && lastFontSegment.fontAttributesEqual(fontSegment)) {
+				lastFontSegment.endColumn = fontSegment.endColumn;
+				lastFontSegment.sources = fontSegment.sources;
+			} else {
+				newSegments.push(fontSegment);
+				lastFontSegment = fontSegment;
+			}
+		};
+
 		const startColumn = fontDecoration.startColumn;
 		const endColumn = fontDecoration.endColumn;
-		const newSegments: FontSegment[] = [];
-		for (let i = 0; i < this._segments.length; i++) {
-			const segment = this._segments[i];
-			if (segment.endColumn < startColumn) {
-				newSegments.push(segment);
-			} else if (segment.startColumn > endColumn) {
-				newSegments.push(segment);
-			} else {
-				if (segment.startColumn < startColumn) {
-					newSegments.push(new FontSegment(segment.startColumn, startColumn - 1, segment.fontInfo, segment.sources));
+
+		if (this._segments.length === 0) {
+			newSegments.push(new FontSegment(startColumn, endColumn, FontSegmentInfo.fromFontDecoration(fontDecoration), [decorationId]));
+		} else {
+			const firstIndex = this._findFirstSegmentOverlapIndex(startColumn);
+			const lastIndex = this._findLastSegmentOverlapIndex(endColumn);
+
+			for (let i = 0; i < firstIndex; i++) {
+				insertIntoNewSegments(this._segments[i]);
+			}
+			if (startColumn < this._segments[firstIndex].startColumn) {
+				insertIntoNewSegments(new FontSegment(startColumn, this._segments[firstIndex].startColumn - 1, FontSegmentInfo.fromFontDecoration(fontDecoration), [decorationId]));
+			}
+			for (let i = firstIndex; i <= lastIndex; i++) {
+				const segment = this._segments[i];
+				if (segment.endColumn < startColumn) {
+					insertIntoNewSegments(segment);
+				} else if (segment.startColumn > endColumn) {
+					insertIntoNewSegments(segment);
+				} else {
+					if (segment.startColumn < startColumn) {
+						insertIntoNewSegments(new FontSegment(segment.startColumn, startColumn - 1, segment.fontInfo, segment.sources));
+					}
+					if (endColumn < segment.endColumn) {
+						insertIntoNewSegments(new FontSegment(endColumn + 1, segment.endColumn, segment.fontInfo, segment.sources));
+					}
+					const sources = segment.sources;
+					sources.push(decorationId);
+					const mergedSegmentFontInfo = this._getMergedFontInfo(sources);
+					insertIntoNewSegments(new FontSegment(Math.max(segment.startColumn, startColumn), Math.min(segment.endColumn, endColumn), mergedSegmentFontInfo, sources));
 				}
-				if (endColumn < segment.endColumn) {
-					newSegments.push(new FontSegment(endColumn + 1, segment.endColumn, segment.fontInfo, segment.sources));
-				}
-				const sources = segment.sources;
-				sources.push(decorationId);
-				const mergedSegmentFontInfo = this._getMergedFontInfo(sources);
-				newSegments.push(new FontSegment(Math.max(segment.startColumn, startColumn), Math.min(segment.endColumn, endColumn), mergedSegmentFontInfo, sources));
+			}
+			if (this._segments[this._segments.length - 1].endColumn < endColumn) {
+				insertIntoNewSegments(new FontSegment(this._segments[this._segments.length - 1].endColumn + 1, endColumn, FontSegmentInfo.fromFontDecoration(fontDecoration), [decorationId]));
+			}
+			for (let i = lastIndex + 1; i < this._segments.length; i++) {
+				insertIntoNewSegments(this._segments[i]);
 			}
 		}
 		this._segments = newSegments;
+		console.log('insert ', decorationId, fontDecoration);
+		console.log('this._segments ', this._segments);
+	}
+
+	private _findFirstSegmentOverlapIndex(column: number): number {
+		let low = 0, high = this._segments.length - 1;
+		while (low <= high) {
+			const mid = (low + high) >>> 1;
+			if (this._segments[mid].endColumn < column) {
+				low = mid + 1;
+			} else {
+				high = mid - 1;
+			}
+		}
+		return low;
+	}
+
+	private _findLastSegmentOverlapIndex(column: number): number {
+		let low = 0, high = this._segments.length - 1;
+		while (low <= high) {
+			const mid = (low + high) >>> 1;
+			if (this._segments[mid].startColumn > column) {
+				high = mid - 1;
+			} else {
+				low = mid + 1;
+			}
+		}
+		return high;
 	}
 
 	public remove(decorationId: string, fontDecoration: FontDecoration): void {
@@ -97,13 +177,13 @@ export class FontSegmentTree {
 			if (indexOfDecorationId > -1) {
 				sources.splice(indexOfDecorationId, 1);
 				if (sources.length > 0) {
-					const mergedSegmentFontInfo = this._getMergedFontInfo(sources);
-					if (lastFontSegment && lastFontSegment.fontInfo.equals(mergedSegmentFontInfo) && segment.startColumn === lastFontSegment.endColumn + 1) {
+					const currentFontSegment = new FontSegment(segment.startColumn, segment.endColumn, this._getMergedFontInfo(sources), sources);
+					if (lastFontSegment && segment.startColumn === lastFontSegment.endColumn + 1 && lastFontSegment.fontAttributesEqual(currentFontSegment)) {
 						lastFontSegment.endColumn = segment.endColumn;
 						lastFontSegment.sources = sources;
 					} else {
-						lastFontSegment = new FontSegment(segment.startColumn, segment.endColumn, mergedSegmentFontInfo, sources);
-						newSegments.push(lastFontSegment);
+						newSegments.push(currentFontSegment);
+						lastFontSegment = currentFontSegment;
 					}
 				}
 			} else {
@@ -111,6 +191,8 @@ export class FontSegmentTree {
 			}
 		}
 		this._segments = newSegments;
+		console.log('remove ', decorationId);
+		console.log('this._segments ', this._segments);
 	}
 
 	public getFontAtColumn(column: number): FontInfo {
