@@ -6,7 +6,7 @@
 .monaco-action-bar {
 	white-space: nowrap;
 	height: 100%;
-	background-color: #FF000066;
+	/* background-color: #FF000066; */
 }
 
 .monaco-action-bar .actions-container {
