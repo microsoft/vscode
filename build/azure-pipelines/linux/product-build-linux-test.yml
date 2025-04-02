@@ -160,7 +160,7 @@ steps:
         timeoutInMinutes: 20
         displayName: Run smoke tests (Electron)
 
-      - script: npm run smoketest-no-compile -- --web --tracing --headless --electronArgs="--disable-dev-shm-usage"
+      - script: npm run smoketest-no-compile -- --web --tracing --headless
         timeoutInMinutes: 20
         displayName: Run smoke tests (Browser, Chromium)
 
@@ -173,7 +173,7 @@ steps:
         timeoutInMinutes: 20
         displayName: Run smoke tests (Electron)
 
-      - script: npm run smoketest-no-compile -- --web --tracing --headless --electronArgs="--disable-dev-shm-usage"
+      - script: npm run smoketest-no-compile -- --web --tracing --headless
         env:
           VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
         timeoutInMinutes: 20
