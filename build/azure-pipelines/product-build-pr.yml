@@ -187,6 +187,76 @@ stages:
               VSCODE_RUN_SMOKE_TESTS_BROWSER: false
               VSCODE_RUN_SMOKE_TESTS_REMOTE: true
 
+    - stage: macOS
+      dependsOn: []
+      pool:
+        name: Azure Pipelines
+        image: macOS-13
+        os: macOS
+      jobs:
+        - job: macOSElectronTests
+          displayName: Electron Tests
+          timeoutInMinutes: 30
+          variables:
+            VSCODE_ARCH: x64
+            NPM_ARCH: x64
+          steps:
+            - template: darwin/product-build-darwin-test.yml@self
+              parameters:
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_ARCH: x64
+                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_RUN_UNIT_TESTS_ELECTRON: true
+                VSCODE_RUN_UNIT_TESTS_BROWSER: false
+                VSCODE_RUN_INTEGRATION_TESTS_ELECTRON: true
+                VSCODE_RUN_INTEGRATION_TESTS_BROWSER: false
+                VSCODE_RUN_INTEGRATION_TESTS_REMOTE: false
+                VSCODE_RUN_SMOKE_TESTS_ELECTRON: true
+                VSCODE_RUN_SMOKE_TESTS_BROWSER: false
+                VSCODE_RUN_SMOKE_TESTS_REMOTE: false
+
+        - job: macOSBrowserTests
+          displayName: Browser Tests
+          timeoutInMinutes: 30
+          variables:
+            VSCODE_ARCH: x64
+            NPM_ARCH: x64
+          steps:
+            - template: darwin/product-build-darwin-test.yml@self
+              parameters:
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_ARCH: x64
+                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_RUN_UNIT_TESTS_ELECTRON: false
+                VSCODE_RUN_UNIT_TESTS_BROWSER: true
+                VSCODE_RUN_INTEGRATION_TESTS_ELECTRON: false
+                VSCODE_RUN_INTEGRATION_TESTS_BROWSER: true
+                VSCODE_RUN_INTEGRATION_TESTS_REMOTE: false
+                VSCODE_RUN_SMOKE_TESTS_ELECTRON: false
+                VSCODE_RUN_SMOKE_TESTS_BROWSER: true
+                VSCODE_RUN_SMOKE_TESTS_REMOTE: false
+
+        - job: macOSRemoteTests
+          displayName: Remote Tests
+          timeoutInMinutes: 30
+          variables:
+            VSCODE_ARCH: x64
+            NPM_ARCH: x64
+          steps:
+            - template: darwin/product-build-darwin-test.yml@self
+              parameters:
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_ARCH: x64
+                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_RUN_UNIT_TESTS_ELECTRON: false
+                VSCODE_RUN_UNIT_TESTS_BROWSER: false
+                VSCODE_RUN_INTEGRATION_TESTS_ELECTRON: false
+                VSCODE_RUN_INTEGRATION_TESTS_BROWSER: false
+                VSCODE_RUN_INTEGRATION_TESTS_REMOTE: true
+                VSCODE_RUN_SMOKE_TESTS_ELECTRON: false
+                VSCODE_RUN_SMOKE_TESTS_BROWSER: false
+                VSCODE_RUN_SMOKE_TESTS_REMOTE: true
+
   - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
     - stage: MaintainNodeModulesCache
       displayName: Maintain node_modules cache

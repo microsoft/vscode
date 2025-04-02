@@ -1,13 +1,25 @@
 parameters:
   - name: VSCODE_QUALITY
     type: string
+  - name: VSCODE_ARCH
+    type: string
   - name: VSCODE_CIBUILD
     type: boolean
-  - name: VSCODE_RUN_UNIT_TESTS
+  - name: VSCODE_RUN_UNIT_TESTS_ELECTRON
     type: boolean
-  - name: VSCODE_RUN_INTEGRATION_TESTS
+  - name: VSCODE_RUN_UNIT_TESTS_BROWSER
     type: boolean
-  - name: VSCODE_RUN_SMOKE_TESTS
+  - name: VSCODE_RUN_INTEGRATION_TESTS_ELECTRON
+    type: boolean
+  - name: VSCODE_RUN_INTEGRATION_TESTS_BROWSER
+    type: boolean
+  - name: VSCODE_RUN_INTEGRATION_TESTS_REMOTE
+    type: boolean
+  - name: VSCODE_RUN_SMOKE_TESTS_ELECTRON
+    type: boolean
+  - name: VSCODE_RUN_SMOKE_TESTS_BROWSER
+    type: boolean
+  - name: VSCODE_RUN_SMOKE_TESTS_REMOTE
     type: boolean
 
 steps:
@@ -165,13 +177,21 @@ steps:
           GITHUB_TOKEN: "$(github-distro-mixin-password)"
         displayName: Transpile
 
-  - ${{ if or(eq(parameters.VSCODE_RUN_UNIT_TESTS, true), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
+  - ${{ if or(eq(parameters.VSCODE_RUN_UNIT_TESTS_ELECTRON, true), eq(parameters.VSCODE_RUN_UNIT_TESTS_BROWSER, true), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS_ELECTRON, true), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS_BROWSER, true), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS_REMOTE, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS_ELECTRON, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS_BROWSER, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS_REMOTE, true)) }}:
     - template: product-build-darwin-test.yml@self
       parameters:
         VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
-        VSCODE_RUN_UNIT_TESTS: ${{ parameters.VSCODE_RUN_UNIT_TESTS }}
-        VSCODE_RUN_INTEGRATION_TESTS: ${{ parameters.VSCODE_RUN_INTEGRATION_TESTS }}
-        VSCODE_RUN_SMOKE_TESTS: ${{ parameters.VSCODE_RUN_SMOKE_TESTS }}
+        VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
+        VSCODE_RUN_UNIT_TESTS_ELECTRON: ${{ parameters.VSCODE_RUN_UNIT_TESTS_ELECTRON }}
+        VSCODE_RUN_UNIT_TESTS_BROWSER: ${{ parameters.VSCODE_RUN_UNIT_TESTS_BROWSER }}
+        VSCODE_RUN_INTEGRATION_TESTS_ELECTRON: ${{ parameters.VSCODE_RUN_INTEGRATION_TESTS_ELECTRON }}
+        VSCODE_RUN_INTEGRATION_TESTS_BROWSER: ${{ parameters.VSCODE_RUN_INTEGRATION_TESTS_BROWSER }}
+        VSCODE_RUN_INTEGRATION_TESTS_REMOTE: ${{ parameters.VSCODE_RUN_INTEGRATION_TESTS_REMOTE }}
+        VSCODE_RUN_SMOKE_TESTS_ELECTRON: ${{ parameters.VSCODE_RUN_SMOKE_TESTS_ELECTRON }}
+        VSCODE_RUN_SMOKE_TESTS_BROWSER: ${{ parameters.VSCODE_RUN_SMOKE_TESTS_BROWSER }}
+        VSCODE_RUN_SMOKE_TESTS_REMOTE: ${{ parameters.VSCODE_RUN_SMOKE_TESTS_REMOTE }}
+        ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+          PUBLISH_TASK_NAME: 1ES.PublishPipelineArtifact@1
 
   - ${{ elseif and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
     - task: DownloadPipelineArtifact@2
