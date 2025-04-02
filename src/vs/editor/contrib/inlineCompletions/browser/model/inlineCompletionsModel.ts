@@ -145,10 +145,12 @@ export class InlineCompletionsModel extends Disposable {
 	private _lastAcceptedInlineCompletionInfo: { textModelVersionIdAfter: number; /* already freed! */ inlineCompletion: InlineCompletionItem } | undefined = undefined;
 	private readonly _didUndoInlineEdits = derivedHandleChanges({
 		owner: this,
-		createEmptyChangeSummary: () => ({ didUndo: false }),
-		handleChange: (ctx, changeSummary) => {
-			changeSummary.didUndo = ctx.didChange(this._textModelVersionId) && !!ctx.change?.isUndoing;
-			return true;
+		changeTracker: {
+			createChangeSummary: () => ({ didUndo: false }),
+			handleChange: (ctx, changeSummary) => {
+				changeSummary.didUndo = ctx.didChange(this._textModelVersionId) && !!ctx.change?.isUndoing;
+				return true;
+			}
 		}
 	}, (reader, changeSummary) => {
 		const versionId = this._textModelVersionId.read(reader);
@@ -215,27 +217,29 @@ export class InlineCompletionsModel extends Disposable {
 
 	private readonly _fetchInlineCompletionsPromise = derivedHandleChanges({
 		owner: this,
-		createEmptyChangeSummary: () => ({
-			dontRefetch: false,
-			preserveCurrentCompletion: false,
-			inlineCompletionTriggerKind: InlineCompletionTriggerKind.Automatic,
-			onlyRequestInlineEdits: false,
-			shouldDebounce: true,
-		}),
-		handleChange: (ctx, changeSummary) => {
-			/** @description fetch inline completions */
-			if (ctx.didChange(this._textModelVersionId) && this._preserveCurrentCompletionReasons.has(this._getReason(ctx.change))) {
-				changeSummary.preserveCurrentCompletion = true;
-			} else if (ctx.didChange(this._forceUpdateExplicitlySignal)) {
-				changeSummary.inlineCompletionTriggerKind = InlineCompletionTriggerKind.Explicit;
-			} else if (ctx.didChange(this.dontRefetchSignal)) {
-				changeSummary.dontRefetch = true;
-			} else if (ctx.didChange(this._onlyRequestInlineEditsSignal)) {
-				changeSummary.onlyRequestInlineEdits = true;
-			} else if (ctx.didChange(this._noDelaySignal)) {
-				changeSummary.shouldDebounce = false;
-			}
-			return true;
+		changeTracker: {
+			createChangeSummary: () => ({
+				dontRefetch: false,
+				preserveCurrentCompletion: false,
+				inlineCompletionTriggerKind: InlineCompletionTriggerKind.Automatic,
+				onlyRequestInlineEdits: false,
+				shouldDebounce: true,
+			}),
+			handleChange: (ctx, changeSummary) => {
+				/** @description fetch inline completions */
+				if (ctx.didChange(this._textModelVersionId) && this._preserveCurrentCompletionReasons.has(this._getReason(ctx.change))) {
+					changeSummary.preserveCurrentCompletion = true;
+				} else if (ctx.didChange(this._forceUpdateExplicitlySignal)) {
+					changeSummary.inlineCompletionTriggerKind = InlineCompletionTriggerKind.Explicit;
+				} else if (ctx.didChange(this.dontRefetchSignal)) {
+					changeSummary.dontRefetch = true;
+				} else if (ctx.didChange(this._onlyRequestInlineEditsSignal)) {
+					changeSummary.onlyRequestInlineEdits = true;
+				} else if (ctx.didChange(this._noDelaySignal)) {
+					changeSummary.shouldDebounce = false;
+				}
+				return true;
+			},
 		},
 	}, (reader, changeSummary) => {
 		this._source.clearOperationOnTextModelChange.read(reader); // Make sure the clear operation runs before the fetch operation
