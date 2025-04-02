@@ -100,8 +100,8 @@ suite('MultiplexPolicyService', () => {
 
 		defaultAccountService = disposables.add(new DefaultAccountService());
 		policyService = disposables.add(new MultiplexPolicyService([
-			new FilePolicyService(policyFile, fileService, new NullLogService()),
-			new AccountPolicyService(logService, defaultAccountService),
+			disposables.add(new FilePolicyService(policyFile, fileService, new NullLogService())),
+			disposables.add(new AccountPolicyService(logService, defaultAccountService)),
 		], logService));
 		policyConfiguration = disposables.add(new PolicyConfiguration(defaultConfiguration, policyService, new NullLogService()));
 	});
