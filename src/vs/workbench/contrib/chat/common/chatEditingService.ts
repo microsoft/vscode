@@ -165,7 +165,7 @@ export interface IModifiedFileEntryEditorIntegration extends IDisposable {
 	/**
 	 * Reveal the first (`true`) or last (`false`) change
 	 */
-	reveal(firstOrLast: boolean): void;
+	reveal(firstOrLast: boolean, preserveFocus?: boolean): void;
 
 	/**
 	 * Go to next change and increate `currentIndex`
