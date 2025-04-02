@@ -211,35 +211,35 @@ steps:
   #     continueOnError: true
   #     condition: failed()
 
-    # In order to properly symbolify above crash reports
-    # (if any), we need the compiled native modules too
-    - task: ${{ parameters.PUBLISH_TASK_NAME }}
-      inputs:
-        targetPath: node_modules
-        ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
-          artifactName: node-modules-windows-$(VSCODE_ARCH)-integration-$(System.JobAttempt)
-        ${{ elseif and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
-          artifactName: node-modules-windows-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
-        ${{ else }}:
-          artifactName: node-modules-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
-        sbomEnabled: false
-      displayName: "Publish Node Modules"
-      continueOnError: true
-      condition: failed()
+    # # In order to properly symbolify above crash reports
+    # # (if any), we need the compiled native modules too
+    # - task: ${{ parameters.PUBLISH_TASK_NAME }}
+    #   inputs:
+    #     targetPath: node_modules
+    #     ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
+    #       artifactName: node-modules-windows-$(VSCODE_ARCH)-integration-$(System.JobAttempt)
+    #     ${{ elseif and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
+    #       artifactName: node-modules-windows-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
+    #     ${{ else }}:
+    #       artifactName: node-modules-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
+    #     sbomEnabled: false
+    #   displayName: "Publish Node Modules"
+    #   continueOnError: true
+    #   condition: failed()
 
-    - task: ${{ parameters.PUBLISH_TASK_NAME }}
-      inputs:
-        targetPath: .build\logs
-        ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
-          artifactName: logs-windows-$(VSCODE_ARCH)-integration-$(System.JobAttempt)
-        ${{ elseif and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
-          artifactName: logs-windows-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
-        ${{ else }}:
-          artifactName: logs-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
-        sbomEnabled: false
-      displayName: "Publish Log Files"
-      continueOnError: true
-      condition: succeededOrFailed()
+    # - task: ${{ parameters.PUBLISH_TASK_NAME }}
+    #   inputs:
+    #     targetPath: .build\logs
+    #     ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
+    #       artifactName: logs-windows-$(VSCODE_ARCH)-integration-$(System.JobAttempt)
+    #     ${{ elseif and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
+    #       artifactName: logs-windows-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
+    #     ${{ else }}:
+    #       artifactName: logs-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
+    #     sbomEnabled: false
+    #   displayName: "Publish Log Files"
+    #   continueOnError: true
+    #   condition: succeededOrFailed()
 
   - task: PublishTestResults@2
     displayName: Publish Tests Results
