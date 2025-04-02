@@ -37,8 +37,8 @@ export function autorunOpts(options: IDebugNameData & {}, fn: (reader: IReader) 
  * Runs immediately and whenever a transaction ends and an observed observable changed.
  * {@link fn} should start with a JS Doc using `@description` to name the autorun.
  *
- * Use `createEmptyChangeSummary` to create a "change summary" that can collect the changes.
- * Use `handleChange` to add a reported change to the change summary.
+ * Use `changeTracker.createChangeSummary` to create a "change summary" that can collect the changes.
+ * Use `changeTracker.handleChange` to add a reported change to the change summary.
  * The run function is given the last change summary.
  * The change summary is discarded after the run function was called.
  *
