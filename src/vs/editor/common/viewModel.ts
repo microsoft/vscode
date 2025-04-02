@@ -6,6 +6,7 @@
 import * as arrays from '../../base/common/arrays.js';
 import { IScrollPosition, Scrollable } from '../../base/common/scrollable.js';
 import * as strings from '../../base/common/strings.js';
+import { FontInfo } from './config/fontInfo.js';
 import { IPosition, Position } from './core/position.js';
 import { Range } from './core/range.js';
 import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData, ICursorSimpleModel, PartialCursorState } from './cursorCommon.js';
@@ -14,12 +15,11 @@ import { INewScrollPosition, ScrollType } from './editorCommon.js';
 import { EditorTheme } from './editorTheme.js';
 import { EndOfLinePreference, IGlyphMarginLanesModel, IModelDecorationOptions, ITextModel, PositionAffinity } from './model.js';
 import { ILineBreaksComputer, InjectedText } from './modelLineProjectionData.js';
-import { CustomFontEvent } from './textModelEvents.js';
+import { FontDecoration } from './textModelEvents.js';
 import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from './textModelGuides.js';
 import { IViewLineTokens } from './tokens/lineTokens.js';
 import { ViewEventHandler } from './viewEventHandler.js';
 import { VerticalRevealType } from './viewEvents.js';
-import { CustomFont } from './viewModel/customFontsManager.js';
 
 export interface IViewModel extends ICursorSimpleModel {
 
@@ -77,8 +77,8 @@ export interface IViewModel extends ICursorSimpleModel {
 	deduceModelPositionRelativeToViewPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position;
 	getPlainTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): string | string[];
 	getRichTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean): { html: string; mode: string } | null;
-	getFontInfoForPosition(position: Position): CustomFont;
-	hasFontDecorations(range: Range): boolean;
+	getFontInfoForPosition(position: Position): FontInfo;
+	hasFontDecorations(lineNumber: number): boolean;
 
 	createLineBreaksComputer(): ILineBreaksComputer;
 
@@ -167,7 +167,7 @@ export interface ISpecialLineHeightChangeAccessor {
 }
 
 export interface ICustomFontChangeAccessor {
-	insertOrChangeCustomFonts(decoration: string, lineNumber: number, fonts: CustomFontEvent[]): void;
+	insertOrChangeCustomFont(decoration: string, fontDecoration: FontDecoration): void;
 	removeCustomFonts(decoration: string): void;
 }
 

@@ -717,7 +717,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 				const lineCount = newlinecount(this.textArea.domNode.value.substr(0, this.textArea.domNode.selectionStart));
 
 				let scrollLeft = this._visibleTextArea.widthOfHiddenLineTextBefore;
-				const fontInfo = this._context.viewModel.getFontInfoForPosition(this._primaryCursorPosition).getFont();
+				const fontInfo = this._context.viewModel.getFontInfoForPosition(this._primaryCursorPosition);
 				let left = this._computeLeftOffset(this._primaryCursorPosition, visibleStart, fontInfo);
 				applyFontInfo(this.textArea, fontInfo);
 
@@ -795,7 +795,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 			return;
 		}
 
-		const fontInfo = this._context.viewModel.getFontInfoForPosition(this._primaryCursorPosition).getFont();
+		const fontInfo = this._context.viewModel.getFontInfoForPosition(this._primaryCursorPosition);
 		const left = this._computeLeftOffset(this._primaryCursorPosition, this._primaryCursorVisibleRange, fontInfo);
 		applyFontInfo(this.textArea, fontInfo);
 		// The primary cursor is in the viewport (at least vertically) => place textarea on the cursor

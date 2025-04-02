@@ -13,7 +13,7 @@ import { FontInfo } from '../../common/config/fontInfo.js';
 import { StringBuilder } from '../../common/core/stringBuilder.js';
 import { InjectedTextOptions } from '../../common/model.js';
 import { ILineBreaksComputer, ILineBreaksComputerFactory, ModelLineProjectionData } from '../../common/modelLineProjectionData.js';
-import { LineInjectedText } from '../../common/textModelEvents.js';
+import { LineFontSegment, LineInjectedText } from '../../common/textModelEvents.js';
 
 const ttPolicy = createTrustedTypesPolicy('domLineBreaksComputer', { createHTML: value => value });
 
@@ -31,7 +31,7 @@ export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory 
 		const requests: string[] = [];
 		const injectedTexts: (LineInjectedText[] | null)[] = [];
 		return {
-			addRequest: (fromLineNumber: number, toLineNumber: number, lineText: string, fontDecorations: { startCharacterOffset: number; endCharacterOffset: number; fontInfo: FontInfo }[], injectedText: LineInjectedText[] | null, previousLineBreakData: ModelLineProjectionData | null) => {
+			addRequest: (fromLineNumber: number, toLineNumber: number, lineText: string, fontSegments: LineFontSegment[], injectedText: LineInjectedText[] | null, previousLineBreakData: ModelLineProjectionData | null) => {
 				// console.log('DOMLineBreaksComputerFactory addRequest', lineText, injectedText, previousLineBreakData);
 				ranges.push({ fromLineNumber, toLineNumber });
 				requests.push(lineText);

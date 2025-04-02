@@ -40,7 +40,7 @@ import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, M
 import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from './viewModelLines.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { GlyphMarginLanesModel } from './glyphLanesModel.js';
-import { CustomFont } from './customFontsManager.js';
+import { FontInfo } from '../config/fontInfo.js';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -445,17 +445,15 @@ export class ViewModel extends Disposable implements IViewModel {
 			});
 		}));
 		this._register(this.model.onDidChangeFonts((e) => {
-			console.log('Fonts changed', e);
 			e.changes.forEach((change) => {
 				if (change.ownerId !== this._editorId && change.ownerId !== 0) {
 					return;
 				}
-				const lineNumber = change.lineNumber;
 				const decorationId = change.decorationId;
-				const fonts = change.fonts;
-				if (fonts.length > 0) {
+				const fontDecoration = change.fontDecoration;
+				if (fontDecoration) {
 					this._lines.changeCustomFonts((accessor: ICustomFontChangeAccessor) => {
-						accessor.insertOrChangeCustomFonts(decorationId, lineNumber, fonts);
+						accessor.insertOrChangeCustomFont(decorationId, fontDecoration);
 					});
 				} else {
 					this._lines.changeCustomFonts((accessor: ICustomFontChangeAccessor) => {
@@ -765,12 +763,12 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this._decorations.getDecorationsViewportData(visibleRange).decorations;
 	}
 
-	public getFontInfoForPosition(position: Position): CustomFont {
+	public getFontInfoForPosition(position: Position): FontInfo {
 		return this._lines.getFontInfoForPosition(position);
 	}
 
-	public hasFontDecorations(range: Range): boolean {
-		return this._lines.hasFontDecorations(range);
+	public hasFontDecorations(lineNumber: number): boolean {
+		return this._lines.hasFontDecorations(lineNumber);
 	}
 
 	public getInjectedTextAt(viewPosition: Position): InjectedText | null {

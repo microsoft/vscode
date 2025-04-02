@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { FontInfo } from './config/fontInfo.js';
 import { IRange } from './core/range.js';
 import { Selection } from './core/selection.js';
 import { IModelDecoration, InjectedTextOptions } from './model.js';
@@ -209,33 +210,31 @@ export class LineInjectedText {
 }
 
 /**
- * Represents custom font
+ * Represents a custom font
  * @internal
  */
-export class CustomFontEvent {
-
-	public static fromDecorations(decorations: IModelDecoration[]): CustomFontEvent[] {
-		const result: CustomFontEvent[] = [];
-		for (const decoration of decorations) {
-			result.push(new CustomFontEvent(
-				decoration.ownerId,
-				decoration.range,
-				decoration.options.fontFamily ?? undefined,
-				decoration.options.fontSize ?? undefined,
-				decoration.options.fontWeight ?? undefined,
-				decoration.options.fontStyle ?? undefined
-			));
-		}
-		return result;
-	}
-
+export class FontDecoration {
 	constructor(
-		public readonly ownerId: number,
-		public readonly range: IRange,
+		public readonly lineNumber: number,
+		public readonly startColumn: number,
+		public readonly endColumn: number,
+		public readonly lineHeight: number | undefined,
 		public readonly fontFamily: string | undefined,
 		public readonly fontSize: number | undefined,
 		public readonly fontWeight: string | undefined,
 		public readonly fontStyle: string | undefined,
+	) { }
+}
+
+/**
+ * An event describing that a model has been reset to a new value.
+ * @internal
+ */
+export class LineFontSegment {
+	constructor(
+		public readonly startColumn: number,
+		public readonly endColumn: number,
+		public readonly fontInfo: FontInfo,
 	) { }
 }
 
@@ -309,19 +308,14 @@ export class ModelFontChanged {
 	 */
 	public readonly decorationId: string;
 	/**
-	 * The line that has changed.
+	 * The start column of the range.
 	 */
-	public readonly lineNumber: number;
-	/**
-	 * The fonts on the line.
-	 */
-	public readonly fonts: CustomFontEvent[];
+	public readonly fontDecoration: FontDecoration | null;
 
-	constructor(ownerId: number, decorationId: string, lineNumber: number, fonts: CustomFontEvent[]) {
+	constructor(ownerId: number, decorationId: string, fontDecoration: FontDecoration | null) {
 		this.ownerId = ownerId;
 		this.decorationId = decorationId;
-		this.lineNumber = lineNumber;
-		this.fonts = fonts;
+		this.fontDecoration = fontDecoration;
 	}
 }
 

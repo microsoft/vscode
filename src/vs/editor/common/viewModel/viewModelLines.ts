@@ -12,13 +12,13 @@ import { Range } from '../core/range.js';
 import { IModelDecoration, IModelDeltaDecoration, ITextModel, PositionAffinity } from '../model.js';
 import { IActiveIndentGuideInfo, BracketGuideOptions, IndentGuide, IndentGuideHorizontalLine } from '../textModelGuides.js';
 import { ModelDecorationOptions } from '../model/textModel.js';
-import { LineInjectedText } from '../textModelEvents.js';
+import { LineFontSegment, LineInjectedText } from '../textModelEvents.js';
 import * as viewEvents from '../viewEvents.js';
 import { createModelLineProjection, IModelLineProjection } from './modelLineProjection.js';
 import { ILineBreaksComputer, ModelLineProjectionData, InjectedText, ILineBreaksComputerFactory } from '../modelLineProjectionData.js';
 import { ConstantTimePrefixSumComputer } from '../model/prefixSumComputer.js';
 import { ICoordinatesConverter, ICustomFontChangeAccessor, ViewLineData } from '../viewModel.js';
-import { CustomFont, CustomFontsManager } from './customFontsManager.js';
+import { CustomFontsManager } from './customFontsManager.js';
 
 export interface IViewModelLines extends IDisposable {
 	createCoordinatesConverter(): ICoordinatesConverter;
@@ -35,8 +35,8 @@ export interface IViewModelLines extends IDisposable {
 	onModelLineChanged(versionId: number | null, lineNumber: number, lineBreakData: ModelLineProjectionData | null): [boolean, viewEvents.ViewLinesChangedEvent | null, viewEvents.ViewLinesInsertedEvent | null, viewEvents.ViewLinesDeletedEvent | null];
 	acceptVersionId(versionId: number): void;
 	changeCustomFonts(callback: (accessor: ICustomFontChangeAccessor) => void): void;
-	getFontInfoForPosition(position: Position): CustomFont;
-	hasFontDecorations(range: Range): boolean;
+	getFontInfoForPosition(position: Position): FontInfo;
+	hasFontDecorations(lineNumber: number): boolean;
 
 	getViewLineCount(): number;
 	getActiveIndentGuide(viewLineNumber: number, minLineNumber: number, maxLineNumber: number): IActiveIndentGuideInfo;
@@ -126,12 +126,12 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		this._customFontsManager.changeFonts(callback);
 	}
 
-	public getFontInfoForPosition(position: Position): CustomFont {
+	public getFontInfoForPosition(position: Position): FontInfo {
 		return this._customFontsManager.getFontForPosition(position);
 	}
 
-	public hasFontDecorations(range: Range): boolean {
-		return this._customFontsManager.hasFontDecorations(range);
+	public hasFontDecorations(lineNumber: number): boolean {
+		return this._customFontsManager.hasFontDecorations(lineNumber);
 	}
 
 	private _constructLines(resetHiddenAreas: boolean, previousLineBreaks: ((ModelLineProjectionData | null)[]) | null): void {
@@ -149,8 +149,8 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		const injectedTextQueue = new arrays.ArrayQueue(LineInjectedText.fromDecorations(injectedTextDecorations));
 		for (let i = 0; i < lineCount; i++) {
 			const lineInjectedText = injectedTextQueue.takeWhile(t => t.lineNumber === i + 1);
-			const fontDecorations = this._customFontsManager.getFontsOnLine(i + 1);
-			lineBreaksComputer.addRequest(i, i, linesContent[i], fontDecorations, lineInjectedText, previousLineBreaks ? previousLineBreaks[i] : null);
+			const fontSegments = this._customFontsManager.getFontsOnLine(i + 1);
+			lineBreaksComputer.addRequest(i, i, linesContent[i], fontSegments, lineInjectedText, previousLineBreaks ? previousLineBreaks[i] : null);
 		}
 		const linesBreaks = lineBreaksComputer.finalize();
 
@@ -1142,11 +1142,11 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 
 	public changeCustomFonts(callback: (accessor: ICustomFontChangeAccessor) => void): void { }
 
-	public getFontInfoForPosition(position: Position): CustomFont {
-		return new CustomFont(this.defaultFontInfo.lineHeight, this.defaultFontInfo.fontFamily, this.defaultFontInfo.fontSize, this.defaultFontInfo.fontWeight, this.defaultFontInfo);
+	public getFontInfoForPosition(position: Position): FontInfo {
+		return this.defaultFontInfo;
 	}
 
-	public hasFontDecorations(range: Range): boolean {
+	public hasFontDecorations(lineNumber: number): boolean {
 		return false;
 	}
 
@@ -1173,7 +1173,7 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 	public createLineBreaksComputer(): ILineBreaksComputer {
 		const result: null[] = [];
 		return {
-			addRequest: (fromLineNumber: number, toLineNumber: number, lineText: string, fontInfo: { startCharacterOffset: number; endCharacterOffset: number; fontInfo: FontInfo }[], injectedText: LineInjectedText[] | null, previousLineBreakData: ModelLineProjectionData | null) => {
+			addRequest: (fromLineNumber: number, toLineNumber: number, lineText: string, fontSegments: LineFontSegment[], injectedText: LineInjectedText[] | null, previousLineBreakData: ModelLineProjectionData | null) => {
 				result.push(null);
 			},
 			finalize: () => {

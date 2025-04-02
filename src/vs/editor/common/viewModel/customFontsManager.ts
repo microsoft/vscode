@@ -3,81 +3,77 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveWindow } from '../../../base/browser/dom.js';
-import { PixelRatio } from '../../../base/browser/pixelRatio.js';
-import { FontMeasurements } from '../../browser/config/fontMeasurements.js';
-import { BareFontInfo, FontInfo } from '../config/fontInfo.js';
+import { FontInfo } from '../config/fontInfo.js';
 import { Position } from '../core/position.js';
 import { ICustomFontChangeAccessor } from '../viewModel.js';
-import { Range } from '../core/range.js';
-import { CustomFontEvent } from '../textModelEvents.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { FontDecoration, LineFontSegment } from '../textModelEvents.js';
+import { FontSegmentTree, IFontSegmentTreeContext } from './fontSegmentTree.js';
 
-
-export class CustomFont {
-	constructor(
-		private readonly lineHeight: number,
-		private readonly fontFamily: string,
-		private readonly fontSize: number,
-		private readonly fontWeight: string,
-		private readonly defaultFontInfo: FontInfo
-	) { }
-
-	public getFont(): FontInfo {
-		const bareFontInfo = BareFontInfo.createFromRawSettings({
-			fontFamily: this.fontFamily,
-			fontWeight: this.fontWeight,
-			fontSize: this.fontSize,
-			lineHeight: this.lineHeight,
-			fontLigatures: this.defaultFontInfo.fontFeatureSettings,
-			fontVariations: this.defaultFontInfo.fontVariationSettings,
-			letterSpacing: this.defaultFontInfo.letterSpacing
-		}, PixelRatio.getInstance(getActiveWindow()).value);
-		return FontMeasurements.readFontInfo(getActiveWindow(), bareFontInfo);
-	}
-}
 
 export class CustomFontsManager extends Disposable {
 
-	constructor(private readonly defaultFontInfo: FontInfo) {
-		super();
-	}
+	private readonly lineNumberToFontSegmentTree: Map<number, FontSegmentTree> = new Map();
+	private readonly decorationIdToCustomFont: Map<string, FontDecoration> = new Map();
+
+	constructor(private readonly defaultFontInfo: FontInfo) { super(); }
 
 	public changeFonts(callback: (accessor: ICustomFontChangeAccessor) => void): void {
-		try {
-			const accessor: ICustomFontChangeAccessor = {
-				insertOrChangeCustomFonts: (decorationId: string, lineNumber: number, fonts: CustomFontEvent[]): void => {
-					this.insertOrChangeCustomFonts(decorationId, lineNumber, fonts);
-				},
-				removeCustomFonts: (decorationId: string): void => {
-					this.removeCustomFonts(decorationId);
+		const accessor: ICustomFontChangeAccessor = {
+			insertOrChangeCustomFont: (decorationId: string, fontDecoration: FontDecoration): void => {
+				this.insertOrChangeCustomFont(decorationId, fontDecoration);
+			},
+			removeCustomFonts: (decorationId: string): void => {
+				this.removeCustomFont(decorationId);
+			}
+		};
+		callback(accessor);
+	}
+
+	private insertOrChangeCustomFont(decorationId: string, fontDecoration: FontDecoration): void {
+		this.removeCustomFont(decorationId);
+		this.decorationIdToCustomFont.set(decorationId, fontDecoration);
+		let tree = this.lineNumberToFontSegmentTree.get(fontDecoration.lineNumber);
+		if (!tree) {
+			const context: IFontSegmentTreeContext = {
+				fontDecorationForId: (decorationId: string): FontDecoration | undefined => {
+					return this.decorationIdToCustomFont.get(decorationId);
 				}
 			};
-			callback(accessor);
-		} finally {
-			this.commit();
+			tree = new FontSegmentTree(context, this.defaultFontInfo);
+			this.lineNumberToFontSegmentTree.set(fontDecoration.lineNumber, tree);
 		}
+		tree.insert(decorationId, fontDecoration);
 	}
 
-	private insertOrChangeCustomFonts(decorationId: string, lineNumber: number, fonts: CustomFontEvent[]): void {
-		// Implementation for inserting or changing custom fonts
-	}
-	private removeCustomFonts(decorationId: string): void {
-		// Implementation for removing custom fonts
-	}
-	private commit(): void {
-		// Implementation for committing changes
+	private removeCustomFont(decorationId: string): void {
+		const font = this.decorationIdToCustomFont.get(decorationId);
+		if (!font) {
+			return;
+		}
+		const tree = this.lineNumberToFontSegmentTree.get(font.lineNumber);
+		if (!tree) {
+			this.decorationIdToCustomFont.delete(decorationId);
+			return;
+		}
+		tree.remove(decorationId, font);
+		this.decorationIdToCustomFont.delete(decorationId);
+
 	}
 
-	public getFontsOnLine(lineNumber: number): { startCharacterOffset: number; endCharacterOffset: number; fontInfo: FontInfo }[] {
-		return [];
+	public getFontsOnLine(lineNumber: number): LineFontSegment[] {
+		return this.lineNumberToFontSegmentTree.get(lineNumber)?.getSegments() ?? [];
 	}
 
-	public getFontForPosition(position: Position): CustomFont {
-		return new CustomFont(0, '', 0, '', this.defaultFontInfo);
+	public getFontForPosition(position: Position): FontInfo {
+		return this.lineNumberToFontSegmentTree.get(position.lineNumber)?.getFontAtColumn(position.column) ?? this.defaultFontInfo;
 	}
 
-	public hasFontDecorations(range: Range): boolean {
-		return true;
+	public hasFontDecorations(lineNumber: number): boolean {
+		const tree = this.lineNumberToFontSegmentTree.get(lineNumber);
+		if (!tree) {
+			return false;
+		}
+		return tree.getSegments().length > 0;
 	}
 }

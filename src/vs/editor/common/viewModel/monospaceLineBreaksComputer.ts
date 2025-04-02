@@ -8,7 +8,7 @@ import * as strings from '../../../base/common/strings.js';
 import { WrappingIndent, IComputedEditorOptions, EditorOption } from '../config/editorOptions.js';
 import { CharacterClassifier } from '../core/characterClassifier.js';
 import { FontInfo } from '../config/fontInfo.js';
-import { LineInjectedText } from '../textModelEvents.js';
+import { LineFontSegment, LineInjectedText } from '../textModelEvents.js';
 import { InjectedTextOptions } from '../model.js';
 import { ILineBreaksComputerFactory, ILineBreaksComputer, ModelLineProjectionData } from '../modelLineProjectionData.js';
 import { binarySearch2 } from '../../../base/common/arrays.js';
@@ -29,16 +29,16 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 
 	public createLineBreaksComputer(defaultFontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll'): ILineBreaksComputer {
 		const ranges: { fromLineNumber: number; toLineNumber: number }[] = [];
-		const fontInfos: { startCharacterOffset: number; endCharacterOffset: number; fontInfo: FontInfo }[][] = [];
+		const fontInfos: LineFontSegment[][] = [];
 		const requests: string[] = [];
 		const injectedTexts: (LineInjectedText[] | null)[] = [];
 		const previousBreakingData: (ModelLineProjectionData | null)[] = [];
 		return {
-			addRequest: (fromLineNumber: number, toLineNumber: number, lineText: string, fontInfo: { startCharacterOffset: number; endCharacterOffset: number; fontInfo: FontInfo }[], injectedText: LineInjectedText[] | null, previousLineBreakData: ModelLineProjectionData | null) => {
+			addRequest: (fromLineNumber: number, toLineNumber: number, lineText: string, fontSegments: LineFontSegment[], injectedText: LineInjectedText[] | null, previousLineBreakData: ModelLineProjectionData | null) => {
 				// console.log('MonospaceLineBreaksComputerFactory addRequest', fromLineNumber, toLineNumber, lineText, injectedText, previousLineBreakData);
 				ranges.push({ fromLineNumber, toLineNumber });
 				requests.push(lineText);
-				fontInfos.push(fontInfo);
+				fontInfos.push(fontSegments);
 				injectedTexts.push(injectedText);
 				previousBreakingData.push(previousLineBreakData);
 			},
@@ -108,7 +108,7 @@ class WrappingCharacterClassifier extends CharacterClassifier<CharacterClass> {
 let arrPool1: number[] = [];
 let arrPool2: number[] = [];
 
-function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterClassifier, previousBreakingData: ModelLineProjectionData, lineText: string, defaultFontInfo: FontInfo, fontInfos: { startCharacterOffset: number; endCharacterOffset: number; fontInfo: FontInfo }[], tabSize: number, firstLineBreakColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll'): ModelLineProjectionData | null {
+function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterClassifier, previousBreakingData: ModelLineProjectionData, lineText: string, defaultFontInfo: FontInfo, fontInfos: LineFontSegment[], tabSize: number, firstLineBreakColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll'): ModelLineProjectionData | null {
 	// console.log('createLineBreaksFromPreviousLineBreaks', previousBreakingData, lineText, tabSize, firstLineBreakColumn, wrappingIndent, wordBreak);
 	if (firstLineBreakColumn === -1) {
 		return null;
@@ -126,7 +126,7 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 
 	let currentFonIndex: number = -1;
 	let currentFontInfo: FontInfo = defaultFontInfo;
-	if (fontInfos[currentFonIndex + 1] && fontInfos[currentFonIndex + 1].startCharacterOffset === 0) {
+	if (fontInfos[currentFonIndex + 1] && fontInfos[currentFonIndex + 1].startColumn === 0) {
 		currentFontInfo = fontInfos[currentFonIndex + 1].fontInfo;
 		currentFonIndex++;
 	}
@@ -189,10 +189,10 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 					charWidth = 2;
 				} else {
 					charCodeClass = classifier.get(charCode);
-					const index = binarySearch2(fontInfos.length, (index) => fontInfos[index].startCharacterOffset - i);
+					const index = binarySearch2(fontInfos.length, (index) => fontInfos[index].startColumn - i);
 					const modifiedIndex = index < 0 ? -(index + 1) : index;
 					let fontInfo: FontInfo = defaultFontInfo;
-					if (modifiedIndex >= 0 && modifiedIndex < fontInfos.length && fontInfos[modifiedIndex] && fontInfos[modifiedIndex].startCharacterOffset >= i && fontInfos[modifiedIndex].endCharacterOffset >= i) {
+					if (modifiedIndex >= 0 && modifiedIndex < fontInfos.length && fontInfos[modifiedIndex] && fontInfos[modifiedIndex].startColumn >= i && fontInfos[modifiedIndex].endColumn >= i) {
 						fontInfo = fontInfos[modifiedIndex].fontInfo;
 					}
 					charWidth = computeCharWidth(charCode, fontInfo, visibleColumn, tabSize);
@@ -267,10 +267,10 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 					prevCharCodeClass = CharacterClass.NONE;
 					prevCharWidth = 2;
 				} else {
-					const index = binarySearch2(fontInfos.length, (index) => fontInfos[index].startCharacterOffset - i);
+					const index = binarySearch2(fontInfos.length, (index) => fontInfos[index].startColumn - i);
 					const modifiedIndex = index < 0 ? -(index + 1) : index;
 					let fontInfo: FontInfo = defaultFontInfo;
-					if (modifiedIndex >= 0 && modifiedIndex < fontInfos.length && fontInfos[modifiedIndex] && fontInfos[modifiedIndex].startCharacterOffset >= i && fontInfos[modifiedIndex].endCharacterOffset >= i) {
+					if (modifiedIndex >= 0 && modifiedIndex < fontInfos.length && fontInfos[modifiedIndex] && fontInfos[modifiedIndex].startColumn >= i && fontInfos[modifiedIndex].startColumn >= i) {
 						fontInfo = fontInfos[modifiedIndex].fontInfo;
 					}
 					const columnsForFullWidthChar = fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth;
@@ -311,10 +311,10 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 						// A surrogate pair must always be considered as a single unit, so it is never to be broken
 						charWidth = 2;
 					} else {
-						const index = binarySearch2(fontInfos.length, (index) => fontInfos[index].startCharacterOffset - forcedBreakOffset);
+						const index = binarySearch2(fontInfos.length, (index) => fontInfos[index].startColumn - forcedBreakOffset);
 						const modifiedIndex = index < 0 ? -(index + 1) : index;
 						let fontInfo: FontInfo = defaultFontInfo;
-						if (modifiedIndex >= 0 && modifiedIndex < fontInfos.length && fontInfos[modifiedIndex] && fontInfos[modifiedIndex].startCharacterOffset >= forcedBreakOffset && fontInfos[modifiedIndex].endCharacterOffset >= forcedBreakOffset) {
+						if (modifiedIndex >= 0 && modifiedIndex < fontInfos.length && fontInfos[modifiedIndex] && fontInfos[modifiedIndex].startColumn >= forcedBreakOffset && fontInfos[modifiedIndex].endColumn >= forcedBreakOffset) {
 							fontInfo = fontInfos[modifiedIndex].fontInfo;
 						}
 						charWidth = computeCharWidth(charCodeAtForcedBreakOffset, fontInfo, forcedBreakOffsetVisibleColumn, tabSize);
@@ -347,10 +347,10 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 				breakOffset = lastBreakingOffset + 2;
 				breakOffsetVisibleColumn = lastBreakingOffsetVisibleColumn + 2;
 			} else {
-				const index = binarySearch2(fontInfos.length, (index) => fontInfos[index].startCharacterOffset - lastBreakingOffset);
+				const index = binarySearch2(fontInfos.length, (index) => fontInfos[index].startColumn - lastBreakingOffset);
 				const modifiedIndex = index < 0 ? -(index + 1) : index;
 				let fontInfo: FontInfo = defaultFontInfo;
-				if (modifiedIndex >= 0 && modifiedIndex < fontInfos.length && fontInfos[modifiedIndex] && fontInfos[modifiedIndex].startCharacterOffset >= lastBreakingOffset && fontInfos[modifiedIndex].endCharacterOffset >= lastBreakingOffset) {
+				if (modifiedIndex >= 0 && modifiedIndex < fontInfos.length && fontInfos[modifiedIndex] && fontInfos[modifiedIndex].startColumn >= lastBreakingOffset && fontInfos[modifiedIndex].endColumn >= lastBreakingOffset) {
 					fontInfo = fontInfos[modifiedIndex].fontInfo;
 				}
 				breakOffset = lastBreakingOffset + 1;
@@ -395,7 +395,7 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 	return previousBreakingData;
 }
 
-function createLineBreaks(classifier: WrappingCharacterClassifier, range: { fromLineNumber: number; toLineNumber: number }, _lineText: string, defaultFontInfo: FontInfo, fontInfos: { startCharacterOffset: number; endCharacterOffset: number; fontInfo: FontInfo }[], injectedTexts: LineInjectedText[] | null, tabSize: number, firstLineBreakColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll'): ModelLineProjectionData | null {
+function createLineBreaks(classifier: WrappingCharacterClassifier, range: { fromLineNumber: number; toLineNumber: number }, _lineText: string, defaultFontInfo: FontInfo, fontInfos: LineFontSegment[], injectedTexts: LineInjectedText[] | null, tabSize: number, firstLineBreakColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll'): ModelLineProjectionData | null {
 	// console.log('createLineBreaks', range, _lineText, injectedTexts, tabSize, firstLineBreakColumn, wrappingIndent, wordBreak);
 	const lineText = LineInjectedText.applyInjectedText(_lineText, injectedTexts);
 
@@ -420,7 +420,7 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, range: { from
 
 	let currentFonIndex: number = -1;
 	let currentFontInfo: FontInfo = defaultFontInfo;
-	if (fontInfos && fontInfos[currentFonIndex + 1] && fontInfos[currentFonIndex + 1].startCharacterOffset === 0) {
+	if (fontInfos && fontInfos[currentFonIndex + 1] && fontInfos[currentFonIndex + 1].startColumn === 0) {
 		currentFontInfo = fontInfos[currentFonIndex + 1].fontInfo;
 		currentFonIndex++;
 	}
@@ -465,7 +465,7 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, range: { from
 		let charCodeClass: CharacterClass;
 		let charWidth: number;
 
-		if (fontInfos && fontInfos[currentFonIndex + 1] && fontInfos[currentFonIndex + 1].startCharacterOffset >= charStartOffset && charStartOffset <= fontInfos[currentFonIndex + 1].endCharacterOffset) {
+		if (fontInfos && fontInfos[currentFonIndex + 1] && fontInfos[currentFonIndex + 1].startColumn >= charStartOffset && charStartOffset <= fontInfos[currentFonIndex + 1].endColumn) {
 			currentFontInfo = fontInfos[currentFonIndex + 1].fontInfo;
 			currentFonIndex++;
 		}

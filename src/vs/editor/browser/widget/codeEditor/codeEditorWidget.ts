@@ -605,7 +605,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData) {
 			return;
 		}
-		return this._modelData.viewModel.getFontInfoForPosition(position).getFont();
+		return this._modelData.viewModel.getFontInfoForPosition(position);
 	}
 
 	public setHiddenAreas(ranges: IRange[], source?: unknown, forceUpdate?: boolean): void {
