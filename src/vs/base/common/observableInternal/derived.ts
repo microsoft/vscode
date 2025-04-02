@@ -301,12 +301,12 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 
 		try {
 			const changeSummary = this._changeSummary!;
-			if (this._changeTracker) {
-				this._changeTracker.beforeUpdate?.(this, changeSummary);
-				this._changeSummary = this._changeTracker?.createChangeSummary(changeSummary);
-			}
 			try {
 				this._isReaderValid = true;
+				if (this._changeTracker) {
+					this._changeTracker.beforeUpdate?.(this, changeSummary);
+					this._changeSummary = this._changeTracker?.createChangeSummary(changeSummary);
+				}
 				/** might call {@link handleChange} indirectly, which could invalidate us */
 				this._value = this._computeFn(this, changeSummary);
 			} finally {

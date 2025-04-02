@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { BugIndicatingError } from '../errors.js';
 import { IObservableWithChange, IReader } from './base.js';
 
 export interface IChangeTracker<TChangeSummary> {
@@ -21,6 +22,10 @@ export interface IChangeContext {
 	didChange<T, TChange>(observable: IObservableWithChange<T, TChange>): this is { change: TChange };
 }
 
+/**
+ * Subscribes to and records changes and the last value of the given observables.
+ * Don't use the key "changes", as it is reserved for the changes array!
+*/
 export function recordChanges<TObs extends Record<any, IObservableWithChange<any, any>>>(obs: TObs):
 	IChangeTracker<{ [TKey in keyof TObs]: ReturnType<TObs[TKey]['get']> }
 		& { changes: readonly ({ [TKey in keyof TObs]: { key: TKey; change: TObs[TKey]['TChange'] } }[keyof TObs])[] }> {
@@ -40,6 +45,9 @@ export function recordChanges<TObs extends Record<any, IObservableWithChange<any
 		},
 		beforeUpdate(reader, changeSummary) {
 			for (const key in obs) {
+				if (key === 'changes') {
+					throw new BugIndicatingError('property name "changes" is reserved for change tracking');
+				}
 				changeSummary[key] = obs[key].read(reader);
 			}
 		}

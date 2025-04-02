@@ -145,10 +145,12 @@ export class InlineCompletionsModel extends Disposable {
 	private _lastAcceptedInlineCompletionInfo: { textModelVersionIdAfter: number; /* already freed! */ inlineCompletion: InlineCompletionItem } | undefined = undefined;
 	private readonly _didUndoInlineEdits = derivedHandleChanges({
 		owner: this,
-		createEmptyChangeSummary: () => ({ didUndo: false }),
-		handleChange: (ctx, changeSummary) => {
-			changeSummary.didUndo = ctx.didChange(this._textModelVersionId) && !!ctx.change?.isUndoing;
-			return true;
+		changeTracker: {
+			createChangeSummary: () => ({ didUndo: false }),
+			handleChange: (ctx, changeSummary) => {
+				changeSummary.didUndo = ctx.didChange(this._textModelVersionId) && !!ctx.change?.isUndoing;
+				return true;
+			}
 		}
 	}, (reader, changeSummary) => {
 		const versionId = this._textModelVersionId.read(reader);
