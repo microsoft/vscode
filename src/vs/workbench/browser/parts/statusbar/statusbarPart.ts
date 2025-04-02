@@ -675,7 +675,7 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 
 				/* Notification Beak */
 				.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak > .status-bar-item-beak-container:before {
-					border-bottom-color: ${backgroundColor};
+					border-bottom-color: ${borderColor ?? backgroundColor};
 				}
 			`;
 	}

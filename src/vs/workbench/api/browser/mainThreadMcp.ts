@@ -5,17 +5,14 @@
 
 import { disposableTimeout } from '../../../base/common/async.js';
 import { Emitter } from '../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { autorun, IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
-import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
+import { ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import { LogLevel } from '../../../platform/log/common/log.js';
-import { observableConfigValue } from '../../../platform/observable/common/platformObservableUtils.js';
-import { mcpEnabledSection } from '../../contrib/mcp/common/mcpConfiguration.js';
 import { IMcpMessageTransport, IMcpRegistry } from '../../contrib/mcp/common/mcpRegistryTypes.js';
 import { McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
 import { ExtensionHostKind, extensionHostKindToString } from '../../services/extensions/common/extensionHostKind.js';
-import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { ExtHostContext, MainContext, MainThreadMcpShape } from '../common/extHost.protocol.js';
 
 @extHostNamedCustomer(MainContext.MainThreadMcp)
@@ -29,17 +26,16 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		servers: ISettableObservable<readonly McpServerDefinition[]>;
 		dispose(): void;
 	}>());
-	private readonly _mcpEnabled: IObservable<boolean>;
 
 	constructor(
 		private readonly _extHostContext: IExtHostContext,
 		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
-		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 		const proxy = _extHostContext.getProxy(ExtHostContext.ExtHostMcp);
-		this._mcpEnabled = observableConfigValue(mcpEnabledSection, true, configurationService);
 		this._register(this._mcpRegistry.registerDelegate({
+			// Prefer Node.js extension hosts when they're available. No CORS issues etc.
+			priority: _extHostContext.extensionHostKind === ExtensionHostKind.LocalWebWorker ? 0 : 1,
 			waitForInitialProviderPromises() {
 				return proxy.$waitForInitialCollectionProviders();
 			},
@@ -76,25 +72,16 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 			existing.servers.set(servers, undefined);
 		} else {
 			const serverDefinitions = observableValue<readonly McpServerDefinition[]>('mcpServers', servers);
-
-			const store = new DisposableStore();
-			const handle = store.add(new MutableDisposable());
-			store.add(autorun(reader => {
-				if (this._mcpEnabled.read(reader)) {
-					handle.value = this._mcpRegistry.registerCollection({
-						...collection,
-						remoteAuthority: this._extHostContext.remoteAuthority,
-						serverDefinitions,
-					});
-				} else {
-					handle.clear();
-				}
-			}));
+			const handle = this._mcpRegistry.registerCollection({
+				...collection,
+				remoteAuthority: this._extHostContext.remoteAuthority,
+				serverDefinitions,
+			});
 
 			this._collectionDefinitions.set(collection.id, {
 				fromExtHost: collection,
 				servers: serverDefinitions,
-				dispose: () => store.dispose(),
+				dispose: () => handle.dispose(),
 			});
 		}
 	}

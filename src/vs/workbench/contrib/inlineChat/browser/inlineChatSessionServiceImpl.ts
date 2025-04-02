@@ -30,7 +30,7 @@ import { ITextFileService } from '../../../services/textfile/common/textfiles.js
 import { UntitledTextEditorInput } from '../../../services/untitled/common/untitledTextEditorInput.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { IChatAgentService } from '../../chat/common/chatAgents.js';
-import { WorkingSetEntryState } from '../../chat/common/chatEditingService.js';
+import { ModifiedFileEntryState } from '../../chat/common/chatEditingService.js';
 import { IChatService } from '../../chat/common/chatService.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_HAS_AGENT2, CTX_INLINE_CHAT_POSSIBLE } from '../common/inlineChat.js';
@@ -361,7 +361,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 			const allSettled = entries.every(entry => {
 				const state = entry.state.read(r);
-				return (state === WorkingSetEntryState.Accepted || state === WorkingSetEntryState.Rejected)
+				return (state === ModifiedFileEntryState.Accepted || state === ModifiedFileEntryState.Rejected)
 					&& !entry.isCurrentlyBeingModifiedBy.read(r);
 			});
 

@@ -8,6 +8,7 @@ import { setUnexpectedErrorHandler } from '../../common/errors.js';
 import { Emitter, Event } from '../../common/event.js';
 import { DisposableStore } from '../../common/lifecycle.js';
 import { autorun, autorunHandleChanges, derived, derivedDisposable, IObservable, IObserver, ISettableObservable, ITransaction, keepObserved, observableFromEvent, observableSignal, observableValue, transaction, waitForState } from '../../common/observable.js';
+// eslint-disable-next-line local/code-no-deep-import-of-internal
 import { BaseObservable, IObservableWithChange } from '../../common/observableInternal/base.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
@@ -312,15 +313,17 @@ suite('observables', () => {
 			const signal = observableSignal<{ msg: string }>('signal');
 
 			const disposable = autorunHandleChanges({
-				// The change summary is used to collect the changes
-				createEmptyChangeSummary: () => ({ msgs: [] as string[] }),
-				handleChange(context, changeSummary) {
-					if (context.didChange(signal)) {
-						// We just push the changes into an array
-						changeSummary.msgs.push(context.change.msg);
-					}
-					return true; // We want to handle the change
-				},
+				changeTracker: {
+					// The change summary is used to collect the changes
+					createChangeSummary: () => ({ msgs: [] as string[] }),
+					handleChange(context, changeSummary) {
+						if (context.didChange(signal)) {
+							// We just push the changes into an array
+							changeSummary.msgs.push(context.change.msg);
+						}
+						return true; // We want to handle the change
+					},
+				}
 			}, (reader, changeSummary) => {
 				// When handling the change, make sure to read the signal!
 				signal.read(reader);

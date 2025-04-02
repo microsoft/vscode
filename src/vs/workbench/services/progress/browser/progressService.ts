@@ -572,6 +572,12 @@ export class ProgressService extends Disposable implements IProgressService {
 			disposables.add(dialog);
 
 			dialog.show().then(dialogResult => {
+				// The dialog may close as a result of disposing it after the
+				// task has completed. In that case, we do not want to trigger
+				// the `onDidCancel` callback.
+				// However, if the task is still running, this means that the
+				// user has clicked the cancel button and we want to trigger
+				// the `onDidCancel` callback.
 				if (!taskCompleted) {
 					onDidCancel?.(dialogResult.button);
 				}
