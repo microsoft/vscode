@@ -131,8 +131,8 @@ stages:
         steps:
           - template: win32/product-build-win32.yml@self
             parameters:
-              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
               VSCODE_ARCH: x64
+              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
               VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
               VSCODE_RUN_UNIT_TESTS_ELECTRON: true
               VSCODE_RUN_UNIT_TESTS_BROWSER: false
@@ -201,10 +201,10 @@ stages:
             VSCODE_ARCH: x64
             NPM_ARCH: x64
           steps:
-            - template: darwin/product-build-darwin-test.yml@self
+            - template: darwin/product-build-darwin.yml@self
               parameters:
-                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_ARCH: x64
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                 VSCODE_RUN_UNIT_TESTS_ELECTRON: true
                 VSCODE_RUN_UNIT_TESTS_BROWSER: false
@@ -222,10 +222,10 @@ stages:
             VSCODE_ARCH: x64
             NPM_ARCH: x64
           steps:
-            - template: darwin/product-build-darwin-test.yml@self
+            - template: darwin/product-build-darwin.yml@self
               parameters:
-                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_ARCH: x64
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                 VSCODE_RUN_UNIT_TESTS_ELECTRON: false
                 VSCODE_RUN_UNIT_TESTS_BROWSER: true
@@ -243,10 +243,10 @@ stages:
             VSCODE_ARCH: x64
             NPM_ARCH: x64
           steps:
-            - template: darwin/product-build-darwin-test.yml@self
+            - template: darwin/product-build-darwin.yml@self
               parameters:
-                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_ARCH: x64
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                 VSCODE_RUN_UNIT_TESTS_ELECTRON: false
                 VSCODE_RUN_UNIT_TESTS_BROWSER: false
