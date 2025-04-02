@@ -17,6 +17,7 @@ export function setup(logger: Logger) {
 
 		it('install and enable vscode-smoketest-check extension', async function () {
 			const app = this.app as Application;
+			await app.restart({ extraArgs: ['--verbose'] });
 
 			await app.workbench.extensions.installExtension('ms-vscode.vscode-smoketest-check', true);
 

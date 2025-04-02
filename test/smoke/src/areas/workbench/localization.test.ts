@@ -18,9 +18,10 @@ export function setup(logger: Logger) {
 
 		it('starts with "DE" locale and verifies title and viewlets text is in German', async function () {
 			const app = this.app as Application;
+			await app.restart({ extraArgs: ['--verbose'] });
 
 			await app.workbench.extensions.installExtension('ms-ceintl.vscode-language-pack-de', false);
-			await app.restart({ extraArgs: ['--locale=DE'] });
+			await app.restart({ extraArgs: ['--locale=DE', '--verbose'] });
 
 			const result = await app.workbench.localization.getLocalizedStrings();
 			const localeInfo = await app.workbench.localization.getLocaleInfo();
