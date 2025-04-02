@@ -583,18 +583,18 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		return closestWidget;
 	}
 
-	rejectNearestChange(closestWidget: IModifiedFileEntryChangeHunk | undefined): void {
+	async rejectNearestChange(closestWidget: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
 		closestWidget = closestWidget ?? this._findClosestWidget();
 		if (closestWidget instanceof DiffHunkWidget) {
-			closestWidget.reject();
+			await closestWidget.reject();
 			this.next(true);
 		}
 	}
 
-	acceptNearestChange(closestWidget: IModifiedFileEntryChangeHunk | undefined): void {
+	async acceptNearestChange(closestWidget: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
 		closestWidget = closestWidget ?? this._findClosestWidget();
 		if (closestWidget instanceof DiffHunkWidget) {
-			closestWidget.accept();
+			await closestWidget.accept();
 			this.next(true);
 		}
 	}
