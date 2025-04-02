@@ -32,6 +32,7 @@ import { IExtensionDescription } from '../../../platform/extensions/common/exten
 import { TelemetryTrustedValue } from '../../../platform/telemetry/common/telemetryUtils.js';
 import { IExtHostTelemetry } from './extHostTelemetry.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { isCancellationError } from '../../../base/common/errors.js';
 
 interface CommandHandler {
 	callback: Function;
@@ -256,7 +257,9 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 					id = actual.command;
 				}
 			}
-			this._logService.error(err, id, command.extension?.identifier);
+			if (!isCancellationError(err)) {
+				this._logService.error(err, id, command.extension?.identifier);
+			}
 
 			if (!annotateError) {
 				throw err;
