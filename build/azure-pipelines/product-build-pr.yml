@@ -39,66 +39,84 @@ stages:
               parameters:
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
-    # - job: Linuxx64UnitTest
-    #   displayName: Linux (Unit Tests)
-    #   pool: 1es-oss-ubuntu-22.04-x64
-    #   timeoutInMinutes: 30
-    #   variables:
-    #     VSCODE_ARCH: x64
-    #     NPM_ARCH: x64
-    #     DISPLAY: ":10"
-    #   steps:
-    #     - template: linux/product-build-linux.yml@self
-    #       parameters:
-    #         VSCODE_ARCH: x64
-    #         VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-    #         VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-    #         VSCODE_RUN_UNIT_TESTS: true
-    #         VSCODE_RUN_INTEGRATION_TESTS: false
-    #         VSCODE_RUN_SMOKE_TESTS: false
+    - stage: Linux
+      dependsOn: []
+      jobs:
+        - job: Linuxx64ElectronTest
+          displayName: Electron Tests
+          pool: 1es-oss-ubuntu-22.04-x64
+          timeoutInMinutes: 30
+          variables:
+            VSCODE_ARCH: x64
+            NPM_ARCH: x64
+            DISPLAY: ":10"
+          steps:
+            - template: linux/product-build-linux.yml@self
+              parameters:
+                VSCODE_ARCH: x64
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_RUN_UNIT_TESTS_ELECTRON: true
+                VSCODE_RUN_UNIT_TESTS_BROWSER: false
+                VSCODE_RUN_INTEGRATION_TESTS_ELECTRON: true
+                VSCODE_RUN_INTEGRATION_TESTS_BROWSER: false
+                VSCODE_RUN_INTEGRATION_TESTS_REMOTE: false
+                VSCODE_RUN_SMOKE_TESTS_ELECTRON: true
+                VSCODE_RUN_SMOKE_TESTS_BROWSER: false
+                VSCODE_RUN_SMOKE_TESTS_REMOTE: false
 
-    # - job: Linuxx64IntegrationTest
-    #   displayName: Linux (Integration Tests)
-    #   pool: 1es-oss-ubuntu-22.04-x64
-    #   timeoutInMinutes: 30
-    #   variables:
-    #     VSCODE_ARCH: x64
-    #     NPM_ARCH: x64
-    #     DISPLAY: ":10"
-    #   steps:
-    #     - template: linux/product-build-linux.yml@self
-    #       parameters:
-    #         VSCODE_ARCH: x64
-    #         VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-    #         VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-    #         VSCODE_RUN_UNIT_TESTS: false
-    #         VSCODE_RUN_INTEGRATION_TESTS: true
-    #         VSCODE_RUN_SMOKE_TESTS: false
+        - job: Linuxx64BrowserTest
+          displayName: Browser Tests
+          pool: 1es-oss-ubuntu-22.04-x64
+          timeoutInMinutes: 30
+          variables:
+            VSCODE_ARCH: x64
+            NPM_ARCH: x64
+            DISPLAY: ":10"
+          steps:
+            - template: linux/product-build-linux.yml@self
+              parameters:
+                VSCODE_ARCH: x64
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_RUN_UNIT_TESTS_ELECTRON: false
+                VSCODE_RUN_UNIT_TESTS_BROWSER: true
+                VSCODE_RUN_INTEGRATION_TESTS_ELECTRON: false
+                VSCODE_RUN_INTEGRATION_TESTS_BROWSER: true
+                VSCODE_RUN_INTEGRATION_TESTS_REMOTE: false
+                VSCODE_RUN_SMOKE_TESTS_ELECTRON: false
+                VSCODE_RUN_SMOKE_TESTS_BROWSER: true
+                VSCODE_RUN_SMOKE_TESTS_REMOTE: false
 
-    # - job: Linuxx64SmokeTest
-    #   displayName: Linux (Smoke Tests)
-    #   pool: 1es-oss-ubuntu-22.04-x64
-    #   timeoutInMinutes: 30
-    #   variables:
-    #     VSCODE_ARCH: x64
-    #     NPM_ARCH: x64
-    #     DISPLAY: ":10"
-    #   steps:
-    #     - template: linux/product-build-linux.yml@self
-    #       parameters:
-    #         VSCODE_ARCH: x64
-    #         VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-    #         VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-    #         VSCODE_RUN_UNIT_TESTS: false
-    #         VSCODE_RUN_INTEGRATION_TESTS: false
-    #         VSCODE_RUN_SMOKE_TESTS: true
+        - job: Linuxx64RemoteTest
+          displayName: Remote Tests
+          pool: 1es-oss-ubuntu-22.04-x64
+          timeoutInMinutes: 30
+          variables:
+            VSCODE_ARCH: x64
+            NPM_ARCH: x64
+            DISPLAY: ":10"
+          steps:
+            - template: linux/product-build-linux.yml@self
+              parameters:
+                VSCODE_ARCH: x64
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_RUN_UNIT_TESTS_ELECTRON: false
+                VSCODE_RUN_UNIT_TESTS_BROWSER: false
+                VSCODE_RUN_INTEGRATION_TESTS_ELECTRON: false
+                VSCODE_RUN_INTEGRATION_TESTS_BROWSER: false
+                VSCODE_RUN_INTEGRATION_TESTS_REMOTE: true
+                VSCODE_RUN_SMOKE_TESTS_ELECTRON: false
+                VSCODE_RUN_SMOKE_TESTS_BROWSER: false
+                VSCODE_RUN_SMOKE_TESTS_REMOTE: true
 
-    # - job: LinuxCLI
-    #   displayName: Linux (CLI)
-    #   pool: 1es-oss-ubuntu-22.04-x64
-    #   timeoutInMinutes: 30
-    #   steps:
-    #     - template: cli/test.yml@self
+        - job: LinuxCLI
+          displayName: CLI Tests
+          pool: 1es-oss-ubuntu-22.04-x64
+          timeoutInMinutes: 30
+          steps:
+            - template: cli/test.yml@self
 
     - stage: Windows
       dependsOn: []
