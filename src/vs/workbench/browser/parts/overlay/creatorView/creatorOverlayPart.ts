@@ -22,7 +22,7 @@ import { URI } from "../../../../../base/common/uri.js";
 import { ExtensionIdentifier } from "../../../../../platform/extensions/common/extensions.js";
 import { IEditorGroupsService } from "../../../../../workbench/services/editor/common/editorGroupsService.js";
 
-const CREATOR_VIEW_ID = "pearai.roo.creatorOverlayView";
+const CREATOR_VIEW_ID = "pearai.creatorView";
 const CREATOR_OVERLAY_TITLE = "pearai.creatorOverlayView";
 
 export class CreatorOverlayPart extends Part {
