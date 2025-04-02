@@ -79,7 +79,7 @@ export async function launch(options: LaunchOptions): Promise<Code> {
 		const { serverProcess, driver } = await measureAndLog(() => launchPlaywrightBrowser(options), 'launch playwright (browser)', options.logger);
 		registerInstance(serverProcess, options.logger, 'server');
 
-		return new Code(driver, options.logger, serverProcess, options.quality);
+		return new Code(driver, options.logger, serverProcess, undefined, options.quality);
 	}
 
 	// Electron smoke tests (playwright)
@@ -87,7 +87,15 @@ export async function launch(options: LaunchOptions): Promise<Code> {
 		const { electronProcess, driver } = await measureAndLog(() => launchPlaywrightElectron(options), 'launch playwright (electron)', options.logger);
 		registerInstance(electronProcess, options.logger, 'electron');
 
-		return new Code(driver, options.logger, electronProcess, options.quality);
+		const safeToKill = new Promise<void>(resolve => {
+			process.stdout?.on('data', data => {
+				if (data.toString().includes('Lifecycle#app.on(will-quit) - calling app.quit()')) {
+					resolve();
+				}
+			});
+		});
+
+		return new Code(driver, options.logger, electronProcess, safeToKill, options.quality);
 	}
 }
 
@@ -99,6 +107,7 @@ export class Code {
 		driver: PlaywrightDriver,
 		readonly logger: Logger,
 		private readonly mainProcess: cp.ChildProcess,
+		private readonly safeToKill: Promise<void> | undefined,
 		readonly quality: Quality
 	) {
 		this.driver = new Proxy(driver, {
@@ -145,21 +154,21 @@ export class Code {
 			// Start the exit flow via driver
 			this.driver.close();
 
+			let safeToKill = false;
+			this.safeToKill?.then(() => safeToKill = true);
+
 			// Await the exit of the application
 			(async () => {
 				let retries = 0;
 				while (!done) {
 					retries++;
 
-					switch (retries) {
+					if (safeToKill) {
+						this.logger.log('Smoke test exit() call did not terminate the process yet, but safeToKill is true, so we can kill it');
+						process.kill(pid, 'SIGTERM');
+					}
 
-						// after 5 / 10 seconds: try to exit gracefully again
-						case 10:
-						case 20: {
-							this.logger.log('Smoke test exit() call did not terminate process after 5-10s, gracefully trying to exit the application again...');
-							this.driver.close();
-							break;
-						}
+					switch (retries) {
 
 						// after 20 seconds: forcefully kill
 						case 40: {
