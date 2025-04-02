@@ -71,7 +71,11 @@ export class FetchWebPageTool implements IToolImpl {
 			}
 		});
 
-		return { content: this._getPromptPartsForResults(contentsWithUndefined) };
+		return {
+			content: this._getPromptPartsForResults(contentsWithUndefined),
+			// Have multiple results show in the dropdown
+			toolResultDetails: validUris.length > 1 ? validUris : undefined
+		};
 	}
 
 	async prepareToolInvocation(parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {

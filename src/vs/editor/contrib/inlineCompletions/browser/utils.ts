@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Permutation, compareBy } from '../../../../base/common/arrays.js';
-import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, ISettableObservable, autorun, transaction, IReader } from '../../../../base/common/observable.js';
 import { ContextKeyValue, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -17,26 +16,6 @@ import { SingleTextEdit, TextEdit } from '../../../common/core/textEdit.js';
 const array: ReadonlyArray<any> = [];
 export function getReadonlyEmptyArray<T>(): readonly T[] {
 	return array;
-}
-
-export class ColumnRange {
-	constructor(
-		public readonly startColumn: number,
-		public readonly endColumnExclusive: number,
-	) {
-		if (startColumn > endColumnExclusive) {
-			throw new BugIndicatingError(`startColumn ${startColumn} cannot be after endColumnExclusive ${endColumnExclusive}`);
-		}
-	}
-
-	toRange(lineNumber: number): Range {
-		return new Range(lineNumber, this.startColumn, lineNumber, this.endColumnExclusive);
-	}
-
-	equals(other: ColumnRange): boolean {
-		return this.startColumn === other.startColumn
-			&& this.endColumnExclusive === other.endColumnExclusive;
-	}
 }
 
 export function addPositions(pos1: Position, pos2: Position): Position {

@@ -583,6 +583,10 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 						this._updatePromptTerminator(sanitizedValue);
 						return true;
 					}
+					case 'PromptType': {
+						this._createOrGetCommandDetection(this._terminal).setPromptType(value);
+						return true;
+					}
 					case 'Task': {
 						this._createOrGetBufferMarkDetection(this._terminal);
 						this.capabilities.get(TerminalCapability.CommandDetection)?.setIsCommandStorageDisabled();

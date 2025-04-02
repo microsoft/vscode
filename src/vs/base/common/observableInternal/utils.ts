@@ -9,6 +9,7 @@ import { DebugNameData, DebugOwner, IDebugNameData, getDebugName, } from './debu
 import { BugIndicatingError, DisposableStore, EqualityComparer, Event, IDisposable, IValueWithChangeEvent, strictEquals, toDisposable } from './commonFacade/deps.js';
 import { derived, derivedOpts } from './derived.js';
 import { getLogger } from './logging/logging.js';
+import { CancellationToken, cancelOnDispose } from '../cancellation.js';
 
 /**
  * Represents an efficient observable whose value never changes.
@@ -673,4 +674,10 @@ export function runOnChangeWithStore<T, TChange>(observable: IObservableWithChan
 			store.dispose();
 		}
 	};
+}
+
+export function runOnChangeWithCancellationToken<T, TChange>(observable: IObservableWithChange<T, TChange>, cb: (value: T, previousValue: undefined | T, deltas: RemoveUndefined<TChange>[], token: CancellationToken) => Promise<void>): IDisposable {
+	return runOnChangeWithStore(observable, (value, previousValue: undefined | T, deltas, store) => {
+		cb(value, previousValue, deltas, cancelOnDispose(store));
+	});
 }

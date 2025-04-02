@@ -179,6 +179,8 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 	private readonly _onUnresolvableError = this._register(new Emitter<void>());
 	readonly onUnresolvableError = this._onUnresolvableError.event;
 
+	private readonly pendingForwardedRequests = new Map<string, Promise<void>>();
+
 	constructor(
 		private readonly context: ChatEntitlementContext,
 		private readonly controller: Lazy<ChatSetupController>,
@@ -227,14 +229,22 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 		return {};
 	}
 
-	private _handlingForwardedRequest: string | undefined;
 	private async forwardRequestToCopilot(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService): Promise<void> {
-
-		if (this._handlingForwardedRequest === requestModel.message.text) {
-			throw new Error('Already handling this request');
+		if (this.pendingForwardedRequests.has(requestModel.id)) {
+			return this.pendingForwardedRequests.get(requestModel.id)!;
 		}
 
-		this._handlingForwardedRequest = requestModel.message.text;
+		const forwardRequest = this.doForwardRequestToCopilot(requestModel, progress, chatService, languageModelsService, chatAgentService, chatWidgetService);
+		this.pendingForwardedRequests.set(requestModel.id, forwardRequest);
+
+		try {
+			await forwardRequest;
+		} finally {
+			this.pendingForwardedRequests.delete(requestModel.id);
+		}
+	}
+
+	private async doForwardRequestToCopilot(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService): Promise<void> {
 
 		// We need a signal to know when we can resend the request to
 		// Copilot. Waiting for the registration of the agent is not
@@ -254,13 +264,17 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 			try {
 				const ready = await Promise.race([
 					timeout(20000).then(() => 'timedout'),
+					this.whenDefaultAgentFailed(chatService).then(() => 'error'),
 					Promise.allSettled([whenLanguageModelReady, whenAgentReady])
 				]);
 
-				if (ready === 'timedout') {
+				if (ready === 'error' || ready === 'timedout') {
 					progress({
 						kind: 'warning',
-						content: new MarkdownString(localize('copilotTookLongWarning', "Copilot took too long to get ready. Please try again."))
+						content: new MarkdownString(ready === 'timedout' ?
+							localize('copilotTookLongWarning', "Copilot took too long to get ready. Please try again.") :
+							localize('copilotFailedWarning', "Copilot failed to get ready. Please try again.")
+						)
 					});
 
 					// This means Copilot is unhealthy and we cannot retry the
@@ -301,6 +315,12 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 			const defaultAgent = chatAgentService.getDefaultAgent(this.location);
 			return Boolean(defaultAgent && !defaultAgent.isCore);
 		}));
+	}
+
+	private async whenDefaultAgentFailed(chatService: IChatService): Promise<void> {
+		return new Promise<void>(resolve => {
+			chatService.activateDefaultAgent(this.location).catch(() => resolve());
+		});
 	}
 
 	private async doInvokeWithSetup(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService, chatAgentService: IChatAgentService): Promise<IChatAgentResult> {
