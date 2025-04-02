@@ -174,7 +174,7 @@ export class PlaywrightDriver {
 		await this.page.reload();
 	}
 
-	async exitApplication() {
+	async close() {
 
 		// Stop tracing
 		try {
@@ -194,25 +194,11 @@ export class PlaywrightDriver {
 			}
 		}
 
-		// Web: exit via `close` method
-		if (this.options.web) {
-			try {
-				await measureAndLog(() => this.application.close(), 'playwright.close()', this.options.logger);
-			} catch (error) {
-				this.options.logger.log(`Error closing appliction (${error})`);
-			}
-		}
-
-		// Desktop: exit via `driver.exitApplication`
-		//
-		// Note: we are not calling `application.close()` here because from testing we see
-		// that sometimes this does not result in an orderly shutdown of the application.
-		else {
-			try {
-				await measureAndLog(() => this.evaluateWithDriver(([driver]) => driver.exitApplication()), 'driver.exitApplication()', this.options.logger);
-			} catch (error) {
-				this.options.logger.log(`Error exiting appliction (${error})`);
-			}
+		//  exit via `close` method
+		try {
+			await measureAndLog(() => this.application.close(), 'playwright.close()', this.options.logger);
+		} catch (error) {
+			this.options.logger.log(`Error closing appliction (${error})`);
 		}
 
 		// Server: via `teardown`
