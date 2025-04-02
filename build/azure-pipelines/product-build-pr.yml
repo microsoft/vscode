@@ -57,6 +57,7 @@ stages:
               VSCODE_ARCH: x64
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
               VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+              VSCODE_TEST_ARTIFACT_NAME: electron
               VSCODE_RUN_ELECTRON_TESTS: true
 
       - job: Linuxx64BrowserTest
@@ -73,7 +74,7 @@ stages:
               VSCODE_ARCH: x64
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
               VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-              VSCODE_TEST_ARTIFACT_NAME: integration
+              VSCODE_TEST_ARTIFACT_NAME: browser
               VSCODE_RUN_BROWSER_TESTS: true
 
       - job: Linuxx64RemoteTest
@@ -90,7 +91,7 @@ stages:
               VSCODE_ARCH: x64
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
               VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-              VSCODE_TEST_ARTIFACT_NAME: smoke
+              VSCODE_TEST_ARTIFACT_NAME: remote
               VSCODE_RUN_REMOTE_TESTS: true
 
       - job: LinuxCLI
@@ -113,6 +114,7 @@ stages:
               VSCODE_ARCH: x64
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
               VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+              VSCODE_TEST_ARTIFACT_NAME: electron
               VSCODE_RUN_ELECTRON_TESTS: true
 
       - job: Windowsx64BrowserTests
@@ -128,7 +130,7 @@ stages:
               VSCODE_ARCH: x64
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
               VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-              VSCODE_TEST_ARTIFACT_NAME: integration
+              VSCODE_TEST_ARTIFACT_NAME: browser
               VSCODE_RUN_BROWSER_TESTS: true
 
       - job: Windowsx64RemoteTests
@@ -144,7 +146,7 @@ stages:
               VSCODE_ARCH: x64
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
               VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-              VSCODE_TEST_ARTIFACT_NAME: integration
+              VSCODE_TEST_ARTIFACT_NAME: remote
               VSCODE_RUN_REMOTE_TESTS: true
 
   - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
