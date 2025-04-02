@@ -200,7 +200,7 @@ steps:
     - task: ${{ parameters.PUBLISH_TASK_NAME }}
       inputs:
         targetPath: .build\crashes
-        artifactName: crash-dump-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
+        artifactName: crash-dump-windows-$(VSCODE_ARCH)-$(System.JobName)-$(System.JobAttempt)
         sbomEnabled: false
       displayName: "Publish Crash Reports"
       continueOnError: true
@@ -211,7 +211,7 @@ steps:
     - task: ${{ parameters.PUBLISH_TASK_NAME }}
       inputs:
         targetPath: node_modules
-        artifactName: node-modules-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
+        artifactName: node-modules-windows-$(VSCODE_ARCH)-$(System.JobName)-$(System.JobAttempt)
         sbomEnabled: false
       displayName: "Publish Node Modules"
       continueOnError: true
@@ -220,7 +220,7 @@ steps:
     - task: ${{ parameters.PUBLISH_TASK_NAME }}
       inputs:
         targetPath: .build\logs
-        artifactName: logs-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
+        artifactName: logs-windows-$(VSCODE_ARCH)-$(System.JobName)-$(System.JobAttempt)
         sbomEnabled: false
       displayName: "Publish Log Files"
       continueOnError: true

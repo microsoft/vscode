@@ -227,7 +227,7 @@ steps:
     - task: ${{ parameters.PUBLISH_TASK_NAME }}
       inputs:
         targetPath: .build/crashes
-        artifactName: crash-dump-linux-$(VSCODE_ARCH)-$(System.JobAttempt)
+        artifactName: crash-dump-linux-$(VSCODE_ARCH)-$(System.JobName)-$(System.JobAttempt)
         sbomEnabled: false
       displayName: "Publish Crash Reports"
       continueOnError: true
@@ -238,7 +238,7 @@ steps:
     - task: ${{ parameters.PUBLISH_TASK_NAME }}
       inputs:
         targetPath: node_modules
-        artifactName: node-modules-linux-$(VSCODE_ARCH)-$(System.JobAttempt)
+        artifactName: node-modules-linux-$(VSCODE_ARCH)-$(System.JobName)-$(System.JobAttempt)
         sbomEnabled: false
       displayName: "Publish Node Modules"
       continueOnError: true
@@ -247,7 +247,7 @@ steps:
     - task: ${{ parameters.PUBLISH_TASK_NAME }}
       inputs:
         targetPath: .build/logs
-        artifactName: logs-linux-$(VSCODE_ARCH)-$(System.JobAttempt)
+        artifactName: logs-linux-$(VSCODE_ARCH)-$(System.JobName)-$(System.JobAttempt)
         sbomEnabled: false
       displayName: "Publish Log Files"
       continueOnError: true
