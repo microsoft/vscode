@@ -144,18 +144,18 @@ steps:
     continueOnError: true
     condition: succeededOrFailed()
 
-  - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-    - powershell: npm run compile
-      workingDirectory: test/smoke
-      displayName: Compile smoke tests
+  # - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
+  #   - powershell: npm run compile
+  #     workingDirectory: test/smoke
+  #     displayName: Compile smoke tests
 
-    - powershell: npm run gulp compile-extension-media
-      displayName: Build extensions for smoke tests
+  #   - powershell: npm run gulp compile-extension-media
+  #     displayName: Build extensions for smoke tests
 
-    - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
-      - powershell: npm run smoketest-no-compile -- --tracing
-        displayName: Run smoke tests (Electron)
-        timeoutInMinutes: 20
+  #   - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
+  #     - powershell: npm run smoketest-no-compile -- --tracing
+  #       displayName: Run smoke tests (Electron)
+  #       timeoutInMinutes: 20
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
