@@ -87,7 +87,6 @@ const ignored = new Set([
 	'vs/editor/browser/widget/multiDiffEditor/diffEditorItemTemplate.ts',
 	'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.ts',
 	'vs/workbench/contrib/notebook/browser/diff/notebookMultiDiffEditor.ts',
-	'vs/workbench/contrib/chat/common/promptSyntax/service/promptsService.ts',
 	'vs/workbench/contrib/search/common/cacheState.ts',
 	'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoSymbolQuickAccess.ts',
 	'vs/workbench/contrib/search/browser/anythingQuickAccess.ts',
