@@ -5,7 +5,6 @@
 
 import * as cp from 'child_process';
 import * as os from 'os';
-import * as treekill from 'tree-kill';
 import { IElement, ILocaleInfo, ILocalizedStrings, ILogFile } from './driver';
 import { Logger, measureAndLog } from './logger';
 import { launch as launchPlaywrightBrowser } from './playwrightBrowser';
@@ -165,17 +164,7 @@ export class Code {
 						// after 20 seconds: forcefully kill
 						case 40: {
 							this.logger.log('Smoke test exit() call did not terminate process after 20s, forcefully exiting the application...');
-
-							// no need to await since we're polling for the process to die anyways
-							treekill(pid, err => {
-								try {
-									process.kill(pid, 0); // throws an exception if the process doesn't exist anymore
-									this.logger.log('Failed to kill Electron process tree:', err?.message);
-								} catch (error) {
-									// Expected when process is gone
-								}
-							});
-
+							process.kill(pid, 'SIGTERM');
 							break;
 						}
 
