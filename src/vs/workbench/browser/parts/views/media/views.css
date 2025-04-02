@@ -23,7 +23,17 @@
 .monaco-tl-contents .monaco-highlighted-label::highlight(label-highlight) {
 	color: unset !important;
 	background-color: var(--vscode-list-filterMatchBackground);
-	border: 1px dotted var(--vscode-list-filterMatchBorder);
+}
+
+.file-icon-themable-tree .monaco-list-row .content .monaco-highlighted-label .highlight,
+.monaco-tl-contents .monaco-highlighted-label .highlight {
+	outline: 1px dotted var(--vscode-list-filterMatchBorder);
+	outline-offset: -1px;
+}
+
+.file-icon-themable-tree .monaco-list-row .content .monaco-highlighted-label::highlight(label-highlight),
+.monaco-tl-contents .monaco-highlighted-label::highlight(label-highlight) {
+	border: 1px dotted var(--vscode-list-filterMatchBorder); /* not supported */
 	box-sizing: border-box;
 }
 
