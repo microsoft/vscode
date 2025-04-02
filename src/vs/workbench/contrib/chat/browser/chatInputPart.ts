@@ -966,7 +966,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		let inputModel = this.modelService.getModel(this.inputUri);
 		if (!inputModel) {
-			inputModel = this.modelService.createModel('', null, this.inputUri, true);
+			inputModel = this.modelService.createModel('', null, this.inputUri, false);
 		}
 
 		this.textModelResolverService.createModelReference(this.inputUri).then(ref => {

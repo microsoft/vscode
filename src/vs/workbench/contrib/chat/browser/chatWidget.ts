@@ -13,6 +13,7 @@ import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -23,6 +24,7 @@ import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
 import { InlineCompletionContext, InlineCompletionTriggerKind } from '../../../../editor/common/languages.js';
@@ -107,6 +109,11 @@ export function isQuickChat(widget: IChatWidget): boolean {
 
 const PersistWelcomeMessageContentKey = 'chat.welcomeMessageContent';
 
+interface PromptCompletionState {
+	collection: IEditorDecorationsCollection;
+	insertText: string | undefined;
+}
+
 export class ChatWidget extends Disposable implements IChatWidget {
 	public static readonly CONTRIBS: { new(...args: [IChatWidget, ...any]): IChatWidgetContrib }[] = [];
 
@@ -169,7 +176,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private canRequestBePaused: IContextKey<boolean>;
 	private agentInInput: IContextKey<boolean>;
 
-	private inlineCompletionsDecorationCollection: IEditorDecorationsCollection | undefined;
+	private promptCompletionState: PromptCompletionState | undefined;
 
 	private _visible = false;
 	public get visible() {
@@ -863,7 +870,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			() => this.collectInputState()
 		));
 		this.inputPart.render(container, '', this);
-		this.inlineCompletionsDecorationCollection = this.inputEditor.createDecorationsCollection();
+		this.promptCompletionState = {
+			collection: this.inputEditor.createDecorationsCollection(),
+			insertText: undefined
+		};
 
 		this._register(this.inputPart.onDidLoadInputState(state => {
 			this.contribs.forEach(c => {
@@ -933,6 +943,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.parsedChatRequest = undefined;
 			this.updateChatInputContext();
 			this.updateInlineCompletions();
+		}));
+		this._register(this.inputEditor.onKeyDown((e) => {
+			if (e.keyCode === KeyCode.Tab) {
+				this.acceptPromptCompletion();
+			}
 		}));
 		this._register(this.chatAgentService.onDidChangeAgents(() => {
 			this.parsedChatRequest = undefined;
@@ -1383,8 +1398,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private async updateInlineCompletions(): Promise<void> {
-		console.log('updateInlineCompletions');
-		if (!this.inlineCompletionsDecorationCollection) {
+		this.clearInlineCompletions();
+		if (!this.promptCompletionState) {
 			return;
 		}
 		const source = new CancellationTokenSource();
@@ -1416,22 +1431,50 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!completion) {
 			return;
 		}
-		const decorations: readonly IModelDeltaDecoration[] = [{
-			range: Range.fromPositions(position),
-			options: {
-				description: 'chat inline completions',
-				after: {
-					content: completion.insertText,
-					inlineClassName: 'chat-inline-completion'
-				},
-				showIfCollapsed: true,
-			}
-		}];
-		this.inlineCompletionsDecorationCollection.set(decorations);
+		this.setPromptCompletionState({ position, insertText: completion.insertText });
+	}
+
+	private setPromptCompletionState(opts: { position: Position; insertText: string } | null): void {
+		if (!this.promptCompletionState) {
+			return;
+		}
+		if (opts !== null) {
+			const position = opts.position;
+			const insertText = opts.insertText;
+			const decorations: readonly IModelDeltaDecoration[] = [{
+				range: Range.fromPositions(position),
+				options: {
+					description: 'Prompt Completions',
+					after: {
+						content: insertText,
+						inlineClassName: 'chat-inline-completion'
+					},
+					showIfCollapsed: true,
+				}
+			}];
+			this.promptCompletionState.insertText = insertText;
+			this.promptCompletionState.collection.set(decorations);
+		} else {
+			this.promptCompletionState.insertText = undefined;
+			this.promptCompletionState.collection.set([]);
+		}
 	}
 
 	private clearInlineCompletions(): void {
-		this.inlineCompletionsDecorationCollection?.set([]);
+		this.setPromptCompletionState(null);
+	}
+
+	private acceptPromptCompletion(): void {
+		if (!this.promptCompletionState) {
+			return;
+		}
+		const model = this.inputEditor.getModel();
+		if (!model) {
+			return;
+		}
+		const newValue = model.getValue() + this.promptCompletionState.insertText;
+		this.inputEditor.setValue(newValue);
+		this.clearInlineCompletions();
 	}
 }
 
