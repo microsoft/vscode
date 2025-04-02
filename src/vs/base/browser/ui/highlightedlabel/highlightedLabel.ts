@@ -12,25 +12,12 @@ import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
 import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
 import { renderLabelWithIcons } from '../iconLabel/iconLabels.js';
 
-declare class Highlight {
-	constructor();
-	add(range: AbstractRange): void;
-	delete(highlight: StaticRange): void;
-	clear(): void;
-	priority: number;
-}
-
-interface CSSHighlights {
-	set(rule: string, highlight: Highlight): void;
-	get(rule: string): Highlight | undefined;
-}
-declare namespace CSS {
-	let highlights: CSSHighlights | undefined;
-}
-
 // TODO: figure out where to put this
-const cssHighlight = new Highlight();
-CSS.highlights?.set('label-highlight', cssHighlight);
+let labelHighlights: Highlight | undefined;
+if (CSS.highlights) {
+	labelHighlights = new Highlight();
+	CSS.highlights.set('label-highlight', labelHighlights);
+}
 
 /**
  * A range to be highlighted.
@@ -122,7 +109,7 @@ export class HighlightedLabel extends Disposable {
 	private currentHighlightRanges: StaticRange[] = [];
 
 	private render(): void {
-		if (CSS.highlights) {
+		if (labelHighlights) {
 			if (this.renderedText !== this.text) {
 				dom.reset(this.domNode, ...this.supportIcons ? renderLabelWithIcons(this.text) : [this.text]);
 				this.renderedText = this.text;
@@ -148,7 +135,7 @@ export class HighlightedLabel extends Disposable {
 					endOffset: highlight.end,
 				});
 				this.currentHighlightRanges.push(range);
-				cssHighlight.add(range);
+				labelHighlights.add(range);
 			}
 		} else {
 			const children: Array<HTMLSpanElement | string> = [];
@@ -208,12 +195,10 @@ export class HighlightedLabel extends Disposable {
 	}
 
 	clearHighlights() {
-		if (CSS.highlights) {
-			for (const highlight of this.currentHighlightRanges) {
-				cssHighlight.delete(highlight);
-			}
-			this.currentHighlightRanges = [];
+		for (const highlight of this.currentHighlightRanges) {
+			labelHighlights?.delete(highlight);
 		}
+		this.currentHighlightRanges = [];
 	}
 
 	static escapeNewLines(text: string, highlights: readonly IHighlight[]): string {
