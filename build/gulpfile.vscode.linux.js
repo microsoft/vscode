@@ -197,6 +197,10 @@ function prepareRpmPackage(arch) {
 		const code = gulp.src(binaryDir + '/**/*', { base: binaryDir })
 			.pipe(rename(function (p) { p.dirname = 'BUILD/usr/share/' + product.applicationName + '/' + p.dirname; }));
 
+		// Include built-in extensions
+		const builtInExtensions = gulp.src('.build/builtInExtensions/**/*', { base: '.build/builtInExtensions' })
+			.pipe(rename(function (p) { p.dirname = 'BUILD/usr/share/' + product.applicationName + '/resources/app/extensions/' + p.dirname; }));
+
 		const spec = gulp.src('resources/linux/rpm/code.spec.template', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
@@ -214,7 +218,7 @@ function prepareRpmPackage(arch) {
 		const specIcon = gulp.src('resources/linux/rpm/code.xpm', { base: '.' })
 			.pipe(rename('SOURCES/' + product.applicationName + '.xpm'));
 
-		const all = es.merge(code, desktops, appdata, workspaceMime, icon, bash_completion, zsh_completion, spec, specIcon);
+		const all = es.merge(code, builtInExtensions, desktops, appdata, workspaceMime, icon, bash_completion, zsh_completion, spec, specIcon);
 
 		return all.pipe(vfs.dest(getRpmBuildPath(rpmArch)));
 	};

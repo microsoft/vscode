@@ -77,8 +77,40 @@ update-desktop-database &> /dev/null || :
 update-mime-database %{_datadir}/mime &> /dev/null || :
 
 %files
-%defattr(-,root,root)
+%defattr(0644,root,root,0755)
+
+# vsce-sign files
+%attr(0755, root, root) %{_datadir}/%{name}/resources/app/node_modules/@vscode/vsce-sign/bin/vsce-sign
+%{_datadir}/%{name}/resources/app/node_modules/@vscode/vsce-sign/package.json
+%{_datadir}/%{name}/resources/app/node_modules/@vscode/vsce-sign/src/main.d.ts
+%{_datadir}/%{name}/resources/app/node_modules/@vscode/vsce-sign/src/main.js
+
+# vsce-sign-linux-x64 files
+%attr(0755, root, root) %{_datadir}/%{name}/resources/app/node_modules/@vscode/vsce-sign-linux-x64/bin/vsce-sign
+%{_datadir}/%{name}/resources/app/node_modules/@vscode/vsce-sign-linux-x64/package.json
+%{_datadir}/%{name}/resources/app/node_modules/@vscode/vsce-sign-linux-x64/LICENSE.txt
 %attr(4755, root, root) %{_datadir}/%{name}/chrome-sandbox
+%attr(0755, root, root) %{_datadir}/%{name}/bin/%{name}
+%attr(0755, root, root) %{_datadir}/%{name}/%{name}
+%attr(0755, root, root) %{_datadir}/%{name}/chrome_crashpad_handler
+
+# Built-in extensions
+%{_datadir}/%{name}/resources/app/extensions/ms-vscode.js-debug/
+%{_datadir}/%{name}/resources/app/extensions/ms-vscode.js-debug-companion/
+%{_datadir}/%{name}/resources/app/extensions/ms-vscode.vscode-js-profile-table/
+
+# Shared libraries
+%attr(0755, root, root) %{_datadir}/%{name}/libEGL.so
+%attr(0755, root, root) %{_datadir}/%{name}/libffmpeg.so
+%attr(0755, root, root) %{_datadir}/%{name}/libGLESv2.so
+%attr(0755, root, root) %{_datadir}/%{name}/libvk_swiftshader.so
+%attr(0755, root, root) %{_datadir}/%{name}/libvulkan.so.1
+
+# Native Node.js modules
+%attr(0755, root, root) %{_datadir}/%{name}/resources/app/node_modules/node-pty/build/Release/pty.node
+%attr(0755, root, root) %{_datadir}/%{name}/resources/app/node_modules/native-keymap/build/Release/keymapping.node
+%attr(0755, root, root) %{_datadir}/%{name}/resources/app/node_modules/native-is-elevated/build/Release/iselevated.node
+%attr(0755, root, root) %{_datadir}/%{name}/resources/app/node_modules/native-watchdog/build/Release/watchdog.node
 
 %{_bindir}/%{name}
 %{_datadir}/%{name}/
