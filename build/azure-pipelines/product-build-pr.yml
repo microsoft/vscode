@@ -47,7 +47,6 @@ stages:
           pool: 1es-oss-ubuntu-22.04-x64
           timeoutInMinutes: 30
           variables:
-            JOB_NAME: $(System.JobName)
             VSCODE_ARCH: x64
             NPM_ARCH: x64
             DISPLAY: ":10"
@@ -65,21 +64,20 @@ stages:
                 VSCODE_RUN_SMOKE_TESTS_ELECTRON: true
                 VSCODE_RUN_SMOKE_TESTS_BROWSER: false
                 VSCODE_RUN_SMOKE_TESTS_REMOTE: false
-                JOB_NAME: ${{ variables.JOB_NAME }}
+                JOB_NAME: electron
 
         - job: Linuxx64BrowserTest
           displayName: Browser Tests
           pool: 1es-oss-ubuntu-22.04-x64
           timeoutInMinutes: 30
           variables:
-            JOB_NAME: $(System.JobName)
             VSCODE_ARCH: x64
             NPM_ARCH: x64
             DISPLAY: ":10"
           steps:
             - template: linux/product-build-linux.yml@self
               parameters:
-                JOB_NAME: ${{ variables.JOB_NAME }}
+                JOB_NAME: browser
                 VSCODE_ARCH: x64
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
@@ -97,14 +95,13 @@ stages:
           pool: 1es-oss-ubuntu-22.04-x64
           timeoutInMinutes: 30
           variables:
-            JOB_NAME: $(System.JobName)
             VSCODE_ARCH: x64
             NPM_ARCH: x64
             DISPLAY: ":10"
           steps:
             - template: linux/product-build-linux.yml@self
               parameters:
-                JOB_NAME: ${{ variables.JOB_NAME}}
+                JOB_NAME: remote
                 VSCODE_ARCH: x64
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
