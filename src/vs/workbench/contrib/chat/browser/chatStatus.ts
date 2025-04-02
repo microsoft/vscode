@@ -438,7 +438,7 @@ class ChatStatusDashboard extends Disposable {
 	}
 
 	private createQuotaIndicator(container: HTMLElement, total: number | undefined, remaining: number | undefined, label: string): (total: number | undefined, remaining: number | undefined) => void {
-		const quotaText = $('span');
+		const quotaText = $('span.quota-percentage');
 		const quotaBit = $('div.quota-bit');
 
 		const quotaIndicator = container.appendChild($('div.quota-indicator', undefined,
