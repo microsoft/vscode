@@ -190,9 +190,7 @@ stages:
     - stage: macOS
       dependsOn: []
       pool:
-        name: Azure Pipelines
-        image: macOS-13
-        os: macOS
+        vmImage: macOS-13
       jobs:
         - job: macOSElectronTests
           displayName: Electron Tests
