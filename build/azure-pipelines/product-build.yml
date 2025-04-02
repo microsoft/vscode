@@ -197,8 +197,6 @@ extends:
             pool:
               name: AcesShared
               os: macOS
-            variables:
-              VSCODE_ARCH: arm64
             steps:
               - template: build/azure-pipelines/product-compile.yml@self
                 parameters:
@@ -264,8 +262,7 @@ extends:
             - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
               - job: CLIMacOSX64
                 pool:
-                  name: Azure Pipelines
-                  image: macOS-13
+                  name: AcesShared
                   os: macOS
                 variables:
                   # todo@connor4312 to diagnose build flakes
@@ -281,8 +278,7 @@ extends:
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}:
               - job: CLIMacOSARM64
                 pool:
-                  name: Azure Pipelines
-                  image: macOS-13
+                  name: AcesShared
                   os: macOS
                 variables:
                   # todo@connor4312 to diagnose build flakes
@@ -585,8 +581,7 @@ extends:
             - ${{ if or(eq(parameters.VSCODE_BUILD_LINUX, true),eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true),eq(parameters.VSCODE_BUILD_LINUX_ARM64, true),eq(parameters.VSCODE_BUILD_ALPINE, true),eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true),eq(parameters.VSCODE_BUILD_MACOS, true),eq(parameters.VSCODE_BUILD_MACOS_ARM64, true),eq(parameters.VSCODE_BUILD_WIN32, true),eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
               - CompileCLI
           pool:
-            name: Azure Pipelines
-            image: macOS-13
+            name: AcesShared
             os: macOS
           variables:
             BUILDSECMON_OPT_IN: true
@@ -596,7 +591,7 @@ extends:
                 displayName: Unit Tests
                 timeoutInMinutes: 90
                 variables:
-                  VSCODE_ARCH: x64
+                  VSCODE_ARCH: arm64
                 steps:
                   - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                     parameters:
@@ -609,7 +604,7 @@ extends:
                 displayName: Integration Tests
                 timeoutInMinutes: 90
                 variables:
-                  VSCODE_ARCH: x64
+                  VSCODE_ARCH: arm64
                 steps:
                   - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                     parameters:
@@ -622,7 +617,7 @@ extends:
                 displayName: Smoke Tests
                 timeoutInMinutes: 90
                 variables:
-                  VSCODE_ARCH: x64
+                  VSCODE_ARCH: arm64
                 steps:
                   - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                     parameters:
@@ -650,7 +645,7 @@ extends:
                 - job: macOSTest
                   timeoutInMinutes: 90
                   variables:
-                    VSCODE_ARCH: x64
+                    VSCODE_ARCH: arm64
                   steps:
                     - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                       parameters:

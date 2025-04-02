@@ -27,6 +27,8 @@ export interface IMcpMessageTransport extends IDisposable {
 }
 
 export interface IMcpHostDelegate {
+	/** Priority for this delegate, delegates are tested in descending priority order */
+	readonly priority: number;
 	waitForInitialProviderPromises(): Promise<void>;
 	canStart(collectionDefinition: McpCollectionDefinition, serverDefinition: McpServerDefinition): boolean;
 	start(collectionDefinition: McpCollectionDefinition, serverDefinition: McpServerDefinition, resolvedLaunch: McpServerLaunch): IMcpMessageTransport;

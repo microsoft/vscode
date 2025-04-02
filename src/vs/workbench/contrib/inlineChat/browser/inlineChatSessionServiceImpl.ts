@@ -30,7 +30,7 @@ import { ITextFileService } from '../../../services/textfile/common/textfiles.js
 import { UntitledTextEditorInput } from '../../../services/untitled/common/untitledTextEditorInput.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { IChatAgentService } from '../../chat/common/chatAgents.js';
-import { WorkingSetEntryState } from '../../chat/common/chatEditingService.js';
+import { ModifiedFileEntryState } from '../../chat/common/chatEditingService.js';
 import { IChatService } from '../../chat/common/chatService.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_HAS_AGENT2, CTX_INLINE_CHAT_POSSIBLE } from '../common/inlineChat.js';
@@ -359,17 +359,13 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 				return;
 			}
 
-			if (chatModel.requestInProgress) {
-				return;
-			}
-
 			const allSettled = entries.every(entry => {
 				const state = entry.state.read(r);
-				return (state === WorkingSetEntryState.Accepted || state === WorkingSetEntryState.Rejected)
+				return (state === ModifiedFileEntryState.Accepted || state === ModifiedFileEntryState.Rejected)
 					&& !entry.isCurrentlyBeingModifiedBy.read(r);
 			});
 
-			if (allSettled) {
+			if (allSettled && !chatModel.requestInProgress) {
 				// self terminate
 				store.dispose();
 			}
@@ -388,7 +384,19 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 	}
 
 	getSession2(uri: URI): IInlineChatSession2 | undefined {
-		return this._sessions2.get(uri);
+		let result = this._sessions2.get(uri);
+		if (!result) {
+			// no direct session, try to find an editing session which has a file entry for the uri
+			for (const [_, candidate] of this._sessions2) {
+				const entry = candidate.editingSession.getEntry(uri);
+				if (entry) {
+					result = candidate;
+					break;
+				}
+			}
+		}
+
+		return result;
 	}
 }
 

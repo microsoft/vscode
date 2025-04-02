@@ -63,7 +63,7 @@ import { CHAT_CATEGORY, CHAT_OPEN_ACTION_ID, CHAT_SETUP_ACTION_ID } from './acti
 import { ChatViewId, EditsViewId, ensureSideBarChatViewSize, IChatWidgetService, preferCopilotEditsView, showCopilotView } from './chat.js';
 import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
 import { ChatViewsWelcomeExtensions, IChatViewsWelcomeContributionRegistry } from './viewsWelcome/chatViewsWelcome.js';
-import { ChatAgentLocation, ChatConfiguration } from '../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatMode, validateChatMode } from '../common/constants.js';
 import { ILanguageModelsService } from '../common/languageModels.js';
 import { Dialog } from '../../../../base/browser/ui/dialog/dialog.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
@@ -109,27 +109,28 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 			let id: string;
 			let description = localize('chatDescription', "Ask Copilot");
 			let welcomeMessageContent: IChatWelcomeMessageContent | undefined;
+			const baseMessage = localize('chatMessage', "Copilot is powered by AI, so mistakes are possible. Review output carefully before use.");
 			switch (location) {
 				case ChatAgentLocation.Panel:
 					id = 'setup.chat';
 					welcomeMessageContent = {
 						title: description,
-						message: new MarkdownString(localize('chatMessage', "Copilot is powered by AI, so mistakes are possible. Review output carefully before use.")),
+						message: new MarkdownString(baseMessage),
 						icon: Codicon.copilotLarge
 					};
 					break;
 				case ChatAgentLocation.EditingSession:
 					id = isToolsAgent ? 'setup.agent' : 'setup.edits';
-					description = isToolsAgent ? localize('agentDescription', "Edit files in your workspace in agent mode (Experimental)") : localize('editsDescription', "Edit files in your workspace");
+					description = isToolsAgent ? localize('agentDescription', "Edit files in your workspace in agent mode") : localize('editsDescription', "Edit files in your workspace");
 					welcomeMessageContent = isToolsAgent ?
 						{
 							title: localize('editsTitle', "Edit with Copilot"),
-							message: new MarkdownString(localize('agentMessage', "Ask Copilot to edit your files in agent mode. Copilot will automatically use multiple requests to pick files to edit, run terminal commands, and iterate on errors.")),
+							message: new MarkdownString(localize('agentMessage', "Ask Copilot to edit your files in [agent mode]({0}). Copilot will automatically use multiple requests to pick files to edit, run terminal commands, and iterate on errors.", 'https://aka.ms/vscode-copilot-agent') + `\n\n${baseMessage}`),
 							icon: Codicon.copilotLarge
 						} :
 						{
 							title: localize('editsTitle', "Edit with Copilot"),
-							message: new MarkdownString(localize('editsMessage', "Start your editing session by defining a set of files that you want to work with. Then ask Copilot for the changes you want to make.")),
+							message: new MarkdownString(localize('editsMessage', "Start your editing session by defining a set of files that you want to work with. Then ask Copilot for the changes you want to make.") + `\n\n${baseMessage}`),
 							icon: Codicon.copilotLarge
 						};
 					break;
@@ -177,6 +178,8 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 
 	private readonly _onUnresolvableError = this._register(new Emitter<void>());
 	readonly onUnresolvableError = this._onUnresolvableError.event;
+
+	private readonly pendingForwardedRequests = new Map<string, Promise<void>>();
 
 	constructor(
 		private readonly context: ChatEntitlementContext,
@@ -226,14 +229,22 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 		return {};
 	}
 
-	private _handlingForwardedRequest: string | undefined;
 	private async forwardRequestToCopilot(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService): Promise<void> {
-
-		if (this._handlingForwardedRequest === requestModel.message.text) {
-			throw new Error('Already handling this request');
+		if (this.pendingForwardedRequests.has(requestModel.id)) {
+			return this.pendingForwardedRequests.get(requestModel.id)!;
 		}
 
-		this._handlingForwardedRequest = requestModel.message.text;
+		const forwardRequest = this.doForwardRequestToCopilot(requestModel, progress, chatService, languageModelsService, chatAgentService, chatWidgetService);
+		this.pendingForwardedRequests.set(requestModel.id, forwardRequest);
+
+		try {
+			await forwardRequest;
+		} finally {
+			this.pendingForwardedRequests.delete(requestModel.id);
+		}
+	}
+
+	private async doForwardRequestToCopilot(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService): Promise<void> {
 
 		// We need a signal to know when we can resend the request to
 		// Copilot. Waiting for the registration of the agent is not
@@ -618,7 +629,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				});
 			}
 
-			override async run(accessor: ServicesAccessor): Promise<void> {
+			override async run(accessor: ServicesAccessor, mode: ChatMode): Promise<void> {
 				const viewsService = accessor.get(IViewsService);
 				const viewDescriptorService = accessor.get(IViewDescriptorService);
 				const configurationService = accessor.get(IConfigurationService);
@@ -631,7 +642,11 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 				await context.update({ hidden: false });
 
-				showCopilotView(viewsService, layoutService);
+				const chatWidgetPromise = showCopilotView(viewsService, layoutService);
+				if (mode) {
+					const chatWidget = await chatWidgetPromise;
+					chatWidget?.input.setChatMode(mode);
+				}
 
 				const setupFromDialog = configurationService.getValue('chat.setupFromDialog');
 				if (!setupFromDialog) {
@@ -778,7 +793,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				const params = new URLSearchParams(url.query);
 				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'url', detail: params.get('referrer') ?? undefined });
 
-				await this.commandService.executeCommand(CHAT_SETUP_ACTION_ID);
+				await this.commandService.executeCommand(CHAT_SETUP_ACTION_ID, validateChatMode(params.get('mode')));
 
 				return true;
 			}

@@ -6,6 +6,7 @@
 import { renderStringAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
@@ -31,6 +32,7 @@ import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatModel } from '../common/chatModel.js';
 import { ChatToolInvocation } from '../common/chatProgressTypes/chatToolInvocation.js';
 import { IChatService } from '../common/chatService.js';
+import { ChatConfiguration } from '../common/constants.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, stringifyPromptTsxPart } from '../common/languageModelToolsService.js';
 
 const jsonSchemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
@@ -52,7 +54,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	private _tools = new Map<string, IToolEntry>();
 	private _toolContextKeys = new Set<string>();
 	private readonly _ctxToolsCount: IContextKey<number>;
-	private readonly _ctxPickableToolsCount: IContextKey<number>;
 
 	private _callsByRequestId = new Map<string, IDisposable[]>();
 
@@ -83,8 +84,13 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			}
 		}));
 
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.ExtensionToolsEnabled)) {
+				this._onDidChangeToolsScheduler.schedule();
+			}
+		}));
+
 		this._ctxToolsCount = ChatContextKeys.Tools.toolsCount.bindTo(_contextKeyService);
-		this._ctxPickableToolsCount = ChatContextKeys.Tools.pickableToolsCount.bindTo(_contextKeyService);
 	}
 
 	registerToolData(toolData: IToolData): IDisposable {
@@ -94,7 +100,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 		this._tools.set(toolData.id, { data: toolData });
 		this._ctxToolsCount.set(this._tools.size);
-		this._ctxPickableToolsCount.set(Iterable.reduce(this._tools.values(), (pre, cur) => pre + (cur.data.supportsToolPicker ? 1 : 0), 0));
 		this._onDidChangeToolsScheduler.schedule();
 
 		toolData.when?.keys().forEach(key => this._toolContextKeys.add(key));
@@ -111,7 +116,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			store?.dispose();
 			this._tools.delete(toolData.id);
 			this._ctxToolsCount.set(this._tools.size);
-			this._ctxPickableToolsCount.set(Iterable.reduce(this._tools.values(), (pre, cur) => pre + (cur.data.supportsToolPicker ? 1 : 0), 0));
 			this._refreshAllToolContextKeys();
 			this._onDidChangeToolsScheduler.schedule();
 		});
@@ -142,7 +146,16 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	getTools(): Iterable<Readonly<IToolData>> {
 		const toolDatas = Iterable.map(this._tools.values(), i => i.data);
-		return Iterable.filter(toolDatas, toolData => !toolData.when || this._contextKeyService.contextMatchesRules(toolData.when));
+		const extensionToolsEnabled = this._configurationService.getValue(ChatConfiguration.ExtensionToolsEnabled);
+		return Iterable.filter(
+			toolDatas,
+			toolData => {
+				const satisfiesWhenClause = !toolData.when || this._contextKeyService.contextMatchesRules(toolData.when);
+				const satisfiesExternalToolCheck = toolData.source.type === 'extension' && !extensionToolsEnabled ?
+					!toolData.source.isExternalTool :
+					true;
+				return satisfiesWhenClause && satisfiesExternalToolCheck;
+			});
 	}
 
 	getTool(id: string): IToolData | undefined {
@@ -298,6 +311,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					toolExtensionId: tool.data.source.type === 'extension' ? tool.data.source.extensionId.value : undefined,
 					toolSourceKind: tool.data.source.type,
 				});
+			this._logService.error(`[LanguageModelToolsService#invokeTool] Error from tool ${dto.toolId}: ${toErrorMessage(err)}. With parameters ${JSON.stringify(dto.parameters)}`);
 			throw err;
 		} finally {
 			toolInvocation?.complete(toolResult);
@@ -373,7 +387,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			return true;
 		}
 
-		const config = this._configurationService.inspect<boolean | string[]>('chat.tools.autoApprove');
+		const config = this._configurationService.inspect<boolean | Record<string, boolean>>('chat.tools.autoApprove');
 
 		// If we know the tool runs at a global level, only consider the global config.
 		// If we know the tool runs at a workspace level, use those specific settings when appropriate.
@@ -385,7 +399,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			}
 		}
 
-		return value === true || (Array.isArray(value) && value.includes(toolId));
+		return value === true || (typeof value === 'object' && value.hasOwnProperty(toolId) && value[toolId] === true);
 	}
 
 	private cleanupCallDisposables(requestId: string, store: DisposableStore): void {
