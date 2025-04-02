@@ -313,15 +313,17 @@ suite('observables', () => {
 			const signal = observableSignal<{ msg: string }>('signal');
 
 			const disposable = autorunHandleChanges({
-				// The change summary is used to collect the changes
-				createEmptyChangeSummary: () => ({ msgs: [] as string[] }),
-				handleChange(context, changeSummary) {
-					if (context.didChange(signal)) {
-						// We just push the changes into an array
-						changeSummary.msgs.push(context.change.msg);
-					}
-					return true; // We want to handle the change
-				},
+				changeTracker: {
+					// The change summary is used to collect the changes
+					createChangeSummary: () => ({ msgs: [] as string[] }),
+					handleChange(context, changeSummary) {
+						if (context.didChange(signal)) {
+							// We just push the changes into an array
+							changeSummary.msgs.push(context.change.msg);
+						}
+						return true; // We want to handle the change
+					},
+				}
 			}, (reader, changeSummary) => {
 				// When handling the change, make sure to read the signal!
 				signal.read(reader);

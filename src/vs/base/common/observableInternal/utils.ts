@@ -641,17 +641,19 @@ type RemoveUndefined<T> = T extends undefined ? never : T;
 export function runOnChange<T, TChange>(observable: IObservableWithChange<T, TChange>, cb: (value: T, previousValue: undefined | T, deltas: RemoveUndefined<TChange>[]) => void): IDisposable {
 	let _previousValue: T | undefined;
 	return autorunWithStoreHandleChanges({
-		createEmptyChangeSummary: () => ({ deltas: [] as RemoveUndefined<TChange>[], didChange: false }),
-		handleChange: (context, changeSummary) => {
-			if (context.didChange(observable)) {
-				const e = context.change;
-				if (e !== undefined) {
-					changeSummary.deltas.push(e as RemoveUndefined<TChange>);
+		changeTracker: {
+			createChangeSummary: () => ({ deltas: [] as RemoveUndefined<TChange>[], didChange: false }),
+			handleChange: (context, changeSummary) => {
+				if (context.didChange(observable)) {
+					const e = context.change;
+					if (e !== undefined) {
+						changeSummary.deltas.push(e as RemoveUndefined<TChange>);
+					}
+					changeSummary.didChange = true;
 				}
-				changeSummary.didChange = true;
-			}
-			return true;
-		},
+				return true;
+			},
+		}
 	}, (reader, changeSummary) => {
 		const value = observable.read(reader);
 		const previousValue = _previousValue;

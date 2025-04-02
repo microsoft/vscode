@@ -593,4 +593,5 @@ export const codiconsLibrary = {
 	lightbulbEmpty: register('lightbulb-empty', 0xec40),
 	symbolMethodArrow: register('symbol-method-arrow', 0xec41),
 	copilotUnavailable: register('copilot-unavailable', 0xec42),
+	repoPinned: register('repo-pinned', 0xec43),
 } as const;

@@ -33,6 +33,7 @@ import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { NotebookTextModel } from '../../../notebook/common/model/notebookTextModel.js';
+import { ChatTransferService, IChatTransferService } from '../../common/chatTransferService.js';
 
 function getAgentData(id: string) {
 	return {
@@ -62,6 +63,7 @@ suite('ChatEditingService', function () {
 		collection.set(IChatAgentService, new SyncDescriptor(ChatAgentService));
 		collection.set(IChatVariablesService, new MockChatVariablesService());
 		collection.set(IChatSlashCommandService, new class extends mock<IChatSlashCommandService>() { });
+		collection.set(IChatTransferService, new SyncDescriptor(ChatTransferService));
 		collection.set(IChatEditingService, new SyncDescriptor(ChatEditingService));
 		collection.set(IChatService, new SyncDescriptor(ChatService));
 		collection.set(IMultiDiffSourceResolverService, new class extends mock<IMultiDiffSourceResolverService>() {

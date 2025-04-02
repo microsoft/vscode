@@ -107,4 +107,8 @@ export class MockChatService implements IChatService {
 	isPersistedSessionEmpty(sessionId: string): boolean {
 		throw new Error('Method not implemented.');
 	}
+
+	activateDefaultAgent(location: ChatAgentLocation): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
 }

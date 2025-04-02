@@ -10,13 +10,13 @@ import { equalsIfDefined, itemEquals } from '../../../../../base/common/equals.j
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { matchesSubString } from '../../../../../base/common/filters.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, IObservableWithChange, IReader, ITransaction, derived, derivedHandleChanges, disposableObservableValue, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { IObservable, IObservableWithChange, IReader, ITransaction, derived, derivedHandleChanges, disposableObservableValue, observableValue, recordChanges, transaction } from '../../../../../base/common/observable.js';
 import { commonPrefixLength, commonSuffixLength, splitLines } from '../../../../../base/common/strings.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
-import { applyEditsToRanges, OffsetEdit, SingleOffsetEdit } from '../../../../common/core/offsetEdit.js';
+import { OffsetEdit, SingleOffsetEdit, applyEditsToRanges } from '../../../../common/core/offsetEdit.js';
 import { OffsetRange } from '../../../../common/core/offsetRange.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
@@ -30,9 +30,10 @@ import { OffsetEdits } from '../../../../common/model/textModelOffsetEdit.js';
 import { IFeatureDebounceInformation } from '../../../../common/services/languageFeatureDebounce.js';
 import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
 import { IModelContentChangedEvent } from '../../../../common/textModelEvents.js';
+import { IRecordableEditorLogEntry, IRecordableLogEntry, StructuredLogger, formatRecordableLogEntry } from '../structuredLogger.js';
 import { InlineCompletionItem, InlineCompletionProviderResult, provideInlineCompletions } from './provideInlineCompletions.js';
 import { singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
-import { StructuredLogger, IRecordableEditorLogEntry, IRecordableLogEntry, formatRecordableLogEntry } from '../structuredLogger.js';
+
 
 export class InlineCompletionsSource extends Disposable {
 	private static _requestId = 0;
@@ -518,21 +519,17 @@ class UpdatedEdit extends Disposable {
 	private _lastChangePartOfInlineEdit = false;
 	public get lastChangePartOfInlineEdit() { return this._lastChangePartOfInlineEdit; }
 
-	protected readonly _updatedEdit = derivedHandleChanges<OffsetEdit | undefined | null, OffsetEdit[]>({
+	protected readonly _updatedEdit = derivedHandleChanges({
 		owner: this,
-		equalityComparer: equalsIfDefined((a, b) => a?.equals(b)),
-		createEmptyChangeSummary: () => [] as OffsetEdit[],
-		handleChange: (context, changeSummary) => {
-			if (context.didChange(this._modelVersion) && context.change) {
-				changeSummary.push(OffsetEdits.fromContentChanges(context.change.changes));
-			}
-			return true;
-		}
+		equalityComparer: equalsIfDefined<OffsetEdit>((a, b) => a?.equals(b)),
+		changeTracker: recordChanges({ edit: this._modelVersion }),
 	}, (reader, changeSummary) => {
 		this._modelVersion.read(reader);
 
-		for (const change of changeSummary) {
-			this._innerEdits = this._applyTextModelChanges(change, this._innerEdits);
+		for (const change of changeSummary.changes) {
+			if (change.change) {
+				this._innerEdits = this._applyTextModelChanges(OffsetEdits.fromContentChanges(change.change.changes), this._innerEdits);
+			}
 		}
 
 		if (this._innerEdits.length === 0) {

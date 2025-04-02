@@ -631,6 +631,7 @@ registerChatToolActions();
 registerEditorFeature(ChatPasteProvidersFeature);
 
 
+registerSingleton(IChatTransferService, ChatTransferService, InstantiationType.Delayed);
 registerSingleton(IChatService, ChatService, InstantiationType.Delayed);
 registerSingleton(IChatWidgetService, ChatWidgetService, InstantiationType.Delayed);
 registerSingleton(IQuickChatService, QuickChatService, InstantiationType.Delayed);
@@ -651,6 +652,5 @@ registerSingleton(IChatMarkdownAnchorService, ChatMarkdownAnchorService, Instant
 registerSingleton(ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService, InstantiationType.Delayed);
 registerSingleton(IChatEntitlementService, ChatEntitlementService, InstantiationType.Delayed);
 registerSingleton(IPromptsService, PromptsService, InstantiationType.Delayed);
-registerSingleton(IChatTransferService, ChatTransferService, InstantiationType.Delayed);
 
 registerWorkbenchContribution2(ChatEditingNotebookFileSystemProviderContrib.ID, ChatEditingNotebookFileSystemProviderContrib, WorkbenchPhase.BlockStartup);

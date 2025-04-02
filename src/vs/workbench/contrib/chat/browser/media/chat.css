@@ -6,6 +6,7 @@
 .interactive-session {
 	max-width: 850px;
 	margin: auto;
+	position: relative; /* For chat dnd */
 }
 
 .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row > .monaco-tl-row > .monaco-tl-twistie {
@@ -541,7 +542,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	right: 0;
 }
 
-.interactive-session .chat-dnd-overlay {
+.chat-dnd-overlay {
 	position: absolute;
 	top: 0;
 	left: 0;
@@ -552,13 +553,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: none;
 }
 
-.interactive-session .chat-dnd-overlay.visible {
+.chat-dnd-overlay.visible {
 	display: flex;
 	align-items: center;
 	justify-content: center;
 }
 
-.interactive-session .chat-dnd-overlay .attach-context-overlay-text {
+.chat-dnd-overlay .attach-context-overlay-text {
 	padding: 0.6em;
 	margin: 0.2em;
 	line-height: 12px;
@@ -568,7 +569,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	text-align: center;
 }
 
-.interactive-session .chat-dnd-overlay .attach-context-overlay-text .codicon {
+.chat-dnd-overlay .attach-context-overlay-text .codicon {
 	height: 12px;
 	font-size: 12px;
 	margin-right: 3px;

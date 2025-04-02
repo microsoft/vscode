@@ -523,6 +523,8 @@ export interface IChatService {
 
 	readonly unifiedViewEnabled: boolean;
 	isEditingLocation(location: ChatAgentLocation): boolean;
+
+	activateDefaultAgent(location: ChatAgentLocation): Promise<void>;
 }
 
 export const KEYWORD_ACTIVIATION_SETTING_ID = 'accessibility.voice.keywordActivation';

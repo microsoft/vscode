@@ -846,6 +846,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				enableImplicitContext: this.viewOptions.enableImplicitContext,
 				renderWorkingSet: this.viewOptions.enableWorkingSet === 'explicit',
 				supportsChangingModes: this.viewOptions.supportsChangingModes,
+				dndContainer: this.viewOptions.dndContainer,
 			},
 			this.styles,
 			() => this.collectInputState()
