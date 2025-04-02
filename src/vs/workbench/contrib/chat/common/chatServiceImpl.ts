@@ -492,16 +492,15 @@ export class ChatService extends Disposable implements IChatService {
 			this.trace('initializeSession', `Initialize session ${model.sessionId}`);
 			model.startInitialize();
 
-			await this.extensionService.whenInstalledExtensionsRegistered();
-			const defaultAgentData = this.chatAgentService.getContributedDefaultAgent(model.initialLocation) ?? this.chatAgentService.getContributedDefaultAgent(ChatAgentLocation.Panel);
-			if (!defaultAgentData) {
-				throw new ErrorNoTelemetry('No default agent contributed');
+			const activation = this.activateDefaultAgent(model.initialLocation);
+			if (this.configurationService.getValue('chat.setupFromDialog')) {
+				// Activate the default extension provided agent but do not wait
+				// for it to be ready so that the session can be used immediately
+				// without having to wait for the agent to be ready.
+				activation.catch(e => this.logService.error(e));
+			} else {
+				await activation;
 			}
-
-			// Activate the default extension provided agent but do not wait
-			// for it to be ready so that the session can be used immediately
-			// without having to wait for the agent to be ready.
-			this.extensionService.activateByEvent(`onChatParticipant:${defaultAgentData.id}`);
 
 			model.initialize();
 		} catch (err) {
@@ -509,6 +508,23 @@ export class ChatService extends Disposable implements IChatService {
 			model.setInitializationError(err);
 			this._sessionModels.deleteAndDispose(model.sessionId);
 			this._onDidDisposeSession.fire({ sessionId: model.sessionId, reason: 'initializationFailed' });
+		}
+	}
+
+	async activateDefaultAgent(location: ChatAgentLocation): Promise<void> {
+		await this.extensionService.whenInstalledExtensionsRegistered();
+
+		const defaultAgentData = this.chatAgentService.getContributedDefaultAgent(location) ?? this.chatAgentService.getContributedDefaultAgent(ChatAgentLocation.Panel);
+		if (!defaultAgentData) {
+			throw new ErrorNoTelemetry('No default agent contributed');
+		}
+
+		// No setup participant to fall back on- wait for extension activation
+		await this.extensionService.activateByEvent(`onChatParticipant:${defaultAgentData.id}`);
+
+		const defaultAgent = this.chatAgentService.getActivatedAgents().find(agent => agent.id === defaultAgentData.id);
+		if (!defaultAgent) {
+			throw new ErrorNoTelemetry('No default agent registered');
 		}
 	}
 
