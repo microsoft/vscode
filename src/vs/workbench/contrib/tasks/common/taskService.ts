@@ -108,8 +108,3 @@ export interface ITaskService {
 
 	extensionCallbackTaskComplete(task: Task, result: number | undefined): Promise<void>;
 }
-
-export interface ITaskTerminalStatus {
-	terminalId: number;
-	status: string;
-}

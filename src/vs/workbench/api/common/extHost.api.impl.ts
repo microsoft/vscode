@@ -1677,7 +1677,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			SymbolKind: extHostTypes.SymbolKind,
 			SymbolTag: extHostTypes.SymbolTag,
 			Task: extHostTypes.Task,
-			TaskEventKind: extHostTypes.TaskEventKind,
 			TaskGroup: extHostTypes.TaskGroup,
 			TaskPanelKind: extHostTypes.TaskPanelKind,
 			TaskRevealKind: extHostTypes.TaskRevealKind,

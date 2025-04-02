@@ -15,7 +15,7 @@ import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../platform/workspace/common/workspace.js';
 
 import {
-	ContributedTask, ConfiguringTask, KeyedTaskIdentifier, ITaskExecution, Task, ITaskEvent,
+	ContributedTask, ConfiguringTask, KeyedTaskIdentifier, ITaskExecution, Task, ITaskEvent, TaskEventKind,
 	IPresentationOptions, CommandOptions, ICommandConfiguration, RuntimeType, CustomTask, TaskScope, TaskSource,
 	TaskSourceKind, IExtensionTaskSource, IRunOptions, ITaskSet, TaskGroup, TaskDefinition, PresentationOptions, RunOptions
 } from '../../contrib/tasks/common/tasks.js';
@@ -31,8 +31,7 @@ import {
 	IProcessExecutionDTO, IShellExecutionDTO, IShellExecutionOptionsDTO, ICustomExecutionDTO, ITaskDTO, ITaskSourceDTO, ITaskHandleDTO, ITaskFilterDTO, ITaskProcessStartedDTO, ITaskProcessEndedDTO, ITaskSystemInfoDTO,
 	IRunOptionsDTO, ITaskGroupDTO,
 	ITaskProblemMatcherStarted,
-	ITaskProblemMatcherEnded,
-	TaskEventKind
+	ITaskProblemMatcherEnded
 } from '../common/shared/tasks.js';
 import { IConfigurationResolverService } from '../../services/configurationResolver/common/configurationResolver.js';
 import { ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
@@ -80,9 +79,6 @@ export namespace TaskProblemMatcherEndedDto {
 		};
 	}
 }
-
-
-
 namespace TaskProcessStartedDTO {
 	export function from(value: ITaskExecution, processId: number): ITaskProcessStartedDTO {
 		return {
@@ -502,7 +498,6 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 			} else if (event.kind === TaskEventKind.ProblemMatcherFoundErrors) {
 				this._proxy.$onDidEndTaskProblemMatchers(TaskProblemMatcherEndedDto.from({ execution: task.getTaskExecution(), hasErrors: true }));
 			}
-
 		}));
 	}
 
