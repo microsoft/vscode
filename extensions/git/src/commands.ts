@@ -632,8 +632,8 @@ class CommandErrorOutputTextDocumentContentProvider implements TextDocumentConte
 
 async function evaluateDiagnosticsCommitHook(repository: Repository, options: CommitOptions): Promise<boolean> {
 	const config = workspace.getConfiguration('git', Uri.file(repository.root));
-	const enabled = config.get<boolean>('diagnosticsCommitHook.Enabled', false) === true;
-	const sourceSeverity = config.get<Record<string, DiagnosticSeverityConfig>>('diagnosticsCommitHook.Sources', { '*': 'error' });
+	const enabled = config.get<boolean>('diagnosticsCommitHook.enabled', false) === true;
+	const sourceSeverity = config.get<Record<string, DiagnosticSeverityConfig>>('diagnosticsCommitHook.sources', { '*': 'error' });
 
 	if (!enabled) {
 		return true;
