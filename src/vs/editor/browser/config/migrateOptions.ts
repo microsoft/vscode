@@ -125,6 +125,47 @@ registerEditorSettingMigration('highlightActiveIndentGuide', (value, read, write
 	}
 });
 
+registerEditorSettingMigration('experimental.treeSitterTelemetry', (value, read, write) => {
+	if (typeof value !== 'undefined') {
+		write('experimental.treeSitterTelemetry', undefined);
+		if (typeof read('treeSitterTelemetry') === 'undefined') {
+			write('treeSitterTelemetry', value);
+		}
+	}
+});
+registerEditorSettingMigration('experimental.preferTreeSitter.css', (value, read, write) => {
+	if (typeof value !== 'undefined') {
+		write('experimental.preferTreeSitter.css', undefined);
+		if (typeof read('preferTreeSitter.css') === 'undefined') {
+			write('preferTreeSitter.css', value);
+		}
+	}
+});
+registerEditorSettingMigration('experimental.preferTreeSitter.typescript', (value, read, write) => {
+	if (typeof value !== 'undefined') {
+		write('experimental.preferTreeSitter.typescript', undefined);
+		if (typeof read('preferTreeSitter.typescript') === 'undefined') {
+			write('preferTreeSitter.typescript', value);
+		}
+	}
+});
+registerEditorSettingMigration('experimental.preferTreeSitter.ini', (value, read, write) => {
+	if (typeof value !== 'undefined') {
+		write('experimental.preferTreeSitter.ini', undefined);
+		if (typeof read('preferTreeSitter.ini') === 'undefined') {
+			write('preferTreeSitter.ini', value);
+		}
+	}
+});
+registerEditorSettingMigration('experimental.preferTreeSitter.regex', (value, read, write) => {
+	if (typeof value !== 'undefined') {
+		write('experimental.preferTreeSitter.regex', undefined);
+		if (typeof read('preferTreeSitter.regex') === 'undefined') {
+			write('preferTreeSitter.regex', value);
+		}
+	}
+});
+
 const suggestFilteredTypesMapping: Record<string, string> = {
 	method: 'showMethods',
 	function: 'showFunctions',
