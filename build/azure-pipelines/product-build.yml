@@ -338,8 +338,8 @@ extends:
             os: windows
           jobs:
             - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
-              - job: WindowsUnitTests
-                displayName: Unit Tests
+              - job: WindowsElectronTests
+                displayName: Electron Tests
                 timeoutInMinutes: 60
                 variables:
                   VSCODE_ARCH: x64
@@ -349,11 +349,10 @@ extends:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                       VSCODE_ARCH: x64
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                      VSCODE_RUN_UNIT_TESTS: true
-                      VSCODE_RUN_INTEGRATION_TESTS: false
-                      VSCODE_RUN_SMOKE_TESTS: false
-              - job: WindowsIntegrationTests
-                displayName: Integration Tests
+                      VSCODE_TEST_ARTIFACT_NAME: electron
+                      VSCODE_RUN_ELECTRON_TESTS: true
+              - job: WindowsBrowserTests
+                displayName: Browser Tests
                 timeoutInMinutes: 60
                 variables:
                   VSCODE_ARCH: x64
@@ -363,12 +362,11 @@ extends:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                       VSCODE_ARCH: x64
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                      VSCODE_TEST_ARTIFACT_NAME: integration
-                      VSCODE_RUN_UNIT_TESTS: false
-                      VSCODE_RUN_INTEGRATION_TESTS: true
-                      VSCODE_RUN_SMOKE_TESTS: false
-              - job: WindowsSmokeTests
-                displayName: Smoke Tests
+                      VSCODE_TEST_ARTIFACT_NAME: browser
+                      VSCODE_RUN_BROWSER_TESTS: true
+
+              - job: WindowsRemoteTests
+                displayName: Windows (Remote)
                 timeoutInMinutes: 60
                 variables:
                   VSCODE_ARCH: x64
@@ -378,10 +376,8 @@ extends:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                       VSCODE_ARCH: x64
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                      VSCODE_TEST_ARTIFACT_NAME: smoke
-                      VSCODE_RUN_UNIT_TESTS: false
-                      VSCODE_RUN_INTEGRATION_TESTS: false
-                      VSCODE_RUN_SMOKE_TESTS: true
+                      VSCODE_TEST_ARTIFACT_NAME: remote
+                      VSCODE_RUN_REMOTE_TESTS: true
 
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32, true)) }}:
               - job: Windows
@@ -453,6 +449,7 @@ extends:
                       VSCODE_ARCH: x64
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                      VSCODE_TEST_ARTIFACT_NAME: electron
                       VSCODE_RUN_ELECTRON_TESTS: true
               - job: Linuxx64BrowserTest
                 displayName: Browser Tests
@@ -466,7 +463,7 @@ extends:
                       VSCODE_ARCH: x64
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                      VSCODE_TEST_ARTIFACT_NAME: integration
+                      VSCODE_TEST_ARTIFACT_NAME: browser
                       VSCODE_RUN_BROWSER_TESTS: true
               - job: Linuxx64RemoteTest
                 displayName: Remote Tests
@@ -480,7 +477,7 @@ extends:
                       VSCODE_ARCH: x64
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                      VSCODE_TEST_ARTIFACT_NAME: smoke
+                      VSCODE_TEST_ARTIFACT_NAME: remote
                       VSCODE_RUN_REMOTE_TESTS: true
 
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX, true)) }}:

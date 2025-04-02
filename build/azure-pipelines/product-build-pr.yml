@@ -100,8 +100,8 @@ stages:
         steps:
           - template: cli/test.yml@self
 
-      - job: Windowsx64UnitTests
-        displayName: Windows (Unit Tests)
+      - job: Windowsx64ElectronTests
+        displayName: Windows (Electron)
         pool: 1es-oss-windows-2022-x64
         timeoutInMinutes: 30
         variables:
@@ -113,12 +113,10 @@ stages:
               VSCODE_ARCH: x64
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
               VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-              VSCODE_RUN_UNIT_TESTS: true
-              VSCODE_RUN_INTEGRATION_TESTS: false
-              VSCODE_RUN_SMOKE_TESTS: false
+              VSCODE_RUN_ELECTRON_TESTS: true
 
-      - job: Windowsx64IntegrationTests
-        displayName: Windows (Integration Tests)
+      - job: Windowsx64BrowserTests
+        displayName: Windows (Browser)
         pool: 1es-oss-windows-2022-x64
         timeoutInMinutes: 60
         variables:
@@ -131,9 +129,23 @@ stages:
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
               VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
               VSCODE_TEST_ARTIFACT_NAME: integration
-              VSCODE_RUN_UNIT_TESTS: false
-              VSCODE_RUN_INTEGRATION_TESTS: true
-              VSCODE_RUN_SMOKE_TESTS: false
+              VSCODE_RUN_BROWSER_TESTS: true
+
+      - job: Windowsx64RemoteTests
+        displayName: Windows (Remote)
+        pool: 1es-oss-windows-2022-x64
+        timeoutInMinutes: 60
+        variables:
+          VSCODE_ARCH: x64
+          NPM_ARCH: x64
+        steps:
+          - template: win32/product-build-win32.yml@self
+            parameters:
+              VSCODE_ARCH: x64
+              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+              VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+              VSCODE_TEST_ARTIFACT_NAME: integration
+              VSCODE_RUN_REMOTE_TESTS: true
 
   - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
     - stage: NodeModuleCache
