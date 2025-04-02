@@ -11,6 +11,9 @@ parameters:
     type: boolean
   - name: VSCODE_ARCH
     type: string
+  - name: VSCODE_TEST_ARTIFACT_NAME
+    type: string
+    default: ""
 
 steps:
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:

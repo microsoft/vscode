@@ -82,6 +82,7 @@ stages:
               VSCODE_ARCH: x64
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
               VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+              VSCODE_TEST_ARTIFACT_NAME: integration
               VSCODE_RUN_UNIT_TESTS: false
               VSCODE_RUN_INTEGRATION_TESTS: true
               VSCODE_RUN_SMOKE_TESTS: false
@@ -100,6 +101,7 @@ stages:
               VSCODE_ARCH: x64
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
               VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+              VSCODE_TEST_ARTIFACT_NAME: smoke
               VSCODE_RUN_UNIT_TESTS: false
               VSCODE_RUN_INTEGRATION_TESTS: false
               VSCODE_RUN_SMOKE_TESTS: true
