@@ -439,7 +439,7 @@
 .monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab > .tab-actions .action-label.codicon {
 	color: inherit;
 	font-size: 16px;
-	padding: 2px;
+	padding: 4px;
 	width: 16px;
 	height: 16px;
 }
