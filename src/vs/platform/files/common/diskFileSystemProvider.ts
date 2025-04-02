@@ -68,7 +68,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 	private universalWatcher: AbstractUniversalWatcherClient | undefined;
 
 	private readonly universalWatchRequests: IUniversalWatchRequest[] = [];
-	private readonly universalWatchRequestDelayer = this._register(new ThrottledDelayer<void>(0));
+	private readonly universalWatchRequestDelayer = this._register(new ThrottledDelayer<void>(300));
 
 	private watchUniversal(resource: URI, opts: IWatchOptions): IDisposable {
 		const request = this.toWatchRequest(resource, opts);
@@ -155,7 +155,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 	private nonRecursiveWatcher: AbstractNonRecursiveWatcherClient | undefined;
 
 	private readonly nonRecursiveWatchRequests: INonRecursiveWatchRequest[] = [];
-	private readonly nonRecursiveWatchRequestDelayer = this._register(new ThrottledDelayer<void>(0));
+	private readonly nonRecursiveWatchRequestDelayer = this._register(new ThrottledDelayer<void>(300));
 
 	private watchNonRecursive(resource: URI, opts: IWatchOptions): IDisposable {
 

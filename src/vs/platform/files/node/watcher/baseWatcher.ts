@@ -32,6 +32,7 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 
 	private readonly correlatedWatchRequests = new Map<number /* request ID */, IWatchRequestWithCorrelation>();
 	private readonly nonCorrelatedWatchRequests = new Map<number /* request ID */, IUniversalWatchRequest>();
+	private readonly requestIdCache = new WeakMap<IUniversalWatchRequest, number /* request ID */>();
 
 	private readonly suspendedWatchRequests = this._register(new DisposableMap<number /* request ID */>());
 	private readonly suspendedWatchRequestsWithPolling = new Set<number /* request ID */>();
@@ -57,14 +58,26 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 	}
 
 	private computeId(request: IUniversalWatchRequest): number {
+		// Check if we already have a cached ID for this request
+		const cachedId = this.requestIdCache.get(request);
+		if (cachedId !== undefined) {
+			return cachedId;
+		}
+
+		// Compute new ID based on request properties
+		let id: number;
 		if (this.isCorrelated(request)) {
-			return request.correlationId;
+			id = request.correlationId;
 		} else {
 			// Requests without correlation do not carry any unique identifier, so we have to
 			// come up with one based on the options of the request. This matches what the
 			// file service does (vs/platform/files/common/fileService.ts#L1178).
-			return hash(request);
+			id = hash(request);
 		}
+
+		// Cache the computed ID
+		this.requestIdCache.set(request, id);
+		return id;
 	}
 
 	async watch(requests: IUniversalWatchRequest[]): Promise<void> {
@@ -76,6 +89,8 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 		try {
 			this.correlatedWatchRequests.clear();
 			this.nonCorrelatedWatchRequests.clear();
+			// Note: WeakMap cannot be cleared, but it will automatically release entries
+			// when the request objects are no longer referenced
 
 			// Figure out correlated vs. non-correlated requests
 			for (const request of requests) {
