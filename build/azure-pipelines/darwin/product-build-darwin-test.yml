@@ -7,6 +7,8 @@ parameters:
     type: boolean
   - name: VSCODE_RUN_SMOKE_TESTS
     type: boolean
+  - name: VSCODE_TEST_ARTIFACT_NAME
+    type: string
 
 steps:
   - script: npm exec -- npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
