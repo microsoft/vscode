@@ -32,6 +32,10 @@
 	position: relative;
 }
 
+.extensions-viewlet > .header  > .extensions-search-container > .suggest-input-container {
+	padding: 4px 6px;
+}
+
 .extensions-viewlet > .header  > .extensions-search-container >  .search-box {
 	width: 100%;
 	height: 28px;
@@ -48,12 +52,15 @@
 	align-items: center;
 	position: absolute;
 	top: 0;
-	right: 0;
+	right: 4px;
 	height: 100%;
 }
 
-.extensions-viewlet > .header  > .extensions-search-container >  .extensions-search-actions-container > .monaco-toolbar > .monaco-action-bar {
-	background-color: blue;
+.extensions-viewlet > .header > .extensions-search-container > .extensions-search-actions-container >
+.monaco-toolbar > .monaco-action-bar > .actions-container > * > .action-label,
+.extensions-viewlet > .header > .extensions-search-container > .extensions-search-actions-container >
+.monaco-toolbar > .monaco-action-bar > .actions-container > * > .monaco-dropdown > * > .action-label {
+	padding: 4px;
 }
 
 .extensions-viewlet > .header > .notification-container {
