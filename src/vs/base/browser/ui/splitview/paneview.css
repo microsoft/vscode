@@ -65,7 +65,7 @@
 }
 
 .monaco-pane-view .pane > .pane-header > .actions .action-label {
-	padding: 2px;
+	padding: 4px;
 }
 
 /* TODO: actions should be part of the pane, but they aren't yet */
