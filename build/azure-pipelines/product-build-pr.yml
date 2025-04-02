@@ -61,6 +61,13 @@ stages:
               VSCODE_RUN_INTEGRATION_TESTS: false
               VSCODE_RUN_SMOKE_TESTS: false
 
+      - job: LinuxCLI
+        displayName: Linux (CLI Unit Tests)
+        pool: 1es-oss-ubuntu-22.04-x64
+        timeoutInMinutes: 30
+        steps:
+          - template: cli/test.yml@self
+
       - job: Linuxx64IntegrationTest
         displayName: Linux (Integration Tests)
         pool: 1es-oss-ubuntu-22.04-x64
@@ -96,13 +103,6 @@ stages:
               VSCODE_RUN_UNIT_TESTS: false
               VSCODE_RUN_INTEGRATION_TESTS: false
               VSCODE_RUN_SMOKE_TESTS: true
-
-      - job: LinuxCLI
-        displayName: Linux (CLI Unit Tests)
-        pool: 1es-oss-ubuntu-22.04-x64
-        timeoutInMinutes: 30
-        steps:
-          - template: cli/test.yml@self
 
       - job: Windowsx64UnitTests
         displayName: Windows (Unit Tests)
