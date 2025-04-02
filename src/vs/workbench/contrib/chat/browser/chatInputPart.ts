@@ -123,6 +123,7 @@ interface IChatInputPartOptions {
 	renderWorkingSet?: boolean;
 	enableImplicitContext?: boolean;
 	supportsChangingModes?: boolean;
+	dndContainer?: HTMLElement;
 }
 
 export interface IWorkingSetEntry {
@@ -824,7 +825,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 		this.renderChatRelatedFiles();
 
-		this.dnd.addOverlay(container, container);
+		this.dnd.addOverlay(this.options.dndContainer ?? container, this.options.dndContainer ?? container);
 
 		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(inputContainer));
 		ChatContextKeys.inChatInput.bindTo(inputScopedContextKeyService).set(true);

@@ -191,6 +191,7 @@ export interface IChatWidgetViewOptions {
 	enableImplicitContext?: boolean;
 	enableWorkingSet?: 'explicit' | 'implicit';
 	supportsChangingModes?: boolean;
+	dndContainer?: HTMLElement;
 }
 
 export interface IChatViewViewContext {
