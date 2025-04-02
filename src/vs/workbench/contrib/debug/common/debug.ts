@@ -363,7 +363,7 @@ export interface IDebugLocationReferenced {
 	source: Source;
 }
 
-export interface IDebugSession extends ITreeElement {
+export interface IDebugSession extends ITreeElement, IDisposable {
 
 	readonly configuration: IConfig;
 	readonly unresolvedConfiguration: IConfig | undefined;

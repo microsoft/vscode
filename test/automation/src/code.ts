@@ -5,7 +5,6 @@
 
 import * as cp from 'child_process';
 import * as os from 'os';
-import * as treekill from 'tree-kill';
 import { IElement, ILocaleInfo, ILocalizedStrings, ILogFile } from './driver';
 import { Logger, measureAndLog } from './logger';
 import { launch as launchPlaywrightBrowser } from './playwrightBrowser';
@@ -22,7 +21,7 @@ export interface LaunchOptions {
 	readonly logger: Logger;
 	logsPath: string;
 	crashesPath: string;
-	readonly verbose?: boolean;
+	verbose?: boolean;
 	readonly extraArgs?: string[];
 	readonly remote?: boolean;
 	readonly web?: boolean;
@@ -144,7 +143,7 @@ export class Code {
 			let done = false;
 
 			// Start the exit flow via driver
-			this.driver.exitApplication();
+			this.driver.close();
 
 			// Await the exit of the application
 			(async () => {
@@ -157,32 +156,22 @@ export class Code {
 						// after 5 / 10 seconds: try to exit gracefully again
 						case 10:
 						case 20: {
-							this.logger.log('Smoke test exit call did not terminate process after 5-10s, gracefully trying to exit the application again...');
-							this.driver.exitApplication();
+							this.logger.log('Smoke test exit() call did not terminate process after 5-10s, gracefully trying to exit the application again...');
+							this.driver.close();
 							break;
 						}
 
 						// after 20 seconds: forcefully kill
 						case 40: {
-							this.logger.log('Smoke test exit call did not terminate process after 20s, forcefully exiting the application...');
-
-							// no need to await since we're polling for the process to die anyways
-							treekill(pid, err => {
-								try {
-									process.kill(pid, 0); // throws an exception if the process doesn't exist anymore
-									this.logger.log('Failed to kill Electron process tree:', err?.message);
-								} catch (error) {
-									// Expected when process is gone
-								}
-							});
-
+							this.logger.log('Smoke test exit() call did not terminate process after 20s, forcefully exiting the application...');
+							process.kill(pid, 'SIGTERM');
 							break;
 						}
 
 						// after 30 seconds: give up
 						case 60: {
 							done = true;
-							this.logger.log('Smoke test exit call did not terminate process after 30s, giving up');
+							this.logger.log('Smoke test exit() call did not terminate process after 30s, giving up');
 							resolve();
 						}
 					}
@@ -191,7 +180,9 @@ export class Code {
 						process.kill(pid, 0); // throws an exception if the process doesn't exist anymore.
 						await this.wait(500);
 					} catch (error) {
+						this.logger.log('Smoke test exit() call terminated process successfully');
 						done = true;
+
 						resolve();
 					}
 				}

@@ -3298,13 +3298,13 @@
           "markdownDescription": "%config.commitShortHashLength%",
           "scope": "resource"
         },
-        "git.diagnosticsCommitHook.Enabled": {
+        "git.diagnosticsCommitHook.enabled": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "%config.diagnosticsCommitHook.Enabled%",
+          "markdownDescription": "%config.diagnosticsCommitHook.enabled%",
           "scope": "resource"
         },
-        "git.diagnosticsCommitHook.Sources": {
+        "git.diagnosticsCommitHook.sources": {
           "type": "object",
           "additionalProperties": {
             "type": "string",
@@ -3319,7 +3319,7 @@
           "default": {
             "*": "error"
           },
-          "markdownDescription": "%config.diagnosticsCommitHook.Sources%",
+          "markdownDescription": "%config.diagnosticsCommitHook.sources%",
           "scope": "resource"
         },
         "git.discardUntrackedChangesToTrash": {
