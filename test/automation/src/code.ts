@@ -22,7 +22,7 @@ export interface LaunchOptions {
 	readonly logger: Logger;
 	logsPath: string;
 	crashesPath: string;
-	readonly verbose?: boolean;
+	verbose?: boolean;
 	readonly extraArgs?: string[];
 	readonly remote?: boolean;
 	readonly web?: boolean;
