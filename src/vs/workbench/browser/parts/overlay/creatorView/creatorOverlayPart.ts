@@ -82,7 +82,9 @@ export class CreatorOverlayPart extends Part {
 
 		// If we're already in the process of initializing, return the existing promise
 		if (this.initializingPromise) {
-			console.log("Initialization already in progress, waiting for it to complete");
+			console.log(
+				"Initialization already in progress, waiting for it to complete",
+			);
 			return this.initializingPromise;
 		}
 
@@ -235,8 +237,6 @@ export class CreatorOverlayPart extends Part {
 		gradientBg.style.filter = "blur(20px)";
 		gradientBg.style.opacity = "0.7";
 
-
-
 		// First add the gradient background to the container
 		container.appendChild(gradientBg);
 
@@ -298,7 +298,11 @@ export class CreatorOverlayPart extends Part {
 
 			await this.handleSlideAnimation("down");
 
-			if (this.state === "open" || !this.overlayContainer || !this.webviewView) {
+			if (
+				this.state === "open" ||
+				!this.overlayContainer ||
+				!this.webviewView
+			) {
 				this.openInProgress = false;
 				return;
 			}
@@ -341,7 +345,9 @@ export class CreatorOverlayPart extends Part {
 
 			// Always update layout when opening
 			if (this.webviewView && this.overlayContainer) {
-				this.webviewView.webview.layoutWebviewOverElement(this.overlayContainer);
+				this.webviewView.webview.layoutWebviewOverElement(
+					this.overlayContainer,
+				);
 			}
 
 			this.focus();
@@ -351,7 +357,12 @@ export class CreatorOverlayPart extends Part {
 	}
 
 	private close() {
-		if (this.isLocked || this.state === "closed" || !this.overlayContainer || !this.webviewView) {
+		if (
+			this.isLocked ||
+			this.state === "closed" ||
+			!this.overlayContainer ||
+			!this.webviewView
+		) {
 			return;
 		}
 
@@ -365,8 +376,8 @@ export class CreatorOverlayPart extends Part {
 			container.style.opacity = "0";
 		}
 
-		// Wait for the transition to complete before hiding elements
-		setTimeout(() => {
+		// Add a slide-up animation when closing
+		this.handleSlideAnimation("up").then(() => {
 			this.state = "closed";
 
 			if (this.overlayContainer) {
@@ -381,8 +392,42 @@ export class CreatorOverlayPart extends Part {
 
 			// Focus the active editor
 			this._editorGroupsService.activeGroup.focus();
-		}, 300); // 300ms matches the transition duration
+		});
 	}
+
+	// private close() {
+	// 	if (this.isLocked || this.state === "closed" || !this.overlayContainer || !this.webviewView) {
+	// 		return;
+	// 	}
+
+	// 	console.log("Closing overlay view");
+
+	// 	// Start the transition by setting opacity to 0
+	// 	this.overlayContainer.style.opacity = "0";
+
+	// 	const container = this.webviewView.webview.container;
+	// 	if (container) {
+	// 		container.style.opacity = "0";
+	// 	}
+
+	// 	// Wait for the transition to complete before hiding elements
+	// 	setTimeout(() => {
+	// 		this.state = "closed";
+
+	// 		if (this.overlayContainer) {
+	// 			this.overlayContainer.style.zIndex = "-1";
+	// 			this.overlayContainer.style.display = "none";
+	// 		}
+
+	// 		if (container) {
+	// 			container.style.zIndex = "-1";
+	// 			container.style.display = "none";
+	// 		}
+
+	// 		// Focus the active editor
+	// 		this._editorGroupsService.activeGroup.focus();
+	// 	}, 300); // 300ms matches the transition duration
+	// }
 
 	private toggleOpenClose() {
 		this.state === "open" ? this.close() : this.open();
@@ -438,38 +483,36 @@ export class CreatorOverlayPart extends Part {
 		return this._isLocked;
 	}
 
-	public hideOverlayLoadingMessage(): void {
-
-	}
+	public hideOverlayLoadingMessage(): void {}
 
 	private getTopOfBodyElement(): HTMLElement {
-		const existingElement = document.getElementById("top-of-body-injected-container");
+		const existingElement = document.getElementById(
+			"top-of-body-injected-container",
+		);
 		if (existingElement) {
 			return existingElement;
 		}
-			// Create the container element for slide-down animation
-			const topOfBodyElement = document.createElement("div");
-			topOfBodyElement.style.position = "relative"; // Changed back to relative as requested
-			topOfBodyElement.style.top = "0";
-			topOfBodyElement.style.left = "0";
-			topOfBodyElement.style.width = "100%";
-			topOfBodyElement.style.backgroundColor = "#FFFFFF";
-			topOfBodyElement.style.display = "block";
-			topOfBodyElement.style.overflow = "hidden";
-			topOfBodyElement.style.transition = "height 500ms ease-in-out";
-			topOfBodyElement.style.zIndex = "20";
-			topOfBodyElement.setAttribute("id", "top-of-body-injected-container");
+		// Create the container element for slide-down animation
+		const topOfBodyElement = document.createElement("div");
+		topOfBodyElement.style.position = "relative"; // Changed back to relative as requested
+		topOfBodyElement.style.top = "0";
+		topOfBodyElement.style.left = "0";
+		topOfBodyElement.style.width = "100%";
+		topOfBodyElement.style.backgroundColor = "#FFFFFF";
+		topOfBodyElement.style.display = "block";
+		topOfBodyElement.style.overflow = "hidden";
+		topOfBodyElement.style.transition = "height 500ms ease-in-out";
+		topOfBodyElement.style.zIndex = "20";
+		topOfBodyElement.setAttribute("id", "top-of-body-injected-container");
 
-			// Add to body
-			document.body.insertBefore(topOfBodyElement, document.body.firstChild);
+		// Add to body
+		document.body.insertBefore(topOfBodyElement, document.body.firstChild);
 
-			return topOfBodyElement;
+		return topOfBodyElement;
 	}
-
 
 	private handleSlideAnimation(direction: "up" | "down"): Promise<void> {
 		return new Promise((resolve) => {
-
 			// Create the container element for slide-down animation
 			const topOfBodyElement = this.getTopOfBodyElement();
 
@@ -486,12 +529,17 @@ export class CreatorOverlayPart extends Part {
 				}
 
 				topOfBodyElement.style.height = direction === "up" ? "0" : "100vh";
-				console.log("Animation started - height change to:", direction === "up" ? "0" : "100vh");
+				console.log(
+					"Animation started - height change to:",
+					direction === "up" ? "0" : "100vh",
+				);
 
 				// Set a single timeout for animation completion
 				setTimeout(() => {
 					if (!topOfBodyElement || !topOfBodyElement.parentNode) {
-						console.warn("Animation element removed before animation completed");
+						console.warn(
+							"Animation element removed before animation completed",
+						);
 						return resolve();
 					}
 
