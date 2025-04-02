@@ -10,7 +10,7 @@ import { equalsIfDefined, itemEquals } from '../../../../../base/common/equals.j
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { matchesSubString } from '../../../../../base/common/filters.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, IObservableWithChange, IReader, ITransaction, derived, derivedHandleChanges, disposableObservableValue, observableValue, recordChanges, transaction } from '../../../../../base/common/observable.js';
+import { IObservable, IObservableWithChange, IReader, ITransaction, derived, derivedOpts, disposableObservableValue, observableReducer, observableValue, recordChanges, transaction } from '../../../../../base/common/observable.js';
 import { commonPrefixLength, commonSuffixLength, splitLines } from '../../../../../base/common/strings.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -510,38 +510,14 @@ export class InlineCompletionWithUpdatedRange extends Disposable {
 }
 
 class UpdatedEdit extends Disposable {
-
-	private _innerEdits: SingleUpdatedEdit[];
-
 	private _inlineEditModelVersion: number;
 	public get modelVersion() { return this._inlineEditModelVersion; }
 
 	private _lastChangePartOfInlineEdit = false;
 	public get lastChangePartOfInlineEdit() { return this._lastChangePartOfInlineEdit; }
 
-	protected readonly _updatedEdit = derivedHandleChanges({
-		owner: this,
-		equalityComparer: equalsIfDefined<OffsetEdit>((a, b) => a?.equals(b)),
-		changeTracker: recordChanges({ edit: this._modelVersion }),
-	}, (reader, changeSummary) => {
-		this._modelVersion.read(reader);
-
-		for (const change of changeSummary.changes) {
-			if (change.change) {
-				this._innerEdits = this._applyTextModelChanges(OffsetEdits.fromContentChanges(change.change.changes), this._innerEdits);
-			}
-		}
-
-		if (this._innerEdits.length === 0) {
-			return undefined;
-		}
-
-		if (this._innerEdits.some(e => e.edit === undefined)) {
-			throw new BugIndicatingError('UpdatedEdit: Invalid state');
-		}
-
-		return new OffsetEdit(this._innerEdits.map(edit => edit.edit!));
-	});
+	private readonly _updatedEditReducer;
+	protected readonly _updatedEdit;
 
 	public get offsetEdit(): IObservable<OffsetEdit | undefined> { return this._updatedEdit.map(e => e ?? undefined); }
 
@@ -549,23 +525,43 @@ class UpdatedEdit extends Disposable {
 		offsetEdit: OffsetEdit,
 		private readonly _textModel: ITextModel,
 		private readonly _modelVersion: IObservableWithChange<number | null, IModelContentChangedEvent | undefined>,
-		isInlineEdit: boolean,
+		isInlineEdit: boolean
 	) {
 		super();
 
-		this._inlineEditModelVersion = this._modelVersion.get() ?? -1;
+		this._updatedEditReducer = observableReducer(this, {
+			initial: offsetEdit.edits.map<SingleUpdatedEdit>(edit => {
+				if (isInlineEdit) {
+					const replacedRange = Range.fromPositions(this._textModel.getPositionAt(edit.replaceRange.start), this._textModel.getPositionAt(edit.replaceRange.endExclusive));
+					const replacedText = this._textModel.getValueInRange(replacedRange);
+					return new SingleUpdatedNextEdit(edit, replacedText);
+				}
 
-		this._innerEdits = offsetEdit.edits.map(edit => {
-			if (isInlineEdit) {
-				const replacedRange = Range.fromPositions(this._textModel.getPositionAt(edit.replaceRange.start), this._textModel.getPositionAt(edit.replaceRange.endExclusive));
-				const replacedText = this._textModel.getValueInRange(replacedRange);
-				return new SingleUpdatedNextEdit(edit, replacedText);
+				return new SingleUpdatedCompletion(edit);
+			}),
+			changeTracker: recordChanges({ modelVersion: this._modelVersion }),
+			update: (_reader, value, changeSummary) => {
+				for (const { change } of changeSummary.changes) {
+					if (change) {
+						value = this._applyTextModelChanges(OffsetEdits.fromContentChanges(change.changes), value);
+					}
+				}
+				if (value.some(e => e.edit === undefined)) {
+					throw new BugIndicatingError('UpdatedEdit: Invalid state');
+				}
+				return value;
 			}
+		}).recomputeInitiallyAndOnChange(this._store);
 
-			return new SingleUpdatedCompletion(edit);
+		this._updatedEdit = derivedOpts({
+			equalsFn: equalsIfDefined<OffsetEdit>((a, b) => a?.equals(b)),
+		}, reader => {
+			const e = this._updatedEditReducer.read(reader);
+			if (e.length === 0) { return undefined; }
+			return new OffsetEdit(e.map(v => v.edit!));
 		});
 
-		this._updatedEdit.recomputeInitiallyAndOnChange(this._store); // make sure to call this after setting `_lastEdit`
+		this._inlineEditModelVersion = this._modelVersion.get() ?? -1;
 	}
 
 	private _applyTextModelChanges(textModelChanges: OffsetEdit, edits: SingleUpdatedEdit[]): SingleUpdatedEdit[] {

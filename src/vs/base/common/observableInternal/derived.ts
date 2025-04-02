@@ -9,15 +9,22 @@ import { BugIndicatingError, DisposableStore, EqualityComparer, IDisposable, ass
 import { getLogger } from './logging/logging.js';
 import { IChangeTracker } from './changeTracker.js';
 
+export interface IDerivedReader<TChange = void> extends IReader {
+	/**
+	 * Call this to report a change delta or to force report a change, even if the new value is the same as the old value.
+	*/
+	reportChange(change: TChange): void;
+}
+
 /**
  * Creates an observable that is derived from other observables.
  * The value is only recomputed when absolutely needed.
  *
  * {@link computeFn} should start with a JS Doc using `@description` to name the derived.
  */
-export function derived<T>(computeFn: (reader: IReader) => T): IObservable<T>;
-export function derived<T>(owner: DebugOwner, computeFn: (reader: IReader) => T): IObservable<T>;
-export function derived<T>(computeFnOrOwner: ((reader: IReader) => T) | DebugOwner, computeFn?: ((reader: IReader) => T) | undefined): IObservable<T> {
+export function derived<T, TChange = void>(computeFn: (reader: IDerivedReader<TChange>) => T): IObservable<T>;
+export function derived<T, TChange = void>(owner: DebugOwner, computeFn: (reader: IDerivedReader<TChange>) => T): IObservable<T>;
+export function derived<T, TChange = void>(computeFnOrOwner: ((reader: IDerivedReader<TChange>) => T) | DebugOwner, computeFn?: ((reader: IDerivedReader<TChange>) => T) | undefined): IObservable<T> {
 	if (computeFn !== undefined) {
 		return new Derived(
 			new DebugNameData(computeFnOrOwner, undefined, computeFn),
@@ -188,7 +195,7 @@ export const enum DerivedState {
 	upToDate = 3,
 }
 
-export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> implements IReader, IObserver {
+export class Derived<T, TChangeSummary = any, TChange = void> extends BaseObservable<T, TChange> implements IDerivedReader<TChange>, IObserver {
 	private _state = DerivedState.initial;
 	private _value: T | undefined = undefined;
 	private _updateCount = 0;
@@ -197,6 +204,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 	private _changeSummary: TChangeSummary | undefined = undefined;
 	private _isUpdating = false;
 	private _isComputing = false;
+	private _didReportChange = false;
 
 	public override get debugName(): string {
 		return this._debugNameData.getDebugName(this) ?? '(anonymous)';
@@ -204,7 +212,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 
 	constructor(
 		public readonly _debugNameData: DebugNameData,
-		public readonly _computeFn: (reader: IReader, changeSummary: TChangeSummary) => T,
+		public readonly _computeFn: (reader: IDerivedReader<TChange>, changeSummary: TChangeSummary) => T,
 		private readonly _changeTracker: IChangeTracker<TChangeSummary> | undefined,
 		private readonly _handleLastObserverRemoved: (() => void) | undefined = undefined,
 		private readonly _equalityComparator: EqualityComparer<T>,
@@ -298,6 +306,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 		let didChange = false;
 
 		this._isComputing = true;
+		this._didReportChange = false;
 
 		try {
 			const changeSummary = this._changeSummary!;
@@ -319,7 +328,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 				this._dependenciesToBeRemoved.clear();
 			}
 
-			didChange = hadValue && !(this._equalityComparator(oldValue!, this._value));
+			didChange = this._didReportChange || (hadValue && !(this._equalityComparator(oldValue!, this._value)));
 
 			getLogger()?.handleObservableUpdated(this, {
 				oldValue,
@@ -334,10 +343,12 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 
 		this._isComputing = false;
 
-		if (didChange) {
+		if (!this._didReportChange) {
 			for (const r of this._observers) {
 				r.handleChange(this, undefined);
 			}
+		} else {
+			this._didReportChange = false;
 		}
 	}
 
@@ -447,6 +458,16 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 		this._dependencies.add(observable);
 		this._dependenciesToBeRemoved.delete(observable);
 		return value;
+	}
+
+	public reportChange(change: TChange): void {
+		if (!this._isReaderValid) { throw new BugIndicatingError('The reader object cannot be used outside its compute function!'); }
+
+		this._didReportChange = true;
+		// TODO add logging
+		for (const r of this._observers) {
+			r.handleChange(this, change);
+		}
 	}
 
 	public override addObserver(observer: IObserver): void {
