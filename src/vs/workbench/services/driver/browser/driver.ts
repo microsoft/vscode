@@ -259,6 +259,11 @@ export class BrowserWindowDriver implements IWindowDriver {
 
 		return { x, y };
 	}
+
+	async exitApplication(): Promise<void> {
+		// No-op in web
+	}
+
 }
 
 export function registerWindowDriver(instantiationService: IInstantiationService): void {

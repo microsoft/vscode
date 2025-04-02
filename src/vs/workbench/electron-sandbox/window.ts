@@ -68,7 +68,7 @@ import { Codicon } from '../../base/common/codicons.js';
 import { IUriIdentityService } from '../../platform/uriIdentity/common/uriIdentity.js';
 import { IPreferencesService } from '../services/preferences/common/preferences.js';
 import { IUtilityProcessWorkerWorkbenchService } from '../services/utilityProcess/electron-sandbox/utilityProcessWorkerWorkbenchService.js';
-import { registerWindowDriver } from '../services/driver/browser/driver.js';
+import { registerWindowDriver } from '../services/driver/electron-sandbox/driver.js';
 import { mainWindow } from '../../base/browser/window.js';
 import { BaseWindow } from '../browser/window.js';
 import { IHostService } from '../services/host/browser/host.js';
@@ -680,7 +680,7 @@ export class NativeWindow extends BaseWindow {
 
 		// Smoke Test Driver
 		if (this.environmentService.enableSmokeTestDriver) {
-			registerWindowDriver(this.instantiationService);
+			this.setupDriver();
 		}
 	}
 
@@ -736,6 +736,25 @@ export class NativeWindow extends BaseWindow {
 			delay: 1600,
 			buttons: [localize('learnMore', "Learn More")]
 		}, () => shellEnv, () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2149667'));
+	}
+
+	private setupDriver(): void {
+		const that = this;
+		let pendingQuit = false;
+
+		registerWindowDriver(this.instantiationService, {
+			async exitApplication(): Promise<void> {
+				if (pendingQuit) {
+					that.logService.info('[driver] not handling exitApplication() due to pending quit() call');
+					return;
+				}
+
+				that.logService.info('[driver] handling exitApplication()');
+
+				pendingQuit = true;
+				return that.nativeHostService.quit();
+			}
+		});
 	}
 
 	async resolveExternalUri(uri: URI, options?: OpenOptions): Promise<IResolvedExternalUri | undefined> {
