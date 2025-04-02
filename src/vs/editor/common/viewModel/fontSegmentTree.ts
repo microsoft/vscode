@@ -62,7 +62,29 @@ export class FontSegmentTree {
 	) { }
 
 	public insert(decorationId: string, fontDecoration: FontDecoration): void {
-
+		const startColumn = fontDecoration.startColumn;
+		const endColumn = fontDecoration.endColumn;
+		const newSegments: FontSegment[] = [];
+		for (let i = 0; i < this._segments.length; i++) {
+			const segment = this._segments[i];
+			if (segment.endColumn < startColumn) {
+				newSegments.push(segment);
+			} else if (segment.startColumn > endColumn) {
+				newSegments.push(segment);
+			} else {
+				if (segment.startColumn < startColumn) {
+					newSegments.push(new FontSegment(segment.startColumn, startColumn - 1, segment.fontInfo, segment.sources));
+				}
+				if (endColumn < segment.endColumn) {
+					newSegments.push(new FontSegment(endColumn + 1, segment.endColumn, segment.fontInfo, segment.sources));
+				}
+				const sources = segment.sources;
+				sources.push(decorationId);
+				const mergedSegmentFontInfo = this._getMergedFontInfo(sources);
+				newSegments.push(new FontSegment(Math.max(segment.startColumn, startColumn), Math.min(segment.endColumn, endColumn), mergedSegmentFontInfo, sources));
+			}
+		}
+		this._segments = newSegments;
 	}
 
 	public remove(decorationId: string, fontDecoration: FontDecoration): void {
@@ -70,16 +92,13 @@ export class FontSegmentTree {
 		let lastFontSegment: FontSegment | undefined = undefined;
 		for (let i = 0; i < this._segments.length; i++) {
 			const segment = this._segments[i];
-			// TODO: optimize this further
 			const sources = segment.sources;
 			const indexOfDecorationId = sources.indexOf(decorationId);
 			if (indexOfDecorationId > -1) {
-				// Need to recompute the segment
 				sources.splice(indexOfDecorationId, 1);
 				if (sources.length > 0) {
 					const mergedSegmentFontInfo = this._getMergedFontInfo(sources);
 					if (lastFontSegment && lastFontSegment.fontInfo.equals(mergedSegmentFontInfo) && segment.startColumn === lastFontSegment.endColumn + 1) {
-						// Merge with the last segment
 						lastFontSegment.endColumn = segment.endColumn;
 						lastFontSegment.sources = sources;
 					} else {
