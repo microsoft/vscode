@@ -1219,7 +1219,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 
 					if (pane) {
-						entry?.getEditorIntegration(pane).reveal(true);
+						entry?.getEditorIntegration(pane).reveal(true, e.editorOptions.preserveFocus);
 					}
 				}
 			}));

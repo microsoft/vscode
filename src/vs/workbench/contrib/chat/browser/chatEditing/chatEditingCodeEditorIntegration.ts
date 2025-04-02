@@ -486,7 +486,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 
 	// ---- navigation logic
 
-	reveal(firstOrLast: boolean): void {
+	reveal(firstOrLast: boolean, preserveFocus?: boolean): void {
 
 		const decorations = this._diffLineDecorations
 			.getRanges()
@@ -497,7 +497,9 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		if (range) {
 			this._editor.setPosition(range.getStartPosition());
 			this._editor.revealRange(range);
-			this._editor.focus();
+			if (!preserveFocus) {
+				this._editor.focus();
+			}
 			this._currentIndex.set(index, undefined);
 		}
 	}
