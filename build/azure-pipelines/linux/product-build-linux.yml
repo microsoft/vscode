@@ -1,6 +1,8 @@
 parameters:
   - name: VSCODE_QUALITY
     type: string
+  - name: VSCODE_ARCH
+    type: string
   - name: VSCODE_CIBUILD
     type: boolean
   - name: VSCODE_RUN_UNIT_TESTS
@@ -9,8 +11,6 @@ parameters:
     type: boolean
   - name: VSCODE_RUN_SMOKE_TESTS
     type: boolean
-  - name: VSCODE_ARCH
-    type: string
   - name: VSCODE_TEST_ARTIFACT_NAME
     type: string
     default: ""

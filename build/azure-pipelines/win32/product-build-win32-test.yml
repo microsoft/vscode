@@ -9,6 +9,8 @@ parameters:
     type: boolean
   - name: VSCODE_RUN_SMOKE_TESTS
     type: boolean
+  - name: VSCODE_TEST_ARTIFACT_NAME
+    type: string
   - name: PUBLISH_TASK_NAME
     type: string
     default: PublishPipelineArtifact@0
@@ -175,12 +177,10 @@ steps:
     - task: ${{ parameters.PUBLISH_TASK_NAME }}
       inputs:
         targetPath: .build\crashes
-        ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
-          artifactName: crash-dump-windows-$(VSCODE_ARCH)-integration-$(System.JobAttempt)
-        ${{ elseif and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
-          artifactName: crash-dump-windows-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
-        ${{ else }}:
+        ${{ if eq(parameters.VSCODE_TEST_ARTIFACT_NAME, '') }}:
           artifactName: crash-dump-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
+        ${{ else }}:
+          artifactName: crash-dump-windows-$(VSCODE_ARCH)-${{ parameters.VSCODE_TEST_ARTIFACT_NAME }}-$(System.JobAttempt)
         sbomEnabled: false
       displayName: "Publish Crash Reports"
       continueOnError: true
@@ -191,12 +191,10 @@ steps:
     - task: ${{ parameters.PUBLISH_TASK_NAME }}
       inputs:
         targetPath: node_modules
-        ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
-          artifactName: node-modules-windows-$(VSCODE_ARCH)-integration-$(System.JobAttempt)
-        ${{ elseif and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
-          artifactName: node-modules-windows-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
-        ${{ else }}:
+        ${{ if eq(parameters.VSCODE_TEST_ARTIFACT_NAME, '') }}:
           artifactName: node-modules-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
+        ${{ else }}:
+          artifactName: node-modules-windows-$(VSCODE_ARCH)-${{ parameters.VSCODE_TEST_ARTIFACT_NAME }}-$(System.JobAttempt)
         sbomEnabled: false
       displayName: "Publish Node Modules"
       continueOnError: true
@@ -205,12 +203,10 @@ steps:
     - task: ${{ parameters.PUBLISH_TASK_NAME }}
       inputs:
         targetPath: .build\logs
-        ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
-          artifactName: logs-windows-$(VSCODE_ARCH)-integration-$(System.JobAttempt)
-        ${{ elseif and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
-          artifactName: logs-windows-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
-        ${{ else }}:
+        ${{ if eq(parameters.VSCODE_TEST_ARTIFACT_NAME, '') }}:
           artifactName: logs-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
+        ${{ else }}:
+          artifactName: logs-windows-$(VSCODE_ARCH)-${{ parameters.VSCODE_TEST_ARTIFACT_NAME }}-$(System.JobAttempt)
         sbomEnabled: false
       displayName: "Publish Log Files"
       continueOnError: true
