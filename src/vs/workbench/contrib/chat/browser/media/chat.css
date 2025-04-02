@@ -152,7 +152,7 @@
 
 .interactive-item-container .header .monaco-toolbar .action-label {
 	border: 1px solid transparent;
-	padding: 2px;
+	padding: 4px;
 }
 
 .interactive-item-container .header .monaco-toolbar {
@@ -918,7 +918,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-input-toolbars .chat-modelPicker-item .action-label {
 	height: 16px;
-	padding: 3px 0px 3px 6px;
+	padding: 4px 0px 4px 6px;
 	display: flex;
 	align-items: center;
 }
@@ -1139,7 +1139,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .action-item.chat-attached-context-attachment.chat-add-files {
-	height: 20px;
+	height: 24px;
 	color: var(--vscode-foreground);
 }
 
@@ -1157,7 +1157,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding: 0 4px;
 	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
 	border-radius: 4px;
-	height: 18px;
+	height: 22px;
 	max-width: 100%;
 	width: fit-content;
 }
