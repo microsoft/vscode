@@ -53,6 +53,7 @@ stages:
           steps:
             - template: linux/product-build-linux.yml@self
               parameters:
+                JOB_NAME: $(System.JobName)
                 VSCODE_ARCH: x64
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
@@ -76,6 +77,7 @@ stages:
           steps:
             - template: linux/product-build-linux.yml@self
               parameters:
+                JOB_NAME: $(System.JobName)
                 VSCODE_ARCH: x64
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
@@ -99,6 +101,7 @@ stages:
           steps:
             - template: linux/product-build-linux.yml@self
               parameters:
+                JOB_NAME: $(System.JobName)
                 VSCODE_ARCH: x64
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}

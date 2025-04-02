@@ -21,6 +21,8 @@ parameters:
     type: boolean
   - name: VSCODE_RUN_SMOKE_TESTS_REMOTE
     type: boolean
+  - name: JOB_NAME
+    type: string
 
 steps:
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
@@ -299,6 +301,7 @@ steps:
   - ${{ if or(eq(parameters.VSCODE_RUN_UNIT_TESTS_ELECTRON, true), eq(parameters.VSCODE_RUN_UNIT_TESTS_BROWSER, true), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS_ELECTRON, true), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS_BROWSER, true), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS_REMOTE, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS_ELECTRON, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS_BROWSER, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS_REMOTE, true)) }}:
     - template: product-build-linux-test.yml@self
       parameters:
+        JOB_NAME: ${{ parameters.JOB_NAME }}
         VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
         VSCODE_RUN_UNIT_TESTS_ELECTRON: ${{ parameters.VSCODE_RUN_UNIT_TESTS_ELECTRON }}
         VSCODE_RUN_UNIT_TESTS_BROWSER: ${{ parameters.VSCODE_RUN_UNIT_TESTS_BROWSER }}

@@ -17,6 +17,8 @@ parameters:
     type: boolean
   - name: VSCODE_RUN_SMOKE_TESTS_REMOTE
     type: boolean
+  - name: JOB_NAME
+    type: string
   - name: PUBLISH_TASK_NAME
     type: string
     default: PublishPipelineArtifact@0
@@ -227,7 +229,7 @@ steps:
     - task: ${{ parameters.PUBLISH_TASK_NAME }}
       inputs:
         targetPath: .build/crashes
-        artifactName: crash-dump-linux-$(VSCODE_ARCH)-$(System.JobName)-$(System.JobAttempt)
+        artifactName: crash-dump-linux-$(VSCODE_ARCH)-${{ parameters.JOB_NAME }}-$(System.JobAttempt)
         sbomEnabled: false
       displayName: "Publish Crash Reports"
       continueOnError: true
@@ -238,7 +240,7 @@ steps:
     - task: ${{ parameters.PUBLISH_TASK_NAME }}
       inputs:
         targetPath: node_modules
-        artifactName: node-modules-linux-$(VSCODE_ARCH)-$(System.JobName)-$(System.JobAttempt)
+        artifactName: node-modules-linux-$(VSCODE_ARCH)-${{ parameters.JOB_NAME }}-$(System.JobAttempt)
         sbomEnabled: false
       displayName: "Publish Node Modules"
       continueOnError: true
@@ -247,7 +249,7 @@ steps:
     - task: ${{ parameters.PUBLISH_TASK_NAME }}
       inputs:
         targetPath: .build/logs
-        artifactName: logs-linux-$(VSCODE_ARCH)-$(System.JobName)-$(System.JobAttempt)
+        artifactName: logs-linux-$(VSCODE_ARCH)-${{ parameters.JOB_NAME }}-$(System.JobAttempt)
         sbomEnabled: false
       displayName: "Publish Log Files"
       continueOnError: true
