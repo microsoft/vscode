@@ -22,8 +22,8 @@
 .file-icon-themable-tree .monaco-list-row .content .monaco-highlighted-label::highlight(label-highlight),
 .monaco-tl-contents .monaco-highlighted-label::highlight(label-highlight) {
 	color: unset !important;
-	background-color: var(--vscode-list-filterMatchBackground, red); /* TODO: var not being resolved? */
-	border: 1px dotted var(--vscode-list-filterMatchBorder); /* TODO: this causes the contents to shift around because of the added border */
+	background-color: var(--vscode-list-filterMatchBackground);
+	border: 1px dotted var(--vscode-list-filterMatchBorder);
 	box-sizing: border-box;
 }
 
