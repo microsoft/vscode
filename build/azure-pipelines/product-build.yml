@@ -582,6 +582,7 @@ extends:
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                      VSCODE_TEST_ARTIFACT_NAME: electron
                       VSCODE_RUN_ELECTRON_TESTS: true
               - job: macOSBrowserTest
                 displayName: Browser Tests
@@ -593,7 +594,7 @@ extends:
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                      VSCODE_TEST_ARTIFACT_NAME: integration
+                      VSCODE_TEST_ARTIFACT_NAME: browser
                       VSCODE_RUN_BROWSER_TESTS: true
               - job: macOSRemoteTest
                 displayName: Remote Tests
@@ -605,7 +606,7 @@ extends:
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                      VSCODE_TEST_ARTIFACT_NAME: smoke
+                      VSCODE_TEST_ARTIFACT_NAME: remote
                       VSCODE_RUN_REMOTE_TESTS: true
 
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS, true)) }}:

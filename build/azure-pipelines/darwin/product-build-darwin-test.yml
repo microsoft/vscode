@@ -167,12 +167,10 @@ steps:
   - task: 1ES.PublishPipelineArtifact@1
     inputs:
       targetPath: .build/crashes
-      ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
-        artifactName: crash-dump-macos-$(VSCODE_ARCH)-integration-$(System.JobAttempt)
-      ${{ elseif and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
-        artifactName: crash-dump-macos-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
-      ${{ else }}:
+      ${{ if eq(parameters.VSCODE_TEST_ARTIFACT_NAME, '') }}:
         artifactName: crash-dump-macos-$(VSCODE_ARCH)-$(System.JobAttempt)
+      ${{ else }}:
+        artifactName: crash-dump-macos-$(VSCODE_ARCH)-${{ parameters.VSCODE_TEST_ARTIFACT_NAME }}-$(System.JobAttempt)
       sbomEnabled: false
     displayName: "Publish Crash Reports"
     continueOnError: true
@@ -183,12 +181,10 @@ steps:
   - task: 1ES.PublishPipelineArtifact@1
     inputs:
       targetPath: node_modules
-      ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
-        artifactName: node-modules-macos-$(VSCODE_ARCH)-integration-$(System.JobAttempt)
-      ${{ elseif and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
-        artifactName: node-modules-macos-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
-      ${{ else }}:
+      ${{ if eq(parameters.VSCODE_TEST_ARTIFACT_NAME, '') }}:
         artifactName: node-modules-macos-$(VSCODE_ARCH)-$(System.JobAttempt)
+      ${{ else }}:
+        artifactName: node-modules-macos-$(VSCODE_ARCH)-${{ parameters.VSCODE_TEST_ARTIFACT_NAME }}-$(System.JobAttempt)
       sbomEnabled: false
     displayName: "Publish Node Modules"
     continueOnError: true
@@ -197,12 +193,10 @@ steps:
   - task: 1ES.PublishPipelineArtifact@1
     inputs:
       targetPath: .build/logs
-      ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
-        artifactName: logs-macos-$(VSCODE_ARCH)-integration-$(System.JobAttempt)
-      ${{ elseif and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
-        artifactName: logs-macos-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
-      ${{ else }}:
+      ${{ if eq(parameters.VSCODE_TEST_ARTIFACT_NAME, '') }}:
         artifactName: logs-macos-$(VSCODE_ARCH)-$(System.JobAttempt)
+      ${{ else }}:
+        artifactName: logs-macos-$(VSCODE_ARCH)-${{ parameters.VSCODE_TEST_ARTIFACT_NAME }}-$(System.JobAttempt)
       sbomEnabled: false
     displayName: "Publish Log Files"
     continueOnError: true
