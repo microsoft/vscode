@@ -208,10 +208,17 @@ export class Code {
 
 	private kill(pid: number): void {
 		try {
-			this.logger.log(`Smoke test exit(): Trying to SIGTERM process: ${pid}`);
+			process.kill(pid, 0); // throws an exception if the process doesn't exist anymore.
+		} catch (e) {
+			this.logger.log('Smoke test kill(): returning early because process does not exist anymore');
+			return;
+		}
+
+		try {
+			this.logger.log(`Smoke test kill(): Trying to SIGTERM process: ${pid}`);
 			process.kill(pid);
 		} catch (e) {
-			this.logger.log('Smoke test exit(): SIGTERM failed', e);
+			this.logger.log('Smoke test kill(): SIGTERM failed', e);
 		}
 	}
 
