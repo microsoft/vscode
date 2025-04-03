@@ -168,27 +168,32 @@ export class ApplyCodeBlockOperation {
 	}
 
 	private async evaluateURIToUse(resource: URI | undefined, activeEditorControl: IActiveCodeEditor | undefined): Promise<URI | undefined> {
-		if (resource && await this.fileService.exists(resource)) {
-			return resource;
-		}
+		const isExistingFile = resource && await this.fileService.exists(resource);
 
 		const activeEditorOption = activeEditorControl?.getModel().uri ? { label: localize('activeEditor', "Active editor '{0}'", this.labelService.getUriLabel(activeEditorControl.getModel().uri, { relative: true })), id: 'activeEditor' } : undefined;
 		const untitledEditorOption = { label: localize('newUntitledFile', "New untitled editor"), id: 'newUntitledFile' };
 
 		const options = [];
 		if (resource) {
-			// code block had an URI, but it doesn't exist
-			options.push({ label: localize('createFile', "New file '{0}'", this.labelService.getUriLabel(resource, { relative: true })), id: 'createFile' });
-			options.push(untitledEditorOption);
-			if (activeEditorOption) {
-				options.push(activeEditorOption);
+			if (isExistingFile) {
+				options.push({ label: this.labelService.getUriLabel(resource, { relative: true }), id: 'existingFile' });
+			} else {
+				// code block had an URI, but it doesn't exist
+				options.push({ label: localize('createFile', "New file '{0}'", this.labelService.getUriLabel(resource, { relative: true })), id: 'createFile' });
+				options.push(untitledEditorOption);
+				if (activeEditorOption) {
+					options.push(activeEditorOption);
+				}
 			}
+
 		} else {
 			// code block had no URI
 			if (activeEditorOption) {
 				options.push(activeEditorOption);
 			}
-			options.push(untitledEditorOption);
+			if (!isExistingFile) {
+				options.push(untitledEditorOption);
+			}
 		}
 
 		const selected = options.length > 1 ? await this.quickInputService.pick(options, { placeHolder: localize('selectOption', "Select where to apply the code block") }) : options[0];
@@ -208,6 +213,8 @@ export class ApplyCodeBlockOperation {
 					return URI.from({ scheme: 'untitled', path: resource ? resource.path : 'Untitled-1' });
 				case 'activeEditor':
 					return activeEditorControl?.getModel().uri;
+				case 'existingFile':
+					return resource;
 			}
 		}
 		return undefined;
