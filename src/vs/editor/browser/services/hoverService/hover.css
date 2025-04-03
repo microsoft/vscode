@@ -36,6 +36,7 @@
 	/* Given our font-size, adjust action icons accordingly */
 	width: 12px;
 	height: 12px;
+	padding: 6px;
 }
 
 .monaco-workbench .workbench-hover.compact .hover-contents {

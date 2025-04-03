@@ -41,7 +41,7 @@
 .settings-editor > .settings-header > .search-container > .settings-count-widget {
 	position: absolute;
 	right: 54px;
-	top: 0px;
+	top: 2px;
 	margin: 4px 0px;
 }
 
@@ -53,7 +53,7 @@
 	display: flex;
 	align-items: center;
 	position: absolute;
-	top: 2px;
+	top: 0;
 	right: 4px;
 	height: 100%;
 	/* width: 43px; */

@@ -261,6 +261,7 @@
 .extension-list-item .monaco-action-bar > .actions-container > .action-item.action-dropdown-item,
 .extension-list-item .monaco-action-bar > .actions-container > .action-item:not(.action-dropdown-item) > .extension-action {
 	margin-left: 6px;
+	padding: 4px;
 }
 
 .extension-list-item .monaco-action-bar > .actions-container > .action-item.action-dropdown-item:not(.empty) > .extension-action.label {
@@ -287,6 +288,7 @@
 
 /* split install */
 .extension-list-item .monaco-action-bar > .actions-container > .action-item.action-dropdown-item:not(.empty) > .extension-action.label:not(.dropdown) {
+	padding: 1px 0px;
 	border-radius: 2px 0 0 2px;
 }
 .extension-list-item .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .monaco-dropdown .extension-action {

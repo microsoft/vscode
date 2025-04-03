@@ -263,7 +263,7 @@
 }
 
 .viewpane-filter-container > .viewpane-filter .monaco-inputbox {
-	height: 24px;
+	height: 30px;
 	font-size: 12px;
 	flex: 1;
 }
@@ -276,6 +276,11 @@
 .monaco-workbench.vs .viewpane-filter-container > .viewpane-filter .monaco-inputbox {
 	height: 25px;
 }
+
+.monaco-workbench.vs .viewpane-filter-container > .viewpane-filter .monaco-inputbox > .ibwrapper {
+	height: 100%;
+}
+
 
 .viewpane-filter-container > .viewpane-filter > .viewpane-filter-controls {
 	position: absolute;
