@@ -250,11 +250,12 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		if (!supportsVision && this.currentLanguageModel) {
 			this.element.classList.add('warning');
 			hoverElement.textContent = localize('chat.fileAttachmentHover', "{0} does not support this {1} type.", currentLanguageModelName, 'image');
-			this._register(this.hoverService.setupManagedHover(hoverDelegate, this.element, hoverElement, { trapFocus: true }));
+			this._register(this.hoverService.setupDelayedHover(this.element, { content: hoverElement, appearance: { showPointer: true } }));
 		} else {
 			const buffer = attachment.value as Uint8Array;
-			this.createImageElements(buffer, this.element, hoverElement);
-			this._register(this.hoverService.setupManagedHover(hoverDelegate, this.element, hoverElement, { trapFocus: false }));
+			const reference = attachment.references?.length && URI.isUri(attachment.references[0].reference) ? attachment.references[0].reference : undefined;
+			this.createImageElements(buffer, this.element, hoverElement, reference);
+			this._register(this.hoverService.setupDelayedHover(this.element, { content: hoverElement, appearance: { showPointer: true } }));
 		}
 
 		if (resource) {
@@ -264,7 +265,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		this.attachClearButton();
 	}
 
-	private createImageElements(buffer: ArrayBuffer | Uint8Array, widget: HTMLElement, hoverElement: HTMLElement) {
+	private createImageElements(buffer: ArrayBuffer | Uint8Array, widget: HTMLElement, hoverElement: HTMLElement, reference?: URI): void {
 		const blob = new Blob([buffer], { type: 'image/png' });
 		const url = URL.createObjectURL(blob);
 		const pillImg = dom.$('img.chat-attached-context-pill-image', { src: url, alt: '' });
@@ -275,10 +276,22 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 			existingPill.replaceWith(pill);
 		}
 
+		const imageContainer = dom.$('div.chat-attached-context-image-container');
 		const hoverImage = dom.$('img.chat-attached-context-image', { src: url, alt: '' });
+		imageContainer.appendChild(hoverImage);
+		hoverElement.appendChild(imageContainer);
 
-		// Update hover image
-		hoverElement.appendChild(hoverImage);
+		if (reference) {
+			const urlContainer = dom.$('a.chat-attached-context-url');
+			const separator = dom.$('div.chat-attached-context-url-separator');
+
+			const clickHandler = () => { this.openResource(reference, false, undefined); };
+			this._register(addDisposableListener(urlContainer, 'click', clickHandler));
+
+			urlContainer.textContent = reference.toString();
+			hoverElement.appendChild(separator);
+			hoverElement.appendChild(urlContainer);
+		}
 
 		hoverImage.onload = () => {
 			URL.revokeObjectURL(url);
