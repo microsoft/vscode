@@ -341,7 +341,7 @@ extends:
             - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
               - job: WindowsElectronTests
                 displayName: Electron Tests
-                timeoutInMinutes: 60
+                timeoutInMinutes: 30
                 variables:
                   VSCODE_ARCH: x64
                 steps:
@@ -354,7 +354,7 @@ extends:
                       VSCODE_RUN_ELECTRON_TESTS: true
               - job: WindowsBrowserTests
                 displayName: Browser Tests
-                timeoutInMinutes: 60
+                timeoutInMinutes: 30
                 variables:
                   VSCODE_ARCH: x64
                 steps:
@@ -367,7 +367,7 @@ extends:
                       VSCODE_RUN_BROWSER_TESTS: true
               - job: WindowsRemoteTests
                 displayName: Remote Tests
-                timeoutInMinutes: 60
+                timeoutInMinutes: 30
                 variables:
                   VSCODE_ARCH: x64
                 steps:
@@ -437,6 +437,7 @@ extends:
             - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
               - job: Linuxx64ElectronTest
                 displayName: Electron Tests
+                timeoutInMinutes: 30
                 variables:
                   VSCODE_ARCH: x64
                   NPM_ARCH: x64
@@ -451,6 +452,7 @@ extends:
                       VSCODE_RUN_ELECTRON_TESTS: true
               - job: Linuxx64BrowserTest
                 displayName: Browser Tests
+                timeoutInMinutes: 30
                 variables:
                   VSCODE_ARCH: x64
                   NPM_ARCH: x64
@@ -465,6 +467,7 @@ extends:
                       VSCODE_RUN_BROWSER_TESTS: true
               - job: Linuxx64RemoteTest
                 displayName: Remote Tests
+                timeoutInMinutes: 30
                 variables:
                   VSCODE_ARCH: x64
                   NPM_ARCH: x64
@@ -577,7 +580,7 @@ extends:
             - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
               - job: macOSElectronTest
                 displayName: Electron Tests
-                timeoutInMinutes: 90
+                timeoutInMinutes: 30
                 variables:
                   VSCODE_ARCH: arm64
                 steps:
@@ -589,7 +592,7 @@ extends:
                       VSCODE_RUN_ELECTRON_TESTS: true
               - job: macOSBrowserTest
                 displayName: Browser Tests
-                timeoutInMinutes: 90
+                timeoutInMinutes: 30
                 variables:
                   VSCODE_ARCH: arm64
                 steps:
@@ -601,7 +604,7 @@ extends:
                       VSCODE_RUN_BROWSER_TESTS: true
               - job: macOSRemoteTest
                 displayName: Remote Tests
-                timeoutInMinutes: 90
+                timeoutInMinutes: 30
                 variables:
                   VSCODE_ARCH: arm64
                 steps:
