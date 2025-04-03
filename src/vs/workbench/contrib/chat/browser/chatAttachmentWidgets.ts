@@ -5,7 +5,7 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { $, addDisposableListener } from '../../../../base/browser/dom.js';
+import { $ } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
@@ -252,8 +252,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 			this._register(this.hoverService.setupDelayedHover(this.element, { content: hoverElement, appearance: { showPointer: true } }));
 		} else {
 			const buffer = attachment.value as Uint8Array;
-			const reference = URI.isUri(ref) ? ref : undefined;
-			this.createImageElements(buffer, this.element, hoverElement, reference);
+			this.createImageElements(buffer, this.element, hoverElement, URI.isUri(ref) ? ref : undefined);
 			this._register(this.hoverService.setupDelayedHover(this.element, { content: hoverElement, appearance: { showPointer: true } }));
 		}
 
@@ -275,21 +274,15 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 			existingPill.replaceWith(pill);
 		}
 
-		const imageContainer = dom.$('div.chat-attached-context-image-container');
 		const hoverImage = dom.$('img.chat-attached-context-image', { src: url, alt: '' });
-		imageContainer.appendChild(hoverImage);
+		const imageContainer = dom.$('div.chat-attached-context-image-container', {}, hoverImage);
 		hoverElement.appendChild(imageContainer);
 
 		if (reference) {
-			const urlContainer = dom.$('a.chat-attached-context-url');
+			const urlContainer = dom.$('a.chat-attached-context-url', {}, reference.toString());
 			const separator = dom.$('div.chat-attached-context-url-separator');
-
-			const clickHandler = () => { this.openResource(reference, false, undefined); };
-			this._register(addDisposableListener(urlContainer, 'click', clickHandler));
-
-			urlContainer.textContent = reference.toString();
-			hoverElement.appendChild(separator);
-			hoverElement.appendChild(urlContainer);
+			this._register(dom.addDisposableListener(urlContainer, 'click', () => this.openResource(reference, false, undefined)));
+			hoverElement.append(separator, urlContainer);
 		}
 
 		hoverImage.onload = () => {

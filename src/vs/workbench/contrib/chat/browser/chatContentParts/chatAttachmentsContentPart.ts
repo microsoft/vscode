@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { addDisposableListener } from '../../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { IManagedHoverTooltipMarkdownString } from '../../../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate.js';
@@ -285,21 +284,15 @@ export class ChatAttachmentsContentPart extends Disposable {
 			existingPill.replaceWith(pill);
 		}
 
-		const imageContainer = dom.$('div.chat-attached-context-image-container');
 		const hoverImage = dom.$('img.chat-attached-context-image', { src: url, alt: '' });
-		imageContainer.appendChild(hoverImage);
+		const imageContainer = dom.$('div.chat-attached-context-image-container', {}, hoverImage);
 		hoverElement.appendChild(imageContainer);
 
 		if (reference) {
-			const urlContainer = dom.$('a.chat-attached-context-url');
+			const urlContainer = dom.$('a.chat-attached-context-url', {}, reference.toString());
 			const separator = dom.$('div.chat-attached-context-url-separator');
-
-			const clickHandler = () => { this.openResource(reference, false, undefined); };
-			this._register(addDisposableListener(urlContainer, 'click', clickHandler));
-
-			urlContainer.textContent = reference.toString();
-			hoverElement.appendChild(separator);
-			hoverElement.appendChild(urlContainer);
+			this._register(dom.addDisposableListener(urlContainer, 'click', () => this.openResource(reference, false, undefined)));
+			hoverElement.append(separator, urlContainer);
 		}
 
 		hoverImage.onload = () => {
