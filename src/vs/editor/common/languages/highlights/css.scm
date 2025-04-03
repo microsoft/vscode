@@ -13,6 +13,8 @@
   "*="
 ] @keyword.operator.css
 
+("+") @keyword.operator.combinator.css
+
 (comment) @comment.block.css
 
 ; Selectors
@@ -22,6 +24,8 @@
 (class_selector) @entity.other.attribute-name.class.css
 
 (tag_name) @entity.name.tag.css
+
+(universal_selector) @entity.name.tag.wildcard.css
 
 (pseudo_class_selector) @entity.other.attribute-name.pseudo-class.css
 
