@@ -114,7 +114,7 @@ function getCurrentAndNextStop(requestId: string, stopId: string | undefined, hi
 	return { current, next };
 }
 
-function getFirstAndLastStop(uri: URI, history: readonly IChatEditingSessionSnapshot[]) {
+function getFirstAndLastStop(uri: URI, history: readonly IChatEditingSessionSnapshot[]): { current: ResourceMap<ISnapshotEntry>; next: ResourceMap<ISnapshotEntry> } | undefined {
 	let firstStopWithUri: IChatEditingSessionStop | undefined;
 	for (const snapshot of history) {
 		const stop = snapshot.stops.find(s => s.entries.has(uri));
@@ -124,11 +124,17 @@ function getFirstAndLastStop(uri: URI, history: readonly IChatEditingSessionSnap
 		}
 	}
 
-	let lastStopWithUri: IChatEditingSessionStop | undefined;
+	let lastStopWithUri: ResourceMap<ISnapshotEntry> | undefined;
 	for (let i = history.length - 1; i >= 0; i--) {
-		const stop = findLast(history[i].stops, s => s.entries.has(uri));
+		const snapshot = history[i];
+		if (snapshot.postEdit?.has(uri)) {
+			lastStopWithUri = snapshot.postEdit;
+			break;
+		}
+
+		const stop = findLast(snapshot.stops, s => s.entries.has(uri));
 		if (stop) {
-			lastStopWithUri = stop;
+			lastStopWithUri = stop.entries;
 			break;
 		}
 	}
@@ -137,7 +143,7 @@ function getFirstAndLastStop(uri: URI, history: readonly IChatEditingSessionSnap
 		return undefined;
 	}
 
-	return { current: firstStopWithUri.entries, next: lastStopWithUri.entries };
+	return { current: firstStopWithUri.entries, next: lastStopWithUri };
 }
 
 export class ChatEditingSession extends Disposable implements IChatEditingSession {
