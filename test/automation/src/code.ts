@@ -210,7 +210,7 @@ export class Code {
 		try {
 			process.kill(pid, 0); // throws an exception if the process doesn't exist anymore.
 		} catch (e) {
-			this.logger.log('Smoke test kill(): returning early because process does not exist');
+			this.logger.log('Smoke test kill(): returning early because process does not exist anymore');
 			return;
 		}
 
