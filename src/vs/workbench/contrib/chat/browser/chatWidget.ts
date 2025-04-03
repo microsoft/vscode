@@ -886,6 +886,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			});
 			this.refreshParsedInput();
 		}));
+		this._register(this.inputPart.onDidBlur(() => this.clearPromptCompletions()));
 		this._register(this.inputPart.onDidFocus(() => this._onDidFocus.fire()));
 		this._register(this.inputPart.onDidAcceptFollowup(e => {
 			if (!this.viewModel) {
