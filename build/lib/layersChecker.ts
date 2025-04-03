@@ -88,6 +88,8 @@ const CORE_TYPES = [
 	// node web types
 	'ReadableStreamDefaultReader',
 	'DOMException',
+	'localStorage',
+	'WebSocket',
 ];
 
 // Types that are defined in a common layer but are known to be only
