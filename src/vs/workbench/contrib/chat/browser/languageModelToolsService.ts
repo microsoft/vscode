@@ -14,8 +14,6 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
-import { Schemas } from '../../../../base/common/network.js';
-import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -33,7 +31,7 @@ import { ChatModel } from '../common/chatModel.js';
 import { ChatToolInvocation } from '../common/chatProgressTypes/chatToolInvocation.js';
 import { IChatService } from '../common/chatService.js';
 import { ChatConfiguration } from '../common/constants.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, stringifyPromptTsxPart } from '../common/languageModelToolsService.js';
+import { CountTokensCallback, createToolSchemaUri, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, stringifyPromptTsxPart } from '../common/languageModelToolsService.js';
 
 const jsonSchemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
@@ -107,7 +105,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		let store: DisposableStore | undefined;
 		if (toolData.inputSchema) {
 			store = new DisposableStore();
-			const schemaUrl = URI.from({ scheme: Schemas.vscode, authority: 'schemas', path: `/lm/tool/${toolData.id}` }).toString();
+			const schemaUrl = createToolSchemaUri(toolData.id).toString();
 			jsonSchemaRegistry.registerSchema(schemaUrl, toolData.inputSchema, store);
 			store.add(jsonSchemaRegistry.registerSchemaAssociation(schemaUrl, `/lm/tool/${toolData.id}/tool_input.json`));
 		}
