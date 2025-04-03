@@ -4,16 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../../../nls.js';
-import { IPromptsService } from '../../service/types.js';
+import { ProviderInstanceBase } from './providerInstanceBase.js';
 import { chatSlashCommandBackground } from '../../../chatColors.js';
-import { IPromptFileEditor } from './providerInstanceManagerBase.js';
 import { Color, RGBA } from '../../../../../../../base/common/color.js';
 import { IRange } from '../../../../../../../editor/common/core/range.js';
-import { TextModelPromptParser } from '../../parsers/textModelPromptParser.js';
+import { ProviderInstanceManagerBase } from './providerInstanceManagerBase.js';
 import { BaseToken } from '../../../../../../../editor/common/codecs/baseToken.js';
+import { TrackedRangeStickiness } from '../../../../../../../editor/common/model.js';
 import { ModelDecorationOptions } from '../../../../../../../editor/common/model/textModel.js';
-import { ObservableDisposable } from '../../../../../../../base/common/observableDisposable.js';
-import { ITextModel, TrackedRangeStickiness } from '../../../../../../../editor/common/model.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { contrastBorder, registerColor } from '../../../../../../../platform/theme/common/colorRegistry.js';
 import { IColorTheme, ICssStyleCollector, registerThemingParticipant } from '../../../../../../../platform/theme/common/themeService.js';
@@ -79,40 +77,16 @@ export enum DecorationClassNameModifiers {
 /**
  * Prompt syntax decorations provider for text models.
  */
-export class TextModelPromptDecorator extends ObservableDisposable {
-	/**
-	 * Associated prompt parser instance.
-	 */
-	private readonly parser: TextModelPromptParser;
-
+export class TextModelPromptDecorator extends ProviderInstanceBase {
 	/**
 	 * List of IDs of registered text model decorations.
 	 */
 	private readonly registeredDecorationIDs: string[] = [];
 
-	constructor(
-		private readonly editor: IPromptFileEditor,
-		@IPromptsService promptsService: IPromptsService,
-	) {
-		super();
-
-		this.parser = promptsService.getSyntaxParserFor(this.model);
-		this.parser.onUpdate(this.onPromptParserUpdate.bind(this));
-		this.parser.onDispose(this.dispose.bind(this));
-		this.parser.start();
-	}
-
-	/**
-	 * Underlying text model of the editor.
-	 */
-	private get model(): ITextModel {
-		return this.editor.getModel();
-	}
-
 	/**
 	 * Handler for the prompt parser update event.
 	 */
-	private onPromptParserUpdate(): this {
+	protected override async onPromptParserUpdate(): Promise<this> {
 		// TODO: @legomushroom - update existing decorations instead of always recreating them every time
 		this.removeAllDecorations();
 		this.addDecorations();
@@ -374,3 +348,10 @@ const registerFrontMatterStyles = (
 		`${frontMatterHeaderInlineInactiveCssSelector} { ${inlineInactiveStyles.join(' ')} }`,
 	);
 };
+
+/**
+ * Provider for prompt syntax decorators on text models.
+ */
+export class PromptDecoratorsInstanceManager extends ProviderInstanceManagerBase<TextModelPromptDecorator> {
+	protected override readonly InstanceClass = TextModelPromptDecorator;
+}

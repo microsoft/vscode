@@ -6,7 +6,7 @@
 import { PromptLinkProvider } from './promptLinkProvider.js';
 import { isWindows } from '../../../../../../../base/common/platform.js';
 import { PromptPathAutocompletion } from './promptPathAutocompletion.js';
-import { PromptDecoratorsInstanceManager } from './promptDecoratorsInstanceManager.js';
+import { PromptDecoratorsInstanceManager } from './textModelPromptDecorator.js';
 import { Registry } from '../../../../../../../platform/registry/common/platform.js';
 import { LifecyclePhase } from '../../../../../../services/lifecycle/common/lifecycle.js';
 import { PromptLinkDiagnosticsInstanceManager } from './promptLinkDiagnosticsProvider.js';
