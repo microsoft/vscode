@@ -86,6 +86,7 @@ import '../platform/userDataProfile/electron-sandbox/userDataProfileStorageServi
 import './services/auxiliaryWindow/electron-sandbox/auxiliaryWindowService.js';
 import '../platform/extensionManagement/electron-sandbox/extensionsProfileScannerService.js';
 import '../platform/webContentExtractor/electron-sandbox/webContentExtractorService.js';
+import './services/tracing/electron-sandbox/tracingService.js';
 
 import { registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { IUserDataInitializationService, UserDataInitializationService } from './services/userData/browser/userDataInit.js';

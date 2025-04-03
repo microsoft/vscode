@@ -27,6 +27,8 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { localize } from '../../../../nls.js';
 import { WebFileSystemAccess } from '../../../../platform/files/browser/webFileSystemAccess.js';
 import { revive } from '../../../../base/common/marshalling.js';
+import { ITracingService } from '../../tracing/common/tracing.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 
 export class RemoteSearchService extends SearchService {
 	constructor(
@@ -38,8 +40,10 @@ export class RemoteSearchService extends SearchService {
 		@IFileService fileService: IFileService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@ITracingService tracingService: ITracingService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
 	) {
-		super(modelService, editorService, telemetryService, logService, extensionService, fileService, uriIdentityService);
+		super(modelService, editorService, telemetryService, logService, extensionService, fileService, uriIdentityService, tracingService, contextService);
 		const searchProvider = this.instantiationService.createInstance(LocalFileSearchWorkerClient);
 		this.registerSearchResultProvider(Schemas.file, SearchProviderType.file, searchProvider);
 		this.registerSearchResultProvider(Schemas.file, SearchProviderType.text, searchProvider);

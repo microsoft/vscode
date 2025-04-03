@@ -18,11 +18,13 @@ import { createDecorator, ServicesAccessor } from '../../../../platform/instanti
 import { ResourceFileEdit } from '../../../../editor/browser/services/bulkEditService.js';
 import { ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { isActiveElement } from '../../../../base/browser/dom.js';
+import { Event } from '../../../../base/common/event.js';
 
 export interface IExplorerService {
 	readonly _serviceBrand: undefined;
 	readonly roots: ExplorerItem[];
 	readonly sortOrderConfiguration: ISortOrderConfiguration;
+	readonly onDidChangeRoots: Event<void>;
 
 	getContext(respectMultiSelection: boolean, ignoreNestedChildren?: boolean): ExplorerItem[];
 	hasViewFocus(): boolean;

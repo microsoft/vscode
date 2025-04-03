@@ -1136,11 +1136,37 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	}
 
 	public findMatches(searchString: string, rawSearchScope: any, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean, limitResultCount: number = LIMIT_FIND_COUNT): model.FindMatch[] {
+		console.log('[TextModel] findMatches', {
+			searchString,
+			isRegex,
+			matchCase,
+			wordSeparators,
+			limitResultCount,
+			modelId: this.id,
+			modelPath: this.uri ? this.uri.path : 'unknown'
+		});
+
 		this._assertNotDisposed();
+		// this is a hack to infer whether the search is automatic or manually imposed by the user
+		if (limitResultCount === 19999) {
+			console.log('[TextModel] automatic search detected');
+			// Log search info but don't use tracingService which isn't available in this layer
+			console.log('[TextModel] search info:', {
+				type: 'findMatches',
+				timestamp: new Date().toISOString(),
+				searchString,
+				isRegex,
+				matchCase,
+				wordSeparators,
+				captureMatches,
+				limitResultCount
+			});
+		}
 
 		let searchRanges: Range[] | null = null;
 
 		if (rawSearchScope !== null) {
+			console.log('[TextModel] search scope provided', { rawSearchScope });
 			if (!Array.isArray(rawSearchScope)) {
 				rawSearchScope = [rawSearchScope];
 			}
@@ -1151,6 +1177,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		}
 
 		if (searchRanges === null) {
+			console.log('[TextModel] using full model range for search');
 			searchRanges = [this.getFullModelRange()];
 		}
 
@@ -1168,20 +1195,29 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 		let matchMapper: (value: Range, index: number, array: Range[]) => model.FindMatch[];
 		if (!isRegex && searchString.indexOf('\n') < 0) {
+			console.log('[TextModel] using line-by-line search');
 			// not regex, not multi line
 			const searchParams = new SearchParams(searchString, isRegex, matchCase, wordSeparators);
 			const searchData = searchParams.parseSearchRequest();
 
 			if (!searchData) {
+				console.log('[TextModel] no search data, returning empty results');
 				return [];
 			}
 
 			matchMapper = (searchRange: Range) => this.findMatchesLineByLine(searchRange, searchData, captureMatches, limitResultCount);
 		} else {
+			console.log('[TextModel] using TextModelSearch.findMatches');
 			matchMapper = (searchRange: Range) => TextModelSearch.findMatches(this, new SearchParams(searchString, isRegex, matchCase, wordSeparators), searchRange, captureMatches, limitResultCount);
 		}
 
-		return uniqueSearchRanges.map(matchMapper).reduce((arr, matches: model.FindMatch[]) => arr.concat(matches), []);
+		const results = uniqueSearchRanges.map(matchMapper).reduce((arr, matches: model.FindMatch[]) => arr.concat(matches), []);
+		console.log('[TextModel] search completed', {
+			resultsCount: results.length,
+			limitHit: results.length >= limitResultCount
+		});
+
+		return results;
 	}
 
 	public findNextMatch(searchString: string, rawSearchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean): model.FindMatch | null {

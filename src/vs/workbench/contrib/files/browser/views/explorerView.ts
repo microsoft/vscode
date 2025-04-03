@@ -55,6 +55,7 @@ import { EditorOpenSource } from '../../../../../platform/editor/common/editor.j
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { AbstractTreePart } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { ITracingService } from '../../../../../workbench/services/tracing/common/tracing.js';
 
 
 function hasExpandedRootChild(tree: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>, treeInput: ExplorerItem[]): boolean {
@@ -185,6 +186,12 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	private decorationsProvider: ExplorerDecorationsProvider | undefined;
 	private readonly delegate: IExplorerViewContainerDelegate | undefined;
 
+	// Trace-related properties
+	private lastKnownFileTree: any = null;
+	private lastFileTreeTimestamp: string | null = null;
+	private lastRecordedFileTreeHash: string | null = null;
+	private explorerChangeDisposable: IDisposable | null = null;
+
 	constructor(
 		options: IExplorerViewPaneOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -209,7 +216,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		@IFileService private readonly fileService: IFileService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IOpenerService openerService: IOpenerService
+		@IOpenerService openerService: IOpenerService,
+		@ITracingService private readonly tracingService: ITracingService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -229,8 +237,17 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this.viewHasSomeCollapsibleRootItem = ViewHasSomeCollapsibleRootItemContext.bindTo(contextKeyService);
 		this.viewVisibleContextKey = FoldersViewVisibleContext.bindTo(contextKeyService);
 
-
 		this.explorerService.registerView(this);
+
+		// Initialize explorer tracing
+		this.initializeExplorerTracing();
+
+		// Record file tree when explorer becomes visible
+		this._register(this.onDidChangeBodyVisibility(visible => {
+			if (visible) {
+				this.recordVisibleFilesTrace();
+			}
+		}));
 	}
 
 	get autoReveal() {
@@ -278,7 +295,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		const setHeader = () => {
 			titleElement.textContent = this.name;
 			this.updateTitle(this.name);
-			this.ariaHeaderLabel = nls.localize('explorerSection', "Explorer Section: {0}", this.name);
+			this.ariaHeaderLabel = nls.localize('explorerSection', 'Explorer Section: {0}', this.name);
 			titleElement.setAttribute('aria-label', this.ariaHeaderLabel);
 		};
 
@@ -515,6 +532,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this.onFocusChanged([]);
 		// Open when selecting via keyboard
 		this._register(this.tree.onDidOpen(async e => {
+			console.log('ExplorerView.onDidOpen', e);
 			const element = e.element;
 			if (!element) {
 				return;
@@ -523,9 +541,16 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			// Check if the item was previously also selected, if yes the user is simply expanding / collapsing current selection #66589.
 			const shiftDown = DOM.isKeyboardEvent(e.browserEvent) && e.browserEvent.shiftKey;
 			if (!shiftDown) {
-				if (element.isDirectory || this.explorerService.isEditable(undefined)) {
+				if (element.isDirectory) {
+					// For directories: just refresh to trigger workspace logging via existing mechanisms
+					await this.refresh(false, element);
+					// Generate workspace log when a directory is expanded
+					await this.recordVisibleFilesTrace(true);
+					return;
+				}
+
+				if (this.explorerService.isEditable(undefined)) {
 					// Do not react if user is clicking on explorer items while some are being edited #70276
-					// Do not react if clicking on directories
 					return;
 				}
 				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
@@ -555,6 +580,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			}
 			// Update showing expand / collapse button
 			this.updateAnyCollapsedContext();
+
+			this.recordVisibleFilesTrace();
 		}));
 
 		this.updateAnyCollapsedContext();
@@ -706,7 +733,10 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}
 
 		const toRefresh = item || this.tree.getInput();
-		return this.tree.updateChildren(toRefresh, recursive, !!item);
+		return this.tree.updateChildren(toRefresh, recursive, !!item).then(() => {
+			// Record the file tree when a refresh completes
+			return this.recordVisibleFilesTrace();
+		});
 	}
 
 	override getOptimalWidth(): number {
@@ -971,6 +1001,280 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this.dragHandler?.dispose();
 		super.dispose();
 	}
+
+	// Initializes explorer tracing functionality
+	private initializeExplorerTracing(): void {
+		console.log('[ExplorerView] initializeExplorerTracing');
+		// Clean up previous listener if it exists
+		if (this.explorerChangeDisposable) {
+			console.log('[ExplorerView] cleaning up previous tracing listener');
+			this.explorerChangeDisposable.dispose();
+		}
+
+		// Listen for explorer changes - only use events that actually exist
+		this.explorerChangeDisposable = this._register(
+			Event.debounce(
+				// The model only has onDidChangeRoots event
+				this.explorerService.onDidChangeRoots,
+				(last, current) => current,
+				500 // Debounce for 500ms to avoid excessive recordings during rapid changes
+			)(async () => {
+				console.log('[ExplorerView] roots changed, recording trace');
+				// Explorer changed, record trace after a short delay to ensure state is updated
+				await this.recordVisibleFilesTrace(true);
+			})
+		);
+	}
+
+	public async recordVisibleFilesTrace(forceRefresh: boolean = false): Promise<void> {
+		console.log('[ExplorerView] recordVisibleFilesTrace', { forceRefresh });
+
+		try {
+			// Wait a moment for the explorer state to fully update if this was triggered by a change
+			if (forceRefresh) {
+				console.log('[ExplorerView] waiting for explorer state to update');
+				await new Promise(resolve => setTimeout(resolve, 100));
+			}
+
+			let currentFileTree = null;
+
+			// If view is visible and initialized, build a new file tree
+			if (this.isBodyVisible() && this.tree) {
+				console.log('[ExplorerView] view available, building file tree');
+				try {
+					// Enhanced function to extract Python structure
+					const extractPythonStructure = async (filePath: string): Promise<string> => {
+						try {
+							const content = await this.fileService.readFile(URI.file(filePath));
+							const text = content.value.toString();
+							const lines = text.split('\n');
+							const structure: string[] = [];
+
+							// Regex patterns for different Python elements
+							const classPattern = /^(?:\s*)class\s+([^\(:]+)(?:\([^)]*\))?:/;
+							const functionPattern = /^(?:\s*)(?:async\s+)?def\s+([^(]+)\(([^)]*)\)(?:\s*->.*?)?:/;
+							const decoratorPattern = /^(?:\s*)@([\w.]+)(?:\(.*\))?/;
+
+							let decorators: string[] = [];
+
+							for (let i = 0; i < lines.length; i++) {
+								const line = lines[i];
+
+								// Skip empty lines and comments
+								if (line.trim() === '' || line.trim().startsWith('#')) {
+									continue;
+								}
+
+								// Capture decorators
+								const decoratorMatch = line.match(decoratorPattern);
+								if (decoratorMatch) {
+									decorators.push(`@${decoratorMatch[1]}`);
+									continue;
+								}
+
+								// Capture class definitions
+								const classMatch = line.match(classPattern);
+								if (classMatch) {
+									const indentation = line.match(/^\s*/)?.[0].length || 0;
+									const className = classMatch[1].trim();
+									structure.push(`${'  '.repeat(indentation / 2)}class ${className}:`);
+									decorators = []; // Reset decorators
+									continue;
+								}
+
+								// Capture function/method definitions
+								const functionMatch = line.match(functionPattern);
+								if (functionMatch) {
+									const indentation = line.match(/^\s*/)?.[0].length || 0;
+									const funcName = functionMatch[1].trim();
+									const params = functionMatch[2].trim();
+
+									// Add decorators first
+									for (const decorator of decorators) {
+										structure.push(`${'  '.repeat(indentation / 2)}${decorator}`);
+									}
+
+									structure.push(`${'  '.repeat(indentation / 2)}def ${funcName}(${params}):`);
+									decorators = []; // Reset decorators
+									continue;
+								}
+
+								// Reset decorators if not used
+								decorators = [];
+							}
+
+							return structure.join('\n');
+						} catch (error) {
+							console.error('[ExplorerView] extractPythonStructure error', error);
+							return '';
+						}
+					};
+
+					// Function to build the tree structure recursively
+					const buildFileTree = async (items: ExplorerItem[]): Promise<any> => {
+						//console.log('[ExplorerView] buildFileTree', { itemsCount: items.length });
+						const result: any = {
+							directory: {},
+							file: {}
+						};
+
+						for (const item of items) {
+							try {
+								const name = item.name;
+
+								if (item.isDirectory) {
+									// Get children and build subtree
+									// Force refresh expanded folders to get their contents
+									// Safely check if the item exists in the tree first
+									let isExpanded = false;
+									try {
+										if (this.tree.hasNode(item)) {
+											isExpanded = forceRefresh && !this.isItemCollapsed(item);
+										}
+									} catch (error) {
+										// Item not in tree, skip trying to refresh
+										console.log(`[ExplorerView] item not in tree, skipping refresh: ${item.resource.toString()}`);
+										isExpanded = false;
+									}
+
+									if (isExpanded) {
+										console.log('[ExplorerView] refreshing expanded directory', { name });
+										try {
+											await item.fetchChildren(this.explorerService.sortOrderConfiguration.sortOrder);
+										} catch (error) {
+											console.log(`[ExplorerView] failed to fetch children for ${item.resource.toString()}`, error);
+										}
+									}
+
+									const children = Array.from(item.children.values());
+									result.directory[name] = await buildFileTree(children);
+								} else {
+									// For Python files, extract structure
+									if (name.endsWith('.py')) {
+										const filePath = item.resource.fsPath;
+										result.file[name] = await extractPythonStructure(filePath);
+									} else {
+										result.file[name] = '';
+									}
+								}
+							} catch (error) {
+								console.log(`[ExplorerView] error processing item ${item.resource.toString()}`, error);
+								// Continue with next item
+							}
+						}
+
+						return result;
+					};
+
+					// Get all root items in the explorer
+					const rootItems = this.explorerService.roots;
+					console.log('[ExplorerView] processing root items', { count: rootItems.length });
+
+					// If we're forcing a refresh, ensure we have the latest root items
+					if (forceRefresh) {
+						try {
+							console.log('[ExplorerView] forcing view refresh');
+							await this.refresh(true);
+						} catch (error) {
+							console.error('[ExplorerView] error during forced refresh', error);
+						}
+					}
+
+					const rootChildren: ExplorerItem[] = [];
+
+					// Collect all visible children from root items
+					for (const root of rootItems) {
+						try {
+							if (forceRefresh && root.isDirectory) {
+								console.log('[ExplorerView] refreshing root directory', { resource: root.resource.toString() });
+								try {
+									await root.fetchChildren(this.explorerService.sortOrderConfiguration.sortOrder);
+								} catch (error) {
+									console.error(`[ExplorerView] error fetching children for root ${root.resource.toString()}`, error);
+								}
+							}
+
+							if (root.isDirectoryResolved) {
+								const children = Array.from(root.children.values());
+								console.log('[ExplorerView] adding children from root', {
+									root: root.resource.toString(),
+									childCount: children.length
+								});
+								rootChildren.push(...children);
+							}
+						} catch (error) {
+							console.error(`[ExplorerView] error processing root ${root.resource.toString()}`, error);
+						}
+					}
+
+					// Build the tree
+					console.log('[ExplorerView] starting tree building', { rootChildrenCount: rootChildren.length });
+					try {
+						currentFileTree = await buildFileTree(rootChildren);
+						console.log('[ExplorerView] tree building complete');
+						this.lastKnownFileTree = currentFileTree;
+						this.lastFileTreeTimestamp = new Date().toISOString();
+					} catch (error) {
+						console.error('[ExplorerView] error during tree building', error);
+						// Use last known tree if available
+						if (this.lastKnownFileTree) {
+							currentFileTree = this.lastKnownFileTree;
+						}
+					}
+				} catch (error) {
+					console.error('[ExplorerView] failed to build file tree:', error);
+					if (this.lastKnownFileTree) {
+						currentFileTree = this.lastKnownFileTree;
+					}
+				}
+			} else {
+				// If view not visible, use the last known file tree
+				console.log('[ExplorerView] view not visible, using cached tree');
+				currentFileTree = this.lastKnownFileTree;
+			}
+
+			// Only proceed if we have a file tree
+			if (currentFileTree) {
+				try {
+					// Generate a simple hash of the file tree to detect changes
+					const currentHash = JSON.stringify(currentFileTree);
+					console.log('[ExplorerView] checking for tree changes');
+
+					// Check if this is identical to the previously recorded tree
+					if (this.lastRecordedFileTreeHash !== currentHash) {
+						console.log('[ExplorerView] tree changed, recording trace');
+						// Different tree, record it
+						const _trace = {
+							type: 'explorer-file-tree',
+							timestamp: this.lastFileTreeTimestamp || new Date().toISOString(),
+							fileTree: currentFileTree,
+							explorerVisible: this.isBodyVisible(),
+							triggerType: forceRefresh ? 'explicitRefresh' : 'regularCheck'
+						};
+
+						// Record the trace
+						try {
+							await this.tracingService.recordTrace(_trace);
+							console.log('[ExplorerView] trace recorded successfully');
+							// Update the hash of the last recorded tree
+							this.lastRecordedFileTreeHash = currentHash;
+						} catch (error) {
+							console.error('[ExplorerView] error recording trace', error);
+						}
+					} else {
+						console.log('[ExplorerView] file tree unchanged, skipping trace recording');
+					}
+				} catch (error) {
+					console.error('[ExplorerView] failed to process file tree changes:', error);
+				}
+			} else {
+				console.log('[ExplorerView] no file tree available to record');
+			}
+		} catch (error) {
+			// Catch-all error handler to prevent tracing issues from breaking explorer functionality
+			console.error('[ExplorerView] critical error in recordVisibleFilesTrace:', error);
+		}
+	}
 }
 
 export function createFileIconThemableTreeContainerScope(container: HTMLElement, themeService: IThemeService): IDisposable {
@@ -997,7 +1301,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.files.action.createFileFromExplorer',
-			title: nls.localize('createNewFile', "New File..."),
+			title: nls.localize('createNewFile', 'New File...'),
 			f1: false,
 			icon: Codicon.newFile,
 			precondition: CanCreateContext,
@@ -1020,7 +1324,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.files.action.createFolderFromExplorer',
-			title: nls.localize('createNewFolder', "New Folder..."),
+			title: nls.localize('createNewFolder', 'New Folder...'),
 			f1: false,
 			icon: Codicon.newFolder,
 			precondition: CanCreateContext,
@@ -1043,7 +1347,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.files.action.refreshFilesExplorer',
-			title: nls.localize2('refreshExplorer', "Refresh Explorer"),
+			title: nls.localize2('refreshExplorer', 'Refresh Explorer'),
 			f1: true,
 			icon: Codicon.refresh,
 			menu: {
@@ -1053,7 +1357,7 @@ registerAction2(class extends Action2 {
 				order: 30,
 			},
 			metadata: {
-				description: nls.localize2('refreshExplorerMetadata', "Forces a refresh of the Explorer.")
+				description: nls.localize2('refreshExplorerMetadata', 'Forces a refresh of the Explorer.')
 			},
 			precondition: ExplorerFindProviderActive.negate()
 		});
@@ -1071,7 +1375,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.files.action.collapseExplorerFolders',
-			title: nls.localize2('collapseExplorerFolders', "Collapse Folders in Explorer"),
+			title: nls.localize2('collapseExplorerFolders', 'Collapse Folders in Explorer'),
 			f1: true,
 			icon: Codicon.collapseAll,
 			menu: {
@@ -1081,7 +1385,7 @@ registerAction2(class extends Action2 {
 				order: 40
 			},
 			metadata: {
-				description: nls.localize2('collapseExplorerFoldersMetadata', "Folds all folders in the Explorer.")
+				description: nls.localize2('collapseExplorerFoldersMetadata', 'Folds all folders in the Explorer.')
 			}
 		});
 	}

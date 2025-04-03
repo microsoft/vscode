@@ -26,7 +26,6 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { IExpression } from '../../../../base/common/glob.js';
 import { ResourceGlobMatcher } from '../../../common/resources.js';
 import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
-
 export const UNDO_REDO_SOURCE = new UndoRedoSource();
 
 export class ExplorerService implements IExplorerService {
@@ -54,8 +53,9 @@ export class ExplorerService implements IExplorerService {
 		@IBulkEditService private readonly bulkEditService: IBulkEditService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IHostService hostService: IHostService,
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 	) {
+		console.log('[ExplorerService] constructor');
 		this.config = this.configurationService.getValue('explorer');
 
 		this.model = new ExplorerModel(this.contextService, this.uriIdentityService, this.fileService, this.configurationService, this.filesConfigurationService);
@@ -101,6 +101,7 @@ export class ExplorerService implements IExplorerService {
 		}, ExplorerService.EXPLORER_FILE_CHANGES_REACT_DELAY);
 
 		this.disposables.add(this.fileService.onDidFilesChange(e => {
+			console.log('[ExplorerService] onDidFilesChange', { e });
 			this.fileChangeEvents.push(e);
 			// Don't mess with the file tree while in the process of editing. #112293
 			if (this.editable) {
@@ -113,6 +114,7 @@ export class ExplorerService implements IExplorerService {
 		this.disposables.add(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 		this.disposables.add(Event.any<{ scheme: string }>(this.fileService.onDidChangeFileSystemProviderRegistrations, this.fileService.onDidChangeFileSystemProviderCapabilities)(async e => {
 			let affected = false;
+			console.log('[ExplorerService] onDidChangeFileSystemProviderRegistrations', { e });
 			this.model.roots.forEach(r => {
 				if (r.resource.scheme === e.scheme) {
 					affected = true;
@@ -126,6 +128,7 @@ export class ExplorerService implements IExplorerService {
 			}
 		}));
 		this.disposables.add(this.model.onDidChangeRoots(() => {
+			console.log('[ExplorerService] onDidChangeRoots');
 			this.view?.setTreeInput();
 		}));
 
@@ -146,6 +149,10 @@ export class ExplorerService implements IExplorerService {
 		return this.model.roots;
 	}
 
+	get onDidChangeRoots(): Event<void> {
+		return this.model.onDidChangeRoots;
+	}
+
 	get sortOrderConfiguration(): ISortOrderConfiguration {
 		return {
 			sortOrder: this.config.sortOrder,
@@ -155,6 +162,7 @@ export class ExplorerService implements IExplorerService {
 	}
 
 	registerView(contextProvider: IExplorerView): void {
+		console.log('[ExplorerService] registerView');
 		this.view = contextProvider;
 	}
 
@@ -277,6 +285,7 @@ export class ExplorerService implements IExplorerService {
 	}
 
 	async select(resource: URI, reveal?: boolean | string): Promise<void> {
+		console.log('[ExplorerService] select called', { resource: resource.toString(), reveal });
 		if (!this.view) {
 			return;
 		}
@@ -322,8 +331,10 @@ export class ExplorerService implements IExplorerService {
 	}
 
 	async refresh(reveal = true): Promise<void> {
+		console.log('[ExplorerService] refresh called', { reveal });
 		// Do not refresh the tree when it is showing temporary nodes (phantom elements)
 		if (this.view?.hasPhantomElements()) {
+			console.log('[ExplorerService] refresh skipped due to phantom elements');
 			return;
 		}
 
@@ -334,6 +345,7 @@ export class ExplorerService implements IExplorerService {
 			const autoReveal = this.configurationService.getValue<IFilesConfiguration>().explorer.autoReveal;
 
 			if (reveal && resource && autoReveal) {
+				console.log('[ExplorerService] refresh - revealing active file', { resource });
 				// We did a top level refresh, reveal the active file #67118
 				this.select(resource, autoReveal);
 			}
@@ -347,6 +359,7 @@ export class ExplorerService implements IExplorerService {
 		// of all the folder's immediate children, thus a recursive refresh is needed.
 		// Ideally the tree would be able to recusively refresh just one level but that does not yet exist.
 		const shouldDeepRefresh = this.config.fileNesting.enabled;
+		console.log('[ExplorerService] onDidRunOperation', { e, shouldDeepRefresh });
 
 		// Add
 		if (e.isOperation(FileOperation.CREATE) || e.isOperation(FileOperation.COPY)) {
@@ -443,6 +456,7 @@ export class ExplorerService implements IExplorerService {
 
 	// Check if an item matches a explorer.autoRevealExclude pattern
 	private shouldAutoRevealItem(item: ExplorerItem | undefined, ignore: boolean): boolean {
+		console.log('[ExplorerService] shouldAutoRevealItem', { item, ignore });
 		if (item === undefined || ignore) {
 			return true;
 		}
@@ -464,6 +478,7 @@ export class ExplorerService implements IExplorerService {
 	}
 
 	private async onConfigurationUpdated(event: IConfigurationChangeEvent): Promise<void> {
+		console.log('[ExplorerService] onConfigurationUpdated', { event });
 		if (!event.affectsConfiguration('explorer')) {
 			return;
 		}
@@ -504,6 +519,7 @@ export class ExplorerService implements IExplorerService {
 }
 
 function doesFileEventAffect(item: ExplorerItem, view: IExplorerView, events: FileChangesEvent[], types: FileChangeType[]): boolean {
+	console.log('[ExplorerService] doesFileEventAffect', { item, events, types });
 	for (const [_name, child] of item.children) {
 		if (view.isItemVisible(child)) {
 			if (events.some(e => e.contains(child.resource, ...types))) {

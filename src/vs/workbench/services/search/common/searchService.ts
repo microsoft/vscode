@@ -24,6 +24,8 @@ import { IEditorService } from '../../editor/common/editorService.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { DEFAULT_MAX_SEARCH_RESULTS, deserializeSearchError, FileMatch, IAITextQuery, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, isFileMatch, isProgressMessage, ITextQuery, pathIncludedInQuery, QueryType, SEARCH_RESULT_LANGUAGE_ID, SearchError, SearchErrorCode, SearchProviderType } from './search.js';
 import { getTextSearchMatchWithModelContext, editorMatchesToTextSearchResults } from './searchHelpers.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { ITracingService } from '../../tracing/common/tracing.js';
 
 export class SearchService extends Disposable implements ISearchService {
 
@@ -47,11 +49,15 @@ export class SearchService extends Disposable implements ISearchService {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IFileService private readonly fileService: IFileService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@ITracingService private readonly tracingService: ITracingService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 	) {
 		super();
+		console.log('SearchService initialized, workspace storage home:', this.contextService?.getWorkspace()?.id);
 	}
 
 	registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable {
+		console.log('SearchService initialized, workspace storage home:', this.contextService?.getWorkspace()?.id);
 		let list: Map<string, ISearchResultProvider>;
 		let deferredMap: Map<string, DeferredPromise<ISearchResultProvider>>;
 		if (type === SearchProviderType.file) {
@@ -172,6 +178,22 @@ export class SearchService extends Disposable implements ISearchService {
 
 	private doSearch(query: ISearchQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): Promise<ISearchComplete> {
 		this.logService.trace('SearchService#search', JSON.stringify(query));
+
+		// Record search in tracing service
+		this.tracingService.recordTrace({
+			type: 'search-executed',
+			timestamp: new Date().toISOString(),
+			searchType: this.getSearchTypeString(query.type),
+			pattern: query.type === QueryType.Text || query.type === QueryType.aiText
+				? (query as ITextQuery).contentPattern?.pattern
+				: undefined,
+			includePattern: query.includePattern,
+			excludePattern: query.excludePattern,
+			folderCount: query.folderQueries.length,
+			isRegex: query.type === QueryType.Text ? !!(query as ITextQuery).contentPattern?.isRegExp : undefined,
+			isCaseSensitive: query.type === QueryType.Text ? !!(query as ITextQuery).contentPattern?.isCaseSensitive : undefined,
+			reason: query._reason
+		});
 
 		const schemesInQuery = this.getSchemesInQuery(query);
 
@@ -327,6 +349,19 @@ export class SearchService extends Disposable implements ISearchService {
 		return Promise.all(searchPs).then(completes => {
 			const endToEndTime = e2eSW.elapsed();
 			this.logService.trace(`SearchService#search: ${endToEndTime}ms`);
+
+			// Record search results in tracing
+			this.tracingService.recordTrace({
+				type: 'search-completed',
+				timestamp: new Date().toISOString(),
+				searchType: this.getSearchTypeString(query.type),
+				duration: endToEndTime,
+				resultCount: completes.reduce((count, complete) =>
+					count + (complete?.results?.length || 0), 0),
+				limitHit: completes.some(c => c?.limitHit),
+				reason: query._reason
+			});
+
 			completes.forEach(complete => {
 				this.sendTelemetry(query, endToEndTime, complete);
 			});
@@ -334,6 +369,18 @@ export class SearchService extends Disposable implements ISearchService {
 		}, err => {
 			const endToEndTime = e2eSW.elapsed();
 			this.logService.trace(`SearchService#search: ${endToEndTime}ms`);
+
+			// Record search error in tracing
+			this.tracingService.recordTrace({
+				type: 'search-error',
+				timestamp: new Date().toISOString(),
+				searchType: this.getSearchTypeString(query.type),
+				duration: endToEndTime,
+				errorCode: err.code || 'unknown',
+				errorMessage: err.message,
+				reason: query._reason
+			});
+
 			const searchError = deserializeSearchError(err);
 			this.logService.trace(`SearchService#searchError: ${searchError.message}`);
 			this.sendTelemetry(query, endToEndTime, undefined, searchError);
@@ -566,6 +613,13 @@ export class SearchService extends Disposable implements ISearchService {
 			});
 		}
 
+		this.tracingService.recordTrace({
+			type: 'openEditorResults',
+			timestamp: new Date().toISOString(),
+			results: openEditorResults,
+			limitHit
+		});
+
 		return {
 			results: openEditorResults,
 			limitHit
@@ -580,5 +634,15 @@ export class SearchService extends Disposable implements ISearchService {
 		const clearPs = Array.from(this.fileSearchProviders.values())
 			.map(provider => provider && provider.clearCache(cacheKey));
 		await Promise.all(clearPs);
+	}
+
+	// Helper function to get search type as string
+	private getSearchTypeString(type: QueryType): string {
+		switch (type) {
+			case QueryType.File: return 'File';
+			case QueryType.Text: return 'Text';
+			case QueryType.aiText: return 'aiText';
+			default: return 'Unknown';
+		}
 	}
 }
