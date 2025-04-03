@@ -318,7 +318,6 @@ suite('Debug - Breakpoints', () => {
 		model.updateDataBreakpoint('1', { condition: 'aCondition' });
 		model.updateDataBreakpoint('2', { hitCondition: '10' });
 		const dataBreakpoints = model.getDataBreakpoints();
-		assert.strictEqual(dataBreakpoints[0].origin.type, 'variable');
 		assert.deepStrictEqual(dataBreakpoints[0].origin, { type: DataBreakpointSetType.Variable, dataId: 'id', description: 'label', canPersist: true, accessTypes: ['read'] });
 		assert.strictEqual(dataBreakpoints[0].accessType, 'read');
 		assert.strictEqual(dataBreakpoints[0].condition, 'aCondition');
