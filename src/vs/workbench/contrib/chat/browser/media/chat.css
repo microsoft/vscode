@@ -1702,12 +1702,45 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-textLink-foreground);
 }
 
-.chat-attached-context-hover .chat-attached-context-image {
+.chat-attached-context-hover {
+	padding: 0 6px;
+	padding-top: 6px;
+}
+
+.chat-attached-context-hover .chat-attached-context-image-container {
+	padding-bottom: 4px;
 	height: auto;
-	max-height: 512px;
-	max-width: 512px;
 	width: 100%;
 	display: block;
+}
+
+.chat-attached-context-hover .chat-attached-context-image-container .chat-attached-context-image {
+	height: auto;
+	width: 100%;
+	display: block;
+	max-height: 512px;
+	max-width: 512px;
+}
+
+.chat-attached-context-hover .chat-attached-context-url {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+	margin-top: 4px;
+	padding: 2px 0;
+	width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	max-width: 100%;
+	display: block;
+}
+
+.chat-attached-context-hover .chat-attached-context-url-separator {
+	border-top: 1px solid var(--vscode-chat-requestBorder);
+	left: 0;
+	right: 0;
+	position: absolute;
+	margin-top: 2px;
 }
 
 .chat-attached-context-attachment .chat-attached-context-pill {

@@ -5,7 +5,7 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { $, addDisposableListener } from '../../../../base/browser/dom.js';
+import { $ } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
@@ -210,14 +210,13 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		this.element.ariaLabel = ariaLabel;
 		this.element.style.position = 'relative';
 
-		if (attachment.references) {
+		const ref = attachment.references?.[0]?.reference;
+		if (ref && URI.isUri(ref)) {
 			this.element.style.cursor = 'pointer';
 			const clickHandler = () => {
-				if (attachment.references && URI.isUri(attachment.references[0].reference)) {
-					this.openResource(attachment.references[0].reference, false, undefined);
-				}
+				this.openResource(ref, false, undefined);
 			};
-			this._register(addDisposableListener(this.element, 'click', clickHandler));
+			this._register(dom.addDisposableListener(this.element, 'click', clickHandler));
 		}
 
 		const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$(this.modelSupportsVision() ? 'span.codicon.codicon-file-media' : 'span.codicon.codicon-warning'));
@@ -250,11 +249,11 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		if (!supportsVision && this.currentLanguageModel) {
 			this.element.classList.add('warning');
 			hoverElement.textContent = localize('chat.fileAttachmentHover', "{0} does not support this {1} type.", currentLanguageModelName, 'image');
-			this._register(this.hoverService.setupManagedHover(hoverDelegate, this.element, hoverElement, { trapFocus: true }));
+			this._register(this.hoverService.setupDelayedHover(this.element, { content: hoverElement, appearance: { showPointer: true } }));
 		} else {
 			const buffer = attachment.value as Uint8Array;
-			this.createImageElements(buffer, this.element, hoverElement);
-			this._register(this.hoverService.setupManagedHover(hoverDelegate, this.element, hoverElement, { trapFocus: false }));
+			this.createImageElements(buffer, this.element, hoverElement, URI.isUri(ref) ? ref : undefined);
+			this._register(this.hoverService.setupDelayedHover(this.element, { content: hoverElement, appearance: { showPointer: true } }));
 		}
 
 		if (resource) {
@@ -264,7 +263,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		this.attachClearButton();
 	}
 
-	private createImageElements(buffer: ArrayBuffer | Uint8Array, widget: HTMLElement, hoverElement: HTMLElement) {
+	private createImageElements(buffer: ArrayBuffer | Uint8Array, widget: HTMLElement, hoverElement: HTMLElement, reference?: URI): void {
 		const blob = new Blob([buffer], { type: 'image/png' });
 		const url = URL.createObjectURL(blob);
 		const pillImg = dom.$('img.chat-attached-context-pill-image', { src: url, alt: '' });
@@ -276,9 +275,15 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		}
 
 		const hoverImage = dom.$('img.chat-attached-context-image', { src: url, alt: '' });
+		const imageContainer = dom.$('div.chat-attached-context-image-container', {}, hoverImage);
+		hoverElement.appendChild(imageContainer);
 
-		// Update hover image
-		hoverElement.appendChild(hoverImage);
+		if (reference) {
+			const urlContainer = dom.$('a.chat-attached-context-url', {}, reference.toString());
+			const separator = dom.$('div.chat-attached-context-url-separator');
+			this._register(dom.addDisposableListener(urlContainer, 'click', () => this.openResource(reference, false, undefined)));
+			hoverElement.append(separator, urlContainer);
+		}
 
 		hoverImage.onload = () => {
 			URL.revokeObjectURL(url);
