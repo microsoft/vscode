@@ -474,6 +474,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				if (commandDetection) {
 					commandDetection.promptInputModel.setShellType(this.shellType);
 					capabilityListeners.set(capability, Event.any(
+						commandDetection.onPromptTypeChanged,
 						commandDetection.promptInputModel.onDidStartInput,
 						commandDetection.promptInputModel.onDidChangeInput,
 						commandDetection.promptInputModel.onDidFinishInput

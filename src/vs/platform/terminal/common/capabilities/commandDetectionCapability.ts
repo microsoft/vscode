@@ -75,6 +75,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	readonly onCommandInvalidated = this._onCommandInvalidated.event;
 	private readonly _onCurrentCommandInvalidated = this._register(new Emitter<ICommandInvalidationRequest>());
 	readonly onCurrentCommandInvalidated = this._onCurrentCommandInvalidated.event;
+	private readonly _onPromptTypeChanged = this._register(new Emitter<string | undefined>());
+	readonly onPromptTypeChanged = this._onPromptTypeChanged.event;
 	private readonly _onSetRichCommandDetection = this._register(new Emitter<boolean>());
 	readonly onSetRichCommandDetection = this._onSetRichCommandDetection.event;
 
@@ -236,6 +238,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	setPromptType(value: string): void {
 		this._promptType = value;
+		this._onPromptTypeChanged.fire(value);
 	}
 
 	setIsCommandStorageDisabled(): void {
