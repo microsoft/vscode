@@ -13,6 +13,7 @@ import { IDiffEditor, IEditor } from '../../../../../../../editor/common/editorC
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { assertDefined } from '../../../../../../../base/common/types.js';
 
 /**
  * Type for a text editor that is used for reusable prompt files.
@@ -34,7 +35,7 @@ export abstract class ProviderInstanceManagerBase<TInstance extends ProviderInst
 	/**
 	 * Class object of the managed {@link TInstance}.
 	 */
-	protected abstract readonly InstanceClass: new (editor: IPromptFileEditor, ...args: any[]) => TInstance;
+	protected abstract get InstanceClass(): new (editor: IPromptFileEditor, ...args: any[]) => TInstance;
 
 	constructor(
 		@IEditorService editorService: IEditorService,
@@ -46,6 +47,13 @@ export abstract class ProviderInstanceManagerBase<TInstance extends ProviderInst
 		// cache of managed instances
 		this.instances = this._register(
 			new ObjectCache((editor: IPromptFileEditor) => {
+				// sanity check - the new TS/JS discrepancies regarding fields initialization
+				// logic mean that this can be `undefined` during runtime while defined in TS
+				assertDefined(
+					this.InstanceClass,
+					'Instance class field must be defined.',
+				);
+
 				const instance: TInstance = initService.createInstance(
 					this.InstanceClass,
 					editor,

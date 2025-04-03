@@ -12,7 +12,7 @@ import { FrontMatterMarker, TMarkerToken } from './frontMatterMarker.js';
 /**
  * Token that represents a `Front Matter` header in a text.
  */
-export class FrontMatterHeaderToken extends MarkdownExtensionsToken {
+export class FrontMatterHeader extends MarkdownExtensionsToken {
 	constructor(
 		range: Range,
 		public readonly startMarker: FrontMatterMarker,
@@ -50,7 +50,7 @@ export class FrontMatterHeaderToken extends MarkdownExtensionsToken {
 			return false;
 		}
 
-		if (!(other instanceof FrontMatterHeaderToken)) {
+		if (!(other instanceof FrontMatterHeader)) {
 			return false;
 		}
 
@@ -68,8 +68,8 @@ export class FrontMatterHeaderToken extends MarkdownExtensionsToken {
 		startMarkerTokens: readonly TMarkerToken[],
 		contentTokens: readonly TSimpleDecoderToken[],
 		endMarkerTokens: readonly TMarkerToken[],
-	): FrontMatterHeaderToken {
-		return new FrontMatterHeaderToken(
+	): FrontMatterHeader {
+		return new FrontMatterHeader(
 			BaseToken.fullRange([...startMarkerTokens, ...endMarkerTokens]),
 			FrontMatterMarker.fromTokens(startMarkerTokens),
 			Text.fromTokens(contentTokens),

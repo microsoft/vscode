@@ -19,7 +19,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { CarriageReturn } from '../../../../../../../editor/common/codecs/linesCodec/tokens/carriageReturn.js';
 import { Colon, Dash, Space, Tab, VerticalTab } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/index.js';
 import { MarkdownExtensionsDecoder } from '../../../../../../../editor/common/codecs/markdownExtensionsCodec/markdownExtensionsDecoder.js';
-import { FrontMatterHeaderToken } from '../../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterHeaderToken.js';
+import { FrontMatterHeader } from '../../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterHeader.js';
 import { FrontMatterMarker, TMarkerToken } from '../../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterMarker.js';
 
 /**
@@ -175,7 +175,7 @@ suite('MarkdownExtensionsDecoder', () => {
 					promptContents.join(newLine),
 					[
 						// header
-						new FrontMatterHeaderToken(
+						new FrontMatterHeader(
 							new Range(1, 1, 4, 1 + markerLength + newLine.length),
 							startMarker,
 							Text.fromTokens([
@@ -241,7 +241,7 @@ suite('MarkdownExtensionsDecoder', () => {
 					promptContents.join(newLine),
 					[
 						// header
-						new FrontMatterHeaderToken(
+						new FrontMatterHeader(
 							new Range(1, 1, 5, 1 + markerLength + newLine.length),
 							startMarker,
 							Text.fromTokens([

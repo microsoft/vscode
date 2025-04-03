@@ -9,7 +9,7 @@ import { assertDefined } from '../../../../../base/common/types.js';
 import { TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
 import { assert, assertNever } from '../../../../../base/common/assert.js';
 import { CarriageReturn } from '../../linesCodec/tokens/carriageReturn.js';
-import { FrontMatterHeaderToken } from '../tokens/frontMatterHeaderToken.js';
+import { FrontMatterHeader } from '../tokens/frontMatterHeader.js';
 import { FrontMatterMarker, TMarkerToken } from '../tokens/frontMatterMarker.js';
 import { assertNotConsumed, IAcceptTokenSuccess, ParserBase, TAcceptTokenResult } from '../../simpleCodec/parserBase.js';
 
@@ -96,7 +96,7 @@ export class PartialFrontMatterStartMarker extends ParserBase<TMarkerToken, Part
  * Parses a Front Matter header that already has a start marker
  * and possibly some content that follows.
  */
-export class PartialFrontMatterHeader extends ParserBase<TSimpleDecoderToken, PartialFrontMatterHeader | FrontMatterHeaderToken> {
+export class PartialFrontMatterHeader extends ParserBase<TSimpleDecoderToken, PartialFrontMatterHeader | FrontMatterHeader> {
 	/**
 	 * Parser instance for the end marker of the Front Matter header.
 	 */
@@ -121,12 +121,12 @@ export class PartialFrontMatterHeader extends ParserBase<TSimpleDecoderToken, Pa
 	}
 
 	/**
-	 * Convert the current token sequence into a {@link FrontMatterHeaderToken} token.
+	 * Convert the current token sequence into a {@link FrontMatterHeader} token.
 	 *
 	 * Note! that this method marks the current parser object as "consumed"
 	 *       hence it should not be used after this method is called.
 	 */
-	public asFrontMatterHeader(): FrontMatterHeaderToken | null {
+	public asFrontMatterHeader(): FrontMatterHeader | null {
 		assertDefined(
 			this.maybeEndMarker,
 			'Cannot convert to Front Matter header token without an end marker.',
@@ -142,7 +142,7 @@ export class PartialFrontMatterHeader extends ParserBase<TSimpleDecoderToken, Pa
 
 		this.isConsumed = true;
 
-		return FrontMatterHeaderToken.fromTokens(
+		return FrontMatterHeader.fromTokens(
 			this.startMarker.tokens,
 			this.currentTokens,
 			this.maybeEndMarker.tokens,
@@ -150,7 +150,7 @@ export class PartialFrontMatterHeader extends ParserBase<TSimpleDecoderToken, Pa
 	}
 
 	@assertNotConsumed
-	public accept(token: TSimpleDecoderToken): TAcceptTokenResult<PartialFrontMatterHeader | FrontMatterHeaderToken> {
+	public accept(token: TSimpleDecoderToken): TAcceptTokenResult<PartialFrontMatterHeader | FrontMatterHeader> {
 		// if in the mode of parsing the end marker sequence, forward
 		// the token to the current end marker parser instance
 		if (this.maybeEndMarker !== undefined) {
@@ -189,7 +189,7 @@ export class PartialFrontMatterHeader extends ParserBase<TSimpleDecoderToken, Pa
 	 */
 	private acceptEndMarkerToken(
 		token: TSimpleDecoderToken,
-	): TAcceptTokenResult<PartialFrontMatterHeader | FrontMatterHeaderToken> {
+	): TAcceptTokenResult<PartialFrontMatterHeader | FrontMatterHeader> {
 		assertDefined(
 			this.maybeEndMarker,
 			`Partial end marker parser must be initialized.`,
@@ -228,7 +228,7 @@ export class PartialFrontMatterHeader extends ParserBase<TSimpleDecoderToken, Pa
 			return {
 				result: 'success',
 				wasTokenConsumed: true,
-				nextParser: FrontMatterHeaderToken.fromTokens(
+				nextParser: FrontMatterHeader.fromTokens(
 					this.startMarker.tokens,
 					this.currentTokens,
 					this.maybeEndMarker.tokens,
