@@ -73,11 +73,11 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 	enableAccessibleDiffView(): void {
 		this.integration.enableAccessibleDiffView();
 	}
-	acceptNearestChange(change: IModifiedFileEntryChangeHunk): void {
-		this.integration.acceptNearestChange(change);
+	acceptNearestChange(change: IModifiedFileEntryChangeHunk): Promise<void> {
+		return this.integration.acceptNearestChange(change);
 	}
-	rejectNearestChange(change: IModifiedFileEntryChangeHunk): void {
-		this.integration.rejectNearestChange(change);
+	rejectNearestChange(change: IModifiedFileEntryChangeHunk): Promise<void> {
+		return this.integration.rejectNearestChange(change);
 	}
 	toggleDiff(change: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
 		return this.integration.toggleDiff(change);
@@ -544,12 +544,12 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			integration?.enableAccessibleDiffView();
 		}
 	}
-	acceptNearestChange(change: IModifiedFileEntryChangeHunk): void {
-		change.accept();
+	async acceptNearestChange(change: IModifiedFileEntryChangeHunk): Promise<void> {
+		await change.accept();
 		this.next(true);
 	}
-	rejectNearestChange(change: IModifiedFileEntryChangeHunk): void {
-		change.reject();
+	async rejectNearestChange(change: IModifiedFileEntryChangeHunk): Promise<void> {
+		await change.reject();
 		this.next(true);
 	}
 	async toggleDiff(_change: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
@@ -624,12 +624,12 @@ export class ChatEditingNotebookDiffEditorIntegration extends Disposable impleme
 	enableAccessibleDiffView(): void {
 		//
 	}
-	acceptNearestChange(change: IModifiedFileEntryChangeHunk): void {
-		change.accept();
+	async acceptNearestChange(change: IModifiedFileEntryChangeHunk): Promise<void> {
+		await change.accept();
 		this.next(true);
 	}
-	rejectNearestChange(change: IModifiedFileEntryChangeHunk): void {
-		change.reject();
+	async rejectNearestChange(change: IModifiedFileEntryChangeHunk): Promise<void> {
+		await change.reject();
 		this.next(true);
 	}
 	async toggleDiff(_change: IModifiedFileEntryChangeHunk | undefined): Promise<void> {

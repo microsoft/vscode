@@ -58,19 +58,19 @@ export class TerminalSuggestTelemetry extends Disposable {
 				return;
 			}
 
-			let completionOutcome: string;
+			let outcome: string;
 			if (fromInterrupt) {
-				completionOutcome = CompletionOutcome.Interrupted;
+				outcome = CompletionOutcome.Interrupted;
 			} else if (commandLine.trim() && commandLine.includes(label)) {
-				completionOutcome = CompletionOutcome.Accepted;
+				outcome = CompletionOutcome.Accepted;
 			} else if (inputContainsFirstHalfOfLabel(commandLine, label)) {
-				completionOutcome = CompletionOutcome.AcceptedWithEdit;
+				outcome = CompletionOutcome.AcceptedWithEdit;
 			} else {
-				completionOutcome = CompletionOutcome.Deleted;
+				outcome = CompletionOutcome.Deleted;
 			}
 			this._telemetryService.publicLog2<{
 				kind: string | undefined;
-				completionOutcome: string;
+				outcome: string;
 				exitCode: number | undefined;
 			}, {
 				owner: 'meganrogge';
@@ -80,10 +80,10 @@ export class TerminalSuggestTelemetry extends Disposable {
 					purpose: 'FeatureInsight';
 					comment: 'The completion item\'s kind';
 				};
-				completionOutcome: {
+				outcome: {
 					classification: 'SystemMetaData';
 					purpose: 'FeatureInsight';
-					comment: 'The outcome of the completion';
+					comment: 'The outcome of the accepted completion';
 				};
 				exitCode: {
 					classification: 'SystemMetaData';
@@ -92,7 +92,7 @@ export class TerminalSuggestTelemetry extends Disposable {
 				};
 			}>('terminal.suggest.acceptedCompletion', {
 				kind,
-				completionOutcome,
+				outcome,
 				exitCode
 			});
 		}

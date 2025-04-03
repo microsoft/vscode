@@ -90,7 +90,7 @@ export async function launch(options: LaunchOptions): Promise<Code> {
 		const safeToKill = new Promise<void>(resolve => {
 			process.stdout?.on('data', data => {
 				if (data.toString().includes('Lifecycle#app.on(will-quit) - calling app.quit()')) {
-					resolve();
+					setTimeout(() => resolve(), 500 /* give Electron some time to actually terminate fully */);
 				}
 			});
 		});
@@ -165,22 +165,23 @@ export class Code {
 
 					if (safeToKill) {
 						this.logger.log('Smoke test exit() call did not terminate the process yet, but safeToKill is true, so we can kill it');
-						process.kill(pid, 'SIGTERM');
+						process.kill(pid);
 					}
 
 					switch (retries) {
 
-						// after 20 seconds: forcefully kill
-						case 40: {
-							this.logger.log('Smoke test exit() call did not terminate process after 20s, forcefully exiting the application...');
-							process.kill(pid, 'SIGTERM');
+						// after 10 seconds: forcefully kill
+						case 20: {
+							this.logger.log('Smoke test exit() call did not terminate process after 10s, forcefully exiting the application...');
+							process.kill(pid);
 							break;
 						}
 
-						// after 30 seconds: give up
-						case 60: {
+						// after 20 seconds: give up
+						case 40: {
+							this.logger.log('Smoke test exit() call did not terminate process after 20s, giving up');
+							process.kill(pid);
 							done = true;
-							this.logger.log('Smoke test exit() call did not terminate process after 30s, giving up');
 							resolve();
 						}
 					}
