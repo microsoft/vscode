@@ -124,5 +124,7 @@ const toMarker = (
  * classes for each specific editor text model.
  */
 export class PromptLinkDiagnosticsInstanceManager extends ProviderInstanceManagerBase<PromptLinkDiagnosticsProvider> {
-	protected override readonly InstanceClass = PromptLinkDiagnosticsProvider;
+	protected override get InstanceClass() {
+		return PromptLinkDiagnosticsProvider;
+	}
 }
