@@ -5,12 +5,10 @@
 
 import { IPromptsService } from '../../service/types.js';
 import { IPromptFileReference } from '../../parsers/types.js';
+import { ProviderInstanceBase } from './providerInstanceBase.js';
 import { assert } from '../../../../../../../base/common/assert.js';
 import { NotPromptFile } from '../../../promptFileReferenceErrors.js';
-import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
-import { TextModelPromptParser } from '../../parsers/textModelPromptParser.js';
-import { ObservableDisposable } from '../../../../../../../base/common/observableDisposable.js';
 import { IPromptFileEditor, ProviderInstanceManagerBase } from './providerInstanceManagerBase.js';
 import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../../platform/markers/common/markers.js';
 
@@ -22,40 +20,19 @@ const MARKERS_OWNER_ID = 'reusable-prompts-syntax';
 /**
  * Prompt links diagnostics provider for a single text model.
  */
-class PromptLinkDiagnosticsProvider extends ObservableDisposable {
-	/**
-	 * Reference to the current prompt syntax parser instance.
-	 */
-	private readonly parser: TextModelPromptParser;
-
+class PromptLinkDiagnosticsProvider extends ProviderInstanceBase {
 	constructor(
-		private readonly editor: IPromptFileEditor,
+		editor: IPromptFileEditor,
+		@IPromptsService promptsService: IPromptsService,
 		@IMarkerService private readonly markerService: IMarkerService,
-		@IPromptsService private readonly promptsService: IPromptsService,
 	) {
-		super();
-
-		this.parser = this.promptsService
-			.getSyntaxParserFor(this.model)
-			.onUpdate(this.updateMarkers.bind(this))
-			.onDispose(this.dispose.bind(this))
-			.start();
-
-		// initialize markers
-		this.updateMarkers();
-	}
-
-	/**
-	 * Underlying text model of the editor.
-	 */
-	private get model(): ITextModel {
-		return this.editor.getModel();
+		super(editor, promptsService);
 	}
 
 	/**
 	 * Update diagnostic markers for the current editor.
 	 */
-	private async updateMarkers() {
+	protected override async onPromptParserUpdate() {
 		// ensure that parsing process is settled
 		await this.parser.allSettled();
 
@@ -87,6 +64,15 @@ class PromptLinkDiagnosticsProvider extends ObservableDisposable {
 			this.model.uri,
 			markers,
 		);
+
+		return this;
+	}
+
+	/**
+	 * Returns a string representation of this object.
+	 */
+	public override toString() {
+		return `prompt-link-diagnostics:${this.model.uri.path}`;
 	}
 }
 

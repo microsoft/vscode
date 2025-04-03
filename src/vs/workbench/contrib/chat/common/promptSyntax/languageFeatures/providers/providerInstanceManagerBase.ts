@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ProviderInstanceBase } from './providerInstanceBase.js';
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { ObjectCache } from '../../../../../../../base/common/objectCache.js';
@@ -10,7 +11,6 @@ import { PromptsConfig } from '../../../../../../../platform/prompts/common/conf
 import { isPromptFile } from '../../../../../../../platform/prompts/common/constants.js';
 import { IDiffEditor, IEditor } from '../../../../../../../editor/common/editorCommon.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
-import { ObservableDisposable } from '../../../../../../../base/common/observableDisposable.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 
@@ -25,7 +25,7 @@ export interface IPromptFileEditor extends IEditor {
  * A generic base class that manages creation and disposal of {@link TInstance}
  * objects for each specific editor object that is used for reusable prompt files.
  */
-export abstract class ProviderInstanceManagerBase<TInstance extends ObservableDisposable> extends Disposable {
+export abstract class ProviderInstanceManagerBase<TInstance extends ProviderInstanceBase> extends Disposable {
 	/**
 	 * Currently available {@link TInstance} instances.
 	 */
