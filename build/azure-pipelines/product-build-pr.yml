@@ -217,3 +217,13 @@ stages:
           VSCODE_ARCH: x64
         steps:
           - template: oss/product-build-pr-cache-win32.yml@self
+
+      - job: macOSx64MaintainNodeModulesCache
+        displayName: macOS (Maintain node_modules cache)
+        pool:
+          vmImage: macOS-14
+        timeoutInMinutes: 30
+        variables:
+          VSCODE_ARCH: x64
+        steps:
+          - template: oss/product-build-pr-cache-darwin.yml@self
