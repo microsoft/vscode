@@ -364,7 +364,6 @@ extends:
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_TEST_ARTIFACT_NAME: browser
                       VSCODE_RUN_BROWSER_TESTS: true
-
               - job: WindowsRemoteTests
                 displayName: Windows (Remote)
                 timeoutInMinutes: 60
@@ -573,8 +572,8 @@ extends:
             BUILDSECMON_OPT_IN: true
           jobs:
             - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
-              - job: macOSUnitTest
-                displayName: Unit Tests
+              - job: macOSElectronTest
+                displayName: Electron Tests
                 timeoutInMinutes: 90
                 variables:
                   VSCODE_ARCH: arm64
@@ -583,11 +582,9 @@ extends:
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                      VSCODE_RUN_UNIT_TESTS: true
-                      VSCODE_RUN_INTEGRATION_TESTS: false
-                      VSCODE_RUN_SMOKE_TESTS: false
-              - job: macOSIntegrationTest
-                displayName: Integration Tests
+                      VSCODE_RUN_ELECTRON_TESTS: true
+              - job: macOSBrowserTest
+                displayName: Browser Tests
                 timeoutInMinutes: 90
                 variables:
                   VSCODE_ARCH: arm64
@@ -597,11 +594,9 @@ extends:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_TEST_ARTIFACT_NAME: integration
-                      VSCODE_RUN_UNIT_TESTS: false
-                      VSCODE_RUN_INTEGRATION_TESTS: true
-                      VSCODE_RUN_SMOKE_TESTS: false
-              - job: macOSSmokeTest
-                displayName: Smoke Tests
+                      VSCODE_RUN_BROWSER_TESTS: true
+              - job: macOSRemoteTest
+                displayName: Remote Tests
                 timeoutInMinutes: 90
                 variables:
                   VSCODE_ARCH: arm64
@@ -611,9 +606,7 @@ extends:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_TEST_ARTIFACT_NAME: smoke
-                      VSCODE_RUN_UNIT_TESTS: false
-                      VSCODE_RUN_INTEGRATION_TESTS: false
-                      VSCODE_RUN_SMOKE_TESTS: true
+                      VSCODE_RUN_REMOTE_TESTS: true
 
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS, true)) }}:
               - job: macOS
@@ -625,9 +618,6 @@ extends:
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                      VSCODE_RUN_UNIT_TESTS: false
-                      VSCODE_RUN_INTEGRATION_TESTS: false
-                      VSCODE_RUN_SMOKE_TESTS: false
 
               - ${{ if eq(parameters.VSCODE_STEP_ON_IT, false) }}:
                 - job: macOSTest
@@ -639,9 +629,9 @@ extends:
                       parameters:
                         VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                         VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                        VSCODE_RUN_UNIT_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                        VSCODE_RUN_INTEGRATION_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                        VSCODE_RUN_SMOKE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                        VSCODE_RUN_ELECTRON_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                        VSCODE_RUN_BROWSER_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                        VSCODE_RUN_REMOTE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
 
               - job: macOSSign
                 dependsOn:
@@ -671,9 +661,6 @@ extends:
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                      VSCODE_RUN_UNIT_TESTS: false
-                      VSCODE_RUN_INTEGRATION_TESTS: false
-                      VSCODE_RUN_SMOKE_TESTS: false
 
               - job: macOSARM64Sign
                 dependsOn:
