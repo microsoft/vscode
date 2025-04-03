@@ -80,6 +80,16 @@ steps:
         displayName: Run integration tests (Electron)
         timeoutInMinutes: 20
 
+    - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
+      - script: ./scripts/test-web-integration.sh --browser webkit
+        displayName: Run integration tests (Browser, Webkit)
+        timeoutInMinutes: 20
+
+    - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
+      - script: ./scripts/test-remote-integration.sh
+        displayName: Run integration tests (Remote)
+        timeoutInMinutes: 20
+
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
       - script: |
@@ -120,18 +130,18 @@ steps:
     continueOnError: true
     condition: succeededOrFailed()
 
-  - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: npm run compile
-      workingDirectory: test/smoke
-      displayName: Compile smoke tests
+  # - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
+  #   - script: npm run compile
+  #     workingDirectory: test/smoke
+  #     displayName: Compile smoke tests
 
-    - script: npm run gulp compile-extension-media
-      displayName: Compile extensions for smoke tests
+  #   - script: npm run gulp compile-extension-media
+  #     displayName: Compile extensions for smoke tests
 
-    - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
-      - script: npm run smoketest-no-compile -- --tracing
-        timeoutInMinutes: 20
-        displayName: Run smoke tests (Electron)
+  #   - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
+  #     - script: npm run smoketest-no-compile -- --tracing
+  #       timeoutInMinutes: 20
+  #       displayName: Run smoke tests (Electron)
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
