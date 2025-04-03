@@ -167,6 +167,7 @@ steps:
         timeoutInMinutes: 20
         displayName: Run smoke tests (Electron)
 
+    - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
       - script: npm run smoketest-no-compile -- --web --tracing --headless
         timeoutInMinutes: 20
         displayName: Run smoke tests (Browser, Chromium)
@@ -182,6 +183,7 @@ steps:
         timeoutInMinutes: 20
         displayName: Run smoke tests (Electron)
 
+    - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
       - script: npm run smoketest-no-compile -- --web --tracing --headless
         env:
           VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
