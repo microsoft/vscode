@@ -21,10 +21,29 @@
   "]"
 ] @punctuation.definition.character-class.regexp
 
-[
-  "(?:"
-  "(?<"
-] @punctuation.definition.group.assertion.regexp
+(
+  ([
+    "(?<"
+  ] @punctuation.definition.group.assertion.regexp)
+  .
+  [
+    "="
+    "!"
+  ] @punctuation.definition.group.assertion.regexp
+) @meta.assertion.look-behind.regexp
+
+(
+  ([
+    "(?"
+  ] @punctuation.definition.group.assertion.regexp)
+  .
+  [
+    "="
+    "!"
+  ] @punctuation.definition.group.assertion.regexp
+) @meta.assertion.look-ahead.regexp
+
+"(?:" @punctuation.definition.group.regexp @punctuation.definition.group.no-capture.regexp
 
 (lookaround_assertion ("!") @punctuation.definition.group.assertion.regexp)
 
@@ -78,6 +97,8 @@
   .
   (class_character) @constant.character.numeric.regexp
 ) @constant.character.numeric.regexp
+
+(decimal_escape) @keyword.other.back-reference.regexp
 
 [
   (character_class_escape)
