@@ -59,7 +59,6 @@ const ignored = new Set([
     'vs/editor/common/model/textModelTokens.ts',
     'vs/editor/common/model/tokenizationTextModelPart.ts',
     'vs/editor/common/core/textEdit.ts',
-    'vs/workbench/api/common/extHostCommands.ts',
     'vs/editor/browser/view/viewLayer.ts',
     'vs/editor/browser/controller/editContext/textArea/textAreaEditContextInput.ts',
     'vs/platform/accessibilitySignal/browser/accessibilitySignalService.ts',
