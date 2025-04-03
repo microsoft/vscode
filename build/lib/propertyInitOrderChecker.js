@@ -120,7 +120,6 @@ const ignored = new Set([
     'vs/workbench/contrib/notebook/browser/diff/notebookMultiDiffEditor.ts',
     'vs/workbench/contrib/search/common/cacheState.ts',
     'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoSymbolQuickAccess.ts',
-    'vs/workbench/contrib/search/browser/anythingQuickAccess.ts',
     'vs/platform/quickinput/browser/commandsQuickAccess.ts',
     'vs/workbench/contrib/quickaccess/browser/commandsQuickAccess.ts',
     'vs/workbench/contrib/multiDiffEditor/browser/scmMultiDiffSourceResolver.ts',
