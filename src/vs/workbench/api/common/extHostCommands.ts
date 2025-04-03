@@ -448,7 +448,6 @@ export class ApiCommandArgument<V, O = V> {
 	static readonly Selection = new ApiCommandArgument<extHostTypes.Selection, ISelection>('selection', 'A selection in a text document', v => extHostTypes.Selection.isSelection(v), extHostTypeConverter.Selection.from);
 	static readonly Number = new ApiCommandArgument<number>('number', '', v => typeof v === 'number', v => v);
 	static readonly String = new ApiCommandArgument<string>('string', '', v => typeof v === 'string', v => v);
-	static readonly StringArray = ApiCommandArgument.Arr(ApiCommandArgument.String);
 
 	static Arr<T, K = T>(element: ApiCommandArgument<T, K>) {
 		return new ApiCommandArgument(
