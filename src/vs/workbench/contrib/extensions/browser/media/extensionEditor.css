@@ -239,6 +239,7 @@
 	height: 18px;
 	width: 18px;
 	margin-top: 2px;
+	padding: 0px;
 }
 
 .extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item > .extension-action.label,
