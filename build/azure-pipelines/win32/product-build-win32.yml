@@ -215,7 +215,7 @@ steps:
 
       - powershell: |
           $ErrorActionPreference = "Stop"
-          $CodesignJob = Start-Job -FilePath "build/azure-pipelines/win32/code-sign-job.ps1"
+          $CodesignJob = Start-Job -FilePath "build/azure-pipelines/win32/codesign-job.ps1"
 
           Write-Host "**********************************************************************"
           Write-Host "* PowerShell jobs                                                    *"
