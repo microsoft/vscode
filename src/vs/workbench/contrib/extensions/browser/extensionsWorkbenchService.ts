@@ -2753,7 +2753,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (existingExtension) {
 			installOptions = installOptions || {};
 			if (existingExtension.latestVersion === manifest.version) {
-				installOptions.pinned = existingExtension.local?.pinned || !this.shouldAutoUpdateExtension(existingExtension);
+				installOptions.pinned = installOptions.pinned ?? (existingExtension.local?.pinned || !this.shouldAutoUpdateExtension(existingExtension));
 			} else {
 				installOptions.installGivenVersion = true;
 			}
@@ -2763,7 +2763,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	private installFromGallery(extension: IExtension, gallery: IGalleryExtension, installOptions: InstallExtensionOptions, servers: IExtensionManagementServer[] | undefined): Promise<ILocalExtension> {
 		installOptions = installOptions ?? {};
-		installOptions.pinned = extension.local?.pinned || !this.shouldAutoUpdateExtension(extension);
+		installOptions.pinned = installOptions.pinned ?? (extension.local?.pinned || !this.shouldAutoUpdateExtension(extension));
 		if (extension.local && !servers) {
 			installOptions.productVersion = this.getProductVersion();
 			installOptions.operation = InstallOperation.Update;
