@@ -214,10 +214,35 @@ steps:
         displayName: 'Install ESRP Tooling'
 
       - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
-          exec { . build/azure-pipelines/win32/code-sign-job.ps1 }
-        displayName: Codesign job
+          $CodesignJob = Start-Job -FilePath "build/azure-pipelines/win32/code-sign-job.ps1"
+
+          Write-Host "**********************************************************************"
+          Write-Host "* PowerShell jobs                                                    *"
+          Write-Host "**********************************************************************"
+          Get-Job
+
+          echo "##vso[task.setvariable variable=CodesignJobId]$($CodesignJob.Id)"
+        displayName: Codesign
+
+      - powershell: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "**********************************************************************"
+          Write-Host "* PowerShell jobs                                                    *"
+          Write-Host "**********************************************************************"
+          Get-Job
+
+          $CodesignJobId = $(CodesignJobId)
+          Wait-Job -Id $CodesignJobId
+
+          Write-Host "**********************************************************************"
+          Write-Host "* PowerShell jobs                                                    *"
+          Write-Host "**********************************************************************"
+
+          Receive-Job -Id $CodesignJobId
+          Remove-Job -Id $CodesignJobId
+        displayName: 'Post-job: Codesign'
 
   # - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
   #   - template: product-build-win32-test.yml@self
