@@ -5,11 +5,6 @@
 
 declare module 'vscode' {
 
-	export interface ChatResponseFragment {
-		index: number;
-		part: string;
-	}
-
 	export interface ChatResponseFragment2 {
 		index: number;
 		part: LanguageModelTextPart | LanguageModelToolCallPart;
@@ -75,14 +70,6 @@ declare module 'vscode' {
 	export interface ChatResponseProviderMetadata {
 		// limit this provider to some extensions
 		extensions?: string[];
-	}
-
-	export namespace chat {
-
-		/**
-		 * @deprecated use `lm.registerChatResponseProvider` instead
-		*/
-		export function registerChatResponseProvider(id: string, provider: ChatResponseProvider, metadata: ChatResponseProviderMetadata): Disposable;
 	}
 
 	export namespace lm {
