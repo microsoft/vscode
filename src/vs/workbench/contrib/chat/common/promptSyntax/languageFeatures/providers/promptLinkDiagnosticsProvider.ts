@@ -9,16 +9,9 @@ import { assert } from '../../../../../../../base/common/assert.js';
 import { NotPromptFile } from '../../../promptFileReferenceErrors.js';
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
-import { Disposable } from '../../../../../../../base/common/lifecycle.js';
-import { IEditor } from '../../../../../../../editor/common/editorCommon.js';
-import { ObjectCache } from '../../../../../../../base/common/objectCache.js';
 import { TextModelPromptParser } from '../../parsers/textModelPromptParser.js';
-import { PromptsConfig } from '../../../../../../../platform/prompts/common/config.js';
-import { isPromptFile } from '../../../../../../../platform/prompts/common/constants.js';
-import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { ObservableDisposable } from '../../../../../../../base/common/observableDisposable.js';
-import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
-import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { IPromptFileEditor, ProviderInstanceManagerBase } from './providerInstanceManagerBase.js';
 import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../../platform/markers/common/markers.js';
 
 /**
@@ -36,20 +29,27 @@ class PromptLinkDiagnosticsProvider extends ObservableDisposable {
 	private readonly parser: TextModelPromptParser;
 
 	constructor(
-		private readonly editor: ITextModel,
+		private readonly editor: IPromptFileEditor,
 		@IMarkerService private readonly markerService: IMarkerService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 	) {
 		super();
 
 		this.parser = this.promptsService
-			.getSyntaxParserFor(this.editor)
+			.getSyntaxParserFor(this.model)
 			.onUpdate(this.updateMarkers.bind(this))
 			.onDispose(this.dispose.bind(this))
 			.start();
 
 		// initialize markers
 		this.updateMarkers();
+	}
+
+	/**
+	 * Underlying text model of the editor.
+	 */
+	private get model(): ITextModel {
+		return this.editor.getModel();
 	}
 
 	/**
@@ -60,7 +60,7 @@ class PromptLinkDiagnosticsProvider extends ObservableDisposable {
 		await this.parser.allSettled();
 
 		// clean up all previously added markers
-		this.markerService.remove(MARKERS_OWNER_ID, [this.editor.uri]);
+		this.markerService.remove(MARKERS_OWNER_ID, [this.model.uri]);
 
 		const markers: IMarkerData[] = [];
 		for (const link of this.parser.references) {
@@ -84,7 +84,7 @@ class PromptLinkDiagnosticsProvider extends ObservableDisposable {
 
 		this.markerService.changeOne(
 			MARKERS_OWNER_ID,
-			this.editor.uri,
+			this.model.uri,
 			markers,
 		);
 	}
@@ -137,81 +137,6 @@ const toMarker = (
  * The class that manages creation and disposal of {@link PromptLinkDiagnosticsProvider}
  * classes for each specific editor text model.
  */
-export class PromptLinkDiagnosticsInstanceManager extends Disposable {
-	/**
-	 * Currently available {@link PromptLinkDiagnosticsProvider} instances.
-	 */
-	private readonly providers: ObjectCache<PromptLinkDiagnosticsProvider, ITextModel>;
-
-	constructor(
-		@IEditorService editorService: IEditorService,
-		@IInstantiationService initService: IInstantiationService,
-		@IConfigurationService configService: IConfigurationService,
-	) {
-		super();
-
-		// cache of prompt marker providers
-		this.providers = this._register(
-			new ObjectCache((editor: ITextModel) => {
-				const parser: PromptLinkDiagnosticsProvider = initService.createInstance(
-					PromptLinkDiagnosticsProvider,
-					editor,
-				);
-
-				// this is a sanity check and the contract of the object cache,
-				// we must return a non-disposed object from this factory function
-				parser.assertNotDisposed(
-					'Created prompt parser must not be disposed.',
-				);
-
-				return parser;
-			}),
-		);
-
-		// if the feature is disabled, do not create any providers
-		if (!PromptsConfig.enabled(configService)) {
-			return;
-		}
-
-		// subscribe to changes of the active editor
-		this._register(editorService.onDidActiveEditorChange(() => {
-			const { activeTextEditorControl } = editorService;
-			if (!activeTextEditorControl) {
-				return;
-			}
-
-			this.handleNewEditor(activeTextEditorControl);
-		}));
-
-		// handle existing visible text editors
-		editorService
-			.visibleTextEditorControls
-			.forEach(this.handleNewEditor.bind(this));
-	}
-
-	/**
-	 * Initialize a new {@link PromptLinkDiagnosticsProvider} for the given editor.
-	 */
-	private handleNewEditor(editor: IEditor): this {
-		const model = editor.getModel();
-		if (!model) {
-			return this;
-		}
-
-		// we support only `text editors` for now so filter out `diff` ones
-		if ('modified' in model || 'model' in model) {
-			return this;
-		}
-
-		// enable this only for prompt file editors
-		if (!isPromptFile(model.uri)) {
-			return this;
-		}
-
-		// note! calling `get` also creates a provider if it does not exist;
-		// 		and the provider is auto-removed when the model is disposed
-		this.providers.get(model);
-
-		return this;
-	}
+export class PromptLinkDiagnosticsInstanceManager extends ProviderInstanceManagerBase<PromptLinkDiagnosticsProvider> {
+	protected override readonly InstanceClass = PromptLinkDiagnosticsProvider;
 }

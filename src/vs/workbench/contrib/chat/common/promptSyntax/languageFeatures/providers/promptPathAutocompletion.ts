@@ -303,8 +303,8 @@ export class PromptPathAutocompletion extends Disposable implements CompletionIt
 			return [];
 		}
 
-		const currenFolder = extUri.resolvePath(fileFolderUri, path);
-		let suggestions = await this.getFolderSuggestions(currenFolder);
+		const currentFolder = extUri.resolvePath(fileFolderUri, path);
+		let suggestions = await this.getFolderSuggestions(currentFolder);
 
 		// when trigger character was a `.`, which is we know is inside
 		// the folder/file name in the path, filter out to only items

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { ObjectCache } from '../../../../../../../base/common/objectCache.js';
 import { PromptsConfig } from '../../../../../../../platform/prompts/common/config.js';
@@ -14,19 +15,26 @@ import { IInstantiationService } from '../../../../../../../platform/instantiati
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 
 /**
+ * Type for a text editor that is used for reusable prompt files.
+ */
+export interface IPromptFileEditor extends IEditor {
+	readonly getModel: () => ITextModel;
+}
+
+/**
  * A generic base class that manages creation and disposal of {@link TInstance}
  * objects for each specific editor object that is used for reusable prompt files.
  */
-export abstract class PromptLinkDiagnosticsInstanceManager<TInstance extends ObservableDisposable> extends Disposable {
+export abstract class ProviderInstanceManagerBase<TInstance extends ObservableDisposable> extends Disposable {
 	/**
 	 * Currently available {@link TInstance} instances.
 	 */
-	private readonly instances: ObjectCache<TInstance, IEditor>;
+	private readonly instances: ObjectCache<TInstance, IPromptFileEditor>;
 
 	/**
 	 * Class object of the managed {@link TInstance}.
 	 */
-	protected abstract readonly InstanceClass: new (editor: IEditor, ...args: any[]) => TInstance;
+	protected abstract readonly InstanceClass: new (editor: IPromptFileEditor, ...args: any[]) => TInstance;
 
 	constructor(
 		@IEditorService editorService: IEditorService,
@@ -37,7 +45,7 @@ export abstract class PromptLinkDiagnosticsInstanceManager<TInstance extends Obs
 
 		// cache of managed instances
 		this.instances = this._register(
-			new ObjectCache((editor: IEditor) => {
+			new ObjectCache((editor: IPromptFileEditor) => {
 				const instance: TInstance = initService.createInstance(
 					this.InstanceClass,
 					editor,
@@ -78,18 +86,7 @@ export abstract class PromptLinkDiagnosticsInstanceManager<TInstance extends Obs
 	 * Initialize a new {@link TInstance} for the given editor.
 	 */
 	private handleNewEditor(editor: IEditor | IDiffEditor): this {
-		const model = editor.getModel();
-		if (model === null) {
-			return this;
-		}
-
-		// we support only `text editors` for now so filter out `diff` ones
-		if ('modified' in model || 'model' in model) {
-			return this;
-		}
-
-		// enable this only for prompt file editors
-		if (isPromptFile(model.uri) === false) {
+		if (isPromptFileEditor(editor) === false) {
 			return this;
 		}
 
@@ -100,3 +97,34 @@ export abstract class PromptLinkDiagnosticsInstanceManager<TInstance extends Obs
 		return this;
 	}
 }
+
+/**
+ * Check if a provided editor is a text editor that is used for reusable
+ * prompt files.
+ */
+const isPromptFileEditor = (
+	editor: IEditor | IDiffEditor,
+): editor is IPromptFileEditor => {
+	const model = editor.getModel();
+	if (model === null) {
+		return false;
+	}
+
+	// we support only `text editors` for now so filter out `diff` ones
+	if ('modified' in model || 'model' in model) {
+		return false;
+	}
+
+	// enable this on editors of the reusable prompt files only
+	if (isPromptFile(model.uri) === false) {
+		return false;
+	}
+
+	// override the `getModel()` method to align with the `IPromptFileEditor` interface
+	// which guarantees that the `getModel()` always returns a non-null model
+	editor.getModel = () => {
+		return model;
+	};
+
+	return true;
+};
