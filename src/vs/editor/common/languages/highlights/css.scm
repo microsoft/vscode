@@ -21,6 +21,8 @@
 
 (class_selector) @entity.other.attribute-name.class.css
 
+(id_selector) @entity.other.attribute-name.id.css
+
 (tag_name) @entity.name.tag.css
 
 (pseudo_class_selector) @entity.other.attribute-name.pseudo-class.css
