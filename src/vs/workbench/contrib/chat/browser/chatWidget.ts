@@ -1493,10 +1493,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const newValue = model.getValue() + this.promptCompletionState.insertText;
 		this.ignorePromptCompletions = true;
 		this.inputEditor.setValue(newValue);
-		this.ignorePromptCompletions = false;
 		const lineCount = model.getLineCount();
 		const lineMaxColumn = model.getLineMaxColumn(lineCount);
 		this.inputEditor.setPosition({ lineNumber: lineCount, column: lineMaxColumn });
+		this.ignorePromptCompletions = false;
 		this.clearPromptCompletions();
 		return true;
 	}
