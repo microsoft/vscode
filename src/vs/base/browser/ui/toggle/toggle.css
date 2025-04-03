@@ -8,11 +8,11 @@
 	float: left;
 	cursor: pointer;
 	overflow: hidden;
-	width: 20px;
-	height: 20px;
+	width: 24px;
+	height: 24px;
 	border-radius: 3px;
 	border: 1px solid transparent;
-	padding: 1px;
+	padding: 3px;
 	box-sizing:	border-box;
 	user-select: none;
 	-webkit-user-select: none;

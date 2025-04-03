@@ -46,11 +46,12 @@
 
 
 		.collapse-button {
-			margin: 0 5px;
+			margin: 0 1px;
 			cursor: pointer;
 
 			a {
 				display: block;
+				padding: 4px;
 			}
 		}
 

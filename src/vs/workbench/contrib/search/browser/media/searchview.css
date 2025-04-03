@@ -25,7 +25,7 @@
 	position: absolute;
 	top: 0;
 	left: 0;
-	width: 16px;
+	width: 24px;
 	height: 100%;
 	color: inherit;
 	box-sizing: border-box;
@@ -48,7 +48,7 @@
 
 .search-view .search-widget .search-container,
 .search-view .search-widget .replace-container {
-	margin-left: 18px;
+	margin-left: 26px;
 }
 
 .search-view .search-widget .monaco-inputbox > .ibwrapper {
@@ -117,7 +117,7 @@
 .search-view .query-details {
 	min-height: 1em;
 	position: relative;
-	margin: 0 0 0 18px;
+	margin: 0 0 0 24px;
 }
 
 .search-view .query-details .more {

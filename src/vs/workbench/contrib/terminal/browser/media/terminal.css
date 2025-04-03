@@ -369,7 +369,7 @@
 }
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-list .actions .action-label {
-	padding: 2px;
+	padding: 4px;
 }
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-list .monaco-list-row:hover .actions,
