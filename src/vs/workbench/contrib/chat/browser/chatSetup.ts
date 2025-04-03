@@ -230,21 +230,32 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 	}
 
 	private async forwardRequestToCopilot(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService): Promise<void> {
-		if (this.pendingForwardedRequests.has(requestModel.id)) {
-			return this.pendingForwardedRequests.get(requestModel.id)!;
-		}
-
-		const forwardRequest = this.doForwardRequestToCopilot(requestModel, progress, chatService, languageModelsService, chatAgentService, chatWidgetService);
-		this.pendingForwardedRequests.set(requestModel.id, forwardRequest);
-
 		try {
-			await forwardRequest;
-		} finally {
-			this.pendingForwardedRequests.delete(requestModel.id);
+			await this.doForwardRequestToCopilot(requestModel, progress, chatService, languageModelsService, chatAgentService, chatWidgetService);
+		} catch (error) {
+			progress({
+				kind: 'warning',
+				content: new MarkdownString(localize('copilotUnavailableWarning', "Copilot failed to get a response. Please try again."))
+			});
 		}
 	}
 
 	private async doForwardRequestToCopilot(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService): Promise<void> {
+		if (this.pendingForwardedRequests.has(requestModel.session.sessionId)) {
+			throw new Error('Request already in progress');
+		}
+
+		const forwardRequest = this.doForwardRequestToCopilotWhenReady(requestModel, progress, chatService, languageModelsService, chatAgentService, chatWidgetService);
+		this.pendingForwardedRequests.set(requestModel.session.sessionId, forwardRequest);
+
+		try {
+			await forwardRequest;
+		} finally {
+			this.pendingForwardedRequests.delete(requestModel.session.sessionId);
+		}
+	}
+
+	private async doForwardRequestToCopilotWhenReady(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService): Promise<void> {
 
 		// We need a signal to know when we can resend the request to
 		// Copilot. Waiting for the registration of the agent is not
@@ -288,7 +299,7 @@ class SetupChatAgentImplementation extends Disposable implements IChatAgentImple
 		}
 
 		const widget = chatWidgetService.getWidgetBySessionId(requestModel.session.sessionId);
-		chatService.resendRequest(requestModel, {
+		await chatService.resendRequest(requestModel, {
 			mode: widget?.input.currentMode,
 			userSelectedModelId: widget?.input.currentLanguageModel,
 		});
