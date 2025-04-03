@@ -177,7 +177,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private agentInInput: IContextKey<boolean>;
 
 	private promptCompletionState: PromptCompletionState | undefined;
+	private promptCompletionTimeout: NodeJS.Timeout | undefined;
 	private ignorePromptCompletions: boolean = false;
+
 	private _visible = false;
 	public get visible() {
 		return this._visible;
@@ -1412,37 +1414,42 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 		this.clearPromptCompletions();
-		if (!this.promptCompletionState) {
-			return;
+		if (this.promptCompletionTimeout) {
+			clearTimeout(this.promptCompletionTimeout);
 		}
-		const source = new CancellationTokenSource();
-		const requests = this.viewModel?.model.getRequests() ?? [];
-		const resolvedRequests = requests.map(r => r.message.text);
-		const context: InlineCompletionContext = {
-			triggerKind: InlineCompletionTriggerKind.Automatic,
-			includeInlineEdits: true,
-			includeInlineCompletions: true,
-			selectedSuggestionInfo: undefined,
-			requests: resolvedRequests
-		};
-		const model = this.inputEditor.getModel();
-		const position = this.inputEditor.getPosition();
-		if (!model || !position) {
-			return;
-		}
-		const updatedCompletions = await provideInlineCompletions(
-			this.languageFeaturesService.inlineCompletionsProvider,
-			position,
-			model,
-			context,
-			source.token,
-			this.languageConfigurationService
-		);
-		const completion = updatedCompletions.completions[0];
-		if (!completion) {
-			return;
-		}
-		this.setPromptCompletionState({ position, insertText: completion.insertText });
+		this.promptCompletionTimeout = setTimeout(async () => {
+			if (!this.promptCompletionState) {
+				return;
+			}
+			const source = new CancellationTokenSource();
+			const requests = this.viewModel?.model.getRequests() ?? [];
+			const resolvedRequests = requests.map(r => r.message.text);
+			const context: InlineCompletionContext = {
+				triggerKind: InlineCompletionTriggerKind.Automatic,
+				includeInlineEdits: true,
+				includeInlineCompletions: true,
+				selectedSuggestionInfo: undefined,
+				requests: resolvedRequests
+			};
+			const model = this.inputEditor.getModel();
+			const position = this.inputEditor.getPosition();
+			if (!model || !position) {
+				return;
+			}
+			const updatedCompletions = await provideInlineCompletions(
+				this.languageFeaturesService.inlineCompletionsProvider,
+				position,
+				model,
+				context,
+				source.token,
+				this.languageConfigurationService
+			);
+			const completion = updatedCompletions.completions[0];
+			if (!completion) {
+				return;
+			}
+			this.setPromptCompletionState({ position, insertText: completion.insertText });
+		}, 500);
 	}
 
 	private setPromptCompletionState(opts: { position: Position; insertText: string } | null): void {
