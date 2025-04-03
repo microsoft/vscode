@@ -121,3 +121,36 @@ export abstract class BaseToken {
 		return `${this.text.slice(0, maxLength - 1)}...`;
 	}
 }
+
+/**
+ * Tokens that represent a sequence of tokens that does not
+ * hold an additional meaning in the text.
+ */
+export class Text extends BaseToken {
+	constructor(
+		range: Range,
+		public readonly tokens: readonly BaseToken[],
+	) {
+		super(range);
+	}
+
+	/**
+	 * Create new instance of the token from a provided
+	 * list of tokens.
+	 */
+	public static fromTokens(
+		tokens: readonly BaseToken[],
+	): Text {
+		const range = BaseToken.fullRange(tokens);
+
+		return new Text(range, tokens);
+	}
+
+	public get text(): string {
+		return BaseToken.render(this.tokens);
+	}
+
+	public override toString(): string {
+		return `text(${this.shortText()})${this.range}`;
+	}
+}
