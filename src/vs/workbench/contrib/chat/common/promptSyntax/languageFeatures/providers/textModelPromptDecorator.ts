@@ -6,6 +6,7 @@
 import { localize } from '../../../../../../../nls.js';
 import { IPromptsService } from '../../service/types.js';
 import { chatSlashCommandBackground } from '../../../chatColors.js';
+import { IPromptFileEditor } from './providerInstanceManagerBase.js';
 import { Color, RGBA } from '../../../../../../../base/common/color.js';
 import { IRange } from '../../../../../../../editor/common/core/range.js';
 import { TextModelPromptParser } from '../../parsers/textModelPromptParser.js';
@@ -20,7 +21,6 @@ import { FrontMatterHeaderToken } from '../../../../../../../editor/common/codec
 
 /**
  * TODO: @legomushroom - list
- * - add unit tests
  * - add active/inactive logic for front matter header
  */
 
@@ -91,15 +91,22 @@ export class TextModelPromptDecorator extends ObservableDisposable {
 	private readonly registeredDecorationIDs: string[] = [];
 
 	constructor(
-		private readonly editor: ITextModel,
+		private readonly editor: IPromptFileEditor,
 		@IPromptsService promptsService: IPromptsService,
 	) {
 		super();
 
-		this.parser = promptsService.getSyntaxParserFor(this.editor);
+		this.parser = promptsService.getSyntaxParserFor(this.model);
 		this.parser.onUpdate(this.onPromptParserUpdate.bind(this));
 		this.parser.onDispose(this.dispose.bind(this));
 		this.parser.start();
+	}
+
+	/**
+	 * Underlying text model of the editor.
+	 */
+	private get model(): ITextModel {
+		return this.editor.getModel();
 	}
 
 	/**
@@ -288,7 +295,7 @@ export class TextModelPromptDecorator extends ObservableDisposable {
 	 * Returns a string representation of this object.
 	 */
 	public override toString() {
-		return `text-model-prompt-decorator:${this.editor.uri.path}`;
+		return `text-model-prompt-decorator:${this.model.uri.path}`;
 	}
 
 	/**
