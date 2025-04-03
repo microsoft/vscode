@@ -210,14 +210,13 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		this.element.ariaLabel = ariaLabel;
 		this.element.style.position = 'relative';
 
-		if (attachment.references) {
+		const ref = attachment.references?.[0]?.reference;
+		if (ref && URI.isUri(ref)) {
 			this.element.style.cursor = 'pointer';
 			const clickHandler = () => {
-				if (attachment.references && URI.isUri(attachment.references[0].reference)) {
-					this.openResource(attachment.references[0].reference, false, undefined);
-				}
+				this.openResource(ref, false, undefined);
 			};
-			this._register(addDisposableListener(this.element, 'click', clickHandler));
+			this._register(dom.addDisposableListener(this.element, 'click', clickHandler));
 		}
 
 		const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$(this.modelSupportsVision() ? 'span.codicon.codicon-file-media' : 'span.codicon.codicon-warning'));
@@ -253,7 +252,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 			this._register(this.hoverService.setupDelayedHover(this.element, { content: hoverElement, appearance: { showPointer: true } }));
 		} else {
 			const buffer = attachment.value as Uint8Array;
-			const reference = attachment.references?.length && URI.isUri(attachment.references[0].reference) ? attachment.references[0].reference : undefined;
+			const reference = URI.isUri(ref) ? ref : undefined;
 			this.createImageElements(buffer, this.element, hoverElement, reference);
 			this._register(this.hoverService.setupDelayedHover(this.element, { content: hoverElement, appearance: { showPointer: true } }));
 		}
