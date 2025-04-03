@@ -12,7 +12,7 @@ import { IModelService } from '../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../editor/common/services/resolverService.js';
 import { IFileService, FileOperation } from '../../../platform/files/common/files.js';
 import { ExtHostContext, ExtHostDocumentsShape, MainThreadDocumentsShape } from '../common/extHost.protocol.js';
-import { EncodingMode, ITextFileEditorModel, ITextFileService, TextFileResolveReason } from '../../services/textfile/common/textfiles.js';
+import { EncodingMode, ITextFileEditorModel, ITextFileSaveOptions, ITextFileService, TextFileResolveReason } from '../../services/textfile/common/textfiles.js';
 import { IUntitledTextEditorModel } from '../../services/untitled/common/untitledTextEditorModel.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 import { toLocalResource, extUri, IExtUri } from '../../../base/common/resources.js';
@@ -214,8 +214,8 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 
 	// --- from extension host process
 
-	async $trySaveDocument(uri: UriComponents): Promise<boolean> {
-		const target = await this._textFileService.save(URI.revive(uri));
+	async $trySaveDocument(uri: UriComponents, options?: ITextFileSaveOptions): Promise<boolean> {
+		const target = await this._textFileService.save(URI.revive(uri), options);
 		return Boolean(target);
 	}
 
