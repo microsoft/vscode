@@ -92,7 +92,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	}
 
 	override get capabilities(): EditorInputCapabilities {
-		return super.capabilities | EditorInputCapabilities.Singleton;
+		return super.capabilities | EditorInputCapabilities.Singleton | EditorInputCapabilities.CanDropIntoEditor;
 	}
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {

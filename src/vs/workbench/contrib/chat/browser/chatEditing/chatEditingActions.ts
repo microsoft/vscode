@@ -28,7 +28,7 @@ import { GroupsOrder, IEditorGroupsService } from '../../../../services/editor/c
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { isChatViewTitleActionContext } from '../../common/chatActions.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, WorkingSetEntryRemovalReason, ModifiedFileEntryState } from '../../common/chatEditingService.js';
+import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
@@ -146,7 +146,7 @@ registerAction2(class RemoveFileFromWorkingSet extends WorkingSetAction {
 
 		// Remove from working set
 		await currentEditingSession.reject(...uris);
-		currentEditingSession.remove(WorkingSetEntryRemovalReason.User, ...uris);
+		currentEditingSession.remove(...uris);
 
 		// Remove from chat input part
 		for (const uri of uris) {
@@ -354,7 +354,7 @@ export class ChatEditingRemoveAllFilesAction extends EditingSessionAction {
 	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]): Promise<void> {
 		// Remove all files from working set
 		const uris = [...editingSession.entries.get()].map((e) => e.modifiedURI);
-		editingSession.remove(WorkingSetEntryRemovalReason.User, ...uris);
+		editingSession.remove(...uris);
 
 		// Remove all file attachments
 		const fileAttachments = chatWidget.attachmentModel ? chatWidget.attachmentModel.fileAttachments : [];
@@ -687,3 +687,32 @@ registerAction2(class ResolveSymbolsContextAction extends EditingSessionAction {
 		return implementations.flat();
 	}
 });
+
+export class ViewPreviousEditsAction extends EditingSessionAction {
+	static readonly Id = 'chatEditing.viewPreviousEdits';
+	static readonly Label = localize('chatEditing.viewPreviousEdits', 'View Previous Edits');
+
+	constructor() {
+		super({
+			id: ViewPreviousEditsAction.Id,
+			title: ViewPreviousEditsAction.Label,
+			tooltip: ViewPreviousEditsAction.Label,
+			f1: false,
+			icon: Codicon.diffMultiple,
+			precondition: hasUndecidedChatEditingResourceContextKey.negate(),
+			menu: [
+				{
+					id: MenuId.ChatEditingWidgetToolbar,
+					group: 'navigation',
+					order: 4,
+					when: ContextKeyExpr.and(applyingChatEditsFailedContextKey.negate(), ContextKeyExpr.and(hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey.negate()))
+				}
+			],
+		});
+	}
+
+	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]): Promise<void> {
+		await editingSession.show(true);
+	}
+}
+registerAction2(ViewPreviousEditsAction);

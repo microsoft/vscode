@@ -7,6 +7,7 @@ import { IMouseEvent } from '../../../../../../../base/browser/mouseEvent.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, derived, IObservable } from '../../../../../../../base/common/observable.js';
+import { IAccessibilityService } from '../../../../../../../platform/accessibility/common/accessibility.js';
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor, observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
@@ -23,10 +24,14 @@ export class InlineEditsCollapsedView extends Disposable implements IInlineEdits
 	readonly onDidClick = this._onDidClick.event;
 
 	private readonly _editorObs: ObservableCodeEditor;
+	private readonly _iconRef = n.ref<SVGElement>();
+
+	readonly isVisible: IObservable<boolean>;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _edit: IObservable<InlineEditWithChanges | undefined>,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 	) {
 		super();
 
@@ -65,6 +70,27 @@ export class InlineEditsCollapsedView extends Disposable implements IInlineEdits
 			allowEditorOverflow: false,
 			minContentWidthInPx: constObservable(0),
 		}));
+
+		this.isVisible = this._edit.map((inlineEdit, reader) => !!inlineEdit && startPoint.read(reader) !== null);
+	}
+
+	public triggerAnimation(): Promise<Animation> {
+		if (this._accessibilityService.isMotionReduced()) {
+			return new Animation(null, null).finished;
+		}
+
+		// PULSE ANIMATION:
+		const animation = this._iconRef.element.animate([
+			{ offset: 0.00, transform: 'translateY(-3px)', },
+			{ offset: 0.20, transform: 'translateY(1px)', },
+			{ offset: 0.36, transform: 'translateY(-1px)', },
+			{ offset: 0.52, transform: 'translateY(1px)', },
+			{ offset: 0.68, transform: 'translateY(-1px)', },
+			{ offset: 0.84, transform: 'translateY(1px)', },
+			{ offset: 1.00, transform: 'translateY(0px)', },
+		], { duration: 2000 });
+
+		return animation.finished;
 	}
 
 	private getCollapsedIndicator(startPoint: IObservable<Point | null>) {
@@ -74,6 +100,7 @@ export class InlineEditsCollapsedView extends Disposable implements IInlineEdits
 
 		return n.svg({
 			class: 'collapsedView',
+			ref: this._iconRef,
 			style: {
 				position: 'absolute',
 				top: 0,

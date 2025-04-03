@@ -223,24 +223,13 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		let value: any;
 
 		try {
-			if (data.provider.provideLanguageModelResponse2) {
-				value = data.provider.provideLanguageModelResponse2(
-					messages.value.map(typeConvert.LanguageModelChatMessage2.to),
-					options,
-					ExtensionIdentifier.toKey(from),
-					progress,
-					token
-				);
-
-			} else {
-				value = data.provider.provideLanguageModelResponse(
-					messages.value.map(typeConvert.LanguageModelChatMessage2.to),
-					options,
-					ExtensionIdentifier.toKey(from),
-					progress,
-					token
-				);
-			}
+			value = data.provider.provideLanguageModelResponse(
+				messages.value.map(typeConvert.LanguageModelChatMessage2.to),
+				options,
+				ExtensionIdentifier.toKey(from),
+				progress,
+				token
+			);
 
 		} catch (err) {
 			// synchronously failed

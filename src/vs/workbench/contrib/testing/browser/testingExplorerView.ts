@@ -1548,6 +1548,12 @@ class TestItemRenderer extends Disposable
 					: undefined
 		}));
 
+		disposable.add(this.profiles.onDidChange(() => {
+			if (templateData.current) {
+				this.fillActionBar(templateData.current, templateData);
+			}
+		}));
+
 		disposable.add(this.crService.onDidChange(changed => {
 			const id = templateData.current?.test.item.extId;
 			if (id && (!changed || changed === id || TestId.isChild(id, changed))) {

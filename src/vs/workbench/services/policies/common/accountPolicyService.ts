@@ -6,13 +6,13 @@
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { AbstractPolicyService, IPolicyService, PolicyDefinition } from '../../../../platform/policy/common/policy.js';
-import { DefaultAccountService, IDefaultAccountService } from '../../accounts/common/defaultAccount.js';
+import { IDefaultAccountService } from '../../accounts/common/defaultAccount.js';
 
 export class AccountPolicyService extends AbstractPolicyService implements IPolicyService {
 	private chatPreviewFeaturesEnabled: boolean = true;
 	constructor(
 		@ILogService private readonly logService: ILogService,
-		@IDefaultAccountService private readonly defaultAccountService: DefaultAccountService
+		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService
 	) {
 		super();
 

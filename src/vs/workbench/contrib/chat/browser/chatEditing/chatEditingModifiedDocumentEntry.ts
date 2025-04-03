@@ -38,7 +38,7 @@ import { editorSelectionBackground } from '../../../../../platform/theme/common/
 import { IUndoRedoElement, IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { SaveReason, IEditorPane } from '../../../../common/editor.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
-import { IResolvedTextFileEditorModel, ITextFileService, stringToSnapshot } from '../../../../services/textfile/common/textfiles.js';
+import { isTextFileEditorModel, ITextFileService, stringToSnapshot } from '../../../../services/textfile/common/textfiles.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { IModifiedFileEntry, ChatEditKind, ModifiedFileEntryState, IModifiedFileEntryEditorIntegration } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
@@ -76,7 +76,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 	private readonly originalModel: ITextModel;
 	private readonly modifiedModel: ITextModel;
 
-	readonly docFileEditorModel: IResolvedTextFileEditorModel;
+	private readonly _docFileEditorModel: IResolvedTextEditorModel;
 
 	private _edit: OffsetEdit = OffsetEdit.empty;
 	private _isEditFromUs: boolean = false;
@@ -128,7 +128,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			instantiationService
 		);
 
-		this.docFileEditorModel = this._register(resourceRef).object as IResolvedTextFileEditorModel;
+		this._docFileEditorModel = this._register(resourceRef).object;
 		this.modifiedModel = resourceRef.object.textEditorModel;
 		this.originalURI = ChatEditingTextModelContentProvider.getFileURI(telemetryInfo.sessionId, this.entryId, this.modifiedURI.path);
 
@@ -451,15 +451,17 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 	protected override async _doReject(tx: ITransaction | undefined): Promise<void> {
 		if (this.createdInRequestId === this._telemetryInfo.requestId) {
-			await this.docFileEditorModel.revert({ soft: true });
-			await this._fileService.del(this.modifiedURI);
+			if (isTextFileEditorModel(this._docFileEditorModel)) {
+				await this._docFileEditorModel.revert({ soft: true });
+				await this._fileService.del(this.modifiedURI);
+			}
 			this._onDidDelete.fire();
 		} else {
 			this._setDocValue(this.originalModel.getValue());
-			if (this._allEditsAreFromUs) {
+			if (this._allEditsAreFromUs && isTextFileEditorModel(this._docFileEditorModel)) {
 				// save the file after discarding so that the dirty indicator goes away
 				// and so that an intermediate saved state gets reverted
-				await this.docFileEditorModel.save({ reason: SaveReason.EXPLICIT, skipSaveParticipants: true });
+				await this._docFileEditorModel.save({ reason: SaveReason.EXPLICIT, skipSaveParticipants: true });
 			}
 			await this._collapse(tx);
 		}

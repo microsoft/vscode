@@ -18,6 +18,7 @@ import { compare } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { TextEdit } from '../../../../../editor/common/languages.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../nls.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -34,8 +35,8 @@ import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMul
 import { CellUri } from '../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
-import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingResourceContextKey, ChatEditingSessionState, chatEditingSnapshotScheme, IChatEditingService, IChatEditingSession, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, IStreamingEdits, ModifiedFileEntryState } from '../../common/chatEditingService.js';
-import { ChatModel, IChatResponseModel } from '../../common/chatModel.js';
+import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingResourceContextKey, ChatEditingSessionState, chatEditingSnapshotScheme, IChatEditingService, IChatEditingSession, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, IStreamingEdits, ModifiedFileEntryState, parseChatMultiDiffUri } from '../../common/chatEditingService.js';
+import { ChatModel, IChatResponseModel, isCellTextEditOperation } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
@@ -283,7 +284,20 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 				entry.seen = part.edits.length;
 
 				if (newEdits.length > 0 || isFirst) {
-					entry.streaming.pushEdits(newEdits);
+					if (part.kind === 'notebookEditGroup') {
+						newEdits.forEach(edit => {
+							if (TextEdit.isTextEdit(edit)) {
+								// Not possible, as Notebooks would have a different type.
+								return;
+							} else if (isCellTextEditOperation(edit)) {
+								entry.streaming.pushNotebookCellText(edit.uri, [edit.edit]);
+							} else {
+								entry.streaming.pushNotebook([edit]);
+							}
+						});
+					} else if (part.kind === 'textEditGroup') {
+						entry.streaming.pushText(newEdits as TextEdit[]);
+					}
 				}
 
 				if (part.done) {
@@ -431,11 +445,12 @@ export class ChatEditingMultiDiffSourceResolver implements IMultiDiffSourceResol
 
 	async resolveDiffSource(uri: URI): Promise<IResolvedMultiDiffSource> {
 
+		const parsed = parseChatMultiDiffUri(uri);
 		const thisSession = derived(this, r => {
-			return this._editingSessionsObs.read(r).find(candidate => candidate.chatSessionId === uri.authority);
+			return this._editingSessionsObs.read(r).find(candidate => candidate.chatSessionId === parsed.chatSessionId);
 		});
 
-		return this._instantiationService.createInstance(ChatEditingMultiDiffSource, thisSession);
+		return this._instantiationService.createInstance(ChatEditingMultiDiffSource, thisSession, parsed.showPreviousChanges);
 	}
 }
 
@@ -447,6 +462,21 @@ class ChatEditingMultiDiffSource implements IResolvedMultiDiffSource {
 		}
 		const entries = currentSession.entries.read(reader);
 		return entries.map((entry) => {
+			if (this._showPreviousChanges) {
+				const entryDiffObs = currentSession.getEntryDiffBetweenStops(entry.modifiedURI, undefined, undefined);
+				const entryDiff = entryDiffObs?.read(reader);
+				if (entryDiff) {
+					return new MultiDiffEditorItem(
+						entryDiff.originalURI,
+						entryDiff.modifiedURI,
+						undefined,
+						{
+							[chatEditingResourceContextKey.key]: entry.entryId,
+						},
+					);
+				}
+			}
+
 			return new MultiDiffEditorItem(
 				entry.originalURI,
 				entry.modifiedURI,
@@ -465,6 +495,7 @@ class ChatEditingMultiDiffSource implements IResolvedMultiDiffSource {
 	};
 
 	constructor(
-		private readonly _currentSession: IObservable<IChatEditingSession | undefined>
+		private readonly _currentSession: IObservable<IChatEditingSession | undefined>,
+		private readonly _showPreviousChanges: boolean
 	) { }
 }

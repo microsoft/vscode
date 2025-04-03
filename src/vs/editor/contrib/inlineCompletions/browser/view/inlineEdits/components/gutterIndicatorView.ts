@@ -5,16 +5,13 @@
 
 import { n, trackFocus } from '../../../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { timeout } from '../../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { BugIndicatingError } from '../../../../../../../base/common/errors.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { IObservable, ISettableObservable, autorun, autorunWithStore, constObservable, derived, observableFromEvent, observableValue, runOnChange } from '../../../../../../../base/common/observable.js';
-import { debouncedObservable } from '../../../../../../../base/common/observableInternal/utils.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { IObservable, ISettableObservable, autorun, constObservable, debouncedObservable, derived, observableFromEvent, observableValue, runOnChange } from '../../../../../../../base/common/observable.js';
 import { IAccessibilityService } from '../../../../../../../platform/accessibility/common/accessibility.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
 import { IEditorMouseEvent } from '../../../../../../browser/editorBrowser.js';
@@ -27,18 +24,10 @@ import { EditorOption, RenderLineNumbersType } from '../../../../../../common/co
 import { LineRange } from '../../../../../../common/core/lineRange.js';
 import { OffsetRange } from '../../../../../../common/core/offsetRange.js';
 import { StickyScrollController } from '../../../../../stickyScroll/browser/stickyScrollController.js';
-import { InlineEditHost } from '../inlineEditsModel.js';
 import { IInlineEditModel, InlineEditTabAction } from '../inlineEditsViewInterface.js';
 import { getEditorBlendedColor, inlineEditIndicatorBackground, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorPrimaryBorder, inlineEditIndicatorPrimaryForeground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorSecondaryBorder, inlineEditIndicatorSecondaryForeground, inlineEditIndicatorsuccessfulBackground, inlineEditIndicatorsuccessfulBorder, inlineEditIndicatorsuccessfulForeground } from '../theme.js';
 import { mapOutFalsy, rectToProps } from '../utils/utils.js';
 import { GutterIndicatorMenuContent } from './gutterIndicatorMenu.js';
-
-// Represents the user's familiarity with the inline edits feature.
-enum UserKind {
-	FirstTime = 'firstTime',
-	SecondTime = 'secondTime',
-	Active = 'active'
-}
 
 export class InlineEditsGutterIndicator extends Disposable {
 
@@ -48,52 +37,18 @@ export class InlineEditsGutterIndicator extends Disposable {
 		return model;
 	}
 
-	private readonly _activeCompletionId = derived<string | undefined>(reader => {
-		const layout = this._layout.read(reader);
-		if (!layout) { return undefined; }
-		const model = this._model.read(reader);
-		if (!model) { return undefined; }
-		return model.inlineEdit.inlineCompletion.id;
-	});
-
 	private readonly _gutterIndicatorStyles: IObservable<{ background: string; foreground: string; border: string }>;
 	private readonly _isHoveredOverInlineEditDebounced: IObservable<boolean>;
-
-	private readonly _newUserAnimationDisposable = this._register(new MutableDisposable());
-	private readonly _firstToSecondTimeUserDisposable = this._register(new MutableDisposable());
-	private readonly _secondTimeToActiveUserDisposable = this._register(new MutableDisposable());
-
-	private get _newUserType(): UserKind {
-		return this._storageService.get('inlineEditsGutterIndicatorUserKind', StorageScope.APPLICATION, UserKind.FirstTime) as UserKind;
-	}
-	private set _newUserType(value: UserKind) {
-		switch (value) {
-			case UserKind.FirstTime:
-				throw new BugIndicatingError('UserKind should not be set to first time');
-			case UserKind.SecondTime:
-				this._firstToSecondTimeUserDisposable.clear();
-				break;
-			case UserKind.Active:
-				this._newUserAnimationDisposable.clear();
-				this._firstToSecondTimeUserDisposable.clear();
-				this._secondTimeToActiveUserDisposable.clear();
-				break;
-		}
-
-		this._storageService.store('inlineEditsGutterIndicatorUserKind', value, StorageScope.APPLICATION, StorageTarget.USER);
-	}
 
 	constructor(
 		private readonly _editorObs: ObservableCodeEditor,
 		private readonly _originalRange: IObservable<LineRange | undefined>,
 		private readonly _verticalOffset: IObservable<number>,
-		private readonly _host: IObservable<InlineEditHost | undefined>,
 		private readonly _model: IObservable<IInlineEditModel | undefined>,
 		private readonly _isHoveringOverInlineEdit: IObservable<boolean>,
 		private readonly _focusIsInMenu: ISettableObservable<boolean>,
 		@IHoverService private readonly _hoverService: HoverService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IStorageService private readonly _storageService: IStorageService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IThemeService themeService: IThemeService,
 	) {
@@ -143,13 +98,9 @@ export class InlineEditsGutterIndicator extends Disposable {
 		// pulse animation when hovering inline edit
 		this._register(runOnChange(this._isHoveredOverInlineEditDebounced, (isHovering) => {
 			if (isHovering) {
-				this._triggerAnimation();
+				this.triggerAnimation();
 			}
 		}));
-
-		if (this._newUserType === UserKind.Active) {
-			this._register(this.setupNewUserExperience());
-		}
 
 		this._register(autorun(reader => {
 			this._indicator.readEffect(reader);
@@ -157,97 +108,12 @@ export class InlineEditsGutterIndicator extends Disposable {
 				this._editorObs.editor.applyFontInfo(this._indicator.element);
 			}
 		}));
-
-		this._register(autorunWithStore((reader, store) => {
-			const host = this._host.read(reader);
-			if (!host) { return; }
-			store.add(host.onDidAccept(() => {
-				this._storageService.store('inlineEditsGutterIndicatorUserKind', UserKind.Active, StorageScope.APPLICATION, StorageTarget.USER);
-			}));
-		}));
 	}
 
-	private setupNewUserExperience(): IDisposable {
-		if (this._newUserType === UserKind.Active) {
-			return Disposable.None;
-		}
-
-		const disposableStore = new DisposableStore();
-
-		let userHasHoveredOverIcon = false;
-		let inlineEditHasBeenAccepted = false;
-		let firstTimeUserAnimationCount = 0;
-		let secondTimeUserAnimationCount = 0;
-
-		// pulse animation for new users
-		disposableStore.add(runOnChange(this._activeCompletionId, async (id) => {
-			if (id === undefined) { return; }
-			const userType = this._newUserType;
-
-			// Animation
-			switch (userType) {
-				case UserKind.FirstTime: {
-					for (let i = 0; i < 3 && this._activeCompletionId.get() === id; i++) {
-						await this._triggerAnimation();
-						await timeout(500);
-					}
-					break;
-				}
-				case UserKind.SecondTime: {
-					this._triggerAnimation();
-					break;
-				}
-			}
-
-			// User Kind Transition
-			switch (userType) {
-				case UserKind.FirstTime: {
-					if (++firstTimeUserAnimationCount >= 5 || userHasHoveredOverIcon) {
-						this._newUserType = UserKind.SecondTime;
-					}
-					break;
-				}
-				case UserKind.SecondTime: {
-					if (++secondTimeUserAnimationCount >= 5 && inlineEditHasBeenAccepted) {
-						this._newUserType = UserKind.Active;
-					}
-					break;
-				}
-			}
-		}));
-
-		// Remember when the user has hovered over the icon
-		disposableStore.add(runOnChange(this._isHoveredOverIconDebounced, async (isHovered) => {
-			if (isHovered) {
-				userHasHoveredOverIcon = true;
-			}
-		}));
-
-		// Remember when the user has accepted an inline edit
-		disposableStore.add(autorunWithStore((reader, store) => {
-			const host = this._host.read(reader);
-			if (!host) { return; }
-			store.add(host.onDidAccept(() => {
-				inlineEditHasBeenAccepted = true;
-			}));
-		}));
-
-		return disposableStore;
-	}
-
-	private _triggerAnimation(): Promise<Animation> {
+	public triggerAnimation(): Promise<Animation> {
 		if (this._accessibilityService.isMotionReduced()) {
 			return new Animation(null, null).finished;
 		}
-		// WIGGLE ANIMATION:
-		/* this._iconRef.element.animate([
-			{ transform: 'rotate(0) scale(1)', offset: 0 },
-			{ transform: 'rotate(14.4deg) scale(1.1)', offset: 0.15 },
-			{ transform: 'rotate(-14.4deg) scale(1.2)', offset: 0.3 },
-			{ transform: 'rotate(14.4deg) scale(1.1)', offset: 0.45 },
-			{ transform: 'rotate(-14.4deg) scale(1.2)', offset: 0.6 },
-			{ transform: 'rotate(0) scale(1)', offset: 1 }
-		], { duration: 800 }); */
 
 		// PULSE ANIMATION:
 		const animation = this._iconRef.element.animate([
@@ -464,11 +330,17 @@ export class InlineEditsGutterIndicator extends Disposable {
 		};
 	});
 
+
 	private readonly _iconRef = n.ref<HTMLDivElement>();
+
+	public readonly isVisible = this._layout.map(l => !!l);
+
 	private readonly _hoverVisible = observableValue(this, false);
 	public readonly isHoverVisible: IObservable<boolean> = this._hoverVisible;
+
 	private readonly _isHoveredOverIcon = observableValue(this, false);
 	private readonly _isHoveredOverIconDebounced: IObservable<boolean> = debouncedObservable(this._isHoveredOverIcon, 100);
+	public readonly isHoveredOverIcon: IObservable<boolean> = this._isHoveredOverIconDebounced;
 
 	private _showHover(): void {
 		if (this._hoverVisible.get()) {

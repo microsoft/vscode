@@ -486,7 +486,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 
 	// ---- navigation logic
 
-	reveal(firstOrLast: boolean): void {
+	reveal(firstOrLast: boolean, preserveFocus?: boolean): void {
 
 		const decorations = this._diffLineDecorations
 			.getRanges()
@@ -497,7 +497,9 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		if (range) {
 			this._editor.setPosition(range.getStartPosition());
 			this._editor.revealRange(range);
-			this._editor.focus();
+			if (!preserveFocus) {
+				this._editor.focus();
+			}
 			this._currentIndex.set(index, undefined);
 		}
 	}
@@ -581,18 +583,18 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		return closestWidget;
 	}
 
-	rejectNearestChange(closestWidget: IModifiedFileEntryChangeHunk | undefined): void {
+	async rejectNearestChange(closestWidget: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
 		closestWidget = closestWidget ?? this._findClosestWidget();
 		if (closestWidget instanceof DiffHunkWidget) {
-			closestWidget.reject();
+			await closestWidget.reject();
 			this.next(true);
 		}
 	}
 
-	acceptNearestChange(closestWidget: IModifiedFileEntryChangeHunk | undefined): void {
+	async acceptNearestChange(closestWidget: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
 		closestWidget = closestWidget ?? this._findClosestWidget();
 		if (closestWidget instanceof DiffHunkWidget) {
-			closestWidget.accept();
+			await closestWidget.accept();
 			this.next(true);
 		}
 	}
