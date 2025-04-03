@@ -43,6 +43,10 @@
   (boundary_assertion)
 ] @keyword.control.anchor.regexp
 
+(class_character) @constant.character-class.regexp
+
+(identity_escape) @constant.character.escape.regexp
+
 [
   ((identity_escape) @internal.regexp (#match? @internal.regexp "\\[^ux]"))
 ] @constant.character.escape.regexp
@@ -65,6 +69,14 @@
   (pattern_character) @constant.character.numeric.regexp
   .
   (pattern_character) @constant.character.numeric.regexp
+) @constant.character.numeric.regexp
+
+(
+  ((identity_escape) @internal.regexp (#eq? @internal.regexp "\\x"))
+  .
+  (class_character) @constant.character.numeric.regexp
+  .
+  (class_character) @constant.character.numeric.regexp
 ) @constant.character.numeric.regexp
 
 [
@@ -92,5 +104,3 @@
     "^" @keyword.operator.negation.regexp
     (class_range "-" @constant.other.character-class.range.regexp)
   ])
-
-(class_character) @constant.character-class.regexp
