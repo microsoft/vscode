@@ -177,7 +177,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private agentInInput: IContextKey<boolean>;
 
 	private promptCompletionState: PromptCompletionState | undefined;
-
+	private ignorePromptCompletions: boolean = false;
 	private _visible = false;
 	public get visible() {
 		return this._visible;
@@ -944,9 +944,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.updateChatInputContext();
 			this.updateInlineCompletions();
 		}));
+		this._register(this.inputEditor.onDidChangeCursorPosition(() => {
+			this.updateInlineCompletions();
+		}));
 		this._register(this.inputEditor.onKeyDown((e) => {
 			if (e.keyCode === KeyCode.Tab) {
-				this.acceptPromptCompletion();
+				const accepted = this.acceptPromptCompletion();
+				if (accepted) {
+					e.stopPropagation();
+					e.preventDefault();
+				}
+			}
+			if (e.keyCode === KeyCode.Escape) {
+				this.clearPromptCompletions();
 			}
 		}));
 		this._register(this.chatAgentService.onDidChangeAgents(() => {
@@ -1398,25 +1408,26 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private async updateInlineCompletions(): Promise<void> {
-		this.clearInlineCompletions();
+		if (this.ignorePromptCompletions) {
+			return;
+		}
+		this.clearPromptCompletions();
 		if (!this.promptCompletionState) {
 			return;
 		}
 		const source = new CancellationTokenSource();
+		const requests = this.viewModel?.model.getRequests() ?? [];
+		const resolvedRequests = requests.map(r => r.message.text);
 		const context: InlineCompletionContext = {
 			triggerKind: InlineCompletionTriggerKind.Automatic,
 			includeInlineEdits: true,
 			includeInlineCompletions: true,
-			selectedSuggestionInfo: undefined
+			selectedSuggestionInfo: undefined,
+			requests: resolvedRequests
 		};
 		const model = this.inputEditor.getModel();
 		const position = this.inputEditor.getPosition();
 		if (!model || !position) {
-			return;
-		}
-		const value = model.getValue();
-		if (!value) {
-			this.clearInlineCompletions();
 			return;
 		}
 		const updatedCompletions = await provideInlineCompletions(
@@ -1460,21 +1471,27 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	private clearInlineCompletions(): void {
+	private clearPromptCompletions(): void {
 		this.setPromptCompletionState(null);
 	}
 
-	private acceptPromptCompletion(): void {
+	private acceptPromptCompletion(): boolean {
 		if (!this.promptCompletionState) {
-			return;
+			return false;
 		}
 		const model = this.inputEditor.getModel();
 		if (!model) {
-			return;
+			return false;
 		}
 		const newValue = model.getValue() + this.promptCompletionState.insertText;
+		this.ignorePromptCompletions = true;
 		this.inputEditor.setValue(newValue);
-		this.clearInlineCompletions();
+		this.ignorePromptCompletions = false;
+		const lineCount = model.getLineCount();
+		const lineMaxColumn = model.getLineMaxColumn(lineCount);
+		this.inputEditor.setPosition({ lineNumber: lineCount, column: lineMaxColumn });
+		this.clearPromptCompletions();
+		return true;
 	}
 }
 
