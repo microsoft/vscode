@@ -401,6 +401,11 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			return undefined;
 		}
 
+		if (this.state.get() !== ModifiedFileEntryState.Modified) {
+			this._diffInfo.set(nullDocumentDiff, undefined);
+			return nullDocumentDiff;
+		}
+
 		const docVersionNow = this.modifiedModel.getVersionId();
 		const snapshotVersionNow = this.originalModel.getVersionId();
 
