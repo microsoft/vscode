@@ -180,6 +180,10 @@ export interface IProductConfiguration {
 	readonly extensionEnabledApiProposals?: { readonly [extensionId: string]: string[] };
 	readonly extensionUntrustedWorkspaceSupport?: { readonly [extensionId: string]: ExtensionUntrustedWorkspaceSupport };
 	readonly extensionVirtualWorkspacesSupport?: { readonly [extensionId: string]: ExtensionVirtualWorkspaceSupport };
+	readonly extensionProperties: IStringDictionary<{
+		readonly hasPrereleaseVersion?: boolean;
+		readonly excludeVersionRange?: string;
+	}>;
 
 	readonly msftInternalDomains?: string[];
 	readonly linkProtectionTrustedDomains?: readonly string[];

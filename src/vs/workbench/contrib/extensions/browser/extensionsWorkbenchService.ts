@@ -380,9 +380,8 @@ export class Extension implements IExtension {
 		return !!this.gallery?.properties.isPreReleaseVersion;
 	}
 
-	private _extensionEnabledWithPreRelease: boolean | undefined;
 	get hasPreReleaseVersion(): boolean {
-		return !!this.gallery?.hasPreReleaseVersion || !!this.local?.hasPreReleaseVersion || !!this._extensionEnabledWithPreRelease;
+		return this.gallery ? this.gallery.hasPreReleaseVersion : !!this.local?.hasPreReleaseVersion;
 	}
 
 	get hasReleaseVersion(): boolean {
@@ -558,7 +557,6 @@ ${this.description}
 	setExtensionsControlManifest(extensionsControlManifest: IExtensionsControlManifest): void {
 		this.malicious = isMalicious(this.identifier, extensionsControlManifest.malicious);
 		this.deprecationInfo = extensionsControlManifest.deprecated ? extensionsControlManifest.deprecated[this.identifier.id.toLowerCase()] : undefined;
-		this._extensionEnabledWithPreRelease = extensionsControlManifest?.extensionsEnabledWithPreRelease?.includes(this.identifier.id.toLowerCase());
 	}
 
 	private getManifestFromLocalOrResource(): IExtensionManifest | null {

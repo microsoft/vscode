@@ -5,6 +5,7 @@
 
 import { distinct } from '../../../base/common/arrays.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import * as semver from '../../../base/common/semver/semver.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { CancellationError, getErrorMessage, isCancellationError } from '../../../base/common/errors.js';
 import { IPager } from '../../../base/common/paging.js';
@@ -350,6 +351,14 @@ function isPreReleaseVersion(version: IRawGalleryExtensionVersion): boolean {
 	return values.length > 0 && values[0].value === 'true';
 }
 
+function hasPreReleaseForExtension(id: string, productService: IProductService): boolean | undefined {
+	return productService.extensionProperties?.[id.toLowerCase()]?.hasPrereleaseVersion;
+}
+
+function getExcludeVersionRangeForExtension(id: string, productService: IProductService): string | undefined {
+	return productService.extensionProperties?.[id.toLowerCase()]?.excludeVersionRange;
+}
+
 function isPrivateExtension(version: IRawGalleryExtensionVersion): boolean {
 	const values = version.properties ? version.properties.filter(p => p.key === PropertyType.Private) : [];
 	return values.length > 0 && values[0].value === 'true';
@@ -442,7 +451,7 @@ function setTelemetry(extension: IGalleryExtension, index: number, querySource?:
 	extension.telemetryData = { index, querySource, queryActivityId: extension.queryContext?.[SEARCH_ACTIVITY_HEADER_NAME] };
 }
 
-function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGalleryExtensionVersion, allTargetPlatforms: TargetPlatform[], extensionGalleryManifest: IExtensionGalleryManifest, queryContext?: IStringDictionary<any>): IGalleryExtension {
+function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGalleryExtensionVersion, allTargetPlatforms: TargetPlatform[], extensionGalleryManifest: IExtensionGalleryManifest, productService: IProductService, queryContext?: IStringDictionary<any>): IGalleryExtension {
 	const latestVersion = galleryExtension.versions[0];
 	const assets: IGalleryExtensionAssets = {
 		manifest: getVersionAsset(version, AssetType.Manifest),
@@ -459,11 +468,12 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 	const detailsViewUri = getExtensionGalleryManifestResourceUri(extensionGalleryManifest, ExtensionGalleryResourceType.ExtensionDetailsViewUri);
 	const publisherViewUri = getExtensionGalleryManifestResourceUri(extensionGalleryManifest, ExtensionGalleryResourceType.PublisherViewUri);
 	const ratingViewUri = getExtensionGalleryManifestResourceUri(extensionGalleryManifest, ExtensionGalleryResourceType.ExtensionRatingViewUri);
+	const id = getGalleryExtensionId(galleryExtension.publisher.publisherName, galleryExtension.extensionName);
 
 	return {
 		type: 'gallery',
 		identifier: {
-			id: getGalleryExtensionId(galleryExtension.publisher.publisherName, galleryExtension.extensionName),
+			id,
 			uuid: galleryExtension.extensionId
 		},
 		name: galleryExtension.extensionName,
@@ -494,7 +504,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 			isPreReleaseVersion: isPreReleaseVersion(version),
 			executesCode: executesCode(version)
 		},
-		hasPreReleaseVersion: isPreReleaseVersion(latestVersion),
+		hasPreReleaseVersion: hasPreReleaseForExtension(id, productService) ?? isPreReleaseVersion(latestVersion),
 		hasReleaseVersion: true,
 		private: isPrivateExtension(latestVersion),
 		preview: getIsPreview(galleryExtension.flags),
@@ -525,7 +535,6 @@ interface IRawExtensionsControlManifest {
 		additionalInfo?: string;
 	}>;
 	search?: ISearchPrefferedResults[];
-	extensionsEnabledWithPreRelease?: string[];
 }
 
 export abstract class AbstractExtensionGalleryService implements IExtensionGalleryService {
@@ -819,7 +828,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			}, allTargetPlatforms);
 
 		if (rawGalleryExtensionVersion) {
-			return toExtension(rawGalleryExtension, rawGalleryExtensionVersion, allTargetPlatforms, extensionGalleryManifest);
+			return toExtension(rawGalleryExtension, rawGalleryExtensionVersion, allTargetPlatforms, extensionGalleryManifest, this.productService);
 		}
 
 		return null;
@@ -850,92 +859,124 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 	}
 
 	async isExtensionCompatible(extension: IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform, productVersion: IProductVersion = { version: this.productService.version, date: this.productService.date }): Promise<boolean> {
-		if (this.allowedExtensionsService.isAllowed(extension) !== true) {
-			return false;
-		}
-
-		if (!isTargetPlatformCompatible(extension.properties.targetPlatform, extension.allTargetPlatforms, targetPlatform)) {
-			return false;
-		}
-
-		if (!includePreRelease && extension.properties.isPreReleaseVersion) {
-			// Pre-releases are not allowed when include pre-release flag is not set
-			return false;
-		}
-
-		let engine = extension.properties.engine;
-		if (!engine) {
-			const manifest = await this.getManifest(extension, CancellationToken.None);
-			if (!manifest) {
-				throw new Error('Manifest was not found');
-			}
-			engine = manifest.engines.vscode;
-		}
-
-		if (!isEngineValid(engine, productVersion.version, productVersion.date)) {
-			return false;
-		}
-
-		if (!this.areApiProposalsCompatible(extension.identifier, extension.properties.enabledApiProposals)) {
-			return false;
-		}
-
-		return true;
-	}
-
-	private areApiProposalsCompatible(extensionIdentifier: IExtensionIdentifier, enabledApiProposals: string[] | undefined): boolean {
-		if (!enabledApiProposals) {
-			return true;
-		}
-		if (!this.extensionsEnabledWithApiProposalVersion.includes(extensionIdentifier.id.toLowerCase())) {
-			return true;
-		}
-		return areApiProposalsCompatible(enabledApiProposals);
+		return this.isValidVersion(
+			{
+				id: extension.identifier.id,
+				version: extension.version,
+				isPreReleaseVersion: extension.properties.isPreReleaseVersion,
+				targetPlatform: extension.properties.targetPlatform,
+				manifestAsset: extension.assets.manifest,
+				engine: extension.properties.engine,
+				enabledApiProposals: extension.properties.enabledApiProposals
+			},
+			{
+				targetPlatform,
+				compatible: true,
+				productVersion,
+				version: includePreRelease ? VersionKind.Latest : VersionKind.Release
+			},
+			extension.publisherDisplayName,
+			extension.allTargetPlatforms
+		);
 	}
 
 	private async isValidVersion(
-		extension: string,
-		rawGalleryExtensionVersion: IRawGalleryExtensionVersion,
+		extension: { id: string; version: string; isPreReleaseVersion: boolean; targetPlatform: TargetPlatform; manifestAsset: IGalleryExtensionAsset | null; engine: string | undefined; enabledApiProposals: string[] | undefined },
 		{ targetPlatform, compatible, productVersion, version }: ExtensionVersionCriteria,
 		publisherDisplayName: string,
 		allTargetPlatforms: TargetPlatform[]
 	): Promise<boolean> {
 
+		const hasPreRelease = hasPreReleaseForExtension(extension.id, this.productService);
+		const excludeVersionRange = getExcludeVersionRangeForExtension(extension.id, this.productService);
+
+		if (extension.isPreReleaseVersion && hasPreRelease === false /* Skip if hasPreRelease is not defined for this extension */) {
+			return false;
+		}
+
+		if (excludeVersionRange && semver.satisfies(extension.version, excludeVersionRange)) {
+			return false;
+		}
+
 		// Specific version
 		if (isString(version)) {
-			if (rawGalleryExtensionVersion.version !== version) {
+			if (extension.version !== version) {
 				return false;
 			}
 		}
 
 		// Prerelease or release version kind
 		else if (version === VersionKind.Release || version === VersionKind.Prerelease) {
-			if (isPreReleaseVersion(rawGalleryExtensionVersion) !== (version === VersionKind.Prerelease)) {
+			if (extension.isPreReleaseVersion !== (version === VersionKind.Prerelease)) {
 				return false;
 			}
 		}
 
-		const targetPlatformForExtension = getTargetPlatformForExtensionVersion(rawGalleryExtensionVersion);
-		if (!isTargetPlatformCompatible(targetPlatformForExtension, allTargetPlatforms, targetPlatform)) {
+		if (!isTargetPlatformCompatible(extension.targetPlatform, allTargetPlatforms, targetPlatform)) {
 			return false;
 		}
 
 		if (compatible) {
-			if (this.allowedExtensionsService.isAllowed({ id: extension, publisherDisplayName, version: rawGalleryExtensionVersion.version, prerelease: isPreReleaseVersion(rawGalleryExtensionVersion), targetPlatform: targetPlatformForExtension }) !== true) {
+			if (this.allowedExtensionsService.isAllowed({ id: extension.id, publisherDisplayName, version: extension.version, prerelease: extension.isPreReleaseVersion, targetPlatform: extension.targetPlatform }) !== true) {
 				return false;
 			}
-			try {
-				const engine = await this.getEngine(extension, rawGalleryExtensionVersion);
-				if (!isEngineValid(engine, productVersion.version, productVersion.date)) {
-					return false;
-				}
-			} catch (error) {
-				this.logService.error(`Error while getting the engine for the version ${rawGalleryExtensionVersion.version}.`, getErrorMessage(error));
+
+			if (!this.areApiProposalsCompatible(extension.id, extension.enabledApiProposals)) {
+				return false;
+			}
+
+			if (!(await this.isEngineValid(extension.id, extension.version, extension.engine, extension.manifestAsset, productVersion))) {
 				return false;
 			}
 		}
 
 		return true;
+	}
+
+	private areApiProposalsCompatible(extensionId: string, enabledApiProposals: string[] | undefined): boolean {
+		if (!enabledApiProposals) {
+			return true;
+		}
+		if (!this.extensionsEnabledWithApiProposalVersion.includes(extensionId.toLowerCase())) {
+			return true;
+		}
+		return areApiProposalsCompatible(enabledApiProposals);
+	}
+
+	private async isEngineValid(extensionId: string, version: string, engine: string | undefined, manifestAsset: IGalleryExtensionAsset | null, productVersion: IProductVersion): Promise<boolean> {
+		if (!engine) {
+			if (!manifestAsset) {
+				this.logService.error(`Missing engine and manifest asset for the extension ${extensionId} with version ${version}`);
+				return false;
+			}
+			try {
+				type GalleryServiceEngineFallbackClassification = {
+					owner: 'sandy081';
+					comment: 'Fallback request when engine is not found in properties of an extension version';
+					extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'extension name' };
+					extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'version' };
+				};
+				type GalleryServiceEngineFallbackEvent = {
+					extension: string;
+					extensionVersion: string;
+				};
+				this.telemetryService.publicLog2<GalleryServiceEngineFallbackEvent, GalleryServiceEngineFallbackClassification>('galleryService:engineFallback', { extension: extensionId, extensionVersion: version });
+
+				const headers = { 'Accept-Encoding': 'gzip' };
+				const context = await this.getAsset(extensionId, manifestAsset, AssetType.Manifest, version, { headers });
+				const manifest = await asJson<IExtensionManifest>(context);
+				if (!manifest) {
+					this.logService.error(`Manifest was not found for the extension ${extensionId} with version ${version}`);
+					return false;
+				}
+				engine = manifest.engines.vscode;
+			} catch (error) {
+				this.logService.error(`Error while getting the engine for the version ${version}.`, getErrorMessage(error));
+				return false;
+			}
+		}
+
+		return isEngineValid(engine, productVersion.version, productVersion.date);
 	}
 
 	async query(options: IQueryOptions, token: CancellationToken): Promise<IPager<IGalleryExtension>> {
@@ -1075,7 +1116,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 					allTargetPlatforms
 				);
 				if (rawGalleryExtensionVersion) {
-					extensions.push(toExtension(rawGalleryExtension, rawGalleryExtensionVersion, allTargetPlatforms, extensionGalleryManifest, context));
+					extensions.push(toExtension(rawGalleryExtension, rawGalleryExtensionVersion, allTargetPlatforms, extensionGalleryManifest, this.productService, context));
 				}
 			}
 			return { extensions, total };
@@ -1109,7 +1150,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 				},
 				allTargetPlatforms
 			);
-			const extension = rawGalleryExtensionVersion ? toExtension(rawGalleryExtension, rawGalleryExtensionVersion, allTargetPlatforms, extensionGalleryManifest, context) : null;
+			const extension = rawGalleryExtensionVersion ? toExtension(rawGalleryExtension, rawGalleryExtensionVersion, allTargetPlatforms, extensionGalleryManifest, this.productService, context) : null;
 			if (!extension
 				/** Need all versions if the extension is a pre-release version but
 				 * 		- the query is to look for a release version or
@@ -1209,7 +1250,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 				allTargetPlatforms
 			);
 			if (rawGalleryExtensionVersion) {
-				extensions.push(toExtension(rawGalleryExtension, rawGalleryExtensionVersion, allTargetPlatforms, extensionGalleryManifest, context));
+				extensions.push(toExtension(rawGalleryExtension, rawGalleryExtensionVersion, allTargetPlatforms, extensionGalleryManifest, this.productService, context));
 			}
 		}
 
@@ -1229,15 +1270,19 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		for (let index = 0; index < rawGalleryExtensionVersions.length; index++) {
 			const rawGalleryExtensionVersion = rawGalleryExtensionVersions[index];
 			if (await this.isValidVersion(
-				extensionIdentifier.id,
-				rawGalleryExtensionVersion,
+				{
+					id: extensionIdentifier.id,
+					version: rawGalleryExtensionVersion.version,
+					isPreReleaseVersion: isPreReleaseVersion(rawGalleryExtensionVersion),
+					targetPlatform: getTargetPlatformForExtensionVersion(rawGalleryExtensionVersion),
+					engine: getEngine(rawGalleryExtensionVersion),
+					manifestAsset: getVersionAsset(rawGalleryExtensionVersion, AssetType.Manifest),
+					enabledApiProposals: getEnabledApiProposals(rawGalleryExtensionVersion)
+				},
 				criteria,
 				rawGalleryExtension.publisher.displayName,
 				allTargetPlatforms)
 			) {
-				if (criteria.compatible && !this.areApiProposalsCompatible(extensionIdentifier, getEnabledApiProposals(rawGalleryExtensionVersion))) {
-					continue;
-				}
 				return rawGalleryExtensionVersion;
 			}
 			if (version && rawGalleryExtensionVersion.version === version) {
@@ -1583,16 +1628,6 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		return null;
 	}
 
-	private async getManifestFromRawExtensionVersion(extension: string, rawExtensionVersion: IRawGalleryExtensionVersion, token: CancellationToken): Promise<IExtensionManifest | null> {
-		const manifestAsset = getVersionAsset(rawExtensionVersion, AssetType.Manifest);
-		if (!manifestAsset) {
-			throw new Error('Manifest was not found');
-		}
-		const headers = { 'Accept-Encoding': 'gzip' };
-		const context = await this.getAsset(extension, manifestAsset, AssetType.Manifest, rawExtensionVersion.version, { headers });
-		return await asJson<IExtensionManifest>(context);
-	}
-
 	async getCoreTranslation(extension: IGalleryExtension, languageId: string): Promise<ITranslation | null> {
 		const asset = extension.assets.coreTranslations.filter(t => t[0] === languageId.toUpperCase())[0];
 		if (asset) {
@@ -1638,14 +1673,21 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			return [];
 		}
 
-		const validVersions: IRawGalleryExtensionVersion[] = [];
+		const compatibleVersions: IRawGalleryExtensionVersion[] = [];
 		const productVersion = { version: this.productService.version, date: this.productService.date };
 		await Promise.all(galleryExtensions[0].versions.map(async (version) => {
 			try {
 				if (
 					(await this.isValidVersion(
-						extensionIdentifier.id,
-						version,
+						{
+							id: extensionIdentifier.id,
+							version: version.version,
+							isPreReleaseVersion: isPreReleaseVersion(version),
+							targetPlatform: getTargetPlatformForExtensionVersion(version),
+							engine: getEngine(version),
+							manifestAsset: getVersionAsset(version, AssetType.Manifest),
+							enabledApiProposals: getEnabledApiProposals(version)
+						},
 						{
 							compatible: true,
 							productVersion,
@@ -1654,16 +1696,15 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 						},
 						galleryExtensions[0].publisher.displayName,
 						allTargetPlatforms))
-					&& this.areApiProposalsCompatible(extensionIdentifier, getEnabledApiProposals(version))
 				) {
-					validVersions.push(version);
+					compatibleVersions.push(version);
 				}
 			} catch (error) { /* Ignore error and skip version */ }
 		}));
 
 		const result: IGalleryExtensionVersion[] = [];
 		const seen = new Set<string>();
-		for (const version of sortExtensionVersions(validVersions, targetPlatform)) {
+		for (const version of sortExtensionVersions(compatibleVersions, targetPlatform)) {
 			if (!seen.has(version.version)) {
 				seen.add(version.version);
 				result.push({ version: version.version, date: version.lastUpdated, isPreReleaseVersion: isPreReleaseVersion(version) });
@@ -1732,29 +1773,6 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		}
 	}
 
-	private async getEngine(extension: string, rawExtensionVersion: IRawGalleryExtensionVersion): Promise<string> {
-		let engine = getEngine(rawExtensionVersion);
-		if (!engine) {
-			type GalleryServiceEngineFallbackClassification = {
-				owner: 'sandy081';
-				comment: 'Fallback request when engine is not found in properties of an extension version';
-				extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'extension name' };
-				extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'version' };
-			};
-			type GalleryServiceEngineFallbackEvent = {
-				extension: string;
-				extensionVersion: string;
-			};
-			this.telemetryService.publicLog2<GalleryServiceEngineFallbackEvent, GalleryServiceEngineFallbackClassification>('galleryService:engineFallback', { extension, extensionVersion: rawExtensionVersion.version });
-			const manifest = await this.getManifestFromRawExtensionVersion(extension, rawExtensionVersion, CancellationToken.None);
-			if (!manifest) {
-				throw new Error('Manifest was not found');
-			}
-			engine = manifest.engines.vscode;
-		}
-		return engine;
-	}
-
 	async getExtensionsControlManifest(): Promise<IExtensionsControlManifest> {
 		if (!this.isEnabled()) {
 			throw new Error('No extension gallery service configured.');
@@ -1778,7 +1796,6 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		const malicious: Array<IExtensionIdentifier | string> = [];
 		const deprecated: IStringDictionary<IDeprecationInfo> = {};
 		const search: ISearchPrefferedResults[] = [];
-		const extensionsEnabledWithPreRelease: string[] = [];
 		if (result) {
 			for (const id of result.malicious) {
 				if (EXTENSION_IDENTIFIER_REGEX.test(id)) {
@@ -1814,14 +1831,9 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 					search.push(s);
 				}
 			}
-			if (Array.isArray(result.extensionsEnabledWithPreRelease)) {
-				for (const id of result.extensionsEnabledWithPreRelease) {
-					extensionsEnabledWithPreRelease.push(id.toLowerCase());
-				}
-			}
 		}
 
-		return { malicious, deprecated, search, extensionsEnabledWithPreRelease };
+		return { malicious, deprecated, search };
 	}
 
 }
