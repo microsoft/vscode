@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Range } from '../../../core/range.js';
 import { BaseToken } from '../../baseToken.js';
 import { Dash } from '../../simpleCodec/tokens/dash.js';
 import { NewLine } from '../../linesCodec/tokens/newLine.js';
 import { assert } from '../../../../../base/common/assert.js';
+import { MarkdownExtensionsToken } from './markdownExtensionsToken.js';
 import { CarriageReturn } from '../../linesCodec/tokens/carriageReturn.js';
-import { MarkdownExtensionsToken } from '../tokens/markdownExtensionsToken.js';
 
 /**
  * Type for tokens inside a Front Matter header marker.
@@ -18,12 +19,7 @@ export type TMarkerToken = Dash | CarriageReturn | NewLine;
 /**
  * Marker for the start and end of a Front Matter header.
  */
-export class FrontMatterHeaderMarkerToken extends MarkdownExtensionsToken {
-	/**
-	 * Number of dashes in the marker.
-	 */
-	public readonly dashCount: number;
-
+export class FrontMatterMarker extends MarkdownExtensionsToken {
 	/**
 	 * Returns complete text representation of the token.
 	 */
@@ -31,28 +27,41 @@ export class FrontMatterHeaderMarkerToken extends MarkdownExtensionsToken {
 		return BaseToken.render(this.tokens);
 	}
 
+	/**
+	 * List of {@link Dash} tokens in the marker.
+	 */
+	public get dashTokens(): readonly Dash[] {
+		return this.tokens
+			.filter((token) => { return token instanceof Dash; });
+	}
+
 	constructor(
-		public readonly tokens: readonly (Dash | CarriageReturn | NewLine)[],
+		range: Range,
+		public readonly tokens: readonly TMarkerToken[],
 	) {
 		const lastToken = tokens[tokens.length - 1];
 
 		assert(
 			lastToken instanceof NewLine,
-			`Front Matter header must end with a new line token, got '${lastToken}'.`,
+			`Front Matter marker must end with a new line token, got '${lastToken}'.`,
 		);
 
-		const range = BaseToken.fullRange(tokens);
 		super(range);
-
-		this.dashCount = this.tokens
-			.filter((token) => { return token instanceof Dash; })
-			.length;
 	}
 
 	/**
-	 * Returns a string representation of the token.
+	 * Create new instance of the token from a provided
+	 * list of tokens.
 	 */
+	public static fromTokens(
+		tokens: readonly TMarkerToken[],
+	): FrontMatterMarker {
+		const range = BaseToken.fullRange(tokens);
+
+		return new FrontMatterMarker(range, tokens);
+	}
+
 	public toString(): string {
-		return `frontmatter-marker(${this.dashCount}:${this.range})`;
+		return `frontmatter-marker(${this.dashTokens.length}:${this.range})`;
 	}
 }

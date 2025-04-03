@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Range } from '../../../core/range.js';
-import { BaseToken } from '../../baseToken.js';
-import { NewLine } from '../../linesCodec/tokens/newLine.js';
-import { assert } from '../../../../../base/common/assert.js';
+import { BaseToken, Text } from '../../baseToken.js';
 import { MarkdownExtensionsToken } from './markdownExtensionsToken.js';
 import { TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
+import { FrontMatterMarker, TMarkerToken } from './frontMatterMarker.js';
 
 /**
  * Token that represents a `Front Matter` header in a text.
@@ -16,30 +15,10 @@ import { TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
 export class FrontMatterHeaderToken extends MarkdownExtensionsToken {
 	constructor(
 		range: Range,
-		public readonly startMarker: string,
-		public readonly contents: string,
-		public readonly endMarker: string,
+		public readonly startMarker: FrontMatterMarker,
+		public readonly content: Text,
+		public readonly endMarker: FrontMatterMarker,
 	) {
-		// sanity check of the `start marker` string
-		assert(
-			startMarker.length > 0,
-			'Front Matter header start marker must not be empty.',
-		);
-		assert(
-			startMarker.endsWith(NewLine.symbol),
-			'Front Matter header start marker must end with a new line.',
-		);
-
-		// sanity check of the `end marker` string
-		assert(
-			endMarker.length > 0,
-			'Front Matter header end marker must not be empty.',
-		);
-		assert(
-			endMarker.endsWith(NewLine.symbol),
-			'Front Matter header end marker must end with a new line.',
-		);
-
 		super(range);
 	}
 
@@ -47,11 +26,20 @@ export class FrontMatterHeaderToken extends MarkdownExtensionsToken {
 	 * Return complete text representation of the token.
 	 */
 	public get text(): string {
-		return [
-			this.startMarker,
-			this.contents,
-			this.endMarker,
-		].join('');
+		const text: string[] = [
+			this.startMarker.text,
+			this.content.text,
+			this.endMarker.text,
+		];
+
+		return text.join('');
+	}
+
+	/**
+	 * Range of the content of the Front Matter header.
+	 */
+	public get contentRange(): Range {
+		return this.content.range;
 	}
 
 	/**
@@ -77,15 +65,15 @@ export class FrontMatterHeaderToken extends MarkdownExtensionsToken {
 	 * Create new instance of the token from the given tokens.
 	 */
 	public static fromTokens(
-		startMarkerTokens: readonly TSimpleDecoderToken[],
+		startMarkerTokens: readonly TMarkerToken[],
 		contentTokens: readonly TSimpleDecoderToken[],
-		endMarkerTokens: readonly TSimpleDecoderToken[],
+		endMarkerTokens: readonly TMarkerToken[],
 	): FrontMatterHeaderToken {
 		return new FrontMatterHeaderToken(
 			BaseToken.fullRange([...startMarkerTokens, ...endMarkerTokens]),
-			BaseToken.render(startMarkerTokens),
-			BaseToken.render(contentTokens),
-			BaseToken.render(endMarkerTokens),
+			FrontMatterMarker.fromTokens(startMarkerTokens),
+			Text.fromTokens(contentTokens),
+			FrontMatterMarker.fromTokens(endMarkerTokens),
 		);
 	}
 

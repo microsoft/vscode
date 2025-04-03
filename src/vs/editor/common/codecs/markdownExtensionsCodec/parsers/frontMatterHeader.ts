@@ -10,7 +10,7 @@ import { TSimpleDecoderToken } from '../../simpleCodec/simpleDecoder.js';
 import { assert, assertNever } from '../../../../../base/common/assert.js';
 import { CarriageReturn } from '../../linesCodec/tokens/carriageReturn.js';
 import { FrontMatterHeaderToken } from '../tokens/frontMatterHeaderToken.js';
-import { FrontMatterHeaderMarkerToken, TMarkerToken } from '../tokens/frontMatterHeaderMarkerToken.js';
+import { FrontMatterMarker, TMarkerToken } from '../tokens/frontMatterMarker.js';
 import { assertNotConsumed, IAcceptTokenSuccess, ParserBase, TAcceptTokenResult } from '../../simpleCodec/parserBase.js';
 
 /**
@@ -66,7 +66,7 @@ export class PartialFrontMatterStartMarker extends ParserBase<TMarkerToken, Part
 				result: 'success',
 				wasTokenConsumed: true,
 				nextParser: new PartialFrontMatterHeader(
-					new FrontMatterHeaderMarkerToken([
+					FrontMatterMarker.fromTokens([
 						...this.currentTokens,
 						token,
 					]),
@@ -103,7 +103,7 @@ export class PartialFrontMatterHeader extends ParserBase<TSimpleDecoderToken, Pa
 	private maybeEndMarker?: PartialFrontMatterEndMarker;
 
 	constructor(
-		public readonly startMarker: FrontMatterHeaderMarkerToken,
+		public readonly startMarker: FrontMatterMarker,
 	) {
 		super([]);
 	}
@@ -133,8 +133,11 @@ export class PartialFrontMatterHeader extends ParserBase<TSimpleDecoderToken, Pa
 		);
 
 		assert(
-			this.maybeEndMarker.dashCount === this.startMarker.dashCount,
-			`Start and end markers must have the same number of dashes, got ${this.startMarker.dashCount} / ${this.maybeEndMarker.dashCount}.`,
+			this.maybeEndMarker.dashCount === this.startMarker.dashTokens.length,
+			[
+				'Start and end markers must have the same number of dashes',
+				`, got ${this.startMarker.dashTokens.length} / ${this.maybeEndMarker.dashCount}.`,
+			].join(''),
 		);
 
 		this.isConsumed = true;
@@ -199,7 +202,7 @@ export class PartialFrontMatterHeader extends ParserBase<TSimpleDecoderToken, Pa
 
 		if (result === 'success') {
 			const { nextParser } = acceptResult;
-			const endMarkerParsingComplete = (nextParser instanceof FrontMatterHeaderMarkerToken);
+			const endMarkerParsingComplete = (nextParser instanceof FrontMatterMarker);
 
 			if (endMarkerParsingComplete === false) {
 				return {
@@ -214,7 +217,7 @@ export class PartialFrontMatterHeader extends ParserBase<TSimpleDecoderToken, Pa
 			// start and end markers must have the same number of dashes, hence
 			// if they don't match, we would like to continue parsing the header
 			// until we find an end marker with the same number of dashes
-			if (endMarker.dashCount !== this.startMarker.dashCount) {
+			if (endMarker.dashTokens.length !== this.startMarker.dashTokens.length) {
 				return this.handleEndMarkerParsingFailure(
 					endMarker.tokens,
 					wasTokenConsumed,
@@ -272,7 +275,7 @@ export class PartialFrontMatterHeader extends ParserBase<TSimpleDecoderToken, Pa
 /**
  * Parser the end marker sequence of a Front Matter header.
  */
-class PartialFrontMatterEndMarker extends ParserBase<TMarkerToken, PartialFrontMatterEndMarker | FrontMatterHeaderMarkerToken> {
+class PartialFrontMatterEndMarker extends ParserBase<TMarkerToken, PartialFrontMatterEndMarker | FrontMatterMarker> {
 	constructor(token: Dash) {
 		const { range } = token;
 
@@ -294,7 +297,7 @@ class PartialFrontMatterEndMarker extends ParserBase<TMarkerToken, PartialFrontM
 	}
 
 	@assertNotConsumed
-	public accept(token: TSimpleDecoderToken): TAcceptTokenResult<PartialFrontMatterEndMarker | FrontMatterHeaderMarkerToken> {
+	public accept(token: TSimpleDecoderToken): TAcceptTokenResult<PartialFrontMatterEndMarker | FrontMatterMarker> {
 		const previousToken = this.currentTokens[this.currentTokens.length - 1];
 
 		// collect a sequence of dash tokens that may end with a CR token
@@ -326,7 +329,7 @@ class PartialFrontMatterEndMarker extends ParserBase<TMarkerToken, PartialFrontM
 			return {
 				result: 'success',
 				wasTokenConsumed: true,
-				nextParser: new FrontMatterHeaderMarkerToken([
+				nextParser: FrontMatterMarker.fromTokens([
 					...this.currentTokens,
 				]),
 			};
