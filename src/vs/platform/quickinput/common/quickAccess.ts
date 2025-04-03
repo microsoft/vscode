@@ -72,6 +72,11 @@ export interface IQuickAccessOptions {
 	 * A placeholder to use for this particular showing of the quick access.
 	*/
 	readonly placeholder?: string;
+
+	/**
+	 * Indicates whether the quick input should be hidden when it loses focus.
+	 */
+	readonly ignoreFocusOut?: boolean;
 }
 
 export interface IQuickAccessController {
