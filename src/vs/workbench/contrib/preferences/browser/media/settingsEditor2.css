@@ -40,7 +40,7 @@
 
 .settings-editor > .settings-header > .search-container > .settings-count-widget {
 	position: absolute;
-	right: 46px;
+	right: 54px;
 	top: 0px;
 	margin: 4px 0px;
 }
@@ -53,14 +53,14 @@
 	display: flex;
 	align-items: center;
 	position: absolute;
-	top: 0;
-	right: 0;
+	top: 2px;
+	right: 4px;
 	height: 100%;
-	width: 43px;
+	/* width: 43px; */
 }
 
 .settings-editor > .settings-header > .search-container > .settings-clear-widget .action-label {
-	padding: 2px;
+	padding: 4px;
 }
 
 .settings-editor > .settings-header > .settings-header-controls {
