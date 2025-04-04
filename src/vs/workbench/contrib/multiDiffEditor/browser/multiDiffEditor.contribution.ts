@@ -26,6 +26,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 	.registerConfiguration({
 		properties: {
 			'multiDiffEditor.experimental.enabled': {
+				tags: ['experimental'],
 				type: 'boolean',
 				default: true,
 				description: 'Enable experimental multi diff editor.',
