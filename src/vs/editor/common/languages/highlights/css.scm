@@ -13,7 +13,10 @@
   "*="
 ] @keyword.operator.css
 
-("+") @keyword.operator.combinator.css
+[
+  "+"
+  ">"
+] @keyword.operator.combinator.css
 
 (comment) @comment.block.css
 
