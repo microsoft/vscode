@@ -227,7 +227,7 @@ registerExecCommandImpl(CopyAction, 'copy');
 
 if (PasteAction) {
 	// 1. Paste: handle case when focus is in editor.
-	PasteAction.addImplementation(10000, 'code-editor', async (accessor: ServicesAccessor, args: any) => {
+	PasteAction.addImplementation(10000, 'code-editor', (accessor: ServicesAccessor, args: any) => {
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const clipboardService = accessor.get(IClipboardService);
 
@@ -235,7 +235,6 @@ if (PasteAction) {
 		const focusedEditor = codeEditorService.getFocusedCodeEditor();
 		if (focusedEditor && focusedEditor.hasModel() && focusedEditor.hasTextFocus()) {
 			// execCommand(paste) does not work with edit context
-			let result: boolean;
 			const usingExperimentalEditContext = useExperimentalEditContext(getWindow(focusedEditor.getDomNode()), focusedEditor.getOptions());
 			if (usingExperimentalEditContext) {
 				// Since we can not call execCommand('paste') on a dom node with edit context set
@@ -246,18 +245,26 @@ if (PasteAction) {
 					const textArea = nativeEditContext.textArea;
 					nativeEditContext.onWillPaste();
 					textArea.focus();
-					result = await clipboardService.triggerPaste();
-					textArea.domNode.textContent = '';
-					nativeEditContext.domNode.focus();
-				} else {
-					result = false;
+					const triggerPaste = clipboardService.triggerPaste();
+					if (!triggerPaste) {
+						nativeEditContext.domNode.focus();
+					} else {
+						return triggerPaste.then(async () => {
+							textArea.domNode.textContent = '';
+							nativeEditContext.domNode.focus();
+							return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
+						});
+					}
 				}
 			} else {
-				result = await clipboardService.triggerPaste();
+				const triggerPaste = clipboardService.triggerPaste();
+				if (triggerPaste) {
+					return triggerPaste.then(async () => {
+						return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
+					});
+				}
 			}
-			if (result) {
-				return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
-			} else if (platform.isWeb) {
+			if (platform.isWeb) {
 				// Use the clipboard service if document.execCommand('paste') was not successful
 				return (async () => {
 					const clipboardText = await clipboardService.readText();
@@ -286,8 +293,8 @@ if (PasteAction) {
 	});
 
 	// 2. Paste: (default) handle case when focus is somewhere else.
-	PasteAction.addImplementation(0, 'generic-dom', async (accessor: ServicesAccessor, args: any) => {
-		await accessor.get(IClipboardService).triggerPaste();
+	PasteAction.addImplementation(0, 'generic-dom', (accessor: ServicesAccessor, args: any) => {
+		accessor.get(IClipboardService).triggerPaste();
 		return true;
 	});
 }

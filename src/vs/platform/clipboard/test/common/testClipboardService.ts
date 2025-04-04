@@ -15,7 +15,7 @@ export class TestClipboardService implements IClipboardService {
 
 	private text: string | undefined = undefined;
 
-	async triggerPaste(): Promise<boolean> { return true; }
+	triggerPaste(): Promise<void> | undefined { return Promise.resolve(); }
 
 	async writeText(text: string, type?: string): Promise<void> {
 		this.text = text;

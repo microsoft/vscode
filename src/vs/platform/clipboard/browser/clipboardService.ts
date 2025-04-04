@@ -45,8 +45,8 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		}, { window: mainWindow, disposables: this._store }));
 	}
 
-	async triggerPaste(): Promise<boolean> {
-		return getActiveDocument().execCommand('paste');
+	triggerPaste(): Promise<void> | undefined {
+		return undefined;
 	}
 
 	async readImage(): Promise<Uint8Array> {
