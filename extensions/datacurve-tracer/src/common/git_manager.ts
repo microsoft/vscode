@@ -1,7 +1,7 @@
-import { exec } from "child_process";
-import { promisify } from "util";
-import * as path from "path";
-import * as fs from "fs";
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import * as path from 'path';
+import * as fs from 'fs';
 
 const execAsync = promisify(exec);
 
@@ -28,13 +28,15 @@ export class GitManager {
 	 * @returns Promise resolving when complete
 	 */
 	public async initRepository(): Promise<void> {
-		const gitPath = path.join(this.repositoryPath, ".git");
+		const gitPath = path.join(this.repositoryPath, '.git');
 
 		if (!fs.existsSync(gitPath)) {
-			await this.executeGitCommand("git init");
+			await this.executeGitCommand('git init');
 			console.log(`Initialized git repository at ${this.repositoryPath}`);
 		} else {
-			console.log(`Git repository already exists at ${this.repositoryPath}`);
+			console.log(
+				`Git repository already exists at ${this.repositoryPath}`,
+			);
 		}
 	}
 
@@ -46,7 +48,7 @@ export class GitManager {
 	 */
 	public async commit(message: string, addAll = true): Promise<string> {
 		if (addAll) {
-			await this.executeGitCommand("git add .");
+			await this.executeGitCommand('git add .');
 		}
 
 		const { stdout } = await this.executeGitCommand(
@@ -54,7 +56,7 @@ export class GitManager {
 		);
 		// Extract commit hash from the output
 		const match = stdout.match(/\[[\w\s]+\s([a-f0-9]+)\]/);
-		return match ? match[1] : "";
+		return match ? match[1] : '';
 	}
 
 	/**
@@ -67,15 +69,17 @@ export class GitManager {
 			// If no baseCommit is provided, get the first commit in repository history
 			if (!baseCommit) {
 				const { stdout } = await this.executeGitCommand(
-					"git rev-list --max-parents=0 HEAD",
+					'git rev-list --max-parents=0 HEAD',
 				);
 				baseCommit = stdout.trim();
 			}
 
-			const { stdout } = await this.executeGitCommand(`git diff ${baseCommit}`);
+			const { stdout } = await this.executeGitCommand(
+				`git diff ${baseCommit}`,
+			);
 			return stdout;
 		} catch (error) {
-			console.error("Error getting git diff:", error);
+			console.error('Error getting git diff:', error);
 			throw error;
 		}
 	}
@@ -88,7 +92,7 @@ export class GitManager {
 	 */
 	public async getDiffBetweenCommits(
 		fromCommit: string,
-		toCommit: string = "HEAD",
+		toCommit: string = 'HEAD',
 	): Promise<string> {
 		try {
 			const { stdout } = await this.executeGitCommand(
@@ -96,7 +100,7 @@ export class GitManager {
 			);
 			return stdout;
 		} catch (error) {
-			console.error("Error getting git diff between commits:", error);
+			console.error('Error getting git diff between commits:', error);
 			throw error;
 		}
 	}
@@ -106,9 +110,11 @@ export class GitManager {
 	 * @returns Promise resolving to boolean
 	 */
 	public async hasUncommittedChanges(): Promise<boolean> {
-		const { stdout } = await this.executeGitCommand("git status --porcelain");
+		const { stdout } = await this.executeGitCommand(
+			'git status --porcelain',
+		);
 		return stdout.trim().length > 0;
 	}
 }
 
-export const gitManager = new GitManager(".");
+export const gitManager = new GitManager('.');

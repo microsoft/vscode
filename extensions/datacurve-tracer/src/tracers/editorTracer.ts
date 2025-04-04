@@ -1,9 +1,9 @@
-import * as vscode from "vscode";
-import { IRecorder } from "../types";
-import { Tracer } from "./tracer";
-import { fileExplorer } from "../fileExplorer";
-import { clipRangeToLimits } from "../utils/limits";
-import { ThoughtsTracker } from "./thoughtsTracker";
+import * as vscode from 'vscode';
+import { IRecorder } from '../types';
+import { Tracer } from './tracer';
+import { fileExplorer } from '../fileExplorer';
+import { clipRangeToLimits } from '../utils/limits';
+import { ThoughtsTracker } from './thoughtsTracker';
 
 /**
  * Traces editor actions and sends them to the recorder.
@@ -62,33 +62,33 @@ export class EditorTracer extends Tracer {
 		super(context, traceRecorder, thoughtsTracker);
 
 		// Load configuration settings
-		const config = vscode.workspace.getConfiguration("datacurve-tracer.editor");
+		const config = vscode.workspace.getConfiguration('datacurve-tracer.editor');
 		this.selectionDebounceInterval = config.get(
-			"selectionDebounceInterval",
+			'selectionDebounceInterval',
 			250,
 		);
 		this.visibleRangesDebounceInterval = config.get(
-			"visibleRangesDebounceInterval",
+			'visibleRangesDebounceInterval',
 			100,
 		);
-		this.maxTextLength = config.get("maxTextLength", 1024 * 1024);
+		this.maxTextLength = config.get('maxTextLength', 1024 * 1024);
 
 		// Listen for configuration changes
 		vscode.workspace.onDidChangeConfiguration(
 			(e) => {
-				if (e.affectsConfiguration("datacurve-tracer.editor")) {
+				if (e.affectsConfiguration('datacurve-tracer.editor')) {
 					const newConfig = vscode.workspace.getConfiguration(
-						"datacurve-tracer.editor",
+						'datacurve-tracer.editor',
 					);
 					this.selectionDebounceInterval = newConfig.get(
-						"selectionDebounceInterval",
+						'selectionDebounceInterval',
 						250,
 					);
 					this.visibleRangesDebounceInterval = newConfig.get(
-						"visibleRangesDebounceInterval",
+						'visibleRangesDebounceInterval',
 						100,
 					);
-					this.maxTextLength = newConfig.get("maxTextLength", 1024 * 1024);
+					this.maxTextLength = newConfig.get('maxTextLength', 1024 * 1024);
 				}
 			},
 			null,
@@ -132,7 +132,7 @@ export class EditorTracer extends Tracer {
 		}
 
 		// Record the action
-		const actionId = "editorDidChangeActiveTextEditor";
+		const actionId = 'editorDidChangeActiveTextEditor';
 		this.traceRecorder.record({
 			action_id: actionId,
 			event: { editor: editor },
@@ -199,14 +199,14 @@ export class EditorTracer extends Tracer {
 					const remainingSpace = this.maxTextLength - totalLength;
 					if (remainingSpace > 0) {
 						selectedTexts.push(
-							text.substring(0, remainingSpace) + "... [truncated]",
+							text.substring(0, remainingSpace) + '... [truncated]',
 						);
 					}
 					break; // Stop processing more selections
 				}
 			}
 			if (totalLength > 0) {
-				const actionId = "editorDidChangeTextEditorSelection";
+				const actionId = 'editorDidChangeTextEditorSelection';
 				this.traceRecorder.record({
 					action_id: actionId,
 					event: {
@@ -223,7 +223,7 @@ export class EditorTracer extends Tracer {
 			// Clear the pending event after processing
 			this.pendingSelectionEvent = null;
 		} catch (error) {
-			console.error("Failed to record selection trace:", error);
+			console.error('Failed to record selection trace:', error);
 			this.pendingSelectionEvent = null;
 		}
 	}
@@ -273,7 +273,7 @@ export class EditorTracer extends Tracer {
 			// Store visible range in memento
 			const filePath = event.textEditor.document.uri.fsPath;
 			const visibleRangesState = this.context.workspaceState.get(
-				"visibleRanges",
+				'visibleRanges',
 				{},
 			) as Record<string, any>;
 			visibleRangesState[filePath] = {
@@ -286,9 +286,9 @@ export class EditorTracer extends Tracer {
 					character: event.textEditor.visibleRanges[0].end.character,
 				},
 			};
-			this.context.workspaceState.update("visibleRanges", visibleRangesState);
+			this.context.workspaceState.update('visibleRanges', visibleRangesState);
 
-			const actionId = "editorDidChangeTextEditorVisibleRanges";
+			const actionId = 'editorDidChangeTextEditorVisibleRanges';
 			this.traceRecorder.record({
 				action_id: actionId,
 				event: {
@@ -301,7 +301,7 @@ export class EditorTracer extends Tracer {
 			// Clear the pending event after processing
 			this.pendingVisibleRangesEvent = null;
 		} catch (error) {
-			console.error("Failed to record visible ranges trace:", error);
+			console.error('Failed to record visible ranges trace:', error);
 			this.pendingVisibleRangesEvent = null;
 		}
 	}
@@ -314,7 +314,7 @@ export class EditorTracer extends Tracer {
 	private onDidChangeTextEditorViewColumn(
 		event: vscode.TextEditorViewColumnChangeEvent,
 	): void {
-		const actionId = "editorDidChangeTextEditorViewColumn";
+		const actionId = 'editorDidChangeTextEditorViewColumn';
 		this.traceRecorder.record({
 			action_id: actionId,
 			event: { event: event },
@@ -329,7 +329,7 @@ export class EditorTracer extends Tracer {
 	private onDidChangeVisibleTextEditors(
 		editors: readonly vscode.TextEditor[],
 	): void {
-		const actionId = "editorDidChangeVisibleTextEditors";
+		const actionId = 'editorDidChangeVisibleTextEditors';
 		this.traceRecorder.record({
 			action_id: actionId,
 			event: { editors: editors },

@@ -1,7 +1,7 @@
-import * as vscode from "vscode";
-import { IRecorder } from "../types";
-import { Tracer } from "./tracer";
-import { ThoughtsTracker } from "./thoughtsTracker";
+import * as vscode from 'vscode';
+import { IRecorder } from '../types';
+import { Tracer } from './tracer';
+import { ThoughtsTracker } from './thoughtsTracker';
 
 /**
  * ClipboardTracer class is responsible for recording clipboard related events.
@@ -19,22 +19,22 @@ export class ClipboardTracer extends Tracer {
 		thoughtsTracker?: ThoughtsTracker,
 	) {
 		super(context, traceRecorder, thoughtsTracker);
-		this.previousClipboardText = "";
+		this.previousClipboardText = '';
 
 		// Load configuration settings
 		const config = vscode.workspace.getConfiguration(
-			"datacurve-tracer.clipboard",
+			'datacurve-tracer.clipboard',
 		);
-		this.pollInterval = config.get("pollInterval", 1000);
+		this.pollInterval = config.get('pollInterval', 1000);
 
 		// Listen for configuration changes
 		vscode.workspace.onDidChangeConfiguration(
 			(e) => {
-				if (e.affectsConfiguration("datacurve-tracer.clipboard")) {
+				if (e.affectsConfiguration('datacurve-tracer.clipboard')) {
 					const newConfig = vscode.workspace.getConfiguration(
-						"datacurve-tracer.clipboard",
+						'datacurve-tracer.clipboard',
 					);
-					this.pollInterval = newConfig.get("pollInterval", 1000);
+					this.pollInterval = newConfig.get('pollInterval', 1000);
 				}
 			},
 			null,
@@ -60,7 +60,7 @@ export class ClipboardTracer extends Tracer {
 			event.contentChanges[0].text === this.previousClipboardText
 		) {
 			this.traceRecorder.record({
-				action_id: "clipboardPaste",
+				action_id: 'clipboardPaste',
 				event: { text: event.contentChanges[0].text },
 			});
 		}
@@ -75,14 +75,14 @@ export class ClipboardTracer extends Tracer {
 				if (text && text !== this.previousClipboardText) {
 					this.previousClipboardText = text;
 					this.traceRecorder.record({
-						action_id: "clipboardChanged",
+						action_id: 'clipboardChanged',
 						event: { text },
 					});
 				}
 				setTimeout(() => this.pollClipboard(), this.pollInterval);
 			});
 		} catch (error) {
-			console.error("Error polling clipboard:", error);
+			console.error('Error polling clipboard:', error);
 			setTimeout(() => this.pollClipboard(), this.pollInterval);
 		}
 	}
