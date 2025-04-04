@@ -1,0 +1,304 @@
+{
+  "name": "datacurve-tracer",
+  "displayName": "datacurve_tracer",
+  "description": "enhanced user analytics by datacurve",
+  "version": "0.1.15",
+  "engines": {
+    "vscode": "^1.97.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/datacurve-ai/datacurve-tracer.git"
+  },
+  "icon": "images/icon.png",
+  "publisher": "datacurve",
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "workspaceContains:**/**"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "curveExplorer.stateChanged",
+        "title": "State Change"
+      },
+      {
+        "command": "curveExplorer.copyWorkspacePath",
+        "title": "Copy Workspace Path"
+      },
+      {
+        "command": "curveExplorer.refresh",
+        "title": "Refresh",
+        "icon": {
+          "light": "resources/light/refresh.svg",
+          "dark": "resources/dark/refresh.svg"
+        }
+      },
+      {
+        "command": "datacurve-tracer.exportTraces",
+        "title": "Datacurve: Export Traces"
+      },
+      {
+        "command": "datacurve-tracer.recordPlan",
+        "title": "Datacurve: Record Plan"
+      },
+      {
+        "command": "datacurve-tracer.recordSearch",
+        "title": "Datacurve: Record Search"
+      },
+      {
+        "command": "datacurve-tracer.recordThought",
+        "title": "Datacurve: Record Thought"
+      },
+      {
+        "command": "datacurve-tracer.checkActionThreshold",
+        "title": "Datacurve: Check Action Threshold"
+      },
+      {
+        "command": "datacurve-tracer.clearTraces",
+        "title": "Datacurve: Clear Traces (DEVELOPMENT ONLY)"
+      },
+      {
+        "command": "curveExplorer.openFile",
+        "title": "Open File"
+      },
+      {
+        "command": "curveExplorer.createFile",
+        "title": "New File"
+      },
+      {
+        "command": "curveExplorer.createFolder",
+        "title": "New Folder"
+      },
+      {
+        "command": "curveExplorer.deleteFile",
+        "title": "Delete"
+      },
+      {
+        "command": "curveExplorer.renameFile",
+        "title": "Rename"
+      },
+      {
+        "command": "curveExplorer.showState",
+        "title": "Show Workspace Structure"
+      }
+    ],
+    "terminal": {
+      "profiles": [
+        {
+          "title": "Dash",
+          "id": "datacurve.terminal-profile"
+        }
+      ]
+    },
+    "views": {
+      "explorer": [
+        {
+          "id": "thoughtsTracker",
+          "name": "Thoughts Tracker",
+          "type": "webview",
+          "icon": "images/thought.svg"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "curveExplorer.refresh",
+          "when": "view == curveExplorer",
+          "group": "navigation"
+        },
+        {
+          "command": "curveExplorer.createFile",
+          "when": "view == curveExplorer",
+          "group": "navigation"
+        },
+        {
+          "command": "curveExplorer.createFolder",
+          "when": "view == curveExplorer",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "curveExplorer.openFile",
+          "when": "view == curveExplorer && viewItem == file",
+          "group": "inline"
+        },
+        {
+          "command": "curveExplorer.createFile",
+          "when": "view == curveExplorer && viewItem == folder",
+          "group": "1_modification"
+        },
+        {
+          "command": "curveExplorer.createFolder",
+          "when": "view == curveExplorer && viewItem == folder",
+          "group": "1_modification"
+        },
+        {
+          "command": "curveExplorer.renameFile",
+          "when": "view == curveExplorer",
+          "group": "2_modification"
+        },
+        {
+          "command": "curveExplorer.deleteFile",
+          "when": "view == curveExplorer",
+          "group": "3_modification"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Datacurve",
+      "properties": {
+        "datacurve-tracer.apiEndpoint": {
+          "type": "string",
+          "default": "https://api.shipd.datacurve.ai",
+          "description": "API Endpoint for Datacurve"
+        },
+        "datacurve-tracer.graphqlEndpoint": {
+          "type": "string",
+          "default": "https://graphql.shipd.ai",
+          "description": "GraphQl endpoint key for Datacurve"
+        },
+        "datacurve-tracer.editor.selectionDebounceInterval": {
+          "type": "number",
+          "default": 250,
+          "description": "Debounce interval for editor selection changes in milliseconds"
+        },
+        "datacurve-tracer.editor.visibleRangesDebounceInterval": {
+          "type": "number",
+          "default": 100,
+          "description": "Debounce interval for editor visible ranges changes in milliseconds"
+        },
+        "datacurve-tracer.editor.maxTextLength": {
+          "type": "number",
+          "default": 1048576,
+          "description": "Maximum length in bytes for editor text content"
+        },
+        "datacurve-tracer.thoughts.actionThreshold": {
+          "type": "number",
+          "default": 50,
+          "description": "Number of actions before prompting for a new thought"
+        },
+        "datacurve-tracer.filesystem.textChangeDebounceTime": {
+          "type": "number",
+          "default": 30000,
+          "description": "Debounce time for filesystem text changes in milliseconds"
+        },
+        "datacurve-tracer.clipboard.pollInterval": {
+          "type": "number",
+          "default": 1000,
+          "description": "Interval to poll clipboard in milliseconds"
+        },
+        "datacurve-tracer.workspace.refreshInterval": {
+          "type": "number",
+          "default": 2000,
+          "description": "Interval to refresh workspace state in milliseconds"
+        },
+        "datacurve-tracer.recorder.maxQueueSize": {
+          "type": "number",
+          "default": 90,
+          "description": "Maximum queue size for file operation worker"
+        },
+        "datacurve-tracer.recorder.queueSizeWarningThreshold": {
+          "type": "number",
+          "default": 50,
+          "description": "Threshold at which to warn about queue size"
+        },
+        "datacurve-tracer.recorder.monitorIntervalMs": {
+          "type": "number",
+          "default": 10000,
+          "description": "Interval to monitor worker performance in milliseconds"
+        },
+        "datacurve-tracer.recorder.bufferSize": {
+          "type": "number",
+          "default": 100,
+          "description": "Number of entries to buffer before writing"
+        },
+        "datacurve-tracer.recorder.maxBufferSizeBytes": {
+          "type": "number",
+          "default": 1048576,
+          "description": "Maximum buffer size in bytes"
+        },
+        "datacurve-tracer.recorder.maxLogSize": {
+          "type": "number",
+          "default": 104857600,
+          "description": "Maximum log file size in bytes"
+        },
+        "datacurve-tracer.recorder.flushIntervalMs": {
+          "type": "number",
+          "default": 1000,
+          "description": "Interval to force flush buffer in milliseconds"
+        }
+      }
+    }
+  },
+  "relay": {
+    "src": "./src/",
+    "schema": "./schema.graphql",
+    "language": "javascript"
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "gulp compile-extension:datacurve-tracer",
+    "watch": "gulp watch-extension:datacurve-tracer",
+    "pretest": "npm run compile && npm run lint",
+    "start": "npm run relay",
+    "relay": "relay-compiler",
+    "lint": "tsc --noEmit && eslint src",
+    "format": "prettier --write src/**/*.ts",
+    "test": "vscode-test",
+    "package": "vsce package"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.758.0",
+    "@types/express": "^5.0.0",
+    "@vscode/vsce": "^3.2.2",
+    "adm-zip": "^0.5.16",
+    "archiver": "^7.0.1",
+    "axios": "^1.8.1",
+    "chokidar": "^4.0.3",
+    "diff": "^7.0.0",
+    "express": "^4.21.2",
+    "form-data": "^4.0.2",
+    "form-data-encoder": "^4.0.2",
+    "formdata-node": "^6.0.3",
+    "fs-extra": "11.3.0",
+    "graphql": "^16.10.0",
+    "pino": "^9.6.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-relay": "^18.2.0",
+    "relay": "^0.8.0-1",
+    "relay-runtime": "^18.2.0",
+    "sql.js": "^1.12.0",
+    "urql": "^4.2.2"
+  },
+  "devDependencies": {
+    "@types/adm-zip": "^0.5.7",
+    "@types/archiver": "^6.0.3",
+    "@types/diff": "^7.0.1",
+    "@types/fs-extra": "^11.0.4",
+    "@types/mime-types": "^2.1.4",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@types/node-fetch": "^2.6.12",
+    "@types/react-relay": "^18.2.0",
+    "@types/relay-runtime": "^18.2.5",
+    "@types/sql.js": "^1.4.9",
+    "@types/vscode": "^1.97.0",
+    "@types/webassembly-web-api": "^0.0.7",
+    "@typescript-eslint/eslint-plugin": "^8.22.0",
+    "@typescript-eslint/parser": "^8.22.0",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.4.1",
+    "babel-plugin-relay": "^18.2.0",
+    "eslint": "^9.19.0",
+    "prettier": "^3.5.2",
+    "relay-compiler": "^18.2.0",
+    "typescript": "^5.7.3"
+  }
+}

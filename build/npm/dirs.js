@@ -17,6 +17,7 @@ const dirs = [
 	'extensions/debug-server-ready',
 	'extensions/emmet',
 	'extensions/extension-editing',
+	'extensions/datacurve-tracer',
 	'extensions/git',
 	'extensions/git-base',
 	'extensions/github',

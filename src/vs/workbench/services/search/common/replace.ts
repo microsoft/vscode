@@ -59,6 +59,7 @@ export class ReplacePattern {
 	* If text has no matches then returns null.
 	*/
 	getReplaceString(text: string, preserveCase?: boolean): string | null {
+		console.log('getReplaceString', text, preserveCase);
 		this._regExp.lastIndex = 0;
 		const match = this._regExp.exec(text);
 		if (match) {
@@ -85,6 +86,7 @@ export class ReplacePattern {
 	 * \L			=> lower-cases ALL remaining characters in a match.
 	 */
 	private replaceWithCaseOperations(text: string, regex: RegExp, replaceString: string): string {
+		console.log('replaceWithCaseOperations', text, regex, replaceString);
 		// Short-circuit the common path.
 		if (!/\\[uUlL]/.test(replaceString)) {
 			return text.replace(regex, replaceString);

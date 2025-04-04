@@ -34,7 +34,8 @@ import { Selection } from '../../../common/core/selection.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { FindWidgetSearchHistory } from './findWidgetSearchHistory.js';
 import { ReplaceWidgetHistory } from './replaceWidgetHistory.js';
-
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { RECORD_REPLACE_OPERATION_COMMAND_ID } from '../../../../workbench/services/commands/common/traceCommands.js';
 const SEARCH_STRING_MAX_LENGTH = 524288;
 
 export function getSelectionSearchString(editor: ICodeEditor, seedSearchStringFromSelection: 'single' | 'multiple' = 'single', seedSearchStringFromNonEmptySelection: boolean = false): string | null {
@@ -103,6 +104,7 @@ export class CommonFindController extends Disposable implements IEditorContribut
 	protected readonly _contextKeyService: IContextKeyService;
 	protected readonly _notificationService: INotificationService;
 	protected readonly _hoverService: IHoverService;
+	protected readonly _commandService: ICommandService;
 
 	get editor() {
 		return this._editor;
@@ -118,7 +120,8 @@ export class CommonFindController extends Disposable implements IEditorContribut
 		@IStorageService storageService: IStorageService,
 		@IClipboardService clipboardService: IClipboardService,
 		@INotificationService notificationService: INotificationService,
-		@IHoverService hoverService: IHoverService
+		@IHoverService hoverService: IHoverService,
+		@ICommandService commandService: ICommandService
 	) {
 		super();
 		this._editor = editor;
@@ -128,7 +131,7 @@ export class CommonFindController extends Disposable implements IEditorContribut
 		this._clipboardService = clipboardService;
 		this._notificationService = notificationService;
 		this._hoverService = hoverService;
-
+		this._commandService = commandService;
 		this._updateHistoryDelayer = new Delayer<void>(500);
 		this._state = this._register(new FindReplaceState());
 		this.loadQueryState();
@@ -393,6 +396,14 @@ export class CommonFindController extends Disposable implements IEditorContribut
 	public replace(): boolean {
 		if (this._model) {
 			this._model.replace();
+
+			this._commandService.executeCommand(RECORD_REPLACE_OPERATION_COMMAND_ID, {
+				fileName: this._editor.getModel()?.uri.fsPath,
+				searchString: this._state.searchString,
+				replaceString: this._state.replaceString,
+				isReplaceAll: false,
+			});
+
 			return true;
 		}
 		return false;
@@ -405,6 +416,13 @@ export class CommonFindController extends Disposable implements IEditorContribut
 				return false;
 			}
 			this._model.replaceAll();
+
+			this._commandService.executeCommand(RECORD_REPLACE_OPERATION_COMMAND_ID, {
+				fileName: this._editor.getModel()?.uri.fsPath,
+				searchString: this._state.searchString,
+				replaceString: this._state.replaceString,
+				isReplaceAll: true,
+			});
 			return true;
 		}
 		return false;
@@ -456,8 +474,9 @@ export class FindController extends CommonFindController implements IFindControl
 		@IStorageService _storageService: IStorageService,
 		@IClipboardService clipboardService: IClipboardService,
 		@IHoverService hoverService: IHoverService,
+		@ICommandService commandService: ICommandService
 	) {
-		super(editor, _contextKeyService, _storageService, clipboardService, notificationService, hoverService);
+		super(editor, _contextKeyService, _storageService, clipboardService, notificationService, hoverService, commandService);
 		this._widget = null;
 		this._findOptionsWidget = null;
 		this._findWidgetSearchHistory = FindWidgetSearchHistory.getOrCreate(_storageService);

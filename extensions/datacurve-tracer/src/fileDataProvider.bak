@@ -1,0 +1,316 @@
+import * as vscode from 'vscode';
+import * as path from 'path';
+import { IRecorder } from './types';
+
+/**
+ * A node in our workspace context.
+ */
+interface WorkspaceNode {
+  directory?: { [folderName: string]: WorkspaceNode };
+  file?: { [fileName: string]: string }; // Only storing .py file contents
+}
+
+/**
+ * The top-level structure for the entire workspace.
+ */
+export const workspaceContext: { [rootKey: string]: WorkspaceNode } = {};
+
+/**
+ * Extracts function and class signatures from a Python file's content.
+ * It uses regex patterns to match lines starting with "def" or "class"
+ * (ignoring leading whitespace) and returns those lines as a joined string.
+ */
+function extractPythonSignatures(content: string): string {
+  // Regex to match Python class definitions (e.g., "class MyClass:" or "class MyClass(Base):")
+  const classRegex = /^\s*class\s+\w+\s*(\([^)]*\))?:/gm;
+  // Regex to match Python function definitions (e.g., "def my_function(arg):")
+  const funcRegex = /^\s*def\s+\w+\s*\([^)]*\):/gm;
+
+  const classMatches = content.match(classRegex) || [];
+  const funcMatches = content.match(funcRegex) || [];
+  
+  // Combine both sets of signatures; order can be adjusted if needed.
+  return [...classMatches, ...funcMatches].join('\n');
+}
+
+/**
+ * Recursively transforms a WorkspaceNode.
+ * Each file's content is replaced with only the class and function signatures,
+ * unless its full content should be preserved because it is the active file.
+ *
+ * @param node - The current WorkspaceNode.
+ * @param currentPath - The full path built up to this node.
+ * @param activeFilePath - The full path of the active file.
+ */
+function transformWorkspaceNode(
+  node: WorkspaceNode,
+  currentPath: string,
+  activeFilePath: string
+): WorkspaceNode {
+  const newNode: WorkspaceNode = {};
+
+  // Process directories recursively.
+  if (node.directory) {
+    newNode.directory = {};
+    for (const [folderName, subNode] of Object.entries(node.directory)) {
+      const subPath = path.join(currentPath, folderName);
+      newNode.directory[folderName] = transformWorkspaceNode(
+        subNode,
+        subPath,
+        activeFilePath
+      );
+    }
+  }
+
+  // Process files.
+  if (node.file) {
+    newNode.file = {};
+    for (const [fileName, content] of Object.entries(node.file)) {
+      // Build the full path for the file.
+      const fileFullPath = path.join(currentPath, fileName);
+      if (path.normalize(fileFullPath) === path.normalize(activeFilePath)) {
+        // For the active file, preserve the full content.
+        newNode.file[fileName] = content;
+      } else {
+        // For other files, replace content with extracted signatures.
+        newNode.file[fileName] = extractPythonSignatures(content);
+      }
+    }
+  }
+
+  return newNode;
+}
+
+/**
+ * Returns a transformed copy of workspaceContext.
+ * In this copy, each file (except the currently active file) has its content replaced
+ * by only the Python class and function signatures.
+ */
+export function getTransformedWorkspaceContext(activeFilePathParam: string|null = null): object {
+  // Get the active file's full path.
+  const activeEditor = vscode.window.activeTextEditor;
+  let activeFilePath: string;
+  if (activeFilePathParam === null) {
+    activeFilePath = activeEditor ? activeEditor.document.uri.fsPath : '';
+  } else {
+    activeFilePath = activeFilePathParam;
+  }
+  
+  const transformed: { [rootKey: string]: WorkspaceNode } = {};
+
+  // The top-level keys in workspaceContext are assumed to be absolute paths (workspace folder paths)
+  for (const [rootKey, node] of Object.entries(workspaceContext)) {
+    transformed[rootKey] = transformWorkspaceNode(
+      node,
+      rootKey,
+      activeFilePath
+    );
+  }
+  return transformed;
+}
+
+export class FileSystemProvider implements vscode.TreeDataProvider<FileItem> {
+  private _onDidChangeTreeData: vscode.EventEmitter<FileItem | undefined | void> =
+    new vscode.EventEmitter<FileItem | undefined | void>();
+  public readonly onDidChangeTreeData: vscode.Event<FileItem | undefined | void> =
+    this._onDidChangeTreeData.event;
+
+  private recorder: IRecorder;
+
+  constructor(recorder: IRecorder) {
+    this.recorder = recorder;
+  }
+
+  refresh(): void {
+    this._onDidChangeTreeData.fire();
+  }
+
+  getTreeItem(element: FileItem): vscode.TreeItem {
+    return element;
+  }
+
+  /**
+   * Return the children for a given element or the workspace root.
+   * Show all files/folders, but only store .py in workspaceContext.
+   */
+  async getChildren(element?: FileItem): Promise<FileItem[]> {
+    if (!vscode.workspace.workspaceFolders) {
+      return [];
+    }
+
+    // Root level: one node per workspace folder
+    if (!element) {
+      return vscode.workspace.workspaceFolders.map((folder) => {
+        return new FileItem(
+          folder.uri,
+          folder.name,
+          vscode.TreeItemCollapsibleState.Collapsed
+        );
+      });
+    }
+
+    // For subdirectories, list all items
+    const children = await vscode.workspace.fs.readDirectory(element.resourceUri);
+    const items: FileItem[] = [];
+
+    for (const [name, fileType] of children) {
+      const childUri = vscode.Uri.joinPath(element.resourceUri, name);
+
+      if (fileType === vscode.FileType.Directory) {
+        // Directory -> collapsible
+        items.push(
+          new FileItem(childUri, name, vscode.TreeItemCollapsibleState.Collapsed)
+        );
+      } else if (fileType === vscode.FileType.File) {
+        // File -> always no children (None)
+        items.push(new FileItem(childUri, name, vscode.TreeItemCollapsibleState.None));
+      }
+      // If it's a symbolic link or unknown type, handle as needed (omitted here)
+    }
+
+    return items;
+  }
+
+  /**
+   * Called when a directory is expanded. We read its contents and store .py files in workspaceContext.
+   */
+  public async addFolderToWorkspaceContext(element: FileItem): Promise<void> {
+    // Confirm it's a directory
+    const stat = await vscode.workspace.fs.stat(element.resourceUri);
+    if (stat.type !== vscode.FileType.Directory) {
+      return; // If user expanded a file by some means, ignore
+    }
+
+    // Get or create the node
+    const node = this.getOrCreateNode(element.resourceUri);
+    if (!node.directory) {
+      node.directory = {};
+    }
+    if (!node.file) {
+      node.file = {};
+    }
+
+    // Read the directory to find .py files
+    const children = await vscode.workspace.fs.readDirectory(element.resourceUri);
+    for (const [name, fileType] of children) {
+      if (fileType === vscode.FileType.Directory) {
+        // Create an empty structure for the subdirectory
+        node.directory[name] = node.directory[name] ?? {
+          directory: {},
+          file: {},
+        };
+      } else if (fileType === vscode.FileType.File && name.endsWith('.py')) {
+        // Read the entire .py file
+        const fileUri = vscode.Uri.joinPath(element.resourceUri, name);
+        const contentBytes = await vscode.workspace.fs.readFile(fileUri);
+        const content = Buffer.from(contentBytes).toString('utf8');
+        node.file[name] = content;
+      }
+    }
+  }
+
+  /**
+   * Called when a directory is collapsed. We remove it from workspaceContext (including nested items).
+   */
+  public removeFolderFromWorkspaceContext(element: FileItem): void {
+    // Get the node corresponding to this folder
+    const node = this.getNode(element.resourceUri);
+    if (node) {
+      // Clear its children instead of removing the node itself
+      node.directory = {};
+      node.file = {};
+    }
+  }
+
+  /**
+   * Returns the node in workspaceContext corresponding to resourceUri,
+   * or undefined if it doesn't exist.
+   */
+  private getNode(resourceUri: vscode.Uri): WorkspaceNode | undefined {
+    const segments = this.getPathSegments(resourceUri);
+    return this.findNodeBySegments(segments, false);
+  }
+
+
+  /**
+   * Logs the entire workspaceContext as JSON.
+   */
+  public logWorkspaceContext(): void {
+    this.recorder.record({action_id: "workspaceContextLog", event: workspaceContext});
+  }
+
+  /**
+   * Returns (and if needed, creates) the node in workspaceContext corresponding to resourceUri.
+   */
+  private getOrCreateNode(resourceUri: vscode.Uri): WorkspaceNode {
+    const segments = this.getPathSegments(resourceUri);
+    return this.findNodeBySegments(segments, true)!;
+  }
+
+  /**
+   * Converts a resourceUri to an array of path segments. The first segment is the workspace root path,
+   * followed by subdirectories.
+   */
+  private getPathSegments(resourceUri: vscode.Uri): string[] {
+    const folder = vscode.workspace.getWorkspaceFolder(resourceUri);
+    if (!folder) {
+      return resourceUri.fsPath.split(path.sep).filter(Boolean);
+    }
+
+    const rootKey = folder.uri.fsPath; // or folder.name
+    const relativePath = path.relative(folder.uri.fsPath, resourceUri.fsPath);
+    const subSegments = relativePath.split(path.sep).filter(Boolean);
+
+    return [rootKey, ...subSegments];
+  }
+
+  /**
+   * Recursively finds (or creates) the node for the given segments in workspaceContext.
+   */
+  private findNodeBySegments(
+    segments: string[],
+    createIfMissing: boolean
+  ): WorkspaceNode | undefined {
+    if (segments.length === 0) {
+      return undefined;
+    }
+
+    const [first, ...rest] = segments;
+    if (!workspaceContext[first]) {
+      if (!createIfMissing) return undefined;
+      workspaceContext[first] = {};
+    }
+
+    let currentNode = workspaceContext[first];
+
+    for (const seg of rest) {
+      if (!currentNode.directory) {
+        if (!createIfMissing) return undefined;
+        currentNode.directory = {};
+      }
+      if (!currentNode.directory[seg]) {
+        if (!createIfMissing) return undefined;
+        currentNode.directory[seg] = {};
+      }
+      currentNode = currentNode.directory[seg];
+    }
+
+    return currentNode;
+  }
+}
+
+/**
+ * Custom TreeItem for files and directories.
+ */
+class FileItem extends vscode.TreeItem {
+  constructor(
+    public readonly resourceUri: vscode.Uri,
+    public readonly label: string,
+    public collapsibleState: vscode.TreeItemCollapsibleState,
+  ) {
+    super(label, collapsibleState);
+    // Set context value for right-click menu
+    // For file items, clicking opens the file.
+
+  }
+}

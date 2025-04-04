@@ -18,10 +18,8 @@ import {
 	toFileSystemProviderErrorCode,
 	FileOperationError,
 	FileOperationResult,
-	FileChangeType
 } from '../../../../platform/files/common/files.js'; // Adjust path as needed
 import { CancellationToken } from '../../../../base/common/cancellation.js'; // Adjust path as needed
-
 
 export class TracingService extends Disposable implements ITracingService {
 
@@ -38,13 +36,6 @@ export class TracingService extends Disposable implements ITracingService {
 	) {
 		super();
 		this.logPath = URI.joinPath(this.environmentService.workspaceStorageHome, this.contextService?.getWorkspace()?.id, 'datacurve-trace.log');
-		// Create the log file if it doesn't exist
-		this._register(this.fileService.onDidFilesChange(async e => {
-			// Check if our log file was deleted and recreate it if needed
-			if (e.contains(this.logPath, FileChangeType.DELETED)) {
-				await this.ensureLogFileExists();
-			}
-		}));
 
 		// Ensure log file exists on initialization
 		this.ensureLogFileExists().catch(err => {
@@ -75,6 +66,9 @@ export class TracingService extends Disposable implements ITracingService {
 		console.log('Tracing context service:', this.contextService);
 		console.log('Tracing workspace service:', this.workspaceService);
 
+		// ensure the trace has a timestamp
+		(trace as Record<string, any>).timestamp = Date.now(); // Unix timestamp in milliseconds
+
 		const logEntry = `${JSON.stringify(trace)}\n`;
 		console.log('Tracing log path:', this.logPath);
 		try {
@@ -95,6 +89,8 @@ export class TracingService extends Disposable implements ITracingService {
 	 * @param resource The URI of the file to append to.
 	 * @param newContent The content to append.
 	 * @param token Optional cancellation token.
+	 * @param maxRetries Number of times to retry the operation (default: 3)
+	 * @param retryDelayMs Base delay in milliseconds between retries (default: 100)
 	 * @returns Promise<void> that resolves when append is complete or rejects on error.
 	 * @throws {FileOperationError} if the write fails due to modification conflict or other file errors.
 	 */
@@ -102,59 +98,83 @@ export class TracingService extends Disposable implements ITracingService {
 		fileService: IFileService,
 		resource: URI,
 		newContent: VSBuffer,
-		token?: CancellationToken
+		token?: CancellationToken,
+		maxRetries: number = 3,
+		retryDelayMs: number = 100
 	): Promise<void> {
+		let retryCount = 0;
 
-		let etag: string | undefined = undefined;
-		let mtime: number | undefined = undefined;
-		let existingContent = VSBuffer.alloc(0);
+		while (true) {
+			try {
+				let etag: string | undefined = undefined;
+				let mtime: number | undefined = undefined;
+				let existingContent = VSBuffer.alloc(0);
 
-		// 1. Attempt to read the existing file and get its state (ETag/MTime)
-		try {
-			const fileContent: IFileContent = await fileService.readFile(resource, { etag: etag }, token);
-			existingContent = fileContent.value;
-			etag = fileContent.etag; // Store etag for write check
-			mtime = fileContent.mtime; // Store mtime for write check (some providers might use one or the other)
+				// 1. Attempt to read the existing file and get its state (ETag/MTime)
+				try {
+					const fileContent: IFileContent = await fileService.readFile(resource, { etag: etag }, token);
+					existingContent = fileContent.value;
+					etag = fileContent.etag; // Store etag for write check
+					mtime = fileContent.mtime; // Store mtime for write check
+				} catch (error: any) {
+					// Handle case where file doesn't exist yet - we can proceed to create it
+					if (toFileSystemProviderErrorCode(error) !== FileSystemProviderErrorCode.FileNotFound) {
+						console.error(`Error reading file ${resource.toString()} before append:`, error);
+						throw error;
+					}
+					// If file not found, existingContent is empty, etag/mtime remain undefined.
+				}
 
-		} catch (error: any) {
-			// Handle case where file doesn't exist yet - we can proceed to create it
-			if (toFileSystemProviderErrorCode(error) !== FileSystemProviderErrorCode.FileNotFound) {
-				// Re-throw unexpected errors (permissions, etc.)
-				console.error(`Error reading file ${resource.toString()} before append:`, error);
-				throw error;
-			}
-			// If file not found, existingContent is empty, etag/mtime remain undefined.
-			// The writeFile call below will handle creation.
-		}
+				if (token?.isCancellationRequested) {
+					console.log(`Append operation cancelled for ${resource.toString()} before writing.`);
+					return;
+				}
 
-		if (token?.isCancellationRequested) {
-			console.log(`Append operation cancelled for ${resource.toString()} before writing.`);
-			return; // Or throw a CancellationError
-		}
+				// 2. Concatenate existing content with new content
+				const combinedContent = VSBuffer.concat([existingContent, newContent]);
 
-		// 2. Concatenate existing content with new content
-		const combinedContent = VSBuffer.concat([existingContent, newContent]);
+				// 3. Attempt to write the combined content, providing the ETag/MTime
+				await fileService.writeFile(resource, combinedContent, {
+					etag: etag,
+					mtime: mtime,
+					unlock: false,
+				});
 
-		// 3. Attempt to write the combined content, providing the ETag/MTime
-		try {
-			await fileService.writeFile(resource, combinedContent, {
-				etag: etag,        // Pass the etag from the read operation
-				mtime: mtime,      // Pass the mtime from the read operation (optional, but good practice)
-				unlock: false,     // Optional: set to true if you need to handle locked files
-			});
-			// Write successful
-		} catch (error: any) {
-			// Handle potential modification conflict
-			if (error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
-				// The file was changed between our read and write attempt
-				console.warn(`File ${resource.toString()} was modified concurrently during append operation. Append failed.`);
-				// Strategy here could be to retry the whole append process (read again, concat, write),
-				// or simply fail and inform the user/caller.
-				throw new FileOperationError(`Concurrent modification detected for ${resource.toString()}. Append aborted.`, FileOperationResult.FILE_MODIFIED_SINCE);
-			} else {
-				// Handle other potential write errors
-				console.error(`Error writing appended content to ${resource.toString()}:`, error);
-				throw error; // Re-throw other errors
+				// Write successful, exit retry loop
+				return;
+
+			} catch (error: any) {
+				// Check if we've exceeded retries
+				retryCount++;
+
+				if (error instanceof FileOperationError &&
+					error.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE &&
+					retryCount <= maxRetries) {
+
+					// Log the retry attempt
+					console.warn(`File ${resource.toString()} was modified concurrently. Retry attempt ${retryCount}/${maxRetries}...`);
+
+					// Add exponential backoff delay before retry
+					const backoffDelay = retryDelayMs * Math.pow(2, retryCount - 1);
+					await new Promise(resolve => setTimeout(resolve, backoffDelay));
+
+					// Continue to the next iteration to retry
+					continue;
+				}
+
+				// Either not a concurrent modification error, or we've exceeded retries
+				if (error instanceof FileOperationError &&
+					error.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
+					console.error(`File ${resource.toString()} was modified concurrently. Max retries (${maxRetries}) exceeded.`);
+					throw new FileOperationError(
+						`Concurrent modification detected for ${resource.toString()}. Max retries exceeded.`,
+						FileOperationResult.FILE_MODIFIED_SINCE
+					);
+				} else {
+					// Handle other potential write errors
+					console.error(`Error writing appended content to ${resource.toString()}:`, error);
+					throw error; // Re-throw other errors
+				}
 			}
 		}
 	}

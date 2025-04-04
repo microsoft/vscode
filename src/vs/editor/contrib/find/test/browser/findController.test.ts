@@ -23,6 +23,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 
 class TestFindController extends CommonFindController {
 
@@ -37,9 +38,10 @@ class TestFindController extends CommonFindController {
 		@IStorageService storageService: IStorageService,
 		@IClipboardService clipboardService: IClipboardService,
 		@INotificationService notificationService: INotificationService,
-		@IHoverService hoverService: IHoverService
+		@IHoverService hoverService: IHoverService,
+		@ICommandService commandService: ICommandService
 	) {
-		super(editor, contextKeyService, storageService, clipboardService, notificationService, hoverService);
+		super(editor, contextKeyService, storageService, clipboardService, notificationService, hoverService, commandService);
 		this._findInputFocused = CONTEXT_FIND_INPUT_FOCUSED.bindTo(contextKeyService);
 		this._updateHistoryDelayer = new Delayer<void>(50);
 		this.hasFocus = false;

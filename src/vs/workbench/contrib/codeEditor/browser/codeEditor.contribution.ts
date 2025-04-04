@@ -25,3 +25,4 @@ import './emptyTextEditorHint/emptyTextEditorHint.js';
 import './workbenchReferenceSearch.js';
 import './editorLineNumberMenu.js';
 import './dictation/editorDictation.js';
+import './find/replaceEventTracing.js';

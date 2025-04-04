@@ -13,13 +13,6 @@ const pall = require('p-all');
 
 const { all, copyrightFilter, unicodeFilter, indentationFilter, tsFormattingFilter, eslintFilter, stylelintFilter } = require('./filters');
 
-const copyrightHeaderLines = [
-	'/*---------------------------------------------------------------------------------------------',
-	' *  Copyright (c) Microsoft Corporation. All rights reserved.',
-	' *  Licensed under the MIT License. See License.txt in the project root for license information.',
-	' *--------------------------------------------------------------------------------------------*/',
-];
-
 function hygiene(some, linting = true) {
 	const eslint = require('./gulp-eslint');
 	const gulpstylelint = require('./stylelint');
@@ -97,20 +90,6 @@ function hygiene(some, linting = true) {
 		this.emit('data', file);
 	});
 
-	const copyrights = es.through(function (file) {
-		const lines = file.__lines;
-
-		for (let i = 0; i < copyrightHeaderLines.length; i++) {
-			if (lines[i] !== copyrightHeaderLines[i]) {
-				console.error(file.relative + ': Missing or bad copyright statement');
-				errorCount++;
-				break;
-			}
-		}
-
-		this.emit('data', file);
-	});
-
 	const formatting = es.map(function (file, cb) {
 		try {
 			const rawInput = file.contents.toString('utf8');
@@ -161,8 +140,6 @@ function hygiene(some, linting = true) {
 		.pipe(unicodeFilterStream.restore)
 		.pipe(filter(indentationFilter))
 		.pipe(indentation)
-		.pipe(filter(copyrightFilter))
-		.pipe(copyrights);
 
 	const streams = [
 		result.pipe(filter(tsFormattingFilter)).pipe(formatting)
