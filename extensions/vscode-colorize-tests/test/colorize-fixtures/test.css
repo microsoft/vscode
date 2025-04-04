@@ -16,7 +16,7 @@
 }
 body {
     font: 75% georgia, sans-serif;
-    line-height: 1.88889;
+    line-height: 1.88889 !important;
     color: #555753;
     background: #fff url(blossoms.jpg) no-repeat bottom right;
     margin: 0;
