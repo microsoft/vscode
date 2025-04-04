@@ -27,6 +27,11 @@
 
 (pseudo_class_selector) @entity.other.attribute-name.pseudo-class.css
 
+(pseudo_element_selector
+  "::" @entity.other.attribute-name.pseudo-element.css
+  .
+  (tag_name) @entity.other.attribute-name.pseudo-element.css)
+
 (attribute_name) @entity.other.attribute-name.css
 
 ; @ Rules

@@ -5601,7 +5601,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.css",
+		"t": "source.css meta.selector.css",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5611,6 +5611,48 @@
 			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
 			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "span",
+		"t": "source.css meta.selector.css entity.name.tag.css",
+		"r": {
+			"dark_plus": "entity.name.tag.css: #D7BA7D",
+			"light_plus": "entity.name.tag: #800000",
+			"dark_vs": "entity.name.tag.css: #D7BA7D",
+			"light_vs": "entity.name.tag: #800000",
+			"hc_black": "entity.name.tag.css: #D7BA7D",
+			"dark_modern": "entity.name.tag.css: #D7BA7D",
+			"hc_light": "entity.name.tag: #0F4A85",
+			"light_modern": "entity.name.tag: #800000"
+		}
+	},
+	{
+		"c": "::",
+		"t": "source.css meta.selector.css entity.other.attribute-name.pseudo-element.css punctuation.definition.entity.css",
+		"r": {
+			"dark_plus": "entity.other.attribute-name.pseudo-element.css: #D7BA7D",
+			"light_plus": "entity.other.attribute-name.pseudo-element.css: #800000",
+			"dark_vs": "entity.other.attribute-name.pseudo-element.css: #D7BA7D",
+			"light_vs": "entity.other.attribute-name.pseudo-element.css: #800000",
+			"hc_black": "entity.other.attribute-name.pseudo-element.css: #D7BA7D",
+			"dark_modern": "entity.other.attribute-name.pseudo-element.css: #D7BA7D",
+			"hc_light": "entity.other.attribute-name.pseudo-element.css: #0F4A85",
+			"light_modern": "entity.other.attribute-name.pseudo-element.css: #800000"
+		}
+	},
+	{
+		"c": "after",
+		"t": "source.css meta.selector.css entity.other.attribute-name.pseudo-element.css",
+		"r": {
+			"dark_plus": "entity.other.attribute-name.pseudo-element.css: #D7BA7D",
+			"light_plus": "entity.other.attribute-name.pseudo-element.css: #800000",
+			"dark_vs": "entity.other.attribute-name.pseudo-element.css: #D7BA7D",
+			"light_vs": "entity.other.attribute-name.pseudo-element.css: #800000",
+			"hc_black": "entity.other.attribute-name.pseudo-element.css: #D7BA7D",
+			"dark_modern": "entity.other.attribute-name.pseudo-element.css: #D7BA7D",
+			"hc_light": "entity.other.attribute-name.pseudo-element.css: #0F4A85",
+			"light_modern": "entity.other.attribute-name.pseudo-element.css: #800000"
 		}
 	},
 	{

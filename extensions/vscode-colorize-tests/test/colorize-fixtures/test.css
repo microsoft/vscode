@@ -73,7 +73,7 @@ abbr {
     position: relative;
 }
 
-.intro {
+.intro span::after{
     min-width: 470px;
     width: 100%;
 }
