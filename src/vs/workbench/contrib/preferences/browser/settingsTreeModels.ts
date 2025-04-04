@@ -153,6 +153,14 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	 */
 	hasPolicyValue = false;
 
+	/**
+	 * Optional custom text for scope override.
+	 *
+	 * For example, use to set a policy value's UI text from
+	 * 'Managed by Organization' to 'Managed by [short]'
+	 */
+	scopeOverrideCustomText?: { short: string; long: string };
+
 	tags?: Set<string>;
 	overriddenScopeList: string[] = [];
 	overriddenDefaultsLanguageList: string[] = [];
@@ -344,6 +352,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 
 		if (inspected.policyValue !== undefined) {
 			this.hasPolicyValue = true;
+			this.scopeOverrideCustomText = inspected.scopeOverrideCustomText ?? { short: 'Big Corp', long: 'Big Corp IT Department has disabled this cool feature. Take it up with them!' };
 			isConfigured = false; // The user did not manually configure the setting themselves.
 			displayValue = inspected.policyValue;
 			this.scopeValue = inspected.policyValue;
@@ -662,6 +671,7 @@ interface IInspectResult {
 export function inspectSetting(key: string, target: SettingsTarget, languageFilter: string | undefined, configurationService: IWorkbenchConfigurationService): IInspectResult {
 	const inspectOverrides = URI.isUri(target) ? { resource: target } : undefined;
 	const inspected = configurationService.inspect(key, inspectOverrides);
+	// inspected.scopeOverrideCustomText
 	const targetSelector = target === ConfigurationTarget.APPLICATION ? 'applicationValue' :
 		target === ConfigurationTarget.USER_LOCAL ? 'userLocalValue' :
 			target === ConfigurationTarget.USER_REMOTE ? 'userRemoteValue' :

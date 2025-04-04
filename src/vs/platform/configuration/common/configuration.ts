@@ -102,6 +102,7 @@ export interface IConfigurationValue<T> {
 	readonly policy?: { value?: T };
 
 	readonly overrideIdentifiers?: string[];
+	readonly scopeOverrideCustomText?: { short: string; long: string };
 }
 
 export function getConfigValueInTarget<T>(configValue: IConfigurationValue<T>, scope: ConfigurationTarget): T | undefined {
@@ -203,11 +204,16 @@ export interface IConfigurationService {
 	};
 }
 
+export interface IConfiguratonModelMetadata {
+	scopeOverrideCustomText?: { short: string; long: string };
+}
+
 export interface IConfigurationModel {
 	contents: any;
 	keys: string[];
 	overrides: IOverrides[];
 	raw?: IStringDictionary<any>;
+	metadata?: IStringDictionary<IConfiguratonModelMetadata>;
 }
 
 export interface IOverrides {

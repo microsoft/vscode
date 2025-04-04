@@ -368,11 +368,15 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		this.scopeOverridesIndicator.focusElement = this.scopeOverridesIndicator.element;
 		if (element.hasPolicyValue) {
 			// If the setting falls under a policy, then no matter what the user sets, the policy value takes effect.
+			const scopeOverrideCustomText = element.scopeOverrideCustomText;
 			this.scopeOverridesIndicator.element.style.display = 'inline';
 			this.scopeOverridesIndicator.element.classList.add('setting-indicator');
 
-			this.scopeOverridesIndicator.label.text = '$(briefcase) ' + localize('policyLabelText', "Managed by organization");
-			const content = localize('policyDescription', "This setting is managed by your organization and its actual value cannot be changed.");
+			this.scopeOverridesIndicator.label.text = '$(briefcase) ' +
+				scopeOverrideCustomText?.short
+				? localize('policyLabelTextCustom', 'Managed by {0}', scopeOverrideCustomText?.short)
+				: localize('policyLabelText', "Managed by your organization");
+			const content = scopeOverrideCustomText?.long ?? localize('policyDescription', "This setting is managed by your organization and its actual value cannot be changed.");
 			const showHover = (focus: boolean) => {
 				return this.hoverService.showInstantHover({
 					...this.defaultHoverOptions,

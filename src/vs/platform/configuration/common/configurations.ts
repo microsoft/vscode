@@ -202,7 +202,13 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 				if (policyValue === undefined) {
 					this._configurationModel.removeValue(key);
 				} else {
-					this._configurationModel.setValue(key, policyValue);
+					const metadata = {
+						scopeOverrideCustomText: {
+							short: 'Ice Cream LLC',
+							long: 'Their ice cream may be delicious, but their policies are not. Please contact your admin for more information.'
+						}
+					};
+					this._configurationModel.setValue(key, policyValue, metadata);
 				}
 			}
 			if (trigger) {

@@ -13,7 +13,7 @@ import * as objects from '../../../base/common/objects.js';
 import { IExtUri } from '../../../base/common/resources.js';
 import * as types from '../../../base/common/types.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
-import { addToValueTree, ConfigurationTarget, getConfigurationValue, IConfigurationChange, IConfigurationChangeEvent, IConfigurationCompareResult, IConfigurationData, IConfigurationModel, IConfigurationOverrides, IConfigurationUpdateOverrides, IConfigurationValue, IInspectValue, IOverrides, removeFromValueTree, toValuesTree } from './configuration.js';
+import { addToValueTree, ConfigurationTarget, getConfigurationValue, IConfigurationChange, IConfigurationChangeEvent, IConfigurationCompareResult, IConfigurationData, IConfigurationModel, IConfigurationOverrides, IConfigurationUpdateOverrides, IConfigurationValue, IConfiguratonModelMetadata as IConfigurationModelMetadata, IInspectValue, IOverrides, removeFromValueTree, toValuesTree } from './configuration.js';
 import { ConfigurationScope, Extensions, IConfigurationPropertySchema, IConfigurationRegistry, overrideIdentifiersFromKey, OVERRIDE_PROPERTY_REGEX } from './configurationRegistry.js';
 import { FileOperation, IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
@@ -39,7 +39,8 @@ export class ConfigurationModel implements IConfigurationModel {
 		private readonly _keys: string[],
 		private readonly _overrides: IOverrides[],
 		readonly raw: IStringDictionary<any> | ReadonlyArray<IStringDictionary<any> | ConfigurationModel> | undefined,
-		private readonly logService: ILogService
+		private readonly logService: ILogService,
+		private readonly _metadata: IStringDictionary<IConfigurationModelMetadata> = {},
 	) {
 	}
 
@@ -74,6 +75,10 @@ export class ConfigurationModel implements IConfigurationModel {
 
 	get keys(): string[] {
 		return this._keys;
+	}
+
+	get metadata(): IStringDictionary<IConfigurationModelMetadata> {
+		return this._metadata; // TODO: This need to follow the 'section' pattern better
 	}
 
 	isEmpty(): boolean {
@@ -256,8 +261,13 @@ export class ConfigurationModel implements IConfigurationModel {
 		this.updateValue(key, value, true);
 	}
 
-	public setValue(key: string, value: any): void {
+	public setValue(key: string, value: any, metadata?: IConfigurationModelMetadata): void {
 		this.updateValue(key, value, false);
+		if (metadata) {
+			// TODO: - Validate if kept, probably move to this.updateValue, too?
+			//     - This doesn't feel scoped right
+			this._metadata[key] = metadata;
+		}
 	}
 
 	public removeValue(key: string): void {
@@ -541,6 +551,7 @@ class ConfigurationInspectValue<V> implements IConfigurationValue<V> {
 		private readonly overrides: IConfigurationOverrides,
 		private readonly _value: V | undefined,
 		readonly overrideIdentifiers: string[] | undefined,
+		readonly metadata: IConfigurationModelMetadata | undefined,
 		private readonly defaultConfiguration: ConfigurationModel,
 		private readonly policyConfiguration: ConfigurationModel | undefined,
 		private readonly applicationConfiguration: ConfigurationModel | undefined,
@@ -551,6 +562,10 @@ class ConfigurationInspectValue<V> implements IConfigurationValue<V> {
 		private readonly folderConfigurationModel: ConfigurationModel | undefined,
 		private readonly memoryConfigurationModel: ConfigurationModel
 	) {
+	}
+
+	get scopeOverrideCustomText(): { short: string; long: string } | undefined {
+		return freeze(this.metadata?.scopeOverrideCustomText);
 	}
 
 	get value(): V | undefined {
@@ -758,6 +773,7 @@ export class Configuration {
 		const consolidateConfigurationModel = this.getConsolidatedConfigurationModel(key, overrides, workspace);
 		const folderConfigurationModel = this.getFolderConfigurationModelForResource(overrides.resource, workspace);
 		const memoryConfigurationModel = overrides.resource ? this._memoryConfigurationByResource.get(overrides.resource) || this._memoryConfiguration : this._memoryConfiguration;
+		const metadata = consolidateConfigurationModel.metadata[key];
 		const overrideIdentifiers = new Set<string>();
 		for (const override of consolidateConfigurationModel.overrides) {
 			for (const overrideIdentifier of override.identifiers) {
@@ -772,6 +788,7 @@ export class Configuration {
 			overrides,
 			consolidateConfigurationModel.getValue<C>(key),
 			overrideIdentifiers.size ? [...overrideIdentifiers] : undefined,
+			metadata,
 			this._defaultConfiguration,
 			this._policyConfiguration.isEmpty() ? undefined : this._policyConfiguration,
 			this.applicationConfiguration.isEmpty() ? undefined : this.applicationConfiguration,
@@ -780,7 +797,7 @@ export class Configuration {
 			this.remoteUserConfiguration,
 			workspace ? this._workspaceConfiguration : undefined,
 			folderConfigurationModel ? folderConfigurationModel : undefined,
-			memoryConfigurationModel
+			memoryConfigurationModel,
 		);
 
 	}
@@ -979,9 +996,10 @@ export class Configuration {
 			// clone by merging
 			configurationModel = configurationModel.merge();
 			for (const key of this._policyConfiguration.keys) {
-				configurationModel.setValue(key, this._policyConfiguration.getValue(key));
+				configurationModel.setValue(key, this._policyConfiguration.getValue(key), this._policyConfiguration.metadata[key]);
 			}
 		}
+
 		return configurationModel;
 	}
 
