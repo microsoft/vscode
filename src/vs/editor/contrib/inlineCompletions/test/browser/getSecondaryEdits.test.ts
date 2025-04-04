@@ -10,11 +10,11 @@ import { createTextModel } from '../../../../test/common/testTextModel.js';
 import { Range } from '../../../../common/core/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
-suite('inlineCompletionModel', () => {
+suite('getSecondaryEdits', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('getSecondaryEdits - basic', async function () {
+	test('basic', async function () {
 
 		const textModel = createTextModel([
 			'function fib(',
@@ -33,7 +33,7 @@ suite('inlineCompletionModel', () => {
 		textModel.dispose();
 	});
 
-	test('getSecondaryEdits - cursor not on same line as primary edit 1', async function () {
+	test('cursor not on same line as primary edit 1', async function () {
 
 		const textModel = createTextModel([
 			'function fib(',
@@ -60,7 +60,7 @@ suite('inlineCompletionModel', () => {
 		textModel.dispose();
 	});
 
-	test('getSecondaryEdits - cursor not on same line as primary edit 2', async function () {
+	test('cursor not on same line as primary edit 2', async function () {
 
 		const textModel = createTextModel([
 			'class A {',
