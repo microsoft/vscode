@@ -247,7 +247,8 @@ steps:
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
           exec { npx deemon --attach -- npx zx build/azure-pipelines/win32/codesign.js }
-        displayName: Post:job Codesign
+        condition: succeededOrFailed()
+        displayName: "Post-job: Codesign"
 
     #   - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath sign-windows $(CodeSigningFolderPath) '*.dll,*.exe,*.node'
     #     env:
