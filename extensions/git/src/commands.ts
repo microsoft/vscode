@@ -632,59 +632,59 @@ class CommandErrorOutputTextDocumentContentProvider implements TextDocumentConte
 
 async function evaluateDiagnosticsCommitHook(repository: Repository, options: CommitOptions): Promise<boolean> {
 	const config = workspace.getConfiguration('git', Uri.file(repository.root));
-	const enabled = config.get<boolean>('diagnosticsCommitHook.Enabled', false) === true;
-	const sourceSeverity = config.get<Record<string, DiagnosticSeverityConfig>>('diagnosticsCommitHook.Sources', { '*': 'error' });
+	const enabled = config.get<boolean>('diagnosticsCommitHook.enabled', false) === true;
+	const sourceSeverity = config.get<Record<string, DiagnosticSeverityConfig>>('diagnosticsCommitHook.sources', { '*': 'error' });
 
 	if (!enabled) {
 		return true;
 	}
 
-	const changes: Uri[] = [];
+	const resources: Uri[] = [];
 	if (repository.indexGroup.resourceStates.length > 0) {
 		// Staged files
-		changes.push(...repository.indexGroup.resourceStates.map(r => r.resourceUri));
+		resources.push(...repository.indexGroup.resourceStates.map(r => r.resourceUri));
 	} else if (options.all === 'tracked') {
 		// Tracked files
-		changes.push(...repository.workingTreeGroup.resourceStates
+		resources.push(...repository.workingTreeGroup.resourceStates
 			.filter(r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED)
 			.map(r => r.resourceUri));
 	} else {
 		// All files
-		changes.push(...repository.workingTreeGroup.resourceStates.map(r => r.resourceUri));
-		changes.push(...repository.untrackedGroup.resourceStates.map(r => r.resourceUri));
+		resources.push(...repository.workingTreeGroup.resourceStates.map(r => r.resourceUri));
+		resources.push(...repository.untrackedGroup.resourceStates.map(r => r.resourceUri));
 	}
 
-	const diagnostics = languages.getDiagnostics();
-	const changesDiagnostics = diagnostics.filter(([uri, diags]) => {
-		// File
-		if (uri.scheme !== 'file' || !changes.find(c => pathEquals(c.fsPath, uri.fsPath))) {
-			return false;
-		}
+	const diagnostics: Map<Uri, number> = new Map();
 
-		// Diagnostics
-		return diags.find(d => {
-			// No source or ignored source
-			if (!d.source || (Object.keys(sourceSeverity).includes(d.source) && sourceSeverity[d.source] === 'none')) {
+	for (const resource of resources) {
+		const unresolvedDiagnostics = languages.getDiagnostics(resource)
+			.filter(d => {
+				// No source or ignored source
+				if (!d.source || (Object.keys(sourceSeverity).includes(d.source) && sourceSeverity[d.source] === 'none')) {
+					return false;
+				}
+
+				// Source severity
+				if (Object.keys(sourceSeverity).includes(d.source) &&
+					d.severity <= toDiagnosticSeverity(sourceSeverity[d.source])) {
+					return true;
+				}
+
+				// Wildcard severity
+				if (Object.keys(sourceSeverity).includes('*') &&
+					d.severity <= toDiagnosticSeverity(sourceSeverity['*'])) {
+					return true;
+				}
+
 				return false;
-			}
+			});
 
-			// Source severity
-			if (Object.keys(sourceSeverity).includes(d.source) &&
-				d.severity <= toDiagnosticSeverity(sourceSeverity[d.source])) {
-				return true;
-			}
+		if (unresolvedDiagnostics.length > 0) {
+			diagnostics.set(resource, unresolvedDiagnostics.length);
+		}
+	}
 
-			// Wildcard severity
-			if (Object.keys(sourceSeverity).includes('*') &&
-				d.severity <= toDiagnosticSeverity(sourceSeverity['*'])) {
-				return true;
-			}
-
-			return false;
-		});
-	});
-
-	if (changesDiagnostics.length === 0) {
+	if (diagnostics.size === 0) {
 		return true;
 	}
 
@@ -692,9 +692,9 @@ async function evaluateDiagnosticsCommitHook(repository: Repository, options: Co
 	const commit = l10n.t('Commit Anyway');
 	const view = l10n.t('View Problems');
 
-	const message = changesDiagnostics.length === 1
-		? l10n.t('The following file has unresolved diagnostics: \'{0}\'.\n\nHow would you like to proceed?', path.basename(changesDiagnostics[0][0].fsPath))
-		: l10n.t('There are {0} files that have unresolved diagnostics.\n\nHow would you like to proceed?', changesDiagnostics.length);
+	const message = diagnostics.size === 1
+		? l10n.t('The following file has unresolved diagnostics: \'{0}\'.\n\nHow would you like to proceed?', path.basename(diagnostics.keys().next().value!.fsPath))
+		: l10n.t('There are {0} files that have unresolved diagnostics.\n\nHow would you like to proceed?', diagnostics.size);
 
 	const choice = await window.showWarningMessage(message, { modal: true }, commit, view);
 
@@ -2867,6 +2867,7 @@ export class CommandCenter {
 		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar')!;
 		const branchValidationRegex = config.get<string>('branchValidationRegex')!;
 		const branchRandomNameEnabled = config.get<boolean>('branchRandomName.enable', false);
+		const refs = await repository.getRefs({ pattern: 'refs/heads' });
 
 		if (defaultName) {
 			return sanitizeBranchName(defaultName, branchWhitespaceChar);
@@ -2884,6 +2885,13 @@ export class CommandCenter {
 		const getValidationMessage = (name: string): string | InputBoxValidationMessage | undefined => {
 			const validateName = new RegExp(branchValidationRegex);
 			const sanitizedName = sanitizeBranchName(name, branchWhitespaceChar);
+
+			// Check if branch name already exists
+			const existingBranch = refs.find(ref => ref.name === sanitizedName);
+			if (existingBranch) {
+				return l10n.t('Branch "{0}" already exists', sanitizedName);
+			}
+
 			if (validateName.test(sanitizedName)) {
 				// If the sanitized name that we will use is different than what is
 				// in the input box, show an info message to the user informing them

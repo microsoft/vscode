@@ -5,7 +5,7 @@
 
 import type * as Parser from '@vscode/tree-sitter-wasm';
 import { ITreeSitterParseResult, ITextModelTreeSitter, RangeChange, TreeParseUpdateEvent, ITreeSitterImporter, ModelTreeUpdateEvent } from '../treeSitterParserService.js';
-import { Disposable, DisposableStore, dispose, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, dispose, IDisposable } from '../../../../base/common/lifecycle.js';
 import { ITextModel } from '../../model.js';
 import { IModelContentChange, IModelContentChangedEvent } from '../../textModelEvents.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -40,7 +40,7 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 
 	private _query: Parser.Query | undefined;
 	// TODO: @alexr00 use a better data structure for this
-	private _injectionTreeSitterTrees: Map<string, TreeSitterParseResult> = new Map();
+	private readonly _injectionTreeSitterTrees: DisposableMap<string, TreeSitterParseResult> = this._register(new DisposableMap());
 	private _versionId: number = 0;
 
 	get parseResult(): ITreeSitterParseResult | undefined { return this._rootTreeSitterTree; }
@@ -278,6 +278,12 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 		parentLanguage: string,
 		modelChanges: IModelContentChangedEvent[] | undefined
 	): Promise<void> {
+		if (injections.size === 0) {
+			this._injectionTreeSitterTrees.clearAndDisposeAll();
+			return;
+		}
+
+		const unseenInjections: Set<string> = new Set(this._injectionTreeSitterTrees.keys());
 		for (const [languageId, ranges] of injections) {
 			const language = await this._treeSitterLanguages.getLanguage(languageId);
 			if (!language) {
@@ -286,8 +292,12 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 
 			const treeSitterTree = await this._getOrCreateInjectedTree(languageId, language, parentTree, parentLanguage);
 			if (treeSitterTree) {
+				unseenInjections.delete(languageId);
 				this._onDidChangeContent(treeSitterTree, modelChanges, ranges);
 			}
+		}
+		for (const unseenInjection of unseenInjections) {
+			this._injectionTreeSitterTrees.deleteAndDispose(unseenInjection);
 		}
 	}
 

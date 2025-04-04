@@ -29,7 +29,6 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IMarkerService, MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
 import { PromptsConfig } from '../../../../../platform/prompts/common/config.js';
-import { IQuickAccessOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
@@ -252,9 +251,8 @@ export class SelectAndInsertFileAction extends Action2 {
 			context.widget.inputEditor.executeEdits('chatInsertFile', [{ range: context.range, text: `` }]);
 		};
 
-		let options: IQuickAccessOptions | undefined;
 		// TODO: have dedicated UX for this instead of using the quick access picker
-		const picks = await quickInputService.quickAccess.pick('', options);
+		const picks = await quickInputService.quickAccess.pick('', { ignoreFocusOut: true });
 		if (!picks?.length) {
 			logService.trace('SelectAndInsertFileAction: no file selected');
 			doCleanup();
@@ -373,6 +371,7 @@ export async function createFolderQuickPick(accessor: ServicesAccessor): Promise
 	const quickPick = quickInputService.createQuickPick();
 	quickPick.placeholder = 'Search folder by name';
 	quickPick.items = topLevelFolderItems;
+	quickPick.ignoreFocusOut = true;
 
 	return await new Promise<URI | undefined>(_resolve => {
 
@@ -576,7 +575,7 @@ export class SelectAndInsertSymAction extends Action2 {
 		};
 
 		// TODO: have dedicated UX for this instead of using the quick access picker
-		const picks = await quickInputService.quickAccess.pick('#', { enabledProviderPrefixes: ['#'] });
+		const picks = await quickInputService.quickAccess.pick('#', { enabledProviderPrefixes: ['#'], ignoreFocusOut: true });
 		if (!picks?.length) {
 			logService.trace('SelectAndInsertSymAction: no symbol selected');
 			doCleanup();
@@ -745,6 +744,7 @@ export async function createMarkersQuickPick(accessor: ServicesAccessor, level: 
 	const store = new DisposableStore();
 	const quickPick = store.add(quickInputService.createQuickPick<MarkerPickItem>({ useSeparators: true }));
 	quickPick.canAcceptInBackground = !onBackgroundAccept;
+	quickPick.ignoreFocusOut = true;
 	quickPick.placeholder = localize('pickAProblem', 'Pick a problem to attach...');
 	quickPick.items = items;
 

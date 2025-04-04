@@ -134,20 +134,19 @@ export class ChatAttachmentsContentPart extends Disposable {
 				const isURL = isImageVariableEntry(attachment) && attachment.isURL;
 				const hoverElement = this.customAttachment(widget, attachment.name, hoverDelegate, ariaLabel, isAttachmentOmitted, attachment.isImage, isURL, attachment.value as Uint8Array);
 
-				if (attachment.references) {
+				const ref = attachment.references?.[0]?.reference;
+				if (ref && URI.isUri(ref)) {
 					widget.style.cursor = 'pointer';
 					const clickHandler = () => {
-						if (attachment.references && URI.isUri(attachment.references[0].reference)) {
-							this.openResource(attachment.references[0].reference, false, undefined);
-						}
+						this.openResource(ref, false, undefined);
 					};
 					this.attachedContextDisposables.add(dom.addDisposableListener(widget, 'click', clickHandler));
 				}
 
 				if (!isAttachmentPartialOrOmitted) {
 					const buffer = attachment.value as Uint8Array;
-					this.createImageElements(buffer, widget, hoverElement);
-					this.attachedContextDisposables.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement, { trapFocus: false }));
+					this.createImageElements(buffer, widget, hoverElement, URI.isUri(ref) ? ref : undefined);
+					this.attachedContextDisposables.add(this.hoverService.setupDelayedHover(widget, { content: hoverElement, appearance: { showPointer: true } }));
 				}
 				widget.style.position = 'relative';
 			} else if (isPasteVariableEntry(attachment)) {
@@ -242,14 +241,14 @@ export class ChatAttachmentsContentPart extends Disposable {
 
 		if (isURL && !isAttachmentOmitted && value) {
 			hoverElement.textContent = localize('chat.imageAttachmentHover', "{0}", convertUint8ArrayToString(value));
-			this.attachedContextDisposables.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement, { trapFocus: true }));
+			this.attachedContextDisposables.add(this.hoverService.setupDelayedHover(widget, { content: hoverElement, appearance: { showPointer: true } }));
 		}
 
 
 		if (isAttachmentOmitted) {
 			widget.classList.add('warning');
 			hoverElement.textContent = localize('chat.fileAttachmentHover', "Selected model does not support this {0} type.", isImage ? 'image' : 'file');
-			this.attachedContextDisposables.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement, { trapFocus: true }));
+			this.attachedContextDisposables.add(this.hoverService.setupDelayedHover(widget, { content: hoverElement, appearance: { showPointer: true } }));
 		}
 
 		return hoverElement;
@@ -274,10 +273,9 @@ export class ChatAttachmentsContentPart extends Disposable {
 	}
 
 	// Helper function to create and replace image
-	private async createImageElements(buffer: ArrayBuffer | Uint8Array, widget: HTMLElement, hoverElement: HTMLElement) {
+	private createImageElements(buffer: ArrayBuffer | Uint8Array, widget: HTMLElement, hoverElement: HTMLElement, reference?: URI): void {
 		const blob = new Blob([buffer], { type: 'image/png' });
 		const url = URL.createObjectURL(blob);
-		const img = dom.$('img.chat-attached-context-image', { src: url, alt: '' });
 		const pillImg = dom.$('img.chat-attached-context-pill-image', { src: url, alt: '' });
 		const pill = dom.$('div.chat-attached-context-pill', {}, pillImg);
 
@@ -286,14 +284,22 @@ export class ChatAttachmentsContentPart extends Disposable {
 			existingPill.replaceWith(pill);
 		}
 
-		// Update hover image
-		hoverElement.appendChild(img);
+		const hoverImage = dom.$('img.chat-attached-context-image', { src: url, alt: '' });
+		const imageContainer = dom.$('div.chat-attached-context-image-container', {}, hoverImage);
+		hoverElement.appendChild(imageContainer);
 
-		img.onload = () => {
+		if (reference) {
+			const urlContainer = dom.$('a.chat-attached-context-url', {}, reference.toString());
+			const separator = dom.$('div.chat-attached-context-url-separator');
+			this._register(dom.addDisposableListener(urlContainer, 'click', () => this.openResource(reference, false, undefined)));
+			hoverElement.append(separator, urlContainer);
+		}
+
+		hoverImage.onload = () => {
 			URL.revokeObjectURL(url);
 		};
 
-		img.onerror = () => {
+		hoverImage.onerror = () => {
 			// reset to original icon on error or invalid image
 			const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$('span.codicon.codicon-file-media'));
 			const pill = dom.$('div.chat-attached-context-pill', {}, pillIcon);

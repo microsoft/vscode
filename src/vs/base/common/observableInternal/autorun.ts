@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChangeContext, IObservable, IObservableWithChange, IObserver, IReader } from './base.js';
+import { IObservable, IObservableWithChange, IObserver, IReader } from './base.js';
 import { DebugNameData, IDebugNameData } from './debugName.js';
 import { assertFn, BugIndicatingError, DisposableStore, IDisposable, markAsDisposed, onBugIndicatingError, toDisposable, trackDisposable } from './commonFacade/deps.js';
 import { getLogger } from './logging/logging.js';
+import { IChangeTracker } from './changeTracker.js';
 
 /**
  * Runs immediately and whenever a transaction ends and an observed observable changed.
@@ -16,7 +17,6 @@ export function autorun(fn: (reader: IReader) => void): IDisposable {
 	return new AutorunObserver(
 		new DebugNameData(undefined, undefined, fn),
 		fn,
-		undefined,
 		undefined
 	);
 }
@@ -29,7 +29,6 @@ export function autorunOpts(options: IDebugNameData & {}, fn: (reader: IReader) 
 	return new AutorunObserver(
 		new DebugNameData(options.owner, options.debugName, options.debugReferenceFn ?? fn),
 		fn,
-		undefined,
 		undefined
 	);
 }
@@ -38,8 +37,8 @@ export function autorunOpts(options: IDebugNameData & {}, fn: (reader: IReader) 
  * Runs immediately and whenever a transaction ends and an observed observable changed.
  * {@link fn} should start with a JS Doc using `@description` to name the autorun.
  *
- * Use `createEmptyChangeSummary` to create a "change summary" that can collect the changes.
- * Use `handleChange` to add a reported change to the change summary.
+ * Use `changeTracker.createChangeSummary` to create a "change summary" that can collect the changes.
+ * Use `changeTracker.handleChange` to add a reported change to the change summary.
  * The run function is given the last change summary.
  * The change summary is discarded after the run function was called.
  *
@@ -47,16 +46,14 @@ export function autorunOpts(options: IDebugNameData & {}, fn: (reader: IReader) 
  */
 export function autorunHandleChanges<TChangeSummary>(
 	options: IDebugNameData & {
-		createEmptyChangeSummary?: () => TChangeSummary;
-		handleChange: (context: IChangeContext, changeSummary: TChangeSummary) => boolean;
+		changeTracker: IChangeTracker<TChangeSummary>;
 	},
 	fn: (reader: IReader, changeSummary: TChangeSummary) => void
 ): IDisposable {
 	return new AutorunObserver(
 		new DebugNameData(options.owner, options.debugName, options.debugReferenceFn ?? fn),
 		fn,
-		options.createEmptyChangeSummary,
-		options.handleChange
+		options.changeTracker,
 	);
 }
 
@@ -65,8 +62,7 @@ export function autorunHandleChanges<TChangeSummary>(
  */
 export function autorunWithStoreHandleChanges<TChangeSummary>(
 	options: IDebugNameData & {
-		createEmptyChangeSummary?: () => TChangeSummary;
-		handleChange: (context: IChangeContext, changeSummary: TChangeSummary) => boolean;
+		changeTracker: IChangeTracker<TChangeSummary>;
 	},
 	fn: (reader: IReader, changeSummary: TChangeSummary, store: DisposableStore) => void
 ): IDisposable {
@@ -76,8 +72,7 @@ export function autorunWithStoreHandleChanges<TChangeSummary>(
 			owner: options.owner,
 			debugName: options.debugName,
 			debugReferenceFn: options.debugReferenceFn ?? fn,
-			createEmptyChangeSummary: options.createEmptyChangeSummary,
-			handleChange: options.handleChange,
+			changeTracker: options.changeTracker,
 		},
 		(reader, changeSummary) => {
 			store.clear();
@@ -183,10 +178,9 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 	constructor(
 		public readonly _debugNameData: DebugNameData,
 		public readonly _runFn: (reader: IReader, changeSummary: TChangeSummary) => void,
-		private readonly createChangeSummary: (() => TChangeSummary) | undefined,
-		private readonly _handleChange: ((context: IChangeContext, summary: TChangeSummary) => boolean) | undefined,
+		private readonly _changeTracker: IChangeTracker<TChangeSummary> | undefined,
 	) {
-		this._changeSummary = this.createChangeSummary?.();
+		this._changeSummary = this._changeTracker?.createChangeSummary(undefined);
 		getLogger()?.handleAutorunCreated(this);
 		this._run();
 
@@ -216,8 +210,11 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 				getLogger()?.handleAutorunStarted(this);
 				const changeSummary = this._changeSummary!;
 				try {
-					this._changeSummary = this.createChangeSummary?.(); // Warning: external call!
 					this._isRunning = true;
+					if (this._changeTracker) {
+						this._changeTracker.beforeUpdate?.(this, changeSummary);
+						this._changeSummary = this._changeTracker.createChangeSummary(changeSummary); // Warning: external call!
+					}
 					this._runFn(this, changeSummary); // Warning: external call!
 				} catch (e) {
 					onBugIndicatingError(e);
@@ -288,7 +285,7 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 			getLogger()?.handleAutorunDependencyChanged(this, observable, change);
 			try {
 				// Warning: external call!
-				const shouldReact = this._handleChange ? this._handleChange({
+				const shouldReact = this._changeTracker ? this._changeTracker.handleChange({
 					changedObservable: observable,
 					change,
 					didChange: (o): this is any => o === observable as any,

@@ -21,10 +21,29 @@
   "]"
 ] @punctuation.definition.character-class.regexp
 
-[
-  "(?:"
-  "(?<"
-] @punctuation.definition.group.assertion.regexp
+(
+  ([
+    "(?<"
+  ] @punctuation.definition.group.assertion.regexp)
+  .
+  [
+    "="
+    "!"
+  ] @punctuation.definition.group.assertion.regexp
+) @meta.assertion.look-behind.regexp
+
+(
+  ([
+    "(?"
+  ] @punctuation.definition.group.assertion.regexp)
+  .
+  [
+    "="
+    "!"
+  ] @punctuation.definition.group.assertion.regexp
+) @meta.assertion.look-ahead.regexp
+
+"(?:" @punctuation.definition.group.regexp @punctuation.definition.group.no-capture.regexp
 
 (lookaround_assertion ("!") @punctuation.definition.group.assertion.regexp)
 
@@ -42,6 +61,10 @@
   (end_assertion)
   (boundary_assertion)
 ] @keyword.control.anchor.regexp
+
+(class_character) @constant.character-class.regexp
+
+(identity_escape) @constant.character.escape.regexp
 
 [
   ((identity_escape) @internal.regexp (#match? @internal.regexp "\\[^ux]"))
@@ -66,6 +89,16 @@
   .
   (pattern_character) @constant.character.numeric.regexp
 ) @constant.character.numeric.regexp
+
+(
+  ((identity_escape) @internal.regexp (#eq? @internal.regexp "\\x"))
+  .
+  (class_character) @constant.character.numeric.regexp
+  .
+  (class_character) @constant.character.numeric.regexp
+) @constant.character.numeric.regexp
+
+(decimal_escape) @keyword.other.back-reference.regexp
 
 [
   (character_class_escape)
@@ -92,5 +125,3 @@
     "^" @keyword.operator.negation.regexp
     (class_range "-" @constant.other.character-class.range.regexp)
   ])
-
-(class_character) @constant.character-class.regexp

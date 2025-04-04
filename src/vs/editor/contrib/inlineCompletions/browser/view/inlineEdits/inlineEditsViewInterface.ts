@@ -21,8 +21,8 @@ export interface IInlineEditsView {
 }
 
 export interface IInlineEditHost {
+	readonly onDidAccept: Event<void>;
 	inAcceptFlow: IObservable<boolean>;
-	inPartialAcceptFlow: IObservable<boolean>;
 }
 
 export interface IInlineEditModel {

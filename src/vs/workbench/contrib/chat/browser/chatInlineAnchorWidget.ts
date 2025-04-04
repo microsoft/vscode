@@ -365,11 +365,12 @@ registerAction2(class GoToDefinitionAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, location: Location): Promise<void> {
 		const editorService = accessor.get(ICodeEditorService);
+		const instantiationService = accessor.get(IInstantiationService);
 
 		await openEditorWithSelection(editorService, location);
 
 		const action = new DefinitionAction({ openToSide: false, openInPeek: false, muteMessage: true }, { title: { value: '', original: '' }, id: '', precondition: undefined });
-		return action.run(accessor);
+		return instantiationService.invokeFunction(accessor => action.run(accessor));
 	}
 });
 
