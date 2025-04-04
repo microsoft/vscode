@@ -33,9 +33,10 @@ import { LOG_MODE_ID, OUTPUT_MODE_ID } from '../../../../services/output/common/
 import { SEARCH_RESULT_LANGUAGE_ID } from '../../../../services/search/common/search.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { ChatAgentLocation, IChatAgent, IChatAgentService } from '../../../chat/common/chatAgents.js';
+import { IChatAgent, IChatAgentService } from '../../../chat/common/chatAgents.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
+import { ChatAgentLocation } from '../../../chat/common/constants.js';
 
 const $ = dom.$;
 

@@ -99,7 +99,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		resolvedShellLaunchConfig: {},
 		overrideDimensions: undefined,
 		failedShellIntegrationActivation: false,
-		usedShellIntegrationInjection: undefined
+		usedShellIntegrationInjection: undefined,
+		shellIntegrationInjectionFailureReason: undefined,
 	};
 	private static _lastKillOrStart = 0;
 	private _exitCode: number | undefined;
@@ -208,39 +209,38 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			return firstError;
 		}
 
-		let injection: IShellIntegrationConfigInjection | undefined;
-		if (this._options.shellIntegration.enabled) {
-			injection = getShellIntegrationInjection(this.shellLaunchConfig, this._options, this._ptyOptions.env, this._logService, this._productService);
-			if (injection) {
-				this._onDidChangeProperty.fire({ type: ProcessPropertyType.UsedShellIntegrationInjection, value: true });
-				if (injection.envMixin) {
-					for (const [key, value] of Object.entries(injection.envMixin)) {
-						this._ptyOptions.env ||= {};
-						this._ptyOptions.env[key] = value;
-					}
+		const injection = getShellIntegrationInjection(this.shellLaunchConfig, this._options, this._ptyOptions.env, this._logService, this._productService);
+		if (injection.type === 'injection') {
+			this._onDidChangeProperty.fire({ type: ProcessPropertyType.UsedShellIntegrationInjection, value: true });
+			if (injection.envMixin) {
+				for (const [key, value] of Object.entries(injection.envMixin)) {
+					this._ptyOptions.env ||= {};
+					this._ptyOptions.env[key] = value;
 				}
-				if (injection.filesToCopy) {
-					for (const f of injection.filesToCopy) {
-						try {
-							await fs.promises.mkdir(path.dirname(f.dest), { recursive: true });
-							await fs.promises.copyFile(f.source, f.dest);
-						} catch {
-							// Swallow error, this should only happen when multiple users are on the same
-							// machine. Since the shell integration scripts rarely change, plus the other user
-							// should be using the same version of the server in this case, assume the script is
-							// fine if copy fails and swallow the error.
-						}
-					}
-				}
-			} else {
-				this._onDidChangeProperty.fire({ type: ProcessPropertyType.FailedShellIntegrationActivation, value: true });
 			}
+			if (injection.filesToCopy) {
+				for (const f of injection.filesToCopy) {
+					try {
+						await fs.promises.mkdir(path.dirname(f.dest), { recursive: true });
+						await fs.promises.copyFile(f.source, f.dest);
+					} catch {
+						// Swallow error, this should only happen when multiple users are on the same
+						// machine. Since the shell integration scripts rarely change, plus the other user
+						// should be using the same version of the server in this case, assume the script is
+						// fine if copy fails and swallow the error.
+					}
+				}
+			}
+		} else {
+			this._onDidChangeProperty.fire({ type: ProcessPropertyType.FailedShellIntegrationActivation, value: true });
+			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellIntegrationInjectionFailureReason, value: injection.reason });
 		}
 
 		try {
-			await this.setupPtyProcess(this.shellLaunchConfig, this._ptyOptions, injection);
-			if (injection?.newArgs) {
-				return { injectedArgs: injection.newArgs };
+			const injectionConfig: IShellIntegrationConfigInjection | undefined = injection.type === 'injection' ? injection : undefined;
+			await this.setupPtyProcess(this.shellLaunchConfig, this._ptyOptions, injectionConfig);
+			if (injectionConfig?.newArgs) {
+				return { injectedArgs: injectionConfig.newArgs };
 			}
 			return undefined;
 		} catch (err) {

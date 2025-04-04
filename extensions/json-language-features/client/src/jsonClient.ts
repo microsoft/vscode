@@ -13,6 +13,7 @@ import {
 } from 'vscode';
 import {
 	LanguageClientOptions, RequestType, NotificationType, FormattingOptions as LSPFormattingOptions, DocumentDiagnosticReportKind,
+	Diagnostic as LSPDiagnostic,
 	DidChangeConfigurationNotification, HandleDiagnosticsSignature, ResponseError, DocumentRangeFormattingParams,
 	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, ProvideHoverSignature, BaseLanguageClient, ProvideFoldingRangeSignature, ProvideDocumentSymbolsSignature, ProvideDocumentColorsSignature
 } from 'vscode-languageclient';
@@ -38,6 +39,9 @@ namespace LanguageStatusRequest {
 	export const type: RequestType<string, JSONLanguageStatus, any> = new RequestType('json/languageStatus');
 }
 
+namespace ValidateContentRequest {
+	export const type: RequestType<{ schemaUri: string; content: string }, LSPDiagnostic[], any> = new RequestType('json/validateContent');
+}
 interface SortOptions extends LSPFormattingOptions {
 }
 
@@ -182,7 +186,7 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 	};
 }
 
-async function startClientWithParticipants(context: ExtensionContext, languageParticipants: LanguageParticipants, newLanguageClient: LanguageClientConstructor, runtime: Runtime): Promise<AsyncDisposable> {
+async function startClientWithParticipants(_context: ExtensionContext, languageParticipants: LanguageParticipants, newLanguageClient: LanguageClientConstructor, runtime: Runtime): Promise<AsyncDisposable> {
 
 	const toDispose: Disposable[] = [];
 
@@ -211,6 +215,10 @@ async function startClientWithParticipants(context: ExtensionContext, languagePa
 		window.showInformationMessage(l10n.t('JSON schema cache cleared.'));
 	}));
 
+	toDispose.push(commands.registerCommand('json.validate', async (schemaUri: Uri, content: string) => {
+		const diagnostics: LSPDiagnostic[] = await client.sendRequest(ValidateContentRequest.type, { schemaUri: schemaUri.toString(), content });
+		return diagnostics.map(client.protocol2CodeConverter.asDiagnostic);
+	}));
 
 	toDispose.push(commands.registerCommand('json.sort', async () => {
 
@@ -495,10 +503,19 @@ async function startClientWithParticipants(context: ExtensionContext, languagePa
 
 	toDispose.push(commands.registerCommand('_json.retryResolveSchema', handleRetryResolveSchemaCommand));
 
-	client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociations(context));
+	client.sendNotification(SchemaAssociationNotification.type, await getSchemaAssociations());
 
-	toDispose.push(extensions.onDidChange(_ => {
-		client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociations(context));
+	toDispose.push(extensions.onDidChange(async _ => {
+		client.sendNotification(SchemaAssociationNotification.type, await getSchemaAssociations());
+	}));
+
+	const associationWatcher = workspace.createFileSystemWatcher(new RelativePattern(
+		Uri.parse(`vscode://schemas-associations/`),
+		'**/schemas-associations.json')
+	);
+	toDispose.push(associationWatcher);
+	toDispose.push(associationWatcher.onDidChange(async _e => {
+		client.sendNotification(SchemaAssociationNotification.type, await getSchemaAssociations());
 	}));
 
 	// manually register / deregister format provider based on the `json.format.enable` setting avoiding issues with late registration. See #71652.
@@ -595,7 +612,12 @@ async function startClientWithParticipants(context: ExtensionContext, languagePa
 	};
 }
 
-function getSchemaAssociations(_context: ExtensionContext): ISchemaAssociation[] {
+async function getSchemaAssociations(): Promise<ISchemaAssociation[]> {
+	return getSchemaExtensionAssociations()
+		.concat(await getDynamicSchemaAssociations());
+}
+
+function getSchemaExtensionAssociations(): ISchemaAssociation[] {
 	const associations: ISchemaAssociation[] = [];
 	extensions.allAcrossExtensionHosts.forEach(extension => {
 		const packageJSON = extension.packageJSON;
@@ -629,6 +651,24 @@ function getSchemaAssociations(_context: ExtensionContext): ISchemaAssociation[]
 		}
 	});
 	return associations;
+}
+
+async function getDynamicSchemaAssociations(): Promise<ISchemaAssociation[]> {
+	const result: ISchemaAssociation[] = [];
+	try {
+		const data = await workspace.fs.readFile(Uri.parse(`vscode://schemas-associations/schemas-associations.json`));
+		const rawStr = new TextDecoder().decode(data);
+		const obj = <Record<string, string[]>>JSON.parse(rawStr);
+		for (const item of Object.keys(obj)) {
+			result.push({
+				fileMatch: obj[item],
+				uri: item
+			});
+		}
+	} catch {
+		// ignore
+	}
+	return result;
 }
 
 function getSettings(): Settings {
@@ -735,3 +775,5 @@ function updateMarkdownString(h: MarkdownString): MarkdownString {
 function isSchemaResolveError(d: Diagnostic) {
 	return d.code === /* SchemaResolveError */ 0x300;
 }
+
+

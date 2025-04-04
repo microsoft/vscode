@@ -333,7 +333,7 @@ class FileAccessImpl {
 		return uri;
 	}
 
-	private toUri(uriOrModule: URI | string, moduleIdToUrl?: { toUrl(moduleId: string): string }): URI {
+	private toUri(uriOrModule: URI | string): URI {
 		if (URI.isUri(uriOrModule)) {
 			return uriOrModule;
 		}
@@ -351,14 +351,18 @@ class FileAccessImpl {
 			return URI.file(modulePath);
 		}
 
-		return URI.parse(moduleIdToUrl!.toUrl(uriOrModule));
+		throw new Error('Cannot determine URI for module id!');
 	}
 }
 
 export const FileAccess = new FileAccessImpl();
 
 export const CacheControlheaders: Record<string, string> = Object.freeze({
-	'Cache-Control': 'no-cache, no-store',
+	'Cache-Control': 'no-cache, no-store'
+});
+
+export const DocumentPolicyheaders: Record<string, string> = Object.freeze({
+	'Document-Policy': 'include-js-call-stacks-in-crash-reports'
 });
 
 export namespace COI {

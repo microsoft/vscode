@@ -1,12 +1,14 @@
 parameters:
   - name: VSCODE_QUALITY
     type: string
-  - name: VSCODE_RUN_UNIT_TESTS
+  - name: VSCODE_RUN_ELECTRON_TESTS
     type: boolean
-  - name: VSCODE_RUN_INTEGRATION_TESTS
+  - name: VSCODE_RUN_BROWSER_TESTS
     type: boolean
-  - name: VSCODE_RUN_SMOKE_TESTS
+  - name: VSCODE_RUN_REMOTE_TESTS
     type: boolean
+  - name: VSCODE_TEST_ARTIFACT_NAME
+    type: string
   - name: PUBLISH_TASK_NAME
     type: string
     default: PublishPipelineArtifact@0
@@ -31,8 +33,8 @@ steps:
         stat $ELECTRON_ROOT/chrome-sandbox
       displayName: Change setuid helper binary permission
 
-  - ${{ if eq(parameters.VSCODE_RUN_UNIT_TESTS, true) }}:
-    - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
+  - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
+    - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
       - script: ./scripts/test.sh --tfs "Unit Tests"
         env:
           DISPLAY: ":10"
@@ -41,66 +43,72 @@ steps:
       - script: npm run test-node
         displayName: Run unit tests (node.js)
         timeoutInMinutes: 15
+
+    - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
       - script: npm run test-browser-no-install -- --browser chromium --tfs "Browser Unit Tests"
         env:
           DEBUG: "*browser*"
         displayName: Run unit tests (Browser, Chromium)
         timeoutInMinutes: 15
 
-
-    - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
       - script: ./scripts/test.sh --build --tfs "Unit Tests"
         displayName: Run unit tests (Electron)
         timeoutInMinutes: 15
       - script: npm run test-node -- --build
         displayName: Run unit tests (node.js)
         timeoutInMinutes: 15
+
+    - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
       - script: npm run test-browser-no-install -- --build --browser chromium --tfs "Browser Unit Tests"
         env:
           DEBUG: "*browser*"
         displayName: Run unit tests (Browser, Chromium)
         timeoutInMinutes: 15
 
-  - ${{ if eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true) }}:
-    - script: |
-        set -e
-        npm run gulp \
-          compile-extension:configuration-editing \
-          compile-extension:css-language-features-server \
-          compile-extension:emmet \
-          compile-extension:git \
-          compile-extension:github-authentication \
-          compile-extension:html-language-features-server \
-          compile-extension:ipynb \
-          compile-extension:notebook-renderers \
-          compile-extension:json-language-features-server \
-          compile-extension:markdown-language-features \
-          compile-extension-media \
-          compile-extension:microsoft-authentication \
-          compile-extension:typescript-language-features \
-          compile-extension:vscode-api-tests \
-          compile-extension:vscode-colorize-tests \
-          compile-extension:vscode-colorize-perf-tests \
-          compile-extension:vscode-test-resolver
-      displayName: Build integration tests
+  - script: |
+      set -e
+      npm run gulp \
+        compile-extension:configuration-editing \
+        compile-extension:css-language-features-server \
+        compile-extension:emmet \
+        compile-extension:git \
+        compile-extension:github-authentication \
+        compile-extension:html-language-features-server \
+        compile-extension:ipynb \
+        compile-extension:notebook-renderers \
+        compile-extension:json-language-features-server \
+        compile-extension:markdown-language-features \
+        compile-extension-media \
+        compile-extension:microsoft-authentication \
+        compile-extension:typescript-language-features \
+        compile-extension:vscode-api-tests \
+        compile-extension:vscode-colorize-tests \
+        compile-extension:vscode-colorize-perf-tests \
+        compile-extension:vscode-test-resolver
+    displayName: Build integration tests
 
-  - ${{ if eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true) }}:
-    - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
+  - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
+    - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
       - script: ./scripts/test-integration.sh --tfs "Integration Tests"
         env:
           DISPLAY: ":10"
         displayName: Run integration tests (Electron)
         timeoutInMinutes: 20
 
+    - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
       - script: ./scripts/test-web-integration.sh --browser chromium
         displayName: Run integration tests (Browser, Chromium)
         timeoutInMinutes: 20
 
+    - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
       - script: ./scripts/test-remote-integration.sh
         displayName: Run integration tests (Remote)
         timeoutInMinutes: 20
 
-    - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
       - script: |
           # Figure out the full absolute path of the product we just built
           # including the remote server and configure the integration tests
@@ -116,12 +124,14 @@ steps:
         displayName: Run integration tests (Electron)
         timeoutInMinutes: 20
 
+    - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
       - script: ./scripts/test-web-integration.sh --browser chromium
         env:
           VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
         displayName: Run integration tests (Browser, Chromium)
         timeoutInMinutes: 20
 
+    - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
       - script: |
           set -e
           APP_ROOT=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
@@ -134,113 +144,107 @@ steps:
         displayName: Run integration tests (Remote)
         timeoutInMinutes: 20
 
-  - ${{ if eq(parameters.VSCODE_RUN_SMOKE_TESTS, true) }}:
-    - script: |
-        set -e
-        ps -ef
-        cat /proc/sys/fs/inotify/max_user_watches
-        lsof | wc -l
-      displayName: Diagnostics before smoke test run (processes, max_user_watches, number of opened file handles)
-      continueOnError: true
-      condition: succeededOrFailed()
+  - script: |
+      set -e
+      ps -ef
+      cat /proc/sys/fs/inotify/max_user_watches
+      lsof | wc -l
+    displayName: Diagnostics before smoke test run (processes, max_user_watches, number of opened file handles)
+    continueOnError: true
+    condition: succeededOrFailed()
 
-    - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-      - script: npm run compile
-        workingDirectory: test/smoke
-        displayName: Compile smoke tests
+  - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
+    - script: npm run compile
+      workingDirectory: test/smoke
+      displayName: Compile smoke tests
 
-      - script: npm run gulp compile-extension:markdown-language-features compile-extension:ipynb compile-extension-media compile-extension:vscode-test-resolver
-        displayName: Build extensions for smoke tests
+    - script: npm run gulp node
+      displayName: Download node.js for remote smoke tests
+      retryCountOnTaskFailure: 3
 
-      - script: npm run gulp node
-        displayName: Download node.js for remote smoke tests
-        retryCountOnTaskFailure: 3
-
+    - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
       - script: npm run smoketest-no-compile -- --tracing
         timeoutInMinutes: 20
         displayName: Run smoke tests (Electron)
 
-      - script: npm run smoketest-no-compile -- --web --tracing --headless --electronArgs="--disable-dev-shm-usage"
+    - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
+      - script: npm run smoketest-no-compile -- --web --tracing --headless
         timeoutInMinutes: 20
         displayName: Run smoke tests (Browser, Chromium)
 
+    - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
       - script: npm run smoketest-no-compile -- --remote --tracing
         timeoutInMinutes: 20
         displayName: Run smoke tests (Remote)
 
-    - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
       - script: npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)"
         timeoutInMinutes: 20
         displayName: Run smoke tests (Electron)
 
-      - script: npm run smoketest-no-compile -- --web --tracing --headless --electronArgs="--disable-dev-shm-usage"
+    - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
+      - script: npm run smoketest-no-compile -- --web --tracing --headless
         env:
           VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
         timeoutInMinutes: 20
         displayName: Run smoke tests (Browser, Chromium)
 
+    - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
       - script: |
           set -e
-          npm run gulp compile-extension:vscode-test-resolver
           APP_PATH=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
           VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)" \
           npm run smoketest-no-compile -- --tracing --remote --build "$APP_PATH"
         timeoutInMinutes: 20
         displayName: Run smoke tests (Remote)
 
-    - script: |
-        set -e
-        ps -ef
-        cat /proc/sys/fs/inotify/max_user_watches
-        lsof | wc -l
-      displayName: Diagnostics after smoke test run (processes, max_user_watches, number of opened file handles)
-      continueOnError: true
-      condition: succeededOrFailed()
+  - script: |
+      set -e
+      ps -ef
+      cat /proc/sys/fs/inotify/max_user_watches
+      lsof | wc -l
+    displayName: Diagnostics after smoke test run (processes, max_user_watches, number of opened file handles)
+    continueOnError: true
+    condition: succeededOrFailed()
 
-  - ${{ if or(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
-    - task: ${{ parameters.PUBLISH_TASK_NAME }}
-      inputs:
-        targetPath: .build/crashes
-        ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
-          artifactName: crash-dump-linux-$(VSCODE_ARCH)-integration-$(System.JobAttempt)
-        ${{ elseif and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
-          artifactName: crash-dump-linux-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
-        ${{ else }}:
-          artifactName: crash-dump-linux-$(VSCODE_ARCH)-$(System.JobAttempt)
-        sbomEnabled: false
-      displayName: "Publish Crash Reports"
-      continueOnError: true
-      condition: failed()
+  - task: ${{ parameters.PUBLISH_TASK_NAME }}
+    inputs:
+      targetPath: .build/crashes
+      ${{ if eq(parameters.VSCODE_TEST_ARTIFACT_NAME, '') }}:
+        artifactName: crash-dump-linux-$(VSCODE_ARCH)-$(System.JobAttempt)
+      ${{ else }}:
+        artifactName: crash-dump-linux-$(VSCODE_ARCH)-${{ parameters.VSCODE_TEST_ARTIFACT_NAME }}-$(System.JobAttempt)
+      sbomEnabled: false
+    displayName: "Publish Crash Reports"
+    continueOnError: true
+    condition: failed()
 
-    # In order to properly symbolify above crash reports
-    # (if any), we need the compiled native modules too
-    - task: ${{ parameters.PUBLISH_TASK_NAME }}
-      inputs:
-        targetPath: node_modules
-        ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
-          artifactName: node-modules-linux-$(VSCODE_ARCH)-integration-$(System.JobAttempt)
-        ${{ elseif and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
-          artifactName: node-modules-linux-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
-        ${{ else }}:
-          artifactName: node-modules-linux-$(VSCODE_ARCH)-$(System.JobAttempt)
-        sbomEnabled: false
-      displayName: "Publish Node Modules"
-      continueOnError: true
-      condition: failed()
+  # In order to properly symbolify above crash reports
+  # (if any), we need the compiled native modules too
+  - task: ${{ parameters.PUBLISH_TASK_NAME }}
+    inputs:
+      targetPath: node_modules
+      ${{ if eq(parameters.VSCODE_TEST_ARTIFACT_NAME, '') }}:
+        artifactName: node-modules-linux-$(VSCODE_ARCH)-$(System.JobAttempt)
+      ${{ else }}:
+        artifactName: node-modules-linux-$(VSCODE_ARCH)-${{ parameters.VSCODE_TEST_ARTIFACT_NAME }}-$(System.JobAttempt)
+      sbomEnabled: false
+    displayName: "Publish Node Modules"
+    continueOnError: true
+    condition: failed()
 
-    - task: ${{ parameters.PUBLISH_TASK_NAME }}
-      inputs:
-        targetPath: .build/logs
-        ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
-          artifactName: logs-linux-$(VSCODE_ARCH)-integration-$(System.JobAttempt)
-        ${{ elseif and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
-          artifactName: logs-linux-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
-        ${{ else }}:
-          artifactName: logs-linux-$(VSCODE_ARCH)-$(System.JobAttempt)
-        sbomEnabled: false
-      displayName: "Publish Log Files"
-      continueOnError: true
-      condition: succeededOrFailed()
+  - task: ${{ parameters.PUBLISH_TASK_NAME }}
+    inputs:
+      targetPath: .build/logs
+      ${{ if eq(parameters.VSCODE_TEST_ARTIFACT_NAME, '') }}:
+        artifactName: logs-linux-$(VSCODE_ARCH)-$(System.JobAttempt)
+      ${{ else }}:
+        artifactName: logs-linux-$(VSCODE_ARCH)-${{ parameters.VSCODE_TEST_ARTIFACT_NAME }}-$(System.JobAttempt)
+      sbomEnabled: false
+    displayName: "Publish Log Files"
+    continueOnError: true
+    condition: succeededOrFailed()
 
   - task: PublishTestResults@2
     displayName: Publish Tests Results

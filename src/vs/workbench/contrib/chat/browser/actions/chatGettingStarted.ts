@@ -74,7 +74,10 @@ export class ChatGettingStartedContribution extends Disposable implements IWorkb
 
 		// Open Copilot view
 		showCopilotView(this.viewsService, this.layoutService);
-		ensureSideBarChatViewSize(this.viewDescriptorService, this.layoutService, this.viewsService);
+		const setupFromDialog = this.configurationService.getValue('chat.setupFromDialog');
+		if (!setupFromDialog) {
+			ensureSideBarChatViewSize(this.viewDescriptorService, this.layoutService, this.viewsService);
+		}
 
 		// Only do this once
 		this.storageService.store(ChatGettingStartedContribution.hideWelcomeView, true, StorageScope.APPLICATION, StorageTarget.MACHINE);

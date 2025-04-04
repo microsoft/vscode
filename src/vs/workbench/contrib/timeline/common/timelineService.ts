@@ -5,7 +5,7 @@
 
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ITimelineService, TimelineChangeEvent, TimelineOptions, TimelineProvidersChangeEvent, TimelineProvider, TimelinePaneId } from './timeline.js';
@@ -16,6 +16,7 @@ import { IContextKey, IContextKeyService, RawContextKey } from '../../../../plat
 export const TimelineHasProviderContext = new RawContextKey<boolean>('timelineHasProvider', false);
 
 export class TimelineService extends Disposable implements ITimelineService {
+
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _onDidChangeProviders = this._register(new Emitter<TimelineProvidersChangeEvent>());
@@ -23,12 +24,13 @@ export class TimelineService extends Disposable implements ITimelineService {
 
 	private readonly _onDidChangeTimeline = this._register(new Emitter<TimelineChangeEvent>());
 	readonly onDidChangeTimeline = this._onDidChangeTimeline.event;
+
 	private readonly _onDidChangeUri = this._register(new Emitter<URI>());
 	readonly onDidChangeUri = this._onDidChangeUri.event;
 
 	private readonly hasProviderContext: IContextKey<boolean>;
 	private readonly providers = new Map<string, TimelineProvider>();
-	private readonly providerSubscriptions = new Map<string, IDisposable>();
+	private readonly providerSubscriptions = this._register(new DisposableMap<string>());
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -122,8 +124,7 @@ export class TimelineService extends Disposable implements ITimelineService {
 		}
 
 		this.providers.delete(id);
-		this.providerSubscriptions.get(id)?.dispose();
-		this.providerSubscriptions.delete(id);
+		this.providerSubscriptions.deleteAndDispose(id);
 
 		this.updateHasProviderContext();
 

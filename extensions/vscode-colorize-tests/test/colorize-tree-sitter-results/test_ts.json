@@ -85,7 +85,7 @@
 	},
 	{
 		"c": "Cell",
-		"t": "entity.name.type.ts",
+		"t": "entity.name.type.ts entity.name.type.class.ts",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
 			"light_plus": "entity.name.type: #267F99",
@@ -827,7 +827,7 @@
 	},
 	{
 		"c": "GameOfLife",
-		"t": "entity.name.type.ts",
+		"t": "entity.name.type.ts entity.name.type.class.ts",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
 			"light_plus": "entity.name.type: #267F99",
@@ -2689,7 +2689,7 @@
 	},
 	{
 		"c": "Cell",
-		"t": "entity.name.type.ts",
+		"t": "entity.name.type.ts meta.type.annotation.ts entity.name.type.ts",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
 			"light_plus": "entity.name.type: #267F99",
@@ -3291,7 +3291,7 @@
 	},
 	{
 		"c": "Cell",
-		"t": "entity.name.type.ts",
+		"t": "entity.name.type.ts meta.type.annotation.ts entity.name.type.ts",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
 			"light_plus": "entity.name.type: #267F99",
@@ -4159,7 +4159,7 @@
 	},
 	{
 		"c": "Cell",
-		"t": "entity.name.type.ts",
+		"t": "entity.name.type.ts meta.type.annotation.ts entity.name.type.ts",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
 			"light_plus": "entity.name.type: #267F99",
@@ -5139,7 +5139,7 @@
 	},
 	{
 		"c": "Cell",
-		"t": "entity.name.type.ts",
+		"t": "entity.name.type.ts meta.type.annotation.ts entity.name.type.ts",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
 			"light_plus": "entity.name.type: #267F99",
@@ -5321,16 +5321,16 @@
 	},
 	{
 		"c": "-",
-		"t": "",
+		"t": "keyword.operator.arithmetic.ts",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF",
-			"dark_modern": "default: #CCCCCC",
-			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000"
 		}
 	},
 	{
@@ -5545,16 +5545,16 @@
 	},
 	{
 		"c": "-",
-		"t": "",
+		"t": "keyword.operator.arithmetic.ts",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF",
-			"dark_modern": "default: #CCCCCC",
-			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000"
 		}
 	},
 	{
@@ -8233,7 +8233,7 @@
 	},
 	{
 		"c": "Cell",
-		"t": "entity.name.type.ts",
+		"t": "entity.name.type.ts meta.type.annotation.ts entity.name.type.ts",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
 			"light_plus": "entity.name.type: #267F99",
