@@ -8,8 +8,6 @@ import { $, usePwsh } from 'zx';
 async function main() {
 	usePwsh();
 
-	await $`printenv`;
-
 	const agentRootDirectoryPath = process.env['AGENT_ROOTDIRECTORY'];
 	const codesigningFolderPath = process.env['CodeSigningFolderPath'];
 

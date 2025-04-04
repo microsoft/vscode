@@ -7,7 +7,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const zx_1 = require("zx");
 async function main() {
     (0, zx_1.usePwsh)();
-    await (0, zx_1.$) `printenv`;
     const agentRootDirectoryPath = process.env['AGENT_ROOTDIRECTORY'];
     const codesigningFolderPath = process.env['CodeSigningFolderPath'];
     // Find ESRP CLI
