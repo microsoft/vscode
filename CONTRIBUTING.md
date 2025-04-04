@@ -27,7 +27,8 @@ Ensure you have the following tools installed:
 
 - 🦀 [Rust/Cargo](https://www.rust-lang.org/tools/install)
 - 🐙 [Git](https://git-scm.com)
-- 🌐 [Node.JS](https://nodejs.org/en/), **x64**, version `=20.X.X`
+- 🌐 [Node.JS](https://nodejs.org/en/), **x64**, version `=20.18.0` (other versions have not been tested)
+- 📦 [Npm](https://www.npmjs.com/), version `=10.8.2` (other versions have not been tested)
 - 📦 [Yarn 1](https://classic.yarnpkg.com/en/), version `>=1.10.1 and <2`
 - 🐍 [Python](https://www.python.org/downloads/), version `=3.11.X` (required for node-gyp)
 - ⚙️ A C/C++ compiler toolchain for your platform:
@@ -117,6 +118,13 @@ To rebuild the app after initial setup:
        ```
 
        \*Note: this is due to the fact that the symlinking must be performed within the `code.bat` file on Windows on the first run. But on consecutive runs the symlink will already be created, so you can use the faster script which is `code.sh`
+
+## 🪳 Debugging environment issues
+
+Sometimes PearAI will not work as expected and this can be for a variety of reasons, if you're stuck try to:
+ - Make sure you're running all the right versions of node, npm and yarn
+ - Make sure your npm and yarn cache is cleared
+ - Remove and re-clone the PearAI repo to clear all `node_modules` and build files
 
 ## 💻 Automated Testing
 
