@@ -8,13 +8,8 @@ import { $, usePwsh } from 'zx';
 async function main() {
 	usePwsh();
 
-	const agentRootDirectoryPath = process.env['AGENT_ROOTDIRECTORY'];
+	const esrpCliDLLPath = process.env['EsrpCliDllPath'];
 	const codesigningFolderPath = process.env['CodeSigningFolderPath'];
-
-	// Find ESRP CLI
-	const tasksFolderPath = await $`(gci -directory -filter EsrpCodeSigning_* ${agentRootDirectoryPath}/_tasks | Select-Object -last 1).FullName`;
-	const esrpCliPath = await $`(gci -directory ${tasksFolderPath} | Select-Object -last 1).FullName`;
-	const esrpCliDLLPath = `${esrpCliPath}/net6.0/esrpcli.dll`;
 
 	// Codesign executables and shared libraries
 	await $`node build/azure-pipelines/common/sign ${esrpCliDLLPath} sign-windows ${codesigningFolderPath} '*.dll,*.exe,*.node'`.pipe(process.stdout);

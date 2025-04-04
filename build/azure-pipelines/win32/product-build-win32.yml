@@ -228,18 +228,18 @@ steps:
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
+          $EsrpCodeSigningTool = (gci -directory -filter EsrpCodeSigning_* $(Agent.RootDirectory)\_tasks | Select-Object -last 1).FullName
+          $Version = (gci -directory $EsrpCodeSigningTool | Select-Object -last 1).FullName
+          echo "##vso[task.setvariable variable=EsrpCliDllPath]$Version\net6.0\esrpcli.dll"
+        displayName: Find ESRP CLI
+
+      - powershell: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
           exec { npm exec -- zx build/azure-pipelines/win32/codesign.js }
         env:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         displayName: Codesign
-
-    #   - powershell: |
-    #       . build/azure-pipelines/win32/exec.ps1
-    #       $ErrorActionPreference = "Stop"
-    #       $EsrpCodeSigningTool = (gci -directory -filter EsrpCodeSigning_* $(Agent.RootDirectory)\_tasks | Select-Object -last 1).FullName
-    #       $Version = (gci -directory $EsrpCodeSigningTool | Select-Object -last 1).FullName
-    #       echo "##vso[task.setvariable variable=EsrpCliDllPath]$Version\net6.0\esrpcli.dll"
-    #     displayName: Find ESRP CLI
 
     #   - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath sign-windows $(CodeSigningFolderPath) '*.dll,*.exe,*.node'
     #     env:
