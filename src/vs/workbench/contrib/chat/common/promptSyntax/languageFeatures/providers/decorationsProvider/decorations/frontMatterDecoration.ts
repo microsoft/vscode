@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TDecorationStyles } from './decorationBase.js';
 import { localize } from '../../../../../../../../../nls.js';
-import { ReactiveDecorationBase } from './reactiveDecorationBase.js';
 import { Color, RGBA } from '../../../../../../../../../base/common/color.js';
+import { FrontMatterMarkerDecoration } from './frontMatterMarkerDecoration.js';
 import { BaseToken } from '../../../../../../../../../editor/common/codecs/baseToken.js';
 import { registerColor } from '../../../../../../../../../platform/theme/common/colorUtils.js';
 import { contrastBorder } from '../../../../../../../../../platform/theme/common/colorRegistry.js';
+import { TAddAccessor, TRemoveAccessor, TDecorationStyles, ReactiveDecorationBase, asCssVariable } from './utils/index.js';
 import { FrontMatterHeader } from '../../../../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterHeader.js';
 
 /**
@@ -48,9 +48,57 @@ const INACTIVE_BACKGROUND_COLOR = registerColor(
 );
 
 /**
+ * CSS styles for the decoration.
+ */
+export const CSS_STYLES = {
+	[CssClassNames.main]: [
+		`background-color: ${asCssVariable(BACKGROUND_COLOR)};`,
+		// this masks vertical block ruler column line
+		'border-left: 1px solid var(--vscode-editor-background);',
+	],
+	[CssClassNames.mainInactive]: [
+		`background-color: ${asCssVariable(INACTIVE_BACKGROUND_COLOR)};`,
+	],
+	[CssClassNames.inlineInactive]: [
+		'opacity: 0.5;',
+	],
+	...FrontMatterMarkerDecoration.cssStyles,
+};
+
+/**
  * Editor decoration for the Front Matter header token inside a prompt.
  */
-export class FrontMatterHeaderDecoration extends ReactiveDecorationBase<FrontMatterHeader, CssClassNames> {
+export class FrontMatterDecoration extends ReactiveDecorationBase<FrontMatterHeader, CssClassNames> {
+	/**
+	 * Decorators for the start and end markers of the Front Matter header.
+	 */
+	private readonly markerDecorators: [FrontMatterMarkerDecoration, FrontMatterMarkerDecoration];
+
+	constructor(
+		accessor: TAddAccessor,
+		token: FrontMatterHeader,
+	) {
+		super(accessor, token);
+
+		this.markerDecorators = [
+			new FrontMatterMarkerDecoration(accessor, token.startMarker),
+			new FrontMatterMarkerDecoration(accessor, token.endMarker),
+		];
+	}
+
+	public override remove(
+		accessor: TRemoveAccessor,
+	): this {
+		super.remove(accessor);
+
+		for (const marker of this.markerDecorators) {
+			marker.remove(accessor);
+		}
+		this.markerDecorators.splice(0);
+
+		return this;
+	}
+
 	protected override get classNames() {
 		return CssClassNames;
 	}
@@ -60,23 +108,11 @@ export class FrontMatterHeaderDecoration extends ReactiveDecorationBase<FrontMat
 	}
 
 	protected override get description(): string {
-		return 'Front Matter header editor decoration.';
+		return 'Front Matter header decoration.';
 	}
 
 	public static get cssStyles(): TDecorationStyles {
-		return {
-			[CssClassNames.main]: [
-				`background-color: ${toCssVariable(BACKGROUND_COLOR)};`,
-				// this masks vertical block ruler column line
-				'border-left: 1px solid var(--vscode-editor-background);',
-			],
-			[CssClassNames.mainInactive]: [
-				`background-color: ${toCssVariable(INACTIVE_BACKGROUND_COLOR)};`,
-			],
-			[CssClassNames.inlineInactive]: [
-				'opacity: 0.6;',
-			],
-		};
+		return CSS_STYLES;
 	}
 
 	/**
@@ -88,10 +124,3 @@ export class FrontMatterHeaderDecoration extends ReactiveDecorationBase<FrontMat
 		return token instanceof FrontMatterHeader;
 	}
 }
-
-/**
- * Convert a registered color name to a CSS variable string.
- */
-const toCssVariable = (colorName: string): string => {
-	return `var(--vscode-${colorName.replaceAll('.', '-')})`;
-};
