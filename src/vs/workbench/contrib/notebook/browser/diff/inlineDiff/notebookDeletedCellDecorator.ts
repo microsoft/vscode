@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createTrustedTypesPolicy } from '../../../../../../base/browser/trustedTypes.js';
-import { Disposable, dispose, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, dispose, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { splitLines } from '../../../../../../base/common/strings.js';
 import { EditorOption } from '../../../../../../editor/common/config/editorOptions.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
@@ -28,15 +28,10 @@ export interface INotebookDeletedCellDecorator {
 	getTop(deletedIndex: number): number | undefined;
 }
 
-interface IZoneInfo {
-	id: string;
-	index: number;
-	widgets: NotebookDeletedCellWidget[];
-	decorationIds: string[];
-}
 
 export class NotebookDeletedCellDecorator extends Disposable implements INotebookDeletedCellDecorator {
-	private readonly zones = new Map<number, IZoneInfo>();
+	private readonly zoneRemover = this._register(new DisposableStore());
+	private readonly createdViewZones = new Map<number, string>();
 	private readonly deletedCellInfos = new Map<number, { height: number; previousIndex: number; offset: number }>();
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
@@ -108,24 +103,10 @@ export class NotebookDeletedCellDecorator extends Disposable implements INoteboo
 	}
 
 	public clear() {
-		// Sort keys (indices) in descending order to remove from bottom to top
-		const indices = Array.from(this.zones.keys()).sort((a, b) => b - a);
-
-		for (const index of indices) {
-			const zoneInfo = this.zones.get(index);
-			if (zoneInfo && !this._notebookEditor.isDisposed) {
-				this._notebookEditor.changeViewZones(accessor => {
-					accessor.removeZone(zoneInfo.id);
-				});
-
-				this._notebookEditor.deltaCellDecorations(zoneInfo.decorationIds, []);
-				dispose(zoneInfo.widgets);
-			}
-		}
-
-		this.zones.clear();
 		this.deletedCellInfos.clear();
+		this.zoneRemover.clear();
 	}
+
 
 	private _createWidget(index: number, cells: { cell: NotebookCellTextModel; originalIndex: number; previousIndex: number }[]) {
 		this._createWidgetImpl(index, cells);
@@ -162,6 +143,7 @@ export class NotebookDeletedCellDecorator extends Disposable implements INoteboo
 
 			const id = accessor.addZone(notebookViewZone);
 			accessor.layoutZone(id);
+			this.createdViewZones.set(index, id);
 
 			const deletedCellOverviewRulereDecorationIds = this._notebookEditor.deltaCellDecorations([], [{
 				viewZoneId: id,
@@ -172,16 +154,22 @@ export class NotebookDeletedCellDecorator extends Disposable implements INoteboo
 					}
 				}
 			}]);
+			this.zoneRemover.add(toDisposable(() => {
+				if (this.createdViewZones.get(index) === id) {
+					this.createdViewZones.delete(index);
+				}
+				if (!this._notebookEditor.isDisposed) {
+					this._notebookEditor.changeViewZones(accessor => {
+						accessor.removeZone(id);
+						dispose(widgets);
+					});
 
-			// Store all the information about this zone
-			this.zones.set(index, {
-				id,
-				index,
-				widgets,
-				decorationIds: deletedCellOverviewRulereDecorationIds
-			});
+					this._notebookEditor.deltaCellDecorations(deletedCellOverviewRulereDecorationIds, []);
+				}
+			}));
 		});
 	}
+
 }
 
 export class NotebookDeletedCellWidget extends Disposable {

@@ -319,7 +319,7 @@ export class NativeEditContext extends AbstractEditContext {
 		if (!editContextState) {
 			return;
 		}
-		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, editContextState.text);
+		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, editContextState.text ?? ' ');
 		this._editContext.updateSelection(editContextState.selectionStartOffset, editContextState.selectionEndOffset);
 		this._editContextPrimarySelection = editContextState.editContextPrimarySelection;
 	}

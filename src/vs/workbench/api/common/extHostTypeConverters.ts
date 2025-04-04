@@ -2529,10 +2529,11 @@ export namespace ChatResponseCodeblockUriPart {
 		return {
 			kind: 'codeblockUri',
 			uri: part.value,
+			isEdit: part.isEdit,
 		};
 	}
 	export function to(part: Dto<IChatResponseCodeblockUriPart>): vscode.ChatResponseCodeblockUriPart {
-		return new types.ChatResponseCodeblockUriPart(URI.revive(part.uri));
+		return new types.ChatResponseCodeblockUriPart(URI.revive(part.uri), part.isEdit);
 	}
 }
 
@@ -2950,10 +2951,11 @@ export namespace ChatPromptReference {
 		} else if (value && typeof value === 'object' && 'uri' in value && 'range' in value && isUriComponents(value.uri)) {
 			value = Location.to(revive(value));
 		} else if (variable.isImage) {
+			const ref = variable.references?.[0]?.reference;
 			value = new types.ChatReferenceBinaryData(
 				variable.mimeType ?? 'image/png',
 				() => Promise.resolve(new Uint8Array(Object.values(variable.value as number[]))),
-				variable.references && URI.isUri(variable.references[0].reference) ? variable.references[0].reference : undefined
+				ref && URI.isUri(ref) ? ref : undefined
 			);
 		} else if (variable.kind === 'diagnostic') {
 			const filterSeverity = variable.filterSeverity && DiagnosticSeverity.to(variable.filterSeverity);

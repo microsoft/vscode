@@ -16,10 +16,11 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { Location } from '../../../../editor/common/languages.js';
 import { IChatTerminalToolInvocationData, IChatToolInputInvocationData } from './chatService.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { PromptElementJSON, stringifyPromptElementJSON } from './tools/promptTsxTypes.js';
 
 export interface IToolData {
 	id: string;
-	extensionId?: ExtensionIdentifier;
+	source: ToolDataSource;
 	toolReferenceName?: string;
 	icon?: { dark: URI; light?: URI } | ThemeIcon;
 	when?: ContextKeyExpression;
@@ -34,6 +35,32 @@ export interface IToolData {
 	 * on the host, undefined if known.
 	 */
 	runsInWorkspace?: boolean;
+	requiresConfirmation?: boolean;
+	alwaysDisplayInputOutput?: boolean;
+	supportsToolPicker?: boolean;
+}
+
+export type ToolDataSource =
+	| {
+		type: 'extension';
+		extensionId: ExtensionIdentifier;
+		/**
+		 * True for tools contributed through extension API from third-party extensions, so they can be disabled by policy.
+		 * False for built-in tools, MCP tools are handled differently.
+		 */
+		isExternalTool: boolean;
+	}
+	| { type: 'mcp'; collectionId: string; definitionId: string }
+	| { type: 'internal' };
+
+export namespace ToolDataSource {
+	export function toKey(source: ToolDataSource): string {
+		switch (source.type) {
+			case 'extension': return `extension:${source.extensionId.value}`;
+			case 'mcp': return `mcp:${source.collectionId}:${source.definitionId}`;
+			case 'internal': return 'internal';
+		}
+	}
 }
 
 export interface IToolInvocation {
@@ -45,6 +72,7 @@ export interface IToolInvocation {
 	chatRequestId?: string;
 	chatInteractionId?: string;
 	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData;
+	modelId?: string;
 }
 
 export interface IToolInvocationContext {
@@ -73,6 +101,10 @@ export interface IToolResult {
 export interface IToolResultPromptTsxPart {
 	kind: 'promptTsx';
 	value: unknown;
+}
+
+export function stringifyPromptTsxPart(part: IToolResultPromptTsxPart): string {
+	return stringifyPromptElementJSON(part.value as PromptElementJSON);
 }
 
 export interface IToolResultTextPart {
@@ -122,4 +154,11 @@ export function createToolInputUri(toolOrId: IToolData | string): URI {
 		toolOrId = toolOrId.id;
 	}
 	return URI.from({ scheme: Schemas.inMemory, path: `/lm/tool/${toolOrId}/tool_input.json` });
+}
+
+export function createToolSchemaUri(toolOrId: IToolData | string): URI {
+	if (typeof toolOrId !== 'string') {
+		toolOrId = toolOrId.id;
+	}
+	return URI.from({ scheme: Schemas.vscode, authority: 'schemas', path: `/lm/tool/${toolOrId}` });
 }

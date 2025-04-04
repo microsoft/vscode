@@ -12,6 +12,7 @@ import { asCssVariable } from '../../../../../../../platform/theme/common/colorU
 import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor, observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
 import { Rect } from '../../../../../../browser/rect.js';
+import { EditorOption } from '../../../../../../common/config/editorOptions.js';
 import { LineRange } from '../../../../../../common/core/lineRange.js';
 import { OffsetRange } from '../../../../../../common/core/offsetRange.js';
 import { Position } from '../../../../../../common/core/position.js';
@@ -115,8 +116,9 @@ export class InlineEditsDeletionView extends Disposable implements IInlineEditsV
 
 		const editorLayout = this._editorObs.layoutInfo.read(reader);
 		const horizontalScrollOffset = this._editorObs.scrollLeft.read(reader);
+		const w = this._editorObs.getOption(EditorOption.fontInfo).map(f => f.typicalHalfwidthCharacterWidth).read(reader);
 
-		const right = editorLayout.contentLeft + this._editorMaxContentWidthInRange.read(reader) - horizontalScrollOffset;
+		const right = editorLayout.contentLeft + Math.max(this._editorMaxContentWidthInRange.read(reader), w) - horizontalScrollOffset;
 
 		const range = inlineEdit.originalLineRange;
 		const selectionTop = this._originalVerticalStartPosition.read(reader) ?? this._editor.getTopForLineNumber(range.startLineNumber) - this._editorObs.scrollTop.read(reader);

@@ -5,11 +5,6 @@
 
 declare module 'vscode' {
 
-	export interface ChatResponseFragment {
-		index: number;
-		part: string;
-	}
-
 	export interface ChatResponseFragment2 {
 		index: number;
 		part: LanguageModelTextPart | LanguageModelToolCallPart;
@@ -25,9 +20,6 @@ declare module 'vscode' {
 		onDidReceiveLanguageModelResponse2?: Event<{ readonly extensionId: string; readonly participant?: string; readonly tokenCount?: number }>;
 
 		provideLanguageModelResponse(messages: Array<LanguageModelChatMessage | LanguageModelChatMessage2>, options: LanguageModelChatRequestOptions, extensionId: string, progress: Progress<ChatResponseFragment2>, token: CancellationToken): Thenable<any>;
-
-		/** @deprecated */
-		provideLanguageModelResponse2?(messages: Array<LanguageModelChatMessage | LanguageModelChatMessage2>, options: LanguageModelChatRequestOptions, extensionId: string, progress: Progress<ChatResponseFragment2>, token: CancellationToken): Thenable<any>;
 
 		provideTokenCount(text: string | LanguageModelChatMessage | LanguageModelChatMessage2, token: CancellationToken): Thenable<number>;
 	}
@@ -78,14 +70,6 @@ declare module 'vscode' {
 	export interface ChatResponseProviderMetadata {
 		// limit this provider to some extensions
 		extensions?: string[];
-	}
-
-	export namespace chat {
-
-		/**
-		 * @deprecated use `lm.registerChatResponseProvider` instead
-		*/
-		export function registerChatResponseProvider(id: string, provider: ChatResponseProvider, metadata: ChatResponseProviderMetadata): Disposable;
 	}
 
 	export namespace lm {

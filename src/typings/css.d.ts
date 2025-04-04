@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { create } from './languageDetectionSimpleWorker.js';
-import { bootstrapSimpleWorker } from '../../../../base/common/worker/simpleWorkerBootstrap.js';
 
-bootstrapSimpleWorker(create);
+// Recognize all CSS files as valid module imports
+declare module "vs/css!*" { }
+declare module "*.css" { }

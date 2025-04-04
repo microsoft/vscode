@@ -19,13 +19,16 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IMcpConfiguration, IMcpConfigurationSSE, McpConfigurationServer } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { EditorsOrder } from '../../../common/editor.js';
 import { IJSONEditingService } from '../../../services/configuration/common/jsonEditing.js';
+import { ConfiguredInput } from '../../../services/configurationResolver/common/configurationResolver.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IMcpConfigurationStdio, mcpConfigurationSection, mcpStdioServerSchema } from '../common/mcpConfiguration.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
+import { IMcpService, McpConnectionState } from '../common/mcpTypes.js';
 import { McpServerOptionsCommand } from './mcpCommands.js';
 
 const enum AddConfigurationType {
@@ -34,7 +37,30 @@ const enum AddConfigurationType {
 
 	NpmPackage,
 	PipPackage,
+	DockerImage,
 }
+
+type AssistedConfigurationType = AddConfigurationType.NpmPackage | AddConfigurationType.PipPackage | AddConfigurationType.DockerImage;
+
+const assistedTypes = {
+	[AddConfigurationType.NpmPackage]: {
+		title: localize('mcp.npm.title', "Enter NPM Package Name"),
+		placeholder: localize('mcp.npm.placeholder', "Package name (e.g., @org/package)"), pickLabel: localize('mcp.serverType.npm', "NPM Package"),
+		pickDescription: localize('mcp.serverType.npm.description', "Install from an NPM package name")
+	},
+	[AddConfigurationType.PipPackage]: {
+		title: localize('mcp.pip.title', "Enter Pip Package Name"),
+		placeholder: localize('mcp.pip.placeholder', "Package name (e.g., package-name)"),
+		pickLabel: localize('mcp.serverType.pip', "Pip Package"),
+		pickDescription: localize('mcp.serverType.pip.description', "Install from a Pip package name")
+	},
+	[AddConfigurationType.DockerImage]: {
+		title: localize('mcp.docker.title', "Enter Docker Image Name"),
+		placeholder: localize('mcp.docker.placeholder', "Image name (e.g., mcp/imagename)"),
+		pickLabel: localize('mcp.serverType.docker', "Docker Image"),
+		pickDescription: localize('mcp.serverType.docker.description', "Install from a Docker image")
+	},
+};
 
 const enum AddConfigurationCopilotCommand {
 	/** Returns whether MCP enhanced setup is enabled. */
@@ -48,6 +74,27 @@ const enum AddConfigurationCopilotCommand {
 }
 
 type ValidatePackageResult = { state: 'ok'; publisher: string } | { state: 'error'; error: string };
+
+type AddServerData = {
+	packageType: string;
+};
+type AddServerClassification = {
+	owner: 'digitarald';
+	comment: 'Generic details for adding a new MCP server';
+	packageType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of MCP server package' };
+};
+type AddServerCompletedData = {
+	packageType: string;
+	serverType: string | undefined;
+	target: string;
+};
+type AddServerCompletedClassification = {
+	owner: 'digitarald';
+	comment: 'Generic details for successfully adding model-assisted MCP server';
+	packageType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of MCP server package' };
+	serverType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of MCP server' };
+	target: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The target of the MCP server configuration' };
+};
 
 export class McpAddConfigurationCommand {
 	constructor(
@@ -63,6 +110,8 @@ export class McpAddConfigurationCommand {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IFileService private readonly _fileService: IFileService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IMcpService private readonly _mcpService: IMcpService,
 	) { }
 
 	private async getServerType(): Promise<AddConfigurationType | undefined> {
@@ -82,8 +131,11 @@ export class McpAddConfigurationCommand {
 			items.unshift({ type: 'separator', label: localize('mcp.serverType.manual', "Manual Install") });
 			items.push(
 				{ type: 'separator', label: localize('mcp.serverType.copilot', "Model-Assisted") },
-				{ kind: AddConfigurationType.NpmPackage, label: localize('mcp.serverType.npm', "NPM Package"), description: localize('mcp.serverType.npm.description', "Install from an NPM package name") },
-				{ kind: AddConfigurationType.PipPackage, label: localize('mcp.serverType.pip', "PIP Package"), description: localize('mcp.serverType.pip.description', "Install from a PIP package name") }
+				...Object.entries(assistedTypes).map(([type, { pickLabel, pickDescription }]) => ({
+					kind: Number(type) as AddConfigurationType,
+					label: pickLabel,
+					description: pickDescription,
+				}))
 			);
 		}
 
@@ -105,6 +157,10 @@ export class McpAddConfigurationCommand {
 			return undefined;
 		}
 
+		this._telemetryService.publicLog2<AddServerData, AddServerClassification>('mcp.addserver', {
+			packageType: 'stdio'
+		});
+
 		// Split command into command and args, handling quotes
 		const parts = command.match(/(?:[^\s"]+|"[^"]*")+/g)!;
 		return {
@@ -125,6 +181,10 @@ export class McpAddConfigurationCommand {
 		if (!url) {
 			return undefined;
 		}
+
+		this._telemetryService.publicLog2<AddServerData, AddServerClassification>('mcp.addserver', {
+			packageType: 'sse'
+		});
 
 		return {
 			type: 'sse',
@@ -168,15 +228,11 @@ export class McpAddConfigurationCommand {
 		return targetPick?.target;
 	}
 
-	private async getAssistedConfig(type: AddConfigurationType): Promise<{ name: string; config: McpConfigurationServer } | undefined> {
+	private async getAssistedConfig(type: AssistedConfigurationType): Promise<{ name: string; config: McpConfigurationServer } | undefined> {
 		const packageName = await this._quickInputService.input({
 			ignoreFocusLost: true,
-			title: type === AddConfigurationType.NpmPackage
-				? localize('mcp.npm.title', "Enter NPM Package Name")
-				: localize('mcp.pip.title', "Enter Pip Package Name"),
-			placeHolder: type === AddConfigurationType.NpmPackage
-				? localize('mcp.npm.placeholder', "Package name (e.g., @org/package)")
-				: localize('mcp.pip.placeholder', "Package name (e.g., package-name)")
+			title: assistedTypes[type].title,
+			placeHolder: assistedTypes[type].placeholder,
 		});
 
 		if (!packageName) {
@@ -195,10 +251,16 @@ export class McpAddConfigurationCommand {
 		loadingQuickPick.busy = true;
 		loadingQuickPick.ignoreFocusOut = true;
 
+		const packageType = this.getPackageType(type);
+
+		this._telemetryService.publicLog2<AddServerData, AddServerClassification>('mcp.addserver', {
+			packageType: packageType!
+		});
+
 		this._commandService.executeCommand<ValidatePackageResult>(
 			AddConfigurationCopilotCommand.ValidatePackage,
 			{
-				type: type === AddConfigurationType.NpmPackage ? 'npm' : 'pip',
+				type: packageType,
 				name: packageName,
 				targetConfig: {
 					...mcpStdioServerSchema,
@@ -244,7 +306,10 @@ export class McpAddConfigurationCommand {
 
 		const configWithName = await this._commandService.executeCommand<McpConfigurationServer & { name: string }>(
 			AddConfigurationCopilotCommand.StartFlow,
-			{ name: packageName }
+			{
+				name: packageName,
+				type: packageType
+			}
 		);
 
 		if (!configWithName) {
@@ -255,14 +320,16 @@ export class McpAddConfigurationCommand {
 		return { name, config };
 	}
 
-	/** Shows the location of a server config once it's disocovered. */
+	/** Shows the location of a server config once it's discovered. */
 	private showOnceDiscovered(name: string) {
 		const store = new DisposableStore();
 		store.add(autorun(reader => {
 			const colls = this._mcpRegistry.collections.read(reader);
+			const servers = this._mcpService.servers.read(reader);
 			const match = mapFindFirst(colls, collection => mapFindFirst(collection.serverDefinitions.read(reader),
 				server => server.label === name ? { server, collection } : undefined));
-			if (match) {
+			const server = match && servers.find(s => s.definition.id === match.server.id);
+			if (match && server) {
 				if (match.collection.presentation?.origin) {
 					this._openerService.openEditor({
 						resource: match.collection.presentation.origin,
@@ -275,6 +342,12 @@ export class McpAddConfigurationCommand {
 					this._commandService.executeCommand(McpServerOptionsCommand.id, name);
 				}
 
+				server.start(true).then(state => {
+					if (state.state === McpConnectionState.Kind.Error) {
+						server.showOutput();
+					}
+				});
+
 				store.dispose();
 			}
 		}));
@@ -282,9 +355,12 @@ export class McpAddConfigurationCommand {
 		store.add(disposableTimeout(() => store.dispose(), 5000));
 	}
 
-	private writeToUserSetting(name: string, config: McpConfigurationServer, target: ConfigurationTarget) {
+	private writeToUserSetting(name: string, config: McpConfigurationServer, target: ConfigurationTarget, inputs?: ConfiguredInput[]) {
 		const settings: IMcpConfiguration = { ...getConfigValueInTarget(this._configurationService.inspect<IMcpConfiguration>(mcpConfigurationSection), target) };
 		settings.servers = { ...settings.servers, [name]: config };
+		if (inputs) {
+			settings.inputs = [...(settings.inputs || []), ...inputs];
+		}
 		return this._configurationService.updateValue(mcpConfigurationSection, settings, target);
 	}
 
@@ -305,14 +381,10 @@ export class McpAddConfigurationCommand {
 			case AddConfigurationType.SSE:
 				serverConfig = await this.getSSEConfig();
 				break;
-			case AddConfigurationType.NpmPackage: {
-				const r = await this.getAssistedConfig(AddConfigurationType.NpmPackage);
-				serverConfig = r?.config;
-				suggestedName = r?.name;
-				break;
-			}
-			case AddConfigurationType.PipPackage: {
-				const r = await this.getAssistedConfig(AddConfigurationType.PipPackage);
+			case AddConfigurationType.NpmPackage:
+			case AddConfigurationType.PipPackage:
+			case AddConfigurationType.DockerImage: {
+				const r = await this.getAssistedConfig(serverType);
 				serverConfig = r?.config;
 				suggestedName = r?.name;
 				break;
@@ -357,6 +429,15 @@ export class McpAddConfigurationCommand {
 			await this.writeToUserSetting(serverId, serverConfig, target!);
 		}
 
+		const packageType = this.getPackageType(serverType);
+		if (packageType) {
+			this._telemetryService.publicLog2<AddServerCompletedData, AddServerCompletedClassification>('mcp.addserver.completed', {
+				packageType,
+				serverType: serverConfig.type,
+				target: target === ConfigurationTarget.WORKSPACE ? 'workspace' : 'user'
+			});
+		}
+
 		this.showOnceDiscovered(serverId);
 	}
 
@@ -386,8 +467,8 @@ export class McpAddConfigurationCommand {
 				await this._editorService.save(getEditors());
 				try {
 					const contents = await this._fileService.readFile(resource);
-					const config: McpConfigurationServer = parseJsonc(contents.value.toString());
-					await this.writeToUserSetting(name, config, ConfigurationTarget.USER_LOCAL);
+					const { inputs, ...config }: McpConfigurationServer & { inputs?: ConfiguredInput[] } = parseJsonc(contents.value.toString());
+					await this.writeToUserSetting(name, config, ConfigurationTarget.USER_LOCAL, inputs);
 					this._editorService.closeEditors(getEditors());
 					this.showOnceDiscovered(name);
 				} catch (e) {
@@ -405,6 +486,23 @@ export class McpAddConfigurationCommand {
 				}
 				break;
 			}
+		}
+	}
+
+	private getPackageType(serverType: AddConfigurationType): string | undefined {
+		switch (serverType) {
+			case AddConfigurationType.NpmPackage:
+				return 'npm';
+			case AddConfigurationType.PipPackage:
+				return 'pip';
+			case AddConfigurationType.DockerImage:
+				return 'docker';
+			case AddConfigurationType.Stdio:
+				return 'stdio';
+			case AddConfigurationType.SSE:
+				return 'sse';
+			default:
+				return undefined;
 		}
 	}
 }

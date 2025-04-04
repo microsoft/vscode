@@ -464,6 +464,17 @@ export interface INotebookViewZoneChangeAccessor {
 	layoutZone(id: string): void;
 }
 
+export interface INotebookCellOverlay {
+	cell: ICellViewModel;
+	domNode: HTMLElement;
+}
+
+export interface INotebookCellOverlayChangeAccessor {
+	addOverlay(overlay: INotebookCellOverlay): string;
+	removeOverlay(id: string): void;
+	layoutOverlay(id: string): void;
+}
+
 export type NotebookViewCellsSplice = [
 	number /* start */,
 	number /* delete count */,
@@ -759,6 +770,8 @@ export interface INotebookEditor {
 	changeModelDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null;
 
 	changeViewZones(callback: (accessor: INotebookViewZoneChangeAccessor) => void): void;
+
+	changeCellOverlays(callback: (accessor: INotebookCellOverlayChangeAccessor) => void): void;
 
 	getViewZoneLayoutInfo(id: string): { top: number; height: number } | null;
 

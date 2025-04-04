@@ -110,6 +110,15 @@ export class FilePromptContentProvider extends PromptContentsProviderBase<FileCh
 		return fileStream.value;
 	}
 
+	public override createNew(
+		promptContentsSource: { uri: URI },
+	): IPromptContentsProvider {
+		return new FilePromptContentProvider(
+			promptContentsSource.uri,
+			this.fileService,
+		);
+	}
+
 	/**
 	 * String representation of this object.
 	 */

@@ -16,7 +16,7 @@
 }
 body {
     font: 75% georgia, sans-serif;
-    line-height: 1.88889;
+    line-height: 1.88889 !important;
     color: #555753;
     background: #fff url(blossoms.jpg) no-repeat bottom right;
     margin: 0;
@@ -63,6 +63,11 @@ abbr {
     border-bottom: none;
 }
 
+@property --gradient-angle {
+	syntax: '<angle>';
+	initial-value: 0deg;
+	inherits: false;
+}
 
 /* specific divs */
 
@@ -73,7 +78,7 @@ abbr {
     position: relative;
 }
 
-.intro {
+.intro span::after{
     min-width: 470px;
     width: 100%;
 }
@@ -160,4 +165,12 @@ footer a:visited {
 
 .chat-feature-container .codicon[class*='codicon-'] {
     font-size: 16px;
+}
+
+div > * + * {
+    margin-top: 4rem;
+}
+
+* {
+    box-sizing: border-box;
 }

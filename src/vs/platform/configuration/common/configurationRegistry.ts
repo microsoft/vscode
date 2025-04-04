@@ -11,8 +11,8 @@ import * as types from '../../../base/common/types.js';
 import * as nls from '../../../nls.js';
 import { getLanguageTagSettingPlainKey } from './configuration.js';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../jsonschemas/common/jsonContributionRegistry.js';
-import { PolicyName } from '../../policy/common/policy.js';
 import { Registry } from '../../registry/common/platform.js';
+import { IPolicy, PolicyName } from '../../../base/common/policy.js';
 
 export enum EditPresentationTypes {
 	Multiline = 'multilineText',
@@ -35,7 +35,7 @@ export interface IConfigurationRegistry {
 	/**
 	 * Register a configuration to the registry.
 	 */
-	registerConfiguration(configuration: IConfigurationNode): void;
+	registerConfiguration(configuration: IConfigurationNode): IConfigurationNode;
 
 	/**
 	 * Register multiple configurations to the registry.
@@ -155,23 +155,6 @@ export const enum ConfigurationScope {
 	MACHINE_OVERRIDABLE,
 }
 
-export interface IPolicy {
-
-	/**
-	 * The policy name.
-	 */
-	readonly name: PolicyName;
-
-	/**
-	 * The Code version in which this policy was introduced.
-	*/
-	readonly minimumVersion: `${number}.${number}`;
-
-	/**
-	 * The policy description (optional).
-	 */
-	readonly description?: string;
-}
 
 export interface IConfigurationPropertySchema extends IJSONSchema {
 
@@ -330,8 +313,9 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		this.registerOverridePropertyPatternKey();
 	}
 
-	public registerConfiguration(configuration: IConfigurationNode, validate: boolean = true): void {
+	public registerConfiguration(configuration: IConfigurationNode, validate: boolean = true): IConfigurationNode {
 		this.registerConfigurations([configuration], validate);
+		return configuration;
 	}
 
 	public registerConfigurations(configurations: IConfigurationNode[], validate: boolean = true): void {

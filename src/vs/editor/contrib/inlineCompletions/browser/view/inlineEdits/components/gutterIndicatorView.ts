@@ -8,8 +8,7 @@ import { renderIcon } from '../../../../../../../base/browser/ui/iconLabel/iconL
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { BugIndicatingError } from '../../../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { IObservable, ISettableObservable, autorun, constObservable, derived, observableFromEvent, observableValue, runOnChange } from '../../../../../../../base/common/observable.js';
-import { debouncedObservable } from '../../../../../../../base/common/observableInternal/utils.js';
+import { IObservable, ISettableObservable, autorun, constObservable, debouncedObservable, derived, observableFromEvent, observableValue, runOnChange } from '../../../../../../../base/common/observable.js';
 import { IAccessibilityService } from '../../../../../../../platform/accessibility/common/accessibility.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
@@ -50,7 +49,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 		private readonly _focusIsInMenu: ISettableObservable<boolean>,
 		@IHoverService private readonly _hoverService: HoverService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IThemeService themeService: IThemeService,
 	) {
 		super();
@@ -96,37 +95,12 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 		this._isHoveredOverInlineEditDebounced = debouncedObservable(this._isHoveringOverInlineEdit, 100);
 
-		if (!accessibilityService.isMotionReduced()) {
-			this._register(runOnChange(this._isHoveredOverInlineEditDebounced, (isHovering) => {
-				if (!isHovering) {
-					return;
-				}
-
-				// WIGGLE ANIMATION:
-				/* this._iconRef.element.animate([
-					{ transform: 'rotate(0) scale(1)', offset: 0 },
-					{ transform: 'rotate(14.4deg) scale(1.1)', offset: 0.15 },
-					{ transform: 'rotate(-14.4deg) scale(1.2)', offset: 0.3 },
-					{ transform: 'rotate(14.4deg) scale(1.1)', offset: 0.45 },
-					{ transform: 'rotate(-14.4deg) scale(1.2)', offset: 0.6 },
-					{ transform: 'rotate(0) scale(1)', offset: 1 }
-				], { duration: 800 }); */
-
-				// PULSE ANIMATION:
-				this._iconRef.element.animate([
-					{
-						outline: `2px solid ${this._gutterIndicatorStyles.map(v => v.border).get()}`,
-						outlineOffset: '-1px',
-						offset: 0
-					},
-					{
-						outline: `2px solid transparent`,
-						outlineOffset: '10px',
-						offset: 1
-					},
-				], { duration: 500 });
-			}));
-		}
+		// pulse animation when hovering inline edit
+		this._register(runOnChange(this._isHoveredOverInlineEditDebounced, (isHovering) => {
+			if (isHovering) {
+				this.triggerAnimation();
+			}
+		}));
 
 		this._register(autorun(reader => {
 			this._indicator.readEffect(reader);
@@ -134,6 +108,28 @@ export class InlineEditsGutterIndicator extends Disposable {
 				this._editorObs.editor.applyFontInfo(this._indicator.element);
 			}
 		}));
+	}
+
+	public triggerAnimation(): Promise<Animation> {
+		if (this._accessibilityService.isMotionReduced()) {
+			return new Animation(null, null).finished;
+		}
+
+		// PULSE ANIMATION:
+		const animation = this._iconRef.element.animate([
+			{
+				outline: `2px solid ${this._gutterIndicatorStyles.map(v => v.border).get()}`,
+				outlineOffset: '-1px',
+				offset: 0
+			},
+			{
+				outline: `2px solid transparent`,
+				outlineOffset: '10px',
+				offset: 1
+			},
+		], { duration: 500 });
+
+		return animation.finished;
 	}
 
 	private readonly _originalRangeObs = mapOutFalsy(this._originalRange);
@@ -194,6 +190,57 @@ export class InlineEditsGutterIndicator extends Disposable {
 		return lineNumber.toString();
 	});
 
+	private readonly _availableWidthForIcon = derived(this, reader => {
+		const textModel = this._editorObs.editor.getModel();
+		const editor = this._editorObs.editor;
+		const layout = this._editorObs.layoutInfo.read(reader);
+		const gutterWidth = layout.decorationsLeft + layout.decorationsWidth - layout.glyphMarginLeft;
+
+		if (!textModel || gutterWidth <= 0) {
+			return () => 0;
+		}
+
+		// no glyph margin => the entire gutter width is available as there is no optimal place to put the icon
+		if (layout.lineNumbersLeft === 0) {
+			return () => gutterWidth;
+		}
+
+		const lineNumberOptions = this._editorObs.getOption(EditorOption.lineNumbers).read(reader);
+		if (lineNumberOptions.renderType === RenderLineNumbersType.Relative || /* likely to flicker */
+			lineNumberOptions.renderType === RenderLineNumbersType.Off) {
+			return () => gutterWidth;
+		}
+
+		const w = editor.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
+		const rightOfLineNumber = layout.lineNumbersLeft + layout.lineNumbersWidth;
+		const totalLines = textModel.getLineCount();
+		const totalLinesDigits = (totalLines + 1 /* 0 based to 1 based*/).toString().length;
+
+		const offsetDigits: {
+			firstLineNumberWithDigitCount: number;
+			topOfLineNumber: number;
+			usableWidthLeftOfLineNumber: number;
+		}[] = [];
+
+		// We only need to pre compute the usable width left of the line number for the first line number with a given digit count
+		for (let digits = 1; digits <= totalLinesDigits; digits++) {
+			const firstLineNumberWithDigitCount = 10 ** (digits - 1);
+			const topOfLineNumber = editor.getTopForLineNumber(firstLineNumberWithDigitCount);
+			const digitsWidth = digits * w;
+			const usableWidthLeftOfLineNumber = Math.min(gutterWidth, Math.max(0, rightOfLineNumber - digitsWidth - layout.glyphMarginLeft));
+			offsetDigits.push({ firstLineNumberWithDigitCount, topOfLineNumber, usableWidthLeftOfLineNumber });
+		}
+
+		return (topOffset: number) => {
+			for (let i = offsetDigits.length - 1; i >= 0; i--) {
+				if (topOffset >= offsetDigits[i].topOfLineNumber) {
+					return offsetDigits[i].usableWidthLeftOfLineNumber;
+				}
+			}
+			throw new BugIndicatingError('Could not find avilable width for icon');
+		};
+	});
+
 	private readonly _layout = derived(this, reader => {
 		const s = this._state.read(reader);
 		if (!s) { return undefined; }
@@ -201,79 +248,99 @@ export class InlineEditsGutterIndicator extends Disposable {
 		const layout = this._editorObs.layoutInfo.read(reader);
 
 		const lineHeight = this._editorObs.getOption(EditorOption.lineHeight).read(reader);
-		const bottomPadding = 1;
-		const leftPadding = 1;
-		const rightPadding = 1;
+		const gutterViewPortPadding = 1;
 
-		// Entire editor area without sticky scroll
-		const fullViewPort = Rect.fromLeftTopRightBottom(0, 0, layout.width, layout.height - bottomPadding);
-		const viewPortWithStickyScroll = fullViewPort.withTop(this._stickyScrollHeight.read(reader));
+		// Entire gutter view from top left to bottom right
+		const gutterWidthWithoutPadding = layout.decorationsLeft + layout.decorationsWidth - layout.glyphMarginLeft - 2 * gutterViewPortPadding;
+		const gutterHeightWithoutPadding = layout.height - 2 * gutterViewPortPadding;
+		const gutterViewPortWithStickyScroll = Rect.fromLeftTopWidthHeight(gutterViewPortPadding, gutterViewPortPadding, gutterWidthWithoutPadding, gutterHeightWithoutPadding);
+		const gutterViewPortWithoutStickyScroll = gutterViewPortWithStickyScroll.withTop(this._stickyScrollHeight.read(reader) + gutterViewPortPadding);
 
 		// The glyph margin area across all relevant lines
-		const targetVertRange = s.lineOffsetRange.read(reader);
-		const targetRect = Rect.fromRanges(OffsetRange.fromTo(leftPadding + layout.glyphMarginLeft, layout.decorationsLeft + layout.decorationsWidth - rightPadding), targetVertRange);
+		const verticalEditRange = s.lineOffsetRange.read(reader);
+		const gutterEditArea = Rect.fromRanges(OffsetRange.fromTo(gutterViewPortWithoutStickyScroll.left, gutterViewPortWithoutStickyScroll.right), verticalEditRange);
 
 		// The gutter view container (pill)
+		const pillHeight = lineHeight;
 		const pillOffset = this._verticalOffset.read(reader);
-		let pillRect = targetRect.withHeight(lineHeight).withWidth(22).translateY(pillOffset);
-		const pillRectMoved = pillRect.moveToBeContainedIn(viewPortWithStickyScroll);
+		const pillFullyDockedRect = gutterEditArea.withHeight(pillHeight).translateY(pillOffset);
+		const pillIsFullyDocked = gutterViewPortWithoutStickyScroll.containsRect(pillFullyDockedRect);
 
-		const rect = targetRect;
+		// The icon which will be rendered in the pill
+		const iconNoneDocked = this._tabAction.map(action => action === InlineEditTabAction.Accept ? Codicon.keyboardTab : Codicon.arrowRight);
+		const iconDocked = derived(reader => this._isHoveredOverIconDebounced.read(reader) || this._isHoveredOverInlineEditDebounced.read(reader) ? Codicon.check : iconNoneDocked.read(reader));
+		const idealIconWidth = 22;
+		const minimalIconWidth = 16; // codicon size
+		const iconWidth = (pillRect: Rect) => {
+			const availableWidth = this._availableWidthForIcon.get()(pillRect.bottom + this._editorObs.editor.getScrollTop()) - gutterViewPortPadding;
+			return Math.max(Math.min(availableWidth, idealIconWidth), minimalIconWidth);
+		};
 
-		// Move pill to be in viewport if it is not
-		pillRect = (targetRect.containsRect(pillRectMoved))
-			? pillRectMoved
-			: pillRectMoved.moveToBeContainedIn(fullViewPort.intersect(targetRect.union(fullViewPort.withHeight(lineHeight)))!); //viewPortWithStickyScroll.intersect(rect)!;
+		if (pillIsFullyDocked) {
+			const pillRect = pillFullyDockedRect;
+			const lineNumberWidth = Math.max(layout.lineNumbersLeft + layout.lineNumbersWidth - gutterViewPortWithStickyScroll.left, 0);
+			const lineNumberRect = pillRect.withWidth(lineNumberWidth);
+			const iconRect = pillRect.withWidth(idealIconWidth).translateX(lineNumberWidth);
+
+			return {
+				gutterEditArea,
+				icon: iconDocked,
+				iconDirection: 'right' as const,
+				iconRect,
+				pillRect,
+				lineNumberRect,
+			};
+		}
+
+		const pillPartiallyDockedPossibleArea = gutterViewPortWithStickyScroll.intersect(gutterEditArea); // The area in which the pill could be partially docked
+		const pillIsPartiallyDocked = pillPartiallyDockedPossibleArea && pillPartiallyDockedPossibleArea.height >= pillHeight;
+
+		if (pillIsPartiallyDocked) {
+			// pillFullyDockedRect is outside viewport, move it into the viewport under sticky scroll as we prefer the pill to not be on top of the sticky scroll
+			// then move it into the possible area which will only cause it to move if it has to be rendered on top of the sticky scroll
+			const pillRectMoved = pillFullyDockedRect.moveToBeContainedIn(gutterViewPortWithoutStickyScroll).moveToBeContainedIn(pillPartiallyDockedPossibleArea);
+			const pillRect = pillRectMoved.withWidth(iconWidth(pillRectMoved));
+			const iconRect = pillRect;
+
+			return {
+				gutterEditArea,
+				icon: iconDocked,
+				iconDirection: 'right' as const,
+				iconRect,
+				pillRect,
+			};
+		}
+
+		// pillFullyDockedRect is outside viewport, so move it into viewport
+		const pillRectMoved = pillFullyDockedRect.moveToBeContainedIn(gutterViewPortWithStickyScroll);
+		const pillRect = pillRectMoved.withWidth(iconWidth(pillRectMoved));
+		const iconRect = pillRect;
 
 		// docked = pill was already in the viewport
-		const docked = rect.containsRect(pillRect) && viewPortWithStickyScroll.containsRect(pillRect);
-		let iconDirecion = targetRect.containsRect(pillRect) ?
-			'right' as const
-			: pillRect.top > targetRect.top ?
-				'top' as const :
-				'bottom' as const;
-
-		// Grow icon the the whole glyph margin area if it is docked
-		let lineNumberRect = pillRect.withWidth(0);
-		let iconRect = pillRect;
-		if (docked && pillRect.top === targetRect.top + pillOffset) {
-			pillRect = pillRect.withWidth(layout.decorationsLeft + layout.decorationsWidth - layout.glyphMarginLeft - leftPadding - rightPadding);
-			lineNumberRect = pillRect.intersectHorizontal(new OffsetRange(0, layout.lineNumbersLeft + layout.lineNumbersWidth - leftPadding - 1));
-			iconRect = iconRect.translateX(lineNumberRect.width);
-		}
-
-		let icon;
-		if (docked && (this._isHoveredOverIconDebounced.read(reader) || this._isHoveredOverInlineEditDebounced.read(reader))) {
-			icon = renderIcon(Codicon.check);
-			iconDirecion = 'right';
-		} else {
-			icon = this._tabAction.read(reader) === InlineEditTabAction.Accept ? renderIcon(Codicon.keyboardTab) : renderIcon(Codicon.arrowRight);
-		}
-
-		let rotation = 0;
-		switch (iconDirecion) {
-			case 'right': rotation = 0; break;
-			case 'bottom': rotation = 90; break;
-			case 'top': rotation = -90; break;
-		}
+		const iconDirection = pillRect.top < pillFullyDockedRect.top ?
+			'top' as const :
+			'bottom' as const;
 
 		return {
-			rect,
-			icon,
-			rotation,
-			docked,
+			gutterEditArea,
+			icon: iconNoneDocked,
+			iconDirection,
 			iconRect,
 			pillRect,
-			lineHeight,
-			lineNumberRect,
 		};
 	});
 
+
 	private readonly _iconRef = n.ref<HTMLDivElement>();
+
+	public readonly isVisible = this._layout.map(l => !!l);
+
 	private readonly _hoverVisible = observableValue(this, false);
 	public readonly isHoverVisible: IObservable<boolean> = this._hoverVisible;
+
 	private readonly _isHoveredOverIcon = observableValue(this, false);
 	private readonly _isHoveredOverIconDebounced: IObservable<boolean> = debouncedObservable(this._isHoveredOverIcon, 100);
+	public readonly isHoveredOverIcon: IObservable<boolean> = this._isHoveredOverIconDebounced;
 
 	private _showHover(): void {
 		if (this._hoverVisible.get()) {
@@ -323,9 +390,11 @@ export class InlineEditsGutterIndicator extends Disposable {
 	private readonly _indicator = n.div({
 		class: 'inline-edits-view-gutter-indicator',
 		onclick: () => {
-			const docked = this._layout.map(l => l && l.docked).get();
+			const layout = this._layout.get();
+			const acceptOnClick = layout?.icon.get() === Codicon.check;
+
 			this._editorObs.editor.focus();
-			if (docked) {
+			if (acceptOnClick) {
 				this.model.accept();
 			} else {
 				this.model.jump();
@@ -342,7 +411,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 				position: 'absolute',
 				background: asCssVariable(inlineEditIndicatorBackground),
 				borderRadius: '4px',
-				...rectToProps(reader => layout.read(reader).rect),
+				...rectToProps(reader => layout.read(reader).gutterEditArea),
 			}
 		}),
 		n.div({
@@ -362,7 +431,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 				boxSizing: 'border-box',
 				borderRadius: '4px',
 				display: 'flex',
-				justifyContent: 'center',
+				justifyContent: 'flex-end',
 				transition: 'background-color 0.2s ease-in-out, width 0.2s ease-in-out',
 				...rectToProps(reader => layout.read(reader).pillRect),
 			}
@@ -370,11 +439,11 @@ export class InlineEditsGutterIndicator extends Disposable {
 			n.div({
 				className: 'line-number',
 				style: {
-					lineHeight: layout.map(l => `${l.lineHeight}px`),
-					display: layout.map(l => l.lineNumberRect.width > 0 ? 'flex' : 'none'),
+					lineHeight: layout.map(l => l.lineNumberRect ? l.lineNumberRect.height : 0),
+					display: layout.map(l => l.lineNumberRect ? 'flex' : 'none'),
 					alignItems: 'center',
 					justifyContent: 'flex-end',
-					width: layout.map(l => l.lineNumberRect.width),
+					width: layout.map(l => l.lineNumberRect ? l.lineNumberRect.width : 0),
 					height: '100%',
 					color: this._gutterIndicatorStyles.map(v => v.foreground),
 				}
@@ -383,17 +452,26 @@ export class InlineEditsGutterIndicator extends Disposable {
 			),
 			n.div({
 				style: {
-					rotate: layout.map(i => `${i.rotation}deg`),
+					rotate: layout.map(l => `${getRotationFromDirection(l.iconDirection)}deg`),
 					transition: 'rotate 0.2s ease-in-out',
 					display: 'flex',
 					alignItems: 'center',
 					justifyContent: 'center',
 					height: '100%',
-					width: layout.map(l => `${l.iconRect.width}px`),
+					marginRight: layout.map(l => l.pillRect.width - l.iconRect.width - (l.lineNumberRect?.width ?? 0)),
+					width: layout.map(l => l.iconRect.width),
 				}
 			}, [
-				layout.map(i => i.icon),
+				layout.map((l, reader) => renderIcon(l.icon.read(reader))),
 			])
 		]),
 	])).keepUpdated(this._store);
+}
+
+function getRotationFromDirection(direction: 'top' | 'bottom' | 'right'): number {
+	switch (direction) {
+		case 'top': return 90;
+		case 'bottom': return -90;
+		case 'right': return 0;
+	}
 }

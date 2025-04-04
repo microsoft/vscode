@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { combinedDisposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { clamp } from '../../../../../../base/common/numbers.js';
 import { ICellViewModel, INotebookEditor } from '../../notebookBrowser.js';
 
@@ -33,5 +33,5 @@ export function registerCellToolbarStickyScroll(notebookEditor: INotebookEditor,
 		notebookEditor.onDidChangeLayout(() => updateForScroll())
 	);
 
-	return notebookEditor.onDidScroll(() => updateForScroll());
+	return combinedDisposable(...disposables);
 }

@@ -6,24 +6,20 @@
 import type { ModelOperations, ModelResult } from '@vscode/vscode-languagedetection';
 import { importAMDNodeModule } from '../../../../amdX.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
-import { IRequestHandler, IWorkerServer } from '../../../../base/common/worker/simpleWorker.js';
+import { IWebWorkerServerRequestHandler, IWebWorkerServer } from '../../../../base/common/worker/webWorker.js';
 import { LanguageDetectionWorkerHost, ILanguageDetectionWorker } from './languageDetectionWorker.protocol.js';
 import { WorkerTextModelSyncServer } from '../../../../editor/common/services/textModelSync/textModelSync.impl.js';
 
 type RegexpModel = { detect: (inp: string, langBiases: Record<string, number>, supportedLangs?: string[]) => string | undefined };
 
-/**
- * Defines the worker entry point. Must be exported and named `create`.
- * @skipMangle
- */
-export function create(workerServer: IWorkerServer): IRequestHandler {
-	return new LanguageDetectionSimpleWorker(workerServer);
+export function create(workerServer: IWebWorkerServer): IWebWorkerServerRequestHandler {
+	return new LanguageDetectionWorker(workerServer);
 }
 
 /**
  * @internal
  */
-export class LanguageDetectionSimpleWorker implements ILanguageDetectionWorker {
+export class LanguageDetectionWorker implements ILanguageDetectionWorker {
 	_requestHandlerBrand: any;
 
 	private static readonly expectedRelativeConfidence = 0.2;
@@ -42,7 +38,7 @@ export class LanguageDetectionSimpleWorker implements ILanguageDetectionWorker {
 
 	private modelIdToCoreId = new Map<string, string | undefined>();
 
-	constructor(workerServer: IWorkerServer) {
+	constructor(workerServer: IWebWorkerServer) {
 		this._host = LanguageDetectionWorkerHost.getChannel(workerServer);
 		this._workerTextModelSyncServer.bindToServer(workerServer);
 	}
@@ -186,7 +182,7 @@ export class LanguageDetectionSimpleWorker implements ILanguageDetectionWorker {
 			case 'py':
 			case 'xml':
 			case 'php':
-				modelResult.confidence += LanguageDetectionSimpleWorker.positiveConfidenceCorrectionBucket1;
+				modelResult.confidence += LanguageDetectionWorker.positiveConfidenceCorrectionBucket1;
 				break;
 			// case 'yaml': // YAML has been know to cause incorrect language detection because the language is pretty simple. We don't want to increase the confidence for this.
 			case 'cpp':
@@ -194,7 +190,7 @@ export class LanguageDetectionSimpleWorker implements ILanguageDetectionWorker {
 			case 'java':
 			case 'cs':
 			case 'c':
-				modelResult.confidence += LanguageDetectionSimpleWorker.positiveConfidenceCorrectionBucket2;
+				modelResult.confidence += LanguageDetectionWorker.positiveConfidenceCorrectionBucket2;
 				break;
 
 			// For the following languages, we need to be extra confident that the language is correct because
@@ -213,7 +209,7 @@ export class LanguageDetectionSimpleWorker implements ILanguageDetectionWorker {
 				// aren't built in but suported by the model include:
 				// * Assembly, TeX - These languages didn't have clear language modes in the community
 				// * Markdown, Dockerfile - These languages are simple but they embed other languages
-				modelResult.confidence -= LanguageDetectionSimpleWorker.negativeConfidenceCorrection;
+				modelResult.confidence -= LanguageDetectionWorker.negativeConfidenceCorrection;
 				break;
 
 			default:
@@ -247,12 +243,12 @@ export class LanguageDetectionSimpleWorker implements ILanguageDetectionWorker {
 
 		if (!modelResults
 			|| modelResults.length === 0
-			|| modelResults[0].confidence < LanguageDetectionSimpleWorker.expectedRelativeConfidence) {
+			|| modelResults[0].confidence < LanguageDetectionWorker.expectedRelativeConfidence) {
 			return;
 		}
 
 		const firstModelResult = this.adjustLanguageConfidence(modelResults[0]);
-		if (firstModelResult.confidence < LanguageDetectionSimpleWorker.expectedRelativeConfidence) {
+		if (firstModelResult.confidence < LanguageDetectionWorker.expectedRelativeConfidence) {
 			return;
 		}
 
@@ -266,17 +262,17 @@ export class LanguageDetectionSimpleWorker implements ILanguageDetectionWorker {
 			current = this.adjustLanguageConfidence(current);
 			const currentHighest = possibleLanguages[possibleLanguages.length - 1];
 
-			if (currentHighest.confidence - current.confidence >= LanguageDetectionSimpleWorker.expectedRelativeConfidence) {
+			if (currentHighest.confidence - current.confidence >= LanguageDetectionWorker.expectedRelativeConfidence) {
 				while (possibleLanguages.length) {
 					yield possibleLanguages.shift()!;
 				}
-				if (current.confidence > LanguageDetectionSimpleWorker.expectedRelativeConfidence) {
+				if (current.confidence > LanguageDetectionWorker.expectedRelativeConfidence) {
 					possibleLanguages.push(current);
 					continue;
 				}
 				return;
 			} else {
-				if (current.confidence > LanguageDetectionSimpleWorker.expectedRelativeConfidence) {
+				if (current.confidence > LanguageDetectionWorker.expectedRelativeConfidence) {
 					possibleLanguages.push(current);
 					continue;
 				}

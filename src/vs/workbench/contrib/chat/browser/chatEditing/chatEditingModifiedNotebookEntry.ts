@@ -37,13 +37,13 @@ import { CellDiffInfo } from '../../../notebook/browser/diff/notebookDiffViewMod
 import { getNotebookEditorFromEditorPane } from '../../../notebook/browser/notebookBrowser.js';
 import { NotebookCellTextModel } from '../../../notebook/common/model/notebookCellTextModel.js';
 import { NotebookTextModel } from '../../../notebook/common/model/notebookTextModel.js';
-import { CellEditType, ICellDto2, ICellEditOperation, ICellReplaceEdit, IDocumentMetadataEdit, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookSetting, NotebookTextModelChangedEvent, TransientOptions } from '../../../notebook/common/notebookCommon.js';
+import { CellEditType, ICellDto2, ICellEditOperation, ICellReplaceEdit, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookSetting, NotebookTextModelChangedEvent, TransientOptions } from '../../../notebook/common/notebookCommon.js';
 import { computeDiff } from '../../../notebook/common/notebookDiff.js';
 import { INotebookEditorModelResolverService } from '../../../notebook/common/notebookEditorModelResolverService.js';
 import { INotebookLoggingService } from '../../../notebook/common/notebookLoggingService.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { INotebookEditorWorkerService } from '../../../notebook/common/services/notebookWorkerService.js';
-import { ChatEditKind, IModifiedFileEntryEditorIntegration, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { ChatEditKind, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { AbstractChatEditingModifiedFileEntry, IModifiedEntryTelemetryInfo, ISnapshotEntry } from './chatEditingModifiedFileEntry.js';
@@ -115,7 +115,12 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			disposables.add(ChatEditingNotebookFileSystemProvider.registerFile(originalUri, buffer));
 			const originalRef = await resolver.resolve(originalUri, notebook.viewType);
 			if (initialContent) {
-				restoreSnapshot(originalRef.object.notebook, initialContent);
+				try {
+					restoreSnapshot(originalRef.object.notebook, initialContent);
+				} catch (ex) {
+					console.error(`Error restoring snapshot: ${initialContent}`, ex);
+					initialContent = createSnapshot(notebook, options.serializer.options, configurationServie);
+				}
 			} else {
 				initialContent = createSnapshot(notebook, options.serializer.options, configurationServie);
 				// Both models are the same, ensure the cell ids are the same, this way we get a perfect diffing.
@@ -129,14 +134,8 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 					const internalId = generateCellHash(cell.uri);
 					edits.push({ editType: CellEditType.PartialInternalMetadata, index, internalMetadata: { internalId } });
 				});
-				resourceRef.object.notebook.applyEdits(edits, true, undefined, () => undefined, undefined, true);
-				originalRef.object.notebook.applyEdits(edits, true, undefined, () => undefined, undefined, true);
-
-				// If this is an empty copilot notebook, clear all of the original cells.
-				if (notebook.metadata.new_copilot_notebook === true) {
-					const edits = notebook.cells.map((_, index) => ({ editType: CellEditType.Replace, index, count: 1, cells: [] } satisfies ICellEditOperation));
-					originalRef.object.notebook.applyEdits(edits, true, undefined, () => undefined, undefined, true);
-				}
+				resourceRef.object.notebook.applyEdits(edits, true, undefined, () => undefined, undefined, false);
+				originalRef.object.notebook.applyEdits(edits, true, undefined, () => undefined, undefined, false);
 			}
 			const instance = instantiationService.createInstance(ChatEditingModifiedNotebookEntry, resourceRef, originalRef, _multiDiffEntryDelegate, options.serializer.options, telemetryInfo, chatKind, initialContent);
 			instance._register(disposables);
@@ -166,9 +165,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 	}
 
 	private readonly initialContentComparer: SnapshotComparer;
-	private get isNewCopilotNotebook() {
-		return this.modifiedModel.metadata.new_copilot_notebook === true;
-	}
+
 	constructor(
 		private readonly modifiedResourceRef: IReference<IResolvedNotebookEditorModel>,
 		originalResourceRef: IReference<IResolvedNotebookEditorModel>,
@@ -187,6 +184,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		@IUndoRedoService undoRedoService: IUndoRedoService,
 		@INotebookEditorWorkerService private readonly notebookEditorWorkerService: INotebookEditorWorkerService,
 		@INotebookLoggingService private readonly loggingService: INotebookLoggingService,
+		@INotebookEditorModelResolverService private readonly notebookResolver: INotebookEditorModelResolverService,
 	) {
 		super(modifiedResourceRef.object.notebook.uri, telemetryInfo, kind, configurationService, fileConfigService, chatService, fileService, undoRedoService, instantiationService);
 		this.initialContentComparer = new SnapshotComparer(initialContent);
@@ -217,13 +215,6 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 
 	private computeRequestId: number = 0;
 	async initializeModelsFromDiff() {
-		if (this.isNewCopilotNotebook) {
-			const cellsDiffInfo: CellDiffInfo[] = this.modifiedModel.cells.map((_, index) => {
-				return { type: 'insert', modifiedCellIndex: index } satisfies CellDiffInfo;
-			});
-			this.initializeModelsFromDiffImpl(cellsDiffInfo);
-			return;
-		}
 		const id = ++this.computeRequestId;
 		if (this._areOriginalAndModifiedIdenticalImpl()) {
 			const cellsDiffInfo: CellDiffInfo[] = this.modifiedModel.cells.map((_, index) => {
@@ -267,12 +258,13 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		// const didResetToOriginalContent = createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService) === this.initialContent;
 		let didResetToOriginalContent = this.initialContentComparer.isEqual(this.modifiedModel);
 		const currentState = this._stateObs.get();
-		if (currentState === WorkingSetEntryState.Rejected) {
+		if (currentState === ModifiedFileEntryState.Rejected) {
 			return;
 		}
-		if (currentState === WorkingSetEntryState.Modified && didResetToOriginalContent) {
-			this._stateObs.set(WorkingSetEntryState.Rejected, undefined);
+		if (currentState === ModifiedFileEntryState.Modified && didResetToOriginalContent) {
+			this._stateObs.set(ModifiedFileEntryState.Rejected, undefined);
 			this.updateCellDiffInfo([], undefined);
+			this.initializeModelsFromDiff();
 			return;
 		}
 
@@ -294,11 +286,27 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 						editType: CellEditType.DocumentMetadata,
 						metadata: this.modifiedModel.metadata
 					};
-					this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, true);
+					this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, false);
 					break;
 				}
 				case NotebookCellsChangeType.ModelChange: {
 					let cellDiffs = sortCellChanges(this._cellsDiffInfo.get());
+					// Ensure the new notebook cells have internalIds
+					this._applyEditsSync(() => {
+						event.changes.forEach(change => {
+							change[2].forEach((cell, i) => {
+								if (cell.internalMetadata.internalId) {
+									return;
+								}
+								const index = change[0] + i;
+								const internalId = generateCellHash(cell.uri);
+								const edits: ICellEditOperation[] = [{ editType: CellEditType.PartialInternalMetadata, index, internalMetadata: { internalId } }];
+								this.modifiedModel.applyEdits(edits, true, undefined, () => undefined, undefined, false);
+								cell.internalMetadata ??= {};
+								cell.internalMetadata.internalId = internalId;
+							});
+						});
+					});
 					event.changes.forEach(change => {
 						cellDiffs = adjustCellDiffAndOriginalModelBasedOnCellAddDelete(change,
 							cellDiffs,
@@ -319,7 +327,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 							index,
 							language: event.language
 						};
-						this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, true);
+						this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, false);
 					}
 					break;
 				}
@@ -332,7 +340,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 							index,
 							metadata: event.metadata
 						};
-						this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, true);
+						this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, false);
 					}
 					break;
 				}
@@ -346,7 +354,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 							index,
 							internalMetadata: event.internalMetadata
 						};
-						this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, true);
+						this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, false);
 					}
 					break;
 				}
@@ -360,7 +368,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 							append: event.append,
 							outputs: event.outputs
 						};
-						this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, true);
+						this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, false);
 					}
 					break;
 				}
@@ -373,14 +381,14 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 							append: event.append,
 							items: event.outputItems
 						};
-						this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, true);
+						this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, false);
 					}
 					break;
 				}
 				case NotebookCellsChangeType.Move: {
 					const result = adjustCellDiffAndOriginalModelBasedOnCellMovements(event, this._cellsDiffInfo.get().slice());
 					if (result) {
-						this.originalModel.applyEdits(result[1], true, undefined, () => undefined, undefined, true);
+						this.originalModel.applyEdits(result[1], true, undefined, () => undefined, undefined, false);
 						this._cellsDiffInfo.set(result[0], undefined);
 					}
 					break;
@@ -392,9 +400,10 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		}
 
 		didResetToOriginalContent = this.initialContentComparer.isEqual(this.modifiedModel);
-		if (currentState === WorkingSetEntryState.Modified && didResetToOriginalContent) {
-			this._stateObs.set(WorkingSetEntryState.Rejected, undefined);
+		if (currentState === ModifiedFileEntryState.Modified && didResetToOriginalContent) {
+			this._stateObs.set(ModifiedFileEntryState.Rejected, undefined);
 			this.updateCellDiffInfo([], undefined);
+			this.initializeModelsFromDiff();
 			return;
 		}
 	}
@@ -405,6 +414,22 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		restoreSnapshot(this.originalModel, snapshot);
 		this.initializeModelsFromDiff();
 		await this._collapse(tx);
+
+		const config = this._fileConfigService.getAutoSaveConfiguration(this.modifiedURI);
+		if (this.modifiedModel.uri.scheme !== Schemas.untitled && (!config.autoSave || !this.notebookResolver.isDirty(this.modifiedURI))) {
+			// SAVE after accept for manual-savers, for auto-savers
+			// trigger explict save to get save participants going
+			await this._applyEdits(async () => {
+				try {
+					await this.modifiedResourceRef.object.save({
+						reason: SaveReason.EXPLICIT,
+						force: true,
+					});
+				} catch {
+					// ignored
+				}
+			});
+		}
 	}
 
 	protected override async _doReject(tx: ITransaction | undefined): Promise<void> {
@@ -455,7 +480,8 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		const transientOptions = this.transientOptions;
 		const outputSizeLimit = this.configurationService.getValue<number>(NotebookSetting.outputBackupSizeLimit) * 1024;
 
-		let initial = this.initialContent;
+		// create a snapshot of the current state of the model, before the next set of edits
+		let initial = createSnapshot(this.modifiedModel, transientOptions, outputSizeLimit);
 		let last = '';
 
 		return {
@@ -489,7 +515,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		const isCellUri = resource.scheme === Schemas.vscodeNotebookCell;
 		const cell = isCellUri && this.modifiedModel.cells.find(cell => isEqual(cell.uri, resource));
 		let cellEntry: ChatEditingNotebookCellEntry | undefined;
-		if (cell && !this.isNewCopilotNotebook) {
+		if (cell) {
 			const index = this.modifiedModel.cells.indexOf(cell);
 			const entry = this._cellsDiffInfo.get().slice().find(entry => entry.modifiedCellIndex === index);
 			if (!entry) {
@@ -513,9 +539,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 
 		this._applyEditsSync(async () => {
 			edits.map(edit => {
-				if (this.isNewCopilotNotebook) {
-					// Swallow all edits.
-				} else if (TextEdit.isTextEdit(edit)) {
+				if (TextEdit.isTextEdit(edit)) {
 					// Possible we're getting the raw content for the notebook.
 					if (isEqual(resource, this.modifiedModel.uri)) {
 						this.newNotebookEditGenerator ??= this._instantiationService.createInstance(ChatEditingNewNotebookContentEdits, this.modifiedModel);
@@ -552,21 +576,11 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			const notebookEdits = await this.newNotebookEditGenerator.generateEdits();
 			this.newNotebookEditGenerator = undefined;
 			notebookEdits.forEach(edit => this.acceptNotebookEdit(edit));
-
-			if (this.isNewCopilotNotebook) {
-				const removeMetadata = { ...this.modifiedModel.metadata };
-				delete removeMetadata.new_copilot_notebook;
-				const edit: IDocumentMetadataEdit = {
-					editType: CellEditType.DocumentMetadata,
-					metadata: removeMetadata
-				};
-				this.modifiedModel.applyEdits([edit], true, undefined, () => undefined, undefined, false);
-			}
 		}
 
 		transaction((tx) => {
 			if (!isLastEdits) {
-				this._stateObs.set(WorkingSetEntryState.Modified, tx);
+				this._stateObs.set(ModifiedFileEntryState.Modified, tx);
 				this._isCurrentlyBeingModifiedByObs.set(responseModel, tx);
 				const newRewriteRation = Math.max(this._rewriteRatioObs.get(), calculateNotebookRewriteRatio(this._cellsDiffInfo.get(), this.originalModel, this.modifiedModel));
 				this._rewriteRatioObs.set(Math.min(1, newRewriteRation), tx);
@@ -596,12 +610,26 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		this.modifiedModel.applyEdits([edit], true, undefined, () => undefined, undefined, false);
 		this.disposeDeletedCellEntries();
 
+
 		if (edit.editType !== CellEditType.Replace) {
 			return;
 		}
+		// Ensure cells have internal Ids.
+		edit.cells.forEach((_, i) => {
+			const index = edit.index + i;
+			const cell = this.modifiedModel.cells[index];
+			if (cell.internalMetadata.internalId) {
+				return;
+			}
+			const internalId = generateCellHash(cell.uri);
+			const edits: ICellEditOperation[] = [{ editType: CellEditType.PartialInternalMetadata, index, internalMetadata: { internalId } }];
+			this.modifiedModel.applyEdits(edits, true, undefined, () => undefined, undefined, false);
+		});
+
+		let diff: ICellDiffInfo[] = [];
 		if (edit.count === 0) {
 			// All existing indexes are shifted by number of cells added.
-			const diff = sortCellChanges(this._cellsDiffInfo.get());
+			diff = sortCellChanges(this._cellsDiffInfo.get());
 			diff.forEach(d => {
 				if (d.type !== 'delete' && d.modifiedCellIndex >= edit.index) {
 					d.modifiedCellIndex += edit.cells.length;
@@ -609,11 +637,10 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			});
 			const diffInsert = edit.cells.map((_, i) => this.createInsertedCellDiffInfo(edit.index + i));
 			diff.splice(edit.index, 0, ...diffInsert);
-			this.updateCellDiffInfo(diff, undefined);
 		} else {
 			// All existing indexes are shifted by number of cells removed.
 			// And unchanged cells should be converted to deleted cells.
-			const diff = sortCellChanges(this._cellsDiffInfo.get()).map((d) => {
+			diff = sortCellChanges(this._cellsDiffInfo.get()).map((d) => {
 				if (d.type === 'unchanged' && d.modifiedCellIndex >= edit.index && d.modifiedCellIndex <= (edit.index + edit.count - 1)) {
 					return this.createDeleteCellDiffInfo(d.originalCellIndex);
 				}
@@ -623,14 +650,14 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 				}
 				return d;
 			});
-			this.updateCellDiffInfo(diff, undefined);
 		}
+		this.updateCellDiffInfo(diff, undefined);
 	}
 
 	private computeStateAfterAcceptingRejectingChanges(accepted: boolean) {
 		const currentSnapshot = createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService);
 		if (new SnapshotComparer(currentSnapshot).isEqual(this.originalModel)) {
-			const state = accepted ? WorkingSetEntryState.Accepted : WorkingSetEntryState.Rejected;
+			const state = accepted ? ModifiedFileEntryState.Accepted : ModifiedFileEntryState.Rejected;
 			this._stateObs.set(state, undefined);
 		}
 	}
@@ -753,10 +780,13 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 	}
 
 	private undoPreviouslyInsertedCell(cell: NotebookCellTextModel) {
-		const index = this.modifiedModel.cells.indexOf(cell);
-		const diffs = adjustCellDiffForRevertingAnInsertedCell(index,
-			this._cellsDiffInfo.get(),
-			this.modifiedModel.applyEdits.bind(this.modifiedModel));
+		let diffs: ICellDiffInfo[] = [];
+		this._applyEditsSync(() => {
+			const index = this.modifiedModel.cells.indexOf(cell);
+			diffs = adjustCellDiffForRevertingAnInsertedCell(index,
+				this._cellsDiffInfo.get(),
+				this.modifiedModel.applyEdits.bind(this.modifiedModel));
+		});
 		this.disposeDeletedCellEntries();
 		this.updateCellDiffInfo(diffs, undefined);
 	}
@@ -802,13 +832,16 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 				internalId: originalCell.internalMetadata.internalId
 			}
 		};
-		const cellDiffs = adjustCellDiffForRevertingADeletedCell(
-			deletedOriginalIndex,
-			this._cellsDiffInfo.get(),
-			cellToInsert,
-			this.modifiedModel.applyEdits.bind(this.modifiedModel),
-			this.createModifiedCellDiffInfo.bind(this)
-		);
+		let cellDiffs: ICellDiffInfo[] = [];
+		this._applyEditsSync(() => {
+			cellDiffs = adjustCellDiffForRevertingADeletedCell(
+				deletedOriginalIndex,
+				this._cellsDiffInfo.get(),
+				cellToInsert,
+				this.modifiedModel.applyEdits.bind(this.modifiedModel),
+				this.createModifiedCellDiffInfo.bind(this)
+			);
+		});
 		this.updateCellDiffInfo(cellDiffs, undefined);
 	}
 
@@ -961,9 +994,9 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			}
 
 			const cellState = cellEntry.state.read(r);
-			if (cellState === WorkingSetEntryState.Accepted) {
+			if (cellState === ModifiedFileEntryState.Accepted) {
 				this.computeStateAfterAcceptingRejectingChanges(true);
-			} else if (cellState === WorkingSetEntryState.Rejected) {
+			} else if (cellState === ModifiedFileEntryState.Rejected) {
 				this.computeStateAfterAcceptingRejectingChanges(false);
 			}
 		}));

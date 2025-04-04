@@ -89,7 +89,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					this.viewState.inputValue = lastEditsState.inputValue;
 					this.viewState.inputState = {
 						...lastEditsState.inputState,
-						chatMode: lastEditsState.inputState?.chatMode ?? ChatMode.Agent
+						chatMode: lastEditsState.inputState?.chatMode ?? ChatMode.Edit
 					};
 					this.viewState.hasMigratedCurrentSession = true;
 				}
@@ -164,8 +164,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	override shouldShowWelcome(): boolean {
 		const showSetup = this.contextKeyService.contextMatchesRules(ChatContextKeys.SetupViewCondition);
 		const noPersistedSessions = !this.chatService.hasSessions();
-		const shouldShow = this.didUnregisterProvider || !this._widget?.viewModel && noPersistedSessions || this.defaultParticipantRegistrationFailed || showSetup;
-		this.logService.trace(`ChatViewPane#shouldShowWelcome(${this.chatOptions.location}) = ${shouldShow}: didUnregister=${this.didUnregisterProvider} || noViewModel=${!this._widget?.viewModel} && noPersistedSessions=${noPersistedSessions} || defaultParticipantRegistrationFailed=${this.defaultParticipantRegistrationFailed} || showSetup=${showSetup}`);
+		const hasCoreAgent = this.chatAgentService.getAgents().some(agent => agent.isCore && agent.locations.includes(this.chatOptions.location));
+		const shouldShow = !hasCoreAgent && (this.didUnregisterProvider || !this._widget?.viewModel && noPersistedSessions || this.defaultParticipantRegistrationFailed || showSetup);
+		this.logService.trace(`ChatViewPane#shouldShowWelcome(${this.chatOptions.location}) = ${shouldShow}: hasCoreAgent=${hasCoreAgent} didUnregister=${this.didUnregisterProvider} || noViewModel=${!this._widget?.viewModel} && noPersistedSessions=${noPersistedSessions} || defaultParticipantRegistrationFailed=${this.defaultParticipantRegistrationFailed} || showSetup=${showSetup}`);
 		return !!shouldShow;
 	}
 
@@ -203,12 +204,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					supportsFileReferences: true,
 					supportsAdditionalParticipants: this.chatOptions.location === ChatAgentLocation.Panel,
 					rendererOptions: {
-						renderCodeBlockPills: mode => mode !== ChatMode.Ask,
 						renderTextEditsAsSummary: (uri) => {
 							return this.chatService.isEditingLocation(this.chatOptions.location);
 						},
 						referencesExpandedWhenEmptyResponse: !this.chatService.isEditingLocation(this.chatOptions.location),
-						progressMessageAtBottomOfResponse: this.chatService.isEditingLocation(this.chatOptions.location),
+						progressMessageAtBottomOfResponse: mode => mode !== ChatMode.Ask,
 					},
 					editorOverflowWidgetsDomNode: editorOverflowNode,
 					enableImplicitContext: this.chatOptions.location === ChatAgentLocation.Panel || this.chatService.isEditingLocation(this.chatOptions.location),

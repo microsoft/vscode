@@ -1,16 +1,22 @@
 parameters:
   - name: VSCODE_QUALITY
     type: string
-  - name: VSCODE_CIBUILD
-    type: boolean
-  - name: VSCODE_RUN_UNIT_TESTS
-    type: boolean
-  - name: VSCODE_RUN_INTEGRATION_TESTS
-    type: boolean
-  - name: VSCODE_RUN_SMOKE_TESTS
-    type: boolean
   - name: VSCODE_ARCH
     type: string
+  - name: VSCODE_CIBUILD
+    type: boolean
+  - name: VSCODE_RUN_ELECTRON_TESTS
+    type: boolean
+    default: false
+  - name: VSCODE_RUN_BROWSER_TESTS
+    type: boolean
+    default: false
+  - name: VSCODE_RUN_REMOTE_TESTS
+    type: boolean
+    default: false
+  - name: VSCODE_TEST_ARTIFACT_NAME
+    type: string
+    default: ""
 
 steps:
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
@@ -69,7 +75,7 @@ steps:
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Registry
 
-  - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js linux $VSCODE_ARCH > .build/packagelockhash
+  - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js linux $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
     displayName: Prepare node_modules cache key
 
   - task: Cache@2
@@ -286,13 +292,14 @@ steps:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Transpile client and extensions
 
-  - ${{ if or(eq(parameters.VSCODE_RUN_UNIT_TESTS, true), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
+  - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
     - template: product-build-linux-test.yml@self
       parameters:
         VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
-        VSCODE_RUN_UNIT_TESTS: ${{ parameters.VSCODE_RUN_UNIT_TESTS }}
-        VSCODE_RUN_INTEGRATION_TESTS: ${{ parameters.VSCODE_RUN_INTEGRATION_TESTS }}
-        VSCODE_RUN_SMOKE_TESTS: ${{ parameters.VSCODE_RUN_SMOKE_TESTS }}
+        VSCODE_RUN_ELECTRON_TESTS: ${{ parameters.VSCODE_RUN_ELECTRON_TESTS }}
+        VSCODE_RUN_BROWSER_TESTS: ${{ parameters.VSCODE_RUN_BROWSER_TESTS }}
+        VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}
+        VSCODE_TEST_ARTIFACT_NAME: ${{ parameters.VSCODE_TEST_ARTIFACT_NAME }}
         ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
           PUBLISH_TASK_NAME: 1ES.PublishPipelineArtifact@1
 

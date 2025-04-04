@@ -3,12 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare module 'vscode' {
+import { bootstrapWebWorker } from '../../../base/common/worker/webWorkerBootstrap.js';
+import { EditorWorker } from './editorWebWorker.js';
 
-	// https://github.com/microsoft/vscode/issues/243615
-
-	export namespace env {
-		export function isTrustedExternalUris(uri: Uri[]): boolean[];
-		export function extractExternalUris(uris: Uri[]): Thenable<string[]>;
-	}
-}
+bootstrapWebWorker(() => new EditorWorker(null));

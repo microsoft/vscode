@@ -1388,22 +1388,29 @@ export class Repository implements Disposable {
 					}
 				});
 
-				if (discardUntrackedChangesToTrash) {
-					const limiter = new Limiter<void>(5);
-					await Promise.all(toClean.map(fsPath => limiter.queue(
-						async () => await workspace.fs.delete(Uri.file(fsPath), { useTrash: true }))));
-				} else {
-					await this.repository.clean(toClean);
-				}
-
-				try {
-					await this.repository.checkout('', toCheckout);
-				} catch (err) {
-					if (err.gitErrorCode !== GitErrorCodes.BranchNotYetBorn) {
-						throw err;
+				if (toClean.length > 0) {
+					if (discardUntrackedChangesToTrash) {
+						const limiter = new Limiter<void>(5);
+						await Promise.all(toClean.map(fsPath => limiter.queue(
+							async () => await workspace.fs.delete(Uri.file(fsPath), { useTrash: true }))));
+					} else {
+						await this.repository.clean(toClean);
 					}
 				}
-				await this.repository.updateSubmodules(submodulesToUpdate);
+
+				if (toCheckout.length > 0) {
+					try {
+						await this.repository.checkout('', toCheckout);
+					} catch (err) {
+						if (err.gitErrorCode !== GitErrorCodes.BranchNotYetBorn) {
+							throw err;
+						}
+					}
+				}
+
+				if (submodulesToUpdate.length > 0) {
+					await this.repository.updateSubmodules(submodulesToUpdate);
+				}
 
 				this.closeDiffEditors([], [...toClean, ...toCheckout]);
 			},

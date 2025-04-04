@@ -27,11 +27,13 @@ import { LineDecoration } from '../../../../../common/viewLayout/lineDecorations
 import { RenderLineInput, renderViewLine } from '../../../../../common/viewLayout/viewLineRenderer.js';
 import { InlineDecorationType } from '../../../../../common/viewModel.js';
 import { GhostText, GhostTextReplacement, IGhostTextLine } from '../../model/ghostText.js';
-import { ColumnRange } from '../../utils.js';
+import { RangeSingleLine } from '../../../../../common/core/rangeSingleLine.js';
+import { ColumnRange } from '../../../../../common/core/columnRange.js';
 import { addDisposableListener, getWindow, isHTMLElement, n } from '../../../../../../base/browser/dom.js';
 import './ghostTextView.css';
 import { IMouseEvent, StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
 import { CodeEditorWidget } from '../../../../../browser/widget/codeEditor/codeEditorWidget.js';
+import { TokenWithTextArray } from '../../../../../common/tokens/tokenWithTextArray.js';
 
 export interface IGhostTextWidgetModel {
 	readonly targetTextModel: IObservable<ITextModel | undefined>;
@@ -170,7 +172,7 @@ export class GhostTextView extends Disposable {
 
 		const syntaxHighlightingEnabled = this._useSyntaxHighlighting.read(reader);
 		const extraClassNames = this._extraClassNames.read(reader);
-		const { inlineTexts, additionalLines, hiddenRange } = computeGhostTextViewData(ghostText, textModel, GHOST_TEXT_CLASS_NAME + extraClassNames);
+		const { inlineTexts, additionalLines, hiddenRange, additionalLinesOriginalSuffix } = computeGhostTextViewData(ghostText, textModel, GHOST_TEXT_CLASS_NAME + extraClassNames);
 
 		const currentLine = textModel.getLineContent(ghostText.lineNumber);
 		const edit = new OffsetEdit(inlineTexts.map(t => SingleOffsetEdit.insert(t.column - 1, t.text)));
@@ -178,10 +180,18 @@ export class GhostTextView extends Disposable {
 		const newRanges = edit.getNewTextRanges();
 		const inlineTextsWithTokens = inlineTexts.map((t, idx) => ({ ...t, tokens: tokens?.[0]?.getTokensInRange(newRanges[idx]) }));
 
-		const tokenizedAdditionalLines: LineData[] = additionalLines.map((l, idx) => ({
-			content: tokens?.[idx + 1] ?? LineTokens.createEmpty(l.content, this._languageService.languageIdCodec),
-			decorations: l.decorations,
-		}));
+		const tokenizedAdditionalLines: LineData[] = additionalLines.map((l, idx) => {
+			let content = tokens?.[idx + 1] ?? LineTokens.createEmpty(l.content, this._languageService.languageIdCodec);
+			if (idx === additionalLines.length - 1 && additionalLinesOriginalSuffix) {
+				const t = TokenWithTextArray.fromLineTokens(textModel.tokenization.getLineTokens(additionalLinesOriginalSuffix.lineNumber));
+				const existingContent = t.slice(additionalLinesOriginalSuffix.columnRange.toZeroBasedOffsetRange());
+				content = TokenWithTextArray.fromLineTokens(content).append(existingContent).toLineTokens(content.languageIdCodec);
+			}
+			return {
+				content,
+				decorations: l.decorations,
+			};
+		});
 
 		return {
 			replacedRange,
@@ -344,8 +354,9 @@ function computeGhostTextViewData(ghostText: GhostText | GhostTextReplacement, t
 
 		lastIdx = part.column - 1;
 	}
+	let additionalLinesOriginalSuffix: RangeSingleLine | undefined = undefined;
 	if (hiddenTextStartColumn !== undefined) {
-		addToAdditionalLines([{ line: textBufferLine.substring(lastIdx), lineDecorations: [] }], undefined);
+		additionalLinesOriginalSuffix = new RangeSingleLine(ghostText.lineNumber, new ColumnRange(lastIdx + 1, textBufferLine.length + 1));
 	}
 
 	const hiddenRange = hiddenTextStartColumn !== undefined ? new ColumnRange(hiddenTextStartColumn, textBufferLine.length + 1) : undefined;
@@ -354,6 +365,7 @@ function computeGhostTextViewData(ghostText: GhostText | GhostTextReplacement, t
 		inlineTexts,
 		additionalLines,
 		hiddenRange,
+		additionalLinesOriginalSuffix,
 	};
 }
 

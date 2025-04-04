@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { StringSHA1 } from '../../../../base/common/hash.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
@@ -10,18 +11,21 @@ import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
+import { indexOfPattern } from '../../../../base/common/strings.js';
 import { localize } from '../../../../nls.js';
-import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { observableMemento } from '../../../../platform/observable/common/observableMemento.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
 import { ConfigurationResolverExpression, IResolvedValue } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { AUX_WINDOW_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
+import { mcpEnabledSection } from './mcpConfiguration.js';
 import { McpRegistryInputStorage } from './mcpRegistryInputStorage.js';
 import { IMcpHostDelegate, IMcpRegistry, IMcpResolveConnectionOptions } from './mcpRegistryTypes.js';
 import { McpServerConnection } from './mcpServerConnection.js';
@@ -41,7 +45,13 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 
 	private readonly _collections = observableValue<readonly McpCollectionDefinition[]>('collections', []);
 	private readonly _delegates: IMcpHostDelegate[] = [];
-	public readonly collections: IObservable<readonly McpCollectionDefinition[]> = this._collections;
+	private readonly _enabled: IObservable<boolean>;
+	public readonly collections: IObservable<readonly McpCollectionDefinition[]> = derived(reader => {
+		if (!this._enabled.read(reader)) {
+			return [];
+		}
+		return this._collections.read(reader);
+	});
 
 	private readonly _collectionToPrefixes = this._collections.map(c => {
 		// This creates tool prefixes based on a hash of the collection ID. This is
@@ -54,7 +64,9 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		const hashes = c.map((collection): CollectionHash => {
 			const sha = new StringSHA1();
 			sha.update(collection.id);
-			return { view: 0, hash: sha.digest(), collection };
+			const hash = sha.digest();
+			// Gemini errors if the name starts with a number (microsoft/vscode-copilot-release#7152)
+			return { view: indexOfPattern(hash, /[a-z]/i), hash, collection };
 		});
 
 		const view = (h: CollectionHash) => h.hash.slice(h.view, h.view + collectionPrefixLen);
@@ -84,6 +96,10 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 	private readonly _ongoingLazyActivations = observableValue(this, 0);
 
 	public readonly lazyCollectionState = derived(reader => {
+		if (this._enabled.read(reader) === false) {
+			return LazyCollectionState.AllKnown;
+		}
+
 		if (this._ongoingLazyActivations.read(reader) > 0) {
 			return LazyCollectionState.LoadingUnknown;
 		}
@@ -106,12 +122,16 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		@IProductService private readonly _productService: IProductService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IEditorService private readonly _editorService: IEditorService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
+		this._enabled = observableConfigValue(mcpEnabledSection, true, configurationService);
 	}
 
 	public registerDelegate(delegate: IMcpHostDelegate): IDisposable {
 		this._delegates.push(delegate);
+		this._delegates.sort((a, b) => b.priority - a.priority);
+
 		return {
 			dispose: () => {
 				const index = this._delegates.indexOf(delegate);
@@ -175,6 +195,14 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		return scope === StorageScope.WORKSPACE ? this._workspaceStorage.value : this._profileStorage.value;
 	}
 
+	private _getInputStorageInConfigTarget(configTarget: ConfigurationTarget): McpRegistryInputStorage {
+		return this._getInputStorage(
+			configTarget === ConfigurationTarget.WORKSPACE || configTarget === ConfigurationTarget.WORKSPACE_FOLDER
+				? StorageScope.WORKSPACE
+				: StorageScope.PROFILE
+		);
+	}
+
 	public async clearSavedInputs(scope: StorageScope, inputId?: string) {
 		const storage = this._getInputStorage(scope);
 		if (inputId) {
@@ -187,12 +215,12 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 	}
 
 	public async editSavedInput(inputId: string, folderData: IWorkspaceFolderData | undefined, configSection: string, target: ConfigurationTarget): Promise<void> {
-		const storage = this._getInputStorage(target === ConfigurationTarget.WORKSPACE || target === ConfigurationTarget.WORKSPACE_FOLDER ? StorageScope.WORKSPACE : StorageScope.PROFILE);
+		const storage = this._getInputStorageInConfigTarget(target);
 		const expr = ConfigurationResolverExpression.parse(inputId);
 
 		const stored = await storage.getMap();
 		const previous = stored[inputId].value;
-		await this._configurationResolverService.resolveWithInteraction(folderData, expr, configSection, previous ? { [inputId]: previous } : {}, target);
+		await this._configurationResolverService.resolveWithInteraction(folderData, expr, configSection, previous ? { [inputId.slice(2, -1)]: previous } : {}, target);
 		await this._updateStorageWithExpressionInputs(storage, expr);
 	}
 
@@ -236,9 +264,13 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 			{
 				message: localize('trustTitleWithOrigin', 'Trust MCP servers from {0}?', collection.label),
 				custom: {
+					icon: Codicon.shield,
 					markdownDetails: [{
 						markdown: new MarkdownString(localize('mcp.trust.details', '{0} discovered Model Context Protocol servers from {1} (`{2}`). {0} can use their capabilities in Chat.\n\nDo you want to allow running MCP servers from {3}?', this._productService.nameShort, collection.label, collection.serverDefinitions.get().map(s => s.label).join('`, `'), labelWithOrigin)),
-						dismissOnLinkClick: true,
+						actionHandler: () => {
+							const editor = this._editorService.openEditor({ resource: collection.presentation!.origin! }, AUX_WINDOW_GROUP);
+							return editor.then(Boolean);
+						},
 					}]
 				},
 				buttons: [
@@ -273,7 +305,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		}
 
 		const { section, target, folder } = definition.variableReplacement;
-		const inputStorage = target === ConfigurationTarget.WORKSPACE ? this._workspaceStorage.value : this._profileStorage.value;
+		const inputStorage = this._getInputStorageInConfigTarget(target);
 		const previouslyStored = await inputStorage.getMap();
 
 		// pre-fill the variables we already resolved to avoid extra prompting

@@ -157,7 +157,6 @@ export interface IChatListItemRendererOptions {
 	readonly renderStyle?: 'compact' | 'minimal';
 	readonly noHeader?: boolean;
 	readonly editableCodeBlock?: boolean;
-	readonly renderCodeBlockPills?: boolean | ((mode: ChatMode) => boolean);
 	readonly renderDetectedCommandsWithRequest?: boolean;
 	readonly renderTextEditsAsSummary?: (uri: URI) => boolean;
 	readonly referencesExpandedWhenEmptyResponse?: boolean | ((mode: ChatMode) => boolean);
@@ -192,6 +191,7 @@ export interface IChatWidgetViewOptions {
 	enableImplicitContext?: boolean;
 	enableWorkingSet?: 'explicit' | 'implicit';
 	supportsChangingModes?: boolean;
+	dndContainer?: HTMLElement;
 }
 
 export interface IChatViewViewContext {

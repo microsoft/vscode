@@ -24,6 +24,8 @@ import { CancellationTokenSource } from '../../../../../base/common/cancellation
 class TestMcpHostDelegate extends Disposable implements IMcpHostDelegate {
 	private readonly _transport: TestMcpMessageTransport;
 
+	priority = 0;
+
 	constructor() {
 		super();
 		this._transport = this._register(new TestMcpMessageTransport());

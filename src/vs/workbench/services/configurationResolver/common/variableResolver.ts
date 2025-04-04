@@ -13,7 +13,7 @@ import { URI as uri } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
-import { IConfigurationResolverService, VariableError, VariableKind } from './configurationResolver.js';
+import { allVariableKinds, IConfigurationResolverService, VariableError, VariableKind } from './configurationResolver.js';
 import { ConfigurationResolverExpression, IResolvedValue, Replacement } from './configurationResolverExpression.js';
 
 interface IVariableResolveContext {
@@ -41,6 +41,8 @@ export abstract class AbstractVariableResolverService implements IConfigurationR
 	private _envVariablesPromise?: Promise<IProcessEnvironment>;
 	private _userHomePromise?: Promise<string>;
 	protected _contributedVariables: Map<string, () => Promise<string | undefined>> = new Map();
+
+	public readonly resolvableVariables = new Set<string>(allVariableKinds);
 
 	constructor(_context: IVariableResolveContext, _labelService?: ILabelService, _userHomePromise?: Promise<string>, _envVariablesPromise?: Promise<IProcessEnvironment>) {
 		this._context = _context;
@@ -112,6 +114,7 @@ export abstract class AbstractVariableResolverService implements IConfigurationR
 		if (this._contributedVariables.has(variable)) {
 			throw new Error('Variable ' + variable + ' is contributed twice.');
 		} else {
+			this.resolvableVariables.add(variable);
 			this._contributedVariables.set(variable, resolution);
 		}
 	}
