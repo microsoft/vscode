@@ -149,6 +149,54 @@ stages:
               VSCODE_TEST_ARTIFACT_NAME: remote
               VSCODE_RUN_REMOTE_TESTS: true
 
+      - job: macOSx64ElectronTests
+        displayName: macOS (Electron)
+        pool:
+          vmImage: macOS-14
+        timeoutInMinutes: 30
+        variables:
+          VSCODE_ARCH: x64
+          NPM_ARCH: x64
+        steps:
+          - template: darwin/product-build-darwin.yml@self
+            parameters:
+              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+              VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+              VSCODE_TEST_ARTIFACT_NAME: electron
+              VSCODE_RUN_ELECTRON_TESTS: true
+
+      - job: macOSx64BrowserTests
+        displayName: macOS (Browser)
+        pool:
+          vmImage: macOS-14
+        timeoutInMinutes: 30
+        variables:
+          VSCODE_ARCH: x64
+          NPM_ARCH: x64
+        steps:
+          - template: darwin/product-build-darwin.yml@self
+            parameters:
+              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+              VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+              VSCODE_TEST_ARTIFACT_NAME: browser
+              VSCODE_RUN_BROWSER_TESTS: true
+
+      - job: macOSx64RemoteTests
+        displayName: macOS (Remote)
+        pool:
+          vmImage: macOS-14
+        timeoutInMinutes: 30
+        variables:
+          VSCODE_ARCH: x64
+          NPM_ARCH: x64
+        steps:
+          - template: darwin/product-build-darwin.yml@self
+            parameters:
+              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+              VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+              VSCODE_TEST_ARTIFACT_NAME: remote
+              VSCODE_RUN_REMOTE_TESTS: true
+
   - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
     - stage: NodeModuleCache
       jobs:
@@ -169,3 +217,13 @@ stages:
           VSCODE_ARCH: x64
         steps:
           - template: oss/product-build-pr-cache-win32.yml@self
+
+      - job: macOSx64MaintainNodeModulesCache
+        displayName: macOS (Maintain node_modules cache)
+        pool:
+          vmImage: macOS-14
+        timeoutInMinutes: 30
+        variables:
+          VSCODE_ARCH: x64
+        steps:
+          - template: oss/product-build-pr-cache-darwin.yml@self
