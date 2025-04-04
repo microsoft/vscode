@@ -3738,6 +3738,48 @@
 		}
 	},
 	{
+		"c": "span",
+		"t": "meta.selector.css entity.name.tag.css",
+		"r": {
+			"dark_plus": "entity.name.tag.css: #D7BA7D",
+			"light_plus": "entity.name.tag: #800000",
+			"dark_vs": "entity.name.tag.css: #D7BA7D",
+			"light_vs": "entity.name.tag: #800000",
+			"hc_black": "entity.name.tag.css: #D7BA7D",
+			"dark_modern": "entity.name.tag.css: #D7BA7D",
+			"hc_light": "entity.name.tag: #0F4A85",
+			"light_modern": "entity.name.tag: #800000"
+		}
+	},
+	{
+		"c": "::",
+		"t": "meta.selector.css entity.other.attribute-name.pseudo-element.css",
+		"r": {
+			"dark_plus": "entity.other.attribute-name.pseudo-element.css: #D7BA7D",
+			"light_plus": "entity.other.attribute-name.pseudo-element.css: #800000",
+			"dark_vs": "entity.other.attribute-name.pseudo-element.css: #D7BA7D",
+			"light_vs": "entity.other.attribute-name.pseudo-element.css: #800000",
+			"hc_black": "entity.other.attribute-name.pseudo-element.css: #D7BA7D",
+			"dark_modern": "entity.other.attribute-name.pseudo-element.css: #D7BA7D",
+			"hc_light": "entity.other.attribute-name.pseudo-element.css: #0F4A85",
+			"light_modern": "entity.other.attribute-name.pseudo-element.css: #800000"
+		}
+	},
+	{
+		"c": "after",
+		"t": "meta.selector.css entity.name.tag.css entity.other.attribute-name.pseudo-element.css",
+		"r": {
+			"dark_plus": "entity.other.attribute-name.pseudo-element.css: #D7BA7D",
+			"light_plus": "entity.other.attribute-name.pseudo-element.css: #800000",
+			"dark_vs": "entity.other.attribute-name.pseudo-element.css: #D7BA7D",
+			"light_vs": "entity.other.attribute-name.pseudo-element.css: #800000",
+			"hc_black": "entity.other.attribute-name.pseudo-element.css: #D7BA7D",
+			"dark_modern": "entity.other.attribute-name.pseudo-element.css: #D7BA7D",
+			"hc_light": "entity.other.attribute-name.pseudo-element.css: #0F4A85",
+			"light_modern": "entity.other.attribute-name.pseudo-element.css: #800000"
+		}
+	},
+	{
 		"c": "{",
 		"t": "punctuation.css",
 		"r": {
