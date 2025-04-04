@@ -16,7 +16,7 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { IChatAgentService } from '../../../../chat/common/chatAgents.js';
 import { EmptyTextEditorHintContribution, IEmptyTextEditorHintOptions } from '../../../../codeEditor/browser/emptyTextEditorHint/emptyTextEditorHint.js';
 import { IInlineChatSessionService } from '../../../../inlineChat/browser/inlineChatSessionService.js';
-import { getNotebookEditorFromEditorPane } from '../../notebookBrowser.js';
+import { getNotebookEditorFromEditorPane, CHANGE_CELL_LANGUAGE } from '../../notebookBrowser.js';
 import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 
@@ -58,6 +58,8 @@ export class EmptyCellEditorHintContribution extends EmptyTextEditorHintContribu
 
 		this.toDispose.push(activeEditor.onDidChangeActiveCell(() => this.update()));
 	}
+
+	protected override readonly changeLanguageCommandId: string = CHANGE_CELL_LANGUAGE;
 
 	protected override _getOptions(): IEmptyTextEditorHintOptions {
 		return { clickable: false };
