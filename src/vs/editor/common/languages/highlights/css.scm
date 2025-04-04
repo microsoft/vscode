@@ -92,6 +92,11 @@
 ((color_value) @constant.other.color.rgb-value.hex.css
   (#match? @constant.other.color.rgb-value.hex.css "^#.*"))
 
+(call_expression
+  (function_name) @meta.function.variable.css (#eq? @meta.function.variable.css "var")
+  (arguments
+    (plain_value) @variable.argument.css))
+
 ; Special Functions
 
 (call_expression
