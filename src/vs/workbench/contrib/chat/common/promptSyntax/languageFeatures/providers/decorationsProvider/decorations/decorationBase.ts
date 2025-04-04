@@ -8,7 +8,6 @@ import { IMarkdownString } from '../../../../../../../../../base/common/htmlCont
 import { BaseToken } from '../../../../../../../../../editor/common/codecs/baseToken.js';
 import { ModelDecorationOptions } from '../../../../../../../../../editor/common/model/textModel.js';
 import { IModelDecorationsChangeAccessor, TrackedRangeStickiness } from '../../../../../../../../../editor/common/model.js';
-import { IColorTheme, ICssStyleCollector } from '../../../../../../../../../platform/theme/common/themeService.js';
 
 /**
  * Base class for all editor decorations.
@@ -107,6 +106,13 @@ export abstract class DecorationBase<
 }
 
 /**
+ * CSS styles for a decoration to be registered.
+ */
+export type TDecorationStyles<TClassNames extends string = string> = {
+	readonly [key in TClassNames]: readonly string[];
+};
+
+/**
  * Type of a generic decoration class.
  */
 export type TDecorationClass<TPromptToken extends BaseToken = BaseToken> = {
@@ -116,12 +122,9 @@ export type TDecorationClass<TPromptToken extends BaseToken = BaseToken> = {
 	): DecorationBase<TPromptToken>;
 
 	/**
-	 * Register CSS styles for the decoration.
+	 * CSS styles for the decoration.
 	 */
-	registerStyles(
-		theme: IColorTheme,
-		collector: ICssStyleCollector,
-	): void;
+	readonly cssStyles: TDecorationStyles;
 
 	/**
 	 * Whether the decoration class handles the provided token.
