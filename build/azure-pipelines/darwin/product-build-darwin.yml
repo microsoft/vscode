@@ -179,6 +179,8 @@ steps:
         VSCODE_RUN_ELECTRON_TESTS: ${{ parameters.VSCODE_RUN_ELECTRON_TESTS }}
         VSCODE_RUN_BROWSER_TESTS: ${{ parameters.VSCODE_RUN_BROWSER_TESTS }}
         VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}
+        ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+          PUBLISH_TASK_NAME: 1ES.PublishPipelineArtifact@1
 
   - ${{ elseif and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
     - task: DownloadPipelineArtifact@2
