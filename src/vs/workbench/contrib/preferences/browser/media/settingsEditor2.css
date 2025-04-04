@@ -229,11 +229,11 @@
 
 .settings-editor > .settings-body .settings-tree-container .setting-toolbar-container {
 	position: absolute;
-	left: -22px;
+	left: -24px;
 	top: 8px;
 	bottom: 0px;
-	width: 22px;
-	height: 22px;
+	width: 24px;
+	height: 24px;
 }
 
 .settings-editor > .settings-body .settings-tree-container .monaco-list-row .mouseover .setting-toolbar-container > .monaco-toolbar .codicon,
@@ -345,7 +345,7 @@
 	max-width: min(100%, 1200px); /* We don't want the widgets to be too long */
 	margin: auto;
 	box-sizing: border-box;
-	padding-left: 24px;
+	padding-left: 26px;
 	padding-right: 24px;
 	overflow: visible;
 }

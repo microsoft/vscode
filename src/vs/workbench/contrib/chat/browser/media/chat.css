@@ -1244,6 +1244,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
+	line-height: 22px;
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .monaco-button.codicon.codicon-close,
@@ -1299,6 +1300,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-attached-context .chat-attached-context-attachment.implicit .chat-implicit-hint {
 	opacity: 0.7;
 	font-size: .9em;
+	line-height: 22px;
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment.implicit.disabled .chat-implicit-hint {
@@ -1325,7 +1327,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label::before {
-	height: 1em;
+	height: 0.9em;
 	width: auto;
 	padding: 0;
 	line-height: 1em !important;

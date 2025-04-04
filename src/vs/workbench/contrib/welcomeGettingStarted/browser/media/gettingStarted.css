@@ -697,7 +697,7 @@
 	position: absolute;
 	left: 40px;
 	top: 5px;
-	padding: 0 2px 2px;
+	padding: 0 2px 5px;
 	margin: 10px;
 	z-index: 1;
 	display: none;
@@ -800,6 +800,8 @@
 .monaco-workbench .part.editor > .content .gettingStartedContainer .done-next-container .button-link {
 	display: flex;
 	align-items: center;
+	padding-top: 4px;
+	padding-bottom: 4px;;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .button-link.next {
