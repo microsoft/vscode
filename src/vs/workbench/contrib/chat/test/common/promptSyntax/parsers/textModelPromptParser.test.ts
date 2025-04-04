@@ -9,6 +9,7 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { ExpectedReference } from '../testUtils/expectedReference.js';
 import { ITextModel } from '../../../../../../../editor/common/model.js';
+import { assertDefined } from '../../../../../../../base/common/types.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { OpenFailed } from '../../../../common/promptFileReferenceErrors.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
@@ -21,7 +22,6 @@ import { TextModelPromptParser } from '../../../../common/promptSyntax/parsers/t
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { assertDefined } from '../../../../../../../base/common/types.js';
 
 /**
  * Test helper to run unit tests for the {@link TextModelPromptParser}
