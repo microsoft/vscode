@@ -154,6 +154,20 @@ footer a:visited {
     color: '#B3AE94';
 }
 
+.parent {
+    color: tomato;
+    .child {
+        color: blue;
+    }
+}
+
+.parent {
+    color: tomato;
+    & .child {
+        color: blue;
+    }
+}
+
 .extra1 {
     background: transparent url(cr2.gif) top left no-repeat;
     position: absolute;
