@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DecorationBase } from './decorationBase.js';
-import type { IReactiveDecorationClassNames, TChangeAccessor } from './types.js';
 import { Position } from '../../../../../../../../../../editor/common/core/position.js';
 import { BaseToken } from '../../../../../../../../../../editor/common/codecs/baseToken.js';
+import type { IReactiveDecorationClassNames, TAddAccessor, TChangeAccessor, TRemoveAccessor } from './types.js';
 
 /**
  * Base class for all reactive editor decorations. A reactive decoration
@@ -23,10 +23,38 @@ export abstract class ReactiveDecorationBase<
 	protected abstract get classNames(): IReactiveDecorationClassNames<TCssClassName>;
 
 	/**
-	 * Whether the decoration has changed since the last {@link changes}.
+	 * A list of child decorators that are part of this decoration.
+	 * For instance a Front Matter header decoration can have child
+	 * decorators for each of the header's `---` markers.
+	 */
+	protected readonly childDecorators: DecorationBase<BaseToken>[];
+
+	/**
+	 * Whether the decoration has changed since the last {@link change}.
 	 */
 	public get changed(): boolean {
+		// if any of the child decorators changed, this object is also
+		// considered to be changed
+		for (const marker of this.childDecorators) {
+			if ((marker instanceof ReactiveDecorationBase) === false) {
+				continue;
+			}
+
+			if (marker.changed === true) {
+				return true;
+			}
+		}
+
 		return this.didChange;
+	}
+
+	constructor(
+		accessor: TAddAccessor,
+		token: TPromptToken,
+	) {
+		super(accessor, token);
+
+		this.childDecorators = [];
 	}
 
 	/**
@@ -58,7 +86,9 @@ export abstract class ReactiveDecorationBase<
 	/**
 	 * Set cursor position and update {@link changed} property if needed.
 	 */
-	public setCursorPosition(position: Position | null | undefined): this is { readonly changed: true } {
+	public setCursorPosition(
+		position: Position | null | undefined,
+	): this is { readonly changed: true } {
 		if (this.cursorPosition === position) {
 			return false;
 		}
@@ -73,18 +103,34 @@ export abstract class ReactiveDecorationBase<
 		this.cursorPosition = position;
 		this.didChange = (wasActive !== this.active);
 
-		return this.didChange;
+		return this.changed;
 	}
 
-	public override changes(
+	public override change(
 		accessor: TChangeAccessor,
 	): this {
 		if (this.didChange === false) {
 			return this;
 		}
 
-		super.changes(accessor);
+		super.change(accessor);
 		this.didChange = false;
+
+		for (const marker of this.childDecorators) {
+			marker.change(accessor);
+		}
+
+		return this;
+	}
+
+	public override remove(
+		accessor: TRemoveAccessor,
+	): this {
+		super.remove(accessor);
+
+		for (const marker of this.childDecorators) {
+			marker.remove(accessor);
+		}
 
 		return this;
 	}

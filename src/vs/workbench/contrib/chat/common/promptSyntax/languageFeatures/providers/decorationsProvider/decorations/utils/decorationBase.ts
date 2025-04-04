@@ -68,7 +68,7 @@ export abstract class DecorationBase<
 	/**
 	 * Changes the decoration in the editor.
 	 */
-	public changes(
+	public change(
 		accessor: TChangeAccessor,
 	): this {
 		accessor.changeDecorationOptions(
