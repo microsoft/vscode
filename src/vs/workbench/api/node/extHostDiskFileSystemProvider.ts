@@ -27,9 +27,11 @@ export class ExtHostDiskFileSystemProvider {
 
 class DiskFileSystemProviderAdapter implements vscode.FileSystemProvider {
 
-	private readonly impl = new DiskFileSystemProvider(this.logService);
+	private readonly impl: DiskFileSystemProvider;
 
-	constructor(private readonly logService: ILogService) { }
+	constructor(logService: ILogService) {
+		this.impl = new DiskFileSystemProvider(logService);
+	}
 
 	async stat(uri: vscode.Uri): Promise<vscode.FileStat> {
 		const stat = await this.impl.stat(uri);

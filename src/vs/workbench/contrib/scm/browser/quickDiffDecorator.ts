@@ -22,7 +22,8 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { autorun, autorunWithStore, observableFromEvent } from '../../../../base/common/observable.js';
+import { autorun, autorunWithStore, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
 
 export const quickDiffDecorationCount = new RawContextKey<number>('quickDiffDecorationCount', 0);
 
@@ -188,8 +189,7 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 	private enabled = false;
 	private readonly quickDiffDecorationCount: IContextKey<number>;
 
-	private readonly activeEditor = observableFromEvent(this,
-		this.editorService.onDidActiveEditorChange, () => this.editorService.activeEditor);
+	private readonly activeEditor: IObservable<EditorInput | undefined>;
 
 	// Resource URI -> Code Editor Id -> Decoration (Disposable)
 	private readonly decorators = new ResourceMap<DisposableMap<string>>();
@@ -208,6 +208,9 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 		this.stylesheet = domStylesheetsJs.createStyleSheet(undefined, undefined, this._store);
 
 		this.quickDiffDecorationCount = quickDiffDecorationCount.bindTo(contextKeyService);
+
+		this.activeEditor = observableFromEvent(this,
+			this.editorService.onDidActiveEditorChange, () => this.editorService.activeEditor);
 
 		const onDidChangeConfiguration = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffDecorations'));
 		this._register(onDidChangeConfiguration(this.onDidChangeConfiguration, this));

@@ -70,9 +70,11 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 				if (oldToken) {
 					// Insert. Just grow the token at this position to include the insert.
 					newToken = { startOffsetInclusive: oldToken.startOffsetInclusive, length: oldToken.length + change.text.length - change.rangeLength, token: oldToken.token };
+					// Also mark tokens that are in the range of the change as needing a refresh.
+					storeInfo.store.markForRefresh(offset, change.rangeOffset + (change.text.length > change.rangeLength ? change.text.length : change.rangeLength));
 				} else {
 					// The document got larger and the change is at the end of the document.
-					newToken = { startOffsetInclusive: offset, length: change.text.length + 1, token: 0 };
+					newToken = { startOffsetInclusive: offset, length: change.text.length, token: 0 };
 				}
 				storeInfo.store.update(oldToken?.length ?? 0, [newToken], TokenQuality.EditGuess);
 			} else if (change.text.length < change.rangeLength) {
@@ -80,10 +82,7 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 				const deletedCharCount = change.rangeLength - change.text.length;
 				storeInfo.store.delete(deletedCharCount, change.rangeOffset);
 			}
-			const refreshLength = change.rangeLength > change.text.length ? change.rangeLength : change.text.length;
-			storeInfo.store.markForRefresh(change.rangeOffset, change.rangeOffset + refreshLength);
 		}
-
 	}
 
 	rangeHasTokens(model: ITextModel, range: Range, minimumTokenQuality: TokenQuality): boolean {

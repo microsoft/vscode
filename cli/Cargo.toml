@@ -77,7 +77,6 @@ russh-keys = { git = "https://github.com/microsoft/vscode-russh", branch = "main
 [profile.release]
 strip = true
 lto = true
-codegen-units = 1
 
 [features]
 default = []

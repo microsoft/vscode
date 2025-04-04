@@ -6,6 +6,7 @@
 .interactive-session {
 	max-width: 850px;
 	margin: auto;
+	position: relative; /* For chat dnd */
 }
 
 .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row > .monaco-tl-row > .monaco-tl-twistie {
@@ -373,6 +374,33 @@
 	.progress-container .rendered-markdown [data-code] {
 		margin: 0;
 	}
+
+	.tool-input-output-part {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+	}
+
+	.tool-input-output-part .rendered-markdown p {
+		margin: inherit;
+	}
+
+	.tool-input-output-part .expando {
+		display: flex;
+		align-items: center;
+		cursor: pointer;
+	}
+
+	.tool-input-output-part .input-output {
+		display: none;
+		padding: 6px 0;
+		flex-basis: 100%;
+		width: 100%;
+	}
+
+	.tool-input-output-part.expanded .input-output {
+		display: inherit;
+	}
 }
 
 .interactive-item-container .value > .rendered-markdown li > p {
@@ -433,11 +461,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-item-container.interactive-item-compact {
 	padding: 8px 20px;
-}
-
-.interactive-item-container.interactive-item-compact.no-padding {
-	padding: unset;
-	gap: unset;
 }
 
 .interactive-item-container.interactive-item-compact .header {
@@ -519,7 +542,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	right: 0;
 }
 
-.interactive-session .chat-dnd-overlay {
+.chat-dnd-overlay {
 	position: absolute;
 	top: 0;
 	left: 0;
@@ -530,13 +553,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: none;
 }
 
-.interactive-session .chat-dnd-overlay.visible {
+.chat-dnd-overlay.visible {
 	display: flex;
 	align-items: center;
 	justify-content: center;
 }
 
-.interactive-session .chat-dnd-overlay .attach-context-overlay-text {
+.chat-dnd-overlay .attach-context-overlay-text {
 	padding: 0.6em;
 	margin: 0.2em;
 	line-height: 12px;
@@ -546,7 +569,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	text-align: center;
 }
 
-.interactive-session .chat-dnd-overlay .attach-context-overlay-text .codicon {
+.chat-dnd-overlay .attach-context-overlay-text .codicon {
 	height: 12px;
 	font-size: 12px;
 	margin-right: 3px;
@@ -693,6 +716,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	gap: 4px;
 	margin-top: 6px;
 	flex-wrap: wrap;
+	cursor: default;
 }
 
 .chat-related-files {
@@ -1014,7 +1038,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-notificationsWarningIcon-foreground);
 }
 
-.chat-attached-context .chat-attached-context-attachment.show-file-icons.warning {
+.chat-attached-context .chat-attached-context-attachment.show-file-icons.warning,
+.chat-attached-context .chat-attached-context-attachment.show-file-icons.partial-warning {
 	border-color: var(--vscode-notificationsWarningIcon-foreground);
 }
 
@@ -1117,10 +1142,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .action-item.chat-attached-context-attachment.chat-add-files {
 	height: 20px;
-	gap: 0px;
-	color: var(--vscode-descriptionForeground);
+	color: var(--vscode-foreground);
 }
 
+.action-item.chat-attached-context-attachment.chat-add-files span.keybinding {
+	display: none;
+}
+
+.action-item.chat-mcp .action-label,
 .action-item.chat-attached-context-attachment.chat-add-files .action-label,
 .interactive-session .chat-attached-context .chat-attached-context-attachment {
 	display: flex;
@@ -1136,9 +1165,48 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .action-item.chat-attached-context-attachment.chat-add-files .action-label {
-	color: var(--vscode-descriptionForeground);
+	color: var(--vscode-foreground);
 	font-family: unset;
 	gap: 5px;
+}
+
+.action-item.chat-mcp {
+	display: flex !important;
+
+	&.chat-mcp-has-action .action-label {
+		border-top-right-radius: 0;
+		border-bottom-right-radius: 0;
+		border-right: 0;
+	}
+
+	.chat-mcp-action {
+		align-self: stretch;
+		padding: 0 2px;
+		border-radius: 0;
+		outline: 0;
+		border: 0;
+		border-top-right-radius: 4px;
+		border-bottom-right-radius: 4px;
+		background: var(--vscode-button-background);
+		cursor: pointer;
+
+		.codicon {
+			width: fit-content;
+			color: var(--vscode-button-foreground);
+		}
+
+		.codicon::before {
+			font-size: 14px;
+		}
+
+		&.chat-mcp-action-error {
+			background: var(--vscode-activityErrorBadge-background);
+
+			.codicon {
+				color: var(--vscode-activityErrorBadge-foreground);
+			}
+		}
+	}
 }
 
 .action-item.chat-attached-context-attachment.chat-add-files .action-label.codicon::before {
@@ -1191,12 +1259,19 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: 100% !important;
 }
 
+.interactive-session .chat-input-container .chat-attached-context {
+	display: contents;
+}
+
 .interactive-session .chat-attached-context {
 	display: flex;
 	flex-wrap: wrap;
-	cursor: default;
 	gap: 4px;
-	max-width: 100%;
+}
+
+.interactive-session .chat-attachment-toolbar .actions-container {
+	gap: 4px;
+	flex-wrap: wrap;
 }
 
 .interactive-session .interactive-input-part.compact .chat-attached-context {
@@ -1593,10 +1668,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-item-container .chat-command-button .monaco-button,
-.chat-confirmation-widget .chat-confirmation-buttons-container .monaco-button {
+.chat-confirmation-widget .chat-confirmation-buttons-container .monaco-button:not(.monaco-dropdown-button) {
 	text-align: left;
 	width: initial;
 	padding: 4px 8px;
+}
+
+.chat-confirmation-widget .chat-confirmation-buttons-container .monaco-button.monaco-dropdown-button {
+	padding: 0 3px;
 }
 
 .interactive-item-container .chat-confirmation-widget .interactive-result-code-block {
@@ -1624,12 +1703,44 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-textLink-foreground);
 }
 
-.chat-attached-context-hover .chat-attached-context-image {
+.chat-attached-context-hover {
+	padding: 0 6px;
+}
+
+.chat-attached-context-hover .chat-attached-context-image-container {
+	padding: 6px 0 4px;
 	height: auto;
-	max-height: 512px;
-	max-width: 512px;
 	width: 100%;
 	display: block;
+}
+
+.chat-attached-context-hover .chat-attached-context-image-container .chat-attached-context-image {
+	height: auto;
+	width: 100%;
+	display: block;
+	max-height: 350px;
+	max-width: 400px;
+}
+
+.chat-attached-context-hover .chat-attached-context-url {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+	margin-top: 4px;
+	padding: 2px 0;
+	width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	max-width: 100%;
+	display: block;
+}
+
+.chat-attached-context-hover .chat-attached-context-url-separator {
+	border-top: 1px solid var(--vscode-chat-requestBorder);
+	left: 0;
+	right: 0;
+	position: absolute;
+	margin-top: 2px;
 }
 
 .chat-attached-context-attachment .chat-attached-context-pill {
@@ -1670,6 +1781,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-attached-context-attachment.show-file-icons.warning .chat-attached-context-custom-text {
 	color: var(--vscode-notificationsWarningIcon-foreground);
 	text-decoration: line-through;
+}
+
+.chat-attached-context-attachment.show-file-icons.partial-warning .chat-attached-context-custom-text {
+	color: var(--vscode-notificationsWarningIcon-foreground);
 }
 
 .interactive-session .chat-scroll-down {

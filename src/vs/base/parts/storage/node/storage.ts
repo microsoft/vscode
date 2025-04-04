@@ -38,13 +38,20 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 	private static readonly BUSY_OPEN_TIMEOUT = 2000; // timeout in ms to retry when opening DB fails with SQLITE_BUSY
 	private static readonly MAX_HOST_PARAMETERS = 256; // maximum number of parameters within a statement
 
-	private readonly name = basename(this.path);
+	private readonly name: string;
 
-	private readonly logger = new SQLiteStorageDatabaseLogger(this.options.logging);
+	private readonly logger: SQLiteStorageDatabaseLogger;
 
-	private readonly whenConnected = this.connect(this.path);
+	private readonly whenConnected: Promise<IDatabaseConnection>;
 
-	constructor(private readonly path: string, private readonly options: ISQLiteStorageDatabaseOptions = Object.create(null)) { }
+	constructor(
+		private readonly path: string,
+		options: ISQLiteStorageDatabaseOptions = Object.create(null)
+	) {
+		this.name = basename(this.path);
+		this.logger = new SQLiteStorageDatabaseLogger(options.logging);
+		this.whenConnected = this.connect(this.path);
+	}
 
 	async getItems(): Promise<Map<string, string>> {
 		const connection = await this.whenConnected;

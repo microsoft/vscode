@@ -17,7 +17,7 @@ import { IChatEditingService } from '../../common/chatEditingService.js';
 import { assertThrowsAsync, ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
 import { MockChatVariablesService } from '../common/mockChatVariables.js';
-import { ChatAgentLocation, ChatAgentService, IChatAgentImplementation, IChatAgentService } from '../../common/chatAgents.js';
+import { ChatAgentService, IChatAgentImplementation, IChatAgentService } from '../../common/chatAgents.js';
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
@@ -31,6 +31,9 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { waitForState } from '../../../../../base/common/observable.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { Range } from '../../../../../editor/common/core/range.js';
+import { ChatAgentLocation } from '../../common/constants.js';
+import { NotebookTextModel } from '../../../notebook/common/model/notebookTextModel.js';
+import { ChatTransferService, IChatTransferService } from '../../common/chatTransferService.js';
 
 function getAgentData(id: string) {
 	return {
@@ -60,6 +63,7 @@ suite('ChatEditingService', function () {
 		collection.set(IChatAgentService, new SyncDescriptor(ChatAgentService));
 		collection.set(IChatVariablesService, new MockChatVariablesService());
 		collection.set(IChatSlashCommandService, new class extends mock<IChatSlashCommandService>() { });
+		collection.set(IChatTransferService, new SyncDescriptor(ChatTransferService));
 		collection.set(IChatEditingService, new SyncDescriptor(ChatEditingService));
 		collection.set(IChatService, new SyncDescriptor(ChatService));
 		collection.set(IMultiDiffSourceResolverService, new class extends mock<IMultiDiffSourceResolverService>() {
@@ -68,7 +72,10 @@ suite('ChatEditingService', function () {
 			}
 		});
 		collection.set(INotebookService, new class extends mock<INotebookService>() {
-			override hasSupportedNotebooks(resource: URI): boolean {
+			override getNotebookTextModel(_uri: URI): NotebookTextModel | undefined {
+				return undefined;
+			}
+			override hasSupportedNotebooks(_resource: URI): boolean {
 				return false;
 			}
 		});
@@ -109,15 +116,15 @@ suite('ChatEditingService', function () {
 	test('create session', async function () {
 		assert.ok(editingService);
 
-		const model = chatService.startSession(ChatAgentLocation.EditingSession, CancellationToken.None);
-		const session = await editingService.createEditingSession(model.sessionId, true);
+		const model = chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None);
+		const session = await editingService.createEditingSession(model, true);
 
 		assert.strictEqual(session.chatSessionId, model.sessionId);
 		assert.strictEqual(session.isGlobalEditingSession, true);
 
 		await assertThrowsAsync(async () => {
 			// DUPE not allowed
-			await editingService.createEditingSession(model.sessionId);
+			await editingService.createEditingSession(model);
 		});
 
 		session.dispose();
@@ -130,8 +137,11 @@ suite('ChatEditingService', function () {
 
 		const uri = URI.from({ scheme: 'test', path: 'HelloWorld' });
 
-		const model = chatService.startSession(ChatAgentLocation.EditingSession, CancellationToken.None);
-		const session = await editingService.createEditingSession(model.sessionId, true);
+		const model = chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None);
+		const session = await model.editingSessionObs?.promise;
+		if (!session) {
+			assert.fail('session not created');
+		}
 
 		const chatRequest = model?.addRequest({ text: '', parts: [] }, { variables: [] }, 0);
 		assertType(chatRequest.response);
@@ -154,7 +164,6 @@ suite('ChatEditingService', function () {
 
 		await entry.reject(undefined);
 
-		session.dispose();
 		model.dispose();
 	});
 

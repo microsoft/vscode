@@ -5,6 +5,7 @@
 
 import { coalesce, groupBy } from '../../../../../base/common/arrays.js';
 import { assertNever } from '../../../../../base/common/assert.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
@@ -29,7 +30,6 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IMarkerService, MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
 import { PromptsConfig } from '../../../../../platform/prompts/common/config.js';
-import { IQuickAccessOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
@@ -154,7 +154,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 
 		// if the `prompt snippets` feature is enabled, and file is a `prompt snippet`,
 		// start resolving nested file references immediately and subscribe to updates
-		if (variable instanceof ChatFileReference && variable.isPromptSnippet) {
+		if (variable instanceof ChatFileReference && variable.isPromptFile) {
 			// subscribe to variable changes
 			variable.onUpdate(() => {
 				this.updateDecorations();
@@ -252,9 +252,9 @@ export class SelectAndInsertFileAction extends Action2 {
 			context.widget.inputEditor.executeEdits('chatInsertFile', [{ range: context.range, text: `` }]);
 		};
 
-		let options: IQuickAccessOptions | undefined;
 		// TODO: have dedicated UX for this instead of using the quick access picker
-		const picks = await quickInputService.quickAccess.pick('', options);
+		await timeout(0); // https://github.com/microsoft/vscode/issues/243115
+		const picks = await quickInputService.quickAccess.pick('');
 		if (!picks?.length) {
 			logService.trace('SelectAndInsertFileAction: no file selected');
 			doCleanup();
@@ -576,6 +576,7 @@ export class SelectAndInsertSymAction extends Action2 {
 		};
 
 		// TODO: have dedicated UX for this instead of using the quick access picker
+		await timeout(0); // https://github.com/microsoft/vscode/issues/243115
 		const picks = await quickInputService.quickAccess.pick('#', { enabledProviderPrefixes: ['#'] });
 		if (!picks?.length) {
 			logService.trace('SelectAndInsertSymAction: no symbol selected');
@@ -742,23 +743,24 @@ export async function createMarkersQuickPick(accessor: ServicesAccessor, level: 
 	items.unshift({ type: 'item', label: localize('markers.panel.allErrors', 'All Problems'), entry: { filterSeverity: MarkerSeverity.Info } });
 
 	const quickInputService = accessor.get(IQuickInputService);
-	const quickPick = quickInputService.createQuickPick<MarkerPickItem>({ useSeparators: true });
+	const store = new DisposableStore();
+	const quickPick = store.add(quickInputService.createQuickPick<MarkerPickItem>({ useSeparators: true }));
 	quickPick.canAcceptInBackground = !onBackgroundAccept;
 	quickPick.placeholder = localize('pickAProblem', 'Pick a problem to attach...');
 	quickPick.items = items;
 
 	return new Promise<IDiagnosticVariableEntryFilterData | undefined>(resolve => {
-		quickPick.onDidHide(() => resolve(undefined));
-		quickPick.onDidAccept(ev => {
+		store.add(quickPick.onDidHide(() => resolve(undefined)));
+		store.add(quickPick.onDidAccept(ev => {
 			if (ev.inBackground) {
 				onBackgroundAccept?.(quickPick.selectedItems.map(i => i.entry));
 			} else {
 				resolve(quickPick.selectedItems[0]?.entry);
 				quickPick.dispose();
 			}
-		});
+		}));
 		quickPick.show();
-	}).finally(() => quickPick.dispose());
+	}).finally(() => store.dispose());
 }
 
 export class SelectAndInsertProblemAction extends Action2 {

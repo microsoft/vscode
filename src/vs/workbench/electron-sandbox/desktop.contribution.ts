@@ -28,6 +28,8 @@ import { NativeWindow } from './window.js';
 import { ModifierKeyEmitter } from '../../base/browser/dom.js';
 import { applicationConfigurationNodeBase, securityConfigurationNodeBase } from '../common/configuration.js';
 import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from '../../platform/window/electron-sandbox/window.js';
+import { DefaultAccountManagementContribution } from '../services/accounts/common/defaultAccount.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contributions.js';
 
 // Actions
 (function registerActions(): void {
@@ -236,6 +238,14 @@ import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from '../../platform/window/electron-s
 				'scope': ConfigurationScope.APPLICATION,
 				'description': localize('titleBarStyle', "Adjust the appearance of the window title bar to be native by the OS or custom. On Linux and Windows, this setting also affects the application and context menu appearances. Changes require a full restart to apply."),
 			},
+			'window.controlsStyle': {
+				'type': 'string',
+				'enum': ['native', 'custom', 'hidden'],
+				'default': 'native',
+				'included': !isMacintosh,
+				'scope': ConfigurationScope.APPLICATION,
+				'description': localize('controlsStyle', "Adjust the appearance of the window controls to be native by the OS, custom drawn or hidden. Changes require a full restart to apply."),
+			},
 			'window.customTitleBarVisibility': {
 				'type': 'string',
 				'enum': ['auto', 'windowed', 'never'],
@@ -414,4 +424,8 @@ import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from '../../platform/window/electron-s
 	}
 
 	jsonRegistry.registerSchema(argvDefinitionFileSchemaId, schema);
+})();
+
+(function registerWorkbenchContributions(): void {
+	registerWorkbenchContribution2('workbench.contributions.defaultAccountManagement', DefaultAccountManagementContribution, WorkbenchPhase.AfterRestored);
 })();

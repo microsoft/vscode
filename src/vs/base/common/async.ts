@@ -6,7 +6,7 @@
 import { CancellationToken, CancellationTokenSource } from './cancellation.js';
 import { BugIndicatingError, CancellationError } from './errors.js';
 import { Emitter, Event } from './event.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from './lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, isDisposable, MutableDisposable, toDisposable } from './lifecycle.js';
 import { extUri as defaultExtUri, IExtUri } from './resources.js';
 import { URI } from './uri.js';
 import { setTimeout0 } from './platform.js';
@@ -21,19 +21,41 @@ export interface CancelablePromise<T> extends Promise<T> {
 	cancel(): void;
 }
 
+/**
+ * Returns a promise that can be cancelled using the provided cancellation token.
+ *
+ * @remarks When cancellation is requested, the promise will be rejected with a {@link CancellationError}.
+ * If the promise resolves to a disposable object, it will be automatically disposed when cancellation
+ * is requested.
+ *
+ * @param callback A function that accepts a cancellation token and returns a promise
+ * @returns A promise that can be cancelled
+ */
 export function createCancelablePromise<T>(callback: (token: CancellationToken) => Promise<T>): CancelablePromise<T> {
 	const source = new CancellationTokenSource();
 
 	const thenable = callback(source.token);
+
+	let isCancelled = false;
+
 	const promise = new Promise<T>((resolve, reject) => {
 		const subscription = source.token.onCancellationRequested(() => {
+			isCancelled = true;
 			subscription.dispose();
 			reject(new CancellationError());
 		});
 		Promise.resolve(thenable).then(value => {
 			subscription.dispose();
 			source.dispose();
-			resolve(value);
+
+			if (!isCancelled) {
+				resolve(value);
+
+			} else if (isDisposable(value)) {
+				// promise has been cancelled, result is disposable and will
+				// be cleaned up
+				value.dispose();
+			}
 		}, err => {
 			subscription.dispose();
 			source.dispose();
@@ -1303,6 +1325,7 @@ export class ThrottledWorker<T> extends Disposable {
 	override dispose(): void {
 		super.dispose();
 
+		this.pendingWork.length = 0;
 		this.disposed = true;
 	}
 }

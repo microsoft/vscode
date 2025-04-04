@@ -14,32 +14,6 @@ import type { IDisposable } from '../../../common/lifecycle.js';
  */
 export interface IHoverDelegate2 {
 	/**
-	 * Shows a hover immediately, provided a hover with the same {@link options} object is not
-	 * already visible.
-	 *
-	 * Use this method when you want to:
-	 *
-	 * - Control showing the hover yourself.
-	 * - Show the hover immediately.
-	 *
-	 * @param options A set of options defining the characteristics of the hover.
-	 * @param focus Whether to focus the hover (useful for keyboard accessibility).
-	 *
-	 * @example A simple usage with a single element target.
-	 *
-	 * ```typescript
-	 * showHover({
-	 *   text: new MarkdownString('Hello world'),
-	 *   target: someElement
-	 * });
-	 * ```
-	 */
-	showHover(
-		options: IHoverOptions,
-		focus?: boolean
-	): IHoverWidget | undefined;
-
-	/**
 	 * Shows a hover after a delay, or immediately if the {@link groupId} matches the currently
 	 * shown hover.
 	 *
@@ -101,6 +75,32 @@ export interface IHoverDelegate2 {
 	): IDisposable;
 
 	/**
+	 * Shows a hover immediately, provided a hover with the same {@link options} object is not
+	 * already visible.
+	 *
+	 * Use this method when you want to:
+	 *
+	 * - Control showing the hover yourself.
+	 * - Show the hover immediately.
+	 *
+	 * @param options A set of options defining the characteristics of the hover.
+	 * @param focus Whether to focus the hover (useful for keyboard accessibility).
+	 *
+	 * @example A simple usage with a single element target.
+	 *
+	 * ```typescript
+	 * showInstantHover({
+	 *   text: new MarkdownString('Hello world'),
+	 *   target: someElement
+	 * });
+	 * ```
+	 */
+	showInstantHover(
+		options: IHoverOptions,
+		focus?: boolean
+	): IHoverWidget | undefined;
+
+	/**
 	 * Hides the hover if it was visible. This call will be ignored if the hover is currently
 	 * "locked" via the alt/option key unless `force` is set.
 	 */
@@ -116,8 +116,8 @@ export interface IHoverDelegate2 {
 	 * Sets up a managed hover for the given element. A managed hover will set up listeners for
 	 * mouse events, show the hover after a delay and provide hooks to easily update the content.
 	 *
-	 * This should be used over {@link showHover} when fine-grained control is not needed. The
-	 * managed hover also does not scale well, consider using {@link showHover} when showing hovers
+	 * This should be used over {@link showInstantHover} when fine-grained control is not needed. The
+	 * managed hover also does not scale well, consider using {@link showInstantHover} when showing hovers
 	 * for many elements.
 	 *
 	 * @param hoverDelegate The hover delegate containing hooks and configuration for the hover.

@@ -73,7 +73,7 @@ export class ReloadWindowWithExtensionsDisabledAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.reloadWindowWithExtensionsDisabled',
-			title: localize2('reloadWindowWithExtensionsDisabled', 'Reload With Extensions Disabled'),
+			title: localize2('reloadWindowWithExtensionsDisabled', 'Reload with Extensions Disabled'),
 			category: Categories.Developer,
 			f1: true
 		});

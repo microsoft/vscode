@@ -1035,7 +1035,7 @@ class NotebookAddMatchToMultiSelectionAction extends NotebookAction {
 	constructor() {
 		super({
 			id: NOTEBOOK_ADD_FIND_MATCH_TO_SELECTION_ID,
-			title: localize('addFindMatchToSelection', "Add Selection To Next Find Match"),
+			title: localize('addFindMatchToSelection', "Add Selection to Next Find Match"),
 			precondition: ContextKeyExpr.and(
 				ContextKeyExpr.equals('config.notebook.multiCursor.enabled', true),
 				NOTEBOOK_IS_ACTIVE_EDITOR,

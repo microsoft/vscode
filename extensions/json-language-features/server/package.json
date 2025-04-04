@@ -15,8 +15,8 @@
     "@vscode/l10n": "^0.0.18",
     "jsonc-parser": "^3.3.1",
     "request-light": "^0.8.0",
-    "vscode-json-languageservice": "^5.4.3",
-    "vscode-languageserver": "^10.0.0-next.11",
+    "vscode-json-languageservice": "^5.4.4",
+    "vscode-languageserver": "^10.0.0-next.12",
     "vscode-uri": "^3.0.8"
   },
   "devDependencies": {
@@ -28,7 +28,7 @@
     "compile": "npx gulp compile-extension:json-language-features-server",
     "watch": "npx gulp watch-extension:json-language-features-server",
     "clean": "../../../node_modules/.bin/rimraf out",
-    "install-service-next": "npm install vscode-json-languageservice@next",
+    "install-service-next": "npm install vscode-json-languageservice",
     "install-service-latest": "npm install vscode-json-languageservice",
     "install-service-local": "npm link vscode-json-languageservice",
     "install-server-next": "npm install vscode-languageserver@next",

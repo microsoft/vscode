@@ -23,6 +23,11 @@ export enum NotificationPriority {
 	DEFAULT,
 
 	/**
+	 * Optional priority: notification might only be visible from the notifications center.
+	 */
+	OPTIONAL,
+
+	/**
 	 * Silent priority: notification will only be visible from the notifications center.
 	 */
 	SILENT,
