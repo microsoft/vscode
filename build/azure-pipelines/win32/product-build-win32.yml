@@ -325,7 +325,7 @@ steps:
 
           echo "##vso[task.setvariable variable=SYSTEM_SETUP_PATH]$SystemSetupPath"
           echo "##vso[task.setvariable variable=USER_SETUP_PATH]$UserSetupPath"
-        displayName: Move setup packages (system, user)
+        displayName: Move setup packages
 
       - powershell: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX]attempt$(System.JobAttempt)_"
         condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))

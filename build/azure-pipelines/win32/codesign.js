@@ -55,7 +55,7 @@ async function main() {
 `);
     const clientArchivePath = `.build/win32-${arch}/VSCode-win32-${arch}-${version}.zip`;
     await (0, zx_1.$) `New-Item -ItemType Directory -Path .build/win32-${arch} -Force`;
-    await (0, zx_1.$) `7z.exe a -tzip ${clientArchivePath} ..\VSCode-win32-${arch}\* "-xr!CodeSignSummary*.md"`.pipe(process.stdout);
+    await (0, zx_1.$) `7z.exe a -tzip ${clientArchivePath} ../VSCode-win32-${arch}/* "-xr!CodeSignSummary*.md"`.pipe(process.stdout);
     await (0, zx_1.$) `7z.exe l ${clientArchivePath}`.pipe(process.stdout);
     // Server
     console.log(`
@@ -67,7 +67,7 @@ async function main() {
 `);
     const serverArchivePath = `.build/win32-${arch}/vscode-server-win32-${arch}.zip`;
     await (0, zx_1.$) `New-Item -ItemType Directory -Path .build/win32-${arch} -Force`;
-    await (0, zx_1.$) `7z.exe a -tzip ${serverArchivePath} ..\vscode-server-win32-${arch}`.pipe(process.stdout);
+    await (0, zx_1.$) `7z.exe a -tzip ${serverArchivePath} ../vscode-server-win32-${arch}`.pipe(process.stdout);
     await (0, zx_1.$) `7z.exe l ${serverArchivePath}`.pipe(process.stdout);
     // Web
     console.log(`
@@ -79,7 +79,7 @@ async function main() {
 `);
     const webArchivePath = `.build/win32-${arch}/vscode-server-win32-${arch}-web.zip`;
     await (0, zx_1.$) `New-Item -ItemType Directory -Path .build/win32-${arch} -Force`;
-    await (0, zx_1.$) `7z.exe a -tzip ${webArchivePath} ..\vscode-server-win32-${arch}-web`.pipe(process.stdout);
+    await (0, zx_1.$) `7z.exe a -tzip ${webArchivePath} ../vscode-server-win32-${arch}-web`.pipe(process.stdout);
     await (0, zx_1.$) `7z.exe l ${webArchivePath}`.pipe(process.stdout);
     // Sign setup
     console.log(`
