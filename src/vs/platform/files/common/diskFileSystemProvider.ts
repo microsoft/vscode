@@ -117,6 +117,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 
 		// Buffer requests for universal watching to decide on right watcher
 		// that supports potentially watching more than one path at once
+
 		this.universalWatchRequestDelayer.trigger(() => {
 			return this.doRefreshUniversalWatchers();
 		}).catch(error => onUnexpectedError(error));
@@ -155,7 +156,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 	private nonRecursiveWatcher: AbstractNonRecursiveWatcherClient | undefined;
 
 	private readonly nonRecursiveWatchRequests: INonRecursiveWatchRequest[] = [];
-	private readonly nonRecursiveWatchRequestDelayer = this._register(new ThrottledDelayer<void>(0));
+	private readonly nonRecursiveWatchRequestDelayer = this._register(new ThrottledDelayer<void>(500));
 
 	private watchNonRecursive(resource: URI, opts: IWatchOptions): IDisposable {
 
@@ -186,7 +187,11 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 	private refreshNonRecursiveWatchers(): void {
 
 		// Buffer requests for nonrecursive watching to decide on right watcher
-		// that supports potentially watching more than one path at once
+		// that supports potentially watching more than one path at once and
+		// also as a way to reduce pressure with file watching non recursively
+		// in general. We see potentially thousands of watch requests coming in
+		// repeadedly after startup so we take it easy.
+
 		this.nonRecursiveWatchRequestDelayer.trigger(() => {
 			return this.doRefreshNonRecursiveWatchers();
 		}).catch(error => onUnexpectedError(error));
