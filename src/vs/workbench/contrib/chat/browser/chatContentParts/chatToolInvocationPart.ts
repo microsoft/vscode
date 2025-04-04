@@ -247,7 +247,7 @@ class ChatToolInvocationSubPart extends Disposable {
 
 				const langId = this.languageService.getLanguageIdByLanguageName('json');
 				const model = this._register(this.modelService.createModel(
-					JSON.stringify(inputData.rawInput, undefined, 2),
+					JSON.stringify(inputData.rawInput ?? {}, undefined, 2),
 					this.languageService.createById(langId),
 					createToolInputUri(toolInvocation.toolId)
 				));
