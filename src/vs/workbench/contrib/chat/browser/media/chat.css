@@ -201,8 +201,14 @@
 	margin-bottom: 8px;
 }
 
-.interactive-item-container .value .rendered-markdown .codicon {
-	font-size: inherit;
+.interactive-item-container .value .rendered-markdown {
+	.codicon {
+		font-size: inherit;
+	}
+
+	.interactive-result-code-block .codicon {
+		font-size: initial;
+	}
 }
 
 .interactive-item-container .value .rendered-markdown blockquote {
