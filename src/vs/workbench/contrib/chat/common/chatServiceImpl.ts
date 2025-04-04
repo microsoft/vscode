@@ -1145,10 +1145,6 @@ export class ChatService extends Disposable implements IChatService {
 		this.trace('transferChatSession', `Transferred session ${model.sessionId} to workspace ${toWorkspace.toString()}`);
 	}
 
-	isEditingLocation(location: ChatAgentLocation): boolean {
-		return true;
-	}
-
 	getChatStorageFolder(): URI {
 		return this._chatSessionStore.getChatStorageFolder();
 	}

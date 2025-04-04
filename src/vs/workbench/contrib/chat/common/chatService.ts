@@ -521,9 +521,6 @@ export interface IChatService {
 
 	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void;
 
-	// Delete
-	isEditingLocation(location: ChatAgentLocation): boolean;
-
 	activateDefaultAgent(location: ChatAgentLocation): Promise<void>;
 }
 
