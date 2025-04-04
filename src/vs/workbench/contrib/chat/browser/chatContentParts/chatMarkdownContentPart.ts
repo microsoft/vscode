@@ -418,7 +418,8 @@ class CollapsedCodeBlock extends Disposable {
 			}
 
 			modifiedByResponse = modifiedEntry?.isCurrentlyBeingModifiedBy.read(r);
-			const isComplete = !modifiedByResponse || modifiedByResponse.requestId !== this.requestId;
+			let diffValue = diffBetweenStops?.read(r);
+			const isComplete = !!diffValue || !modifiedByResponse || modifiedByResponse.requestId !== this.requestId;
 			const rewriteRatio = modifiedEntry?.rewriteRatio.read(r);
 
 			if (!isStreaming && !isComplete) {
@@ -435,10 +436,11 @@ class CollapsedCodeBlock extends Disposable {
 				diffBetweenStops = modifiedEntry && editSession
 					? editSession.getEntryDiffBetweenStops(modifiedEntry.modifiedURI, this.requestId, this.inUndoStop)
 					: undefined;
+				diffValue = diffBetweenStops?.read(r);
 			}
 
-			if (!isStreaming && isComplete && diffBetweenStops) {
-				renderDiff(diffBetweenStops.read(r));
+			if (!isStreaming && isComplete) {
+				renderDiff(diffValue);
 			}
 		}));
 	}
