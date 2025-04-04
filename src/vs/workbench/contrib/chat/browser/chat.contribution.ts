@@ -159,7 +159,6 @@ configurationRegistry.registerConfiguration({
 			},
 			default: {
 				'panel': 'always',
-				'editing-session': 'first'
 			}
 		},
 		'chat.editing.autoAcceptDelay': {

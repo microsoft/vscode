@@ -323,6 +323,7 @@ export async function discardAllEditsWithConfirmation(accessor: ServicesAccessor
 	return true;
 }
 
+// TODO@roblourens this may be obsolete?
 export class ChatEditingRemoveAllFilesAction extends EditingSessionAction {
 	static readonly ID = 'chatEditing.clearWorkingSet';
 

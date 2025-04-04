@@ -118,7 +118,7 @@ class ToggleChatModeAction extends Action2 {
 			keybinding: {
 				when: ContextKeyExpr.and(
 					ChatContextKeys.inChatInput,
-					ChatContextKeyExprs.inEditsOrUnified),
+					ChatContextKeys.inUnifiedChat),
 				primary: KeyMod.CtrlCmd | KeyCode.Period,
 				weight: KeybindingWeight.EditorContrib
 			},
@@ -228,7 +228,7 @@ export class ToggleRequestPausedAction extends Action2 {
 					when: ContextKeyExpr.and(
 						ChatContextKeys.canRequestBePaused,
 						ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent),
-						ChatContextKeyExprs.inEditsOrUnified,
+						ChatContextKeys.inUnifiedChat,
 						ContextKeyExpr.or(ChatContextKeys.isRequestPaused.negate(), ChatContextKeys.inputHasText.negate()),
 					),
 					group: 'navigation',

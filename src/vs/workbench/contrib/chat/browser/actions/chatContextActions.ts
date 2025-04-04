@@ -978,15 +978,15 @@ registerAction2(class AttachFilesAction extends AttachContextAction {
 			f1: false,
 			category: CHAT_CATEGORY,
 			menu: {
-				when: ChatContextKeyExprs.inEditsOrUnified,
+				when: ChatContextKeys.inUnifiedChat,
 				id: MenuId.ChatInputAttachmentToolbar,
 				group: 'navigation',
 				order: 3
 			},
 			icon: Codicon.attach,
-			precondition: ChatContextKeyExprs.inEditsOrUnified,
+			precondition: ChatContextKeys.inUnifiedChat,
 			keybinding: {
-				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeyExprs.inEditsOrUnified),
+				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.inUnifiedChat),
 				primary: KeyMod.CtrlCmd | KeyCode.Slash,
 				weight: KeybindingWeight.EditorContrib
 			}

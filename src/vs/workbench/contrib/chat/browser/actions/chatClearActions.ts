@@ -144,7 +144,7 @@ export function registerNewChatActions() {
 				},
 				{
 					id: MenuId.ViewTitle,
-					when: ChatContextKeyExprs.inEditsOrUnified,
+					when: ContextKeyExpr.equals('view', ChatViewId),
 					group: 'navigation',
 					order: -1
 				}],
@@ -207,7 +207,7 @@ export function registerNewChatActions() {
 				f1: false,
 				menu: [{
 					id: MenuId.ChatEditingWidgetToolbar,
-					when: ContextKeyExpr.and(hasUndecidedChatEditingResourceContextKey.negate(), hasAppliedChatEditsContextKey, ChatContextKeys.editingParticipantRegistered, ChatContextKeyExprs.inEditsOrUnified),
+					when: ContextKeyExpr.and(hasUndecidedChatEditingResourceContextKey.negate(), hasAppliedChatEditsContextKey, ChatContextKeys.editingParticipantRegistered, ChatContextKeys.inUnifiedChat),
 					group: 'navigation',
 					order: 0
 				}]
@@ -246,7 +246,7 @@ export function registerNewChatActions() {
 				f1: true,
 				menu: [{
 					id: MenuId.ViewTitle,
-					when: ChatContextKeyExprs.inEditsOrUnified,
+					when: ChatContextKeys.inUnifiedChat,
 					group: 'navigation',
 					order: -3
 				}]
@@ -269,7 +269,7 @@ export function registerNewChatActions() {
 				f1: true,
 				menu: [{
 					id: MenuId.ViewTitle,
-					when: ChatContextKeyExprs.inEditsOrUnified,
+					when: ChatContextKeys.inUnifiedChat,
 					group: 'navigation',
 					order: -2
 				}]
