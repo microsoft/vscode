@@ -132,6 +132,10 @@ NdCFTW7wY0Fb1fWJ+/KTsC4=
 =J6gs
 -----END PGP PUBLIC KEY BLOCK-----
 " | gpg --dearmor > $CODE_TRUSTED_PART
+			OLD_KEY_PATH="/etc/apt/trusted.gpg.d/microsoft.gpg"
+			if [ -f "$OLD_KEY_PATH" ]; then
+				rm -f "$OLD_KEY_PATH"
+			fi
 		fi
 	fi
 fi
