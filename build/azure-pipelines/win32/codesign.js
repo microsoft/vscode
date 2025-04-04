@@ -43,7 +43,7 @@ async function main() {
 `);
         await (0, zx_1.$) `node build/azure-pipelines/common/sign ${esrpCliDLLPath} sign-windows-appx ${codesigningFolderPath} '*.appx'`.pipe(process.stdout);
     }
-    const packageJson = await (0, zx_1.$) `Get-Content -Raw -Path ..\VSCode-win32-${arch}\resources\app\package.json`.json();
+    const packageJson = await (0, zx_1.$) `Get-Content -Raw -Path ../VSCode-win32-${arch}/resources/app/package.json | ConvertFrom-Json`;
     const version = packageJson.version;
     // Client
     console.log(`
