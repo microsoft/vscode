@@ -16,13 +16,11 @@ async function main() {
 	const esrpCliPath = await $`(gci -directory ${tasksFolderPath} | Select-Object -last 1).FullName`;
 	const esrpCliDLLPath = `${esrpCliPath}/net6.0/esrpcli.dll`;
 
-	const $$ = $({ env: process.env });
-
 	// Codesign executables and shared libraries
-	await $$`node build/azure-pipelines/common/sign ${esrpCliDLLPath} sign-windows ${codesigningFolderPath} '*.dll,*.exe,*.node'`.pipe(process.stdout);
+	await $`node build/azure-pipelines/common/sign ${esrpCliDLLPath} sign-windows ${codesigningFolderPath} '*.dll,*.exe,*.node'`.pipe(process.stdout);
 
 	// Codesign Powershell scripts
-	await $$`node build/azure-pipelines/common/sign ${esrpCliDLLPath} sign-windows-powershell-scripts ${codesigningFolderPath} '*.ps1'`.pipe(process.stdout);
+	await $`node build/azure-pipelines/common/sign ${esrpCliDLLPath} sign-windows-powershell-scripts ${codesigningFolderPath} '*.ps1'`.pipe(process.stdout);
 
 	// Codesign context menu appx package
 	if (process.env['VSCODE_QUALITY'] !== 'oss') {

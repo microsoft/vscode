@@ -229,6 +229,8 @@ steps:
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
           exec { npm exec -- zx build/azure-pipelines/win32/codesign.js }
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         displayName: Codesign
 
     #   - powershell: |
