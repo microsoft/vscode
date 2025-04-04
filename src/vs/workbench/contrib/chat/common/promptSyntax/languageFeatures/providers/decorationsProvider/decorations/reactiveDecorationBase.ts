@@ -9,6 +9,35 @@ import { BaseToken } from '../../../../../../../../../editor/common/codecs/baseT
 import { IModelDecorationsChangeAccessor } from '../../../../../../../../../editor/common/model.js';
 
 /**
+ * CSS class names of the decoration.
+ */
+interface IClassNames<T extends string = string> {
+	/**
+	 * Main, default CSS class name of the decoration
+	 * for the `active` decoration state.
+	 */
+	readonly main: T;
+
+	/**
+	 * CSS class name of the decoration for the `inline`(text)
+	 * styles.
+	 */
+	readonly inline: T;
+
+	/**
+	 * main CSS class name of the decoration for the `inactive`
+	 * decoration state.
+	 */
+	readonly mainInactive: T;
+
+	/**
+	 * CSS class name of the decoration for the `inline`(text)
+	 * styles when decoration is in the `inactive` state.
+	 */
+	readonly inlineInactive: T;
+}
+
+/**
  * Base class for all reactive editor decorations. A reactive decoration
  * is a decoration that can change its appearance based on current cursor
  * position in the editor, hence can "react" to the user's actions.
@@ -17,6 +46,11 @@ export abstract class ReactiveDecorationBase<
 	TPromptToken extends BaseToken,
 	TCssClassName extends string = string,
 > extends DecorationBase<TPromptToken, TCssClassName> {
+	/**
+	 * CSS class names of the decoration.
+	 */
+	protected abstract get classNames(): IClassNames<TCssClassName>;
+
 	/**
 	 * Whether the decoration has changed since the last {@link render}.
 	 */
@@ -89,6 +123,18 @@ export abstract class ReactiveDecorationBase<
 		this.didChange = false;
 
 		return this;
+	}
+
+	protected override get className() {
+		return (this.active)
+			? this.classNames.main
+			: this.classNames.mainInactive;
+	}
+
+	protected override get inlineClassName() {
+		return (this.active)
+			? this.classNames.inline
+			: this.classNames.inlineInactive;
 	}
 }
 

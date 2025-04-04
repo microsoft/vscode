@@ -44,7 +44,6 @@ export class TextModelPromptDecorator extends ProviderInstanceBase {
 		this.watchCursorPosition();
 	}
 
-	// TODO: @legomushroom - update existing decorations instead of recreating them every time
 	protected override async onPromptParserUpdate(): Promise<this> {
 		await this.parser.allSettled();
 
@@ -165,9 +164,11 @@ export class TextModelPromptDecorator extends ProviderInstanceBase {
 /**
  * Register CSS styles of the supported decorations.
  */
-registerThemingParticipant((theme, collector) => {
+registerThemingParticipant((_theme, collector) => {
 	for (const Decoration of SUPPORTED_DECORATIONS) {
-		Decoration.registerStyles(theme, collector);
+		for (const [className, styles] of Object.entries(Decoration.cssStyles)) {
+			collector.addRule(`${className} { ${styles.join(' ')} }`);
+		}
 	}
 });
 

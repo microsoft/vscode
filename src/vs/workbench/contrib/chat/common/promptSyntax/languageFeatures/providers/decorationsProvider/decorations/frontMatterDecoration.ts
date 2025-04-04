@@ -3,31 +3,58 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { TDecorationStyles } from './decorationBase.js';
 import { localize } from '../../../../../../../../../nls.js';
 import { ReactiveDecorationBase } from './reactiveDecorationBase.js';
 import { Color, RGBA } from '../../../../../../../../../base/common/color.js';
 import { BaseToken } from '../../../../../../../../../editor/common/codecs/baseToken.js';
 import { registerColor } from '../../../../../../../../../platform/theme/common/colorUtils.js';
 import { contrastBorder } from '../../../../../../../../../platform/theme/common/colorRegistry.js';
-import { IColorTheme, ICssStyleCollector } from '../../../../../../../../../platform/theme/common/themeService.js';
 import { FrontMatterHeader } from '../../../../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterHeader.js';
+
+/**
+ * Decoration CSS class modifiers.
+ */
+export enum CssClassModifiers {
+	Inactive = '.prompt-front-matter-inactive',
+}
 
 /**
  * Decoration CSS class names.
  */
-export enum FrontMatterCssClassNames {
-	/**
-	 * TODO: @legomushroom
-	 */
-	frontMatterHeader = 'prompt-front-matter-header',
-	frontMatterHeaderInlineInactive = 'prompt-front-matter-header-inline-inactive',
-	frontMatterHeaderInlineActive = 'prompt-front-matter-header-inline-active',
+export enum CssClassNames {
+	main = '.prompt-front-matter',
+	inline = '.prompt-front-matter-inline',
+	mainInactive = `${CssClassNames.main}${CssClassModifiers.Inactive}`,
+	inlineInactive = `${CssClassNames.inline}${CssClassModifiers.Inactive}`,
 }
 
 /**
- * TODO: @legomushroom
+ * Main background color of `active` Front Matter header block.
  */
-export class FrontMatterHeaderDecoration extends ReactiveDecorationBase<FrontMatterHeader, FrontMatterCssClassNames> {
+const BACKGROUND_COLOR = registerColor(
+	'prompt.frontMatter.background',
+	{ dark: new Color(new RGBA(0, 0, 0, 0.2)), light: new Color(new RGBA(255, 255, 255, 0.2)), hcDark: contrastBorder, hcLight: contrastBorder },
+	localize('chat.prompt.frontMatter.background.description', "Background color of a Front Matter header block."),
+);
+
+/**
+ * Background color of `inactive` Front Matter header block.
+ */
+const INACTIVE_BACKGROUND_COLOR = registerColor(
+	'prompt.frontMatter.inactiveBackground',
+	{ dark: new Color(new RGBA(0, 0, 0, 0.10)), light: new Color(new RGBA(255, 255, 255, 0.10)), hcDark: contrastBorder, hcLight: contrastBorder },
+	localize('chat.prompt.frontMatter.inactiveBackground.description', "Background color of an inactive Front Matter header block."),
+);
+
+/**
+ * Editor decoration for the Front Matter header token inside a prompt.
+ */
+export class FrontMatterHeaderDecoration extends ReactiveDecorationBase<FrontMatterHeader, CssClassNames> {
+	protected override get classNames() {
+		return CssClassNames;
+	}
+
 	protected override get isWholeLine(): boolean {
 		return true;
 	}
@@ -36,14 +63,20 @@ export class FrontMatterHeaderDecoration extends ReactiveDecorationBase<FrontMat
 		return 'Front Matter header editor decoration.';
 	}
 
-	protected override get className(): FrontMatterCssClassNames.frontMatterHeader {
-		return FrontMatterCssClassNames.frontMatterHeader;
-	}
-
-	protected override get inlineClassName(): FrontMatterCssClassNames.frontMatterHeaderInlineActive | FrontMatterCssClassNames.frontMatterHeaderInlineInactive {
-		return (this.active)
-			? FrontMatterCssClassNames.frontMatterHeaderInlineActive
-			: FrontMatterCssClassNames.frontMatterHeaderInlineInactive;
+	public static get cssStyles(): TDecorationStyles {
+		return {
+			[CssClassNames.main]: [
+				`background-color: ${toCssVariable(BACKGROUND_COLOR)};`,
+				// this masks vertical block ruler column line
+				'border-left: 1px solid var(--vscode-editor-background);',
+			],
+			[CssClassNames.mainInactive]: [
+				`background-color: ${toCssVariable(INACTIVE_BACKGROUND_COLOR)};`,
+			],
+			[CssClassNames.inlineInactive]: [
+				'opacity: 0.6;',
+			],
+		};
 	}
 
 	/**
@@ -54,47 +87,11 @@ export class FrontMatterHeaderDecoration extends ReactiveDecorationBase<FrontMat
 	): token is FrontMatterHeader {
 		return token instanceof FrontMatterHeader;
 	}
-
-	/**
-	 * Register CSS styles of the decoration.
-	 */
-	public static registerStyles(
-		theme: IColorTheme,
-		collector: ICssStyleCollector,
-	) {
-		/**
-		 * TODO: @legomushroom
-		 */
-		const frontMatterHeaderBackgroundColor = registerColor(
-			'chat.prompt.frontMatterBackground',
-			{ dark: new Color(new RGBA(0, 0, 0, 0.20)), light: new Color(new RGBA(0, 0, 0, 0.10)), hcDark: contrastBorder, hcLight: contrastBorder, },
-			localize('chat.prompt.frontMatterBackground', "background color of a Front Matter header block."),
-		);
-
-		const styles = [];
-		styles.push(
-			`background-color: ${theme.getColor(frontMatterHeaderBackgroundColor)};`,
-		);
-
-		const frontMatterHeaderCssSelector = `.monaco-editor .${FrontMatterCssClassNames.frontMatterHeader}`;
-		collector.addRule(
-			`${frontMatterHeaderCssSelector} { ${styles.join(' ')} }`,
-		);
-
-		const inlineInactiveStyles = [];
-		inlineInactiveStyles.push('color: var(--vscode-disabledForeground);');
-
-		const inlineActiveStyles = [];
-		inlineActiveStyles.push('color: var(--vscode-foreground);');
-
-		const frontMatterHeaderInlineActiveCssSelector = `.monaco-editor .${FrontMatterCssClassNames.frontMatterHeaderInlineActive}`;
-		collector.addRule(
-			`${frontMatterHeaderInlineActiveCssSelector} { ${inlineActiveStyles.join(' ')} }`,
-		);
-
-		const frontMatterHeaderInlineInactiveCssSelector = `.monaco-editor .${FrontMatterCssClassNames.frontMatterHeaderInlineInactive}`;
-		collector.addRule(
-			`${frontMatterHeaderInlineInactiveCssSelector} { ${inlineInactiveStyles.join(' ')} }`,
-		);
-	}
 }
+
+/**
+ * Convert a registered color name to a CSS variable string.
+ */
+const toCssVariable = (colorName: string): string => {
+	return `var(--vscode-${colorName.replaceAll('.', '-')})`;
+};
