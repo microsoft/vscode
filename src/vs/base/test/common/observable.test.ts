@@ -8,6 +8,7 @@ import { setUnexpectedErrorHandler } from '../../common/errors.js';
 import { Emitter, Event } from '../../common/event.js';
 import { DisposableStore } from '../../common/lifecycle.js';
 import { autorun, autorunHandleChanges, derived, derivedDisposable, IObservable, IObserver, ISettableObservable, ITransaction, keepObserved, observableFromEvent, observableSignal, observableValue, transaction, waitForState } from '../../common/observable.js';
+// eslint-disable-next-line local/code-no-deep-import-of-internal
 import { BaseObservable, IObservableWithChange } from '../../common/observableInternal/base.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
@@ -312,15 +313,17 @@ suite('observables', () => {
 			const signal = observableSignal<{ msg: string }>('signal');
 
 			const disposable = autorunHandleChanges({
-				// The change summary is used to collect the changes
-				createEmptyChangeSummary: () => ({ msgs: [] as string[] }),
-				handleChange(context, changeSummary) {
-					if (context.didChange(signal)) {
-						// We just push the changes into an array
-						changeSummary.msgs.push(context.change.msg);
-					}
-					return true; // We want to handle the change
-				},
+				changeTracker: {
+					// The change summary is used to collect the changes
+					createChangeSummary: () => ({ msgs: [] as string[] }),
+					handleChange(context, changeSummary) {
+						if (context.didChange(signal)) {
+							// We just push the changes into an array
+							changeSummary.msgs.push(context.change.msg);
+						}
+						return true; // We want to handle the change
+					},
+				}
 			}, (reader, changeSummary) => {
 				// When handling the change, make sure to read the signal!
 				signal.read(reader);
@@ -1397,6 +1400,55 @@ suite('observables', () => {
 
 			d.dispose();
 		});
+	});
+
+	test('recomputeInitiallyAndOnChange should work when a dependency sets an observable', () => {
+		const store = new DisposableStore();
+		const log = new Log();
+
+		const myObservable = new LoggingObservableValue('myObservable', 0, log);
+
+		let shouldUpdate = true;
+
+		const myDerived = derived(reader => {
+			/** @description myDerived */
+
+			log.log('myDerived.computed start');
+
+			const val = myObservable.read(reader);
+
+			if (shouldUpdate) {
+				shouldUpdate = false;
+				myObservable.set(1, undefined);
+			}
+
+			log.log('myDerived.computed end');
+
+			return val;
+		});
+
+		assert.deepStrictEqual(log.getAndClearEntries(), ([]));
+
+		myDerived.recomputeInitiallyAndOnChange(store, val => {
+			log.log(`recomputeInitiallyAndOnChange, myDerived: ${val}`);
+		});
+
+		assert.deepStrictEqual(log.getAndClearEntries(), [
+			"myDerived.computed start",
+			"myObservable.firstObserverAdded",
+			"myObservable.get",
+			"myObservable.set (value 1)",
+			"myDerived.computed end",
+			"myDerived.computed start",
+			"myObservable.get",
+			"myDerived.computed end",
+			"recomputeInitiallyAndOnChange, myDerived: 1",
+		]);
+
+		myDerived.get();
+		assert.deepStrictEqual(log.getAndClearEntries(), ([]));
+
+		store.dispose();
 	});
 
 	suite('prevent invalid usage', () => {

@@ -14,7 +14,7 @@ import { InlineCompletionsHintsWidget } from '../hintsWidget/inlineCompletionsHi
 import { InlineCompletionsModel } from '../model/inlineCompletionsModel.js';
 import { convertItemsToStableObservables } from '../utils.js';
 import { GhostTextView } from './ghostText/ghostTextView.js';
-import { InlineEditsViewAndDiffProducer } from './inlineEdits/viewAndDiffProducer.js';
+import { InlineEditsViewAndDiffProducer } from './inlineEdits/inlineEditsViewProducer.js';
 
 export class InlineCompletionsView extends Disposable {
 	private readonly _ghostTexts = derived(this, (reader) => {
@@ -39,12 +39,13 @@ export class InlineCompletionsView extends Disposable {
 		},
 		this._editorObs.getOption(EditorOption.inlineSuggest).map(v => ({ syntaxHighlightingEnabled: v.syntaxHighlightingEnabled })),
 		false,
+		false
 	)
 	).recomputeInitiallyAndOnChange(store)
 	).recomputeInitiallyAndOnChange(this._store);
 
 	private readonly _inlineEdit = derived(this, reader => this._model.read(reader)?.inlineEditState.read(reader)?.inlineEdit);
-	private readonly _everHadInlineEdit = derivedObservableWithCache<boolean>(this, (reader, last) => last || !!this._inlineEdit.read(reader));
+	private readonly _everHadInlineEdit = derivedObservableWithCache<boolean>(this, (reader, last) => last || !!this._inlineEdit.read(reader) || !!this._model.read(reader)?.inlineCompletionState.read(reader)?.inlineCompletion?.sourceInlineCompletion.showInlineEditMenu);
 	protected readonly _inlineEditWidget = derivedDisposable(reader => {
 		if (!this._everHadInlineEdit.read(reader)) {
 			return undefined;

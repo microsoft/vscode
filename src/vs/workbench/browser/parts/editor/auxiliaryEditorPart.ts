@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onDidChangeFullscreen } from '../../../../base/browser/browser.js';
-import { hide, show } from '../../../../base/browser/dom.js';
+import { $, hide, show } from '../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isNative } from '../../../../base/common/platform.js';
@@ -105,9 +105,7 @@ export class AuxiliaryEditorPart {
 		const auxiliaryWindow = disposables.add(await this.auxiliaryWindowService.open(options));
 
 		// Editor Part
-		const editorPartContainer = document.createElement('div');
-		editorPartContainer.classList.add('part', 'editor');
-		editorPartContainer.setAttribute('role', 'main');
+		const editorPartContainer = $('.part.editor', { role: 'main' });
 		editorPartContainer.style.position = 'relative';
 		auxiliaryWindow.container.appendChild(editorPartContainer);
 
@@ -315,7 +313,7 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 		const result = this.mergeAllGroups(targetGroup, {
 			// Try to reduce the impact of closing the auxiliary window
 			// as much as possible by not changing existing editors
-			// in the main window. 
+			// in the main window.
 			preserveExistingIndex: true
 		});
 		targetGroup.focus();

@@ -321,11 +321,34 @@ export class ObserverNodeWithElement<T extends Element = Element> extends Observ
 	get isHovered(): IObservable<boolean> {
 		if (!this._isHovered) {
 			const hovered = observableValue<boolean>('hovered', false);
-			this._element.onmouseenter = () => hovered.set(true, undefined);
-			this._element.onmouseleave = () => hovered.set(false, undefined);
+			this._element.addEventListener('mouseenter', (_e) => hovered.set(true, undefined));
+			this._element.addEventListener('mouseleave', (_e) => hovered.set(false, undefined));
 			this._isHovered = hovered;
 		}
 		return this._isHovered;
+	}
+
+	private _didMouseMoveDuringHover: IObservable<boolean> | undefined = undefined;
+
+	get didMouseMoveDuringHover(): IObservable<boolean> {
+		if (!this._didMouseMoveDuringHover) {
+			let _hovering = false;
+			const hovered = observableValue<boolean>('didMouseMoveDuringHover', false);
+			this._element.addEventListener('mouseenter', (_e) => {
+				_hovering = true;
+			});
+			this._element.addEventListener('mousemove', (_e) => {
+				if (_hovering) {
+					hovered.set(true, undefined);
+				}
+			});
+			this._element.addEventListener('mouseleave', (_e) => {
+				_hovering = false;
+				hovered.set(false, undefined);
+			});
+			this._didMouseMoveDuringHover = hovered;
+		}
+		return this._didMouseMoveDuringHover;
 	}
 }
 

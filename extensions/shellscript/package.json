@@ -95,7 +95,7 @@
     "configurationDefaults": {
       "[shellscript]": {
         "files.eol": "\n",
-        "editor.defaultColorDecorators": false
+        "editor.defaultColorDecorators": "never"
       }
     }
   },

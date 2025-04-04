@@ -18,6 +18,7 @@ import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolba
 import { DiffEditorWidget } from '../../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { localize } from '../../../../../nls.js';
+import { IObservable } from '../../../../../base/common/observable.js';
 
 export enum DiffSide {
 	Original = 0,
@@ -32,6 +33,7 @@ export interface INotebookTextDiffEditor {
 	notebookOptions: NotebookOptions;
 	readonly textModel?: NotebookTextModel;
 	inlineNotebookEditor: INotebookEditor | undefined;
+	readonly currentChangedIndex: IObservable<number>;
 	onMouseUp: Event<{ readonly event: MouseEvent; readonly target: IDiffElementViewModelBase }>;
 	onDidScroll: Event<void>;
 	onDidDynamicOutputRendered: Event<{ cell: IGenericCellViewModel; output: ICellOutputViewModel }>;
@@ -54,6 +56,8 @@ export interface INotebookTextDiffEditor {
 	focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): Promise<void>;
 	updateOutputHeight(cellInfo: ICommonCellInfo, output: ICellOutputViewModel, height: number, isInit: boolean): void;
 	deltaCellOutputContainerClassNames(diffSide: DiffSide, cellId: string, added: string[], removed: string[]): void;
+	firstChange(): void;
+	lastChange(): void;
 	previousChange(): void;
 	nextChange(): void;
 	toggleInlineView(): void;

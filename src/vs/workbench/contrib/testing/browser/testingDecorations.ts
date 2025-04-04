@@ -1026,7 +1026,7 @@ abstract class RunTestDecoration {
 	 * Gets context menu actions relevant for a singel test.
 	 */
 	protected getTestContextMenuActions(test: InternalTestItem, resultItem?: TestResultItem): IReference<IAction[]> {
-		const testActions: IAction[] = [];
+		const testActions: Action[] = [];
 		const capabilities = this.testProfileService.capabilitiesForTest(test.item);
 
 		[
@@ -1067,7 +1067,7 @@ abstract class RunTestDecoration {
 			() => this.commandService.executeCommand('_revealTestInExplorer', test.item.extId)));
 
 		const contributed = this.getContributedTestActions(test, capabilities);
-		return { object: Separator.join(testActions, contributed), dispose() { } };
+		return { object: Separator.join(testActions, contributed), dispose() { testActions.forEach(a => a.dispose()); } };
 	}
 
 	private getContributedTestActions(test: InternalTestItem, capabilities: number): IAction[] {
@@ -1110,8 +1110,8 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 	}
 
 	public override getContextMenuActions() {
-		const allActions: IAction[] = [];
-
+		const disposable = new DisposableStore();
+		const allActions: Action[] = [];
 		[
 			{ bitset: TestRunProfileBitset.Run, label: localize('run all test', 'Run All Tests') },
 			{ bitset: TestRunProfileBitset.Coverage, label: localize('run all test with coverage', 'Run All Tests with Coverage') },
@@ -1122,6 +1122,8 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 				allActions.push(new Action(`testing.gutter.run${i}`, label, undefined, undefined, () => this.runWith(bitset)));
 			}
 		});
+
+		disposable.add(toDisposable(() => allActions.forEach(a => a.dispose())));
 
 		const testItems = this.tests.map((testItem): IMultiRunTest => ({
 			currentLabel: testItem.test.item.label,
@@ -1157,7 +1159,6 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 			return (ai.sortText || ai.label).localeCompare(bi.sortText || bi.label);
 		});
 
-		const disposable = new DisposableStore();
 		let testSubmenus: IAction[] = testItems.map(({ currentLabel, testItem }) => {
 			const actions = this.getTestContextMenuActions(testItem.test, testItem.resultItem);
 			disposable.add(actions);

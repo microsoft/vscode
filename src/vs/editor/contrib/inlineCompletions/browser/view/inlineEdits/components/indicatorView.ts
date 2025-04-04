@@ -39,6 +39,8 @@ export class InlineEditsIndicator extends Disposable {
 		])
 	]);
 
+	public isHoverVisible = constObservable(false);
+
 	constructor(
 		private readonly _editorObs: ObservableCodeEditor,
 		private readonly _state: IObservable<IInlineEditsIndicatorState | undefined>,

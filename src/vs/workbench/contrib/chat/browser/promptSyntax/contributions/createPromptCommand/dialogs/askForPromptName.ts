@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../../../../nls.js';
-import { PROMPT_FILE_EXTENSION } from '../../../../../common/promptSyntax/constants.js';
+import { PROMPT_FILE_EXTENSION } from '../../../../../../../../platform/prompts/common/constants.js';
 import { IQuickInputService } from '../../../../../../../../platform/quickinput/common/quickInput.js';
 
 /**
  * Asks the user for a prompt name.
  */
 export const askForPromptName = async (
-	_type: 'local' | 'global',
+	_type: 'local' | 'user',
 	quickInputService: IQuickInputService,
 ): Promise<string | undefined> => {
 	const result = await quickInputService.input(

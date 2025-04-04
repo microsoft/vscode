@@ -35,6 +35,7 @@ import {
 } from './errors.js';
 import { convertSubcommand, initializeDefault } from '../fig-autocomplete-shared';
 import { exec, type ExecException } from 'child_process';
+import type { IFigExecuteExternals } from '../execute';
 
 type ArgArrayState = {
 	args: Array<Internal.Arg> | null;
@@ -605,8 +606,15 @@ const historyExecuteShellCommand: Fig.ExecuteCommandFunction = async () => {
 	);
 };
 
-const getExecuteShellCommandFunction = (isParsingHistory = false) =>
-	isParsingHistory ? historyExecuteShellCommand : () => { throw new Error('Not implemented'); };
+function getExecuteShellCommandFunction(
+	isParsingHistory = false,
+	executeExternals: IFigExecuteExternals,
+) {
+	if (isParsingHistory) {
+		return historyExecuteShellCommand;
+	}
+	return executeExternals.executeCommand;
+}
 
 // const getGenerateSpecCacheKey = (
 // 	completionObj: Internal.Subcommand,
@@ -790,13 +798,14 @@ const parseArgumentsCached = async (
 	command: Command,
 	context: Fig.ShellContext,
 	spec: Fig.Spec,
+	executeExternals: IFigExecuteExternals,
 	// authClient: AuthClient,
 	isParsingHistory?: boolean,
 	startIndex = 0,
 	// localconsole: console.console = console,
 ): Promise<ArgumentParserState> => {
 	// Route to cp.exec instead, we don't need to deal with ipc
-	const exec = getExecuteShellCommandFunction(isParsingHistory);
+	const exec = getExecuteShellCommandFunction(isParsingHistory, executeExternals);
 
 	let currentCommand = command;
 	let tokens = currentCommand.tokens.slice(startIndex);
@@ -1124,6 +1133,7 @@ export const parseArguments = async (
 	command: Command | null,
 	context: Fig.ShellContext,
 	spec: Fig.Spec,
+	executeExternals: IFigExecuteExternals,
 	// authClient: AuthClient,
 	isParsingHistory = false,
 	// localconsole: console.console = console,
@@ -1157,6 +1167,7 @@ export const parseArguments = async (
 		context,
 		// authClient,
 		spec,
+		executeExternals,
 		isParsingHistory,
 		0,
 	);

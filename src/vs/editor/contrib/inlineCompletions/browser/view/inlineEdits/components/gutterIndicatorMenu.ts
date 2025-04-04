@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ChildNode, LiveElement, n } from '../../../../../../../base/browser/dom.js';
+import { ActionBar, IActionBarOptions } from '../../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { renderIcon } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { KeybindingLabel, unthemedKeybindingLabelOptions } from '../../../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
+import { IAction } from '../../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { ResolvedKeybinding } from '../../../../../../../base/common/keybindings.js';
 import { IObservable, autorun, constObservable, derived, derivedWithStore, observableFromEvent, observableValue } from '../../../../../../../base/common/observable.js';
@@ -14,22 +16,28 @@ import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../../nls.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
+import { nativeHoverDelegate } from '../../../../../../../platform/hover/browser/hover.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
 import { asCssVariable, descriptionForeground, editorActionListForeground, editorHoverBorder } from '../../../../../../../platform/theme/common/colorRegistry.js';
-import { Command } from '../../../../../../common/languages.js';
-import { hideInlineCompletionId, inlineSuggestCommitId, jumpToNextInlineEditId } from '../../../controller/commandIds.js';
-import { FirstFnArg, InlineEditTabAction } from '../utils/utils.js';
+import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
+import { EditorOption } from '../../../../../../common/config/editorOptions.js';
+import { hideInlineCompletionId, inlineSuggestCommitId, jumpToNextInlineEditId, toggleShowCollapsedId } from '../../../controller/commandIds.js';
+import { IInlineEditModel, InlineEditTabAction } from '../inlineEditsViewInterface.js';
+import { FirstFnArg, } from '../utils/utils.js';
 
 export class GutterIndicatorMenuContent {
+
+	private readonly _inlineEditsShowCollapsed: IObservable<boolean>;
+
 	constructor(
-		private readonly _menuTitle: IObservable<string>,
-		private readonly _tabAction: IObservable<InlineEditTabAction>,
+		private readonly _model: IInlineEditModel,
 		private readonly _close: (focusEditor: boolean) => void,
-		private readonly _extensionCommands: IObservable<readonly Command[] | undefined>,
+		private readonly _editorObs: ObservableCodeEditor,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ICommandService private readonly _commandService: ICommandService,
 	) {
+		this._inlineEditsShowCollapsed = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.showCollapsed);
 	}
 
 	public toDisposableLiveElement(): LiveElement {
@@ -53,21 +61,72 @@ export class GutterIndicatorMenuContent {
 			};
 		};
 
-		// TODO make this menu contributable!
-		return hoverContent([
-			header(this._menuTitle),
+		const title = header(this._model.displayName);
+
+		const gotoAndAccept = option(createOptionArgs({
+			id: 'gotoAndAccept',
+			title: `${localize('goto', "Go To")} / ${localize('accept', "Accept")}`,
+			icon: this._model.tabAction.map(action => action === InlineEditTabAction.Accept ? Codicon.check : Codicon.arrowRight),
+			commandId: this._model.tabAction.map(action => action === InlineEditTabAction.Accept ? inlineSuggestCommitId : jumpToNextInlineEditId)
+		}));
+
+		const reject = option(createOptionArgs({
+			id: 'reject',
+			title: localize('reject', "Reject"),
+			icon: Codicon.close,
+			commandId: hideInlineCompletionId
+		}));
+
+		const extensionCommands = this._model.extensionCommands.map((c, idx) => option(createOptionArgs({ id: c.id + '_' + idx, title: c.title, icon: Codicon.symbolEvent, commandId: c.id, commandArgs: c.arguments })));
+
+		const toggleCollapsedMode = this._inlineEditsShowCollapsed.map(showCollapsed => showCollapsed ?
 			option(createOptionArgs({
-				id: 'gotoAndAccept', title: `${localize('goto', "Go To")} / ${localize('accept', "Accept")}`,
-				icon: this._tabAction.map(action => action === InlineEditTabAction.Accept ? Codicon.check : Codicon.arrowRight),
-				commandId: this._tabAction.map(action => action === 'accept' ? inlineSuggestCommitId : jumpToNextInlineEditId)
+				id: 'showExpanded',
+				title: localize('showExpanded', "Show Expanded"),
+				icon: Codicon.expandAll,
+				commandId: toggleShowCollapsedId
+			}))
+			: option(createOptionArgs({
+				id: 'showCollapsed',
+				title: localize('showCollapsed', "Show Collapsed"),
+				icon: Codicon.collapseAll,
+				commandId: toggleShowCollapsedId
+			}))
+		);
+
+		const settings = option(createOptionArgs({
+			id: 'settings',
+			title: localize('settings', "Settings"),
+			icon: Codicon.gear,
+			commandId: 'workbench.action.openSettings',
+			commandArgs: ['@tag:nextEditSuggestions']
+		}));
+
+		const actions = this._model.action ? [this._model.action] : [];
+		const actionBarFooter = actions.length > 0 ? actionBar(
+			actions.map(action => ({
+				id: action.id,
+				label: action.title,
+				enabled: true,
+				run: () => this._commandService.executeCommand(action.id, ...(action.arguments ?? [])),
+				class: undefined,
+				tooltip: action.tooltip ?? action.title
 			})),
-			option(createOptionArgs({ id: 'reject', title: localize('reject', "Reject"), icon: Codicon.close, commandId: hideInlineCompletionId })),
-			separator(),
-			this._extensionCommands?.map(c => c && c.length > 0 ? [
-				...c.map(c => option(createOptionArgs({ id: c.id, title: c.title, icon: Codicon.symbolEvent, commandId: c.id, commandArgs: c.arguments }))),
-				separator()
-			] : []),
-			option(createOptionArgs({ id: 'settings', title: localize('settings', "Settings"), icon: Codicon.gear, commandId: 'workbench.action.openSettings', commandArgs: ['@tag:nextEditSuggestions'] })),
+			{ hoverDelegate: nativeHoverDelegate /* unable to show hover inside another hover */ }
+		) : undefined;
+
+		return hoverContent([
+			title,
+			gotoAndAccept,
+			reject,
+			toggleCollapsedMode,
+			settings,
+
+			extensionCommands.length ? separator() : undefined,
+			...extensionCommands,
+
+			actionBarFooter ? separator() : undefined,
+			actionBarFooter
 		]);
 	}
 
@@ -121,6 +180,9 @@ function option(props: {
 			}
 		},
 		tabIndex: 0,
+		style: {
+			borderRadius: 3, // same as hover widget border radius
+		}
 	}, [
 		n.elem('span', {
 			style: {
@@ -141,12 +203,30 @@ function option(props: {
 	]));
 }
 
+// TODO: make this observable
+function actionBar(actions: IAction[], options: IActionBarOptions) {
+	return derivedWithStore((_reader, store) => n.div({
+		class: ['action-widget-action-bar'],
+		style: {
+			padding: '0 10px',
+		}
+	}, [
+		n.div({
+			ref: elem => {
+				const actionBar = store.add(new ActionBar(elem, options));
+				actionBar.push(actions, { icon: false, label: true });
+			}
+		})
+	]));
+}
+
 function separator() {
 	return n.div({
+		id: 'inline-edit-gutter-indicator-menu-separator',
 		class: 'menu-separator',
 		style: {
 			color: asCssVariable(editorActionListForeground),
-			padding: '2px 0',
+			padding: '4px 0',
 		}
 	}, n.div({
 		style: {

@@ -41,7 +41,7 @@ enum CompositionClassName {
 export class NativeEditContext extends AbstractEditContext {
 
 	// Text area used to handle paste events
-	public readonly textArea: FastDomNode<HTMLTextAreaElement>;
+	private readonly _textArea: FastDomNode<HTMLTextAreaElement>;
 	public readonly domNode: FastDomNode<HTMLDivElement>;
 	private readonly _editContext: EditContext;
 	private readonly _screenReaderSupport: ScreenReaderSupport;
@@ -74,14 +74,18 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this.domNode = new FastDomNode(document.createElement('div'));
 		this.domNode.setClassName(`native-edit-context`);
-		this.textArea = new FastDomNode(document.createElement('textarea'));
-		this.textArea.setClassName('native-edit-context-textarea');
-		this.textArea.setAttribute('tabindex', '-1');
+		this._textArea = new FastDomNode(document.createElement('textarea'));
+		this._textArea.setClassName('native-edit-context-textarea');
+		this._textArea.setAttribute('tabindex', '-1');
+		this.domNode.setAttribute('autocorrect', 'off');
+		this.domNode.setAttribute('autocapitalize', 'off');
+		this.domNode.setAttribute('autocomplete', 'off');
+		this.domNode.setAttribute('spellcheck', 'false');
 
 		this._updateDomAttributes();
 
 		overflowGuardContainer.appendChild(this.domNode);
-		overflowGuardContainer.appendChild(this.textArea);
+		overflowGuardContainer.appendChild(this._textArea);
 		this._parent = overflowGuardContainer.domNode;
 
 		this._selectionChangeListener = this._register(new MutableDisposable());
@@ -147,7 +151,7 @@ export class NativeEditContext extends AbstractEditContext {
 			// Emits ViewCompositionEndEvent which can be depended on by ViewEventHandlers
 			this._context.viewModel.onCompositionEnd();
 		}));
-		this._register(addDisposableListener(this.textArea.domNode, 'paste', (e) => {
+		this._register(addDisposableListener(this._textArea.domNode, 'paste', (e) => {
 			// Pretend here we touched the text area, as the `paste` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._screenReaderSupport.setIgnoreSelectionChangeTime('onPaste');
@@ -181,7 +185,7 @@ export class NativeEditContext extends AbstractEditContext {
 		// Force blue the dom node so can write in pane with no native edit context after disposal
 		this.domNode.domNode.blur();
 		this.domNode.domNode.remove();
-		this.textArea.domNode.remove();
+		this._textArea.domNode.remove();
 		super.dispose();
 	}
 
@@ -208,6 +212,7 @@ export class NativeEditContext extends AbstractEditContext {
 	public override onCursorStateChanged(e: ViewCursorStateChangedEvent): boolean {
 		this._primarySelection = e.modelSelections[0] ?? new Selection(1, 1, 1, 1);
 		this._screenReaderSupport.onCursorStateChanged(e);
+		this._updateEditContext();
 		return true;
 	}
 
@@ -248,7 +253,27 @@ export class NativeEditContext extends AbstractEditContext {
 		return true;
 	}
 
-	public onWillPaste(): void {
+	public executePaste(): boolean {
+		this._onWillPaste();
+		try {
+			// pause focus tracking because we don't want to react to focus/blur
+			// events while pasting since we move the focus to the textarea
+			this._focusTracker.pause();
+
+			// Since we can not call execCommand('paste') on a dom node with edit context set
+			// we added a hidden text area that receives the paste execution
+			this._textArea.focus();
+			const result = this._textArea.domNode.ownerDocument.execCommand('paste');
+			this._textArea.domNode.textContent = '';
+			this.domNode.focus();
+
+			return result;
+		} finally {
+			this._focusTracker.resume(); // resume focus tracking
+		}
+	}
+
+	private _onWillPaste(): void {
 		this._screenReaderSupport.setIgnoreSelectionChangeTime('onWillPaste');
 	}
 
@@ -257,7 +282,7 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	public isFocused(): boolean {
-		return this._focusTracker.isFocused || (getActiveWindow().document.activeElement === this.textArea.domNode);
+		return this._focusTracker.isFocused;
 	}
 
 	public focus(): void {
@@ -294,7 +319,7 @@ export class NativeEditContext extends AbstractEditContext {
 		if (!editContextState) {
 			return;
 		}
-		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, editContextState.text);
+		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, editContextState.text ?? ' ');
 		this._editContext.updateSelection(editContextState.selectionStartOffset, editContextState.selectionEndOffset);
 		this._editContextPrimarySelection = editContextState.editContextPrimarySelection;
 	}

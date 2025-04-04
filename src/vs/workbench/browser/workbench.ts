@@ -136,7 +136,7 @@ export class Workbench extends Layout {
 
 				// Default Hover Delegate must be registered before creating any workbench/layout components
 				// as these possibly will use the default hover delegate
-				setHoverDelegateFactory((placement, enableInstantHover) => instantiationService.createInstance(WorkbenchHoverDelegate, placement, enableInstantHover, {}));
+				setHoverDelegateFactory((placement, enableInstantHover) => instantiationService.createInstance(WorkbenchHoverDelegate, placement, { instantHover: enableInstantHover }, {}));
 				setBaseLayerHoverDelegate(hoverService);
 
 				// Layout
@@ -319,11 +319,6 @@ export class Workbench extends Layout {
 		]);
 
 		this.mainContainer.classList.add(...workbenchClasses);
-		mainWindow.document.body.classList.add(platformClass); // used by our fonts
-
-		if (isWeb) {
-			mainWindow.document.body.classList.add('web');
-		}
 
 		// Apply font aliasing
 		this.updateFontAliasing(undefined, configurationService);

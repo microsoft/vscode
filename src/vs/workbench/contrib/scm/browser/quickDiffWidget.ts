@@ -351,13 +351,14 @@ class QuickDiffWidget extends PeekViewWidget {
 
 	protected override _getActionBarOptions(): IActionBarOptions {
 		const actionRunner = new QuickDiffWidgetActionRunner();
+		this._disposables.add(actionRunner);
 
 		// close widget on successful action
-		actionRunner.onDidRun(e => {
+		this._disposables.add(actionRunner.onDidRun(e => {
 			if (!(e.action instanceof QuickDiffWidgetEditorAction) && !e.error) {
 				this.dispose();
 			}
-		});
+		}));
 
 		return {
 			...super._getActionBarOptions(),

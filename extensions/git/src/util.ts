@@ -12,6 +12,8 @@ import byline from 'byline';
 export const isMacintosh = process.platform === 'darwin';
 export const isWindows = process.platform === 'win32';
 export const isRemote = env.remoteName !== undefined;
+export const isLinux = process.platform === 'linux';
+export const isLinuxSnap = isLinux && !!process.env['SNAP'] && !!process.env['SNAP_REVISION'];
 
 export function log(...args: any[]): void {
 	console.log.apply(console, ['git:', ...args]);
@@ -326,6 +328,10 @@ export function pathEquals(a: string, b: string): boolean {
  * casing which is why we attempt to use substring() before relative().
  */
 export function relativePath(from: string, to: string): string {
+	return relativePathWithNoFallback(from, to) ?? relative(from, to);
+}
+
+export function relativePathWithNoFallback(from: string, to: string): string | undefined {
 	// There are cases in which the `from` path may contain a trailing separator at
 	// the end (ex: "C:\", "\\server\folder\" (Windows) or "/" (Linux/macOS)) which
 	// is by design as documented in https://github.com/nodejs/node/issues/1765. If
@@ -338,8 +344,7 @@ export function relativePath(from: string, to: string): string {
 		return to.substring(from.length);
 	}
 
-	// Fallback to `path.relative`
-	return relative(from, to);
+	return undefined;
 }
 
 export function* splitInChunks(array: string[], maxChunkLength: number): IterableIterator<string[]> {

@@ -218,7 +218,7 @@ class DiffToolBar extends Disposable implements IGutterItemView {
 		const hoverDelegate = this._register(instantiationService.createInstance(
 			WorkbenchHoverDelegate,
 			'element',
-			true,
+			{ instantHover: true },
 			{ position: { hoverPosition: HoverPosition.RIGHT } }
 		));
 

@@ -19,12 +19,12 @@ import { IQuickInputService, IQuickWidget } from '../../../../platform/quickinpu
 import { editorBackground, inputBackground, quickInputBackground, quickInputForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IQuickChatOpenOptions, IQuickChatService, showChatView } from './chat.js';
 import { ChatWidget } from './chatWidget.js';
-import { ChatAgentLocation } from '../common/chatAgents.js';
-import { ChatModel } from '../common/chatModel.js';
+import { ChatModel, isCellTextEditOperation } from '../common/chatModel.js';
 import { IParsedChatRequest } from '../common/chatParserTypes.js';
 import { IChatProgress, IChatService } from '../common/chatService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../common/theme.js';
+import { ChatAgentLocation } from '../common/constants.js';
 
 export class QuickChatService extends Disposable implements IQuickChatService {
 	readonly _serviceBrand: undefined;
@@ -300,11 +300,19 @@ class QuickChat extends Disposable {
 						}
 					} else if (item.kind === 'notebookEditGroup') {
 						for (const group of item.edits) {
-							message.push({
-								kind: 'notebookEdit',
-								edits: group,
-								uri: item.uri
-							});
+							if (isCellTextEditOperation(group)) {
+								message.push({
+									kind: 'textEdit',
+									edits: [group.edit],
+									uri: group.uri
+								});
+							} else {
+								message.push({
+									kind: 'notebookEdit',
+									edits: [group],
+									uri: item.uri
+								});
+							}
 						}
 					} else {
 						message.push(item);

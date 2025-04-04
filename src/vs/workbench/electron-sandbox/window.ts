@@ -6,9 +6,8 @@
 import './media/window.css';
 import { localize } from '../../nls.js';
 import { URI } from '../../base/common/uri.js';
-import { onUnexpectedError } from '../../base/common/errors.js';
 import { equals } from '../../base/common/objects.js';
-import { EventType, EventHelper, addDisposableListener, ModifierKeyEmitter, getActiveElement, hasWindow, getWindowById, getWindows } from '../../base/browser/dom.js';
+import { EventType, EventHelper, addDisposableListener, ModifierKeyEmitter, getActiveElement, hasWindow, getWindowById, getWindows, $ } from '../../base/browser/dom.js';
 import { Action, Separator, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../base/common/actions.js';
 import { IFileService } from '../../platform/files/common/files.js';
 import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput, IUntypedEditorInput, IEditorPane, isResourceEditorInput, IResourceMergeEditorInput } from '../common/editor.js';
@@ -33,7 +32,7 @@ import { IWorkspaceFolderCreationData } from '../../platform/workspaces/common/w
 import { IIntegrityService } from '../services/integrity/common/integrity.js';
 import { isWindows, isMacintosh } from '../../base/common/platform.js';
 import { IProductService } from '../../platform/product/common/productService.js';
-import { INotificationService, NeverShowAgainScope, NotificationPriority, Severity } from '../../platform/notification/common/notification.js';
+import { INotificationService, NotificationPriority, Severity } from '../../platform/notification/common/notification.js';
 import { IKeybindingService } from '../../platform/keybinding/common/keybinding.js';
 import { INativeWorkbenchEnvironmentService } from '../services/environment/electron-sandbox/environmentService.js';
 import { IAccessibilityService, AccessibilitySupport } from '../../platform/accessibility/common/accessibility.js';
@@ -69,7 +68,7 @@ import { Codicon } from '../../base/common/codicons.js';
 import { IUriIdentityService } from '../../platform/uriIdentity/common/uriIdentity.js';
 import { IPreferencesService } from '../services/preferences/common/preferences.js';
 import { IUtilityProcessWorkerWorkbenchService } from '../services/utilityProcess/electron-sandbox/utilityProcessWorkerWorkbenchService.js';
-import { registerWindowDriver } from '../services/driver/electron-sandbox/driver.js';
+import { registerWindowDriver } from '../services/driver/browser/driver.js';
 import { mainWindow } from '../../base/browser/window.js';
 import { BaseWindow } from '../browser/window.js';
 import { IHostService } from '../services/host/browser/host.js';
@@ -131,6 +130,8 @@ export class NativeWindow extends BaseWindow {
 	) {
 		super(mainWindow, undefined, hostService, nativeEnvironmentService);
 
+		this.configuredWindowZoomLevel = this.resolveConfiguredWindowZoomLevel();
+
 		this.registerListeners();
 		this.create();
 	}
@@ -182,13 +183,6 @@ export class NativeWindow extends BaseWindow {
 			const activeElement = getActiveElement();
 			if (activeElement) {
 				this.keybindingService.dispatchByUserSettingsLabel(request.userSettingsLabel, activeElement);
-			}
-		});
-
-		// Error reporting from main
-		ipcRenderer.on('vscode:reportError', (event: unknown, error: string) => {
-			if (error) {
-				onUnexpectedError(JSON.parse(error));
 			}
 		});
 
@@ -686,7 +680,7 @@ export class NativeWindow extends BaseWindow {
 
 		// Smoke Test Driver
 		if (this.environmentService.enableSmokeTestDriver) {
-			this.setupDriver();
+			registerWindowDriver(this.instantiationService);
 		}
 	}
 
@@ -734,32 +728,6 @@ export class NativeWindow extends BaseWindow {
 			}
 		}
 
-		// macOS 10.15 warning
-		if (isMacintosh) {
-			const majorVersion = this.nativeEnvironmentService.os.release.split('.')[0];
-			const eolReleases = new Map<string, string>([
-				['19', 'macOS Catalina'],
-			]);
-
-			if (eolReleases.has(majorVersion)) {
-				const message = localize('macoseolmessage', "{0} on {1} will soon stop receiving updates. Consider upgrading your macOS version.", this.productService.nameLong, eolReleases.get(majorVersion));
-
-				this.notificationService.prompt(
-					Severity.Warning,
-					message,
-					[{
-						label: localize('learnMore', "Learn More"),
-						run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-faq-old-macOS'))
-					}],
-					{
-						neverShowAgain: { id: 'macoseol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION },
-						priority: NotificationPriority.URGENT,
-						sticky: true
-					}
-				);
-			}
-		}
-
 		// Slow shell environment progress indicator
 		const shellEnv = process.shellEnv();
 		this.progressService.withProgress({
@@ -768,25 +736,6 @@ export class NativeWindow extends BaseWindow {
 			delay: 1600,
 			buttons: [localize('learnMore', "Learn More")]
 		}, () => shellEnv, () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2149667'));
-	}
-
-	private setupDriver(): void {
-		const that = this;
-		let pendingQuit = false;
-
-		registerWindowDriver(this.instantiationService, {
-			async exitApplication(): Promise<void> {
-				if (pendingQuit) {
-					that.logService.info('[driver] not handling exitApplication() due to pending quit() call');
-					return;
-				}
-
-				that.logService.info('[driver] handling exitApplication()');
-
-				pendingQuit = true;
-				return that.nativeHostService.quit();
-			}
-		});
 	}
 
 	async resolveExternalUri(uri: URI, options?: OpenOptions): Promise<IResolvedExternalUri | undefined> {
@@ -1058,7 +1007,7 @@ export class NativeWindow extends BaseWindow {
 
 	private readonly mapWindowIdToZoomStatusEntry = new Map<number, ZoomStatusEntry>();
 
-	private configuredWindowZoomLevel = this.resolveConfiguredWindowZoomLevel();
+	private configuredWindowZoomLevel: number;
 
 	private resolveConfiguredWindowZoomLevel(): number {
 		const windowZoomLevel = this.configurationService.getValue('window.zoomLevel');
@@ -1173,11 +1122,9 @@ class ZoomStatusEntry extends Disposable {
 		const disposables = new DisposableStore();
 		this.disposable.value = disposables;
 
-		const container = document.createElement('div');
-		container.classList.add('zoom-status');
+		const container = $('.zoom-status');
 
-		const left = document.createElement('div');
-		left.classList.add('zoom-status-left');
+		const left = $('.zoom-status-left');
 		container.appendChild(left);
 
 		const zoomOutAction: Action = disposables.add(new Action('workbench.action.zoomOut', localize('zoomOut', "Zoom Out"), ThemeIcon.asClassName(Codicon.remove), true, () => this.commandService.executeCommand(zoomOutAction.id)));
@@ -1195,8 +1142,7 @@ class ZoomStatusEntry extends Disposable {
 		actionBarLeft.push(this.zoomLevelLabel, { icon: false, label: true });
 		actionBarLeft.push(zoomInAction, { icon: true, label: false, keybinding: this.keybindingService.lookupKeybinding(zoomInAction.id)?.getLabel() });
 
-		const right = document.createElement('div');
-		right.classList.add('zoom-status-right');
+		const right = $('.zoom-status-right');
 		container.appendChild(right);
 
 		const actionBarRight = disposables.add(new ActionBar(right, { hoverDelegate: nativeHoverDelegate }));

@@ -25,20 +25,6 @@ export class FolderExists extends BaseCreatePromptError {
 }
 
 /**
- * Error for when a prompt file already exists at the provided
- * prompt file path.
- */
-export class PromptExists extends BaseCreatePromptError {
-	constructor(path: string) {
-		super(localize(
-			'workbench.command.prompts.create.error.prompt-exists',
-			"Prompt file '{0}' already exists.",
-			path,
-		));
-	}
-}
-
-/**
  * Error for when an invalid prompt file name is provided.
  */
 export class InvalidPromptName extends BaseCreatePromptError {

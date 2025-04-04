@@ -45,14 +45,14 @@ import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService } from
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../platform/workspace/common/workspaceTrust.js';
 import { safeStringify } from '../../base/common/objects.js';
 import { IUtilityProcessWorkerWorkbenchService, UtilityProcessWorkerWorkbenchService } from '../services/utilityProcess/electron-sandbox/utilityProcessWorkerWorkbenchService.js';
-import { isBigSurOrNewer, isCI, isLinux, isMacintosh } from '../../base/common/platform.js';
+import { isBigSurOrNewer, isCI, isMacintosh } from '../../base/common/platform.js';
 import { Schemas } from '../../base/common/network.js';
 import { DiskFileSystemProvider } from '../services/files/electron-sandbox/diskFileSystemProvider.js';
 import { FileUserDataProvider } from '../../platform/userData/common/fileUserDataProvider.js';
 import { IUserDataProfilesService, reviveProfile } from '../../platform/userDataProfile/common/userDataProfile.js';
 import { UserDataProfilesService } from '../../platform/userDataProfile/common/userDataProfileIpc.js';
 import { PolicyChannelClient } from '../../platform/policy/common/policyIpc.js';
-import { IPolicyService, NullPolicyService } from '../../platform/policy/common/policy.js';
+import { IPolicyService } from '../../platform/policy/common/policy.js';
 import { UserDataProfileService } from '../services/userDataProfile/common/userDataProfileService.js';
 import { IUserDataProfileService } from '../services/userDataProfile/common/userDataProfile.js';
 import { BrowserSocketFactory } from '../../platform/remote/browser/browserSocketFactory.js';
@@ -61,8 +61,9 @@ import { ElectronRemoteResourceLoader } from '../../platform/remote/electron-san
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { applyZoom } from '../../platform/window/electron-sandbox/window.js';
 import { mainWindow } from '../../base/browser/window.js';
-import { Registry } from '../../platform/registry/common/platform.js';
-import { IConfigurationRegistry, Extensions } from '../../platform/configuration/common/configurationRegistry.js';
+import { DefaultAccountService, IDefaultAccountService } from '../services/accounts/common/defaultAccount.js';
+import { AccountPolicyService } from '../services/policies/common/accountPolicyService.js';
+import { MultiplexPolicyService } from '../services/policies/common/multiplexPolicyService.js';
 
 export class DesktopMain extends Disposable {
 
@@ -81,17 +82,6 @@ export class DesktopMain extends Disposable {
 
 		// Apply fullscreen early if configured
 		setFullscreen(!!this.configuration.fullscreen, mainWindow);
-
-		// Apply custom title override to defaults if any
-		if (isLinux && product.quality === 'stable' && this.configuration.overrideDefaultTitlebarStyle === 'custom') {
-			const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-			configurationRegistry.registerDefaultConfigurations([{
-				overrides: {
-					'window.titleBarStyle': 'custom',
-					'window.customTitleBarVisibility': 'auto'
-				}
-			}]);
-		}
 	}
 
 	private reviveUris() {
@@ -192,10 +182,6 @@ export class DesktopMain extends Disposable {
 		const mainProcessService = this._register(new ElectronIPCMainProcessService(this.configuration.windowId));
 		serviceCollection.set(IMainProcessService, mainProcessService);
 
-		// Policies
-		const policyService = this.configuration.policiesData ? new PolicyChannelClient(this.configuration.policiesData, mainProcessService.getChannel('policy')) : new NullPolicyService();
-		serviceCollection.set(IPolicyService, policyService);
-
 		// Product
 		const productService: IProductService = { _serviceBrand: undefined, ...product };
 		serviceCollection.set(IProductService, productService);
@@ -218,6 +204,21 @@ export class DesktopMain extends Disposable {
 		if (logService.getLevel() === LogLevel.Trace) {
 			logService.trace('workbench#open(): with configuration', safeStringify({ ...this.configuration, nls: undefined /* exclude large property */ }));
 		}
+
+		// Default Account
+		const defaultAccountService = this._register(new DefaultAccountService());
+		serviceCollection.set(IDefaultAccountService, defaultAccountService);
+
+		// Policies
+		let policyService: IPolicyService;
+		const accountPolicy = new AccountPolicyService(logService, defaultAccountService);
+		if (this.configuration.policiesData) {
+			const policyChannel = new PolicyChannelClient(this.configuration.policiesData, mainProcessService.getChannel('policy'));
+			policyService = new MultiplexPolicyService([policyChannel, accountPolicy], logService);
+		} else {
+			policyService = accountPolicy;
+		}
+		serviceCollection.set(IPolicyService, policyService);
 
 		// Shared Process
 		const sharedProcessService = new SharedProcessService(this.configuration.windowId, logService);

@@ -19,23 +19,38 @@ import { ServicesAccessor } from '../../../../../../platform/instantiation/commo
 import { IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
-import { IChatWidget, IChatWidgetService } from '../../../../chat/browser/chat.js';
+import { IChatWidget, IChatWidgetService, showChatView } from '../../../../chat/browser/chat.js';
 import { ChatInputPart } from '../../../../chat/browser/chatInputPart.js';
 import { ChatDynamicVariableModel } from '../../../../chat/browser/contrib/chatDynamicVariables.js';
 import { computeCompletionRanges } from '../../../../chat/browser/contrib/chatInputCompletions.js';
-import { ChatAgentLocation, IChatAgentService } from '../../../../chat/common/chatAgents.js';
-import { IChatRequestPasteVariableEntry } from '../../../../chat/common/chatModel.js';
+import { IChatAgentService } from '../../../../chat/common/chatAgents.js';
+import { ChatAgentLocation } from '../../../../chat/common/constants.js';
+import { ChatContextKeys } from '../../../../chat/common/chatContextKeys.js';
+import { IBaseChatRequestVariableEntry } from '../../../../chat/common/chatModel.js';
 import { chatVariableLeader } from '../../../../chat/common/chatParserTypes.js';
 import { NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT, NOTEBOOK_CELL_OUTPUT_MIMETYPE } from '../../../common/notebookContextKeys.js';
 import { INotebookKernelService } from '../../../common/notebookKernelService.js';
-import { getNotebookEditorFromEditorPane, ICellOutputViewModel, INotebookEditor } from '../../notebookBrowser.js';
+import { getNotebookEditorFromEditorPane, ICellOutputViewModel, INotebookEditor, ICellViewModel } from '../../notebookBrowser.js';
 import * as icons from '../../notebookIcons.js';
 import { getOutputViewModelFromId } from '../cellOutputActions.js';
 import { INotebookOutputActionContext, NOTEBOOK_ACTIONS_CATEGORY } from '../coreActions.js';
+import { CellUri } from '../../../common/notebookCommon.js';
 import './cellChatActions.js';
 import { CTX_NOTEBOOK_CHAT_HAS_AGENT } from './notebookChatContext.js';
+import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 
 const NotebookKernelVariableKey = 'kernelVariable';
+const NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT_CONST = ['text/plain', 'text/html',
+	'application/vnd.code.notebook.error',
+	'application/vnd.code.notebook.stdout',
+	'application/x.notebook.stdout',
+	'application/x.notebook.stream',
+	'application/vnd.code.notebook.stderr',
+	'application/x.notebook.stderr',
+	'image/png',
+	'image/jpeg',
+	'image/svg',
+];
 
 class NotebookChatContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.notebookChatContribution';
@@ -101,7 +116,7 @@ class NotebookChatContribution extends Disposable implements IWorkbenchContribut
 		}));
 
 		// output context
-		NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT.bindTo(contextKeyService).set(['image/png']);
+		NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT.bindTo(contextKeyService).set(NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT_CONST);
 	}
 
 	private async addKernelVariableCompletion(widget: IChatWidget, result: CompletionList, info: { insert: Range; replace: Range; varWord: IWordAtPosition | null }, token: CancellationToken) {
@@ -249,6 +264,7 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 			},
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			icon: icons.copyIcon,
+			precondition: ChatContextKeys.enabled
 		});
 	}
 
@@ -261,6 +277,7 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, outputContext: INotebookOutputActionContext | { outputViewModel: ICellOutputViewModel } | undefined): Promise<void> {
 		const notebookEditor = this.getNoteboookEditor(accessor.get(IEditorService), outputContext);
+		const viewService = accessor.get(IViewsService);
 
 		if (!notebookEditor) {
 			return;
@@ -295,42 +312,61 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 
 		const mimeType = outputViewModel.pickedMimeType?.mimeType;
 
-		if (mimeType === 'image/png') {
-			const chatWidgetService = accessor.get(IChatWidgetService);
-
-			const widget = chatWidgetService.lastFocusedWidget;
-			if (!widget) {
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		let widget = chatWidgetService.lastFocusedWidget;
+		if (!widget) {
+			const widgets = chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel);
+			if (widgets.length === 0) {
 				return;
 			}
+			widget = widgets[0];
+		}
+		if (mimeType && NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT_CONST.includes(mimeType)) {
 
-			const imageOutput = outputViewModel.model.outputs.find(output => output.mime === mimeType);
-			if (!imageOutput) {
+			// get the cell index
+			const cellFromViewModelHandle = outputViewModel.cellViewModel.handle;
+			const cell: ICellViewModel | undefined = notebookEditor.getCellByHandle(cellFromViewModelHandle);
+			if (!cell) {
 				return;
 			}
+			// uri of the cell
+			const cellUri = cell.uri;
 
-			const attachedVariables = widget.attachmentModel.attachments;
-			const displayName = localize('cellOutputDisplayname', 'Notebook Cell Output Image');
-			let tempDisplayName = displayName;
+			// get the output index
+			const outputId = outputViewModel?.model.outputId;
+			let outputIndex: number = 0;
+			if (outputId !== undefined) {
+				// find the output index
 
-			for (let appendValue = 2; attachedVariables.some(attachment => attachment.name === tempDisplayName); appendValue++) {
-				tempDisplayName = `${displayName} ${appendValue}`;
+				outputIndex = cell.outputsViewModels.findIndex(output => {
+					return output.model.outputId === outputId;
+				});
+
+
 			}
+			// get URI of notebook
+			let notebookUri = notebookEditor.textModel?.uri;
+			if (!notebookUri) {
+				// if the notebook is not found, try to parse the cell uri
+				const parsedCellUri = CellUri.parse(cellUri);
+				notebookUri = parsedCellUri?.notebook;
+				if (!notebookUri) {
+					return;
+				}
+			}
+			// construct the URI using the cell uri and output index
+			const outputCellUri = CellUri.generateCellOutputUriWithIndex(notebookUri, cellUri, outputIndex);
 
-			const imageData = imageOutput.data;
-			const variableEntry: IChatRequestPasteVariableEntry = {
-				kind: 'paste',
-				code: '',
-				language: '',
-				pastedLines: '',
-				fileName: 'notebook-cell-output-image-' + outputViewModel.model.outputId,
-				copiedFrom: undefined,
-				id: 'notebook-cell-output-image-' + outputViewModel.model.outputId,
-				name: tempDisplayName,
-				isImage: true,
-				value: imageData.buffer,
+
+
+			const l: IBaseChatRequestVariableEntry = {
+				value: outputCellUri,
+				id: outputCellUri.toString(),
+				name: outputCellUri.toString(),
+				isFile: true,
 			};
-
-			widget.attachmentModel.addContext(variableEntry);
+			widget.attachmentModel.addContext(l);
+			(await showChatView(viewService))?.focusInput();
 		}
 	}
 

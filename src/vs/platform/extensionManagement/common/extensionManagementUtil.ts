@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { compareIgnoreCase } from '../../../base/common/strings.js';
-import { IExtensionIdentifier, IExtensionsControlManifest, IGalleryExtension, ILocalExtension, getTargetPlatform } from './extensionManagement.js';
+import { IExtensionIdentifier, IGalleryExtension, ILocalExtension, getTargetPlatform } from './extensionManagement.js';
 import { ExtensionIdentifier, IExtension, TargetPlatform, UNDEFINED_PUBLISHER } from '../../extensions/common/extensions.js';
 import { IFileService } from '../../files/common/files.js';
 import { isLinux, platform } from '../../../base/common/platform.js';
@@ -198,8 +198,8 @@ export async function computeTargetPlatform(fileService: IFileService, logServic
 	return targetPlatform;
 }
 
-export function isMalicious(identifier: IExtensionIdentifier, controlManifest: IExtensionsControlManifest): boolean {
-	return controlManifest.malicious.some(publisherOrIdentifier => {
+export function isMalicious(identifier: IExtensionIdentifier, malicious: ReadonlyArray<IExtensionIdentifier | string>): boolean {
+	return malicious.some(publisherOrIdentifier => {
 		if (isString(publisherOrIdentifier)) {
 			return compareIgnoreCase(identifier.id.split('.')[0], publisherOrIdentifier) === 0;
 		}

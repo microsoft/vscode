@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction, Action, Separator } from '../../../base/common/actions.js';
+import { IAction, Separator, toAction } from '../../../base/common/actions.js';
 import { localize } from '../../../nls.js';
 import { IWorkbenchLayoutService } from '../../services/layout/browser/layoutService.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
@@ -18,30 +18,29 @@ import { Lazy } from '../../../base/common/lazy.js';
 export function createTextInputActions(clipboardService: IClipboardService): IAction[] {
 	return [
 
-		// Undo/Redo
-		new Action('undo', localize('undo', "Undo"), undefined, true, async () => getActiveDocument().execCommand('undo')),
-		new Action('redo', localize('redo', "Redo"), undefined, true, async () => getActiveDocument().execCommand('redo')),
+		toAction({ id: 'undo', label: localize('undo', "Undo"), run: () => getActiveDocument().execCommand('undo') }),
+		toAction({ id: 'redo', label: localize('redo', "Redo"), run: () => getActiveDocument().execCommand('redo') }),
 		new Separator(),
+		toAction({ id: 'editor.action.clipboardCutAction', label: localize('cut', "Cut"), run: () => getActiveDocument().execCommand('cut') }),
+		toAction({ id: 'editor.action.clipboardCopyAction', label: localize('copy', "Copy"), run: () => getActiveDocument().execCommand('copy') }),
+		toAction({
+			id: 'editor.action.clipboardPasteAction',
+			label: localize('paste', "Paste"),
+			run: async (element: unknown) => {
+				const clipboardText = await clipboardService.readText();
+				if (isHTMLTextAreaElement(element) || isHTMLInputElement(element)) {
+					const selectionStart = element.selectionStart || 0;
+					const selectionEnd = element.selectionEnd || 0;
 
-		// Cut / Copy / Paste
-		new Action('editor.action.clipboardCutAction', localize('cut', "Cut"), undefined, true, async () => getActiveDocument().execCommand('cut')),
-		new Action('editor.action.clipboardCopyAction', localize('copy', "Copy"), undefined, true, async () => getActiveDocument().execCommand('copy')),
-		new Action('editor.action.clipboardPasteAction', localize('paste', "Paste"), undefined, true, async element => {
-			const clipboardText = await clipboardService.readText();
-			if (isHTMLTextAreaElement(element) || isHTMLInputElement(element)) {
-				const selectionStart = element.selectionStart || 0;
-				const selectionEnd = element.selectionEnd || 0;
-
-				element.value = `${element.value.substring(0, selectionStart)}${clipboardText}${element.value.substring(selectionEnd, element.value.length)}`;
-				element.selectionStart = selectionStart + clipboardText.length;
-				element.selectionEnd = element.selectionStart;
-				element.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+					element.value = `${element.value.substring(0, selectionStart)}${clipboardText}${element.value.substring(selectionEnd, element.value.length)}`;
+					element.selectionStart = selectionStart + clipboardText.length;
+					element.selectionEnd = element.selectionStart;
+					element.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+				}
 			}
 		}),
 		new Separator(),
-
-		// Select All
-		new Action('editor.action.selectAll', localize('selectAll', "Select All"), undefined, true, async () => getActiveDocument().execCommand('selectAll'))
+		toAction({ id: 'editor.action.selectAll', label: localize('selectAll', "Select All"), run: () => getActiveDocument().execCommand('selectAll') })
 	];
 }
 

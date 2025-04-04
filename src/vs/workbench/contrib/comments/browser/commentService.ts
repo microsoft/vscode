@@ -22,6 +22,7 @@ import { CommentContextKeys } from '../common/commentContextKeys.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { CommentsModel, ICommentsModel } from './commentsModel.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
+import { Schemas } from '../../../../base/common/network.js';
 
 export const ICommentService = createDecorator<ICommentService>('commentService');
 
@@ -90,6 +91,7 @@ export interface ICommentService {
 	readonly onDidSetDataProvider: Event<void>;
 	readonly onDidDeleteDataProvider: Event<string | undefined>;
 	readonly onDidChangeCommentingEnabled: Event<boolean>;
+	readonly onResourceHasCommentingRanges: Event<void>;
 	readonly isCommentingEnabled: boolean;
 	readonly commentsModel: ICommentsModel;
 	readonly lastActiveCommentcontroller: ICommentController | undefined;
@@ -153,6 +155,9 @@ export class CommentService extends Disposable implements ICommentService {
 
 	private readonly _onDidChangeCommentingEnabled = this._register(new Emitter<boolean>());
 	readonly onDidChangeCommentingEnabled = this._onDidChangeCommentingEnabled.event;
+
+	private readonly _onResourceHasCommentingRanges = this._register(new Emitter<void>());
+	readonly onResourceHasCommentingRanges = this._onResourceHasCommentingRanges.event;
 
 	private readonly _onDidChangeActiveCommentingRange: Emitter<{
 		range: Range; commentingRangesInfo:
@@ -232,6 +237,10 @@ export class CommentService extends Disposable implements ICommentService {
 		}));
 
 		this._register(this.modelService.onModelAdded(model => {
+			// Excluded schemes
+			if ((model.uri.scheme === Schemas.vscodeSourceControl)) {
+				return;
+			}
 			// Allows comment providers to cause their commenting ranges to be prefetched by opening text documents in the background.
 			if (!this._commentingRangeResources.has(model.uri.toString())) {
 				this.getDocumentComments(model.uri);
@@ -240,10 +249,15 @@ export class CommentService extends Disposable implements ICommentService {
 	}
 
 	private _updateResourcesWithCommentingRanges(resource: URI, commentInfos: (ICommentInfo | null)[]) {
+		let addedResources = false;
 		for (const comments of commentInfos) {
 			if (comments && (comments.commentingRanges.ranges.length > 0 || comments.threads.length > 0)) {
 				this._commentingRangeResources.add(resource.toString());
+				addedResources = true;
 			}
+		}
+		if (addedResources) {
+			this._onResourceHasCommentingRanges.fire();
 		}
 	}
 

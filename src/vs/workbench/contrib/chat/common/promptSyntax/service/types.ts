@@ -17,9 +17,9 @@ export const IPromptsService = createDecorator<IPromptsService>('IPromptsService
 /**
 * Supported prompt types.
 *  - `local` means the prompt is a local file.
-*  - `global` means a "roamble" prompt file (similar to snippets).
+*  - `user` means a "roamble" prompt file (similar to snippets).
 */
-type TPromptsType = 'local' | 'global';
+type TPromptsType = 'local' | 'user';
 
 /**
  * Represents a prompt path with its type.

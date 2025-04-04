@@ -163,7 +163,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 						// Compute base if the branch has changed
 						const mergeBase = await this.resolveHEADMergeBase();
 
-						this._currentHistoryItemBaseRef = mergeBase &&
+						this._currentHistoryItemBaseRef = mergeBase && mergeBase.name && mergeBase.remote &&
 							(mergeBase.remote !== this.repository.HEAD.upstream?.remote ||
 								mergeBase.name !== this.repository.HEAD.upstream?.name) ? {
 							id: `refs/remotes/${mergeBase.remote}/${mergeBase.name}`,

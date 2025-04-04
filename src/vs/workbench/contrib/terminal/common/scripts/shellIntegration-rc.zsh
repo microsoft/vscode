@@ -2,7 +2,7 @@
 #   Copyright (c) Microsoft Corporation. All rights reserved.
 #   Licensed under the MIT License. See License.txt in the project root for license information.
 # ---------------------------------------------------------------------------------------------
-builtin autoload -Uz add-zsh-hook
+builtin autoload -Uz add-zsh-hook is-at-least
 
 # Prevent the script recursing when setting up
 if [ -n "$VSCODE_SHELL_INTEGRATION" ]; then
@@ -37,7 +37,7 @@ __vsc_env_keys=()
 __vsc_env_values=()
 
 # Associative array are only available in zsh 4.3 or later
-if (( $ZSH_VERSION >= 4.3 )); then
+if is-at-least 4.3; then
 	__vsc_use_aa=1
 	typeset -A vsc_aa_env
 fi
@@ -80,18 +80,19 @@ __vsc_escape_value() {
 	builtin emulate -L zsh
 
 	# Process text byte by byte, not by codepoint.
-	builtin local LC_ALL=C str="$1" i byte token out=''
+	builtin local LC_ALL=C str="$1" i byte token out='' val
 
 	for (( i = 0; i < ${#str}; ++i )); do
+	# Escape backslashes, semi-colons specially, then special ASCII chars below space (0x20).
 		byte="${str:$i:1}"
-
-		# Escape backslashes, semi-colons and newlines
-		if [ "$byte" = "\\" ]; then
+		val=$(printf "%d" "'$byte")
+		if (( val < 31 )); then
+			# For control characters, use hex encoding
+			token=$(printf "\\\\x%02x" "'$byte")
+		elif [ "$byte" = "\\" ]; then
 			token="\\\\"
 		elif [ "$byte" = ";" ]; then
 			token="\\x3b"
-		elif [ "$byte" = $'\n' ]; then
-			token="\x0a"
 		else
 			token="$byte"
 		fi
@@ -111,6 +112,20 @@ unset VSCODE_NONCE
 
 __vscode_shell_env_reporting="$VSCODE_SHELL_ENV_REPORTING"
 unset VSCODE_SHELL_ENV_REPORTING
+
+builtin printf "\e]633;P;ContinuationPrompt=%s\a" "$(echo "$PS2" | sed 's/\x1b/\\\\x1b/g')"
+
+# Report prompt type
+if [ -n "$ZSH" ] && [ -n "$ZSH_VERSION" ] && (( ${+functions[omz]} )) ; then
+	builtin printf '\e]633;P;PromptType=oh-my-zsh\a'
+elif [ -n "$STARSHIP_SESSION_KEY" ]; then
+	builtin printf '\e]633;P;PromptType=starship\a'
+elif [ -n "$P9K_SSH" ] || [ -n "$P9K_TTY" ]; then
+	builtin printf '\e]633;P;PromptType=p10k\a'
+fi
+
+# Report this shell supports rich command detection
+builtin printf '\e]633;P;HasRichCommandDetection=True\a'
 
 __vsc_prompt_start() {
 	builtin printf '\e]633;A\a'
@@ -203,7 +218,7 @@ __track_missing_env_vars() {
 
 __vsc_update_env() {
 	if [[ "$__vscode_shell_env_reporting" == "1" ]]; then
-		builtin printf '\e]633;EnvSingleStart;%s;\a' $__vsc_nonce
+		builtin printf '\e]633;EnvSingleStart;%s;%s;\a' 0 $__vsc_nonce
 		if [ $__vsc_use_aa -eq 1 ]; then
 			if [[ ${#vsc_aa_env[@]} -eq 0 ]]; then
 				# Associative array is empty, do not diff, just add

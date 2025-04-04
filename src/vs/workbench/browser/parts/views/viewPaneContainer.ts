@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, Dimension, DragAndDropObserver, EventType, getWindow, isAncestor } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, Dimension, DragAndDropObserver, EventType, getWindow, isAncestor } from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { EventType as TouchEventType, Gesture } from '../../../../base/browser/touch.js';
 import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
@@ -104,9 +104,9 @@ class ViewPaneDropOverlay extends Themable {
 	}
 
 	private create(): void {
+
 		// Container
-		this.container = document.createElement('div');
-		this.container.id = ViewPaneDropOverlay.OVERLAY_ID;
+		this.container = $('div', { id: ViewPaneDropOverlay.OVERLAY_ID });
 		this.container.style.top = '0px';
 
 		// Parent
@@ -118,8 +118,7 @@ class ViewPaneDropOverlay extends Themable {
 		}));
 
 		// Overlay
-		this.overlay = document.createElement('div');
-		this.overlay.classList.add('pane-overlay-indicator');
+		this.overlay = $('.pane-overlay-indicator');
 		this.container.appendChild(this.overlay);
 
 		// Overlay Event Handling

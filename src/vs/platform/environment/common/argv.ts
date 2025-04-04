@@ -51,6 +51,7 @@ export interface NativeParsedArgs {
 	'no-cached-data'?: boolean;
 	verbose?: boolean;
 	trace?: boolean;
+	'trace-memory-infra'?: boolean;
 	'trace-category-filter'?: string;
 	'trace-options'?: string;
 	'open-devtools'?: boolean;
@@ -92,6 +93,7 @@ export interface NativeParsedArgs {
 	'disable-telemetry'?: boolean;
 	'export-default-configuration'?: string;
 	'install-source'?: string;
+	'add-mcp'?: string[];
 	'disable-updates'?: boolean;
 	'use-inmemory-secretstorage'?: boolean;
 	'password-store'?: string;
@@ -119,8 +121,9 @@ export interface NativeParsedArgs {
 	'profile-temp'?: boolean;
 	'disable-chromium-sandbox'?: boolean;
 	sandbox?: boolean;
-
 	'enable-coi'?: boolean;
+	'unresponsive-sample-interval'?: string;
+	'unresponsive-sample-period'?: string;
 
 	// chromium command line args: https://electronjs.org/docs/all#supported-chrome-command-line-switches
 	'no-proxy-server'?: boolean;

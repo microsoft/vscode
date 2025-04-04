@@ -9,21 +9,21 @@ import { assert } from '../../../../../../base/common/assert.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { NonPromptSnippetFile } from '../../promptFileReferenceErrors.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
+import { FolderReference, NotPromptFile } from '../../promptFileReferenceErrors.js';
 import { LifecyclePhase } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { ILink, ILinksList, LinkProvider } from '../../../../../../editor/common/languages.js';
+import { IWorkbenchContributionsRegistry, Extensions } from '../../../../../common/contributions.js';
 import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures.js';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../../../common/contributions.js';
 
 /**
  * Provides link references for prompt files.
  */
 export class PromptLinkProvider extends Disposable implements LinkProvider {
 	constructor(
-		@IPromptsService private readonly promptSyntaxService: IPromptsService,
+		@IPromptsService private readonly promptsService: IPromptsService,
 		@ILanguageFeaturesService private readonly languageService: ILanguageFeaturesService,
 	) {
 		super();
@@ -43,7 +43,7 @@ export class PromptLinkProvider extends Disposable implements LinkProvider {
 			new CancellationError(),
 		);
 
-		const parser = this.promptSyntaxService.getSyntaxParserFor(model);
+		const parser = this.promptsService.getSyntaxParserFor(model);
 		assert(
 			!parser.disposed,
 			'Prompt parser must not be disposed.',
@@ -69,10 +69,15 @@ export class PromptLinkProvider extends Disposable implements LinkProvider {
 					return true;
 				}
 
-				return errorCondition instanceof NonPromptSnippetFile;
+				// don't provide links for folder references
+				if (errorCondition instanceof FolderReference) {
+					return false;
+				}
+
+				return errorCondition instanceof NotPromptFile;
 			})
 			.map((reference) => {
-				const { linkRange } = reference;
+				const { uri, linkRange } = reference;
 
 				// must always be true because of the filter above
 				assertDefined(
@@ -80,10 +85,9 @@ export class PromptLinkProvider extends Disposable implements LinkProvider {
 					'Link range must be defined.',
 				);
 
-
 				return {
 					range: linkRange,
-					url: reference.uri,
+					url: uri,
 				};
 			});
 
@@ -94,5 +98,5 @@ export class PromptLinkProvider extends Disposable implements LinkProvider {
 }
 
 // register the provider as a workbench contribution
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
+Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench)
 	.registerWorkbenchContribution(PromptLinkProvider, LifecyclePhase.Eventually);

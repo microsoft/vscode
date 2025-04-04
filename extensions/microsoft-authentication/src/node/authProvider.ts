@@ -7,7 +7,7 @@ import { AuthenticationGetSessionOptions, AuthenticationProvider, Authentication
 import { Environment } from '@azure/ms-rest-azure-env';
 import { CachedPublicClientApplicationManager } from './publicClientCache';
 import { UriEventHandler } from '../UriEventHandler';
-import { ICachedPublicClientApplication } from '../common/publicClientCache';
+import { ICachedPublicClientApplication, ICachedPublicClientApplicationManager } from '../common/publicClientCache';
 import { MicrosoftAccountType, MicrosoftAuthenticationTelemetryReporter } from '../common/telemetryReporter';
 import { ScopeData } from '../common/scopeData';
 import { EventBufferer } from '../common/event';
@@ -22,7 +22,6 @@ const MSA_PASSTHRU_TID = 'f8cdef31-a31e-4b4a-93e4-5f571e91255a';
 export class MsalAuthProvider implements AuthenticationProvider {
 
 	private readonly _disposables: { dispose(): void }[];
-	private readonly _publicClientManager: CachedPublicClientApplicationManager;
 	private readonly _eventBufferer = new EventBufferer();
 
 	/**
@@ -43,20 +42,15 @@ export class MsalAuthProvider implements AuthenticationProvider {
 	 */
 	onDidChangeSessions = this._onDidChangeSessionsEmitter.event;
 
-	constructor(
+	private constructor(
 		private readonly _context: ExtensionContext,
 		private readonly _telemetryReporter: MicrosoftAuthenticationTelemetryReporter,
 		private readonly _logger: LogOutputChannel,
 		private readonly _uriHandler: UriEventHandler,
+		private readonly _publicClientManager: ICachedPublicClientApplicationManager,
 		private readonly _env: Environment = Environment.AzureCloud
 	) {
 		this._disposables = _context.subscriptions;
-		this._publicClientManager = new CachedPublicClientApplicationManager(
-			_context.globalState,
-			_context.secrets,
-			this._logger,
-			this._env.name
-		);
 		const accountChangeEvent = this._eventBufferer.wrapEvent(
 			this._publicClientManager.onDidAccountsChange,
 			(last, newEvent) => {
@@ -81,9 +75,22 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		)(e => this._handleAccountChange(e));
 		this._disposables.push(
 			this._onDidChangeSessionsEmitter,
-			this._publicClientManager,
 			accountChangeEvent
 		);
+	}
+
+	static async create(
+		context: ExtensionContext,
+		telemetryReporter: MicrosoftAuthenticationTelemetryReporter,
+		logger: LogOutputChannel,
+		uriHandler: UriEventHandler,
+		env: Environment = Environment.AzureCloud
+	): Promise<MsalAuthProvider> {
+		const publicClientManager = await CachedPublicClientApplicationManager.create(context.secrets, logger, env.name);
+		context.subscriptions.push(publicClientManager);
+		const authProvider = new MsalAuthProvider(context, telemetryReporter, logger, uriHandler, publicClientManager, env);
+		await authProvider.initialize();
+		return authProvider;
 	}
 
 	/**
@@ -109,14 +116,12 @@ export class MsalAuthProvider implements AuthenticationProvider {
 			clientTenantMap.get(key)!.refreshTokens.push(session.refreshToken);
 		}
 
-		for (const { clientId, tenant, refreshTokens } of clientTenantMap.values()) {
-			await this.getOrCreatePublicClientApplication(clientId, tenant, refreshTokens);
+		for (const { clientId, refreshTokens } of clientTenantMap.values()) {
+			await this._publicClientManager.getOrCreate(clientId, refreshTokens);
 		}
 	}
 
-	async initialize(): Promise<void> {
-		await this._eventBufferer.bufferEventsAsync(() => this._publicClientManager.initialize());
-
+	private async initialize(): Promise<void> {
 		if (!this._context.globalState.get('msalMigration', false)) {
 			await this._migrateSessions();
 		}
@@ -173,8 +178,8 @@ export class MsalAuthProvider implements AuthenticationProvider {
 			return allSessions;
 		}
 
-		const cachedPca = await this.getOrCreatePublicClientApplication(scopeData.clientId, scopeData.tenant);
-		const sessions = await this.getAllSessionsForPca(cachedPca, scopeData.originalScopes, scopeData.scopesToSend, options?.account);
+		const cachedPca = await this._publicClientManager.getOrCreate(scopeData.clientId);
+		const sessions = await this.getAllSessionsForPca(cachedPca, scopeData, options?.account);
 		this._logger.info(`[getSessions] [${scopeData.scopeStr}] returned ${sessions.length} session(s)`);
 		return sessions;
 
@@ -185,7 +190,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		// Do NOT use `scopes` beyond this place in the code. Use `scopeData` instead.
 
 		this._logger.info('[createSession]', `[${scopeData.scopeStr}]`, 'starting');
-		const cachedPca = await this.getOrCreatePublicClientApplication(scopeData.clientId, scopeData.tenant);
+		const cachedPca = await this._publicClientManager.getOrCreate(scopeData.clientId);
 
 		// Used for showing a friendlier message to the user when the explicitly cancel a flow.
 		let userCancelled: boolean | undefined;
@@ -211,6 +216,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 				: ExtensionHost.WebWorker,
 		});
 
+		const authority = new URL(scopeData.tenant, this._env.activeDirectoryEndpointUrl).toString();
 		let lastError: Error | undefined;
 		for (const flow of flows) {
 			if (flow !== flows[0]) {
@@ -223,6 +229,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 			try {
 				const result = await flow.trigger({
 					cachedPca,
+					authority,
 					scopes: scopeData.scopesToSend,
 					loginHint: options.account?.label,
 					windowHandle: window.nativeHandle ? Buffer.from(window.nativeHandle) : undefined,
@@ -260,7 +267,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 				if (account.homeAccountId === sessionId) {
 					this._telemetryReporter.sendLogoutEvent();
 					promises.push(cachedPca.removeAccount(account));
-					this._logger.info(`[removeSession] [${sessionId}] [${cachedPca.clientId}] [${cachedPca.authority}] removing session...`);
+					this._logger.info(`[removeSession] [${sessionId}] [${cachedPca.clientId}] removing session...`);
 				}
 			}
 		}
@@ -281,26 +288,69 @@ export class MsalAuthProvider implements AuthenticationProvider {
 
 	//#endregion
 
-	private async getOrCreatePublicClientApplication(clientId: string, tenant: string, refreshTokensToMigrate?: string[]): Promise<ICachedPublicClientApplication> {
-		const authority = new URL(tenant, this._env.activeDirectoryEndpointUrl).toString();
-		return await this._publicClientManager.getOrCreate(clientId, authority, refreshTokensToMigrate);
-	}
-
 	private async getAllSessionsForPca(
 		cachedPca: ICachedPublicClientApplication,
-		originalScopes: readonly string[],
-		scopesToSend: string[],
+		scopeData: ScopeData,
 		accountFilter?: AuthenticationSessionAccountInformation
 	): Promise<AuthenticationSession[]> {
-		const accounts = accountFilter
+		let filteredAccounts = accountFilter
 			? cachedPca.accounts.filter(a => a.homeAccountId === accountFilter.id)
 			: cachedPca.accounts;
+
+		// Group accounts by homeAccountId
+		const accountGroups = new Map<string, AccountInfo[]>();
+		for (const account of filteredAccounts) {
+			const existing = accountGroups.get(account.homeAccountId) || [];
+			existing.push(account);
+			accountGroups.set(account.homeAccountId, existing);
+		}
+
+		// Filter to one account per homeAccountId
+		filteredAccounts = Array.from(accountGroups.values()).map(accounts => {
+			if (accounts.length === 1) {
+				return accounts[0];
+			}
+
+			// If we have a specific tenant to target, prefer that one
+			if (scopeData.tenantId) {
+				const matchingTenant = accounts.find(a => a.tenantId === scopeData.tenantId);
+				if (matchingTenant) {
+					return matchingTenant;
+				}
+			}
+
+			// Otherwise prefer the home tenant
+			return accounts.find(a => a.tenantId === a.idTokenClaims?.tid) || accounts[0];
+		});
+
+		const authority = new URL(scopeData.tenant, this._env.activeDirectoryEndpointUrl).toString();
 		const sessions: AuthenticationSession[] = [];
 		return this._eventBufferer.bufferEventsAsync(async () => {
-			for (const account of accounts) {
+			for (const account of filteredAccounts) {
 				try {
-					const result = await cachedPca.acquireTokenSilent({ account, scopes: scopesToSend, redirectUri });
-					sessions.push(this.sessionFromAuthenticationResult(result, originalScopes));
+					let forceRefresh: true | undefined;
+					if (scopeData.tenantId) {
+						// If the tenants do not match, then we need to skip the cache
+						// to get a new token for the new tenant
+						if (account.tenantId !== scopeData.tenantId) {
+							forceRefresh = true;
+						}
+					} else {
+						// If we are requesting the home tenant and we don't yet have
+						// a token for the home tenant, we need to skip the cache
+						// to get a new token for the home tenant
+						if (account.tenantId !== account.idTokenClaims?.tid) {
+							forceRefresh = true;
+						}
+					}
+					const result = await cachedPca.acquireTokenSilent({
+						account,
+						authority,
+						scopes: scopeData.scopesToSend,
+						redirectUri,
+						forceRefresh
+					});
+					sessions.push(this.sessionFromAuthenticationResult(result, scopeData.originalScopes));
 				} catch (e) {
 					// If we can't get a token silently, the account is probably in a bad state so we should skip it
 					// MSAL will log this already, so we don't need to log it again

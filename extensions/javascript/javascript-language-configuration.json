@@ -231,7 +231,7 @@
 		// Add // when pressing enter from inside line comment
 		{
 			"beforeText": {
-				"pattern": "(?<!\\w:)\/\/.*"
+				"pattern": "(?<!\\\\)(?<!\\w:)\/\/.*"
 			},
 			"afterText": {
 				"pattern": "^(?!\\s*$).+"

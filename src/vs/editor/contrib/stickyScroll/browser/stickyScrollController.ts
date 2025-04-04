@@ -584,7 +584,10 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	}
 
 	findScrollWidgetState(): StickyScrollWidgetState {
-		const lineHeight: number = this._editor.getOption(EditorOption.lineHeight);
+		if (!this._editor.hasModel()) {
+			return StickyScrollWidgetState.Empty;
+		}
+		const textModel = this._editor.getModel();
 		const maxNumberStickyLines = Math.min(this._maxStickyLines, this._editor.getOption(EditorOption.stickyScroll).maxLineCount);
 		const scrollTop: number = this._editor.getScrollTop();
 		let lastLineRelativePosition: number = 0;
@@ -597,26 +600,18 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			for (const range of candidateRanges) {
 				const start = range.startLineNumber;
 				const end = range.endLineNumber;
-				const depth = range.nestingDepth;
-				if (end - start > 0) {
-					const topOfElementAtDepth = (depth - 1) * lineHeight;
-					const bottomOfElementAtDepth = depth * lineHeight;
-
-					const bottomOfBeginningLine = this._editor.getBottomForLineNumber(start) - scrollTop;
-					const topOfEndLine = this._editor.getTopForLineNumber(end) - scrollTop;
+				const isValidRange = textModel.isValidRange({ startLineNumber: start, endLineNumber: end, startColumn: 1, endColumn: 1 });
+				if (isValidRange && end - start > 0) {
+					const topOfElement = range.top;
+					const bottomOfElement = topOfElement + range.height;
+					const topOfBeginningLine = this._editor.getTopForLineNumber(start) - scrollTop;
 					const bottomOfEndLine = this._editor.getBottomForLineNumber(end) - scrollTop;
-
-					if (topOfElementAtDepth > topOfEndLine && topOfElementAtDepth <= bottomOfEndLine) {
+					if (topOfElement > topOfBeginningLine && topOfElement <= bottomOfEndLine) {
 						startLineNumbers.push(start);
 						endLineNumbers.push(end + 1);
-						if (topOfElementAtDepth > bottomOfEndLine - lineHeight) {
-							lastLineRelativePosition = bottomOfEndLine - bottomOfElementAtDepth;
+						if (bottomOfElement > bottomOfEndLine) {
+							lastLineRelativePosition = bottomOfEndLine - bottomOfElement;
 						}
-						break;
-					}
-					else if (bottomOfElementAtDepth > bottomOfBeginningLine && bottomOfElementAtDepth <= bottomOfEndLine) {
-						startLineNumbers.push(start);
-						endLineNumbers.push(end + 1);
 					}
 					if (startLineNumbers.length === maxNumberStickyLines) {
 						break;

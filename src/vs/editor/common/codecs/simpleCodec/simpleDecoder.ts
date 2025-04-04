@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Hash } from './tokens/hash.js';
+import { Dash } from './tokens/dash.js';
 import { Colon } from './tokens/colon.js';
 import { FormFeed } from './tokens/formFeed.js';
 import { Tab } from '../simpleCodec/tokens/tab.js';
@@ -12,39 +13,44 @@ import { VerticalTab } from './tokens/verticalTab.js';
 import { Space } from '../simpleCodec/tokens/space.js';
 import { NewLine } from '../linesCodec/tokens/newLine.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { LeftBracket, RightBracket } from './tokens/brackets.js';
+import { ExclamationMark } from './tokens/exclamationMark.js';
 import { ReadableStream } from '../../../../base/common/stream.js';
 import { CarriageReturn } from '../linesCodec/tokens/carriageReturn.js';
 import { LinesDecoder, TLineToken } from '../linesCodec/linesDecoder.js';
+import { LeftBracket, RightBracket, TBracket } from './tokens/brackets.js';
 import { BaseDecoder } from '../../../../base/common/codecs/baseDecoder.js';
-import { LeftParenthesis, RightParenthesis } from './tokens/parentheses.js';
+import { LeftParenthesis, RightParenthesis, TParenthesis } from './tokens/parentheses.js';
+import { LeftAngleBracket, RightAngleBracket, TAngleBracket } from './tokens/angleBrackets.js';
 
 /**
  * A token type that this decoder can handle.
  */
-export type TSimpleToken = Word | Space | Tab | VerticalTab | NewLine | FormFeed | CarriageReturn | LeftBracket
-	| RightBracket | LeftParenthesis | RightParenthesis | Colon | Hash;
+export type TSimpleToken = Word | Space | Tab | VerticalTab | NewLine | FormFeed
+	| CarriageReturn | TBracket | TAngleBracket | TParenthesis
+	| Colon | Hash | Dash | ExclamationMark;
 
 /**
  * List of well-known distinct tokens that this decoder emits (excluding
  * the word stop characters defined below). Everything else is considered
  * an arbitrary "text" sequence and is emitted as a single `Word` token.
  */
-const WELL_KNOWN_TOKENS = [
-	Space, Tab, VerticalTab, FormFeed, LeftBracket, RightBracket,
-	LeftParenthesis, RightParenthesis, Colon, Hash,
-];
+const WELL_KNOWN_TOKENS = Object.freeze([
+	Space, Tab, VerticalTab, FormFeed,
+	LeftBracket, RightBracket, LeftAngleBracket, RightAngleBracket,
+	LeftParenthesis, RightParenthesis, Colon, Hash, Dash, ExclamationMark,
+]);
 
 /**
  * Characters that stop a "word" sequence.
  * Note! the `\r` and `\n` are excluded from the list because this decoder based on `LinesDecoder` which
  * 	     already handles the `carriagereturn`/`newline` cases and emits lines that don't contain them.
  */
-const WORD_STOP_CHARACTERS = [
+const WORD_STOP_CHARACTERS: readonly string[] = Object.freeze([
 	Space.symbol, Tab.symbol, VerticalTab.symbol, FormFeed.symbol,
-	LeftBracket.symbol, RightBracket.symbol, LeftParenthesis.symbol,
-	RightParenthesis.symbol, Colon.symbol, Hash.symbol,
-];
+	LeftBracket.symbol, RightBracket.symbol, LeftAngleBracket.symbol, RightAngleBracket.symbol,
+	LeftParenthesis.symbol, RightParenthesis.symbol,
+	Colon.symbol, Hash.symbol, Dash.symbol, ExclamationMark.symbol,
+]);
 
 /**
  * A decoder that can decode a stream of `Line`s into a stream
