@@ -238,7 +238,7 @@ if (PasteAction) {
 			if (experimentalEditContextEnabled) {
 				const nativeEditContext = NativeEditContextRegistry.get(focusedEditor.getId());
 				if (nativeEditContext) {
-					const triggerPaste = nativeEditContext.executePaste();
+					const triggerPaste = nativeEditContext.triggerPaste();
 					if (triggerPaste) {
 						return triggerPaste.then(async () => {
 							return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
