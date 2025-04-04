@@ -5,6 +5,7 @@
 
 import { coalesce, groupBy } from '../../../../../base/common/arrays.js';
 import { assertNever } from '../../../../../base/common/assert.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
@@ -252,7 +253,8 @@ export class SelectAndInsertFileAction extends Action2 {
 		};
 
 		// TODO: have dedicated UX for this instead of using the quick access picker
-		const picks = await quickInputService.quickAccess.pick('', { ignoreFocusOut: true });
+		await timeout(0); // https://github.com/microsoft/vscode/issues/243115
+		const picks = await quickInputService.quickAccess.pick('');
 		if (!picks?.length) {
 			logService.trace('SelectAndInsertFileAction: no file selected');
 			doCleanup();
@@ -371,7 +373,6 @@ export async function createFolderQuickPick(accessor: ServicesAccessor): Promise
 	const quickPick = quickInputService.createQuickPick();
 	quickPick.placeholder = 'Search folder by name';
 	quickPick.items = topLevelFolderItems;
-	quickPick.ignoreFocusOut = true;
 
 	return await new Promise<URI | undefined>(_resolve => {
 
@@ -575,7 +576,8 @@ export class SelectAndInsertSymAction extends Action2 {
 		};
 
 		// TODO: have dedicated UX for this instead of using the quick access picker
-		const picks = await quickInputService.quickAccess.pick('#', { enabledProviderPrefixes: ['#'], ignoreFocusOut: true });
+		await timeout(0); // https://github.com/microsoft/vscode/issues/243115
+		const picks = await quickInputService.quickAccess.pick('#', { enabledProviderPrefixes: ['#'] });
 		if (!picks?.length) {
 			logService.trace('SelectAndInsertSymAction: no symbol selected');
 			doCleanup();
@@ -744,7 +746,6 @@ export async function createMarkersQuickPick(accessor: ServicesAccessor, level: 
 	const store = new DisposableStore();
 	const quickPick = store.add(quickInputService.createQuickPick<MarkerPickItem>({ useSeparators: true }));
 	quickPick.canAcceptInBackground = !onBackgroundAccept;
-	quickPick.ignoreFocusOut = true;
 	quickPick.placeholder = localize('pickAProblem', 'Pick a problem to attach...');
 	quickPick.items = items;
 
