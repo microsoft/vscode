@@ -14,7 +14,7 @@ import { Line } from '../../linesCodec/tokens/line.js';
  */
 export class LeftParenthesis extends BaseToken {
 	/**
-	 * The underlying symbol of the `LeftParenthesis` token.
+	 * The underlying symbol of the token.
 	 */
 	public static readonly symbol: string = '(';
 
@@ -36,7 +36,6 @@ export class LeftParenthesis extends BaseToken {
 		const { range } = line;
 
 		const startPosition = new Position(range.startLineNumber, atColumnNumber);
-		// the tab token length is 1, hence `+ 1`
 		const endPosition = new Position(range.startLineNumber, atColumnNumber + this.symbol.length);
 
 		return new LeftParenthesis(Range.fromPositions(
@@ -59,7 +58,7 @@ export class LeftParenthesis extends BaseToken {
  */
 export class RightParenthesis extends BaseToken {
 	/**
-	 * The underlying symbol of the `RightParenthesis` token.
+	 * The underlying symbol of the token.
 	 */
 	public static readonly symbol: string = ')';
 
@@ -81,7 +80,6 @@ export class RightParenthesis extends BaseToken {
 		const { range } = line;
 
 		const startPosition = new Position(range.startLineNumber, atColumnNumber);
-		// the tab token length is 1, hence `+ 1`
 		const endPosition = new Position(range.startLineNumber, atColumnNumber + this.symbol.length);
 
 		return new RightParenthesis(Range.fromPositions(
@@ -97,3 +95,8 @@ export class RightParenthesis extends BaseToken {
 		return `right-parenthesis${this.range}`;
 	}
 }
+
+/**
+ * General parenthesis token type.
+ */
+export type TParenthesis = LeftParenthesis | RightParenthesis;

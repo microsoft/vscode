@@ -57,7 +57,6 @@ export class GitTimelineItem extends TimelineItem {
 	setItemDetails(uri: Uri, hash: string | undefined, avatar: string | undefined, author: string, email: string | undefined, date: string, message: string, shortStat?: CommitShortStat, remoteSourceCommands: Command[] = []): void {
 		this.tooltip = new MarkdownString('', true);
 		this.tooltip.isTrusted = true;
-		this.tooltip.supportHtml = true;
 
 		const avatarMarkdown = avatar
 			? `![${author}](${avatar}|width=${AVATAR_SIZE},height=${AVATAR_SIZE})`
@@ -222,6 +221,7 @@ export class GitTimelineProvider implements TimelineProvider {
 
 		const openComparison = l10n.t('Open Comparison');
 
+		const emptyTree = await repo.getEmptyTree();
 		const unpublishedCommits = await repo.getUnpublishedCommits();
 		const remoteHoverCommands = await provideSourceControlHistoryItemHoverCommands(this.model, repo);
 
@@ -243,7 +243,8 @@ export class GitTimelineProvider implements TimelineProvider {
 
 			const message = emojify(c.message);
 
-			const item = new GitTimelineItem(c.hash, commits[index + 1]?.hash ?? `${c.hash}^`, message, date?.getTime() ?? 0, c.hash, 'git:file:commit');
+			const previousRef = commits[index + 1]?.hash ?? emptyTree;
+			const item = new GitTimelineItem(c.hash, previousRef, message, date?.getTime() ?? 0, c.hash, 'git:file:commit');
 			item.iconPath = new ThemeIcon('git-commit');
 			if (showAuthor) {
 				item.description = c.authorName;

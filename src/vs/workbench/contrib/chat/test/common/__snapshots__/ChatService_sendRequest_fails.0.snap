@@ -57,7 +57,7 @@
       variableData: { variables: [  ] },
       response: [  ],
       responseId: undefined,
-      isHidden: false,
+      shouldBeRemovedOnSend: undefined,
       result: { errorDetails: { message: "No activated agent with id \"ChatProviderWithUsedContext\"" } },
       followups: undefined,
       isCanceled: false,
@@ -78,7 +78,6 @@
         slashCommands: [  ],
         disambiguation: [  ]
       },
-      workingSet: undefined,
       slashCommand: undefined,
       usedContext: undefined,
       contentReferences: [  ],

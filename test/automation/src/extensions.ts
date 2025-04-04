@@ -52,8 +52,22 @@ export class Extensions extends Viewlet {
 
 	async installExtension(id: string, waitUntilEnabled: boolean): Promise<void> {
 		await this.searchForExtension(id);
-		await this.code.waitAndClick(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[data-extension-id="${id}"] .extension-list-item .monaco-action-bar .action-item:not(.disabled) .extension-action.install`);
-		await this.code.waitForElement(`.extension-editor .monaco-action-bar .action-item:not(.disabled) .extension-action.uninstall`);
+
+		// try to install extension 3 times
+		let attempt = 1;
+		while (true) {
+			await this.code.waitAndClick(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[data-extension-id="${id}"] .extension-list-item .monaco-action-bar .action-item:not(.disabled) .extension-action.install`);
+
+			try {
+				await this.code.waitForElement(`.extension-editor .monaco-action-bar .action-item:not(.disabled) .extension-action.uninstall`);
+				break;
+			} catch (err) {
+				if (attempt++ === 3) {
+					throw err;
+				}
+			}
+		}
+
 		if (waitUntilEnabled) {
 			await this.code.waitForElement(`.extension-editor .monaco-action-bar .action-item:not(.disabled) a[aria-label="Disable this extension"]`);
 		}

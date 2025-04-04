@@ -227,7 +227,7 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 	}
 
 	private _xterm: IXtermTerminal & { raw: Terminal } | undefined;
-	private readonly _activeDevModeDisposables = new MutableDisposable();
+	private readonly _activeDevModeDisposables = this._register(new MutableDisposable());
 	private _currentColor = 0;
 
 	private _state: DevModeContributionState = DevModeContributionState.Off;

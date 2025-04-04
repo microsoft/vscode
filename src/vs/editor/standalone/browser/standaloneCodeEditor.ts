@@ -293,7 +293,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 
 		createAriaDomNode(options.ariaContainerElement);
 
-		setHoverDelegateFactory((placement, enableInstantHover) => instantiationService.createInstance(WorkbenchHoverDelegate, placement, enableInstantHover, {}));
+		setHoverDelegateFactory((placement, enableInstantHover) => instantiationService.createInstance(WorkbenchHoverDelegate, placement, { instantHover: enableInstantHover }, {}));
 		setBaseLayerHoverDelegate(hoverService);
 	}
 

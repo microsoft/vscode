@@ -180,10 +180,10 @@ async function addRefAndCreateResult(
 		completions.addRef();
 		lists.push(completions);
 		for (const item of completions.inlineCompletions.items) {
-			if (!context.includeInlineEdits && item.isInlineEdit) {
+			if (!context.includeInlineEdits && (item.isInlineEdit || item.showInlineEditMenu)) {
 				continue;
 			}
-			if (!context.includeInlineCompletions && !item.isInlineEdit) {
+			if (!context.includeInlineCompletions && !(item.isInlineEdit || item.showInlineEditMenu)) {
 				continue;
 			}
 			const inlineCompletionItem = InlineCompletionItem.from(
@@ -197,7 +197,7 @@ async function addRefAndCreateResult(
 			itemsByHash.set(inlineCompletionItem.hash(), inlineCompletionItem);
 
 			// Stop after first visible inline completion
-			if (!item.isInlineEdit && context.triggerKind === InlineCompletionTriggerKind.Automatic) {
+			if (!(item.isInlineEdit || item.showInlineEditMenu) && context.triggerKind === InlineCompletionTriggerKind.Automatic) {
 				const minifiedEdit = inlineCompletionItem.toSingleTextEdit().removeCommonPrefix(new TextModelText(model));
 				if (!minifiedEdit.isEmpty) {
 					shouldStop = true;
@@ -226,6 +226,12 @@ export class InlineCompletionProviderResult implements IDisposable {
 
 	public has(item: InlineCompletionItem): boolean {
 		return this.hashs.has(item.hash());
+	}
+
+	// TODO: This is not complete as it does not take the textmodel into account
+	isEmpty(): boolean {
+		return this.completions.length === 0
+			|| this.completions.every(c => c.range.isEmpty() && c.insertText.length === 0);
 	}
 
 	dispose(): void {
@@ -327,6 +333,7 @@ export class InlineCompletionItem {
 			insertText,
 			inlineCompletion.command,
 			inlineCompletion.shownCommand,
+			inlineCompletion.action,
 			range,
 			insertText,
 			snippetInfo,
@@ -344,7 +351,9 @@ export class InlineCompletionItem {
 	constructor(
 		readonly filterText: string,
 		readonly command: Command | undefined,
+		/** @deprecated. Use handleItemDidShow */
 		readonly shownCommand: Command | undefined,
+		readonly action: Command | undefined,
 		readonly range: Range,
 		readonly insertText: string,
 		readonly snippetInfo: SnippetInfo | undefined,
@@ -367,9 +376,10 @@ export class InlineCompletionItem {
 
 		readonly id = `InlineCompletion:${InlineCompletionItem.ID++}`,
 	) {
-		// TODO: these statements are no-ops
-		filterText = filterText.replace(/\r\n|\r/g, '\n');
-		insertText = filterText.replace(/\r\n|\r/g, '\n');
+	}
+
+	get isInlineEdit(): boolean {
+		return this.sourceInlineCompletion.isInlineEdit!!;
 	}
 
 	public get didShow(): boolean {
@@ -379,27 +389,12 @@ export class InlineCompletionItem {
 		this._didCallShow = true;
 	}
 
-	public withRange(updatedRange: Range): InlineCompletionItem {
-		return new InlineCompletionItem(
-			this.filterText,
-			this.command,
-			this.shownCommand,
-			updatedRange,
-			this.insertText,
-			this.snippetInfo,
-			this.cursorShowRange,
-			this.additionalTextEdits,
-			this.sourceInlineCompletion,
-			this.source,
-			this.id,
-		);
-	}
-
 	public withRangeInsertTextAndFilterText(updatedRange: Range, updatedInsertText: string, updatedFilterText: string): InlineCompletionItem {
 		return new InlineCompletionItem(
 			updatedFilterText,
 			this.command,
 			this.shownCommand,
+			this.action,
 			updatedRange,
 			updatedInsertText,
 			this.snippetInfo,

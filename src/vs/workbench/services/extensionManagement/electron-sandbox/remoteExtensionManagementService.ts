@@ -64,7 +64,7 @@ export class NativeRemoteExtensionManagementService extends RemoteExtensionManag
 	}
 
 	private async doInstallFromGallery(extension: IGalleryExtension, installOptions: InstallOptions): Promise<ILocalExtension> {
-		if (this.configurationService.getValue('remote.downloadExtensionsLocally')) {
+		if (installOptions.downloadExtensionsLocally || this.configurationService.getValue('remote.downloadExtensionsLocally')) {
 			return this.downloadAndInstall(extension, installOptions);
 		}
 		try {

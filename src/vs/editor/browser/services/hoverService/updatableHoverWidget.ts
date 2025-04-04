@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isHTMLElement } from '../../../../base/browser/dom.js';
-import type { IHoverWidget, IManagedHoverContent, IManagedHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
+import { isManagedHoverTooltipMarkdownString, type IHoverWidget, type IManagedHoverContent, type IManagedHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
 import type { IHoverDelegate, IHoverDelegateOptions, IHoverDelegateTarget } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -20,8 +20,7 @@ export class ManagedHoverWidget implements IDisposable {
 	private _hoverWidget: IHoverWidget | undefined;
 	private _cancellationTokenSource: CancellationTokenSource | undefined;
 
-	constructor(private hoverDelegate: IHoverDelegate, private target: IHoverDelegateTarget | HTMLElement, private fadeInAnimation: boolean) {
-	}
+	constructor(private hoverDelegate: IHoverDelegate, private target: IHoverDelegateTarget | HTMLElement, private fadeInAnimation: boolean) { }
 
 	async update(content: IManagedHoverContent, focus?: boolean, options?: IManagedHoverOptions): Promise<void> {
 		if (this._cancellationTokenSource) {
@@ -33,25 +32,37 @@ export class ManagedHoverWidget implements IDisposable {
 			return;
 		}
 
-		let resolvedContent;
-		if (content === undefined || isString(content) || isHTMLElement(content)) {
+		let resolvedContent: string | HTMLElement | IMarkdownString | undefined;
+		if (isString(content) || isHTMLElement(content) || content === undefined) {
 			resolvedContent = content;
-		} else if (!isFunction(content.markdown)) {
-			resolvedContent = content.markdown ?? content.markdownNotSupportedFallback;
 		} else {
 			// compute the content, potentially long-running
 
-			// show 'Loading' if no hover is up yet
-			if (!this._hoverWidget) {
-				this.show(localize('iconLabel.loading', "Loading..."), focus, options);
+			this._cancellationTokenSource = new CancellationTokenSource();
+			const token = this._cancellationTokenSource.token;
+
+			let managedContent;
+			if (isManagedHoverTooltipMarkdownString(content)) {
+				if (isFunction(content.markdown)) {
+					managedContent = content.markdown(token).then(resolvedContent => resolvedContent ?? content.markdownNotSupportedFallback);
+				} else {
+					managedContent = content.markdown ?? content.markdownNotSupportedFallback;
+				}
+			} else {
+				managedContent = content.element(token);
 			}
 
 			// compute the content
-			this._cancellationTokenSource = new CancellationTokenSource();
-			const token = this._cancellationTokenSource.token;
-			resolvedContent = await content.markdown(token);
-			if (resolvedContent === undefined) {
-				resolvedContent = content.markdownNotSupportedFallback;
+			if (managedContent instanceof Promise) {
+
+				// show 'Loading' if no hover is up yet
+				if (!this._hoverWidget) {
+					this.show(localize('iconLabel.loading', "Loading..."), focus, options);
+				}
+
+				resolvedContent = await managedContent;
+			} else {
+				resolvedContent = managedContent;
 			}
 
 			if (this.isDisposed || token.isCancellationRequested) {

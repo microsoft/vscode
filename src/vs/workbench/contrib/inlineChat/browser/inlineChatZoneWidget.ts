@@ -19,9 +19,10 @@ import { localize } from '../../../../nls.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IChatWidgetViewOptions } from '../../chat/browser/chat.js';
 import { IChatWidgetLocationOptions } from '../../chat/browser/chatWidget.js';
 import { isResponseVM } from '../../chat/common/chatViewModel.js';
-import { ACTION_REGENERATE_RESPONSE, ACTION_REPORT_ISSUE, ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, MENU_INLINE_CHAT_WIDGET_SECONDARY, MENU_INLINE_CHAT_WIDGET_STATUS } from '../common/inlineChat.js';
+import { ACTION_REGENERATE_RESPONSE, ACTION_REPORT_ISSUE, ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, MENU_INLINE_CHAT_SIDE, MENU_INLINE_CHAT_WIDGET_SECONDARY, MENU_INLINE_CHAT_WIDGET_STATUS } from '../common/inlineChat.js';
 import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
 
 export class InlineChatZoneWidget extends ZoneWidget {
@@ -47,6 +48,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 	constructor(
 		location: IChatWidgetLocationOptions,
+		options: IChatWidgetViewOptions | undefined,
 		editor: ICodeEditor,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ILogService private _logService: ILogService,
@@ -79,14 +81,17 @@ export class InlineChatZoneWidget extends ZoneWidget {
 			chatWidgetViewOptions: {
 				menus: {
 					telemetrySource: 'interactiveEditorWidget-toolbar',
+					inputSideToolbar: MENU_INLINE_CHAT_SIDE
 				},
+				...options,
 				rendererOptions: {
 					renderTextEditsAsSummary: (uri) => {
 						// render when dealing with the current file in the editor
 						return isEqual(uri, editor.getModel()?.uri);
 					},
 					renderDetectedCommandsWithRequest: true,
-				}
+					...options?.rendererOptions
+				},
 			}
 		});
 		this._disposables.add(this.widget);

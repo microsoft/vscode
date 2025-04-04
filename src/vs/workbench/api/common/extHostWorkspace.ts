@@ -35,6 +35,7 @@ import { ExtHostWorkspaceShape, IRelativePatternDto, IWorkspaceData, MainContext
 import { revive } from '../../../base/common/marshalling.js';
 import { AuthInfo, Credentials } from '../../../platform/request/common/request.js';
 import { ExcludeSettingOptions, TextSearchContext2, TextSearchMatch2 } from '../../services/search/common/searchExtTypes.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
 
 export interface IExtHostWorkspaceProvider {
 	getWorkspaceFolder2(uri: vscode.Uri, resolveParent?: boolean): Promise<vscode.WorkspaceFolder | undefined>;
@@ -937,6 +938,17 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	// called by main thread
 	async $provideCanonicalUri(uri: UriComponents, targetScheme: string, cancellationToken: CancellationToken): Promise<UriComponents | undefined> {
 		return this.provideCanonicalUri(URI.revive(uri), { targetScheme }, cancellationToken);
+	}
+
+	// --- encodings ---
+
+	decode(content: Uint8Array, uri: UriComponents | undefined, options?: { encoding: string }): Promise<string> {
+		return this._proxy.$decode(VSBuffer.wrap(content), uri, options);
+	}
+
+	async encode(content: string, uri: UriComponents | undefined, options?: { encoding: string }): Promise<Uint8Array> {
+		const buff = await this._proxy.$encode(content, uri, options);
+		return buff.buffer;
 	}
 }
 

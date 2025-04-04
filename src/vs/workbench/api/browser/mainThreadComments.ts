@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { IRange, Range } from '../../../editor/common/core/range.js';
 import * as languages from '../../../editor/common/languages.js';
@@ -540,8 +540,9 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	private _activeEditingCommentThread?: MainThreadCommentThread<IRange | ICellRange>;
 	private readonly _activeEditingCommentThreadDisposables = this._register(new DisposableStore());
 
-	private _openViewListener: IDisposable | null = null;
-
+	private readonly _openViewListener: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
+	private readonly _onChangeContainerListener: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
+	private readonly _onChangeContainerLocationListener: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -577,11 +578,14 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		this._commentService.registerCommentController(providerId, provider);
 		this._commentControllers.set(handle, provider);
 
-		const commentsPanelAlreadyConstructed = !!this._viewDescriptorService.getViewDescriptorById(COMMENTS_VIEW_ID);
-		if (!commentsPanelAlreadyConstructed) {
-			this.registerView(commentsPanelAlreadyConstructed);
-		}
-		this.registerViewListeners(commentsPanelAlreadyConstructed);
+		this._register(this._commentService.onResourceHasCommentingRanges(e => {
+			this.registerView();
+		}));
+
+		this._register(this._commentService.onDidUpdateCommentThreads(e => {
+			this.registerView();
+		}));
+
 		this._commentService.setWorkspaceComments(String(handle), []);
 	}
 
@@ -693,8 +697,9 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		thread.collapsibleState = languages.CommentThreadCollapsibleState.Collapsed;
 	}
 
-	private registerView(commentsViewAlreadyRegistered: boolean) {
-		if (!commentsViewAlreadyRegistered) {
+	private registerView() {
+		const commentsPanelAlreadyConstructed = !!this._viewDescriptorService.getViewDescriptorById(COMMENTS_VIEW_ID);
+		if (!commentsPanelAlreadyConstructed) {
 			const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 				id: COMMENTS_VIEW_ID,
 				title: COMMENTS_VIEW_TITLE,
@@ -717,6 +722,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 				}
 			}], VIEW_CONTAINER);
 		}
+		this.registerViewListeners(commentsPanelAlreadyConstructed);
 	}
 
 	private setComments() {
@@ -731,13 +737,12 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	}
 
 	private registerViewOpenedListener() {
-		if (!this._openViewListener) {
-			this._openViewListener = this._viewsService.onDidChangeViewVisibility(e => {
+		if (!this._openViewListener.value) {
+			this._openViewListener.value = this._viewsService.onDidChangeViewVisibility(e => {
 				if (e.id === COMMENTS_VIEW_ID && e.visible) {
 					this.setComments();
 					if (this._openViewListener) {
 						this._openViewListener.dispose();
-						this._openViewListener = null;
 					}
 				}
 			});
@@ -754,19 +759,24 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 			this.registerViewOpenedListener();
 		}
 
-		this._register(this._viewDescriptorService.onDidChangeContainer(e => {
-			if (e.views.find(view => view.id === COMMENTS_VIEW_ID)) {
-				this.setComments();
-				this.registerViewOpenedListener();
-			}
-		}));
-		this._register(this._viewDescriptorService.onDidChangeContainerLocation(e => {
-			const commentsContainer = this._viewDescriptorService.getViewContainerByViewId(COMMENTS_VIEW_ID);
-			if (e.viewContainer.id === commentsContainer?.id) {
-				this.setComments();
-				this.registerViewOpenedListener();
-			}
-		}));
+		if (!this._onChangeContainerListener.value) {
+			this._onChangeContainerListener.value = this._viewDescriptorService.onDidChangeContainer(e => {
+				if (e.views.find(view => view.id === COMMENTS_VIEW_ID)) {
+					this.setComments();
+					this.registerViewOpenedListener();
+				}
+			});
+		}
+
+		if (!this._onChangeContainerLocationListener.value) {
+			this._onChangeContainerLocationListener.value = this._viewDescriptorService.onDidChangeContainerLocation(e => {
+				const commentsContainer = this._viewDescriptorService.getViewContainerByViewId(COMMENTS_VIEW_ID);
+				if (e.viewContainer.id === commentsContainer?.id) {
+					this.setComments();
+					this.registerViewOpenedListener();
+				}
+			});
+		}
 	}
 
 	private getHandler(handle: number) {

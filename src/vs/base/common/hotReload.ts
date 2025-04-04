@@ -6,12 +6,8 @@
 import { IDisposable } from './lifecycle.js';
 import { env } from './process.js';
 
-function hotReloadDisabled() {
-	return true; // TODO@hediet fix hot reload.
-}
-
 export function isHotReloadEnabled(): boolean {
-	return !hotReloadDisabled() && env && !!env['VSCODE_DEV'];
+	return env && !!env['VSCODE_DEV_DEBUG'];
 }
 export function registerHotReloadHandler(handler: HotReloadHandler): IDisposable {
 	if (!isHotReloadEnabled()) {

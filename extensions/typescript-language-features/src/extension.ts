@@ -9,19 +9,20 @@ import * as vscode from 'vscode';
 import { Api, getExtensionApi } from './api';
 import { CommandManager } from './commands/commandManager';
 import { registerBaseCommands } from './commands/index';
+import { ElectronServiceConfigurationProvider } from './configuration/configuration.electron';
 import { ExperimentationTelemetryReporter, IExperimentationTelemetryReporter } from './experimentTelemetryReporter';
 import { ExperimentationService } from './experimentationService';
 import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
+import { Logger } from './logging/logger';
 import { nodeRequestCancellerFactory } from './tsServer/cancellation.electron';
 import { NodeLogDirectoryProvider } from './tsServer/logDirectoryProvider.electron';
+import { PluginManager } from './tsServer/plugins';
 import { ElectronServiceProcessFactory } from './tsServer/serverProcess.electron';
 import { DiskTypeScriptVersionProvider } from './tsServer/versionProvider.electron';
 import { ActiveJsTsEditorTracker } from './ui/activeJsTsEditorTracker';
-import { ElectronServiceConfigurationProvider } from './configuration/configuration.electron';
 import { onCaseInsensitiveFileSystem } from './utils/fs.electron';
-import { Logger } from './logging/logger';
+import { Lazy } from './utils/lazy';
 import { getPackageInfo } from './utils/packageInfo';
-import { PluginManager } from './tsServer/plugins';
 import * as temp from './utils/temp.electron';
 
 export function activate(
@@ -75,7 +76,7 @@ export function activate(
 	registerBaseCommands(commandManager, lazyClientHost, pluginManager, activeJsTsEditorTracker);
 
 	import('./task/taskProvider').then(module => {
-		context.subscriptions.push(module.register(lazyClientHost.map(x => x.serviceClient)));
+		context.subscriptions.push(module.register(new Lazy(() => lazyClientHost.value.serviceClient)));
 	});
 
 	import('./languageFeatures/tsconfig').then(module => {

@@ -13,9 +13,10 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { IWorkbenchThemeService } from '../../../services/themes/common/workbenchThemeService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { language } from '../../../../base/common/platform.js';
+import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import ErrorTelemetry from '../../../../platform/telemetry/browser/errorTelemetry.js';
-import { TelemetryTrustedValue } from '../../../../platform/telemetry/common/telemetryUtils.js';
+import { supportsTelemetry, TelemetryLogGroup, telemetryLogId, TelemetryTrustedValue } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ITextFileService, ITextFileSaveEvent, ITextFileResolveEvent } from '../../../services/textfile/common/textfiles.js';
 import { extname, basename, isEqual, isEqualOrParent } from '../../../../base/common/resources.js';
@@ -31,8 +32,13 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '.
 import { isBoolean, isNumber, isString } from '../../../../base/common/types.js';
 import { LayoutSettings } from '../../../services/layout/browser/layoutService.js';
 import { AutoRestartConfigurationKey, AutoUpdateConfigurationKey } from '../../extensions/common/extensions.js';
-import { KEYWORD_ACTIVIATION_SETTING_ID } from '../../chat/common/chatService.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { localize2 } from '../../../../nls.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { IOutputService } from '../../../services/output/common/output.js';
+import { ILoggerResource, ILoggerService, LogLevel } from '../../../../platform/log/common/log.js';
 
 type TelemetryData = {
 	mimeType: TelemetryTrustedValue<string>;
@@ -65,6 +71,9 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService,
+		@IProductService productService: IProductService,
+		@ILoggerService private readonly loggerService: ILoggerService,
+		@IOutputService private readonly outputService: IOutputService,
 		@ITextFileService textFileService: ITextFileService
 	) {
 		super();
@@ -137,21 +146,17 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 
 		// Lifecycle
 		this._register(lifecycleService.onDidShutdown(() => this.dispose()));
+
+		if (supportsTelemetry(productService, environmentService)) {
+			this.handleTelemetryOutputVisibility();
+		}
 	}
 
 	private onTextFileModelResolved(e: ITextFileResolveEvent): void {
 		const settingsType = this.getTypeIfSettings(e.model.resource);
-		if (settingsType) {
-			type SettingsReadClassification = {
-				owner: 'bpasero';
-				settingsType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of the settings file that was read.' };
-				comment: 'Track when a settings file was read, for example from an editor.';
-			};
-
-			this.telemetryService.publicLog2<{ settingsType: string }, SettingsReadClassification>('settingsRead', { settingsType }); // Do not log read to user settings.json and .vscode folder as a fileGet event as it ruins our JSON usage data
-		} else {
+		if (!settingsType) {
 			type FileGetClassification = {
-				owner: 'bpasero';
+				owner: 'isidorn';
 				comment: 'Track when a file was read, for example from an editor.';
 			} & FileTelemetryDataFragment;
 
@@ -161,16 +166,9 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 
 	private onTextFileModelSaved(e: ITextFileSaveEvent): void {
 		const settingsType = this.getTypeIfSettings(e.model.resource);
-		if (settingsType) {
-			type SettingsWrittenClassification = {
-				owner: 'bpasero';
-				settingsType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of the settings file that was written to.' };
-				comment: 'Track when a settings file was written to, for example from an editor.';
-			};
-			this.telemetryService.publicLog2<{ settingsType: string }, SettingsWrittenClassification>('settingsWritten', { settingsType }); // Do not log write to user settings.json and .vscode folder as a filePUT event as it ruins our JSON usage data
-		} else {
+		if (!settingsType) {
 			type FilePutClassfication = {
-				owner: 'bpasero';
+				owner: 'isidorn';
 				comment: 'Track when a file was written to, for example from an editor.';
 			} & FileTelemetryDataFragment;
 			this.telemetryService.publicLog2<TelemetryData, FilePutClassfication>('filePUT', this.getTelemetryData(e.model.resource, e.reason));
@@ -231,6 +229,57 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		}
 
 		return telemetryData;
+	}
+
+	private async handleTelemetryOutputVisibility(): Promise<void> {
+		const that = this;
+
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.action.showTelemetry',
+					title: localize2('showTelemetry', "Show Telemetry"),
+					category: Categories.Developer,
+					f1: true
+				});
+			}
+			async run(): Promise<void> {
+				for (const logger of that.loggerService.getRegisteredLoggers()) {
+					if (logger.group?.id === TelemetryLogGroup.id) {
+						that.loggerService.setLogLevel(logger.resource, LogLevel.Trace);
+						that.loggerService.setVisibility(logger.resource, true);
+					}
+				}
+				that.outputService.showChannel(TelemetryLogGroup.id);
+			}
+		}));
+
+		if (![...this.loggerService.getRegisteredLoggers()].find(logger => logger.id === telemetryLogId)) {
+			await Event.toPromise(Event.filter(this.loggerService.onDidChangeLoggers, e => [...e.added].some(logger => logger.id === telemetryLogId)));
+		}
+
+		let showTelemetry = false;
+		for (const logger of this.loggerService.getRegisteredLoggers()) {
+			if (logger.id === telemetryLogId) {
+				showTelemetry = this.loggerService.getLogLevel() === LogLevel.Trace || !logger.hidden;
+				if (showTelemetry) {
+					this.loggerService.setVisibility(logger.id, true);
+				}
+				break;
+			}
+		}
+		if (showTelemetry) {
+			const showExtensionTelemetry = (loggers: Iterable<ILoggerResource>) => {
+				for (const logger of loggers) {
+					if (logger.group?.id === TelemetryLogGroup.id) {
+						that.loggerService.setLogLevel(logger.resource, LogLevel.Trace);
+						this.loggerService.setVisibility(logger.id, true);
+					}
+				}
+			};
+			showExtensionTelemetry(this.loggerService.getRegisteredLoggers());
+			this._register(this.loggerService.onDidChangeLoggers(e => showExtensionTelemetry(e.added)));
+		}
 	}
 }
 
@@ -306,15 +355,6 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 				}>('extensions.autoUpdate', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
-			case 'files.autoSave':
-				this.telemetryService.publicLog2<UpdatedSettingEvent, {
-					owner: 'isidorn';
-					comment: 'This is used to know if auto save is enabled or not';
-					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
-					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('files.autoSave', { settingValue: this.getValueToReport(key, target), source });
-				return;
-
 			case 'editor.stickyScroll.enabled':
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
 					owner: 'aiday-mar';
@@ -324,31 +364,13 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 				}>('editor.stickyScroll.enabled', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
-			case KEYWORD_ACTIVIATION_SETTING_ID:
+			case 'typescript.experimental.expandableHover':
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
-					owner: 'bpasero';
-					comment: 'This is used to know if voice keyword activation is enabled or not';
+					owner: 'aiday-mar';
+					comment: 'This is used to know if the TypeScript expandbale hover is enabled or not';
 					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
 					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('accessibility.voice.keywordActivation', { settingValue: this.getValueToReport(key, target), source });
-				return;
-
-			case 'window.zoomLevel':
-				this.telemetryService.publicLog2<UpdatedSettingEvent, {
-					owner: 'bpasero';
-					comment: 'This is used to know if window zoom level is configured or not';
-					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
-					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('window.zoomLevel', { settingValue: this.getValueToReport(key, target), source });
-				return;
-
-			case 'window.zoomPerWindow':
-				this.telemetryService.publicLog2<UpdatedSettingEvent, {
-					owner: 'bpasero';
-					comment: 'This is used to know if window zoom per window is configured or not';
-					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
-					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('window.zoomPerWindow', { settingValue: this.getValueToReport(key, target), source });
+				}>('typescript.experimental.expandableHover', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
 			case 'window.titleBarStyle':
@@ -360,42 +382,6 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 				}>('window.titleBarStyle', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
-			case 'window.commandCenter':
-				this.telemetryService.publicLog2<UpdatedSettingEvent, {
-					owner: 'bpasero';
-					comment: 'This is used to know if command center is enabled or not';
-					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
-					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('window.commandCenter', { settingValue: this.getValueToReport(key, target), source });
-				return;
-
-			case 'chat.commandCenter.enabled':
-				this.telemetryService.publicLog2<UpdatedSettingEvent, {
-					owner: 'bpasero';
-					comment: 'This is used to know if command center chat menu is enabled or not';
-					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
-					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('chat.commandCenter.enabled', { settingValue: this.getValueToReport(key, target), source });
-				return;
-
-			case 'window.customTitleBarVisibility':
-				this.telemetryService.publicLog2<UpdatedSettingEvent, {
-					owner: 'benibenj';
-					comment: 'This is used to know if window custom title bar visibility is configured or not';
-					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
-					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('window.customTitleBarVisibility', { settingValue: this.getValueToReport(key, target), source });
-				return;
-
-			case 'window.nativeTabs':
-				this.telemetryService.publicLog2<UpdatedSettingEvent, {
-					owner: 'benibenj';
-					comment: 'This is used to know if window native tabs are enabled or not';
-					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
-					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('window.nativeTabs', { settingValue: this.getValueToReport(key, target), source });
-				return;
-
 			case 'extensions.verifySignature':
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
 					owner: 'sandy081';
@@ -403,15 +389,6 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
 					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
 				}>('extensions.verifySignature', { settingValue: this.getValueToReport(key, target), source });
-				return;
-
-			case 'window.systemColorTheme':
-				this.telemetryService.publicLog2<UpdatedSettingEvent, {
-					owner: 'bpasero';
-					comment: 'This is used to know how system color theme is enforced';
-					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
-					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('window.systemColorTheme', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
 			case 'window.newWindowProfile':

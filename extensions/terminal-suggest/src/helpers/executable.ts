@@ -6,11 +6,15 @@
 import { osIsWindows } from './os';
 import * as fs from 'fs/promises';
 
-export async function isExecutable(filePath: string, configuredWindowsExecutableExtensions?: { [key: string]: boolean | undefined } | undefined): Promise<boolean> {
+export function isExecutable(filePath: string, configuredWindowsExecutableExtensions?: { [key: string]: boolean | undefined } | undefined): Promise<boolean> | boolean {
 	if (osIsWindows()) {
 		const resolvedWindowsExecutableExtensions = resolveWindowsExecutableExtensions(configuredWindowsExecutableExtensions);
 		return resolvedWindowsExecutableExtensions.find(ext => filePath.endsWith(ext)) !== undefined;
 	}
+	return isExecutableUnix(filePath);
+}
+
+export async function isExecutableUnix(filePath: string): Promise<boolean> {
 	try {
 		const stats = await fs.stat(filePath);
 		// On macOS/Linux, check if the executable bit is set

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { main } from './sign';
-import * as path from 'path';
+import path from 'path';
 
 main([
 	process.env['EsrpCliDllPath']!,

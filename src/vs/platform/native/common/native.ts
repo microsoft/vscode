@@ -113,9 +113,6 @@ export interface ICommonNativeHostService {
 	 */
 	focusWindow(options?: INativeHostOptions & { force?: boolean }): Promise<void>;
 
-	// Titlebar default style override
-	overrideDefaultTitlebarStyle(style: 'custom' | undefined): Promise<void>;
-
 	// Dialogs
 	showMessageBox(options: MessageBoxOptions & INativeHostOptions): Promise<MessageBoxReturnValue>;
 	showSaveDialog(options: SaveDialogOptions & INativeHostOptions): Promise<SaveDialogReturnValue>;
@@ -146,13 +143,14 @@ export interface ICommonNativeHostService {
 	hasWSLFeatureInstalled(): Promise<boolean>;
 
 	// Screenshots
-	getScreenshot(): Promise<ArrayBufferLike | undefined>;
+	getScreenshot(): Promise<VSBuffer | undefined>;
 
 	// Process
 	getProcessId(): Promise<number | undefined>;
 	killProcess(pid: number, code: string): Promise<void>;
 
 	// Clipboard
+	triggerPaste(): Promise<void>;
 	readClipboardText(type?: 'selection' | 'clipboard'): Promise<string>;
 	writeClipboardText(text: string, type?: 'selection' | 'clipboard'): Promise<void>;
 	readClipboardFindText(): Promise<string>;
