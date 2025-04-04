@@ -77,6 +77,11 @@ export class TokenArray {
 		}
 		return TokenArray.create(result);
 	}
+
+	public append(other: TokenArray): TokenArray {
+		const result: TokenInfo[] = this._tokenInfo.concat(other._tokenInfo);
+		return TokenArray.create(result);
+	}
 }
 
 export type TokenMetadata = number;

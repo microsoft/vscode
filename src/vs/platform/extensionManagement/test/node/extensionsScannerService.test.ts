@@ -300,9 +300,10 @@ suite('NativeExtensionsScanerService Test', () => {
 
 	test('scan single extension with manifest metadata retains manifest metadata', async () => {
 		const manifest: Partial<IExtensionManifest> = anExtensionManifest({ 'name': 'name', 'publisher': 'pub' });
+		const expectedMetadata = { size: 12345, installedTimestamp: 1234567890, targetPlatform: TargetPlatform.DARWIN_ARM64 };
 		const extensionLocation = await aUserExtension({
 			...manifest,
-			__metadata: { size: 12345, installedTimestamp: 1234567890 }
+			__metadata: expectedMetadata
 		});
 		const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
@@ -315,7 +316,7 @@ suite('NativeExtensionsScanerService Test', () => {
 		assert.deepStrictEqual(actual!.type, ExtensionType.User);
 		assert.deepStrictEqual(actual!.isValid, true);
 		assert.deepStrictEqual(actual!.validations, []);
-		assert.deepStrictEqual(actual!.metadata, { size: 12345, installedTimestamp: 1234567890 });
+		assert.deepStrictEqual(actual!.metadata, expectedMetadata);
 		assert.deepStrictEqual(actual!.manifest, manifest);
 	});
 

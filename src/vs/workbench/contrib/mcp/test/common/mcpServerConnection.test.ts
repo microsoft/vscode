@@ -12,7 +12,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { ILogger, ILoggerService } from '../../../../../platform/log/common/log.js';
+import { ILogger, ILoggerService, LogLevel, NullLogger } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
@@ -25,6 +25,8 @@ import { TestMcpMessageTransport } from './mcpRegistryTypes.js';
 class TestMcpHostDelegate extends Disposable implements IMcpHostDelegate {
 	private readonly _transport: TestMcpMessageTransport;
 	private _canStartValue = true;
+
+	priority = 0;
 
 	constructor() {
 		super();
@@ -97,6 +99,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 				command: 'test-command',
 				args: [],
 				env: {},
+				envFile: undefined,
 				cwd: URI.parse('file:///test')
 			}
 		};
@@ -126,7 +129,8 @@ suite('Workbench - MCP - ServerConnection', () => {
 			collection,
 			serverDefinition,
 			delegate,
-			serverDefinition.launch
+			serverDefinition.launch,
+			new NullLogger(),
 		);
 		store.add(connection);
 
@@ -153,7 +157,8 @@ suite('Workbench - MCP - ServerConnection', () => {
 			collection,
 			serverDefinition,
 			delegate,
-			serverDefinition.launch
+			serverDefinition.launch,
+			new NullLogger(),
 		);
 		store.add(connection);
 
@@ -171,7 +176,8 @@ suite('Workbench - MCP - ServerConnection', () => {
 			collection,
 			serverDefinition,
 			delegate,
-			serverDefinition.launch
+			serverDefinition.launch,
+			new NullLogger(),
 		);
 		store.add(connection);
 
@@ -196,7 +202,8 @@ suite('Workbench - MCP - ServerConnection', () => {
 			collection,
 			serverDefinition,
 			delegate,
-			serverDefinition.launch
+			serverDefinition.launch,
+			new NullLogger(),
 		);
 		store.add(connection);
 
@@ -219,7 +226,8 @@ suite('Workbench - MCP - ServerConnection', () => {
 			collection,
 			serverDefinition,
 			delegate,
-			serverDefinition.launch
+			serverDefinition.launch,
+			new NullLogger(),
 		);
 		store.add(connection);
 
@@ -241,6 +249,8 @@ suite('Workbench - MCP - ServerConnection', () => {
 
 		transport.simulateInitialized();
 		assert.ok(await waitForHandler(connection));
+
+		connection.dispose();
 	});
 
 	test('should clean up when disposed', async () => {
@@ -250,7 +260,8 @@ suite('Workbench - MCP - ServerConnection', () => {
 			collection,
 			serverDefinition,
 			delegate,
-			serverDefinition.launch
+			serverDefinition.launch,
+			new NullLogger(),
 		);
 
 		// Start the connection
@@ -264,81 +275,25 @@ suite('Workbench - MCP - ServerConnection', () => {
 		assert.strictEqual(connection.state.get().state, McpConnectionState.Kind.Stopped);
 	});
 
-	test('showOutput should call logger and output services', () => {
-		let channelShown = false;
-		const outputService = {
-			showChannel: (id: string) => {
-				assert.strictEqual(id, `mcpServer/${serverDefinition.id}`);
-				channelShown = true;
-			}
-		};
-
-		let loggerVisible = false;
-		const loggerService = new class extends TestLoggerService {
-			override setVisibility(id: string, visible: boolean): void {
-				assert.strictEqual(id, `mcpServer/${serverDefinition.id}`);
-				assert.strictEqual(visible, true);
-				loggerVisible = true;
-			}
-		};
-
-		// Override services
-		const services = new ServiceCollection(
-			[ILoggerService, store.add(loggerService)],
-			[IOutputService, upcast(outputService)],
-			[IStorageService, store.add(new TestStorageService())]
-		);
-
-		const localInstantiationService = store.add(new TestInstantiationService(services));
-
-		// Create server connection
-		const connection = localInstantiationService.createInstance(
-			McpServerConnection,
-			collection,
-			serverDefinition,
-			delegate,
-			serverDefinition.launch
-		);
-		store.add(connection);
-
-		// Show output
-		connection.showOutput();
-
-		assert.strictEqual(channelShown, true);
-		assert.strictEqual(loggerVisible, true);
-	});
-
 	test('should log transport messages', async () => {
 		// Track logged messages
 		const loggedMessages: string[] = [];
-		const loggerService = new class extends TestLoggerService {
-			override createLogger(id: string) {
-				return {
-					info: (message: string) => {
-						loggedMessages.push(message);
-					},
-					error: () => { },
-					dispose: () => { }
-				} as Partial<ILogger> as ILogger;
-			}
-		};
-
-		// Override services
-		const services = new ServiceCollection(
-			[ILoggerService, store.add(loggerService)],
-			[IOutputService, upcast({ showChannel: () => { } })],
-			[IStorageService, store.add(new TestStorageService())]
-		);
-
-		const localInstantiationService = store.add(new TestInstantiationService(services));
 
 		// Create server connection
-		const connection = localInstantiationService.createInstance(
+		const connection = instantiationService.createInstance(
 			McpServerConnection,
 			collection,
 			serverDefinition,
 			delegate,
-			serverDefinition.launch
+			serverDefinition.launch,
+			{
+				getLevel: () => LogLevel.Debug,
+				info: (message: string) => {
+					loggedMessages.push(message);
+				},
+				error: () => { },
+				dispose: () => { }
+			} as Partial<ILogger> as ILogger,
 		);
 		store.add(connection);
 
@@ -354,6 +309,9 @@ suite('Workbench - MCP - ServerConnection', () => {
 
 		// Check that the message was logged
 		assert.ok(loggedMessages.some(msg => msg === 'Test log message'));
+
+		connection.dispose();
+		await timeout(10);
 	});
 
 	test('should correctly handle transitions to and from error state', async () => {
@@ -363,7 +321,8 @@ suite('Workbench - MCP - ServerConnection', () => {
 			collection,
 			serverDefinition,
 			delegate,
-			serverDefinition.launch
+			serverDefinition.launch,
+			new NullLogger(),
 		);
 		store.add(connection);
 
@@ -400,7 +359,8 @@ suite('Workbench - MCP - ServerConnection', () => {
 			collection,
 			serverDefinition,
 			delegate,
-			serverDefinition.launch
+			serverDefinition.launch,
+			new NullLogger(),
 		);
 		store.add(connection);
 

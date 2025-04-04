@@ -5,6 +5,7 @@
 
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/objects.js';
@@ -14,7 +15,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
-import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../../chat/common/languageModelToolsService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../../chat/common/languageModelToolsService.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServer, McpServerMetadataCache } from './mcpServer.js';
 import { IMcpServer, IMcpService, IMcpTool, McpCollectionDefinition, McpServerDefinition, McpServerToolsState } from './mcpTypes.js';
@@ -43,7 +44,6 @@ export class McpService extends Disposable implements IMcpService {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
-		@IProductService productService: IProductService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -95,15 +95,20 @@ export class McpService extends Disposable implements IMcpService {
 			const toDelete = new Set(tools.keys());
 			for (const tool of server.tools.read(reader)) {
 				const existing = tools.get(tool.id);
+				const collection = this._mcpRegistry.collections.get().find(c => c.id === server.collection.id);
 				const toolData: IToolData = {
 					id: tool.id,
+					source: { type: 'mcp', collectionId: server.collection.id, definitionId: server.definition.id },
+					icon: Codicon.tools,
 					displayName: tool.definition.name,
 					toolReferenceName: tool.definition.name,
 					modelDescription: tool.definition.description ?? '',
 					userDescription: tool.definition.description ?? '',
 					inputSchema: tool.definition.inputSchema,
 					canBeReferencedInPrompt: true,
-					tags: ['mcp', 'vscode_editing'], // TODO@jrieken remove this tag
+					supportsToolPicker: true,
+					runsInWorkspace: collection?.scope === StorageScope.WORKSPACE || !!collection?.remoteAuthority,
+					tags: ['mcp'],
 				};
 
 				if (existing) {
@@ -175,7 +180,14 @@ export class McpService extends Disposable implements IMcpService {
 		// Create any new servers that are needed.
 		for (const def of nextDefinitions) {
 			const store = new DisposableStore();
-			const object = this._instantiationService.createInstance(McpServer, def.collectionDefinition, def.serverDefinition, false, def.collectionDefinition.scope === StorageScope.WORKSPACE ? this.workspaceCache : this.userCache);
+			const object = this._instantiationService.createInstance(
+				McpServer,
+				def.collectionDefinition,
+				def.serverDefinition,
+				def.serverDefinition.roots,
+				!!def.collectionDefinition.lazy,
+				def.collectionDefinition.scope === StorageScope.WORKSPACE ? this.workspaceCache : this.userCache,
+			);
 			store.add(object);
 			this._syncTools(object, store);
 
@@ -204,23 +216,30 @@ class McpToolImplementation implements IToolImpl {
 		@IProductService private readonly _productService: IProductService,
 	) { }
 
-	async prepareToolInvocation(parameters: any, token: CancellationToken) {
+	async prepareToolInvocation(parameters: any): Promise<IPreparedToolInvocation> {
 		const tool = this._tool;
 		const server = this._server;
 
 		const mcpToolWarning = localize(
 			'mcp.tool.warning',
-			"MCP servers or malicious conversation content may attempt to misuse '{0}' through the installed tools. Please carefully review any requested actions.",
+			"{0} This tool is from \'{1}\' (MCP Server). Note that MCP servers or malicious conversation content may attempt to misuse '{2}' through tools. Please carefully review any requested actions.",
+			'$(info)',
+			server.definition.label,
 			this._productService.nameShort
 		);
 
 		return {
 			confirmationMessages: {
-				title: localize('msg.title', "Run `{0}` from $(server) `{1}` (MCP server)", tool.definition.name, server.definition.label),
-				message: new MarkdownString(localize('msg.msg', "{0}\n\nInput:\n\n```json\n{1}\n```\n\n$(warning) {2}", tool.definition.description, JSON.stringify(parameters, undefined, 2), mcpToolWarning), { supportThemeIcons: true })
+				title: localize('msg.title', "Run `{0}`", tool.definition.name, server.definition.label),
+				message: new MarkdownString(localize('msg.msg', "{0}\n\n {1}", tool.definition.description, mcpToolWarning), { supportThemeIcons: true }),
+				allowAutoConfirm: true,
 			},
 			invocationMessage: new MarkdownString(localize('msg.run', "Running `{0}`", tool.definition.name, server.definition.label)),
-			pastTenseMessage: new MarkdownString(localize('msg.ran', "Ran `{0}` ", tool.definition.name, server.definition.label))
+			pastTenseMessage: new MarkdownString(localize('msg.ran', "Ran `{0}` ", tool.definition.name, server.definition.label)),
+			toolSpecificData: {
+				kind: 'input',
+				rawInput: parameters
+			}
 		};
 	}
 
@@ -230,6 +249,8 @@ class McpToolImplementation implements IToolImpl {
 			content: []
 		};
 
+		const outputParts: string[] = [];
+
 		const callResult = await this._tool.call(invocation.parameters as Record<string, any>, token);
 		for (const item of callResult.content) {
 			if (item.type === 'text') {
@@ -237,12 +258,17 @@ class McpToolImplementation implements IToolImpl {
 					kind: 'text',
 					value: item.text
 				});
+
+				outputParts.push(item.text);
 			} else {
 				// TODO@jrieken handle different item types
 			}
 		}
 
-		// result.toolResultMessage = new MarkdownString(localize('reuslt.pattern', "```json\n{0}\n```", JSON.stringify(callResult, undefined, 2)));
+		result.toolResultDetails = {
+			input: JSON.stringify(invocation.parameters, undefined, 2),
+			output: outputParts.join('\n')
+		};
 
 		return result;
 	}

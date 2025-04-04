@@ -17,6 +17,7 @@ export interface IMcpConfigurationStdio {
 	command: string;
 	args?: readonly string[];
 	env?: Record<string, string | number | null>;
+	envFile?: string;
 }
 
 export interface IMcpConfigurationSSE {

@@ -1369,6 +1369,7 @@ export class TestLifecycleService extends Disposable implements ILifecycleServic
 	}
 
 	startupKind!: StartupKind;
+	willShutdown = false;
 
 	private readonly _onBeforeShutdown = this._register(new Emitter<InternalBeforeShutdownEvent>());
 	get onBeforeShutdown(): Event<InternalBeforeShutdownEvent> { return this._onBeforeShutdown.event; }
@@ -1576,7 +1577,7 @@ export class TestHostService implements IHostService {
 
 	async toggleFullScreen(): Promise<void> { }
 
-	async getScreenshot(): Promise<ArrayBufferLike | undefined> { return undefined; }
+	async getScreenshot(): Promise<VSBuffer | undefined> { return undefined; }
 
 	async getNativeWindowHandle(_windowId: number): Promise<VSBuffer | undefined> { return undefined; }
 

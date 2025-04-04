@@ -188,6 +188,11 @@ export class ChatSessionStore extends Disposable {
 		return Object.keys(this.internalGetIndex().entries).length > 0;
 	}
 
+	isSessionEmpty(sessionId: string): boolean {
+		const index = this.internalGetIndex();
+		return index.entries[sessionId]?.isEmpty ?? true;
+	}
+
 	async deleteSession(sessionId: string): Promise<void> {
 		await this.storeQueue.queue(async () => {
 			await this.internalDeleteSession(sessionId);

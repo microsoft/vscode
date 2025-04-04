@@ -5,8 +5,8 @@
 
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
-import { getCleanPromptName, isPromptFile } from '../../common/constants.js';
 import { randomInt } from '../../../../base/common/numbers.js';
+import { getCleanPromptName, isPromptFile } from '../../common/constants.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 
@@ -29,6 +29,11 @@ suite('Prompt Constants', () => {
 			assert.strictEqual(
 				getCleanPromptName(URI.file(`./${expectedPromptName}.prompt.md`)),
 				expectedPromptName,
+			);
+
+			assert.strictEqual(
+				getCleanPromptName(URI.file('.github/copilot-instructions.md')),
+				'copilot-instructions',
 			);
 		});
 
@@ -64,6 +69,10 @@ suite('Prompt Constants', () => {
 
 			assert(
 				isPromptFile(URI.file(`./some-${randomInt(1000)}.prompt.md`)),
+			);
+
+			assert(
+				isPromptFile(URI.file('.github/copilot-instructions.md')),
 			);
 		});
 

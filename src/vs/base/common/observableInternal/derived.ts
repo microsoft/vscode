@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BaseObservable, IChangeContext, IObservable, IObservableWithChange, IObserver, IReader, ISettableObservable, ITransaction, _setDerivedOpts, } from './base.js';
+import { BaseObservable, IObservable, IObservableWithChange, IObserver, IReader, ISettableObservable, ITransaction, _setDerivedOpts, } from './base.js';
 import { DebugNameData, DebugOwner, IDebugNameData } from './debugName.js';
 import { BugIndicatingError, DisposableStore, EqualityComparer, IDisposable, assertFn, onBugIndicatingError, strictEquals } from './commonFacade/deps.js';
 import { getLogger } from './logging/logging.js';
+import { IChangeTracker } from './changeTracker.js';
 
 /**
  * Creates an observable that is derived from other observables.
@@ -23,14 +24,12 @@ export function derived<T>(computeFnOrOwner: ((reader: IReader) => T) | DebugOwn
 			computeFn,
 			undefined,
 			undefined,
-			undefined,
 			strictEquals
 		);
 	}
 	return new Derived(
 		new DebugNameData(undefined, undefined, computeFnOrOwner as any),
 		computeFnOrOwner as any,
-		undefined,
 		undefined,
 		undefined,
 		strictEquals
@@ -41,7 +40,6 @@ export function derivedWithSetter<T>(owner: DebugOwner | undefined, computeFn: (
 	return new DerivedWithSetter(
 		new DebugNameData(owner, undefined, computeFn),
 		computeFn,
-		undefined,
 		undefined,
 		undefined,
 		strictEquals,
@@ -59,7 +57,6 @@ export function derivedOpts<T>(
 	return new Derived(
 		new DebugNameData(options.owner, options.debugName, options.debugReferenceFn),
 		computeFn,
-		undefined,
 		undefined,
 		options.onLastObserverRemoved,
 		options.equalsFn ?? strictEquals
@@ -83,8 +80,7 @@ _setDerivedOpts(derivedOpts);
  */
 export function derivedHandleChanges<T, TChangeSummary>(
 	options: IDebugNameData & {
-		createEmptyChangeSummary: () => TChangeSummary;
-		handleChange: (context: IChangeContext, changeSummary: TChangeSummary) => boolean;
+		changeTracker: IChangeTracker<TChangeSummary>;
 		equalityComparer?: EqualityComparer<T>;
 	},
 	computeFn: (reader: IReader, changeSummary: TChangeSummary) => T
@@ -92,8 +88,7 @@ export function derivedHandleChanges<T, TChangeSummary>(
 	return new Derived(
 		new DebugNameData(options.owner, options.debugName, undefined),
 		computeFn,
-		options.createEmptyChangeSummary,
-		options.handleChange,
+		options.changeTracker,
 		undefined,
 		options.equalityComparer ?? strictEquals
 	);
@@ -125,7 +120,7 @@ export function derivedWithStore<T>(computeFnOrOwner: ((reader: IReader, store: 
 				store.clear();
 			}
 			return computeFn(r, store);
-		}, undefined,
+		},
 		undefined,
 		() => store.dispose(),
 		strictEquals,
@@ -159,7 +154,7 @@ export function derivedDisposable<T extends IDisposable | undefined>(computeFnOr
 				store.add(result);
 			}
 			return result;
-		}, undefined,
+		},
 		undefined,
 		() => {
 			if (store) {
@@ -210,13 +205,12 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 	constructor(
 		public readonly _debugNameData: DebugNameData,
 		public readonly _computeFn: (reader: IReader, changeSummary: TChangeSummary) => T,
-		private readonly createChangeSummary: (() => TChangeSummary) | undefined,
-		private readonly _handleChange: ((context: IChangeContext, summary: TChangeSummary) => boolean) | undefined,
+		private readonly _changeTracker: IChangeTracker<TChangeSummary> | undefined,
 		private readonly _handleLastObserverRemoved: (() => void) | undefined = undefined,
 		private readonly _equalityComparator: EqualityComparer<T>,
 	) {
 		super();
-		this._changeSummary = this.createChangeSummary?.();
+		this._changeSummary = this._changeTracker?.createChangeSummary(undefined);
 	}
 
 	protected override onLastObserverRemoved(): void {
@@ -248,7 +242,12 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 			// Thus, we don't cache anything to prevent memory leaks.
 			try {
 				this._isReaderValid = true;
-				result = this._computeFn(this, this.createChangeSummary?.()!);
+				let changeSummary = undefined;
+				if (this._changeTracker) {
+					changeSummary = this._changeTracker.createChangeSummary(undefined);
+					this._changeTracker.beforeUpdate?.(this, changeSummary);
+				}
+				result = this._computeFn(this, changeSummary!);
 			} finally {
 				this._isReaderValid = false;
 			}
@@ -302,9 +301,12 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 
 		try {
 			const changeSummary = this._changeSummary!;
-			this._changeSummary = this.createChangeSummary?.();
 			try {
 				this._isReaderValid = true;
+				if (this._changeTracker) {
+					this._changeTracker.beforeUpdate?.(this, changeSummary);
+					this._changeSummary = this._changeTracker?.createChangeSummary(changeSummary);
+				}
 				/** might call {@link handleChange} indirectly, which could invalidate us */
 				this._value = this._computeFn(this, changeSummary);
 			} finally {
@@ -410,7 +412,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 
 			let shouldReact = false;
 			try {
-				shouldReact = this._handleChange ? this._handleChange({
+				shouldReact = this._changeTracker ? this._changeTracker.handleChange({
 					changedObservable: observable,
 					change,
 					didChange: (o): this is any => o === observable as any,
@@ -491,8 +493,7 @@ export class DerivedWithSetter<T, TChangeSummary = any> extends Derived<T, TChan
 	constructor(
 		debugNameData: DebugNameData,
 		computeFn: (reader: IReader, changeSummary: TChangeSummary) => T,
-		createChangeSummary: (() => TChangeSummary) | undefined,
-		handleChange: ((context: IChangeContext, summary: TChangeSummary) => boolean) | undefined,
+		changeTracker: IChangeTracker<TChangeSummary> | undefined,
 		handleLastObserverRemoved: (() => void) | undefined = undefined,
 		equalityComparator: EqualityComparer<T>,
 		public readonly set: (value: T, tx: ITransaction | undefined) => void,
@@ -500,8 +501,7 @@ export class DerivedWithSetter<T, TChangeSummary = any> extends Derived<T, TChan
 		super(
 			debugNameData,
 			computeFn,
-			createChangeSummary,
-			handleChange,
+			changeTracker,
 			handleLastObserverRemoved,
 			equalityComparator,
 		);

@@ -17,10 +17,13 @@ import { IActionViewItemService } from '../../../../platform/actions/browser/act
 import { MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Action2, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
+import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { spinningLoading } from '../../../../platform/theme/common/iconRegistry.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { ActiveEditorContext, ResourceContextKey } from '../../../common/contextkeys.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -31,6 +34,7 @@ import { McpContextKeys } from '../common/mcpContextKeys.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
 import { IMcpServer, IMcpService, LazyCollectionState, McpConnectionState, McpServerToolsState } from '../common/mcpTypes.js';
 import { McpAddConfigurationCommand } from './mcpCommandsAddConfiguration.js';
+import { McpUrlHandler } from './mcpUrlHandler.js';
 
 // acroynms do not get localized
 const category: ILocalizedString = {
@@ -68,21 +72,28 @@ export class ListMcpServerCommand extends Action2 {
 
 		const store = new DisposableStore();
 		const pick = quickInput.createQuickPick<ItemType>({ useSeparators: true });
-		pick.title = localize('mcp.selectServer', 'Select an MCP Server');
+		pick.placeholder = localize('mcp.selectServer', 'Select an MCP Server');
 
 		store.add(pick);
+
 		store.add(autorun(reader => {
 			const servers = groupBy(mcpService.servers.read(reader).slice().sort((a, b) => (a.collection.presentation?.order || 0) - (b.collection.presentation?.order || 0)), s => s.collection.id);
-			pick.items = Object.values(servers).flatMap(servers => {
-				return [
+			const firstRun = pick.items.length === 0;
+			pick.items = [
+				{ id: '$add', label: localize('mcp.addServer', 'Add Server'), description: localize('mcp.addServer.description', 'Add a new server configuration'), alwaysShow: true, iconClass: ThemeIcon.asClassName(Codicon.add) },
+				...Object.values(servers).filter(s => s.length).flatMap((servers): (ItemType | IQuickPickSeparator)[] => [
 					{ type: 'separator', label: servers[0].collection.label, id: servers[0].collection.id },
 					...servers.map(server => ({
 						id: server.definition.id,
 						label: server.definition.label,
 						description: McpConnectionState.toString(server.connectionState.read(reader)),
 					})),
-				];
-			});
+				]),
+			];
+
+			if (firstRun && pick.items.length > 3) {
+				pick.activeItems = pick.items.slice(2, 3) as ItemType[]; // select the first server by default
+			}
 		}));
 
 
@@ -98,7 +109,11 @@ export class ListMcpServerCommand extends Action2 {
 
 		store.dispose();
 
-		if (picked) {
+		if (!picked) {
+			// no-op
+		} else if (picked.id === '$add') {
+			commandService.executeCommand(AddConfigurationAction.ID);
+		} else {
 			commandService.executeCommand(McpServerOptionsCommand.id, picked.id);
 		}
 	}
@@ -204,7 +219,6 @@ export class McpServerOptionsCommand extends Action2 {
 		}
 	}
 }
-
 
 export class MCPServerActionRendering extends Disposable implements IWorkbenchContribution {
 	public static readonly ID = 'workbench.contrib.mcp.discovery';
@@ -410,5 +424,136 @@ export class AddConfigurationAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, configUri?: string): Promise<void> {
 		return accessor.get(IInstantiationService).createInstance(McpAddConfigurationCommand, configUri).run();
+	}
+}
+
+
+export class RemoveStoredInput extends Action2 {
+	static readonly ID = 'workbench.mcp.removeStoredInput';
+
+	constructor() {
+		super({
+			id: RemoveStoredInput.ID,
+			title: localize2('mcp.resetCachedTools', "Reset Cached Tools"),
+			category,
+			f1: false,
+		});
+	}
+
+	run(accessor: ServicesAccessor, scope: StorageScope, id?: string): void {
+		accessor.get(IMcpRegistry).clearSavedInputs(scope, id);
+	}
+}
+
+export class EditStoredInput extends Action2 {
+	static readonly ID = 'workbench.mcp.editStoredInput';
+
+	constructor() {
+		super({
+			id: EditStoredInput.ID,
+			title: localize2('mcp.editStoredInput', "Edit Stored Input"),
+			category,
+			f1: false,
+		});
+	}
+
+	run(accessor: ServicesAccessor, inputId: string, uri: URI | undefined, configSection: string, target: ConfigurationTarget): void {
+		const workspaceFolder = uri && accessor.get(IWorkspaceContextService).getWorkspaceFolder(uri);
+		accessor.get(IMcpRegistry).editSavedInput(inputId, workspaceFolder || undefined, configSection, target);
+	}
+}
+
+export class ShowOutput extends Action2 {
+	static readonly ID = 'workbench.mcp.showOutput';
+
+	constructor() {
+		super({
+			id: ShowOutput.ID,
+			title: localize2('mcp.command.showOutput', "Show Output"),
+			category,
+			f1: false,
+		});
+	}
+
+	run(accessor: ServicesAccessor, serverId: string): void {
+		accessor.get(IMcpService).servers.get().find(s => s.definition.id === serverId)?.showOutput();
+	}
+}
+
+export class RestartServer extends Action2 {
+	static readonly ID = 'workbench.mcp.restartServer';
+
+	constructor() {
+		super({
+			id: RestartServer.ID,
+			title: localize2('mcp.command.restartServer', "Restart Server"),
+			category,
+			f1: false,
+		});
+	}
+
+	async run(accessor: ServicesAccessor, serverId: string) {
+		const s = accessor.get(IMcpService).servers.get().find(s => s.definition.id === serverId);
+		s?.showOutput();
+		await s?.stop();
+		await s?.start();
+	}
+}
+
+export class StartServer extends Action2 {
+	static readonly ID = 'workbench.mcp.startServer';
+
+	constructor() {
+		super({
+			id: StartServer.ID,
+			title: localize2('mcp.command.startServer', "Start Server"),
+			category,
+			f1: false,
+		});
+	}
+
+	async run(accessor: ServicesAccessor, serverId: string) {
+		const s = accessor.get(IMcpService).servers.get().find(s => s.definition.id === serverId);
+		await s?.start();
+	}
+}
+
+export class StopServer extends Action2 {
+	static readonly ID = 'workbench.mcp.stopServer';
+
+	constructor() {
+		super({
+			id: StopServer.ID,
+			title: localize2('mcp.command.stopServer', "Stop Server"),
+			category,
+			f1: false,
+		});
+	}
+
+	async run(accessor: ServicesAccessor, serverId: string) {
+		const s = accessor.get(IMcpService).servers.get().find(s => s.definition.id === serverId);
+		await s?.stop();
+	}
+}
+
+export class InstallFromActivation extends Action2 {
+	static readonly ID = 'workbench.mcp.installFromActivation';
+
+	constructor() {
+		super({
+			id: InstallFromActivation.ID,
+			title: localize2('mcp.command.installFromActivation', "Install..."),
+			category,
+			f1: false,
+			menu: {
+				id: MenuId.EditorContent,
+				when: ContextKeyExpr.equals('resourceScheme', McpUrlHandler.scheme)
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, uri: URI) {
+		const addConfigHelper = accessor.get(IInstantiationService).createInstance(McpAddConfigurationCommand, undefined);
+		addConfigHelper.pickForUrlHandler(uri);
 	}
 }

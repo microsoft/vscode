@@ -13,6 +13,7 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { ExtensionIdentifier, IExtensionManifest } from '../../../../../platform/extensions/common/extensions.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { Extensions, IExtensionFeaturesRegistry, IExtensionFeatureTableRenderer, IRenderedData, IRowData, ITableData } from '../../../../services/extensionManagement/common/extensionFeatures.js';
@@ -145,6 +146,7 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 	constructor(
 		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService,
 		@ILogService logService: ILogService,
+		@IProductService productService: IProductService
 	) {
 		languageModelToolsExtensionPoint.setHandler((extensions, delta) => {
 			for (const extension of delta.added) {
@@ -195,13 +197,22 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 						};
 					}
 
+					// If OSS and the product.json is not set up, fall back to checking api proposal
+					const isBuiltinTool = productService.defaultChatAgent?.chatExtensionId ?
+						ExtensionIdentifier.equals(extension.description.identifier, productService.defaultChatAgent.chatExtensionId) :
+						isProposedApiEnabled(extension.description, 'chatParticipantPrivate');
 					const tool: IToolData = {
 						...rawTool,
-						extensionId: extension.description.identifier,
+						source: { type: 'extension', extensionId: extension.description.identifier, isExternalTool: !isBuiltinTool },
 						inputSchema: rawTool.inputSchema,
 						id: rawTool.name,
 						icon,
 						when: rawTool.when ? ContextKeyExpr.deserialize(rawTool.when) : undefined,
+						requiresConfirmation: !isBuiltinTool,
+						alwaysDisplayInputOutput: !isBuiltinTool,
+						supportsToolPicker: isBuiltinTool ?
+							false :
+							rawTool.canBeReferencedInPrompt
 					};
 					const disposable = languageModelToolsService.registerToolData(tool);
 					this._registrationDisposables.set(toToolKey(extension.description.identifier, rawTool.name), disposable);

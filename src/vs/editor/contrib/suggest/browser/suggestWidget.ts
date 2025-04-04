@@ -231,7 +231,7 @@ export class SuggestWidget implements IDisposable {
 			mouseSupport: false,
 			multipleSelectionSupport: false,
 			accessibilityProvider: {
-				getRole: () => 'option',
+				getRole: () => 'listitem',
 				getWidgetAriaLabel: () => nls.localize('suggest', "Suggest"),
 				getWidgetRole: () => 'listbox',
 				getAriaLabel: (item: CompletionItem) => {
@@ -273,7 +273,7 @@ export class SuggestWidget implements IDisposable {
 		const applyStatusBarStyle = () => this.element.domNode.classList.toggle('with-status-bar', this.editor.getOption(EditorOption.suggest).showStatusBar);
 		applyStatusBarStyle();
 
-		this._disposables.add(_themeService.onDidColorThemeChange(t => this._onThemeChange(t.theme)));
+		this._disposables.add(_themeService.onDidColorThemeChange(t => this._onThemeChange(t)));
 		this._onThemeChange(_themeService.getColorTheme());
 
 		this._disposables.add(this._list.onMouseDown(e => this._onListMouseDownOrTap(e)));

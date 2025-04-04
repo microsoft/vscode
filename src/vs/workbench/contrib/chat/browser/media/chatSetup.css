@@ -3,10 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.chat-setup-dialog {
-	overflow: hidden;
-}
-
 .chat-welcome-view .chat-setup-view {
 
 	text-align: center;
@@ -23,17 +19,21 @@
 
 .dialog-message-body .chat-setup-view {
 
-	p.legal {
-		font-size: 12px;
-		color: var(--vscode-descriptionForeground);
+	p {
+		margin-top: 0;
+		margin-bottom: 0;
 	}
 
-	.chat-setup-dialog-icon-background {
-		position: absolute;
-		right: -50px;
-		top: -20px;
-		font-size: 240px !important;
-		opacity: 0.2;
+	p.setup-legal {
+		font-size: 12px;
+		color: var(--vscode-descriptionForeground);
+		margin-top: 2em;
+	}
+
+	p.setup-settings {
+		font-size: 12px;
+		color: var(--vscode-descriptionForeground);
+		margin-top: 1em;
 	}
 }
 

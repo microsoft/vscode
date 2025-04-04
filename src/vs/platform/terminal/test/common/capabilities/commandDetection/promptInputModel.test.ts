@@ -12,6 +12,7 @@ import type { ITerminalCommand } from '../../../../common/capabilities/capabilit
 import { ok, notDeepStrictEqual, strictEqual } from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
+import { GeneralShellType, PosixShellType } from '../../../../common/terminal.js';
 
 suite('PromptInputModel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -381,6 +382,52 @@ suite('PromptInputModel', () => {
 
 			await assertPromptInput('STRIKE1 normal STRIKE2|'); // No ghost text expected
 		});
+		suite('With wrapping', () => {
+			test('Fish ghost text in long line with wrapped content', async () => {
+				promptInputModel.setShellType(PosixShellType.Fish);
+				await writePromise('$ ');
+				fireCommandStart();
+				await assertPromptInput('|');
+
+				// Write a command with ghost text that will wrap
+				await writePromise('find . -name');
+				await assertPromptInput(`find . -name|`);
+
+				// Add ghost text with dim style
+				await writePromise('\x1b[2m test\x1b[0m\x1b[4D');
+				await assertPromptInput(`find . -name |[test]`);
+
+				// Move cursor within the ghost text
+				await writePromise('\x1b[C');
+				await assertPromptInput(`find . -name t|[est]`);
+
+				// Accept ghost text
+				await writePromise('\x1b[C\x1b[C\x1b[C\x1b[C\x1b[C');
+				await assertPromptInput(`find . -name test|`);
+			});
+			test('Pwsh ghost text in long line with wrapped content', async () => {
+				promptInputModel.setShellType(GeneralShellType.PowerShell);
+				await writePromise('$ ');
+				fireCommandStart();
+				await assertPromptInput('|');
+
+				// Write a command with ghost text that will wrap
+				await writePromise('find . -name');
+				await assertPromptInput(`find . -name|`);
+
+				// Add ghost text with dim style
+				await writePromise('\x1b[2m test\x1b[0m\x1b[4D');
+				await assertPromptInput(`find . -name |[test]`);
+
+				// Move cursor within the ghost text
+				await writePromise('\x1b[C');
+				await assertPromptInput(`find . -name t|[est]`);
+
+				// Accept ghost text
+				await writePromise('\x1b[C\x1b[C\x1b[C\x1b[C\x1b[C');
+				await assertPromptInput(`find . -name test|`);
+			});
+		});
 	});
 
 	test('wide input (Korean)', async () => {
@@ -681,7 +728,7 @@ suite('PromptInputModel', () => {
 		});
 	});
 
-	suite('wrapped line (non-continuation)', () => {
+	suite('multi-line wrapped (no continuation prompt)', () => {
 		test('basic wrapped line', async () => {
 			xterm.resize(5, 10);
 
@@ -698,6 +745,66 @@ suite('PromptInputModel', () => {
 			await writePromise('"a"');
 			// HACK: Trailing whitespace is due to flaky detection in wrapped lines (but it doesn't matter much)
 			await assertPromptInput(`echo "a"| `);
+			await writePromise('\n\r\ b');
+			await assertPromptInput(`echo "a"\n b|`);
+			await writePromise('\n\r\ c');
+			await assertPromptInput(`echo "a"\n b\n c|`);
+		});
+	});
+	suite('multi-line wrapped (continuation prompt)', () => {
+		test('basic wrapped line', async () => {
+			xterm.resize(5, 10);
+			promptInputModel.setContinuationPrompt('∙ ');
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise('ech');
+			await assertPromptInput(`ech|`);
+
+			await writePromise('o ');
+			await assertPromptInput(`echo |`);
+
+			await writePromise('"a"');
+			// HACK: Trailing whitespace is due to flaky detection in wrapped lines (but it doesn't matter much)
+			await assertPromptInput(`echo "a"| `);
+			await writePromise('\n\r\∙ ');
+			await assertPromptInput(`echo "a"\n|`);
+			await writePromise('b');
+			await assertPromptInput(`echo "a"\nb|`);
+			await writePromise('\n\r\∙ ');
+			await assertPromptInput(`echo "a"\nb\n|`);
+			await writePromise('c');
+			await assertPromptInput(`echo "a"\nb\nc|`);
+			await writePromise('\n\r\∙ ');
+			await assertPromptInput(`echo "a"\nb\nc\n|`);
+		});
+	});
+	suite('multi-line wrapped fish', () => {
+		test('forward slash continuation', async () => {
+			promptInputModel.setShellType(PosixShellType.Fish);
+			await writePromise('$ ');
+			await assertPromptInput('|');
+			await writePromise('[I] meganrogge@Megans-MacBook-Pro ~ (main|BISECTING)>');
+			fireCommandStart();
+
+			await writePromise('ech\\');
+			await assertPromptInput(`ech\\|`);
+			await writePromise('\no bye');
+			await assertPromptInput(`echo bye|`);
+		});
+		test('newline with no continuation', async () => {
+			promptInputModel.setShellType(PosixShellType.Fish);
+			await writePromise('$ ');
+			await assertPromptInput('|');
+			await writePromise('[I] meganrogge@Megans-MacBook-Pro ~ (main|BISECTING)>');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise('echo "hi');
+			await assertPromptInput(`echo "hi|`);
+			await writePromise('\nand bye\nwhy"');
+			await assertPromptInput(`echo "hi\nand bye\nwhy"|`);
 		});
 	});
 

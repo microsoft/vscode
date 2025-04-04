@@ -349,7 +349,6 @@ export interface IExtensionsControlManifest {
 	readonly malicious: ReadonlyArray<IExtensionIdentifier | string>;
 	readonly deprecated: IStringDictionary<IDeprecationInfo>;
 	readonly search: ISearchPrefferedResults[];
-	readonly extensionsEnabledWithPreRelease?: string[];
 }
 
 export const enum InstallOperation {
@@ -467,6 +466,7 @@ export class ExtensionGalleryError extends Error {
 }
 
 export const enum ExtensionManagementErrorCode {
+	NotFound = 'NotFound',
 	Unsupported = 'Unsupported',
 	Deprecated = 'Deprecated',
 	Malicious = 'Malicious',

@@ -256,7 +256,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			}
 		}));
 
-		this._register(this._themeService.onDidColorThemeChange(e => this._updateTheme(e.theme)));
+		this._register(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
 		this._register(this._logService.onDidChangeLogLevel(e => this.raw.options.logLevel = vscodeToXtermLogLevel(e)));
 
 		// Refire events

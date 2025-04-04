@@ -7,7 +7,7 @@ import './media/notificationsToasts.css';
 import { localize } from '../../../../nls.js';
 import { INotificationsModel, NotificationChangeType, INotificationChangeEvent, INotificationViewItem, NotificationViewItemContentChangeKind } from '../../../common/notifications.js';
 import { IDisposable, dispose, toDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { addDisposableListener, EventType, Dimension, scheduleAtNextAnimationFrame, isAncestorOfActiveElement, getWindow, $ } from '../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, Dimension, scheduleAtNextAnimationFrame, isAncestorOfActiveElement, getWindow, $, isElementInBottomRightQuarter, isHTMLElement, isEditableElement, getActiveElement } from '../../../../base/browser/dom.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { NotificationsList } from './notificationsList.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
@@ -139,6 +139,13 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 
 		if (item.priority === NotificationPriority.SILENT) {
 			return; // do not show toasts for silenced notifications
+		}
+
+		if (item.priority === NotificationPriority.OPTIONAL) {
+			const activeElement = getActiveElement();
+			if (isHTMLElement(activeElement) && isEditableElement(activeElement) && isElementInBottomRightQuarter(activeElement, this.layoutService.mainContainer)) {
+				return; // skip showing optional toast that potentially covers input fields
+			}
 		}
 
 		// Optimization: it is possible that a lot of notifications are being

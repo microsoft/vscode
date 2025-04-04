@@ -36,6 +36,7 @@ import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/
 
 interface IViewPaneState extends IChatViewState {
 	sessionId?: string;
+	hasMigratedCurrentSession?: boolean;
 }
 
 export const CHAT_SIDEBAR_OLD_VIEW_PANEL_ID = 'workbench.panel.chatSidebar';
@@ -76,6 +77,25 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// View state for the ViewPane is currently global per-provider basically, but some other strictly per-model state will require a separate memento.
 		this.memento = new Memento('interactive-session-view-' + CHAT_PROVIDER_ID + (this.chatOptions.location === ChatAgentLocation.EditingSession ? `-edits` : ''), this.storageService);
 		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IViewPaneState;
+
+		if (this.chatService.unifiedViewEnabled && this.chatOptions.location === ChatAgentLocation.Panel && !this.viewState.hasMigratedCurrentSession) {
+			const editsMemento = new Memento('interactive-session-view-' + CHAT_PROVIDER_ID + `-edits`, this.storageService);
+			const lastEditsState = editsMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IViewPaneState;
+			if (lastEditsState.sessionId) {
+				this.logService.trace(`ChatViewPane: last edits session was ${lastEditsState.sessionId}`);
+				if (!this.chatService.isPersistedSessionEmpty(lastEditsState.sessionId)) {
+					this.logService.info(`ChatViewPane: migrating ${lastEditsState.sessionId} to unified view`);
+					this.viewState.sessionId = lastEditsState.sessionId;
+					this.viewState.inputValue = lastEditsState.inputValue;
+					this.viewState.inputState = {
+						...lastEditsState.inputState,
+						chatMode: lastEditsState.inputState?.chatMode ?? ChatMode.Edit
+					};
+					this.viewState.hasMigratedCurrentSession = true;
+				}
+			}
+		}
+
 		this._register(this.chatAgentService.onDidChangeAgents(() => {
 			if (this.chatAgentService.getDefaultAgent(this.chatOptions?.location)) {
 				if (!this._widget?.viewModel && !this._restoringSession) {
@@ -144,8 +164,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	override shouldShowWelcome(): boolean {
 		const showSetup = this.contextKeyService.contextMatchesRules(ChatContextKeys.SetupViewCondition);
 		const noPersistedSessions = !this.chatService.hasSessions();
-		const shouldShow = this.didUnregisterProvider || !this._widget?.viewModel && noPersistedSessions || this.defaultParticipantRegistrationFailed || showSetup;
-		this.logService.trace(`ChatViewPane#shouldShowWelcome(${this.chatOptions.location}) = ${shouldShow}: didUnregister=${this.didUnregisterProvider} || noViewModel=${!this._widget?.viewModel} && noPersistedSessions=${noPersistedSessions} || defaultParticipantRegistrationFailed=${this.defaultParticipantRegistrationFailed} || showSetup=${showSetup}`);
+		const hasCoreAgent = this.chatAgentService.getAgents().some(agent => agent.isCore && agent.locations.includes(this.chatOptions.location));
+		const shouldShow = !hasCoreAgent && (this.didUnregisterProvider || !this._widget?.viewModel && noPersistedSessions || this.defaultParticipantRegistrationFailed || showSetup);
+		this.logService.trace(`ChatViewPane#shouldShowWelcome(${this.chatOptions.location}) = ${shouldShow}: hasCoreAgent=${hasCoreAgent} didUnregister=${this.didUnregisterProvider} || noViewModel=${!this._widget?.viewModel} && noPersistedSessions=${noPersistedSessions} || defaultParticipantRegistrationFailed=${this.defaultParticipantRegistrationFailed} || showSetup=${showSetup}`);
 		return !!shouldShow;
 	}
 
@@ -183,12 +204,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					supportsFileReferences: true,
 					supportsAdditionalParticipants: this.chatOptions.location === ChatAgentLocation.Panel,
 					rendererOptions: {
-						renderCodeBlockPills: mode => mode !== ChatMode.Ask,
 						renderTextEditsAsSummary: (uri) => {
 							return this.chatService.isEditingLocation(this.chatOptions.location);
 						},
 						referencesExpandedWhenEmptyResponse: !this.chatService.isEditingLocation(this.chatOptions.location),
-						progressMessageAtBottomOfResponse: this.chatService.isEditingLocation(this.chatOptions.location),
+						progressMessageAtBottomOfResponse: mode => mode !== ChatMode.Ask,
 					},
 					editorOverflowWidgetsDomNode: editorOverflowNode,
 					enableImplicitContext: this.chatOptions.location === ChatAgentLocation.Panel || this.chatService.isEditingLocation(this.chatOptions.location),

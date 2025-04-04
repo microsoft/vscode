@@ -35,6 +35,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	private _handleCommandStartOptions?: IHandleCommandOptions;
 	private _hasRichCommandDetection: boolean = false;
 	get hasRichCommandDetection() { return this._hasRichCommandDetection; }
+	private _promptType: string | undefined;
+	get promptType(): string | undefined { return this._promptType; }
 
 	private _ptyHeuristicsHooks: ICommandDetectionHeuristicsHooks;
 	private readonly _ptyHeuristics: MandatoryMutableDisposable<IPtyHeuristics>;
@@ -73,6 +75,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	readonly onCommandInvalidated = this._onCommandInvalidated.event;
 	private readonly _onCurrentCommandInvalidated = this._register(new Emitter<ICommandInvalidationRequest>());
 	readonly onCurrentCommandInvalidated = this._onCurrentCommandInvalidated.event;
+	private readonly _onPromptTypeChanged = this._register(new Emitter<string | undefined>());
+	readonly onPromptTypeChanged = this._onPromptTypeChanged.event;
 	private readonly _onSetRichCommandDetection = this._register(new Emitter<boolean>());
 	readonly onSetRichCommandDetection = this._onSetRichCommandDetection.event;
 
@@ -232,6 +236,11 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._onSetRichCommandDetection.fire(value);
 	}
 
+	setPromptType(value: string): void {
+		this._promptType = value;
+		this._onPromptTypeChanged.fire(value);
+	}
+
 	setIsCommandStorageDisabled(): void {
 		this.__isCommandStorageDisabled = true;
 	}
@@ -338,22 +347,20 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._ptyHeuristics.value.handleCommandStart(options);
 	}
 
-	handleGenericCommand(options?: IHandleCommandOptions): void {
-		if (options?.markProperties?.disableCommandStorage) {
-			this.setIsCommandStorageDisabled();
-		}
-		this.handlePromptStart(options);
-		this.handleCommandStart(options);
-		this.handleCommandExecuted(options);
-		this.handleCommandFinished(undefined, options);
-	}
-
 	handleCommandExecuted(options?: IHandleCommandOptions): void {
 		this._ptyHeuristics.value.handleCommandExecuted(options);
 		this._currentCommand.markExecutedTime();
 	}
 
 	handleCommandFinished(exitCode: number | undefined, options?: IHandleCommandOptions): void {
+		// Command executed may not have happened yet, if not handle it now so the expected events
+		// properly propogate. This may cause the output to show up in the computed command line,
+		// but the command line confidence will be low in the extension host for example and
+		// therefore cannot be trusted anyway.
+		if (!this._currentCommand.commandExecutedMarker) {
+			this.handleCommandExecuted();
+		}
+
 		this._currentCommand.markFinishedTime();
 		this._ptyHeuristics.value.preHandleCommandFinished?.();
 
