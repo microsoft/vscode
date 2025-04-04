@@ -85,6 +85,7 @@ export class TestNativeHostService implements INativeHostService {
 	async getWindows(): Promise<IOpenedMainWindow[]> { return []; }
 	async getActiveWindowId(): Promise<number | undefined> { return undefined; }
 	async getActiveWindowPosition(): Promise<IRectangle | undefined> { return undefined; }
+	async getNativeWindowHandle(windowId: number): Promise<VSBuffer | undefined> { return undefined; }
 
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
@@ -93,7 +94,6 @@ export class TestNativeHostService implements INativeHostService {
 	}
 
 	async toggleFullScreen(): Promise<void> { }
-	async handleTitleDoubleClick(): Promise<void> { }
 	async isMaximized(): Promise<boolean> { return true; }
 	async isFullScreen(): Promise<boolean> { return true; }
 	async maximizeWindow(): Promise<void> { }
@@ -156,12 +156,13 @@ export class TestNativeHostService implements INativeHostService {
 	async readClipboardFindText(): Promise<string> { return ''; }
 	async writeClipboardFindText(text: string): Promise<void> { }
 	async writeClipboardBuffer(format: string, buffer: VSBuffer, type?: 'selection' | 'clipboard' | undefined): Promise<void> { }
+	async triggerPaste(): Promise<void> { }
 	async readImage(): Promise<Uint8Array> { return Uint8Array.from([]); }
 	async readClipboardBuffer(format: string): Promise<VSBuffer> { return VSBuffer.wrap(Uint8Array.from([])); }
 	async hasClipboard(format: string, type?: 'selection' | 'clipboard' | undefined): Promise<boolean> { return false; }
 	async windowsGetStringRegKey(hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined> { return undefined; }
 	async profileRenderer(): Promise<any> { throw new Error(); }
-	async getScreenshot(): Promise<ArrayBufferLike | undefined> { return undefined; }
+	async getScreenshot(): Promise<VSBuffer | undefined> { return undefined; }
 }
 
 export class TestExtensionTipsService extends AbstractNativeExtensionTipsService {

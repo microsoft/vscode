@@ -20,17 +20,21 @@
 	display: none;
 }
 
+.monaco-workbench .pane-composite-part.empty > .title.has-composite-bar > .title-label {
+	border-bottom: none !important;
+}
+
 .monaco-workbench .pane-composite-part > .header-or-footer {
 	padding-left: 4px;
 	padding-right: 4px;
 	background-color: var(--vscode-activityBarTop-background);
 }
 
-.monaco-workbench .pane-composite-part > .header {
+.monaco-workbench .pane-composite-part:not(.empty) > .header {
 	border-bottom: 1px solid var(--vscode-sideBarActivityBarTop-border);
 }
 
-.monaco-workbench .pane-composite-part > .footer {
+.monaco-workbench .pane-composite-part:not(.empty) > .footer {
 	border-top: 1px solid var(--vscode-sideBarActivityBarTop-border);
 }
 
@@ -56,7 +60,6 @@
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar,
 .monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar {
 	line-height: 27px; /* matches panel titles in settings */
-	height: 35px;
 }
 
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item,
@@ -161,15 +164,15 @@
 	padding: 2px;
 }
 
-.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label,
-.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label {
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label:not(.codicon-more),
+.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label:not(.codicon-more) {
 	border-radius: 0;
 }
 
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon) .action-label,
-.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .action-label.codicon,
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .action-label.codicon:not(.codicon-more),
 .monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon) .action-label,
-.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .action-label.codicon {
+.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .action-label.codicon:not(.codicon-more) {
 	background: none !important;
 }
 
@@ -180,7 +183,7 @@
 
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .badge,
 .monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .badge {
-	margin-left: 8px;
+	margin-left: 2px;
 	display: flex;
 	align-items: center;
 }
@@ -193,11 +196,11 @@
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .badge .badge-content,
 .monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .badge .badge-content {
 	padding: 3px 5px;
-	border-radius: 11px;
-	font-size: 11px;
-	min-width: 18px;
-	height: 18px;
-	line-height: 11px;
+	border-radius: 10px;
+	font-size: 10px;
+	min-width: 16px;
+	height: 16px;
+	line-height: 10px;
 	font-weight: normal;
 	text-align: center;
 	display: inline-block;
@@ -326,7 +329,7 @@
 	width: 100%;
 }
 
-.monaco-workbench .pane-composite-part .empty-pane-message-area.visible {
+.monaco-workbench .pane-composite-part.empty .empty-pane-message-area {
 	display: flex;
 	align-items: center;
 	align-content: center;

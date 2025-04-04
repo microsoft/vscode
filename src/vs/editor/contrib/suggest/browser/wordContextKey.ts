@@ -7,10 +7,11 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { localize } from '../../../../nls.js';
 
 export class WordContextKey {
 
-	static readonly AtEnd = new RawContextKey<boolean>('atEndOfWord', false);
+	static readonly AtEnd = new RawContextKey<boolean>('atEndOfWord', false, { type: 'boolean', description: localize('desc', "A context key that is true when at the end of a word. Note that this is only defined when tab-completions are enabled") });
 
 	private readonly _ckAtEnd: IContextKey<boolean>;
 	private readonly _configListener: IDisposable;
@@ -55,7 +56,7 @@ export class WordContextKey {
 					this._ckAtEnd.set(false);
 					return;
 				}
-				this._ckAtEnd.set(word.endColumn === selection.getStartPosition().column);
+				this._ckAtEnd.set(word.endColumn === selection.getStartPosition().column && selection.getStartPosition().lineNumber === selection.getEndPosition().lineNumber);
 			};
 			this._selectionListener = this._editor.onDidChangeCursorSelection(checkForWordEnd);
 			checkForWordEnd();

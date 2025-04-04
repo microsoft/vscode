@@ -8,7 +8,13 @@
 	top: 0;
 	bottom: 0;
 	left: 0;
-	width: 2px;
+	width: 100%;
 	display: inline-block;
-	background: var(--vscode-editorLineNumber-foreground);
+	border-left: solid 2px var(--vscode-editorWarning-foreground);
+	opacity: 0.2;
+	transition: background-color 0.1s linear;
+}
+
+.monaco-editor .margin-view-overlays .gpu-mark:hover {
+	background-color: var(--vscode-editorWarning-foreground)
 }

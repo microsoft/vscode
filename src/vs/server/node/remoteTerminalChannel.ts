@@ -74,6 +74,9 @@ class CustomVariableResolver extends AbstractVariableResolverService {
 			getLineNumber: (): string | undefined => {
 				return resolvedVariables['lineNumber'];
 			},
+			getColumnNumber: (): string | undefined => {
+				return resolvedVariables['columnNumber'];
+			},
 			getExtension: async id => {
 				const installed = await extensionService.getInstalled();
 				const found = installed.find(e => e.identifier.id === id);
@@ -197,7 +200,9 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			useShellEnvironment: args.shellLaunchConfig.useShellEnvironment,
 			reconnectionProperties: args.shellLaunchConfig.reconnectionProperties,
 			type: args.shellLaunchConfig.type,
-			isFeatureTerminal: args.shellLaunchConfig.isFeatureTerminal
+			isFeatureTerminal: args.shellLaunchConfig.isFeatureTerminal,
+			tabActions: args.shellLaunchConfig.tabActions,
+			shellIntegrationEnvironmentReporting: args.shellLaunchConfig.shellIntegrationEnvironmentReporting,
 		};
 
 

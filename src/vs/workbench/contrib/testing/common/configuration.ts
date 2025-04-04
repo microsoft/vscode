@@ -13,7 +13,7 @@ import { ConfigurationKeyValuePairs, Extensions, IConfigurationMigrationRegistry
 export const enum TestingConfigKeys {
 	AutoOpenPeekView = 'testing.automaticallyOpenPeekView',
 	AutoOpenPeekViewDuringContinuousRun = 'testing.automaticallyOpenPeekViewDuringAutoRun',
-	OpenResults = 'testing.automaticallyOpenResults',
+	OpenResults = 'testing.automaticallyOpenTestResults',
 	FollowRunningTest = 'testing.followRunningTest',
 	DefaultGutterClickAction = 'testing.defaultGutterClickAction',
 	GutterEnabled = 'testing.gutterEnabled',
@@ -197,6 +197,11 @@ export const testingConfiguration: IConfigurationNode = {
 Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 	.registerConfigurationMigrations([{
 		key: 'testing.openTesting',
+		migrateFn: (value: AutoOpenTesting): ConfigurationKeyValuePairs => {
+			return [[TestingConfigKeys.OpenResults, { value }]];
+		}
+	}, {
+		key: 'testing.automaticallyOpenResults', // insiders only during 1.96, remove after 1.97
 		migrateFn: (value: AutoOpenTesting): ConfigurationKeyValuePairs => {
 			return [[TestingConfigKeys.OpenResults, { value }]];
 		}

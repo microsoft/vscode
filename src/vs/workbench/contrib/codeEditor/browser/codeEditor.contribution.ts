@@ -16,6 +16,7 @@ import './quickaccess/gotoSymbolQuickAccess.js';
 import './saveParticipants.js';
 import './toggleColumnSelection.js';
 import './toggleMinimap.js';
+import './toggleOvertype.js';
 import './toggleMultiCursorModifier.js';
 import './toggleRenderControlCharacter.js';
 import './toggleRenderWhitespace.js';

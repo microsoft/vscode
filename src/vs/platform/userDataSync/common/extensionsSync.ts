@@ -15,7 +15,7 @@ import { URI } from '../../../base/common/uri.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { GlobalExtensionEnablementService } from '../../extensionManagement/common/extensionEnablementService.js';
-import { IExtensionGalleryService, IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension, ExtensionManagementError, ExtensionManagementErrorCode, IGalleryExtension, DISABLED_EXTENSIONS_STORAGE_PATH, EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, EXTENSION_INSTALL_SOURCE_CONTEXT, InstallExtensionInfo, ExtensionInstallSource } from '../../extensionManagement/common/extensionManagement.js';
+import { IExtensionGalleryService, IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension, ExtensionManagementError, ExtensionManagementErrorCode, IGalleryExtension, DISABLED_EXTENSIONS_STORAGE_PATH, EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, EXTENSION_INSTALL_SOURCE_CONTEXT, InstallExtensionInfo, ExtensionInstallSource, EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT } from '../../extensionManagement/common/extensionManagement.js';
 import { areSameExtensions } from '../../extensionManagement/common/extensionManagementUtil.js';
 import { ExtensionStorageService, IExtensionStorageService } from '../../extensionManagement/common/extensionStorage.js';
 import { ExtensionType, IExtensionIdentifier, isApplicationScopedExtension } from '../../extensions/common/extensions.js';
@@ -242,7 +242,8 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	private async acceptLocal(resourcePreview: IExtensionResourcePreview): Promise<IExtensionResourceMergeResult> {
 		const installedExtensions = await this.extensionManagementService.getInstalled(undefined, this.syncResource.profile.extensionsResource);
 		const ignoredExtensions = this.ignoredExtensionsManagementService.getIgnoredExtensions(installedExtensions);
-		const mergeResult = merge(resourcePreview.localExtensions, null, null, resourcePreview.skippedExtensions, ignoredExtensions, resourcePreview.builtinExtensions);
+		const remoteExtensions = resourcePreview.remoteContent ? JSON.parse(resourcePreview.remoteContent) : null;
+		const mergeResult = merge(resourcePreview.localExtensions, remoteExtensions, remoteExtensions, resourcePreview.skippedExtensions, ignoredExtensions, resourcePreview.builtinExtensions);
 		const { local, remote } = mergeResult;
 		return {
 			content: resourcePreview.localContent,
@@ -477,7 +478,7 @@ export class LocalExtensionsProvider {
 								|| installedExtension.pinned !== e.pinned  // Install if the extension pinned preference has changed
 								|| (version && installedExtension.manifest.version !== version)  // Install if the extension version has changed
 							) {
-								if (await this.extensionManagementService.canInstall(extension)) {
+								if (await this.extensionManagementService.canInstall(extension) === true) {
 									extensionsToInstall.push({
 										extension, options: {
 											isMachineScoped: false /* set isMachineScoped value to prevent install and sync dialog in web */,
@@ -485,9 +486,10 @@ export class LocalExtensionsProvider {
 											installGivenVersion: e.pinned && !!e.version,
 											pinned: e.pinned,
 											installPreReleaseVersion: e.preRelease,
+											preRelease: e.preRelease,
 											profileLocation: profile.extensionsResource,
 											isApplicationScoped: e.isApplicationScoped,
-											context: { [EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT]: true, [EXTENSION_INSTALL_SOURCE_CONTEXT]: ExtensionInstallSource.SETTINGS_SYNC }
+											context: { [EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT]: true, [EXTENSION_INSTALL_SOURCE_CONTEXT]: ExtensionInstallSource.SETTINGS_SYNC, [EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT]: true }
 										}
 									});
 									syncExtensionsToInstall.set(extension.identifier.id.toLowerCase(), e);

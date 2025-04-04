@@ -12,7 +12,7 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { EndOfLinePreference, EndOfLineSequence, IModelDeltaDecoration } from '../../../../common/model.js';
-import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent } from '../../../../common/viewEvents.js';
+import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent, ViewDecorationsChangedEvent, ViewFlushedEvent, ViewLinesChangedEvent, ViewLinesDeletedEvent, ViewLinesInsertedEvent, ViewScrollChangedEvent, ViewZonesChangedEvent } from '../../../../common/viewEvents.js';
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 import { RestrictedRenderingContext, RenderingContext } from '../../../view/renderingContext.js';
 import { ViewController } from '../../../view/viewController.js';
@@ -28,6 +28,9 @@ import { PositionOffsetTransformer } from '../../../../common/core/positionToOff
 import { IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { EditContext } from './editContextFactory.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { NativeEditContextRegistry } from './nativeEditContextRegistry.js';
+import { IEditorAriaOptions } from '../../../editorBrowser.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 
 // Corresponds to classes in nativeEditContext.css
 enum CompositionClassName {
@@ -38,51 +41,63 @@ enum CompositionClassName {
 
 export class NativeEditContext extends AbstractEditContext {
 
-	public static TEXT_AREA_CLASS_NAME = 'native-edit-context-textarea';
-
 	// Text area used to handle paste events
-	public readonly textArea: FastDomNode<HTMLTextAreaElement>;
+	private readonly _textArea: FastDomNode<HTMLTextAreaElement>;
 	public readonly domNode: FastDomNode<HTMLDivElement>;
 	private readonly _editContext: EditContext;
 	private readonly _screenReaderSupport: ScreenReaderSupport;
+	private _editContextPrimarySelection: Selection = new Selection(1, 1, 1, 1);
 
 	// Overflow guard container
 	private _parent: HTMLElement | undefined;
 	private _decorations: string[] = [];
 	private _primarySelection: Selection = new Selection(1, 1, 1, 1);
 
-	private _textStartPositionWithinEditor: Position = new Position(1, 1);
 
 	private _targetWindowId: number = -1;
+	private _scrollTop: number = 0;
+	private _scrollLeft: number = 0;
 
 	private readonly _focusTracker: FocusTracker;
 
 	private readonly _selectionChangeListener: MutableDisposable<IDisposable>;
 
 	constructor(
+		ownerID: string,
 		context: ViewContext,
 		overflowGuardContainer: FastDomNode<HTMLElement>,
 		viewController: ViewController,
 		private readonly _visibleRangeProvider: IVisibleRangeProvider,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@IClipboardService private readonly _clipboardService: IClipboardService,
 	) {
 		super(context);
 
 		this.domNode = new FastDomNode(document.createElement('div'));
 		this.domNode.setClassName(`native-edit-context`);
-		this.textArea = new FastDomNode(document.createElement('textarea'));
-		this.textArea.setClassName(NativeEditContext.TEXT_AREA_CLASS_NAME);
-		this.textArea.setAttribute('modeluri', context.viewModel.model.uri.path);
+		this._textArea = new FastDomNode(document.createElement('textarea'));
+		this._textArea.setClassName('native-edit-context-textarea');
+		this._textArea.setAttribute('tabindex', '-1');
+		this.domNode.setAttribute('autocorrect', 'off');
+		this.domNode.setAttribute('autocapitalize', 'off');
+		this.domNode.setAttribute('autocomplete', 'off');
+		this.domNode.setAttribute('spellcheck', 'false');
+
 		this._updateDomAttributes();
 
 		overflowGuardContainer.appendChild(this.domNode);
-		overflowGuardContainer.appendChild(this.textArea);
+		overflowGuardContainer.appendChild(this._textArea);
 		this._parent = overflowGuardContainer.domNode;
 
 		this._selectionChangeListener = this._register(new MutableDisposable());
 		this._focusTracker = this._register(new FocusTracker(this.domNode.domNode, (newFocusValue: boolean) => {
-			this._selectionChangeListener.value = newFocusValue ? this._setSelectionChangeListener(viewController) : undefined;
+			if (newFocusValue) {
+				this._selectionChangeListener.value = this._setSelectionChangeListener(viewController);
+				this._screenReaderSupport.setIgnoreSelectionChangeTime('onFocus');
+			} else {
+				this._selectionChangeListener.value = undefined;
+			}
 			this._context.viewModel.setHasFocus(newFocusValue);
 		}));
 
@@ -94,6 +109,9 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this._register(addDisposableListener(this.domNode.domNode, 'copy', (e) => this._ensureClipboardGetsEditorSelection(e)));
 		this._register(addDisposableListener(this.domNode.domNode, 'cut', (e) => {
+			// Pretend here we touched the text area, as the `cut` event will most likely
+			// result in a `selectionchange` event which we want to ignore
+			this._screenReaderSupport.setIgnoreSelectionChangeTime('onCut');
 			this._ensureClipboardGetsEditorSelection(e);
 			viewController.cut();
 		}));
@@ -135,7 +153,10 @@ export class NativeEditContext extends AbstractEditContext {
 			// Emits ViewCompositionEndEvent which can be depended on by ViewEventHandlers
 			this._context.viewModel.onCompositionEnd();
 		}));
-		this._register(addDisposableListener(this.textArea.domNode, 'paste', (e) => {
+		this._register(addDisposableListener(this._textArea.domNode, 'paste', (e) => {
+			// Pretend here we touched the text area, as the `paste` event will most likely
+			// result in a `selectionchange` event which we want to ignore
+			this._screenReaderSupport.setIgnoreSelectionChangeTime('onPaste');
 			e.preventDefault();
 			if (!e.clipboardData) {
 				return;
@@ -157,6 +178,7 @@ export class NativeEditContext extends AbstractEditContext {
 			}
 			viewController.paste(text, pasteOnNewLine, multicursorText, mode);
 		}));
+		this._register(NativeEditContextRegistry.register(ownerID, this));
 	}
 
 	// --- Public methods ---
@@ -165,11 +187,12 @@ export class NativeEditContext extends AbstractEditContext {
 		// Force blue the dom node so can write in pane with no native edit context after disposal
 		this.domNode.domNode.blur();
 		this.domNode.domNode.remove();
+		this._textArea.domNode.remove();
 		super.dispose();
 	}
 
-	public setAriaOptions(): void {
-		this._screenReaderSupport.setAriaOptions();
+	public setAriaOptions(options: IEditorAriaOptions): void {
+		this._screenReaderSupport.setAriaOptions(options);
 	}
 
 	/* Last rendered data needed for correct hit-testing and determining the mouse position.
@@ -191,6 +214,7 @@ export class NativeEditContext extends AbstractEditContext {
 	public override onCursorStateChanged(e: ViewCursorStateChangedEvent): boolean {
 		this._primarySelection = e.modelSelections[0] ?? new Selection(1, 1, 1, 1);
 		this._screenReaderSupport.onCursorStateChanged(e);
+		this._updateEditContext();
 		return true;
 	}
 
@@ -200,12 +224,69 @@ export class NativeEditContext extends AbstractEditContext {
 		return true;
 	}
 
+	public override onDecorationsChanged(e: ViewDecorationsChangedEvent): boolean {
+		// true for inline decorations that can end up relayouting text
+		return true;
+	}
+
+	public override onFlushed(e: ViewFlushedEvent): boolean {
+		return true;
+	}
+
+	public override onLinesChanged(e: ViewLinesChangedEvent): boolean {
+		return true;
+	}
+
+	public override onLinesDeleted(e: ViewLinesDeletedEvent): boolean {
+		return true;
+	}
+
+	public override onLinesInserted(e: ViewLinesInsertedEvent): boolean {
+		return true;
+	}
+
+	public override onScrollChanged(e: ViewScrollChangedEvent): boolean {
+		this._scrollLeft = e.scrollLeft;
+		this._scrollTop = e.scrollTop;
+		return true;
+	}
+
+	public override onZonesChanged(e: ViewZonesChangedEvent): boolean {
+		return true;
+	}
+
+	public triggerPaste(): Promise<void> | undefined {
+		this._onWillPaste();
+		// pause focus tracking because we don't want to react to focus/blur
+		// events while pasting since we move the focus to the textarea
+		this._focusTracker.pause();
+
+		// Since we can not call execCommand('paste') on a dom node with edit context set
+		// we added a hidden text area that receives the paste execution
+		this._textArea.focus();
+		const triggerPaste = this._clipboardService.triggerPaste();
+		if (!triggerPaste) {
+			this.domNode.domNode.focus();
+			this._focusTracker.resume(); // resume focus tracking
+			return undefined;
+		}
+		return triggerPaste.then(() => {
+			this._textArea.domNode.textContent = '';
+			this.domNode.domNode.focus();
+			this._focusTracker.resume(); // resume focus tracking
+		});
+	}
+
+	private _onWillPaste(): void {
+		this._screenReaderSupport.setIgnoreSelectionChangeTime('onWillPaste');
+	}
+
 	public writeScreenReaderContent(): void {
 		this._screenReaderSupport.writeScreenReaderContent();
 	}
 
 	public isFocused(): boolean {
-		return this._focusTracker.isFocused || (getActiveWindow().document.activeElement === this.textArea.domNode);
+		return this._focusTracker.isFocused;
 	}
 
 	public focus(): void {
@@ -239,17 +320,24 @@ export class NativeEditContext extends AbstractEditContext {
 
 	private _updateEditContext(): void {
 		const editContextState = this._getNewEditContextState();
-		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, editContextState.text);
+		if (!editContextState) {
+			return;
+		}
+		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, editContextState.text ?? ' ');
 		this._editContext.updateSelection(editContextState.selectionStartOffset, editContextState.selectionEndOffset);
-		this._textStartPositionWithinEditor = editContextState.textStartPositionWithinEditor;
+		this._editContextPrimarySelection = editContextState.editContextPrimarySelection;
 	}
 
 	private _emitTypeEvent(viewController: ViewController, e: TextUpdateEvent): void {
 		if (!this._editContext) {
 			return;
 		}
+		if (!this._editContextPrimarySelection.equalsSelection(this._primarySelection)) {
+			return;
+		}
 		const model = this._context.viewModel.model;
-		const offsetOfStartOfText = model.getOffsetAt(this._textStartPositionWithinEditor);
+		const startPositionOfEditContext = this._editContextStartPosition();
+		const offsetOfStartOfText = model.getOffsetAt(startPositionOfEditContext);
 		const offsetOfSelectionEnd = model.getOffsetAt(this._primarySelection.getEndPosition());
 		const offsetOfSelectionStart = model.getOffsetAt(this._primarySelection.getStartPosition());
 		const selectionEndOffset = offsetOfSelectionEnd - offsetOfStartOfText;
@@ -297,22 +385,29 @@ export class NativeEditContext extends AbstractEditContext {
 		}
 	}
 
-	private _getNewEditContextState(): { text: string; selectionStartOffset: number; selectionEndOffset: number; textStartPositionWithinEditor: Position } {
+	private _getNewEditContextState(): { text: string; selectionStartOffset: number; selectionEndOffset: number; editContextPrimarySelection: Selection } | undefined {
+		const editContextPrimarySelection = this._primarySelection;
 		const model = this._context.viewModel.model;
-		const primarySelectionStartLine = this._primarySelection.startLineNumber;
-		const primarySelectionEndLine = this._primarySelection.endLineNumber;
+		if (!model.isValidRange(editContextPrimarySelection)) {
+			return;
+		}
+		const primarySelectionStartLine = editContextPrimarySelection.startLineNumber;
+		const primarySelectionEndLine = editContextPrimarySelection.endLineNumber;
 		const endColumnOfEndLineNumber = model.getLineMaxColumn(primarySelectionEndLine);
 		const rangeOfText = new Range(primarySelectionStartLine, 1, primarySelectionEndLine, endColumnOfEndLineNumber);
 		const text = model.getValueInRange(rangeOfText, EndOfLinePreference.TextDefined);
-		const selectionStartOffset = this._primarySelection.startColumn - 1;
-		const selectionEndOffset = text.length + this._primarySelection.endColumn - endColumnOfEndLineNumber;
-		const textStartPositionWithinEditor = rangeOfText.getStartPosition();
+		const selectionStartOffset = editContextPrimarySelection.startColumn - 1;
+		const selectionEndOffset = text.length + editContextPrimarySelection.endColumn - endColumnOfEndLineNumber;
 		return {
 			text,
 			selectionStartOffset,
 			selectionEndOffset,
-			textStartPositionWithinEditor
+			editContextPrimarySelection
 		};
+	}
+
+	private _editContextStartPosition(): Position {
+		return new Position(this._editContextPrimarySelection.startLineNumber, 1);
 	}
 
 	private _handleTextFormatUpdate(e: TextFormatUpdateEvent): void {
@@ -320,11 +415,11 @@ export class NativeEditContext extends AbstractEditContext {
 			return;
 		}
 		const formats = e.getTextFormats();
-		const textStartPositionWithinEditor = this._textStartPositionWithinEditor;
+		const editContextStartPosition = this._editContextStartPosition();
 		const decorations: IModelDeltaDecoration[] = [];
 		formats.forEach(f => {
 			const textModel = this._context.viewModel.model;
-			const offsetOfEditContextText = textModel.getOffsetAt(textStartPositionWithinEditor);
+			const offsetOfEditContextText = textModel.getOffsetAt(editContextStartPosition);
 			const startPositionOfDecoration = textModel.getPositionAt(offsetOfEditContextText + f.rangeStart);
 			const endPositionOfDecoration = textModel.getPositionAt(offsetOfEditContextText + f.rangeEnd);
 			const decorationRange = Range.fromPositions(startPositionOfDecoration, endPositionOfDecoration);
@@ -360,12 +455,10 @@ export class NativeEditContext extends AbstractEditContext {
 		const modelStartPosition = this._primarySelection.getStartPosition();
 		const viewStartPosition = this._context.viewModel.coordinatesConverter.convertModelPositionToViewPosition(modelStartPosition);
 		const verticalOffsetStart = this._context.viewLayout.getVerticalOffsetForLineNumber(viewStartPosition.lineNumber);
-		const editorScrollTop = this._context.viewLayout.getCurrentScrollTop();
-		const editorScrollLeft = this._context.viewLayout.getCurrentScrollLeft();
 
-		const top = parentBounds.top + verticalOffsetStart - editorScrollTop;
+		const top = parentBounds.top + verticalOffsetStart - this._scrollTop;
 		const height = (this._primarySelection.endLineNumber - this._primarySelection.startLineNumber + 1) * lineHeight;
-		let left = parentBounds.left + contentLeft - editorScrollLeft;
+		let left = parentBounds.left + contentLeft - this._scrollLeft;
 		let width: number;
 
 		if (this._primarySelection.isEmpty()) {
@@ -397,16 +490,14 @@ export class NativeEditContext extends AbstractEditContext {
 		const offsetTransformer = new PositionOffsetTransformer(this._editContext.text);
 		for (let offset = e.rangeStart; offset < e.rangeEnd; offset++) {
 			const editContextStartPosition = offsetTransformer.getPosition(offset);
-			const textStartLineOffsetWithinEditor = this._textStartPositionWithinEditor.lineNumber - 1;
+			const textStartLineOffsetWithinEditor = this._editContextPrimarySelection.startLineNumber - 1;
 			const characterStartPosition = new Position(textStartLineOffsetWithinEditor + editContextStartPosition.lineNumber, editContextStartPosition.column);
 			const characterEndPosition = characterStartPosition.delta(0, 1);
 			const characterModelRange = Range.fromPositions(characterStartPosition, characterEndPosition);
 			const characterViewRange = this._context.viewModel.coordinatesConverter.convertModelRangeToViewRange(characterModelRange);
 			const characterLinesVisibleRanges = this._visibleRangeProvider.linesVisibleRangesForRange(characterViewRange, true) ?? [];
 			const characterVerticalOffset = this._context.viewLayout.getVerticalOffsetForLineNumber(characterViewRange.startLineNumber);
-			const editorScrollTop = this._context.viewLayout.getCurrentScrollTop();
-			const editorScrollLeft = this._context.viewLayout.getCurrentScrollLeft();
-			const top = parentBounds.top + characterVerticalOffset - editorScrollTop;
+			const top = parentBounds.top + characterVerticalOffset - this._scrollTop;
 
 			let left = 0;
 			let width = typicalHalfWidthCharacterWidth;
@@ -417,7 +508,7 @@ export class NativeEditContext extends AbstractEditContext {
 					break;
 				}
 			}
-			characterBounds.push(new DOMRect(parentBounds.left + contentLeft + left - editorScrollLeft, top, width, lineHeight));
+			characterBounds.push(new DOMRect(parentBounds.left + contentLeft + left - this._scrollLeft, top, width, lineHeight));
 		}
 		this._editContext.updateCharacterBounds(e.rangeStart, characterBounds);
 	}
@@ -451,6 +542,9 @@ export class NativeEditContext extends AbstractEditContext {
 		// When using a Braille display or NVDA for example, it is possible for users to reposition the
 		// system caret. This is reflected in Chrome as a `selectionchange` event and needs to be reflected within the editor.
 
+		// `selectionchange` events often come multiple times for a single logical change
+		// so throttle multiple `selectionchange` events that burst in a short period of time.
+		let previousSelectionChangeEventTime = 0;
 		return addDisposableListener(this.domNode.domNode.ownerDocument, 'selectionchange', () => {
 			const isScreenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
 			if (!this.isFocused() || !isScreenReaderOptimized) {
@@ -458,6 +552,21 @@ export class NativeEditContext extends AbstractEditContext {
 			}
 			const screenReaderContentState = this._screenReaderSupport.screenReaderContentState;
 			if (!screenReaderContentState) {
+				return;
+			}
+			const now = Date.now();
+			const delta1 = now - previousSelectionChangeEventTime;
+			previousSelectionChangeEventTime = now;
+			if (delta1 < 5) {
+				// received another `selectionchange` event within 5ms of the previous `selectionchange` event
+				// => ignore it
+				return;
+			}
+			const delta2 = now - this._screenReaderSupport.getIgnoreSelectionChangeTime();
+			this._screenReaderSupport.resetSelectionChangeTime();
+			if (delta2 < 100) {
+				// received a `selectionchange` event within 100ms since we touched the textarea
+				// => ignore it, since we caused it
 				return;
 			}
 			const activeDocument = getActiveWindow().document;
@@ -470,11 +579,14 @@ export class NativeEditContext extends AbstractEditContext {
 				return;
 			}
 			const range = activeDocumentSelection.getRangeAt(0);
-			const model = this._context.viewModel.model;
-			const offsetOfStartOfScreenReaderContent = model.getOffsetAt(screenReaderContentState.startPositionWithinEditor);
+			const viewModel = this._context.viewModel;
+			const model = viewModel.model;
+			const coordinatesConverter = viewModel.coordinatesConverter;
+			const modelScreenReaderContentStartPositionWithinEditor = coordinatesConverter.convertViewPositionToModelPosition(screenReaderContentState.startPositionWithinEditor);
+			const offsetOfStartOfScreenReaderContent = model.getOffsetAt(modelScreenReaderContentStartPositionWithinEditor);
 			let offsetOfSelectionStart = range.startOffset + offsetOfStartOfScreenReaderContent;
 			let offsetOfSelectionEnd = range.endOffset + offsetOfStartOfScreenReaderContent;
-			const modelUsesCRLF = this._context.viewModel.model.getEndOfLineSequence() === EndOfLineSequence.CRLF;
+			const modelUsesCRLF = model.getEndOfLineSequence() === EndOfLineSequence.CRLF;
 			if (modelUsesCRLF) {
 				const screenReaderContentText = screenReaderContentState.value;
 				const offsetTransformer = new PositionOffsetTransformer(screenReaderContentText);

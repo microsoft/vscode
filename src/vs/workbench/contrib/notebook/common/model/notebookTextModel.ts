@@ -3,32 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event, PauseableEmitter } from '../../../../../base/common/event.js';
-import { Disposable, dispose, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { NotebookCellTextModel } from './notebookCellTextModel.js';
-import { INotebookTextModel, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, diff, NotebookCellsChangeType, ICellDto2, TransientOptions, NotebookTextModelChangedEvent, IOutputDto, ICellOutput, IOutputItemDto, ISelectionState, NullablePartialNotebookCellMetadata, NotebookCellInternalMetadata, NullablePartialNotebookCellInternalMetadata, NotebookTextModelWillAddRemoveEvent, NotebookCellTextModelSplice, ICell, NotebookCellCollapseState, NotebookCellDefaultCollapseConfig, CellKind, NotebookCellExecutionState } from '../notebookCommon.js';
-import { IUndoRedoService, UndoRedoElementType, IUndoRedoElement, IResourceUndoRedoElement, UndoRedoGroup, IWorkspaceUndoRedoElement } from '../../../../../platform/undoRedo/common/undoRedo.js';
-import { MoveCellEdit, SpliceCellsEdit, CellMetadataEdit } from './cellEdit.js';
 import { ISequence, LcsDiff } from '../../../../../base/common/diff/diff.js';
+import { Emitter, Event, PauseableEmitter } from '../../../../../base/common/event.js';
 import { hash } from '../../../../../base/common/hash.js';
-import { NotebookCellOutputTextModel } from './notebookCellOutputTextModel.js';
-import { IModelService } from '../../../../../editor/common/services/model.js';
+import { Disposable, dispose, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { filter } from '../../../../../base/common/objects.js';
 import { isEqual } from '../../../../../base/common/resources.js';
+import { isDefined } from '../../../../../base/common/types.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { Position } from '../../../../../editor/common/core/position.js';
+import { Range } from '../../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { FindMatch, ITextModel } from '../../../../../editor/common/model.js';
 import { TextModel } from '../../../../../editor/common/model/textModel.js';
-import { isDefined } from '../../../../../base/common/types.js';
-import { ILanguageDetectionService } from '../../../../services/languageDetection/common/languageDetectionWorkerService.js';
-import { Position } from '../../../../../editor/common/core/position.js';
-import { Range } from '../../../../../editor/common/core/range.js';
 import { SearchParams } from '../../../../../editor/common/model/textModelSearch.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
+import { IResourceUndoRedoElement, IUndoRedoElement, IUndoRedoService, IWorkspaceUndoRedoElement, UndoRedoElementType, UndoRedoGroup } from '../../../../../platform/undoRedo/common/undoRedo.js';
+import { ILanguageDetectionService } from '../../../../services/languageDetection/common/languageDetectionWorkerService.js';
+import { SnapshotContext } from '../../../../services/workingCopy/common/fileWorkingCopy.js';
+import { CellEditType, CellKind, CellUri, diff, ICell, ICellDto2, ICellEditOperation, ICellOutput, INotebookSnapshotOptions, INotebookTextModel, IOutputDto, IOutputItemDto, ISelectionState, NotebookCellCollapseState, NotebookCellDefaultCollapseConfig, NotebookCellExecutionState, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, NotebookCellsChangeType, NotebookCellTextModelSplice, NotebookData, NotebookDocumentMetadata, NotebookTextModelChangedEvent, NotebookTextModelWillAddRemoveEvent, NullablePartialNotebookCellInternalMetadata, NullablePartialNotebookCellMetadata, TransientOptions } from '../notebookCommon.js';
 import { INotebookExecutionStateService } from '../notebookExecutionStateService.js';
+import { CellMetadataEdit, MoveCellEdit, SpliceCellsEdit } from './cellEdit.js';
+import { NotebookCellOutputTextModel } from './notebookCellOutputTextModel.js';
+import { NotebookCellTextModel } from './notebookCellTextModel.js';
 
 class StackOperation implements IWorkspaceUndoRedoElement {
 	type: UndoRedoElementType.Workspace;
+	tag = 'notebookUndoRedoElement';
 
 	public get code() {
 		return this._operations.length === 1 ? this._operations[0].code : 'undoredo.notebooks.stackOperation';
@@ -119,6 +122,7 @@ class StackOperation implements IWorkspaceUndoRedoElement {
 
 class NotebookOperationManager {
 	private _pendingStackOperation: StackOperation | null = null;
+	private _isAppending: boolean = false;
 	constructor(
 		private readonly _textModel: NotebookTextModel,
 		private _undoService: IUndoRedoService,
@@ -134,12 +138,26 @@ class NotebookOperationManager {
 	pushStackElement(alternativeVersionId: string, selectionState: ISelectionState | undefined) {
 		if (this._pendingStackOperation && !this._pendingStackOperation.isEmpty) {
 			this._pendingStackOperation.pushEndState(alternativeVersionId, selectionState);
-			this._undoService.pushElement(this._pendingStackOperation, this._pendingStackOperation.undoRedoGroup);
+			if (!this._isAppending) {
+				this._undoService.pushElement(this._pendingStackOperation, this._pendingStackOperation.undoRedoGroup);
+			}
 		}
+		this._isAppending = false;
 		this._pendingStackOperation = null;
 	}
+
 	private _getOrCreateEditStackElement(beginSelectionState: ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined, alternativeVersionId: string) {
 		return this._pendingStackOperation ??= new StackOperation(this._textModel, undoRedoGroup, this._pauseableEmitter, this._postUndoRedo, beginSelectionState, alternativeVersionId || '');
+	}
+
+	appendPreviousOperation(): boolean {
+		const previous = this._undoService.getLastElement(this._textModel.uri) as StackOperation;
+		if (previous && previous.tag === 'notebookUndoRedoElement') {
+			this._pendingStackOperation = previous;
+			this._isAppending = true;
+			return true;
+		}
+		return false;
 	}
 
 	pushEditOperation(element: IUndoRedoElement, beginSelectionState: ISelectionState | undefined, resultSelectionState: ISelectionState | undefined, alternativeVersionId: string, undoRedoGroup: UndoRedoGroup | undefined) {
@@ -441,6 +459,48 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		);
 	}
 
+	createSnapshot(options: INotebookSnapshotOptions): NotebookData {
+		const transientOptions = options.transientOptions ?? this.transientOptions;
+		const data: NotebookData = {
+			metadata: filter(this.metadata, key => !transientOptions.transientDocumentMetadata[key]),
+			cells: [],
+		};
+
+		let outputSize = 0;
+		for (const cell of this.cells) {
+			const cellData: ICellDto2 = {
+				cellKind: cell.cellKind,
+				language: cell.language,
+				mime: cell.mime,
+				source: cell.getValue(),
+				outputs: [],
+				internalMetadata: cell.internalMetadata
+			};
+
+			if (options.context === SnapshotContext.Backup && options.outputSizeLimit > 0) {
+				cell.outputs.forEach(output => {
+					output.outputs.forEach(item => {
+						outputSize += item.data.byteLength;
+					});
+				});
+				if (outputSize > options.outputSizeLimit) {
+					throw new Error('Notebook too large to backup');
+				}
+			}
+
+			cellData.outputs = !transientOptions.transientOutputs ? cell.outputs : [];
+			cellData.metadata = filter(cell.metadata, key => !transientOptions.transientCellMetadata[key]);
+
+			data.cells.push(cellData);
+		}
+
+		return data;
+	}
+
+	restoreSnapshot(snapshot: NotebookData, transientOptions?: TransientOptions): void {
+		this.reset(snapshot.cells, snapshot.metadata, transientOptions ?? this.transientOptions);
+	}
+
 	static computeEdits(model: NotebookTextModel, cells: ICellDto2[], executingHandles: number[] = []): ICellEditOperation[] {
 		const edits: ICellEditOperation[] = [];
 		const isExecuting = (cell: NotebookCellTextModel) => executingHandles.includes(cell.handle);
@@ -538,9 +598,39 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		return result;
 	}
 
+	private newCellsFromLastEdit = new Set<number>();
+	private isOnlyEditingMetadataOnNewCells(rawEdits: ICellEditOperation[]): boolean {
+		for (const edit of rawEdits) {
+			if (edit.editType === CellEditType.PartialInternalMetadata) {
+				continue;
+			}
+			if (edit.editType !== CellEditType.Metadata && edit.editType !== CellEditType.PartialMetadata) {
+				return false;
+			}
+
+			if (('index' in edit) && !this.newCellsFromLastEdit.has(this.cells[edit.index].handle)) {
+				return false;
+			}
+			if ('handle' in edit && !this.newCellsFromLastEdit.has(edit.handle)) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
 	applyEdits(rawEdits: ICellEditOperation[], synchronous: boolean, beginSelectionState: ISelectionState | undefined, endSelectionsComputer: () => ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined, computeUndoRedo: boolean): boolean {
 		this._pauseableEmitter.pause();
 		this._operationManager.pushStackElement(this._alternativeVersionId, undefined);
+
+		if (computeUndoRedo && this.isOnlyEditingMetadataOnNewCells(rawEdits)) {
+			if (!this._operationManager.appendPreviousOperation()) {
+				// we can't append the previous operation, so just don't compute undo/redo
+				computeUndoRedo = false;
+			}
+		} else if (computeUndoRedo) {
+			this.newCellsFromLastEdit.clear();
+		}
 
 		try {
 			this._doApplyEdits(rawEdits, synchronous, computeUndoRedo, beginSelectionState, undoRedoGroup);
@@ -772,6 +862,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			const dirtyStateListener = cell.onDidChangeContent((e) => {
 				this._bindCellContentHandler(cell, e);
 			});
+
+			this.newCellsFromLastEdit.add(cell.handle);
 			this._cellListeners.set(cell.handle, dirtyStateListener);
 			this._register(cell);
 			return cell;

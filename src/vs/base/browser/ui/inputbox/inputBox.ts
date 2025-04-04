@@ -237,7 +237,7 @@ export class InputBox extends Widget {
 		this.tooltip = tooltip;
 		if (!this.hover.value) {
 			this.hover.value = this._register(getBaseLayerHoverDelegate().setupDelayedHoverAtMouse(this.input, () => ({
-				content: tooltip,
+				content: this.tooltip,
 				appearance: {
 					compact: true,
 				}
@@ -650,7 +650,7 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 		}, ' ({0} for history)', `\u21C5`);
 
 		super(container, contextViewProvider, options);
-		this.history = new HistoryNavigator<string>(options.history, 100);
+		this.history = this._register(new HistoryNavigator<string>(options.history, 100));
 
 		// Function to append the history suffix to the placeholder if necessary
 		const addSuffix = () => {

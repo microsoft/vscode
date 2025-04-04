@@ -34,7 +34,7 @@ export interface IModelLanguageConfigurationChangedEvent {
 
 export interface IModelContentChange {
 	/**
-	 * The range that got replaced.
+	 * The old range that got replaced.
 	 */
 	readonly range: IRange;
 	/**

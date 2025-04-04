@@ -75,7 +75,7 @@ interface LanguageFeatureAccessor {
 class ColorDecorationAccessor implements LanguageFeatureAccessor {
 	readonly id = 'decoratorsLimitInfo';
 	readonly name = nls.localize('colorDecoratorsStatusItem.name', 'Color Decorator Status');
-	readonly label = nls.localize('status.limitedColorDecorators.short', 'Color Decorators');
+	readonly label = nls.localize('status.limitedColorDecorators.short', 'Color decorators');
 	readonly source = nls.localize('colorDecoratorsStatusItem.source', 'Color Decorators');
 	readonly settingsId = 'editor.colorDecoratorsLimit';
 
@@ -87,7 +87,7 @@ class ColorDecorationAccessor implements LanguageFeatureAccessor {
 class FoldingRangeAccessor implements LanguageFeatureAccessor {
 	readonly id = 'foldingLimitInfo';
 	readonly name = nls.localize('foldingRangesStatusItem.name', 'Folding Status');
-	readonly label = nls.localize('status.limitedFoldingRanges.short', 'Folding Ranges');
+	readonly label = nls.localize('status.limitedFoldingRanges.short', 'Folding ranges');
 	readonly source = nls.localize('foldingRangesStatusItem.source', 'Folding');
 	readonly settingsId = 'editor.foldingMaximumRegions';
 

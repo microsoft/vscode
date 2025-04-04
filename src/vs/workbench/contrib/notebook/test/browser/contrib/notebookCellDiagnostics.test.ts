@@ -14,13 +14,14 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IMarkerData, IMarkerService } from '../../../../../../platform/markers/common/markers.js';
-import { ChatAgentLocation, IChatAgent, IChatAgentData, IChatAgentService } from '../../../../chat/common/chatAgents.js';
+import { IChatAgent, IChatAgentData, IChatAgentService } from '../../../../chat/common/chatAgents.js';
 import { CellDiagnostics } from '../../../browser/contrib/cellDiagnostics/cellDiagnosticEditorContrib.js';
 import { CodeCellViewModel } from '../../../browser/viewModel/codeCellViewModel.js';
 import { CellKind, NotebookSetting } from '../../../common/notebookCommon.js';
 import { ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebookCellExecution, INotebookExecutionStateService, NotebookExecutionType } from '../../../common/notebookExecutionStateService.js';
 import { setupInstantiationService, TestNotebookExecutionStateService, withTestNotebook } from '../testNotebookEditor.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
+import { ChatAgentLocation } from '../../../../chat/common/constants.js';
 
 
 suite('notebookCellDiagnostics', () => {
@@ -71,7 +72,7 @@ suite('notebookCellDiagnostics', () => {
 			extensionPublisherId: '',
 			name: 'testEditorAgent',
 			isDefault: true,
-			locations: [ChatAgentLocation.Editor],
+			locations: [ChatAgentLocation.Notebook],
 			metadata: {},
 			slashCommands: [],
 			disambiguation: [],
@@ -121,7 +122,7 @@ suite('notebookCellDiagnostics', () => {
 			testExecutionService.fireExecutionChanged(editor.textModel.uri, cell.handle);
 			await new Promise<void>(resolve => Event.once(markerService.onMarkersUpdated)(resolve));
 
-			assert.strictEqual(cell?.executionError.get()?.message, 'something bad happened');
+			assert.strictEqual(cell?.executionErrorDiagnostic.get()?.message, 'something bad happened');
 			assert.equal(markerService.markers.get(cell.uri)?.length, 1);
 		}, instantiationService);
 	});
@@ -163,8 +164,8 @@ suite('notebookCellDiagnostics', () => {
 
 			await new Promise<void>(resolve => Event.once(markerService.onMarkersUpdated)(resolve));
 
-			assert.strictEqual(cell?.executionError.get(), undefined);
-			assert.strictEqual(cell2?.executionError.get()?.message, 'another bad thing happened', 'cell that was not executed should still have an error');
+			assert.strictEqual(cell?.executionErrorDiagnostic.get(), undefined);
+			assert.strictEqual(cell2?.executionErrorDiagnostic.get()?.message, 'another bad thing happened', 'cell that was not executed should still have an error');
 			assert.equal(markerService.markers.get(cell.uri)?.length, 0);
 			assert.equal(markerService.markers.get(cell2.uri)?.length, 1);
 		}, instantiationService);

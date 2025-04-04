@@ -695,6 +695,10 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	readonly onDidType: Event<string>;
 	/**
+	 * Boolean indicating whether input is in composition
+	 */
+	readonly inComposition: boolean;
+	/**
 	 * An event emitted after composition has started.
 	 */
 	readonly onDidCompositionStart: Event<void>;

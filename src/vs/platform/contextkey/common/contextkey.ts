@@ -2005,6 +2005,10 @@ export class RawContextKey<T extends ContextKeyValue> extends ContextKeyDefinedE
 	public notEqualsTo(value: any): ContextKeyExpression {
 		return ContextKeyNotEqualsExpr.create(this.key, value);
 	}
+
+	public greater(value: any): ContextKeyExpression {
+		return ContextKeyGreaterExpr.create(this.key, value);
+	}
 }
 
 export type ContextKeyValue = null | undefined | boolean | number | string

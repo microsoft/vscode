@@ -204,6 +204,11 @@
 	font-weight: 500;
 }
 
+.search-view .textsearchresult .actionBarContainer {
+	flex: 1 0 auto;
+	text-align: right;
+}
+
 .search-view .textsearchresult .monaco-icon-label .codicon {
 	position: relative;
 	font-size: 12px;

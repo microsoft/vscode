@@ -11,7 +11,7 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
 import { Emitter, Relay } from '../../../../base/common/event.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, isAncestor, IDomNodePagePosition, isMouseEvent, isActiveElement, getWindow, getActiveElement } from '../../../../base/browser/dom.js';
+import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, isAncestor, IDomNodePagePosition, isMouseEvent, isActiveElement, getWindow, getActiveElement, $ } from '../../../../base/browser/dom.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
@@ -208,16 +208,14 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			this.handleGroupContextKeys();
 
 			// Title container
-			this.titleContainer = document.createElement('div');
-			this.titleContainer.classList.add('title');
+			this.titleContainer = $('.title');
 			this.element.appendChild(this.titleContainer);
 
 			// Title control
 			this.titleControl = this._register(this.scopedInstantiationService.createInstance(EditorTitleControl, this.titleContainer, this.editorPartsView, this.groupsView, this, this.model));
 
 			// Editor container
-			this.editorContainer = document.createElement('div');
-			this.editorContainer.classList.add('editor-container');
+			this.editorContainer = $('.editor-container');
 			this.element.appendChild(this.editorContainer);
 
 			// Editor pane
@@ -406,8 +404,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private createContainerToolbar(): void {
 
 		// Toolbar Container
-		const toolbarContainer = document.createElement('div');
-		toolbarContainer.classList.add('editor-group-container-toolbar');
+		const toolbarContainer = $('.editor-group-container-toolbar');
 		this.element.appendChild(toolbarContainer);
 
 		// Toolbar
@@ -459,9 +456,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			menuId: MenuId.EmptyEditorGroupContext,
 			contextKeyService: this.contextKeyService,
 			getAnchor: () => anchor,
-			onHide: () => {
-				this.focus();
-			}
+			onHide: () => this.focus()
 		});
 	}
 
@@ -650,7 +645,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		/* __GDPR__
 			"editorOpened" : {
-				"owner": "bpasero",
+				"owner": "isidorn",
 				"${include}": [
 					"${EditorTelemetryDescriptor}"
 				]
@@ -684,16 +679,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				editor.dispose();
 			}
 		}
-
-		/* __GDPR__
-			"editorClosed" : {
-				"owner": "bpasero",
-				"${include}": [
-					"${EditorTelemetryDescriptor}"
-				]
-			}
-		*/
-		this.telemetryService.publicLog('editorClosed', this.toEditorTelemetryDescriptor(editor));
 
 		// Update container
 		this.updateContainer();
@@ -1467,7 +1452,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const options = fillActiveEditorViewState(this, editor, {
 			...openOptions,
 			pinned: true, 																// always pin moved editor
-			sticky: openOptions?.sticky ?? (!keepCopy && this.model.isSticky(editor))	// preserve sticky state only if editor is moved or eplicitly wanted (https://github.com/microsoft/vscode/issues/99035)
+			sticky: openOptions?.sticky ?? (!keepCopy && this.model.isSticky(editor))	// preserve sticky state only if editor is moved or explicitly wanted (https://github.com/microsoft/vscode/issues/99035)
 		});
 
 		// Indicate will move event
@@ -2153,7 +2138,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region ISerializableView
 
-	readonly element: HTMLElement = document.createElement('div');
+	readonly element: HTMLElement = $('div');
 
 	get minimumWidth(): number { return this.editorPane.minimumWidth; }
 	get minimumHeight(): number { return this.editorPane.minimumHeight; }

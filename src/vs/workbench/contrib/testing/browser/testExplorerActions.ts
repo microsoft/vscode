@@ -494,8 +494,15 @@ class StartContinuousRunAction extends Action2 {
 			menu: continuousMenus(false),
 		});
 	}
-	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	async run(accessor: ServicesAccessor): Promise<void> {
 		const crs = accessor.get(ITestingContinuousRunService);
+		const profileService = accessor.get(ITestProfileService);
+
+		const lastRunProfiles = [...profileService.all()].flatMap(p => p.profiles.filter(p => crs.lastRunProfileIds.has(p.profileId)));
+		if (lastRunProfiles.length) {
+			return crs.start(lastRunProfiles);
+		}
+
 		const selected = await selectContinuousRunProfiles(crs, accessor.get(INotificationService), accessor.get(IQuickInputService), accessor.get(ITestProfileService).all());
 		if (selected.length) {
 			crs.start(selected);

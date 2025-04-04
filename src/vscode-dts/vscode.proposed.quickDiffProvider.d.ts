@@ -11,7 +11,8 @@ declare module 'vscode' {
 		export function registerQuickDiffProvider(selector: DocumentSelector, quickDiffProvider: QuickDiffProvider, label: string, rootUri?: Uri): Disposable;
 	}
 
-	interface QuickDiffProvider {
+	export interface QuickDiffProvider {
 		label?: string;
+		readonly visible?: boolean;
 	}
 }

@@ -13,7 +13,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUpdateService, State as UpdateState, StateType, IUpdate, DisablementReason } from '../../../../platform/update/common/update.js';
-import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { INotificationService, NotificationPriority, Severity } from '../../../../platform/notification/common/notification.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
 import { ReleaseNotesManager } from './releaseNotesEditor.js';
@@ -29,7 +29,7 @@ import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys
 import { Promises } from '../../../../base/common/async.js';
 import { IUserDataSyncWorkbenchService } from '../../../services/userDataSync/common/userDataSync.js';
 import { Event } from '../../../../base/common/event.js';
-import { Action } from '../../../../base/common/actions.js';
+import { toAction } from '../../../../base/common/actions.js';
 
 export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Uninitialized);
 export const MAJOR_MINOR_UPDATE_AVAILABLE = new RawContextKey<boolean>('majorMinorUpdateAvailable', false);
@@ -146,7 +146,8 @@ export class ProductContribution implements IWorkbenchContribution {
 									const uri = URI.parse(releaseNotesUrl);
 									openerService.open(uri);
 								}
-							}]
+							}],
+							{ priority: NotificationPriority.OPTIONAL }
 						);
 					});
 			}
@@ -215,8 +216,10 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 						message: nls.localize('update service disabled', "Updates are disabled because you are running the user-scope installation of {0} as Administrator.", this.productService.nameLong),
 						actions: {
 							primary: [
-								new Action('', nls.localize('learn more', "Learn More"), undefined, undefined, () => {
-									this.openerService.open('https://aka.ms/vscode-windows-setup');
+								toAction({
+									id: '',
+									label: nls.localize('learn more', "Learn More"),
+									run: () => this.openerService.open('https://aka.ms/vscode-windows-setup')
 								})
 							]
 						},
@@ -254,25 +257,21 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		}
 
 		let badge: IBadge | undefined = undefined;
-		let priority: number | undefined = undefined;
 
 		if (state.type === StateType.AvailableForDownload || state.type === StateType.Downloaded || state.type === StateType.Ready) {
 			badge = new NumberBadge(1, () => nls.localize('updateIsReady', "New {0} update available.", this.productService.nameShort));
 		} else if (state.type === StateType.CheckingForUpdates) {
-			badge = new ProgressBadge(() => nls.localize('checkingForUpdates', "Checking for Updates..."));
-			priority = 1;
+			badge = new ProgressBadge(() => nls.localize('checkingForUpdates', "Checking for {0} updates...", this.productService.nameShort));
 		} else if (state.type === StateType.Downloading) {
-			badge = new ProgressBadge(() => nls.localize('downloading', "Downloading..."));
-			priority = 1;
+			badge = new ProgressBadge(() => nls.localize('downloading', "Downloading {0} update...", this.productService.nameShort));
 		} else if (state.type === StateType.Updating) {
-			badge = new ProgressBadge(() => nls.localize('updating', "Updating..."));
-			priority = 1;
+			badge = new ProgressBadge(() => nls.localize('updating', "Updating {0}...", this.productService.nameShort));
 		}
 
 		this.badgeDisposable.clear();
 
 		if (badge) {
-			this.badgeDisposable.value = this.activityService.showGlobalActivity({ badge, priority });
+			this.badgeDisposable.value = this.activityService.showGlobalActivity({ badge });
 		}
 
 		this.state = state;
@@ -321,7 +320,8 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 				run: () => {
 					this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, productVersion));
 				}
-			}]
+			}],
+			{ priority: NotificationPriority.OPTIONAL }
 		);
 	}
 
@@ -357,7 +357,8 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 				run: () => {
 					this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, productVersion));
 				}
-			}]
+			}],
+			{ priority: NotificationPriority.OPTIONAL }
 		);
 	}
 
@@ -390,7 +391,10 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			severity.Info,
 			nls.localize('updateAvailableAfterRestart', "Restart {0} to apply the latest update.", this.productService.nameLong),
 			actions,
-			{ sticky: true }
+			{
+				sticky: true,
+				priority: NotificationPriority.OPTIONAL
+			}
 		);
 	}
 
@@ -427,7 +431,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			group: '7_update',
 			command: {
 				id: 'update.checking',
-				title: nls.localize('checkingForUpdates', "Checking for Updates..."),
+				title: nls.localize('checkingForUpdates2', "Checking for Updates..."),
 				precondition: ContextKeyExpr.false()
 			},
 			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.CheckingForUpdates)

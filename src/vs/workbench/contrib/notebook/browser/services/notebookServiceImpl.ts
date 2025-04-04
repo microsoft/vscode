@@ -28,7 +28,7 @@ import { INotebookEditorOptions } from '../notebookBrowser.js';
 import { NotebookDiffEditorInput } from '../../common/notebookDiffEditorInput.js';
 import { NotebookCellTextModel } from '../../common/model/notebookCellTextModel.js';
 import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellUri, NotebookSetting, INotebookContributionData, INotebookExclusiveDocumentFilter, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, MimeTypeDisplayOrder, NotebookEditorPriority, NotebookRendererMatch, NOTEBOOK_DISPLAY_ORDER, RENDERER_EQUIVALENT_EXTENSIONS, RENDERER_NOT_AVAILABLE, NotebookExtensionDescription, INotebookStaticPreloadInfo } from '../../common/notebookCommon.js';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellUri, NotebookSetting, INotebookContributionData, INotebookExclusiveDocumentFilter, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, MimeTypeDisplayOrder, NotebookEditorPriority, NotebookRendererMatch, NOTEBOOK_DISPLAY_ORDER, RENDERER_EQUIVALENT_EXTENSIONS, RENDERER_NOT_AVAILABLE, NotebookExtensionDescription, INotebookStaticPreloadInfo, NotebookData } from '../../common/notebookCommon.js';
 import { NotebookEditorInput } from '../../common/notebookEditorInput.js';
 import { INotebookEditorModelResolverService } from '../../common/notebookEditorModelResolverService.js';
 import { NotebookOutputRendererInfo, NotebookStaticPreloadInfo as NotebookStaticPreloadInfo } from '../../common/notebookOutputRenderer.js';
@@ -42,9 +42,13 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { INotebookDocument, INotebookDocumentService } from '../../../../services/notebook/common/notebookDocumentService.js';
 import { MergeEditorInput } from '../../../mergeEditor/browser/mergeEditorInput.js';
 import type { EditorInputWithOptions, IResourceDiffEditorInput, IResourceMergeEditorInput } from '../../../../common/editor.js';
-import { streamToBuffer, VSBuffer, VSBufferReadableStream } from '../../../../../base/common/buffer.js';
+import { bufferToStream, streamToBuffer, VSBuffer, VSBufferReadableStream } from '../../../../../base/common/buffer.js';
 import type { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import { NotebookMultiDiffEditorInput } from '../diff/notebookMultiDiffEditorInput.js';
+import { SnapshotContext } from '../../../../services/workingCopy/common/fileWorkingCopy.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
+import { ICellRange } from '../../common/notebookRange.js';
 
 export class NotebookProviderInfoStore extends Disposable {
 
@@ -177,19 +181,38 @@ export class NotebookProviderInfoStore extends Disposable {
 			};
 			const notebookEditorOptions = {
 				canHandleDiff: () => !!this._configurationService.getValue(NotebookSetting.textDiffEditorPreview) && !this._accessibilityService.isScreenReaderOptimized(),
-				canSupportResource: (resource: URI) => resource.scheme === Schemas.untitled || resource.scheme === Schemas.vscodeNotebookCell || this._fileService.hasProvider(resource)
+				canSupportResource: (resource: URI) => {
+					if (resource.scheme === Schemas.vscodeNotebookCellOutput) {
+						const params = new URLSearchParams(resource.query);
+						return params.get('openIn') === 'notebook';
+					}
+					return resource.scheme === Schemas.untitled || resource.scheme === Schemas.vscodeNotebookCell || this._fileService.hasProvider(resource);
+				}
 			};
-			const notebookEditorInputFactory: EditorInputFactoryFunction = ({ resource, options }) => {
-				const data = CellUri.parse(resource);
+			const notebookEditorInputFactory: EditorInputFactoryFunction = async ({ resource, options }) => {
+				let data;
+				if (resource.scheme === Schemas.vscodeNotebookCellOutput) {
+					const outputUriData = CellUri.parseCellOutputUri(resource);
+					if (!outputUriData || !outputUriData.notebook || outputUriData.cellHandle === undefined) {
+						throw new Error('Invalid cell output uri');
+					}
+
+					data = {
+						notebook: outputUriData.notebook,
+						handle: outputUriData.cellHandle
+					};
+
+				} else {
+					data = CellUri.parse(resource);
+				}
+
 				let notebookUri: URI;
 
 				let cellOptions: IResourceEditorInput | undefined;
-				let preferredResource = resource;
 
 				if (data) {
 					// resource is a notebook cell
 					notebookUri = this.uriIdentService.asCanonicalUri(data.notebook);
-					preferredResource = data.notebook;
 					cellOptions = { resource, options };
 				} else {
 					notebookUri = this.uriIdentService.asCanonicalUri(resource);
@@ -199,8 +222,38 @@ export class NotebookProviderInfoStore extends Disposable {
 					cellOptions = (options as INotebookEditorOptions | undefined)?.cellOptions;
 				}
 
-				const notebookOptions: INotebookEditorOptions = { ...options, cellOptions, viewState: undefined };
-				const editor = NotebookEditorInput.getOrCreate(this._instantiationService, notebookUri, preferredResource, notebookProviderInfo.id);
+				let notebookOptions: INotebookEditorOptions;
+
+				if (resource.scheme === Schemas.vscodeNotebookCellOutput) {
+					if (data?.handle === undefined || !data?.notebook) {
+						throw new Error('Invalid cell handle');
+					}
+
+					const cellUri = CellUri.generate(data.notebook, data.handle);
+
+					cellOptions = { resource: cellUri, options };
+
+					const cellIndex = await this._notebookEditorModelResolverService.resolve(notebookUri)
+						.then(model => model.object.notebook.cells.findIndex(cell => cell.handle === data?.handle))
+						.then(index => index >= 0 ? index : 0);
+
+					const cellIndexesToRanges: ICellRange[] = [{ start: cellIndex, end: cellIndex + 1 }];
+
+					notebookOptions = {
+						...options,
+						cellOptions,
+						viewState: undefined,
+						cellSelections: cellIndexesToRanges
+					};
+				} else {
+					notebookOptions = {
+						...options,
+						cellOptions,
+						viewState: undefined,
+					};
+				}
+				const preferredResourceParam = cellOptions?.resource;
+				const editor = NotebookEditorInput.getOrCreate(this._instantiationService, notebookUri, preferredResourceParam, notebookProviderInfo.id);
 				return { editor, options: notebookOptions };
 			};
 
@@ -209,7 +262,7 @@ export class NotebookProviderInfoStore extends Disposable {
 
 				// untitled notebooks are disposed when they get saved. we should not hold a reference
 				// to such a disposed notebook and therefore dispose the reference as well
-				ref.object.notebook.onWillDispose(() => {
+				Event.once(ref.object.notebook.onWillDispose)(() => {
 					ref.dispose();
 				});
 
@@ -776,6 +829,57 @@ export class NotebookService extends Disposable implements INotebookService {
 		return notebookModel;
 	}
 
+	async createNotebookTextDocumentSnapshot(uri: URI, context: SnapshotContext, token: CancellationToken): Promise<VSBufferReadableStream> {
+		const model = this.getNotebookTextModel(uri);
+
+		if (!model) {
+			throw new Error(`notebook for ${uri} doesn't exist`);
+		}
+
+		const info = await this.withNotebookDataProvider(model.viewType);
+
+		if (!(info instanceof SimpleNotebookProviderInfo)) {
+			throw new Error('CANNOT open file notebook with this provider');
+		}
+
+		const serializer = info.serializer;
+		const outputSizeLimit = this._configurationService.getValue<number>(NotebookSetting.outputBackupSizeLimit) * 1024;
+		const data: NotebookData = model.createSnapshot({ context: context, outputSizeLimit: outputSizeLimit, transientOptions: serializer.options });
+		const indentAmount = model.metadata.indentAmount;
+		if (typeof indentAmount === 'string' && indentAmount) {
+			// This is required for ipynb serializer to preserve the whitespace in the notebook.
+			data.metadata.indentAmount = indentAmount;
+		}
+		const bytes = await serializer.notebookToData(data);
+
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		return bufferToStream(bytes);
+	}
+
+	async restoreNotebookTextModelFromSnapshot(uri: URI, viewType: string, snapshot: VSBufferReadableStream): Promise<NotebookTextModel> {
+		const model = this.getNotebookTextModel(uri);
+
+		if (!model) {
+			throw new Error(`notebook for ${uri} doesn't exist`);
+		}
+
+		const info = await this.withNotebookDataProvider(model.viewType);
+
+		if (!(info instanceof SimpleNotebookProviderInfo)) {
+			throw new Error('CANNOT open file notebook with this provider');
+		}
+
+		const serializer = info.serializer;
+
+		const bytes = await streamToBuffer(snapshot);
+		const data = await info.serializer.dataToNotebook(bytes);
+		model.restoreSnapshot(data, serializer.options);
+
+		return model;
+	}
+
 	getNotebookTextModel(uri: URI): NotebookTextModel | undefined {
 		return this._models.get(uri)?.model;
 	}
@@ -814,6 +918,21 @@ export class NotebookService extends Disposable implements INotebookService {
 		}
 
 		return [...this.notebookProviderInfoStore];
+	}
+
+	hasSupportedNotebooks(resource: URI): boolean {
+		if (this._models.has(resource)) {
+			// it might be untitled
+			return true;
+		}
+
+		const contribution = this.notebookProviderInfoStore.getContributedNotebook(resource);
+		if (!contribution.length) {
+			return false;
+		}
+		return contribution.some(info => info.matches(resource) &&
+			(info.priority === RegisteredEditorPriority.default || info.priority === RegisteredEditorPriority.exclusive)
+		);
 	}
 
 	getContributedNotebookType(viewType: string): NotebookProviderInfo | undefined {

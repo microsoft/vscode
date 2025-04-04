@@ -121,7 +121,7 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 
 });
 
-function getOutputViewModelFromId(outputId: string, notebookEditor: INotebookEditor): ICellOutputViewModel | undefined {
+export function getOutputViewModelFromId(outputId: string, notebookEditor: INotebookEditor): ICellOutputViewModel | undefined {
 	const notebookViewModel = notebookEditor.getViewModel();
 	if (notebookViewModel) {
 		const codeCells = notebookViewModel.viewCells.filter(cell => cell.cellKind === CellKind.Code) as CodeCellViewModel[];
@@ -176,7 +176,7 @@ registerAction2(class OpenCellOutputInEditorAction extends Action2 {
 		if (outputViewModel?.model.outputId && notebookEditor.textModel?.uri) {
 			// reserve notebook document reference since the active notebook editor might not be pinned so it can be replaced by the output editor
 			const ref = await notebookModelService.resolve(notebookEditor.textModel.uri);
-			await openerService.open(CellUri.generateCellOutputUri(notebookEditor.textModel.uri, outputViewModel.model.outputId));
+			await openerService.open(CellUri.generateCellOutputUriWithId(notebookEditor.textModel.uri, outputViewModel.model.outputId));
 			ref.dispose();
 		}
 	}
