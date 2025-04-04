@@ -92,7 +92,7 @@ export class TextModelPromptDecorator extends ProviderInstanceBase {
 	): this {
 		this.editor.changeDecorations((accessor) => {
 			for (const decoration of decorations) {
-				decoration.changes(accessor);
+				decoration.change(accessor);
 			}
 		});
 
@@ -166,7 +166,7 @@ export class TextModelPromptDecorator extends ProviderInstanceBase {
 registerThemingParticipant((_theme, collector) => {
 	for (const Decoration of SUPPORTED_DECORATIONS) {
 		for (const [className, styles] of Object.entries(Decoration.cssStyles)) {
-			collector.addRule(`${className} { ${styles.join(' ')} }`);
+			collector.addRule(`.monaco-editor ${className} { ${styles.join(' ')} }`);
 		}
 	}
 });
