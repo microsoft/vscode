@@ -165,8 +165,9 @@ export class MouseWheelClassifier {
 	}
 
 	private _isAlmostInt(value: number): boolean {
+		const epsilon = Number.EPSILON * 100; // Use a small tolerance factor for floating-point errors
 		const delta = Math.abs(Math.round(value) - value);
-		return (delta < 0.01);
+		return (delta < 0.01 + epsilon);
 	}
 }
 
