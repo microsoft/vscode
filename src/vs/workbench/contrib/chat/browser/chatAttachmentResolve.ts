@@ -75,18 +75,18 @@ async function resolveUntitledEditorAttachContext(editor: IDraggedResourceEditor
 }
 
 export async function resolveResourceAttachContext(resource: URI, isDirectory: boolean, textModelService: ITextModelService): Promise<IChatRequestVariableEntry | undefined> {
-	let isOmitted = false;
+	let omittedState = OmittedState.NotOmitted;
 
 	if (!isDirectory) {
 		try {
 			const createdModel = await textModelService.createModelReference(resource);
 			createdModel.dispose();
 		} catch {
-			isOmitted = true;
+			omittedState = OmittedState.Full;
 		}
 
 		if (/\.(svg)$/i.test(resource.path)) {
-			isOmitted = true;
+			omittedState = OmittedState.Full;
 		}
 	}
 
@@ -96,7 +96,7 @@ export async function resolveResourceAttachContext(resource: URI, isDirectory: b
 		name: basename(resource),
 		isFile: !isDirectory,
 		isDirectory,
-		isOmitted: isOmitted ? OmittedState.Full : OmittedState.NotOmitted
+		omittedState
 	};
 }
 
@@ -109,7 +109,7 @@ export type ImageTransferData = {
 	resource?: URI;
 	id?: string;
 	mimeType?: string;
-	isOmitted?: OmittedState;
+	omittedState?: OmittedState;
 };
 const SUPPORTED_IMAGE_EXTENSIONS_REGEX = /\.(png|jpg|jpeg|gif|webp)$/i;
 
@@ -140,7 +140,7 @@ export async function resolveImageEditorAttachContext(editor: EditorInput | IDra
 		icon: Codicon.fileMedia,
 		resource: editor.resource,
 		mimeType: mimeType,
-		isOmitted: isPartiallyOmitted ? OmittedState.Partial : OmittedState.NotOmitted
+		omittedState: isPartiallyOmitted ? OmittedState.Partial : OmittedState.NotOmitted
 	}]);
 
 	return imageFileContext[0];
@@ -156,7 +156,7 @@ export async function resolveImageAttachContext(images: ImageTransferData[]): Pr
 		isImage: true,
 		isFile: false,
 		isDirectory: false,
-		isOmitted: image.isOmitted || OmittedState.NotOmitted,
+		omittedState: image.omittedState || OmittedState.NotOmitted,
 		references: image.resource ? [{ reference: image.resource, kind: 'reference' }] : []
 	})));
 }

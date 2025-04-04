@@ -48,7 +48,7 @@ export interface IBaseChatRequestVariableEntry {
 	isDirectory?: boolean;
 	isTool?: boolean;
 	isImage?: boolean;
-	isOmitted?: OmittedState;
+	omittedState?: OmittedState;
 }
 
 export const enum OmittedState {

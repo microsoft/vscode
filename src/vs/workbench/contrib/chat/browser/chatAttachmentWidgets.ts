@@ -149,7 +149,7 @@ export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 		const ariaLabel = range ? localize('chat.fileAttachmentWithRange', "Attached file, {0}, line {1} to line {2}", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.fileAttachment', "Attached file, {0}", friendlyName);
 		this.element.ariaLabel = ariaLabel;
 
-		if (attachment.isOmitted === OmittedState.Full) {
+		if (attachment.omittedState === OmittedState.Full) {
 			this.renderOmittedWarning(friendlyName, ariaLabel, hoverDelegate);
 		} else {
 			const fileOptions: IFileLabelOptions = { hidePath: true };
@@ -207,9 +207,9 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		super(attachment, shouldFocusClearButton, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
 
 		let ariaLabel: string;
-		if (attachment.isOmitted === OmittedState.Full) {
+		if (attachment.omittedState === OmittedState.Full) {
 			ariaLabel = localize('chat.omittedImageAttachment', "Omitted this image: {0}", attachment.name);
-		} else if (attachment.isOmitted === OmittedState.Partial) {
+		} else if (attachment.omittedState === OmittedState.Partial) {
 			ariaLabel = localize('chat.partiallyOmittedImageAttachment', "Partially omitted this image: {0}", attachment.name);
 		} else {
 			ariaLabel = localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
@@ -260,7 +260,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 			this._register(this.hoverService.setupDelayedHover(this.element, { content: hoverElement, appearance: { showPointer: true } }));
 		} else {
 			const buffer = attachment.value as Uint8Array;
-			this.createImageElements(buffer, this.element, hoverElement, URI.isUri(ref) ? ref : undefined, attachment.isOmitted);
+			this.createImageElements(buffer, this.element, hoverElement, URI.isUri(ref) ? ref : undefined, attachment.omittedState);
 			this._register(this.hoverService.setupDelayedHover(this.element, { content: hoverElement, appearance: { showPointer: true } }));
 		}
 
@@ -271,8 +271,8 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		this.attachClearButton();
 	}
 
-	private createImageElements(buffer: ArrayBuffer | Uint8Array, widget: HTMLElement, hoverElement: HTMLElement, reference?: URI, isOmitted?: OmittedState): void {
-		if (isOmitted === OmittedState.Partial) {
+	private createImageElements(buffer: ArrayBuffer | Uint8Array, widget: HTMLElement, hoverElement: HTMLElement, reference?: URI, omittedState?: OmittedState): void {
+		if (omittedState === OmittedState.Partial) {
 			this.element.classList.add('partial-warning');
 		}
 
@@ -291,7 +291,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		hoverElement.appendChild(imageContainer);
 
 		if (reference) {
-			const urlContainer = dom.$('a.chat-attached-context-url', {}, isOmitted === OmittedState.Partial ? localize('chat.imageAttachmentWarning', "This GIF was partially omitted - current frame will be sent.") : reference.toString());
+			const urlContainer = dom.$('a.chat-attached-context-url', {}, omittedState === OmittedState.Partial ? localize('chat.imageAttachmentWarning', "This GIF was partially omitted - current frame will be sent.") : reference.toString());
 			const separator = dom.$('div.chat-attached-context-url-separator');
 			this._register(dom.addDisposableListener(urlContainer, 'click', () => this.openResource(reference, false, undefined)));
 			hoverElement.append(separator, urlContainer);

@@ -636,12 +636,12 @@ export class AttachContextAction extends Action2 {
 						});
 					}
 				} else {
-					let isOmitted = false;
+					let omittedState = OmittedState.NotOmitted;
 					try {
 						const createdModel = await textModelService.createModelReference(pick.resource);
 						createdModel.dispose();
 					} catch {
-						isOmitted = true;
+						omittedState = OmittedState.Full;
 					}
 
 					toAttach.push({
@@ -649,7 +649,7 @@ export class AttachContextAction extends Action2 {
 						value: pick.resource,
 						name: pick.label,
 						isFile: true,
-						isOmitted: isOmitted ? OmittedState.Full : OmittedState.NotOmitted
+						omittedState
 					});
 				}
 			} else if (isIGotoSymbolQuickPickItem(pick) && pick.uri && pick.range) {
@@ -715,7 +715,7 @@ export class AttachContextAction extends Action2 {
 						value: file.value,
 						name: file.label,
 						isFile: true,
-						isOmitted: OmittedState.NotOmitted
+						omittedState: OmittedState.NotOmitted
 					});
 				}
 			} else if (isScreenshotQuickPickItem(pick)) {

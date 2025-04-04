@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 /**
  * Resizes an image provided as a UInt8Array string. Resizing is based on Open AI's algorithm for tokenzing images.
  * https://platform.openai.com/docs/guides/vision#calculating-costs
@@ -61,7 +60,7 @@ export async function resizeImage(data: Uint8Array | string, mimeType?: string):
 					} else {
 						reject(new Error('Failed to create blob from canvas'));
 					}
-				}, 'image/png'); // Always convert to PNG
+				}, 'image/png');
 			} else {
 				reject(new Error('Failed to get canvas context'));
 			}
