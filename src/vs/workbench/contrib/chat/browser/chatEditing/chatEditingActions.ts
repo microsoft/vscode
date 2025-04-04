@@ -23,8 +23,6 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { EditorActivation } from '../../../../../platform/editor/common/editor.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IListService } from '../../../../../platform/list/browser/listService.js';
-import { GroupsOrder, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { isChatViewTitleActionContext } from '../../common/chatActions.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
@@ -387,48 +385,6 @@ export class ChatEditingShowChangesAction extends EditingSessionAction {
 	}
 }
 registerAction2(ChatEditingShowChangesAction);
-
-registerAction2(class AddFilesToWorkingSetAction extends EditingSessionAction {
-	constructor() {
-		super({
-			id: 'workbench.action.chat.addSelectedFilesToWorkingSet',
-			title: localize2('workbench.action.chat.addSelectedFilesToWorkingSet.label', "Add Selected Files to Working Set"),
-			icon: Codicon.attach,
-			precondition: ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
-			f1: true
-		});
-	}
-
-	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]): Promise<void> {
-		const listService = accessor.get(IListService);
-		const editorGroupService = accessor.get(IEditorGroupsService);
-
-		const uris: URI[] = [];
-
-		for (const group of editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
-			for (const selection of group.selectedEditors) {
-				if (selection.resource) {
-					uris.push(selection.resource);
-				}
-			}
-		}
-
-		if (uris.length === 0) {
-			const selection = listService.lastFocusedList?.getSelection();
-			if (selection?.length) {
-				for (const file of selection) {
-					if (!!file && typeof file === 'object' && 'resource' in file && URI.isUri(file.resource)) {
-						uris.push(file.resource);
-					}
-				}
-			}
-		}
-
-		for (const file of uris) {
-			await chatWidget.attachmentModel.addFile(file);
-		}
-	}
-});
 
 registerAction2(class RemoveAction extends Action2 {
 	constructor() {

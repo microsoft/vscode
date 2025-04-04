@@ -129,12 +129,8 @@ class ToggleChatModeAction extends Action2 {
 					// Either in edits with agent mode available, or in unified chat view
 					when: ContextKeyExpr.and(
 						ChatContextKeys.enabled,
-						ContextKeyExpr.or(
-							ContextKeyExpr.and(
-								ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
-								ChatContextKeys.Editing.hasToolsAgent,
-							),
-							ChatContextKeys.inUnifiedChat)),
+						ChatContextKeys.inUnifiedChat
+					),
 					group: 'navigation',
 				},
 			]
@@ -273,7 +269,6 @@ export class SwitchToNextModelAction extends Action2 {
 					ChatContextKeys.languageModelsAreUserSelectable,
 					ContextKeyExpr.or(
 						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel),
-						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.EditingSession),
 						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Editor),
 						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Notebook),
 						ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Terminal)

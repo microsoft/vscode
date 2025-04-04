@@ -98,8 +98,8 @@ export namespace ChatContextKeys {
 export namespace ChatContextKeyExprs {
 	export const unifiedChatEnabled = ContextKeyExpr.has(`config.deleteme`);
 
+	// DELETE
 	export const inEditsOrUnified = ContextKeyExpr.or(
-		ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
 		ChatContextKeys.inUnifiedChat);
 
 	export const inNonUnifiedPanel = ContextKeyExpr.and(

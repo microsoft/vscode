@@ -54,7 +54,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private _restoringSession: Promise<void> | undefined;
 
 	constructor(
-		private readonly chatOptions: { location: ChatAgentLocation.Panel | ChatAgentLocation.EditingSession },
+		private readonly chatOptions: { location: ChatAgentLocation.Panel },
 		options: IViewPaneOptions,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -74,7 +74,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		// View state for the ViewPane is currently global per-provider basically, but some other strictly per-model state will require a separate memento.
-		this.memento = new Memento('interactive-session-view-' + CHAT_PROVIDER_ID + (this.chatOptions.location === ChatAgentLocation.EditingSession ? `-edits` : ''), this.storageService);
+		this.memento = new Memento('interactive-session-view-' + CHAT_PROVIDER_ID, this.storageService);
 		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IViewPaneState;
 
 		if (this.chatOptions.location === ChatAgentLocation.Panel && !this.viewState.hasMigratedCurrentSession) {

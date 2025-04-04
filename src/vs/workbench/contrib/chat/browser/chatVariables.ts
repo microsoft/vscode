@@ -69,7 +69,7 @@ export class ChatVariablesService implements IChatVariablesService {
 	}
 
 	async attachContext(name: string, value: string | URI | Location, location: ChatAgentLocation) {
-		if (location !== ChatAgentLocation.Panel && location !== ChatAgentLocation.EditingSession) {
+		if (location !== ChatAgentLocation.Panel) {
 			return;
 		}
 

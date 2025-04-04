@@ -458,7 +458,6 @@ export class AttachContextAction extends Action2 {
 		category: CHAT_CATEGORY,
 		keybinding: {
 			when: ContextKeyExpr.and(
-				ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession),
 				ChatContextKeys.inChatInput,
 				ChatContextKeyExprs.inNonUnifiedPanel),
 			primary: KeyMod.CtrlCmd | KeyCode.Slash,
@@ -694,7 +693,7 @@ export class AttachContextAction extends Action2 {
 		if (!widget) {
 			return;
 		}
-		const chatEditingService = widget.location === ChatAgentLocation.EditingSession || widget.isUnifiedPanelWidget ? accessor.get(IChatEditingService) : undefined;
+		const chatEditingService = widget.isUnifiedPanelWidget ? accessor.get(IChatEditingService) : undefined;
 
 		const quickPickItems: IAttachmentQuickPickItem[] = [];
 		if (extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData'))) {

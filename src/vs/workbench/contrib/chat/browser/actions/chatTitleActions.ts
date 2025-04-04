@@ -25,7 +25,7 @@ import { ChatContextKeyExprs, ChatContextKeys } from '../../common/chatContextKe
 import { applyingChatEditsFailedContextKey, isChatEditingActionContext } from '../../common/chatEditingService.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
-import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
+import { ChatMode } from '../../common/constants.js';
 import { ChatTreeItem, IChatWidgetService } from '../chat.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
@@ -222,7 +222,7 @@ export function registerChatTitleActions() {
 			const itemIndex = chatRequests?.findIndex(request => request.id === item.requestId);
 			const widget = chatWidgetService.getWidgetBySessionId(item.sessionId);
 			const mode = widget?.input.currentMode;
-			if (chatModel?.initialLocation === ChatAgentLocation.EditingSession || chatModel && (mode === ChatMode.Edit || mode === ChatMode.Agent)) {
+			if (chatModel && (mode === ChatMode.Edit || mode === ChatMode.Agent)) {
 				const configurationService = accessor.get(IConfigurationService);
 				const dialogService = accessor.get(IDialogService);
 				const currentEditingSession = widget?.viewModel?.model.editingSession;
@@ -379,12 +379,6 @@ export function registerChatTitleActions() {
 			}
 
 			if (!item) {
-				return;
-			}
-
-			const chatService = accessor.get(IChatService);
-			const chatModel = chatService.getSession(item.sessionId);
-			if (chatModel?.initialLocation === ChatAgentLocation.EditingSession) {
 				return;
 			}
 
