@@ -20,7 +20,7 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { UntitledTextEditorInput } from '../../../services/untitled/common/untitledTextEditorInput.js';
-import { IChatRequestVariableEntry, IDiagnosticVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry } from '../common/chatModel.js';
+import { IChatRequestVariableEntry, IDiagnosticVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry, OmittedState } from '../common/chatModel.js';
 import { imageToHash } from './chatPasteProviders.js';
 import { resizeImage } from './imageUtils.js';
 
@@ -75,18 +75,18 @@ async function resolveUntitledEditorAttachContext(editor: IDraggedResourceEditor
 }
 
 export async function resolveResourceAttachContext(resource: URI, isDirectory: boolean, textModelService: ITextModelService): Promise<IChatRequestVariableEntry | undefined> {
-	let isOmitted = false;
+	let omittedState = OmittedState.NotOmitted;
 
 	if (!isDirectory) {
 		try {
 			const createdModel = await textModelService.createModelReference(resource);
 			createdModel.dispose();
 		} catch {
-			isOmitted = true;
+			omittedState = OmittedState.Full;
 		}
 
 		if (/\.(svg)$/i.test(resource.path)) {
-			isOmitted = true;
+			omittedState = OmittedState.Full;
 		}
 	}
 
@@ -96,7 +96,7 @@ export async function resolveResourceAttachContext(resource: URI, isDirectory: b
 		name: basename(resource),
 		isFile: !isDirectory,
 		isDirectory,
-		isOmitted
+		omittedState
 	};
 }
 
@@ -108,6 +108,8 @@ export type ImageTransferData = {
 	icon?: ThemeIcon;
 	resource?: URI;
 	id?: string;
+	mimeType?: string;
+	omittedState?: OmittedState;
 };
 const SUPPORTED_IMAGE_EXTENSIONS_REGEX = /\.(png|jpg|jpeg|gif|webp)$/i;
 
@@ -116,23 +118,29 @@ export async function resolveImageEditorAttachContext(editor: EditorInput | IDra
 		return undefined;
 	}
 
-	if (!SUPPORTED_IMAGE_EXTENSIONS_REGEX.test(editor.resource.path)) {
+	const match = SUPPORTED_IMAGE_EXTENSIONS_REGEX.exec(editor.resource.path);
+	if (!match) {
 		return undefined;
 	}
 
+	const mimeType = getMimeTypeFromPath(match);
 	const fileName = basename(editor.resource);
 	const readFile = await fileService.readFile(editor.resource);
+
 	if (readFile.size > 30 * 1024 * 1024) { // 30 MB
 		dialogService.error(localize('imageTooLarge', 'Image is too large'), localize('imageTooLargeMessage', 'The image {0} is too large to be attached.', fileName));
 		throw new Error('Image is too large');
 	}
 
+	const isPartiallyOmitted = /\.gif$/i.test(editor.resource.path);
 	const imageFileContext = await resolveImageAttachContext([{
 		id: editor.resource.toString(),
 		name: fileName,
 		data: readFile.value.buffer,
 		icon: Codicon.fileMedia,
 		resource: editor.resource,
+		mimeType: mimeType,
+		omittedState: isPartiallyOmitted ? OmittedState.Partial : OmittedState.NotOmitted
 	}]);
 
 	return imageFileContext[0];
@@ -143,13 +151,27 @@ export async function resolveImageAttachContext(images: ImageTransferData[]): Pr
 		id: image.id || await imageToHash(image.data),
 		name: image.name,
 		fullName: image.resource ? image.resource.path : undefined,
-		value: await resizeImage(image.data),
+		value: await resizeImage(image.data, image.mimeType),
 		icon: image.icon,
-		isImage: true,
+		kind: 'image',
 		isFile: false,
 		isDirectory: false,
+		omittedState: image.omittedState || OmittedState.NotOmitted,
 		references: image.resource ? [{ reference: image.resource, kind: 'reference' }] : []
 	})));
+}
+
+const MIME_TYPES: Record<string, string> = {
+	png: 'image/png',
+	jpg: 'image/jpeg',
+	jpeg: 'image/jpeg',
+	gif: 'image/gif',
+	webp: 'image/webp',
+};
+
+function getMimeTypeFromPath(match: RegExpExecArray): string | undefined {
+	const ext = match[1].toLowerCase();
+	return MIME_TYPES[ext];
 }
 
 // --- MARKERS ---

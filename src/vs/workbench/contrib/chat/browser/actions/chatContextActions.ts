@@ -52,7 +52,7 @@ import { SearchContext } from '../../../search/common/constants.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
-import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData } from '../../common/chatModel.js';
+import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData, OmittedState } from '../../common/chatModel.js';
 import { ChatRequestAgentPart } from '../../common/chatParserTypes.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
 import { ChatAgentLocation } from '../../common/constants.js';
@@ -632,16 +632,16 @@ export class AttachContextAction extends Action2 {
 							name: pick.label,
 							fullName: pick.label,
 							value: resizedImage,
-							isImage: true
+							kind: 'image',
 						});
 					}
 				} else {
-					let isOmitted = false;
+					let omittedState = OmittedState.NotOmitted;
 					try {
 						const createdModel = await textModelService.createModelReference(pick.resource);
 						createdModel.dispose();
 					} catch {
-						isOmitted = true;
+						omittedState = OmittedState.Full;
 					}
 
 					toAttach.push({
@@ -649,7 +649,7 @@ export class AttachContextAction extends Action2 {
 						value: pick.resource,
 						name: pick.label,
 						isFile: true,
-						isOmitted
+						omittedState
 					});
 				}
 			} else if (isIGotoSymbolQuickPickItem(pick) && pick.uri && pick.range) {
@@ -715,7 +715,7 @@ export class AttachContextAction extends Action2 {
 						value: file.value,
 						name: file.label,
 						isFile: true,
-						isOmitted: false
+						omittedState: OmittedState.NotOmitted
 					});
 				}
 			} else if (isScreenshotQuickPickItem(pick)) {
@@ -759,7 +759,7 @@ export class AttachContextAction extends Action2 {
 						name: localize('pastedImage', 'Pasted Image'),
 						fullName: localize('pastedImage', 'Pasted Image'),
 						value: fileBuffer,
-						isImage: true
+						kind: 'image',
 					});
 				}
 			}
