@@ -52,7 +52,7 @@ import { SearchContext } from '../../../search/common/constants.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
-import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData } from '../../common/chatModel.js';
+import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData, OmittedState } from '../../common/chatModel.js';
 import { ChatRequestAgentPart } from '../../common/chatParserTypes.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
 import { ChatAgentLocation } from '../../common/constants.js';
@@ -649,7 +649,7 @@ export class AttachContextAction extends Action2 {
 						value: pick.resource,
 						name: pick.label,
 						isFile: true,
-						isOmitted
+						isOmitted: isOmitted ? OmittedState.Full : OmittedState.NotOmitted
 					});
 				}
 			} else if (isIGotoSymbolQuickPickItem(pick) && pick.uri && pick.range) {
@@ -715,7 +715,7 @@ export class AttachContextAction extends Action2 {
 						value: file.value,
 						name: file.label,
 						isFile: true,
-						isOmitted: false
+						isOmitted: OmittedState.NotOmitted
 					});
 				}
 			} else if (isScreenshotQuickPickItem(pick)) {
