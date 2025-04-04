@@ -104,7 +104,7 @@ export class ConfigurationModel implements IConfigurationModel {
 			get overrides() {
 				const overrides: { readonly identifiers: string[]; readonly value: V }[] = [];
 				for (const { contents, identifiers, keys } of that.rawConfiguration.overrides) {
-					const value = new ConfigurationModel(contents, keys, [], undefined, that.logService).getValue<V>(section);
+					const value = new ConfigurationModel(contents, keys, [], undefined, that.logService, that.metadata).getValue<V>(section);
 					if (value !== undefined) {
 						overrides.push({ identifiers, value });
 					}
@@ -153,6 +153,7 @@ export class ConfigurationModel implements IConfigurationModel {
 		const overrides = objects.deepClone(this.overrides);
 		const keys = [...this.keys];
 		const raws = this.raw ? Array.isArray(this.raw) ? [...this.raw] : [this.raw] : [this];
+		const metadata = objects.deepClone(this.metadata);
 
 		for (const other of others) {
 			raws.push(...(other.raw ? Array.isArray(other.raw) ? other.raw : [other.raw] : [other]));
@@ -177,7 +178,7 @@ export class ConfigurationModel implements IConfigurationModel {
 				}
 			}
 		}
-		return new ConfigurationModel(contents, keys, overrides, !raws.length || raws.every(raw => raw instanceof ConfigurationModel) ? undefined : raws, this.logService);
+		return new ConfigurationModel(contents, keys, overrides, !raws.length || raws.every(raw => raw instanceof ConfigurationModel) ? undefined : raws, this.logService, metadata);
 	}
 
 	private createOverrideConfigurationModel(identifier: string): ConfigurationModel {
@@ -208,7 +209,7 @@ export class ConfigurationModel implements IConfigurationModel {
 			contents[key] = contentsForKey;
 		}
 
-		return new ConfigurationModel(contents, this.keys, this.overrides, undefined, this.logService);
+		return new ConfigurationModel(contents, this.keys, this.overrides, undefined, this.logService, this.metadata);
 	}
 
 	private mergeContents(source: any, target: any): void {
@@ -352,8 +353,8 @@ export class ConfigurationModelParser {
 
 	public parseRaw(raw: any, options?: ConfigurationParseOptions): void {
 		this._raw = raw;
-		const { contents, keys, overrides, restricted, hasExcludedProperties } = this.doParseRaw(raw, options);
-		this._configurationModel = new ConfigurationModel(contents, keys, overrides, hasExcludedProperties ? [raw] : undefined /* raw has not changed */, this.logService);
+		const { contents, keys, overrides, restricted, hasExcludedProperties, metadata } = this.doParseRaw(raw, options);
+		this._configurationModel = new ConfigurationModel(contents, keys, overrides, hasExcludedProperties ? [raw] : undefined /* raw has not changed */, this.logService, metadata);
 		this._restrictedConfigurations = restricted || [];
 	}
 
@@ -965,7 +966,7 @@ export class Configuration {
 				this._userConfiguration = this._localUserConfiguration;
 			} else {
 				const merged = this._localUserConfiguration.merge(this._remoteUserConfiguration);
-				this._userConfiguration = new ConfigurationModel(merged.contents, merged.keys, merged.overrides, undefined, this.logService);
+				this._userConfiguration = new ConfigurationModel(merged.contents, merged.keys, merged.overrides, undefined, this.logService, merged.metadata);
 			}
 		}
 		return this._userConfiguration;
@@ -1148,7 +1149,7 @@ export class Configuration {
 	}
 
 	private static parseConfigurationModel(model: IConfigurationModel, logService: ILogService): ConfigurationModel {
-		return new ConfigurationModel(model.contents, model.keys, model.overrides, model.raw, logService);
+		return new ConfigurationModel(model.contents, model.keys, model.overrides, model.raw, logService, model.metadata);
 	}
 
 }

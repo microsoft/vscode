@@ -191,24 +191,26 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 			}
 		}
 
+		const dummyMetadata = {
+			scopeOverrideCustomText: {
+				short: 'Ice Cream LLC',
+				long: 'Their ice cream may be delicious, but their policies are not. Please contact your admin for more information.'
+			}
+		};
+
 		if (changed.length) {
 			this.logService.trace('PolicyConfiguration#changed', changed);
 			const old = this._configurationModel;
 			this._configurationModel = ConfigurationModel.createEmptyModel(this.logService);
 			for (const key of old.keys) {
-				this._configurationModel.setValue(key, old.getValue(key));
+				this._configurationModel.setValue(key, old.getValue(key), dummyMetadata);
 			}
 			for (const [key, policyValue] of changed) {
 				if (policyValue === undefined) {
 					this._configurationModel.removeValue(key);
 				} else {
-					const metadata = {
-						scopeOverrideCustomText: {
-							short: 'Ice Cream LLC',
-							long: 'Their ice cream may be delicious, but their policies are not. Please contact your admin for more information.'
-						}
-					};
-					this._configurationModel.setValue(key, policyValue, metadata);
+
+					this._configurationModel.setValue(key, policyValue, dummyMetadata);
 				}
 			}
 			if (trigger) {
