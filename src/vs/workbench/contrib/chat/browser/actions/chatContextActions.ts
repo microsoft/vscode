@@ -632,7 +632,7 @@ export class AttachContextAction extends Action2 {
 							name: pick.label,
 							fullName: pick.label,
 							value: resizedImage,
-							isImage: true
+							kind: 'image',
 						});
 					}
 				} else {
@@ -759,7 +759,7 @@ export class AttachContextAction extends Action2 {
 						name: localize('pastedImage', 'Pasted Image'),
 						fullName: localize('pastedImage', 'Pasted Image'),
 						value: fileBuffer,
-						isImage: true
+						kind: 'image',
 					});
 				}
 			}

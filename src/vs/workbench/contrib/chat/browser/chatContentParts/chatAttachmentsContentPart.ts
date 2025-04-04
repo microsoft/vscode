@@ -128,7 +128,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 						this.attachedContextDisposables.add(hookUpResourceAttachmentDragAndContextMenu(accessor, widget, resource));
 					}
 				});
-			} else if (attachment.isImage) {
+			} else if (isImageVariableEntry(attachment)) {
 				if (attachment.omittedState === OmittedState.Full) {
 					ariaLabel = localize('chat.omittedImageAttachment', "Omitted this image: {0}", attachment.name);
 				} else if (attachment.omittedState === OmittedState.Partial) {
@@ -138,7 +138,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 				}
 
 				const isURL = isImageVariableEntry(attachment) && attachment.isURL;
-				const hoverElement = this.customAttachment(widget, attachment.name, hoverDelegate, ariaLabel, isAttachmentOmitted, attachment.isImage, isURL, attachment.value as Uint8Array);
+				const hoverElement = this.customAttachment(widget, attachment.name, hoverDelegate, ariaLabel, isAttachmentOmitted, true, isURL, attachment.value as Uint8Array);
 
 				const ref = attachment.references?.[0]?.reference;
 				if (ref && URI.isUri(ref)) {

@@ -40,14 +40,12 @@ export interface IBaseChatRequestVariableEntry {
 	range?: IOffsetRange;
 	value: IChatRequestVariableValue;
 	references?: IChatContentReference[];
-	mimeType?: string;
 
 	// TODO these represent different kinds, should be extracted to new interfaces with kind tags
 	kind?: never;
 	isFile?: boolean;
 	isDirectory?: boolean;
 	isTool?: boolean;
-	isImage?: boolean;
 	omittedState?: OmittedState;
 }
 
@@ -95,6 +93,7 @@ export interface IImageVariableEntry extends Omit<IBaseChatRequestVariableEntry,
 	readonly kind: 'image';
 	readonly isPasted?: boolean;
 	readonly isURL?: boolean;
+	readonly mimeType?: string;
 }
 
 export interface IDiagnosticVariableEntryFilterData {

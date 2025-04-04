@@ -153,7 +153,7 @@ export async function resolveImageAttachContext(images: ImageTransferData[]): Pr
 		fullName: image.resource ? image.resource.path : undefined,
 		value: await resizeImage(image.data, image.mimeType),
 		icon: image.icon,
-		isImage: true,
+		kind: 'image',
 		isFile: false,
 		isDirectory: false,
 		omittedState: image.omittedState || OmittedState.NotOmitted,
