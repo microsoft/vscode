@@ -35,6 +35,7 @@
 		"--vscode-button-border",
 		"--vscode-button-foreground",
 		"--vscode-button-hoverBackground",
+		"--vscode-button-secondaryBorder",
 		"--vscode-button-secondaryBackground",
 		"--vscode-button-secondaryForeground",
 		"--vscode-button-secondaryHoverBackground",
