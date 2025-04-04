@@ -105,6 +105,8 @@ class WrappingCharacterClassifier extends CharacterClassifier<CharacterClass> {
 
 let arrPool1: number[] = [];
 let arrPool2: number[] = [];
+let arrPool3: number[] = [];
+let arrPool4: number[] = [];
 
 function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterClassifier, previousBreakingData: ModelLineProjectionData, lineText: string, defaultFontInfo: FontInfo, fontSegments: LineFontSegment[], tabSize: number, firstLineBreakColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll'): ModelLineProjectionData | null {
 	console.log('createLineBreaksFromPreviousLineBreaks');
@@ -120,25 +122,32 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 	const isKeepAll = (wordBreak === 'keepAll');
 
 	const prevBreakingOffsets = previousBreakingData.breakOffsets;
+	const prevBreakingWidths = previousBreakingData.breakWidths;
 	const prevBreakingOffsetsVisibleColumn = previousBreakingData.breakOffsetsVisibleColumn;
+	const prevBreakingOffsetsVisibleWidths = previousBreakingData.breakOffsetsVisibleWidths;
 
-	const wrappedTextIndentLength = computeWrappedTextIndentLength(lineText, fontSegments, defaultFontInfo, tabSize, firstLineBreakColumn, wrappingIndent);
+	const wrappedTextIndentLength = computeWrappedTextIndentLength(lineText, tabSize, firstLineBreakColumn, wrappingIndent, fontSegments, defaultFontInfo);
 	const wrappedLineBreakColumn = firstLineBreakColumn - wrappedTextIndentLength;
 
 	const breakingOffsets: number[] = arrPool1;
 	const breakingOffsetsVisibleColumn: number[] = arrPool2;
+	const breakingWidths: number[] = arrPool3;
+	const breakingOffsetsVisibleWidths: number[] = arrPool4;
 	let breakingOffsetsCount = 0;
 	let lastBreakingOffset = 0;
+	const lastBreakingWidth = 0;
 	let lastBreakingOffsetVisibleColumn = 0;
+	const lastBreakingOffsetVisibleWidth = 0;
 
+	const defaultTypicalWidth = defaultFontInfo.typicalFullwidthCharacterWidth;
 	let breakingColumn = firstLineBreakColumn;
 	const prevLen = prevBreakingOffsets.length;
 	let prevIndex = 0;
 
 	if (prevIndex >= 0) {
-		let bestDistance = Math.abs(prevBreakingOffsetsVisibleColumn[prevIndex] - breakingColumn);
+		let bestDistance = Math.abs(prevBreakingOffsetsVisibleWidths[prevIndex] - breakingColumn * defaultTypicalWidth);
 		while (prevIndex + 1 < prevLen) {
-			const distance = Math.abs(prevBreakingOffsetsVisibleColumn[prevIndex + 1] - breakingColumn);
+			const distance = Math.abs(prevBreakingOffsetsVisibleWidths[prevIndex + 1] - breakingColumn * defaultTypicalWidth);
 			if (distance >= bestDistance) {
 				break;
 			}
@@ -150,22 +159,27 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 	while (prevIndex < prevLen) {
 		// Allow for prevIndex to be -1 (for the case where we hit a tab when walking backwards from the first break)
 		let prevBreakOffset = prevIndex < 0 ? 0 : prevBreakingOffsets[prevIndex];
+		let prevBreakWidth = prevIndex < 0 ? 0 : prevBreakingWidths[prevIndex];
 		let prevBreakOffsetVisibleColumn = prevIndex < 0 ? 0 : prevBreakingOffsetsVisibleColumn[prevIndex];
-		if (lastBreakingOffset > prevBreakOffset) {
+		let prevBreakOffsetVisibleWidth = prevIndex < 0 ? 0 : prevBreakingOffsetsVisibleWidths[prevIndex];
+		if (lastBreakingWidth > prevBreakWidth) {
+			prevBreakWidth = lastBreakingWidth;
+			prevBreakOffsetVisibleWidth = lastBreakingOffsetVisibleWidth;
 			prevBreakOffset = lastBreakingOffset;
 			prevBreakOffsetVisibleColumn = lastBreakingOffsetVisibleColumn;
 		}
 
 		let breakOffset = 0;
+		// const breakWidth = 0;
 		let breakOffsetVisibleColumn = 0;
 
 		let forcedBreakOffset = 0;
 		let forcedBreakOffsetVisibleColumn = 0;
 
 		// initially, we search as much as possible to the right (if it fits)
-		if (prevBreakOffsetVisibleColumn <= breakingColumn) {
+		if (prevBreakOffsetVisibleWidth <= breakingColumn * defaultTypicalWidth) {
 			let visibleColumn = prevBreakOffsetVisibleColumn;
-			let visibleWidth = prevBreakOffsetVisibleColumn * defaultFontInfo.typicalFullwidthCharacterWidth;
+			let visibleWidth = prevBreakOffsetVisibleWidth;
 			let prevCharCode = prevBreakOffset === 0 ? CharCode.Null : lineText.charCodeAt(prevBreakOffset - 1);
 			let prevCharCodeClass = prevBreakOffset === 0 ? CharacterClass.NONE : classifier.get(prevCharCode);
 			let entireLineFits = true;
@@ -173,20 +187,21 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 				const charStartOffset = i;
 				const charCode = lineText.charCodeAt(i);
 				let charCodeClass: number;
+				let charColumn: number;
 				let charWidth: number;
-				let colWidth: number;
 
-				const { columnWidth, characterWidth } = computeCharWidth(i, lineText, fontSegments, defaultFontInfo, visibleColumn, tabSize);
 				if (strings.isHighSurrogate(charCode)) {
 					// A surrogate pair must always be considered as a single unit, so it is never to be broken
 					i++;
 					charCodeClass = CharacterClass.NONE;
-					colWidth = 2;
-					charWidth = 2 * characterWidth;
+					const data = computeCharColumn(i, lineText, fontSegments, defaultFontInfo, visibleColumn, tabSize);
+					charColumn = 2;
+					charWidth = 2 * data.charWidth;
 				} else {
 					charCodeClass = classifier.get(charCode);
-					colWidth = columnWidth;
-					charWidth = characterWidth;
+					const data = computeCharColumn(i, lineText, fontSegments, defaultFontInfo, visibleColumn, tabSize);
+					charColumn = data.charColumn;
+					charWidth = data.charWidth;
 				}
 
 				if (charStartOffset > lastBreakingOffset && canBreak(prevCharCode, prevCharCodeClass, charCode, charCodeClass, isKeepAll)) {
@@ -194,22 +209,22 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 					breakOffsetVisibleColumn = visibleColumn;
 				}
 
-				visibleColumn += colWidth;
+				visibleColumn += charColumn;
 				visibleWidth += charWidth;
 
 				// check if adding character at `i` will go over the breaking column
-				if (visibleWidth > breakingColumn * defaultFontInfo.typicalFullwidthCharacterWidth) {
+				if (visibleWidth > breakingColumn * defaultTypicalWidth) {
 					// We need to break at least before character at `i`:
 					if (charStartOffset > lastBreakingOffset) {
 						forcedBreakOffset = charStartOffset;
-						forcedBreakOffsetVisibleColumn = visibleColumn - colWidth;
+						forcedBreakOffsetVisibleColumn = visibleColumn - charColumn;
 					} else {
 						// we need to advance at least by one character
 						forcedBreakOffset = i + 1;
 						forcedBreakOffsetVisibleColumn = visibleColumn;
 					}
 
-					if (visibleWidth - breakOffsetVisibleColumn * defaultFontInfo.typicalFullwidthCharacterWidth > wrappedLineBreakColumn * defaultFontInfo.typicalFullwidthCharacterWidth) {
+					if (visibleWidth - breakOffsetVisibleColumn * defaultTypicalWidth > wrappedLineBreakColumn * defaultTypicalWidth) {
 						// Cannot break at `breakOffset` => reset it if it was set
 						breakOffset = 0;
 					}
@@ -227,7 +242,9 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 				if (breakingOffsetsCount > 0) {
 					// Add last segment, no need to assign to `lastBreakingOffset` and `lastBreakingOffsetVisibleColumn`
 					breakingOffsets[breakingOffsetsCount] = prevBreakingOffsets[prevBreakingOffsets.length - 1];
+					breakingWidths[breakingOffsetsCount] = prevBreakingWidths[prevBreakingOffsets.length - 1];
 					breakingOffsetsVisibleColumn[breakingOffsetsCount] = prevBreakingOffsetsVisibleColumn[prevBreakingOffsets.length - 1];
+					breakingOffsetsVisibleWidths[breakingOffsetsCount] = prevBreakingOffsetsVisibleWidths[prevBreakingOffsets.length - 1];
 					breakingOffsetsCount++;
 				}
 				break;
@@ -237,12 +254,15 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 		if (breakOffset === 0) {
 			// must search left
 			let visibleColumn = prevBreakOffsetVisibleColumn;
+			let visibleWidth = prevBreakOffsetVisibleWidth;
 			let charCode = lineText.charCodeAt(prevBreakOffset);
 			let charCodeClass = classifier.get(charCode);
 			let hitATabCharacter = false;
 			for (let i = prevBreakOffset - 1; i >= lastBreakingOffset; i--) {
 				const charStartOffset = i + 1;
 				const prevCharCode = lineText.charCodeAt(i);
+				const fontInfo = findFontAtCharacterIndex(i, fontSegments, defaultFontInfo);
+				const columnsForFullWidthChar = fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth;
 
 				if (prevCharCode === CharCode.Tab) {
 					// cannot determine the width of a tab when going backwards, so we must go forwards
@@ -251,26 +271,28 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 				}
 
 				let prevCharCodeClass: number;
-				let prevCharWidth: number;
+				let prevCharColumn: number;
 
-				const { characterWidth, columnWidth } = computeCharWidth(i, lineText, fontSegments, defaultFontInfo, visibleColumn, tabSize);
+				const data = computeCharColumn(i, lineText, fontSegments, defaultFontInfo, visibleColumn, tabSize);
+				const prevCharWidth = data.charWidth;
+
 				if (strings.isLowSurrogate(prevCharCode)) {
 					// A surrogate pair must always be considered as a single unit, so it is never to be broken
 					i--;
 					prevCharCodeClass = CharacterClass.NONE;
-					prevCharWidth = 2 * characterWidth;
+					prevCharColumn = 2;
 				} else {
 					prevCharCodeClass = classifier.get(prevCharCode);
-					prevCharWidth = characterWidth;
+					prevCharColumn = (strings.isFullWidthCharacter(prevCharCode) ? columnsForFullWidthChar : 1);
 				}
 
-				if (visibleColumn <= breakingColumn * defaultFontInfo.typicalFullwidthCharacterWidth) {
+				if (visibleWidth <= breakingColumn * defaultTypicalWidth) {
 					if (forcedBreakOffset === 0) {
 						forcedBreakOffset = charStartOffset;
 						forcedBreakOffsetVisibleColumn = visibleColumn;
 					}
 
-					if (visibleColumn <= breakingColumn - wrappedLineBreakColumn) {
+					if (visibleWidth <= (breakingColumn - wrappedLineBreakColumn) * defaultTypicalWidth) {
 						// went too far!
 						break;
 					}
@@ -282,24 +304,24 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 					}
 				}
 
-				visibleColumn -= prevCharWidth;
+				visibleColumn -= prevCharColumn;
+				visibleWidth -= prevCharWidth;
 				charCode = prevCharCode;
 				charCodeClass = prevCharCodeClass;
 			}
 
 			if (breakOffset !== 0) {
-				const remainingWidthOfNextLine = wrappedLineBreakColumn - (forcedBreakOffsetVisibleColumn - breakOffsetVisibleColumn);
-				if (remainingWidthOfNextLine <= tabSize) {
+				const remainingWidthOfNextLine = (wrappedLineBreakColumn - (forcedBreakOffsetVisibleColumn - breakOffsetVisibleColumn)) * defaultTypicalWidth;
+				if (remainingWidthOfNextLine <= tabSize * defaultTypicalWidth) {
 					const charCodeAtForcedBreakOffset = lineText.charCodeAt(forcedBreakOffset);
-					let charWidth: number;
-					const typicalFullwidthCharacterWidth = computeCharWidth(forcedBreakOffset, fontSegments, defaultFontInfo);
+					let charColumn: number;
 					if (strings.isHighSurrogate(charCodeAtForcedBreakOffset)) {
 						// A surrogate pair must always be considered as a single unit, so it is never to be broken
-						charWidth = 2 * typicalFullwidthCharacterWidth;
+						charColumn = 2;
 					} else {
-						charWidth = typicalFullwidthCharacterWidth;
+						charColumn = computeCharColumn(forcedBreakOffset, lineText, fontSegments, defaultFontInfo, forcedBreakOffsetVisibleColumn, tabSize).charColumn;
 					}
-					if (remainingWidthOfNextLine - charWidth < 0) {
+					if (remainingWidthOfNextLine - charColumn < 0) {
 						// it is not worth it to break at breakOffset, it just introduces an extra needless line!
 						breakOffset = 0;
 					}
@@ -322,21 +344,22 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 		if (breakOffset <= lastBreakingOffset) {
 			// Make sure that we are advancing (at least one character)
 			const charCode = lineText.charCodeAt(lastBreakingOffset);
-			const typicalFullwidthCharacterWidth = computeCharWidth(lastBreakingOffset, fontSegments, defaultFontInfo);
 			if (strings.isHighSurrogate(charCode)) {
 				// A surrogate pair must always be considered as a single unit, so it is never to be broken
 				breakOffset = lastBreakingOffset + 2;
-				breakOffsetVisibleColumn = (lastBreakingOffsetVisibleColumn + 2) * typicalFullwidthCharacterWidth;
+				breakOffsetVisibleColumn = lastBreakingOffsetVisibleColumn + 2;
 			} else {
 				breakOffset = lastBreakingOffset + 1;
-				breakOffsetVisibleColumn = lastBreakingOffsetVisibleColumn * typicalFullwidthCharacterWidth;
+				breakOffsetVisibleColumn = lastBreakingOffsetVisibleColumn + computeCharColumn(lastBreakingOffset, lineText, fontSegments, defaultFontInfo, lastBreakingOffsetVisibleColumn, tabSize).charColumn;
 			}
 		}
 
 		lastBreakingOffset = breakOffset;
 		breakingOffsets[breakingOffsetsCount] = breakOffset;
+		breakingOffsets[breakingOffsetsCount] = breakOffset * defaultTypicalWidth;
 		lastBreakingOffsetVisibleColumn = breakOffsetVisibleColumn;
 		breakingOffsetsVisibleColumn[breakingOffsetsCount] = breakOffsetVisibleColumn;
+		breakingOffsetsVisibleWidths[breakingOffsetsCount] = breakOffsetVisibleColumn * defaultTypicalWidth;
 		breakingOffsetsCount++;
 		breakingColumn = breakOffsetVisibleColumn + wrappedLineBreakColumn;
 
@@ -364,14 +387,19 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 	breakingOffsetsVisibleColumn.length = breakingOffsetsCount;
 	arrPool1 = previousBreakingData.breakOffsets;
 	arrPool2 = previousBreakingData.breakOffsetsVisibleColumn;
+	arrPool3 = previousBreakingData.breakWidths;
+	arrPool4 = previousBreakingData.breakOffsetsVisibleWidths;
 	previousBreakingData.breakOffsets = breakingOffsets;
+	previousBreakingData.breakWidths = breakingWidths;
 	previousBreakingData.breakOffsetsVisibleColumn = breakingOffsetsVisibleColumn;
+	previousBreakingData.breakOffsetsVisibleWidths = breakingOffsetsVisibleWidths;
 	previousBreakingData.wrappedTextIndentLength = wrappedTextIndentLength;
 	return previousBreakingData;
 }
 
 function createLineBreaks(classifier: WrappingCharacterClassifier, range: { fromLineNumber: number; toLineNumber: number }, _lineText: string, defaultFontInfo: FontInfo, fontSegments: LineFontSegment[], injectedTexts: LineInjectedText[] | null, tabSize: number, firstLineBreakColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll'): ModelLineProjectionData | null {
 	const lineText = LineInjectedText.applyInjectedText(_lineText, injectedTexts);
+	const defaultTypicalWidth = defaultFontInfo.typicalFullwidthCharacterWidth;
 
 	let injectionOptions: InjectedTextOptions[] | null;
 	let injectionOffsets: number[] | null;
@@ -389,7 +417,7 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, range: { from
 		}
 		// creating a `LineBreakData` with an invalid `breakOffsetsVisibleColumn` is OK
 		// because `breakOffsetsVisibleColumn` will never be used because it contains injected text
-		return new ModelLineProjectionData(injectionOffsets, injectionOptions, [lineText.length], [], 0);
+		return new ModelLineProjectionData(injectionOffsets, injectionOptions, [lineText.length], [lineText.length * defaultTypicalWidth], [], [], 0);
 	}
 
 	const len = lineText.length;
@@ -399,29 +427,32 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, range: { from
 		}
 		// creating a `LineBreakData` with an invalid `breakOffsetsVisibleColumn` is OK
 		// because `breakOffsetsVisibleColumn` will never be used because it contains injected text
-		return new ModelLineProjectionData(injectionOffsets, injectionOptions, [lineText.length], [], 0);
+		return new ModelLineProjectionData(injectionOffsets, injectionOptions, [lineText.length], [lineText.length * defaultTypicalWidth], [], [], 0);
 	}
 
 	const isKeepAll = (wordBreak === 'keepAll');
-	const wrappedTextIndentLength = computeWrappedTextIndentLength(lineText, fontSegments, defaultFontInfo, tabSize, firstLineBreakColumn, wrappingIndent);
-	const wrappedLineBreakWidth = (firstLineBreakColumn - wrappedTextIndentLength) * defaultFontInfo.typicalFullwidthCharacterWidth;
+	const wrappedTextIndentLength = computeWrappedTextIndentLength(lineText, tabSize, firstLineBreakColumn, wrappingIndent, fontSegments, defaultFontInfo);
+	const wrappedLineBreakColumn = firstLineBreakColumn - wrappedTextIndentLength;
 
 	const breakingOffsets: number[] = [];
+	const breakingWidths: number[] = [];
 	const breakingOffsetsVisibleColumn: number[] = [];
+	const breakingOffsetsVisibleWidths: number[] = [];
 	let breakingOffsetsCount: number = 0;
 	let breakOffset = 0;
-	let breakOffsetVisibleWidth = 0;
+	let breakOffsetVisibleColumn = 0;
 
-	let breakingWidth = firstLineBreakColumn * defaultFontInfo.typicalHalfwidthCharacterWidth;
+	let breakingColumn = firstLineBreakColumn;
 	let prevCharCode = lineText.charCodeAt(0);
 	let prevCharCodeClass = classifier.get(prevCharCode);
-	const typicalFullwidthCharacterWidth = computeCharWidth(prevCharCode, fontSegments, defaultFontInfo);
-	let widthSoFar = typicalFullwidthCharacterWidth;
+	const data = computeCharColumn(0, lineText, fontSegments, defaultFontInfo, tabSize, 0);
+	let visibleColumn = data.charColumn;
+	let visibleWidth = data.charWidth;
 
 	let startOffset = 1;
 	if (strings.isHighSurrogate(prevCharCode)) {
 		// A surrogate pair must always be considered as a single unit, so it is never to be broken
-		widthSoFar += typicalFullwidthCharacterWidth;
+		visibleColumn += 1;
 		prevCharCode = lineText.charCodeAt(1);
 		prevCharCodeClass = classifier.get(prevCharCode);
 		startOffset++;
@@ -431,40 +462,47 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, range: { from
 		const charStartOffset = i;
 		const charCode = lineText.charCodeAt(i);
 		let charCodeClass: CharacterClass;
+		let charColumn: number;
 		let charWidth: number;
-		const typicalFullwidthCharacterWidth = computeCharWidth(i, fontSegments, defaultFontInfo);
 
 		if (strings.isHighSurrogate(charCode)) {
 			// A surrogate pair must always be considered as a single unit, so it is never to be broken
 			i++;
 			charCodeClass = CharacterClass.NONE;
-			charWidth = 2 * typicalFullwidthCharacterWidth;
+			const data = computeCharColumn(0, lineText, fontSegments, defaultFontInfo, tabSize, 0);
+			charColumn = 2;
+			charWidth = 2 * data.charWidth;
 		} else {
 			charCodeClass = classifier.get(charCode);
-			charWidth = typicalFullwidthCharacterWidth;
+			const data = computeCharColumn(0, lineText, fontSegments, defaultFontInfo, tabSize, 0);
+			charColumn = data.charColumn;
+			charWidth = data.charWidth;
 		}
 
 		if (canBreak(prevCharCode, prevCharCodeClass, charCode, charCodeClass, isKeepAll)) {
 			breakOffset = charStartOffset;
-			breakOffsetVisibleWidth = widthSoFar;
+			breakOffsetVisibleColumn = visibleColumn;
 		}
 
-		widthSoFar += charWidth;
+		visibleColumn += charColumn;
+		visibleWidth += charWidth;
 
 		// check if adding character at `i` will go over the breaking column
-		if (widthSoFar > breakingWidth) {
+		if (visibleWidth > breakingColumn * defaultTypicalWidth) {
 			// We need to break at least before character at `i`:
 
-			if (breakOffset === 0 || widthSoFar - breakOffsetVisibleWidth > wrappedLineBreakWidth) {
+			if (breakOffset === 0 || visibleWidth - breakOffsetVisibleColumn * defaultTypicalWidth > wrappedLineBreakColumn * defaultTypicalWidth) {
 				// Cannot break at `breakOffset`, must break at `i`
 				breakOffset = charStartOffset;
-				breakOffsetVisibleWidth = widthSoFar - charWidth;
+				breakOffsetVisibleColumn = visibleColumn - charColumn;
 			}
 
 			breakingOffsets[breakingOffsetsCount] = breakOffset;
-			breakingOffsetsVisibleColumn[breakingOffsetsCount] = breakOffsetVisibleWidth;
+			breakingWidths[breakingOffsetsCount] = breakOffset * defaultTypicalWidth;
+			breakingOffsetsVisibleColumn[breakingOffsetsCount] = breakOffsetVisibleColumn;
+			breakingOffsetsVisibleWidths[breakingOffsetsCount] = breakOffsetVisibleColumn * defaultTypicalWidth;
 			breakingOffsetsCount++;
-			breakingWidth = (breakOffsetVisibleWidth + wrappedLineBreakWidth) * defaultFontInfo.typicalFullwidthCharacterWidth;
+			breakingColumn = breakOffsetVisibleColumn + wrappedLineBreakColumn;
 			breakOffset = 0;
 		}
 
@@ -480,26 +518,27 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, range: { from
 	breakingOffsets[breakingOffsetsCount] = len;
 	breakingOffsetsVisibleColumn[breakingOffsetsCount] = visibleColumn;
 
-	return new ModelLineProjectionData(injectionOffsets, injectionOptions, breakingOffsets, breakingOffsetsVisibleColumn, wrappedTextIndentLength);
+	return new ModelLineProjectionData(injectionOffsets, injectionOptions, breakingOffsets, breakingWidths, breakingOffsetsVisibleColumn, breakingOffsetsVisibleWidths, wrappedTextIndentLength);
 }
 
-function computeCharWidth(characterIndex: number, lineText: string, fontSegments: LineFontSegment[], defaultFontInfo: FontInfo, visibleColumn: number, tabSize: number): number {
-	const charCode = lineText.charCodeAt(0);
-	const fontInfo = findFontAtCharacterIndex(characterIndex, fontSegments, defaultFontInfo);
-	let columnWidth: number = 1;
-	if (charCode === CharCode.Tab) {
-		columnWidth = (tabSize - (visibleColumn % tabSize));
-	}
+function computeCharColumn(charIndex: number, lineText: string, fontSegments: LineFontSegment[], defaultFontInfo: FontInfo, tabSize: number, visibleColumn: number): { charColumn: number; charWidth: number } {
+	const charCode = lineText.charCodeAt(charIndex);
+	const fontInfo = findFontAtCharacterIndex(charIndex, fontSegments, defaultFontInfo);
 	const columnsForFullWidthChar = fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth;
+	let charColumn: number = 1;
+	if (charCode === CharCode.Tab) {
+		charColumn = (tabSize - (visibleColumn % tabSize));
+	}
 	if (strings.isFullWidthCharacter(charCode)) {
-		columnWidth = columnsForFullWidthChar;
+		charColumn = columnsForFullWidthChar;
 	}
 	if (charCode < 32) {
 		// when using `editor.renderControlCharacters`, the substitutions are often wide
-		columnWidth = columnsForFullWidthChar;
+		charColumn = columnsForFullWidthChar;
 	}
-	const typicalFullwidthCharacterWidth = fontInfo.typicalFullwidthCharacterWidth;
-	return { columnWidth, characterWidth };
+	charColumn = 1;
+	const charWidth = charColumn * defaultFontInfo.typicalFullwidthCharacterWidth;
+	return { charColumn, charWidth };
 }
 
 function tabCharacterWidth(visibleColumn: number, tabSize: number): number {
@@ -522,7 +561,7 @@ function canBreak(prevCharCode: number, prevCharCodeClass: CharacterClass, charC
 	);
 }
 
-function computeWrappedTextIndentLength(lineText: string, fontSegments: LineFontSegment[], defaultFontInfo: FontInfo, tabSize: number, firstLineBreakColumn: number, wrappingIndent: WrappingIndent): number {
+function computeWrappedTextIndentLength(lineText: string, tabSize: number, firstLineBreakColumn: number, wrappingIndent: WrappingIndent, fontSegments: LineFontSegment[], defaultFontInfo: FontInfo): number {
 	let wrappedTextIndentLength = 0;
 	if (wrappingIndent !== WrappingIndent.None) {
 		const firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineText);
@@ -530,23 +569,22 @@ function computeWrappedTextIndentLength(lineText: string, fontSegments: LineFont
 			// Track existing indent
 
 			for (let i = 0; i < firstNonWhitespaceIndex; i++) {
-				const fontInfo = findFontAtCharacterIndex(i, fontSegments, defaultFontInfo);
-				const charColumn = (lineText.charCodeAt(i) === CharCode.Tab ? tabCharacterWidth(wrappedTextIndentLength, tabSize) : 1);
-				const charWidth = charColumn * fontInfo.typicalFullwidthCharacterWidth;
+				const charWidth = (lineText.charCodeAt(i) === CharCode.Tab ? tabCharacterWidth(wrappedTextIndentLength, tabSize) : 1);
 				wrappedTextIndentLength += charWidth;
 			}
 
 			// Increase indent of continuation lines, if desired
 			const numberOfAdditionalTabs = (wrappingIndent === WrappingIndent.DeepIndent ? 2 : wrappingIndent === WrappingIndent.Indent ? 1 : 0);
-			const fontInfo = findFontAtCharacterIndex(0, fontSegments, defaultFontInfo);
 			for (let i = 0; i < numberOfAdditionalTabs; i++) {
-				const charColumn = tabCharacterWidth(wrappedTextIndentLength, tabSize);
-				const charWidth = charColumn * fontInfo.typicalFullwidthCharacterWidth;
+				const charWidth = tabCharacterWidth(wrappedTextIndentLength, tabSize);
 				wrappedTextIndentLength += charWidth;
 			}
 
+			const fontInfo = findFontAtCharacterIndex(0, fontSegments, defaultFontInfo);
+			const columnsForFullWidthChar = fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth;
+
 			// Force sticking to beginning of line if no character would fit except for the indentation
-			if (wrappedTextIndentLength + fontInfo.typicalFullwidthCharacterWidth > firstLineBreakColumn * defaultFontInfo.typicalFullwidthCharacterWidth) {
+			if (wrappedTextIndentLength + columnsForFullWidthChar > firstLineBreakColumn) {
 				wrappedTextIndentLength = 0;
 			}
 		}

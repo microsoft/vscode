@@ -54,7 +54,7 @@ function createLineBreaks(targetWindow: Window, ranges: { fromLineNumber: number
 
 			// creating a `LineBreakData` with an invalid `breakOffsetsVisibleColumn` is OK
 			// because `breakOffsetsVisibleColumn` will never be used because it contains injected text
-			return new ModelLineProjectionData(injectionOffsets, injectionOptions, [lineText.length], [], 0);
+			return new ModelLineProjectionData(injectionOffsets, injectionOptions, [lineText.length], [lineText.length], [], [], 0);
 		} else {
 			return null;
 		}
@@ -183,7 +183,7 @@ function createLineBreaks(targetWindow: Window, ranges: { fromLineNumber: number
 			injectionOffsets = null;
 		}
 
-		result[i] = new ModelLineProjectionData(injectionOffsets, injectionOptions, breakOffsets, breakOffsetsVisibleColumn, wrappedTextIndentLength);
+		result[i] = new ModelLineProjectionData(injectionOffsets, injectionOptions, breakOffsets, breakOffsets, breakOffsetsVisibleColumn, breakOffsetsVisibleColumn, wrappedTextIndentLength);
 	}
 
 	containerDomNode.remove();

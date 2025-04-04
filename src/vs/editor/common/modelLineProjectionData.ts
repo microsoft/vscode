@@ -47,10 +47,12 @@ export class ModelLineProjectionData {
 		 * The last break offset indicates the length of the source after applying injections.
 		 */
 		public breakOffsets: number[],
+		public breakWidths: number[],
 		/**
 		 * Refers to offsets after applying injections
 		 */
 		public breakOffsetsVisibleColumn: number[],
+		public breakOffsetsVisibleWidths: number[],
 		public wrappedTextIndentLength: number
 	) {
 	}
