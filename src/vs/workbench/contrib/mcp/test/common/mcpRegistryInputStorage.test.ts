@@ -36,54 +36,54 @@ suite('Workbench - MCP - RegistryInputStorage', () => {
 
 	test('setPlainText stores values that can be retrieved with getMap', async () => {
 		const values = {
-			'key1': 'value1',
-			'key2': 'value2'
+			'key1': { value: 'value1' },
+			'key2': { value: 'value2' }
 		};
 
 		await mcpInputStorage.setPlainText(values);
 		const result = await mcpInputStorage.getMap();
 
-		assert.strictEqual(result.key1, 'value1');
-		assert.strictEqual(result.key2, 'value2');
+		assert.strictEqual(result.key1.value, 'value1');
+		assert.strictEqual(result.key2.value, 'value2');
 	});
 
 	test('setSecrets stores encrypted values that can be retrieved with getMap', async () => {
 		const secrets = {
-			'secretKey1': 'secretValue1',
-			'secretKey2': 'secretValue2'
+			'secretKey1': { value: 'secretValue1' },
+			'secretKey2': { value: 'secretValue2' }
 		};
 
 		await mcpInputStorage.setSecrets(secrets);
 		const result = await mcpInputStorage.getMap();
 
-		assert.strictEqual(result.secretKey1, 'secretValue1');
-		assert.strictEqual(result.secretKey2, 'secretValue2');
+		assert.strictEqual(result.secretKey1.value, 'secretValue1');
+		assert.strictEqual(result.secretKey2.value, 'secretValue2');
 	});
 
 	test('getMap returns combined plain text and secret values', async () => {
 		await mcpInputStorage.setPlainText({
-			'plainKey': 'plainValue'
+			'plainKey': { value: 'plainValue' }
 		});
 
 		await mcpInputStorage.setSecrets({
-			'secretKey': 'secretValue'
+			'secretKey': { value: 'secretValue' }
 		});
 
 		const result = await mcpInputStorage.getMap();
 
-		assert.strictEqual(result.plainKey, 'plainValue');
-		assert.strictEqual(result.secretKey, 'secretValue');
+		assert.strictEqual(result.plainKey.value, 'plainValue');
+		assert.strictEqual(result.secretKey.value, 'secretValue');
 	});
 
 	test('clear removes specific values', async () => {
 		await mcpInputStorage.setPlainText({
-			'key1': 'value1',
-			'key2': 'value2'
+			'key1': { value: 'value1' },
+			'key2': { value: 'value2' }
 		});
 
 		await mcpInputStorage.setSecrets({
-			'secretKey1': 'secretValue1',
-			'secretKey2': 'secretValue2'
+			'secretKey1': { value: 'secretValue1' },
+			'secretKey2': { value: 'secretValue2' }
 		});
 
 		// Clear one plain and one secret value
@@ -93,18 +93,18 @@ suite('Workbench - MCP - RegistryInputStorage', () => {
 		const result = await mcpInputStorage.getMap();
 
 		assert.strictEqual(result.key1, undefined);
-		assert.strictEqual(result.key2, 'value2');
+		assert.strictEqual(result.key2.value, 'value2');
 		assert.strictEqual(result.secretKey1, undefined);
-		assert.strictEqual(result.secretKey2, 'secretValue2');
+		assert.strictEqual(result.secretKey2.value, 'secretValue2');
 	});
 
 	test('clearAll removes all values', async () => {
 		await mcpInputStorage.setPlainText({
-			'key1': 'value1'
+			'key1': { value: 'value1' }
 		});
 
 		await mcpInputStorage.setSecrets({
-			'secretKey1': 'secretValue1'
+			'secretKey1': { value: 'secretValue1' }
 		});
 
 		mcpInputStorage.clearAll();
@@ -116,44 +116,44 @@ suite('Workbench - MCP - RegistryInputStorage', () => {
 
 	test('updates to plain text values overwrite existing values', async () => {
 		await mcpInputStorage.setPlainText({
-			'key1': 'value1',
-			'key2': 'value2'
+			'key1': { value: 'value1' },
+			'key2': { value: 'value2' }
 		});
 
 		await mcpInputStorage.setPlainText({
-			'key1': 'updatedValue1'
+			'key1': { value: 'updatedValue1' }
 		});
 
 		const result = await mcpInputStorage.getMap();
 
-		assert.strictEqual(result.key1, 'updatedValue1');
-		assert.strictEqual(result.key2, 'value2');
+		assert.strictEqual(result.key1.value, 'updatedValue1');
+		assert.strictEqual(result.key2.value, 'value2');
 	});
 
 	test('updates to secret values overwrite existing values', async () => {
 		await mcpInputStorage.setSecrets({
-			'secretKey1': 'secretValue1',
-			'secretKey2': 'secretValue2'
+			'secretKey1': { value: 'secretValue1' },
+			'secretKey2': { value: 'secretValue2' }
 		});
 
 		await mcpInputStorage.setSecrets({
-			'secretKey1': 'updatedSecretValue1'
+			'secretKey1': { value: 'updatedSecretValue1' }
 		});
 
 		const result = await mcpInputStorage.getMap();
 
-		assert.strictEqual(result.secretKey1, 'updatedSecretValue1');
-		assert.strictEqual(result.secretKey2, 'secretValue2');
+		assert.strictEqual(result.secretKey1.value, 'updatedSecretValue1');
+		assert.strictEqual(result.secretKey2.value, 'secretValue2');
 	});
 
 	test('storage persists values across instances', async () => {
 		// Set values on first instance
 		await mcpInputStorage.setPlainText({
-			'key1': 'value1'
+			'key1': { value: 'value1' }
 		});
 
 		await mcpInputStorage.setSecrets({
-			'secretKey1': 'secretValue1'
+			'secretKey1': { value: 'secretValue1' }
 		});
 
 		await testStorageService.flush();
@@ -169,8 +169,8 @@ suite('Workbench - MCP - RegistryInputStorage', () => {
 
 		const result = await secondInstance.getMap();
 
-		assert.strictEqual(result.key1, 'value1');
-		assert.strictEqual(result.secretKey1, 'secretValue1');
+		assert.strictEqual(result.key1.value, 'value1');
+		assert.strictEqual(result.secretKey1.value, 'secretValue1');
 
 		assert.ok(!testStorageService.get('mcpInputs', StorageScope.APPLICATION)?.includes('secretValue1'));
 	});

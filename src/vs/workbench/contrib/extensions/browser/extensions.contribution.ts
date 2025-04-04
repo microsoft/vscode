@@ -80,7 +80,7 @@ import { IConfigurationMigrationRegistry, Extensions as ConfigurationMigrationEx
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import product from '../../../../platform/product/common/product.js';
-import { IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { ExtensionGalleryResourceType, ExtensionGalleryServiceUrlConfigKey, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService, InstantiationType.Eager /* Auto updates extensions */);
@@ -280,6 +280,18 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				scope: ConfigurationScope.APPLICATION,
 				tags: ['onExp', 'usesOnlineServices']
 			},
+			[ExtensionGalleryServiceUrlConfigKey]: {
+				type: 'string',
+				description: localize('extensions.gallery.serviceUrl', "Configure the Marketplace service URL to connect to"),
+				default: '',
+				scope: ConfigurationScope.APPLICATION,
+				tags: ['usesOnlineServices'],
+				included: false,
+				policy: {
+					name: 'ExtensionGalleryServiceUrl',
+					minimumVersion: '1.99',
+				},
+			},
 			[AllowedExtensionsConfigKey]: {
 				// Note: Type is set only to object because to support policies generation during build time, where single type is expected.
 				type: 'object',
@@ -298,6 +310,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				policy: {
 					name: 'AllowedExtensions',
 					minimumVersion: '1.96',
+					description: localize('extensions.allowed.policy', "Specify a list of extensions that are allowed to use. This helps maintain a secure and consistent development environment by restricting the use of unauthorized extensions. More information: https://code.visualstudio.com/docs/setup/enterprise#_configure-allowed-extensions"),
 				},
 				additionalProperties: false,
 				patternProperties: {
@@ -497,7 +510,7 @@ CommandsRegistry.registerCommand({
 			throw new Error(localize('notInstalled', "Extension '{0}' is not installed. Make sure you use the full extension ID, including the publisher, e.g.: ms-dotnettools.csharp.", id));
 		}
 		if (extensionToUninstall.isBuiltin) {
-			throw new Error(localize('builtin', "Extension '{0}' is a Built-in extension and cannot be installed", id));
+			throw new Error(localize('builtin', "Extension '{0}' is a Built-in extension and cannot be uninstalled", id));
 		}
 
 		try {
@@ -550,6 +563,7 @@ export const CONTEXT_HAS_WEB_SERVER = new RawContextKey<boolean>('hasWebServer',
 const CONTEXT_GALLERY_SORT_CAPABILITIES = new RawContextKey<string>('gallerySortCapabilities', '');
 const CONTEXT_GALLERY_FILTER_CAPABILITIES = new RawContextKey<string>('galleryFilterCapabilities', '');
 const CONTEXT_GALLERY_ALL_REPOSITORY_SIGNED = new RawContextKey<boolean>('galleryAllRepositorySigned', false);
+const CONTEXT_GALLERY_HAS_EXTENSION_LINK = new RawContextKey<boolean>('galleryHasExtensionLink', false);
 
 async function runAction(action: IAction): Promise<void> {
 	try {
@@ -616,6 +630,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		CONTEXT_GALLERY_SORT_CAPABILITIES.bindTo(this.contextKeyService).set(`_${extensionGalleryManifest?.capabilities.extensionQuery.sorting?.map(s => s.name)?.join('_')}_UpdateDate_`);
 		CONTEXT_GALLERY_FILTER_CAPABILITIES.bindTo(this.contextKeyService).set(`_${extensionGalleryManifest?.capabilities.extensionQuery.filtering?.map(s => s.name)?.join('_')}_`);
 		CONTEXT_GALLERY_ALL_REPOSITORY_SIGNED.bindTo(this.contextKeyService).set(!!extensionGalleryManifest?.capabilities?.signing?.allRepositorySigned);
+		CONTEXT_GALLERY_HAS_EXTENSION_LINK.bindTo(this.contextKeyService).set(!!(extensionGalleryManifest && getExtensionGalleryManifestResourceUri(extensionGalleryManifest, ExtensionGalleryResourceType.ExtensionDetailsViewUri)));
 	}
 
 	private registerQuickAccessProvider(): void {
@@ -1661,7 +1676,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '1_copy',
-				when: ContextKeyExpr.has('isGalleryExtension'),
+				when: ContextKeyExpr.and(ContextKeyExpr.has('isGalleryExtension'), CONTEXT_GALLERY_HAS_EXTENSION_LINK),
 			},
 			run: async (accessor: ServicesAccessor, _, extension: IExtensionArg) => {
 				const clipboardService = accessor.get(IClipboardService);

@@ -87,7 +87,7 @@ export class ChatVariablesService implements IChatVariablesService {
 		if (key === 'file' && typeof value !== 'string') {
 			const uri = URI.isUri(value) ? value : value.uri;
 			const range = 'range' in value ? value.range : undefined;
-			widget.attachmentModel.addFile(uri, range);
+			await widget.attachmentModel.addFile(uri, range);
 			return;
 		}
 

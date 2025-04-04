@@ -5,7 +5,7 @@
 
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ILogger } from '../../log/common/log.js';
-import { IMcpConfiguration, IMcpConfigurationSSE, IMcpConfigurationStdio } from './mcpPlatformTypes.js';
+import { IMcpConfiguration, IMcpConfigurationSSE, IMcpConfigurationStdio, McpConfigurationServer } from './mcpPlatformTypes.js';
 
 type ValidatedConfig = { name: string; config: IMcpConfigurationStdio | IMcpConfigurationSSE };
 
@@ -35,7 +35,7 @@ export class McpManagementCli {
 	}
 
 	private validateConfiguration(config: string): ValidatedConfig {
-		let parsed: (IMcpConfigurationStdio | IMcpConfigurationSSE) & { name: string };
+		let parsed: McpConfigurationServer & { name: string };
 		try {
 			parsed = JSON.parse(config);
 		} catch (e) {

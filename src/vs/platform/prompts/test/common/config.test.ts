@@ -22,7 +22,7 @@ const createMock = <T>(value: T): IConfigurationService => {
 			);
 
 			assert(
-				[PromptsConfig.CONFIG_KEY, PromptsConfig.LOCATIONS_CONFIG_KEY].includes(key),
+				[PromptsConfig.KEY, PromptsConfig.LOCATIONS_KEY].includes(key),
 				`Unsupported configuration key '${key}'.`,
 			);
 

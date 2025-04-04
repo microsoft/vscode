@@ -5,7 +5,7 @@
 
 import type * as Parser from '@vscode/tree-sitter-wasm';
 import { ITreeSitterParseResult, ITextModelTreeSitter, RangeChange, TreeParseUpdateEvent, ITreeSitterImporter, ModelTreeUpdateEvent } from '../treeSitterParserService.js';
-import { Disposable, DisposableStore, dispose, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, dispose, IDisposable } from '../../../../base/common/lifecycle.js';
 import { ITextModel } from '../../model.js';
 import { IModelContentChange, IModelContentChangedEvent } from '../../textModelEvents.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -40,7 +40,7 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 
 	private _query: Parser.Query | undefined;
 	// TODO: @alexr00 use a better data structure for this
-	private _injectionTreeSitterTrees: Map<string, TreeSitterParseResult> = new Map();
+	private readonly _injectionTreeSitterTrees: DisposableMap<string, TreeSitterParseResult> = this._register(new DisposableMap());
 	private _versionId: number = 0;
 
 	get parseResult(): ITreeSitterParseResult | undefined { return this._rootTreeSitterTree; }
@@ -278,6 +278,12 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 		parentLanguage: string,
 		modelChanges: IModelContentChangedEvent[] | undefined
 	): Promise<void> {
+		if (injections.size === 0) {
+			this._injectionTreeSitterTrees.clearAndDisposeAll();
+			return;
+		}
+
+		const unseenInjections: Set<string> = new Set(this._injectionTreeSitterTrees.keys());
 		for (const [languageId, ranges] of injections) {
 			const language = await this._treeSitterLanguages.getLanguage(languageId);
 			if (!language) {
@@ -286,8 +292,12 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 
 			const treeSitterTree = await this._getOrCreateInjectedTree(languageId, language, parentTree, parentLanguage);
 			if (treeSitterTree) {
+				unseenInjections.delete(languageId);
 				this._onDidChangeContent(treeSitterTree, modelChanges, ranges);
 			}
+		}
+		for (const unseenInjection of unseenInjections) {
+			this._injectionTreeSitterTrees.deleteAndDispose(unseenInjection);
 		}
 	}
 
@@ -386,23 +396,25 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 				const newChildren = newCursor.currentNode.children;
 				const indexChangedChildren: number[] = [];
 				const changedChildren = newChildren.filter((c, index) => {
-					if (c?.hasChanges) {
+					if (c?.hasChanges || (oldCursor.currentNode.children.length <= index)) {
 						indexChangedChildren.push(index);
+						return true;
 					}
-					return c?.hasChanges;
+					return false;
 				});
 				// If we have changes and we *had* an error, the whole node should be refreshed.
-				if ((changedChildren.length === 0)) {
+				if ((changedChildren.length === 0) || (newCursor.currentNode.hasError !== oldCursor.currentNode.hasError)) {
 					// walk up again until we get to the first one that's named as unnamed nodes can be too granular
-					while (newCursor.currentNode.parent && !newCursor.currentNode.isNamed && next) {
+					while (newCursor.currentNode.parent && next && !newCursor.currentNode.isNamed) {
 						next = gotoParent(newCursor, oldCursor);
 					}
-
+					// Use the end position of the previous node and the start position of the current node
 					const newNode = newCursor.currentNode;
+					const closestPreviousNode = getClosestPreviousNodes(newCursor, newTree) ?? newNode;
 					nodes.push({
-						startIndex: newNode.startIndex,
+						startIndex: closestPreviousNode.startIndex,
 						endIndex: newNode.endIndex,
-						startPosition: newNode.startPosition,
+						startPosition: closestPreviousNode.startPosition,
 						endPosition: newNode.endPosition
 					});
 					next = nextSiblingOrParentSibling(newCursor, oldCursor);
@@ -433,14 +445,14 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 			}
 
 			const cursor = newTree.walk();
-			const cursorContainersNode = () => cursor.startIndex <= node.startIndex && cursor.endIndex >= node.endIndex;
+			const cursorContainersNode = () => cursor.startIndex < node.startIndex && cursor.endIndex > node.endIndex;
 
 			while (cursorContainersNode()) {
 				// See if we can go to a child
 				let child = cursor.gotoFirstChild();
 				let foundChild = false;
 				while (child) {
-					if (cursorContainersNode()) {
+					if (cursorContainersNode() && cursor.currentNode.isNamed) {
 						foundChild = true;
 						break;
 					} else {

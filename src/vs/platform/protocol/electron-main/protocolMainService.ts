@@ -5,7 +5,7 @@
 
 import { session } from 'electron';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { COI, FileAccess, Schemas, CacheControlheaders } from '../../../base/common/network.js';
+import { COI, FileAccess, Schemas, CacheControlheaders, DocumentPolicyheaders } from '../../../base/common/network.js';
 import { basename, extname, normalize } from '../../../base/common/path.js';
 import { isLinux } from '../../../base/common/platform.js';
 import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
@@ -93,10 +93,10 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 
 	private handleResourceRequest(request: Electron.ProtocolRequest, callback: ProtocolCallback): void {
 		const path = this.requestToNormalizedFilePath(request);
+		const pathBasename = basename(path);
 
 		let headers: Record<string, string> | undefined;
 		if (this.environmentService.crossOriginIsolated) {
-			const pathBasename = basename(path);
 			if (pathBasename === 'workbench.html' || pathBasename === 'workbench-dev.html') {
 				headers = COI.CoopAndCoep;
 			} else {
@@ -110,6 +110,16 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 			headers = {
 				...headers,
 				...CacheControlheaders
+			};
+		}
+
+		// Document-policy header is needed for collecting
+		// JavaScript callstacks via https://www.electronjs.org/docs/latest/api/web-frame-main#framecollectjavascriptcallstack-experimental
+		// until https://github.com/electron/electron/issues/45356 is resolved.
+		if (pathBasename === 'workbench.html' || pathBasename === 'workbench-dev.html') {
+			headers = {
+				...headers,
+				...DocumentPolicyheaders
 			};
 		}
 

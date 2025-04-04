@@ -225,6 +225,10 @@ registerAction2(class SearchWithAIAction extends Action2 {
 		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
 			const viewer = searchView.getControl();
+			searchView.model.searchResult.aiTextSearchResult.hidden = false;
+			searchView.model.cancelAISearch(true);
+			searchView.model.clearAiSearchResults();
+			await searchView.queueRefreshTree();
 			await forcedExpandRecursively(viewer, searchView.model.searchResult.aiTextSearchResult);
 		}
 	}
@@ -298,7 +302,7 @@ function cancelSearch(accessor: ServicesAccessor) {
 function refreshSearch(accessor: ServicesAccessor) {
 	const viewsService = accessor.get(IViewsService);
 	const searchView = getSearchView(viewsService);
-	searchView?.triggerQueryChange({ preserveFocus: false });
+	searchView?.triggerQueryChange({ preserveFocus: false, shouldUpdateAISearch: !searchView.model.searchResult.aiTextSearchResult.hidden });
 }
 
 function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {

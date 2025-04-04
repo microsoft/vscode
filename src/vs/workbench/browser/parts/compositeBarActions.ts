@@ -9,7 +9,7 @@ import { $, addDisposableListener, append, clearNode, EventHelper, EventType, ge
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { toDisposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
-import { IThemeService, IColorTheme, IThemeChangeEvent } from '../../../platform/theme/common/themeService.js';
+import { IThemeService, IColorTheme } from '../../../platform/theme/common/themeService.js';
 import { NumberBadge, IBadge, IActivity, ProgressBadge, IconBadge } from '../../services/activity/common/activity.js';
 import { IInstantiationService, ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { DelayedDragHandler } from '../../../base/browser/dnd.js';
@@ -289,7 +289,7 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 		this.updateTitle();
 	}
 
-	private onThemeChange(theme: IThemeChangeEvent): void {
+	private onThemeChange(theme: IColorTheme): void {
 		this.updateStyles();
 	}
 

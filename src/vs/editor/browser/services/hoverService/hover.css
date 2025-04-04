@@ -18,12 +18,24 @@
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 }
 
+.monaco-workbench .workbench-hover .monaco-action-bar .action-item .codicon {
+	/* Given our font-size, adjust action icons accordingly */
+	width: 13px;
+	height: 13px;
+}
+
 .monaco-workbench .workbench-hover hr {
 	border-bottom: none;
 }
 
 .monaco-workbench .workbench-hover.compact {
 	font-size: 12px;
+}
+
+.monaco-workbench .workbench-hover.compact .monaco-action-bar .action-item .codicon {
+	/* Given our font-size, adjust action icons accordingly */
+	width: 12px;
+	height: 12px;
 }
 
 .monaco-workbench .workbench-hover.compact .hover-contents {

@@ -127,10 +127,10 @@ class ChatAgentResponseStream {
 					_report(dto);
 					return this;
 				},
-				codeblockUri(value) {
+				codeblockUri(value, isEdit) {
 					throwIfDone(this.codeblockUri);
 					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
-					const part = new extHostTypes.ChatResponseCodeblockUriPart(value);
+					const part = new extHostTypes.ChatResponseCodeblockUriPart(value, isEdit);
 					const dto = typeConvert.ChatResponseCodeblockUriPart.from(part);
 					_report(dto);
 					return this;
@@ -320,6 +320,9 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	private readonly _completionDisposables: DisposableMap<number, DisposableStore> = this._register(new DisposableMap());
 
 	private readonly _inFlightRequests = new Set<InFlightChatRequest>();
+
+	private readonly _onDidDisposeChatSession = this._register(new Emitter<string>());
+	readonly onDidDisposeChatSession = this._onDidDisposeChatSession.event;
 
 	constructor(
 		mainContext: IMainContext,
@@ -594,6 +597,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 	$releaseSession(sessionId: string): void {
 		this._sessionDisposables.deleteAndDispose(sessionId);
+		this._onDidDisposeChatSession.fire(sessionId);
 	}
 
 	async $provideFollowups(requestDto: Dto<IChatAgentRequest>, handle: number, result: IChatAgentResult, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatFollowup[]> {
@@ -723,7 +727,6 @@ class ExtHostChatAgent {
 	private _helpTextPrefix: string | vscode.MarkdownString | undefined;
 	private _helpTextVariablesPrefix: string | vscode.MarkdownString | undefined;
 	private _helpTextPostfix: string | vscode.MarkdownString | undefined;
-	private _isSecondary: boolean | undefined;
 	private _onDidReceiveFeedback = new Emitter<vscode.ChatResultFeedback>();
 	private _onDidPerformAction = new Emitter<vscode.ChatUserActionEvent>();
 	private _supportIssueReporting: boolean | undefined;
@@ -820,7 +823,6 @@ class ExtHostChatAgent {
 							undefined,
 					themeIcon: this._iconPath instanceof extHostTypes.ThemeIcon ? this._iconPath : undefined,
 					hasFollowups: this._followupProvider !== undefined,
-					isSecondary: this._isSecondary,
 					helpTextPrefix: (!this._helpTextPrefix || typeof this._helpTextPrefix === 'string') ? this._helpTextPrefix : typeConvert.MarkdownString.from(this._helpTextPrefix),
 					helpTextVariablesPrefix: (!this._helpTextVariablesPrefix || typeof this._helpTextVariablesPrefix === 'string') ? this._helpTextVariablesPrefix : typeConvert.MarkdownString.from(this._helpTextVariablesPrefix),
 					helpTextPostfix: (!this._helpTextPostfix || typeof this._helpTextPostfix === 'string') ? this._helpTextPostfix : typeConvert.MarkdownString.from(this._helpTextPostfix),
@@ -886,15 +888,6 @@ class ExtHostChatAgent {
 			set helpTextPostfix(v) {
 				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
 				that._helpTextPostfix = v;
-				updateMetadataSoon();
-			},
-			get isSecondary() {
-				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
-				return that._isSecondary;
-			},
-			set isSecondary(v) {
-				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
-				that._isSecondary = v;
 				updateMetadataSoon();
 			},
 			get supportIssueReporting() {

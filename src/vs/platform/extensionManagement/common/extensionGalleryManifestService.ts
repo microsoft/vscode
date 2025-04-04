@@ -77,6 +77,13 @@ export class ExtensionGalleryManifestService extends Disposable implements IExte
 			});
 		}
 
+		if (extensionsGallery.resourceUrlTemplate) {
+			resources.push({
+				id: extensionsGallery.resourceUrlTemplate,
+				type: ExtensionGalleryResourceType.ExtensionResourceUri
+			});
+		}
+
 		const filtering = [
 			{
 				name: FilterType.Tag,

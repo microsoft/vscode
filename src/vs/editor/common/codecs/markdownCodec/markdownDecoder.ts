@@ -6,14 +6,14 @@
 import { MarkdownToken } from './tokens/markdownToken.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { LeftBracket } from '../simpleCodec/tokens/brackets.js';
+import { PartialMarkdownImage } from './parsers/markdownImage.js';
 import { ReadableStream } from '../../../../base/common/stream.js';
 import { LeftAngleBracket } from '../simpleCodec/tokens/angleBrackets.js';
+import { ExclamationMark } from '../simpleCodec/tokens/exclamationMark.js';
 import { BaseDecoder } from '../../../../base/common/codecs/baseDecoder.js';
 import { SimpleDecoder, TSimpleToken } from '../simpleCodec/simpleDecoder.js';
 import { MarkdownCommentStart, PartialMarkdownCommentStart } from './parsers/markdownComment.js';
 import { MarkdownLinkCaption, PartialMarkdownLink, PartialMarkdownLinkCaption } from './parsers/markdownLink.js';
-import { ExclamationMark } from '../simpleCodec/tokens/exclamationMark.js';
-import { PartialMarkdownImage } from './parsers/markdownImage.js';
 
 /**
  * Tokens handled by this decoder.

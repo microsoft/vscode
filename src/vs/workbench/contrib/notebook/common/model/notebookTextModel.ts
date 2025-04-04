@@ -31,6 +31,7 @@ import { NotebookCellTextModel } from './notebookCellTextModel.js';
 
 class StackOperation implements IWorkspaceUndoRedoElement {
 	type: UndoRedoElementType.Workspace;
+	tag = 'notebookUndoRedoElement';
 
 	public get code() {
 		return this._operations.length === 1 ? this._operations[0].code : 'undoredo.notebooks.stackOperation';
@@ -121,6 +122,7 @@ class StackOperation implements IWorkspaceUndoRedoElement {
 
 class NotebookOperationManager {
 	private _pendingStackOperation: StackOperation | null = null;
+	private _isAppending: boolean = false;
 	constructor(
 		private readonly _textModel: NotebookTextModel,
 		private _undoService: IUndoRedoService,
@@ -136,12 +138,26 @@ class NotebookOperationManager {
 	pushStackElement(alternativeVersionId: string, selectionState: ISelectionState | undefined) {
 		if (this._pendingStackOperation && !this._pendingStackOperation.isEmpty) {
 			this._pendingStackOperation.pushEndState(alternativeVersionId, selectionState);
-			this._undoService.pushElement(this._pendingStackOperation, this._pendingStackOperation.undoRedoGroup);
+			if (!this._isAppending) {
+				this._undoService.pushElement(this._pendingStackOperation, this._pendingStackOperation.undoRedoGroup);
+			}
 		}
+		this._isAppending = false;
 		this._pendingStackOperation = null;
 	}
+
 	private _getOrCreateEditStackElement(beginSelectionState: ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined, alternativeVersionId: string) {
 		return this._pendingStackOperation ??= new StackOperation(this._textModel, undoRedoGroup, this._pauseableEmitter, this._postUndoRedo, beginSelectionState, alternativeVersionId || '');
+	}
+
+	appendPreviousOperation(): boolean {
+		const previous = this._undoService.getLastElement(this._textModel.uri) as StackOperation;
+		if (previous && previous.tag === 'notebookUndoRedoElement') {
+			this._pendingStackOperation = previous;
+			this._isAppending = true;
+			return true;
+		}
+		return false;
 	}
 
 	pushEditOperation(element: IUndoRedoElement, beginSelectionState: ISelectionState | undefined, resultSelectionState: ISelectionState | undefined, alternativeVersionId: string, undoRedoGroup: UndoRedoGroup | undefined) {
@@ -582,9 +598,39 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		return result;
 	}
 
+	private newCellsFromLastEdit = new Set<number>();
+	private isOnlyEditingMetadataOnNewCells(rawEdits: ICellEditOperation[]): boolean {
+		for (const edit of rawEdits) {
+			if (edit.editType === CellEditType.PartialInternalMetadata) {
+				continue;
+			}
+			if (edit.editType !== CellEditType.Metadata && edit.editType !== CellEditType.PartialMetadata) {
+				return false;
+			}
+
+			if (('index' in edit) && !this.newCellsFromLastEdit.has(this.cells[edit.index].handle)) {
+				return false;
+			}
+			if ('handle' in edit && !this.newCellsFromLastEdit.has(edit.handle)) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
 	applyEdits(rawEdits: ICellEditOperation[], synchronous: boolean, beginSelectionState: ISelectionState | undefined, endSelectionsComputer: () => ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined, computeUndoRedo: boolean): boolean {
 		this._pauseableEmitter.pause();
 		this._operationManager.pushStackElement(this._alternativeVersionId, undefined);
+
+		if (computeUndoRedo && this.isOnlyEditingMetadataOnNewCells(rawEdits)) {
+			if (!this._operationManager.appendPreviousOperation()) {
+				// we can't append the previous operation, so just don't compute undo/redo
+				computeUndoRedo = false;
+			}
+		} else if (computeUndoRedo) {
+			this.newCellsFromLastEdit.clear();
+		}
 
 		try {
 			this._doApplyEdits(rawEdits, synchronous, computeUndoRedo, beginSelectionState, undoRedoGroup);
@@ -816,6 +862,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			const dirtyStateListener = cell.onDidChangeContent((e) => {
 				this._bindCellContentHandler(cell, e);
 			});
+
+			this.newCellsFromLastEdit.add(cell.handle);
 			this._cellListeners.set(cell.handle, dirtyStateListener);
 			this._register(cell);
 			return cell;

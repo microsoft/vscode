@@ -57,7 +57,6 @@ export class GitTimelineItem extends TimelineItem {
 	setItemDetails(uri: Uri, hash: string | undefined, avatar: string | undefined, author: string, email: string | undefined, date: string, message: string, shortStat?: CommitShortStat, remoteSourceCommands: Command[] = []): void {
 		this.tooltip = new MarkdownString('', true);
 		this.tooltip.isTrusted = true;
-		this.tooltip.supportHtml = true;
 
 		const avatarMarkdown = avatar
 			? `![${author}](${avatar}|width=${AVATAR_SIZE},height=${AVATAR_SIZE})`

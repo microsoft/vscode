@@ -104,6 +104,22 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 		}
 	}
 
+	if (a.completion.kind !== b.completion.kind) {
+		// Sort by kind
+		if ((a.completion.kind === TerminalCompletionItemKind.Method || a.completion.kind === TerminalCompletionItemKind.Alias) && (b.completion.kind !== TerminalCompletionItemKind.Method && b.completion.kind !== TerminalCompletionItemKind.Alias)) {
+			return -1; // Methods and aliases should come first
+		}
+		if ((b.completion.kind === TerminalCompletionItemKind.Method || b.completion.kind === TerminalCompletionItemKind.Alias) && (a.completion.kind !== TerminalCompletionItemKind.Method && a.completion.kind !== TerminalCompletionItemKind.Alias)) {
+			return 1; // Methods and aliases should come first
+		}
+		if ((a.completion.kind === TerminalCompletionItemKind.File || a.completion.kind === TerminalCompletionItemKind.Folder) && (b.completion.kind !== TerminalCompletionItemKind.File && b.completion.kind !== TerminalCompletionItemKind.Folder)) {
+			return 1; // Resources should come last
+		}
+		if ((b.completion.kind === TerminalCompletionItemKind.File || b.completion.kind === TerminalCompletionItemKind.Folder) && (a.completion.kind !== TerminalCompletionItemKind.File && a.completion.kind !== TerminalCompletionItemKind.Folder)) {
+			return -1; // Resources should come last
+		}
+	}
+
 	// Sort alphabetically, ignoring punctuation causes dot files to be mixed in rather than
 	// all at the top
 	return a.labelLow.localeCompare(b.labelLow, undefined, { ignorePunctuation: true });

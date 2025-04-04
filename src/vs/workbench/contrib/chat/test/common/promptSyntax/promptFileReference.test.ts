@@ -12,7 +12,7 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { IMockFolder, MockFilesystem } from './testUtils/mockFilesystem.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { IPromptFileReference } from '../../../common/promptSyntax/parsers/types.js';
+import { IPromptReference } from '../../../common/promptSyntax/parsers/types.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { NullPolicyService } from '../../../../../../platform/policy/common/policy.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -98,7 +98,7 @@ class TestPromptFileReference extends Disposable {
 		await rootReference.allSettled();
 
 		// resolve the root file reference including all nested references
-		const resolvedReferences: readonly (IPromptFileReference | undefined)[] = rootReference.allReferences;
+		const resolvedReferences: readonly (IPromptReference | undefined)[] = rootReference.allReferences;
 
 		for (let i = 0; i < this.expectedReferences.length; i++) {
 			const expectedReference = this.expectedReferences[i];

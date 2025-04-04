@@ -35,12 +35,6 @@ declare module 'vscode' {
 
 	export interface ChatParticipant {
 		/**
-		 * When true, this participant is invoked when the user submits their query using ctrl/cmd+enter
-		 * TODO@API name
-		 */
-		isSecondary?: boolean;
-
-		/**
 		 * A string that will be added before the listing of chat participants in `/help`.
 		 */
 		helpTextPrefix?: string | MarkdownString;

@@ -1251,7 +1251,7 @@ export interface ExtHostSpeechShape {
 export interface MainThreadLanguageModelsShape extends IDisposable {
 	$registerLanguageModelProvider(handle: number, identifier: string, metadata: ILanguageModelChatMetadata): void;
 	$unregisterProvider(handle: number): void;
-	$tryStartChatRequest(extension: ExtensionIdentifier, provider: string, requestId: number, messages: IChatMessage[], options: {}, token: CancellationToken): Promise<void>;
+	$tryStartChatRequest(extension: ExtensionIdentifier, provider: string, requestId: number, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: {}, token: CancellationToken): Promise<void>;
 	$reportResponsePart(requestId: number, chunk: IChatResponseFragment): Promise<void>;
 	$reportResponseDone(requestId: number, error: SerializedError | undefined): Promise<void>;
 	$selectChatModels(selector: ILanguageModelChatSelector): Promise<string[]>;
@@ -1265,7 +1265,7 @@ export interface MainThreadLanguageModelsShape extends IDisposable {
 export interface ExtHostLanguageModelsShape {
 	$acceptChatModelMetadata(data: ILanguageModelsChangeEvent): void;
 	$updateModelAccesslist(data: { from: ExtensionIdentifier; to: ExtensionIdentifier; enabled: boolean }[]): void;
-	$startChatRequest(handle: number, requestId: number, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<void>;
+	$startChatRequest(handle: number, requestId: number, from: ExtensionIdentifier, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: { [name: string]: any }, token: CancellationToken): Promise<void>;
 	$acceptResponsePart(requestId: number, chunk: IChatResponseFragment): Promise<void>;
 	$acceptResponseDone(requestId: number, error: SerializedError | undefined): Promise<void>;
 	$provideTokenLength(handle: number, value: string | IChatMessage, token: CancellationToken): Promise<number>;
@@ -1399,7 +1399,6 @@ export interface MainThreadUrlsShape extends IDisposable {
 	$registerUriHandler(handle: number, extensionId: ExtensionIdentifier, extensionDisplayName: string): Promise<void>;
 	$unregisterUriHandler(handle: number): Promise<void>;
 	$createAppUri(uri: UriComponents): Promise<UriComponents>;
-	$extractExternalUris(uris: UriComponents[]): Promise<string[]>;
 }
 
 export interface IChatDto {
@@ -1437,7 +1436,6 @@ export type IChatProgressDto =
 
 export interface ExtHostUrlsShape {
 	$handleExternalUri(handle: number, uri: UriComponents): Promise<void>;
-	$updateTrustedDomains(trustedDomains: string[]): Promise<void>;
 }
 
 export interface MainThreadUriOpenersShape extends IDisposable {
@@ -2980,7 +2978,7 @@ export interface ExtHostMcpShape {
 
 export interface MainThreadMcpShape {
 	$onDidChangeState(id: number, state: McpConnectionState): void;
-	$onDidPublishLog(id: number, log: string): void;
+	$onDidPublishLog(id: number, level: LogLevel, log: string): void;
 	$onDidReceiveMessage(id: number, message: string): void;
 	$upsertMcpCollection(collection: McpCollectionDefinition.FromExtHost, servers: Dto<McpServerDefinition>[]): void;
 	$deleteMcpCollection(collectionId: string): void;
@@ -3061,6 +3059,18 @@ export interface MainThreadTestingShape {
 	$markTestRetired(testIds: string[] | undefined): void;
 }
 
+export type ChatStatusItemDto = {
+	id: string;
+	title: string;
+	description: string;
+	detail: string | undefined;
+};
+
+export interface MainThreadChatStatusShape {
+	$setEntry(id: string, entry: ChatStatusItemDto): void;
+	$disposeEntry(id: string): void;
+}
+
 // --- proxy identifiers
 
 export const MainContext = {
@@ -3134,7 +3144,8 @@ export const MainContext = {
 	MainThreadLocalization: createProxyIdentifier<MainThreadLocalizationShape>('MainThreadLocalizationShape'),
 	MainThreadMcp: createProxyIdentifier<MainThreadMcpShape>('MainThreadMcpShape'),
 	MainThreadAiRelatedInformation: createProxyIdentifier<MainThreadAiRelatedInformationShape>('MainThreadAiRelatedInformation'),
-	MainThreadAiEmbeddingVector: createProxyIdentifier<MainThreadAiEmbeddingVectorShape>('MainThreadAiEmbeddingVector')
+	MainThreadAiEmbeddingVector: createProxyIdentifier<MainThreadAiEmbeddingVectorShape>('MainThreadAiEmbeddingVector'),
+	MainThreadChatStatus: createProxyIdentifier<MainThreadChatStatusShape>('MainThreadChatStatus'),
 };
 
 export const ExtHostContext = {
