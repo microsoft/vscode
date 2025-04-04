@@ -42,21 +42,3 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .monaco-icon-label::after {
 	margin-right: 0; /* by default the icon label has a padding right and this isn't wanted when not showing tabs and not showing breadcrumbs */
 }
-
-/* Drag and Drop */
-
-.monaco-editor-group-drag-image {
-	display: inline-block;
-	padding: 1px 7px;
-	border-radius: 10px;
-	font-size: 12px;
-	position: absolute;
-	/*
-	 * Browsers apply an effect to the drag image when the div becomes too
-	 * large which makes them unreadable. Use max width so it does not happen
-	 */
-	max-width: 120px;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}

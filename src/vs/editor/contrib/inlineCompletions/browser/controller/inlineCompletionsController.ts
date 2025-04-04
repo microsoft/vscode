@@ -243,7 +243,7 @@ export class InlineCompletionsController extends Disposable {
 
 		const currentInlineCompletionBySemanticId = derivedObservableWithCache<string | undefined>(this, (reader, last) => {
 			const model = this.model.read(reader);
-			const state = model?.inlineCompletionState.read(reader);
+			const state = model?.state.read(reader);
 			if (this._suggestWidgetAdapter.selectedItem.get()) {
 				return last;
 			}
@@ -256,16 +256,20 @@ export class InlineCompletionsController extends Disposable {
 		}), async (_value, _, _deltas, store) => {
 			/** @description InlineCompletionsController.playAccessibilitySignalAndReadSuggestion */
 			const model = this.model.get();
-			const state = model?.inlineCompletionState.get();
+			const state = model?.state.get();
 			if (!state || !model) { return; }
-			const lineText = model.textModel.getLineContent(state.primaryGhostText.lineNumber);
+			const lineText = state.kind === 'ghostText' ? model.textModel.getLineContent(state.primaryGhostText.lineNumber) : '';
 
 			await timeout(50, cancelOnDispose(store));
 			await waitForState(this._suggestWidgetAdapter.selectedItem, isUndefined, () => false, cancelOnDispose(store));
 
 			await this._accessibilitySignalService.playSignal(AccessibilitySignal.inlineSuggestion);
 			if (this.editor.getOption(EditorOption.screenReaderAnnounceInlineSuggestion)) {
-				this._provideScreenReaderUpdate(state.primaryGhostText.renderForScreenReader(lineText));
+				if (state.kind === 'ghostText') {
+					this._provideScreenReaderUpdate(state.primaryGhostText.renderForScreenReader(lineText));
+				} else {
+					this._provideScreenReaderUpdate(''); // Only announce Alt+F2
+				}
 			}
 		}));
 
@@ -281,7 +285,7 @@ export class InlineCompletionsController extends Disposable {
 
 		this._register(contextKeySvcObs.bind(InlineCompletionContextKeys.cursorInIndentation, this._cursorIsInIndentation));
 		this._register(contextKeySvcObs.bind(InlineCompletionContextKeys.hasSelection, reader => !this._editorObs.cursorSelection.read(reader)?.isEmpty()));
-		this._register(contextKeySvcObs.bind(InlineCompletionContextKeys.cursorAtInlineEdit, this.model.map((m, reader) => m?.inlineEditState?.read(reader)?.cursorAtInlineEdit)));
+		this._register(contextKeySvcObs.bind(InlineCompletionContextKeys.cursorAtInlineEdit, this.model.map((m, reader) => m?.inlineEditState?.read(reader)?.cursorAtInlineEdit.read(reader))));
 		this._register(contextKeySvcObs.bind(InlineCompletionContextKeys.tabShouldAcceptInlineEdit, this.model.map((m, r) => !!m?.tabShouldAcceptInlineEdit.read(r))));
 		this._register(contextKeySvcObs.bind(InlineCompletionContextKeys.tabShouldJumpToInlineEdit, this.model.map((m, r) => !!m?.tabShouldJumpToInlineEdit.read(r))));
 		this._register(contextKeySvcObs.bind(InlineCompletionContextKeys.inlineEditVisible, reader => this.model.read(reader)?.inlineEditState.read(reader) !== undefined));

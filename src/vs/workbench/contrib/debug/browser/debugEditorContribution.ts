@@ -30,7 +30,7 @@ import { EditOperation } from '../../../../editor/common/core/editOperation.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { DEFAULT_WORD_REGEXP } from '../../../../editor/common/core/wordHelper.js';
-import { ScrollType } from '../../../../editor/common/editorCommon.js';
+import { IEditorDecorationsCollection, ScrollType } from '../../../../editor/common/editorCommon.js';
 import { StandardTokenType } from '../../../../editor/common/encodedTokenAttributes.js';
 import { InlineValue, InlineValueContext } from '../../../../editor/common/languages.js';
 import { IModelDeltaDecoration, ITextModel, InjectedTextCursorStops } from '../../../../editor/common/model.js';
@@ -170,7 +170,7 @@ export function createInlineValueDecoration(lineNumber: number, contentText: str
 }
 
 function replaceWsWithNoBreakWs(str: string): string {
-	return str.replace(/[ \t]/g, strings.noBreakWhitespace);
+	return str.replace(/[ \t\n]/g, strings.noBreakWhitespace);
 }
 
 function createInlineValueDecorationsInsideRange(expressions: ReadonlyArray<IExpression>, ranges: Range[], model: ITextModel, wordToLineNumbersMap: Map<string, number[]>) {
@@ -261,7 +261,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private configurationWidget: FloatingEditorClickWidget | undefined;
 	private readonly altListener = new MutableDisposable();
 	private altPressed = false;
-	private oldDecorations = this.editor.createDecorationsCollection();
+	private oldDecorations: IEditorDecorationsCollection;
 	private readonly displayedStore = new DisposableStore();
 	private editorHoverOptions: IEditorHoverOptions | undefined;
 	private readonly debounceInfo: IFeatureDebounceInformation;
@@ -281,6 +281,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@ILanguageFeatureDebounceService featureDebounceService: ILanguageFeatureDebounceService
 	) {
+		this.oldDecorations = this.editor.createDecorationsCollection();
 		this.debounceInfo = featureDebounceService.for(languageFeaturesService.inlineValuesProvider, 'InlineValues', { min: DEAFULT_INLINE_DEBOUNCE_DELAY });
 		this.hoverWidget = this.instantiationService.createInstance(DebugHoverWidget, this.editor);
 		this.toDispose = [this.defaultHoverLockout, this.altListener, this.displayedStore];

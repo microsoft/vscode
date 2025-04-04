@@ -28,13 +28,15 @@ export class PromptsService extends Disposable implements IPromptsService {
 	/**
 	 * Prompt files locator utility.
 	 */
-	private readonly fileLocator = this.initService.createInstance(PromptFilesLocator);
+	private readonly fileLocator: PromptFilesLocator;
 
 	constructor(
 		@IInstantiationService private readonly initService: IInstantiationService,
 		@IUserDataProfileService private readonly userDataService: IUserDataProfileService,
 	) {
 		super();
+
+		this.fileLocator = this.initService.createInstance(PromptFilesLocator);
 
 		// the factory function below creates a new prompt parser object
 		// for the provided model, if no active non-disposed parser exists
@@ -85,9 +87,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const userLocations = [this.userDataService.currentProfile.promptsHome];
 
 		const prompts = await Promise.all([
-			this.fileLocator.listFilesIn(userLocations, [])
+			this.fileLocator.listFilesIn(userLocations)
 				.then(withType('user')),
-			this.fileLocator.listFiles([])
+			this.fileLocator.listFiles()
 				.then(withType('local')),
 		]);
 
@@ -97,8 +99,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 	public getSourceFolders(
 		type: IPromptPath['type'],
 	): readonly IPromptPath[] {
-		// sanity check to make sure we don't miss a new prompt type
-		// added in the future
+		// sanity check to make sure we don't miss a new
+		// prompt type that could be added in the future
 		assert(
 			type === 'local' || type === 'user',
 			`Unknown prompt type '${type}'.`,

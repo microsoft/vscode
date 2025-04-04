@@ -929,9 +929,9 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 	deltaCellOutputContainerClassNames(diffSide: DiffSide, cellId: string, added: string[], removed: string[]) {
 		if (diffSide === DiffSide.Original) {
-			this._originalWebview?.deltaCellContainerClassNames(cellId, added, removed);
+			this._originalWebview?.deltaCellOutputContainerClassNames(cellId, added, removed);
 		} else {
-			this._modifiedWebview?.deltaCellContainerClassNames(cellId, added, removed);
+			this._modifiedWebview?.deltaCellOutputContainerClassNames(cellId, added, removed);
 		}
 	}
 

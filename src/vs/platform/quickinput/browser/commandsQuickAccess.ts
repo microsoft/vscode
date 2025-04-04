@@ -49,19 +49,21 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 
 	private static WORD_FILTER = or(matchesPrefix, matchesWords, matchesContiguousSubString);
 
-	private readonly commandsHistory = this._register(this.instantiationService.createInstance(CommandsHistory));
+	private readonly commandsHistory: CommandsHistory;
 
 	protected override readonly options: ICommandsQuickAccessOptions;
 
 	constructor(
 		options: ICommandsQuickAccessOptions,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IKeybindingService protected readonly keybindingService: IKeybindingService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super(AbstractCommandsQuickAccessProvider.PREFIX, options);
+
+		this.commandsHistory = this._register(instantiationService.createInstance(CommandsHistory));
 
 		this.options = options;
 	}

@@ -7,11 +7,11 @@ import { coalesce } from '../../../../base/common/arrays.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Location } from '../../../../editor/common/languages.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { ChatAgentLocation } from '../common/chatAgents.js';
 import { IChatRequestVariableData, IChatRequestVariableEntry } from '../common/chatModel.js';
 import { ChatRequestDynamicVariablePart, ChatRequestToolPart, IParsedChatRequest } from '../common/chatParserTypes.js';
 import { IChatVariablesService, IDynamicVariable } from '../common/chatVariables.js';
-import { IChatWidgetService, showChatView, showEditsView } from './chat.js';
+import { ChatAgentLocation } from '../common/constants.js';
+import { IChatWidgetService, showChatView } from './chat.js';
 import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
 
 export class ChatVariablesService implements IChatVariablesService {
@@ -69,13 +69,11 @@ export class ChatVariablesService implements IChatVariablesService {
 	}
 
 	async attachContext(name: string, value: string | URI | Location, location: ChatAgentLocation) {
-		if (location !== ChatAgentLocation.Panel && location !== ChatAgentLocation.EditingSession) {
+		if (location !== ChatAgentLocation.Panel) {
 			return;
 		}
 
-		const widget = location === ChatAgentLocation.EditingSession
-			? await showEditsView(this.viewsService)
-			: (this.chatWidgetService.lastFocusedWidget ?? await showChatView(this.viewsService));
+		const widget = this.chatWidgetService.lastFocusedWidget ?? await showChatView(this.viewsService);
 		if (!widget || !widget.viewModel) {
 			return;
 		}
@@ -84,7 +82,7 @@ export class ChatVariablesService implements IChatVariablesService {
 		if (key === 'file' && typeof value !== 'string') {
 			const uri = URI.isUri(value) ? value : value.uri;
 			const range = 'range' in value ? value.range : undefined;
-			widget.attachmentModel.addFile(uri, range);
+			await widget.attachmentModel.addFile(uri, range);
 			return;
 		}
 

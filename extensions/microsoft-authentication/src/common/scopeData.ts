@@ -34,12 +34,12 @@ export class ScopeData {
 	readonly clientId: string;
 
 	/**
-	 * The tenant ID to use for the token request. This is the value of the `VSCODE_TENANT:...` scope if present, otherwise the default tenant ID.
+	 * The tenant ID or `organizations`, `common`, `consumers` to use for the token request. This is the value of the `VSCODE_TENANT:...` scope if present, otherwise it's the default.
 	 */
 	readonly tenant: string;
 
 	/**
-	 * The tenant ID to use for the token request. This is the value of the `VSCODE_TENANT:...` scope if present, otherwise undefined.
+	 * The tenant ID to use for the token request. This will only ever be a GUID if one was specified via the `VSCODE_TENANT:...` scope, otherwise undefined.
 	 */
 	readonly tenantId: string | undefined;
 
@@ -50,11 +50,11 @@ export class ScopeData {
 		this.scopeStr = modifiedScopes.join(' ');
 		this.scopesToSend = this.getScopesToSend(modifiedScopes);
 		this.clientId = this.getClientId(this.allScopes);
-		this.tenantId = this.getTenantId(this.allScopes);
-		this.tenant = this.tenantId ?? DEFAULT_TENANT;
+		this.tenant = this.getTenant(this.allScopes);
+		this.tenantId = this.getTenantId(this.tenant);
 	}
 
-	private getClientId(scopes: string[]) {
+	private getClientId(scopes: string[]): string {
 		return scopes.reduce<string | undefined>((prev, current) => {
 			if (current.startsWith('VSCODE_CLIENT_ID:')) {
 				return current.split('VSCODE_CLIENT_ID:')[1];
@@ -63,16 +63,28 @@ export class ScopeData {
 		}, undefined) ?? DEFAULT_CLIENT_ID;
 	}
 
-	private getTenantId(scopes: string[]) {
+	private getTenant(scopes: string[]): string {
 		return scopes.reduce<string | undefined>((prev, current) => {
 			if (current.startsWith('VSCODE_TENANT:')) {
 				return current.split('VSCODE_TENANT:')[1];
 			}
 			return prev;
-		}, undefined);
+		}, undefined) ?? DEFAULT_TENANT;
 	}
 
-	private getScopesToSend(scopes: string[]) {
+	private getTenantId(tenant: string): string | undefined {
+		switch (tenant) {
+			case 'organizations':
+			case 'common':
+			case 'consumers':
+				// These are not valid tenant IDs, so we return undefined
+				return undefined;
+			default:
+				return this.tenant;
+		}
+	}
+
+	private getScopesToSend(scopes: string[]): string[] {
 		const scopesToSend = scopes.filter(s => !s.startsWith('VSCODE_'));
 
 		const set = new Set(scopesToSend);
