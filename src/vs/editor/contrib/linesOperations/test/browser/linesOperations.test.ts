@@ -836,9 +836,10 @@ suite('Editor Contrib - Line Operations', () => {
 				'from_snake_case',
 				'from-kebab-case',
 				'alreadyCamel',
-				'ReTain_any_CAPitalization',
+				'ReTain_some_CAPitalization',
 				'my_var.test_function()',
-				'öçş_öç_şğü_ğü'
+				'öçş_öç_şğü_ğü',
+				'XMLHttpRequest'
 			], {}, (editor) => {
 				const model = editor.getModel()!;
 				const camelcaseAction = new CamelCaseAction();
@@ -861,7 +862,7 @@ suite('Editor Contrib - Line Operations', () => {
 
 				editor.setSelection(new Selection(5, 1, 5, 26));
 				executeAction(camelcaseAction, editor);
-				assert.strictEqual(model.getLineContent(5), 'ReTainAnyCAPitalization');
+				assert.strictEqual(model.getLineContent(5), 'reTainSomeCAPitalization');
 
 				editor.setSelection(new Selection(6, 1, 6, 23));
 				executeAction(camelcaseAction, editor);
@@ -870,6 +871,10 @@ suite('Editor Contrib - Line Operations', () => {
 				editor.setSelection(new Selection(7, 1, 7, 14));
 				executeAction(camelcaseAction, editor);
 				assert.strictEqual(model.getLineContent(7), 'öçşÖçŞğüĞü');
+
+				editor.setSelection(new Selection(8, 1, 8, 14));
+				executeAction(camelcaseAction, editor);
+				assert.strictEqual(model.getLineContent(8), 'XMLHttpRequest');
 			}
 		);
 
