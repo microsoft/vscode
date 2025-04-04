@@ -283,10 +283,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private _currentMode: ChatMode = ChatMode.Ask;
 	public get currentMode(): ChatMode {
-		if (this.location === ChatAgentLocation.Panel && !this.chatService.unifiedViewEnabled) {
-			return ChatMode.Ask;
-		}
-
 		return this._currentMode === ChatMode.Agent && !this.agentService.hasToolsAgent ?
 			ChatMode.Edit :
 			this._currentMode;
@@ -354,7 +350,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@ILabelService private readonly labelService: ILabelService,
 		@IChatVariablesService private readonly variableService: IChatVariablesService,
 		@IChatAgentService private readonly agentService: IChatAgentService,
-		@IChatService private readonly chatService: IChatService,
 		@ISharedWebContentExtractorService private readonly sharedWebExtracterService: ISharedWebContentExtractorService,
 	) {
 		super();
@@ -1557,10 +1552,7 @@ class ToggleChatModeActionViewItem extends DropdownMenuActionViewItemWithKeybind
 					agentStateActions.push(makeAction(ChatMode.Agent));
 				}
 
-				if (chatService.unifiedViewEnabled) {
-					agentStateActions.unshift(makeAction(ChatMode.Ask));
-				}
-
+				agentStateActions.unshift(makeAction(ChatMode.Ask));
 				return agentStateActions;
 			}
 		};

@@ -133,11 +133,6 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _chatSessionStore: ChatSessionStore;
 
 	@memoize
-	public get unifiedViewEnabled(): boolean {
-		return !!this.configurationService.getValue(ChatConfiguration.UnifiedChatView);
-	}
-
-	@memoize
 	private get useFileStorage(): boolean {
 		return this.configurationService.getValue(ChatConfiguration.UseFileStorage);
 	}
@@ -397,7 +392,7 @@ export class ChatService extends Disposable implements IChatService {
 	async getHistory(): Promise<IChatDetail[]> {
 		if (this.useFileStorage) {
 			const liveSessionItems = Array.from(this._sessionModels.values())
-				.filter(session => !session.isImported && (session.initialLocation !== ChatAgentLocation.EditingSession || this.unifiedViewEnabled))
+				.filter(session => !session.isImported)
 				.map(session => {
 					const title = session.title || localize('newChat', "New Chat");
 					return {
@@ -478,7 +473,7 @@ export class ChatService extends Disposable implements IChatService {
 
 	private _startSession(someSessionHistory: IExportableChatData | ISerializableChatData | undefined, location: ChatAgentLocation, isGlobalEditingSession: boolean, token: CancellationToken): ChatModel {
 		const model = this.instantiationService.createInstance(ChatModel, someSessionHistory, location);
-		if (location === ChatAgentLocation.EditingSession || (this.unifiedViewEnabled && location === ChatAgentLocation.Panel)) {
+		if (location === ChatAgentLocation.EditingSession || location === ChatAgentLocation.Panel) {
 			model.startEditingSession(isGlobalEditingSession);
 		}
 
@@ -1151,7 +1146,7 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	isEditingLocation(location: ChatAgentLocation): boolean {
-		return location === ChatAgentLocation.EditingSession || this.unifiedViewEnabled;
+		return true;
 	}
 
 	getChatStorageFolder(): URI {

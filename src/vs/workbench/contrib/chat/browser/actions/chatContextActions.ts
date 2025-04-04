@@ -57,7 +57,7 @@ import { ChatRequestAgentPart } from '../../common/chatParserTypes.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
-import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView, showEditsView } from '../chat.js';
+import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../chat.js';
 import { imageToHash, isImage } from '../chatPasteProviders.js';
 import { isQuickChat } from '../chatWidget.js';
 import { createFolderQuickPick, createMarkersQuickPick } from '../contrib/chatDynamicVariables.js';
@@ -72,9 +72,6 @@ export function registerChatContextActions() {
 	registerAction2(AttachFileToChatAction);
 	registerAction2(AttachFolderToChatAction);
 	registerAction2(AttachSelectionToChatAction);
-	registerAction2(AttachFileToEditingSessionAction);
-	registerAction2(AttachFolderToEditingSessionAction);
-	registerAction2(AttachSelectionToEditingSessionAction);
 	registerAction2(AttachSearchResultAction);
 }
 
@@ -398,42 +395,6 @@ class AttachSelectionToChatAction extends Action2 {
 	}
 }
 
-class AttachFileToEditingSessionAction extends AttachResourceAction {
-
-	static readonly ID = 'workbench.action.edits.attachFile';
-
-	constructor() {
-		super({
-			id: AttachFileToEditingSessionAction.ID,
-			title: localize2('workbench.action.edits.attachFile.label', "Add File to {0}", 'Copilot Edits'),
-			category: CHAT_CATEGORY,
-			f1: false,
-			menu: [{
-				id: MenuId.SearchContext,
-				group: 'z_chat',
-				order: 2,
-				when: ContextKeyExpr.and(
-					ChatContextKeys.enabled,
-					ContextKeyExpr.or(ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID), TextCompareEditorActiveContext),
-					ChatContextKeyExprs.unifiedChatEnabled.negate(),
-					SearchContext.SearchResultHeaderFocused.negate()),
-			}]
-		});
-	}
-
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const variablesService = accessor.get(IChatVariablesService);
-		const files = this.getResources(accessor, ...args);
-
-		if (files.length) {
-			(await showEditsView(accessor.get(IViewsService)))?.focusInput();
-			for (const file of files) {
-				variablesService.attachContext('file', file, ChatAgentLocation.EditingSession);
-			}
-		}
-	}
-}
-
 export class AttachSearchResultAction extends Action2 {
 	static readonly Name = 'searchResults';
 	static readonly ID = 'workbench.action.chat.insertSearchResults';
@@ -482,70 +443,6 @@ export class AttachSearchResultAction extends Action2 {
 		if (!success) {
 			logService.trace(`InsertSearchResultAction: failed to insert "${insertText}"`);
 			return;
-		}
-	}
-}
-
-class AttachFolderToEditingSessionAction extends AttachResourceAction {
-
-	static readonly ID = 'workbench.action.edits.attachFolder';
-
-	constructor() {
-		super({
-			id: AttachFolderToEditingSessionAction.ID,
-			title: localize2('workbench.action.edits.attachFolder.label', "Add Folder to {0}", 'Copilot Edits'),
-			category: CHAT_CATEGORY,
-			f1: false,
-			precondition: ContextKeyExpr.and(
-				ChatContextKeys.enabled,
-				ChatContextKeyExprs.unifiedChatEnabled.negate()),
-		});
-	}
-
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const variablesService = accessor.get(IChatVariablesService);
-		const folders = this.getResources(accessor, ...args);
-
-		if (folders.length) {
-			(await showEditsView(accessor.get(IViewsService)))?.focusInput();
-			for (const folder of folders) {
-				variablesService.attachContext('folder', folder, ChatAgentLocation.EditingSession);
-			}
-		}
-	}
-}
-
-class AttachSelectionToEditingSessionAction extends Action2 {
-
-	static readonly ID = 'workbench.action.edits.attachSelection';
-
-	constructor() {
-		super({
-			id: AttachSelectionToEditingSessionAction.ID,
-			title: localize2('workbench.action.edits.attachSelection.label', "Add Selection to {0}", 'Copilot Edits'),
-			category: CHAT_CATEGORY,
-			f1: false,
-			precondition: ContextKeyExpr.and(
-				ChatContextKeys.enabled,
-				ContextKeyExpr.or(ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID), TextCompareEditorActiveContext),
-				ChatContextKeyExprs.unifiedChatEnabled.negate()
-			)
-		});
-	}
-
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const variablesService = accessor.get(IChatVariablesService);
-		const editorService = accessor.get(IEditorService);
-
-		const activeEditor = editorService.activeTextEditorControl;
-		const activeUri = EditorResourceAccessor.getCanonicalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
-		if (editorService.activeTextEditorControl && activeUri && [Schemas.file, Schemas.vscodeRemote, Schemas.untitled].includes(activeUri.scheme)) {
-			const selection = activeEditor?.getSelection();
-			if (selection) {
-				(await showEditsView(accessor.get(IViewsService)))?.focusInput();
-				const range = selection.isEmpty() ? new Range(selection.startLineNumber, 1, selection.startLineNumber + 1, 1) : selection;
-				variablesService.attachContext('file', { uri: activeUri, range }, ChatAgentLocation.EditingSession);
-			}
 		}
 	}
 }

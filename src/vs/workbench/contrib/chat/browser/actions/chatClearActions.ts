@@ -21,7 +21,7 @@ import { ChatContextKeyExprs, ChatContextKeys } from '../../common/chatContextKe
 import { hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingSession } from '../../common/chatEditingService.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
-import { ChatViewId, EditsViewId, IChatWidget, IChatWidgetService } from '../chat.js';
+import { ChatViewId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { EditingSessionAction } from '../chatEditing/chatEditingActions.js';
 import { ctxIsGlobalEditingSession } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
@@ -295,7 +295,6 @@ export function registerNewChatActions() {
 					when: ContextKeyExpr.and(
 						ContextKeyExpr.equals('view', ChatViewId),
 						ChatContextKeys.editingParticipantRegistered,
-						ContextKeyExpr.equals(`view.${EditsViewId}.visible`, false),
 						ContextKeyExpr.or(
 							ContextKeyExpr.and(ContextKeyExpr.equals(`workbench.panel.chat.defaultViewContainerLocation`, true), ContextKeyExpr.equals(`workbench.panel.chatEditing.defaultViewContainerLocation`, false)),
 							ContextKeyExpr.and(ContextKeyExpr.equals(`workbench.panel.chat.defaultViewContainerLocation`, false), ContextKeyExpr.equals(`workbench.panel.chatEditing.defaultViewContainerLocation`, true)),
@@ -321,7 +320,7 @@ export function registerNewChatActions() {
 					linux: {
 						primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyI
 					},
-					when: ContextKeyExpr.and(ContextKeyExpr.notEquals('view', EditsViewId), ChatContextKeys.editingParticipantRegistered)
+					when: ContextKeyExpr.and(ContextKeyExpr.notEquals('view', ChatViewId), ChatContextKeys.editingParticipantRegistered)
 				}
 			});
 		}
@@ -329,9 +328,7 @@ export function registerNewChatActions() {
 		async run(accessor: ServicesAccessor, opts?: string | IChatViewOpenOptions) {
 			opts = typeof opts === 'string' ? { query: opts } : opts;
 			const viewsService = accessor.get(IViewsService);
-			const chatView = await viewsService.openView<ChatViewPane>(EditsViewId)
-				?? await viewsService.openView<ChatViewPane>(ChatViewId);
-
+			const chatView = await viewsService.openView<ChatViewPane>(ChatViewId);
 			if (!chatView?.widget) {
 				return;
 			}

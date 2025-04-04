@@ -49,18 +49,6 @@ export async function showChatView(viewsService: IViewsService): Promise<IChatWi
 	return (await viewsService.openView<ChatViewPane>(ChatViewId))?.widget;
 }
 
-export async function showEditsView(viewsService: IViewsService): Promise<IChatWidget | undefined> {
-	return (await viewsService.openView<ChatViewPane>(EditsViewId))?.widget;
-}
-
-export function preferCopilotEditsView(viewsService: IViewsService): boolean {
-	if (viewsService.getFocusedView()?.id === ChatViewId || !!viewsService.getActiveViewWithId(ChatViewId)) {
-		return false;
-	}
-
-	return !!viewsService.getActiveViewWithId(EditsViewId);
-}
-
 export function showCopilotView(viewsService: IViewsService, layoutService: IWorkbenchLayoutService): Promise<IChatWidget | undefined> {
 
 	// Ensure main window is in front
@@ -68,18 +56,11 @@ export function showCopilotView(viewsService: IViewsService, layoutService: IWor
 		layoutService.mainContainer.focus();
 	}
 
-	// Bring up the correct view
-	if (preferCopilotEditsView(viewsService)) {
-		return showEditsView(viewsService);
-	} else {
-		return showChatView(viewsService);
-	}
+	return showChatView(viewsService);
 }
 
 export function ensureSideBarChatViewSize(viewDescriptorService: IViewDescriptorService, layoutService: IWorkbenchLayoutService, viewsService: IViewsService): void {
-	const viewId = preferCopilotEditsView(viewsService) ? EditsViewId : ChatViewId;
-
-	const location = viewDescriptorService.getViewLocationById(viewId);
+	const location = viewDescriptorService.getViewLocationById(ChatViewId);
 	if (location === ViewContainerLocation.Panel) {
 		return; // panel is typically very wide
 	}
@@ -268,5 +249,3 @@ export interface IChatCodeBlockContextProviderService {
 }
 
 export const ChatViewId = `workbench.panel.chat.view.${CHAT_PROVIDER_ID}`;
-
-export const EditsViewId = 'workbench.panel.chat.view.edits';

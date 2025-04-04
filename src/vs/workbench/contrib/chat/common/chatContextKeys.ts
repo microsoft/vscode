@@ -7,7 +7,7 @@ import { localize } from '../../../../nls.js';
 import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { RemoteNameContext } from '../../../common/contextkeys.js';
-import { ChatAgentLocation, ChatConfiguration, ChatMode } from './constants.js';
+import { ChatAgentLocation, ChatMode } from './constants.js';
 
 export namespace ChatContextKeys {
 	export const responseVote = new RawContextKey<string>('chatSessionResponseVote', '', { type: 'string', description: localize('interactiveSessionResponseVote', "When the response has been voted up, is set to 'up'. When voted down, is set to 'down'. Otherwise an empty string.") });
@@ -96,7 +96,7 @@ export namespace ChatContextKeys {
 }
 
 export namespace ChatContextKeyExprs {
-	export const unifiedChatEnabled = ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedChatView}`);
+	export const unifiedChatEnabled = ContextKeyExpr.has(`config.deleteme`);
 
 	export const inEditsOrUnified = ContextKeyExpr.or(
 		ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
