@@ -234,21 +234,13 @@ if (PasteAction) {
 		const focusedEditor = codeEditorService.getFocusedCodeEditor();
 		if (focusedEditor && focusedEditor.hasModel() && focusedEditor.hasTextFocus()) {
 			// execCommand(paste) does not work with edit context
-			let result: boolean;
 			const experimentalEditContextEnabled = focusedEditor.getOption(EditorOption.effectiveExperimentalEditContextEnabled);
 			if (experimentalEditContextEnabled) {
 				const nativeEditContext = NativeEditContextRegistry.get(focusedEditor.getId());
 				if (nativeEditContext) {
-					const textArea = nativeEditContext.textArea;
-					nativeEditContext.onWillPaste();
-					textArea.focus();
-					const triggerPaste = clipboardService.triggerPaste();
-					if (!triggerPaste) {
-						nativeEditContext.domNode.focus();
-					} else {
+					const triggerPaste = nativeEditContext.executePaste();
+					if (triggerPaste) {
 						return triggerPaste.then(async () => {
-							textArea.domNode.textContent = '';
-							nativeEditContext.domNode.focus();
 							return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
 						});
 					}
