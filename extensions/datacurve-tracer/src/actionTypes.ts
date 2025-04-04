@@ -5,18 +5,8 @@ import { Thought } from './tracers/thoughtsTracker';
  * Base type for all trace actions
  */
 export interface BaseAction {
-  action_id: string;
-  timestamp: number;
-}
-
-/**
- * Common workspace state type
- */
-export interface WorkspaceState {
-  files?: string[];
-  directories?: string[];
-  expandedDirectories?: string[];
-  activeFile?: string;
+	action_id: string;
+	timestamp: number;
 }
 
 /**
@@ -26,102 +16,92 @@ export interface WorkspaceState {
  */
 
 export interface FileChangeTextDocumentAction extends BaseAction {
-  action_id: 'fileDidChangeTextDocument';
-  event: {
-    event: vscode.TextDocumentChangeEvent;
-    workspace: WorkspaceState;
-  };
+	action_id: 'fileDidChangeTextDocument';
+	event: {
+		basicEvent: vscode.TextDocumentChangeEvent;
+	};
 }
 
 export interface FileCreateFilesAction extends BaseAction {
-  action_id: 'fileDidCreateFiles';
-  event: {
-    event: vscode.FileCreateEvent;
-    workspace: WorkspaceState;
-  };
+	action_id: 'fileDidCreateFiles';
+	event: {
+		basicEvent: vscode.FileCreateEvent;
+	};
 }
 
 export interface FileDeleteFilesAction extends BaseAction {
-  action_id: 'fileDidDeleteFiles';
-  event: {
-    event: vscode.FileDeleteEvent;
-    workspace: WorkspaceState;
-  };
+	action_id: 'fileDidDeleteFiles';
+	event: {
+		basicEvent: vscode.FileDeleteEvent;
+	};
 }
 
 export interface FileRenameFilesAction extends BaseAction {
-  action_id: 'fileDidRenameFiles';
-  event: {
-    event: vscode.FileRenameEvent;
-    workspace: WorkspaceState;
-  };
+	action_id: 'fileDidRenameFiles';
+	event: {
+		basicEvent: vscode.FileRenameEvent;
+	};
 }
 
 export interface FileOpenTextDocumentAction extends BaseAction {
-  action_id: 'fileDidOpenTextDocument';
-  event: {
-    document: vscode.TextDocument;
-    workspace: WorkspaceState;
-  };
+	action_id: 'fileDidOpenTextDocument';
+	event: {
+		basicEvent: vscode.TextDocument;
+	};
 }
 
 export interface FileCloseTextDocumentAction extends BaseAction {
-  action_id: 'fileDidCloseTextDocument';
-  event: {
-    document: vscode.TextDocument;
-    workspace: WorkspaceState;
-  };
+	action_id: 'fileDidCloseTextDocument';
+	event: {
+		basicEvent: vscode.TextDocument;
+	};
 }
 
 export interface FileWillSaveTextDocumentAction extends BaseAction {
-  action_id: 'fileWillSaveTextDocument';
-  event: {
-    eventSpecs: vscode.TextDocumentWillSaveEvent;
-    document: string; // Clipped document text
-  };
+	action_id: 'fileWillSaveTextDocument';
+	event: {
+		eventSpecs: vscode.TextDocumentWillSaveEvent;
+		document: string; // Clipped document text
+	};
 }
 
 export interface FileDidSaveTextDocumentAction extends BaseAction {
-  action_id: 'fileDidSaveTextDocument';
-  event: {
-    document: vscode.TextDocument;
-    diff: string; // Clipped document text after save
-  };
+	action_id: 'fileDidSaveTextDocument';
+	event: {
+		document: vscode.TextDocument;
+		diff: string; // Clipped document text after save
+	};
 }
 
 export interface FileDidCreateFilesCustomAction extends BaseAction {
-  action_id: 'fileDidCreateFilesCustom';
-  event: {
-    event: vscode.Uri;
-    workspace: WorkspaceState;
-  };
+	action_id: 'fileDidCreateFilesCustom';
+	event: {
+		basicEvent: vscode.Uri;
+	};
 }
 
 export interface FileDidCreateFolderCustomAction extends BaseAction {
-  action_id: 'fileDidCreateFolderCustom';
-  event: {
-    event: vscode.Uri;
-    workspace: WorkspaceState;
-  };
+	action_id: 'fileDidCreateFolderCustom';
+	event: {
+		basicEvent: vscode.Uri;
+	};
 }
 
 export interface FileDidDeleteFilesCustomAction extends BaseAction {
-  action_id: 'fileDidDeleteFilesCustom';
-  event: {
-    event: vscode.Uri;
-    workspace: WorkspaceState;
-  };
+	action_id: 'fileDidDeleteFilesCustom';
+	event: {
+		basicEvent: vscode.Uri;
+	};
 }
 
 export interface FileDidRenameFilesCustomAction extends BaseAction {
-  action_id: 'fileDidRenameFilesCustom';
-  event: {
-    event: {
-      oldUri: vscode.Uri;
-      newUri: vscode.Uri;
-    };
-    workspace: WorkspaceState;
-  };
+	action_id: 'fileDidRenameFilesCustom';
+	event: {
+		basicEvent: {
+			oldUri: vscode.Uri;
+			newUri: vscode.Uri;
+		};
+	};
 }
 
 /**
@@ -131,42 +111,41 @@ export interface FileDidRenameFilesCustomAction extends BaseAction {
  */
 
 export interface EditorChangeActiveTextEditorAction extends BaseAction {
-  action_id: 'editorDidChangeActiveTextEditor';
-  event: {
-    editor: vscode.TextEditor | undefined;
-  };
+	action_id: 'editorDidChangeActiveTextEditor';
+	event: {
+		editor: vscode.TextEditor | undefined;
+	};
 }
 
 export interface EditorChangeTextEditorSelectionAction extends BaseAction {
-  action_id: 'editorDidChangeTextEditorSelection';
-  event: {
-    event: vscode.TextEditorSelectionChangeEvent;
-    selection: readonly vscode.Selection[];
-    selectedText: string[];
-    workspace: WorkspaceState;
-  };
+	action_id: 'editorDidChangeTextEditorSelection';
+	event: {
+		basicEvent: vscode.TextEditorSelectionChangeEvent;
+		selection: readonly vscode.Selection[];
+		selectedText: string[];
+	};
 }
 
 export interface EditorChangeTextEditorVisibleRangesAction extends BaseAction {
-  action_id: 'editorDidChangeTextEditorVisibleRanges';
-  event: {
-    event: vscode.TextEditorVisibleRangesChangeEvent;
-    visibleRange: string[];
-  };
+	action_id: 'editorDidChangeTextEditorVisibleRanges';
+	event: {
+		basicEvent: vscode.TextEditorVisibleRangesChangeEvent;
+		visibleRange: string[];
+	};
 }
 
 export interface EditorChangeTextEditorViewColumnAction extends BaseAction {
-  action_id: 'editorDidChangeTextEditorViewColumn';
-  event: {
-    event: vscode.TextEditorViewColumnChangeEvent;
-  };
+	action_id: 'editorDidChangeTextEditorViewColumn';
+	event: {
+		basicEvent: vscode.TextEditorViewColumnChangeEvent;
+	};
 }
 
 export interface EditorChangeVisibleTextEditorsAction extends BaseAction {
-  action_id: 'editorDidChangeVisibleTextEditors';
-  event: {
-    editors: readonly vscode.TextEditor[];
-  };
+	action_id: 'editorDidChangeVisibleTextEditors';
+	event: {
+		editors: readonly vscode.TextEditor[];
+	};
 }
 
 /**
@@ -176,19 +155,19 @@ export interface EditorChangeVisibleTextEditorsAction extends BaseAction {
  */
 
 export interface TerminalBeginShellExecutionAction extends BaseAction {
-  action_id: 'terminalBeginShellExecution';
-  event: {
-    details: vscode.TerminalShellExecutionStartEvent;
-    buffer: string;
-  };
+	action_id: 'terminalBeginShellExecution';
+	event: {
+		details: vscode.TerminalShellExecutionStartEvent;
+		buffer: string;
+	};
 }
 
 export interface TerminalEndShellExecutionAction extends BaseAction {
-  action_id: 'terminalEndShellExecution';
-  event: {
-    details: vscode.TerminalShellExecutionEndEvent;
-    buffer: string;
-  };
+	action_id: 'terminalEndShellExecution';
+	event: {
+		details: vscode.TerminalShellExecutionEndEvent;
+		buffer: string;
+	};
 }
 
 /**
@@ -198,10 +177,10 @@ export interface TerminalEndShellExecutionAction extends BaseAction {
  */
 
 export interface ClipboardCopyAction extends BaseAction {
-  action_id: 'clipboardDidCopy';
-  event: {
-    text: string;
-  };
+	action_id: 'clipboardDidCopy';
+	event: {
+		text: string;
+	};
 }
 
 /**
@@ -211,10 +190,10 @@ export interface ClipboardCopyAction extends BaseAction {
  */
 
 export interface ThoughtNewThoughtAction extends BaseAction {
-  action_id: 'thoughts.newThought';
-  event: {
-    thought: Thought;
-  };
+	action_id: 'thoughts.newThought';
+	event: {
+		thought: Thought;
+	};
 }
 
 /**
@@ -224,17 +203,17 @@ export interface ThoughtNewThoughtAction extends BaseAction {
  */
 
 export interface UserIdeaAction extends BaseAction {
-  action_id: 'idea';
-  event: {
-    idea: string;
-  };
+	action_id: 'idea';
+	event: {
+		idea: string;
+	};
 }
 
 export interface UserSearchAction extends BaseAction {
-  action_id: 'search';
-  event: {
-    idea: string;
-  };
+	action_id: 'search';
+	event: {
+		idea: string;
+	};
 }
 
 /**
@@ -243,92 +222,36 @@ export interface UserSearchAction extends BaseAction {
  * ==========================================
  */
 export type Action =
-  | FileChangeTextDocumentAction
-  | FileCreateFilesAction
-  | FileDeleteFilesAction
-  | FileRenameFilesAction
-  | FileOpenTextDocumentAction
-  | FileCloseTextDocumentAction
-  | FileWillSaveTextDocumentAction
-  | FileDidSaveTextDocumentAction
-  | FileDidCreateFilesCustomAction
-  | FileDidCreateFolderCustomAction
-  | FileDidDeleteFilesCustomAction
-  | FileDidRenameFilesCustomAction
-  | EditorChangeActiveTextEditorAction
-  | EditorChangeTextEditorSelectionAction
-  | EditorChangeTextEditorVisibleRangesAction
-  | EditorChangeTextEditorViewColumnAction
-  | EditorChangeVisibleTextEditorsAction
-  | TerminalBeginShellExecutionAction
-  | TerminalEndShellExecutionAction
-  | ClipboardCopyAction
-  | ThoughtNewThoughtAction
-  | UserIdeaAction
-  | UserSearchAction;
+	| FileChangeTextDocumentAction
+	| FileCreateFilesAction
+	| FileDeleteFilesAction
+	| FileRenameFilesAction
+	| FileOpenTextDocumentAction
+	| FileCloseTextDocumentAction
+	| FileWillSaveTextDocumentAction
+	| FileDidSaveTextDocumentAction
+	| FileDidCreateFilesCustomAction
+	| FileDidCreateFolderCustomAction
+	| FileDidDeleteFilesCustomAction
+	| FileDidRenameFilesCustomAction
+	| EditorChangeActiveTextEditorAction
+	| EditorChangeTextEditorSelectionAction
+	| EditorChangeTextEditorVisibleRangesAction
+	| EditorChangeTextEditorViewColumnAction
+	| EditorChangeVisibleTextEditorsAction
+	| TerminalBeginShellExecutionAction
+	| TerminalEndShellExecutionAction
+	| ClipboardCopyAction
+	| ThoughtNewThoughtAction
+	| UserIdeaAction
+	| UserSearchAction;
 
 /**
  * Type guard to check if an action is of a specific type
  */
 export function isActionType<T extends Action>(
-  action: Action,
-  actionId: T['action_id']
+	action: Action,
+	actionId: T['action_id'],
 ): action is T {
-  return action.action_id === actionId;
+	return action.action_id === actionId;
 }
-
-/**
- * Function to generate JSON schema from the Action type
- * This can be used to create a formal schema for the records
- */
-export function generateActionJsonSchema(): object {
-  // This is a placeholder function that would typically generate a JSON Schema
-  // from the TypeScript type definitions. For now, it returns a basic structure.
-  return {
-    $schema: 'http://json-schema.org/draft-07/schema#',
-    title: 'DataCurve Action Record',
-    type: 'object',
-    required: ['action_id', 'timestamp'],
-    properties: {
-      action_id: {
-        type: 'string',
-        description: 'Unique identifier for the action type'
-      },
-      timestamp: {
-        type: 'number',
-        description: 'Unix timestamp (milliseconds) when the action occurred'
-      },
-      event: {
-        type: 'object',
-        description: 'Event data specific to the action type'
-      }
-    },
-    oneOf: [
-      // File actions
-      { $ref: '#/definitions/fileDidChangeTextDocument' },
-      { $ref: '#/definitions/fileDidCreateFiles' },
-      // ... other action references would be listed here
-    ],
-    definitions: {
-      // Detailed schema definitions for each action type would go here
-      fileDidChangeTextDocument: {
-        type: 'object',
-        required: ['action_id', 'event'],
-        properties: {
-          action_id: { 
-            type: 'string',
-            const: 'fileDidChangeTextDocument' 
-          },
-          event: {
-            type: 'object',
-            required: ['event', 'workspace'],
-            properties: {
-              // Define properties specific to this action
-            }
-          }
-        }
-      },
-      // ... other action definitions would follow
-    }
-  };
-} 

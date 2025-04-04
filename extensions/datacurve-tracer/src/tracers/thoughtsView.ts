@@ -40,6 +40,14 @@ export class ThoughtsViewProvider implements vscode.WebviewViewProvider {
 			}
 		});
 
+
+		// Update the view when it becomes visible
+		webviewView.onDidChangeVisibility(() => {
+			if (webviewView.visible) {
+				this._updateWebview(this._thoughtsTracker.getThoughts());
+			}
+		});
+
 		// Initial update with existing thoughts
 		this._updateWebview(this._thoughtsTracker.getThoughts());
 	}

@@ -23,7 +23,6 @@ import {
 	FileDidCreateFolderCustomAction,
 	FileDidDeleteFilesCustomAction,
 	FileDidRenameFilesCustomAction,
-	WorkspaceState
 } from '../actionTypes';
 import { Thought } from '../tracers/thoughtsTracker';
 import { fileExplorer } from '../fileExplorer';
@@ -36,13 +35,11 @@ import { clipStringToLimits } from './limits';
 
 // File system tracer actions
 export function createFileChangeTextDocumentAction(event: vscode.TextDocumentChangeEvent): FileChangeTextDocumentAction {
-	const state = fileExplorer.getState();
 	return {
 		action_id: 'fileDidChangeTextDocument',
 		timestamp: Date.now(),
 		event: {
-			event,
-			workspace: state.workspaceState as unknown as WorkspaceState
+			basicEvent: event
 		}
 	};
 }
@@ -53,8 +50,7 @@ export function createFileCreateFilesAction(event: vscode.FileCreateEvent): File
 		action_id: 'fileDidCreateFiles',
 		timestamp: Date.now(),
 		event: {
-			event,
-			workspace: state.workspaceState as unknown as WorkspaceState
+			basicEvent: event
 		}
 	};
 }
@@ -65,8 +61,7 @@ export function createFileDeleteFilesAction(event: vscode.FileDeleteEvent): File
 		action_id: 'fileDidDeleteFiles',
 		timestamp: Date.now(),
 		event: {
-			event,
-			workspace: state.workspaceState as unknown as WorkspaceState
+			basicEvent: event
 		}
 	};
 }
@@ -77,8 +72,7 @@ export function createFileRenameFilesAction(event: vscode.FileRenameEvent): File
 		action_id: 'fileDidRenameFiles',
 		timestamp: Date.now(),
 		event: {
-			event,
-			workspace: state.workspaceState as unknown as WorkspaceState
+			basicEvent: event
 		}
 	};
 }
@@ -90,8 +84,7 @@ export function createFileOpenTextDocumentAction(document: vscode.TextDocument):
 		action_id: 'fileDidOpenTextDocument',
 		timestamp: Date.now(),
 		event: {
-			document,
-			workspace: state.workspaceState as unknown as WorkspaceState
+			basicEvent: document
 		}
 	};
 }
@@ -103,8 +96,7 @@ export function createFileCloseTextDocumentAction(document: vscode.TextDocument)
 		action_id: 'fileDidCloseTextDocument',
 		timestamp: Date.now(),
 		event: {
-			document,
-			workspace: state.workspaceState as unknown as WorkspaceState
+			basicEvent: document
 		}
 	};
 }
@@ -140,8 +132,7 @@ export function createFileDidCreateFilesCustomAction(uri: vscode.Uri): FileDidCr
 		action_id: 'fileDidCreateFilesCustom',
 		timestamp: Date.now(),
 		event: {
-			event: uri,
-			workspace: state.workspaceState as unknown as WorkspaceState
+			basicEvent: uri
 		}
 	};
 }
@@ -152,8 +143,7 @@ export function createFileDidCreateFolderCustomAction(uri: vscode.Uri): FileDidC
 		action_id: 'fileDidCreateFolderCustom',
 		timestamp: Date.now(),
 		event: {
-			event: uri,
-			workspace: state.workspaceState as unknown as WorkspaceState
+			basicEvent: uri
 		}
 	};
 }
@@ -164,8 +154,7 @@ export function createFileDidDeleteFilesCustomAction(uri: vscode.Uri): FileDidDe
 		action_id: 'fileDidDeleteFilesCustom',
 		timestamp: Date.now(),
 		event: {
-			event: uri,
-			workspace: state.workspaceState as unknown as WorkspaceState
+			basicEvent: uri
 		}
 	};
 }
@@ -176,11 +165,10 @@ export function createFileDidRenameFilesCustomAction(oldUri: vscode.Uri, newUri:
 		action_id: 'fileDidRenameFilesCustom',
 		timestamp: Date.now(),
 		event: {
-			event: {
+			basicEvent: {
 				oldUri,
 				newUri
-			},
-			workspace: state.workspaceState as unknown as WorkspaceState
+			}
 		}
 	};
 }
@@ -206,10 +194,9 @@ export function createEditorChangeTextEditorSelectionAction(
 		action_id: 'editorDidChangeTextEditorSelection',
 		timestamp: Date.now(),
 		event: {
-			event,
+			basicEvent: event,
 			selection,
-			selectedText,
-			workspace: state.workspaceState as unknown as WorkspaceState
+			selectedText
 		}
 	};
 }
@@ -222,7 +209,7 @@ export function createEditorChangeTextEditorVisibleRangesAction(
 		action_id: 'editorDidChangeTextEditorVisibleRanges',
 		timestamp: Date.now(),
 		event: {
-			event,
+			basicEvent: event,
 			visibleRange
 		}
 	};
@@ -235,7 +222,7 @@ export function createEditorChangeTextEditorViewColumnAction(
 		action_id: 'editorDidChangeTextEditorViewColumn',
 		timestamp: Date.now(),
 		event: {
-			event
+			basicEvent: event
 		}
 	};
 }

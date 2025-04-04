@@ -14,7 +14,6 @@ import {
 	createFileDidDeleteFilesCustomAction,
 	createFileDidRenameFilesCustomAction,
 } from './utils/typedTracers';
-import { generateActionJsonSchema } from './actionTypes';
 
 /**
  * Registers all commands for the extension
@@ -177,46 +176,6 @@ function registerDataCurveCommands(
 			const secrets = context['secrets'];
 			await secrets.store('shipd-jwt', jwt as unknown as string);
 		}),
-	);
-
-	// Export JSON Schema command
-	context.subscriptions.push(
-		vscode.commands.registerCommand(
-			'datacurve-tracer.exportSchema',
-			async () => {
-				// Get workspace folder
-				const workspaceFolders = vscode.workspace.workspaceFolders;
-				if (!workspaceFolders) {
-					vscode.window.showErrorMessage('No workspace folder open');
-					return;
-				}
-
-				try {
-					// Export schema to the workspace root
-					const outputPath = path.join(
-						workspaceFolders[0].uri.fsPath,
-						'datacurve-schema.json',
-					);
-
-					// Generate schema
-					const schema = generateActionJsonSchema();
-
-					// Write schema to file
-					fs.writeFileSync(
-						outputPath,
-						JSON.stringify(schema, null, 2),
-					);
-
-					vscode.window.showInformationMessage(
-						`JSON Schema exported to ${outputPath}`,
-					);
-				} catch (error) {
-					vscode.window.showErrorMessage(
-						`Failed to export schema: ${error}`,
-					);
-				}
-			},
-		),
 	);
 }
 

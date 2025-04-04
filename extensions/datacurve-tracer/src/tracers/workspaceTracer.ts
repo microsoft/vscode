@@ -76,10 +76,9 @@ export class WorkspaceTracer extends Tracer {
 		// Schedule regular workspace state captures
 		setInterval(() => {
 			// Capture the workspace state at regular intervals
-			const workspace = fileExplorer.getState();
 			this.traceRecorder.record({
 				action_id: 'workspaceStateCapture',
-				event: { workspace }
+				event: {}
 			});
 		}, this.refreshInterval);
 	}

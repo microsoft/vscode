@@ -213,7 +213,6 @@ export class EditorTracer extends Tracer {
 						event: event,
 						selection: selections,
 						selectedText: selectedTexts,
-						workspace: fileExplorer.getState(),
 					},
 				});
 				// Signal to the ThoughtsTracker
