@@ -374,7 +374,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatMode = ChatContextKeys.chatMode.bindTo(contextKeyService);
 
 		this.history = this.loadHistory();
-		this._register(this.historyService.onDidClearHistory(() => this.history = new HistoryNavigator2([{ text: '' }], ChatInputHistoryMaxEntries, historyKeyFn)));
+		this._register(this.historyService.onDidClearHistory(() => this.history = new HistoryNavigator2<IChatHistoryEntry>([{ text: '', state: this.getInputState() }], ChatInputHistoryMaxEntries, historyKeyFn)));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AccessibilityVerbositySettingId.Chat)) {
@@ -536,7 +536,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private loadHistory(): HistoryNavigator2<IChatHistoryEntry> {
 		const history = this.historyService.getHistory(this.location);
 		if (history.length === 0) {
-			history.push({ text: '' });
+			history.push({ text: '', state: this.getInputState() });
 		}
 
 		return new HistoryNavigator2(history, 50, historyKeyFn);
