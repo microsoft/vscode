@@ -10,7 +10,7 @@ properties:
         id: Git.Git
         source: winget
     - resource: Microsoft.WinGet.DSC/WinGetPackage
-      id: npm
+      id: npm 
       directives:
         description: Install NodeJS version 20
         allowPrerelease: true
