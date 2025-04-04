@@ -53,7 +53,7 @@ import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService
 import { ChatMode, validateChatMode } from '../../common/constants.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
-import { ChatViewId, EditsViewId, IChatWidget, IChatWidgetService, showChatView, showCopilotView } from '../chat.js';
+import { ChatViewId, IChatWidget, IChatWidgetService, showChatView, showCopilotView } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
@@ -194,9 +194,8 @@ export function registerChatActions() {
 			const viewDescriptorService = accessor.get(IViewDescriptorService);
 
 			const chatLocation = viewDescriptorService.getViewLocationById(ChatViewId);
-			const editsLocation = viewDescriptorService.getViewLocationById(EditsViewId);
 
-			if (viewsService.isViewVisible(ChatViewId) || (chatLocation === editsLocation && viewsService.isViewVisible(EditsViewId))) {
+			if (viewsService.isViewVisible(ChatViewId)) {
 				this.updatePartVisibility(layoutService, chatLocation, false);
 			} else {
 				this.updatePartVisibility(layoutService, chatLocation, true);
@@ -794,11 +793,6 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 		// Reduces flicker a bit on reload/restart
 		markAsSingleton(disposable);
 	}
-}
-
-export function getEditsViewId(accessor: ServicesAccessor): string {
-	const chatService = accessor.get(IChatService);
-	return chatService.unifiedViewEnabled ? ChatViewId : EditsViewId;
 }
 
 /**

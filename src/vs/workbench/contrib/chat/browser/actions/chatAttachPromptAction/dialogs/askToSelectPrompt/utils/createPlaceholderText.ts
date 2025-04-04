@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../../../../../nls.js';
-import { ALT_KEY_NAME, SUPER_KEY_NAME } from '../constants.js';
 import { ISelectPromptOptions } from '../askToSelectPrompt.js';
+import { SUPER_KEY_NAME } from '../constants.js';
 
 /**
  * Creates a placeholder text to show in the prompt selection dialog.
@@ -13,7 +13,7 @@ import { ISelectPromptOptions } from '../askToSelectPrompt.js';
 export const createPlaceholderText = (
 	options: ISelectPromptOptions,
 ): string => {
-	const { widget, chatService } = options;
+	const { widget } = options;
 
 	let text = localize(
 		'commands.prompts.use.select-dialog.placeholder',
@@ -29,22 +29,10 @@ export const createPlaceholderText = (
 			SUPER_KEY_NAME,
 		);
 
-		const altOptionModifierNote = localize(
-			'commands.prompts.use.select-dialog.alt-modifier-note',
-			' or {0}-key to use in Copilot Edits',
-			ALT_KEY_NAME,
-		);
-
-		// "open in-edits" action does not really fit the unified chat view mode
-		const openInEditsNote = (chatService.unifiedViewEnabled === true)
-			? ''
-			: altOptionModifierNote;
-
 		text += localize(
 			'commands.prompts.use.select-dialog.modifier-notes',
-			' (hold {0}{1})',
+			' (hold {0})',
 			superModifierNote,
-			openInEditsNote,
 		);
 	}
 

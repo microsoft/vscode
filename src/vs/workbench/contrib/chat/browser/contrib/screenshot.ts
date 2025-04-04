@@ -14,6 +14,6 @@ export function convertBufferToScreenshotVariable(buffer: VSBuffer): IChatReques
 		id: ScreenshotVariableId,
 		name: localize('screenshot', 'Screenshot'),
 		value: buffer.buffer,
-		isImage: true,
+		kind: 'image'
 	};
 }
