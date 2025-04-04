@@ -689,7 +689,7 @@ export class AttachContextAction extends Action2 {
 		if (!widget) {
 			return;
 		}
-		const chatEditingService = widget.isUnifiedPanelWidget ? accessor.get(IChatEditingService) : undefined;
+		const chatEditingService = accessor.get(IChatEditingService);
 
 		const quickPickItems: IAttachmentQuickPickItem[] = [];
 		if (extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData'))) {

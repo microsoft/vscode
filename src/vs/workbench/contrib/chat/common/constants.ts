@@ -34,7 +34,7 @@ export enum ChatAgentLocation {
 	Terminal = 'terminal',
 	Notebook = 'notebook',
 	Editor = 'editor',
-	// Delete
+	// TODO@roblourens Delete
 	EditingSession = 'editing-session',
 }
 

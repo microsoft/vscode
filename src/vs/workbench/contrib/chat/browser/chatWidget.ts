@@ -8,7 +8,6 @@ import { Button } from '../../../../base/browser/ui/button/button.js';
 import { ITreeContextMenuEvent, ITreeElement } from '../../../../base/browser/ui/tree/tree.js';
 import { disposableTimeout, timeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { memoize } from '../../../../base/common/decorators.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
@@ -222,9 +221,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	readonly viewContext: IChatWidgetViewContext;
 
-	@memoize
-	get isUnifiedPanelWidget(): boolean {
-		return this._location.location === ChatAgentLocation.Panel && !!this.viewOptions.supportsChangingModes;
+	get supportsChangingModes(): boolean {
+		return !!this.viewOptions.supportsChangingModes;
 	}
 
 	constructor(

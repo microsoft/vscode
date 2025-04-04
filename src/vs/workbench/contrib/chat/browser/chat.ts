@@ -208,8 +208,7 @@ export interface IChatWidget {
 	readonly input: ChatInputPart;
 	readonly attachmentModel: ChatAttachmentModel;
 
-	// TODO I don't like this
-	readonly isUnifiedPanelWidget: boolean;
+	readonly supportsChangingModes: boolean;
 
 	getContrib<T extends IChatWidgetContrib>(id: string): T | undefined;
 	reveal(item: ChatTreeItem): void;

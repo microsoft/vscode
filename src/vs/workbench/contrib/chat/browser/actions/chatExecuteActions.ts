@@ -123,7 +123,6 @@ class ToggleChatModeAction extends Action2 {
 				{
 					id: MenuId.ChatExecute,
 					order: 1,
-					// Either in edits with agent mode available, or in unified chat view
 					when: ContextKeyExpr.and(
 						ChatContextKeys.enabled,
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel)
