@@ -39,6 +39,17 @@ export type TErrorCondition = OpenFailed | RecursiveReference | FolderReference 
  */
 export class BasePromptParser<TContentsProvider extends IPromptContentsProvider> extends ObservableDisposable {
 	/**
+	 * List of all tokens that were parsed from the prompt contents so far.
+	 */
+	public get tokens(): readonly BaseToken[] {
+		return [...this.receivedTokens];
+	}
+	/**
+	 * Private field behind the readonly {@link tokens} property.
+	 */
+	private receivedTokens: BaseToken[] = [];
+
+	/**
 	 * List of file references in the current branch of the file reference tree.
 	 */
 	private readonly _references: IPromptReference[] = [];
@@ -228,11 +239,12 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 
 		// when some tokens received, process and store the references
 		this.stream.on('data', (token) => {
-			// TODO: @legomushroom
+			// store all markdown and prompt token references
 			if ((token instanceof MarkdownToken) || (token instanceof PromptToken)) {
 				this.receivedTokens.push(token);
 			}
 
+			// try to convert a prompt variable with data token into a file reference
 			if (token instanceof PromptVariableWithData) {
 				try {
 					this.onReference(FileReference.from(token), [...seenReferences]);
@@ -259,18 +271,6 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 
 		// start receiving data on the stream
 		this.stream.start();
-	}
-
-	/**
-	 * TODO: @legomushroom
-	 */
-	private receivedTokens: BaseToken[] = [];
-
-	/**
-	 * TODO: @legomushroom
-	 */
-	public get tokens(): readonly BaseToken[] {
-		return [...this.receivedTokens];
 	}
 
 	/**
