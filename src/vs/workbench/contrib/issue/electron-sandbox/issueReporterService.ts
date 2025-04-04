@@ -228,6 +228,16 @@ export class IssueReporter extends BaseIssueReporterService {
 		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>this.getElementById('issue-title')).value, issueUrl);
 		let url = baseUrl + `&body=${encodeURIComponent(issueBody)}`;
 
+		const isVscode = this.issueReporterModel.getData().fileOnProduct;
+		const isCopilot = gitHubDetails?.owner === 'microsoft' && gitHubDetails?.repositoryName === 'vscode-copilot-release';
+		if (isVscode) {
+			url += `&template=bug_report.md`;
+		}
+
+		if (isCopilot) {
+			url += `&template=bug_report_chat.md`;
+		}
+
 		if (this.data.githubAccessToken && gitHubDetails) {
 			if (await this.submitToGitHub(issueTitle, issueBody, gitHubDetails)) {
 				return true;
@@ -236,7 +246,7 @@ export class IssueReporter extends BaseIssueReporterService {
 
 		try {
 			if (url.length > MAX_URL_LENGTH || issueBody.length > MAX_GITHUB_API_LENGTH) {
-				url = await this.writeToClipboard(baseUrl, issueBody);
+				url = await this.writeToClipboard(baseUrl, issueBody, isVscode, isCopilot);
 			}
 		} catch (_) {
 			console.error('Writing to clipboard failed');
@@ -247,7 +257,7 @@ export class IssueReporter extends BaseIssueReporterService {
 		return true;
 	}
 
-	public override async writeToClipboard(baseUrl: string, issueBody: string): Promise<string> {
+	public override async writeToClipboard(baseUrl: string, issueBody: string, isVscode?: boolean, isCopilot?: boolean): Promise<string> {
 		const shouldWrite = await this.issueFormService.showClipboardDialog();
 		if (!shouldWrite) {
 			throw new CancellationError();
@@ -255,7 +265,14 @@ export class IssueReporter extends BaseIssueReporterService {
 
 		await this.nativeHostService.writeClipboardText(issueBody);
 
-		return baseUrl + `&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))}`;
+		let url = baseUrl + `&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))}`;
+		if (isVscode) {
+			url += `&template=bug_report.md`;
+		} else if (isCopilot) {
+			url += `&template=bug_report_chat.md`;
+		}
+
+		return url;
 	}
 
 	private updateSystemInfo(state: IssueReporterModelData) {

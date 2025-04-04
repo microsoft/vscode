@@ -454,14 +454,16 @@ export class BaseIssueReporterService extends Disposable {
 				descriptionTextArea.placeholder = localize('undefinedPlaceholder', "Please enter a title");
 			}
 
-			let fileOnExtension, fileOnMarketplace = false;
+			let fileOnExtension, fileOnMarketplace, fileOnProduct = false;
 			if (value === IssueSource.Extension) {
 				fileOnExtension = true;
 			} else if (value === IssueSource.Marketplace) {
 				fileOnMarketplace = true;
+			} else if (value === IssueSource.VSCode) {
+				fileOnProduct = true;
 			}
 
-			this.issueReporterModel.update({ fileOnExtension, fileOnMarketplace });
+			this.issueReporterModel.update({ fileOnExtension, fileOnMarketplace, fileOnProduct });
 			this.render();
 
 			const title = (<HTMLInputElement>this.getElementById('issue-title')).value;
@@ -1153,9 +1155,19 @@ export class BaseIssueReporterService extends Disposable {
 		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>this.getElementById('issue-title')).value, issueUrl);
 		let url = baseUrl + `&body=${encodeURIComponent(issueBody)}`;
 
+		const isVscode = this.issueReporterModel.getData().fileOnProduct;
+		const isCopilot = gitHubDetails?.owner === 'microsoft' && gitHubDetails?.repositoryName === 'vscode-copilot-release';
+		if (isVscode) {
+			url += `&template=bug_report.md`;
+		}
+
+		if (isCopilot) {
+			url += `&template=bug_report_chat.md`;
+		}
+
 		if (url.length > MAX_URL_LENGTH) {
 			try {
-				url = await this.writeToClipboard(baseUrl, issueBody);
+				url = await this.writeToClipboard(baseUrl, issueBody, isVscode, isCopilot);
 			} catch (_) {
 				console.error('Writing to clipboard failed');
 				return false;
@@ -1167,13 +1179,20 @@ export class BaseIssueReporterService extends Disposable {
 		return true;
 	}
 
-	public async writeToClipboard(baseUrl: string, issueBody: string): Promise<string> {
+	public async writeToClipboard(baseUrl: string, issueBody: string, isVscode?: boolean, isCopilot?: boolean): Promise<string> {
 		const shouldWrite = await this.issueFormService.showClipboardDialog();
 		if (!shouldWrite) {
 			throw new CancellationError();
 		}
 
-		return baseUrl + `&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))}`;
+		let url = baseUrl + `&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))}`;
+		if (isVscode) {
+			url += `&template=bug_report.md`;
+		} else if (isCopilot) {
+			url += `&template=bug_report_chat.md`;
+		}
+
+		return url;
 	}
 
 	public getIssueUrl(): string {
