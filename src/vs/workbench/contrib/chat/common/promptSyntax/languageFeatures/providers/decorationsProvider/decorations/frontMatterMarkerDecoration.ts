@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DecorationBase, TDecorationStyles } from './decorationBase.js';
+import { TDecorationStyles, DecorationBase } from './utils/index.js';
 import { FrontMatterMarker } from '../../../../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterMarker.js';
 
 /**
@@ -15,7 +15,7 @@ export enum CssClassNames {
 }
 
 /**
- * Editor decoration for a marker token of Front Matter header.
+ * Editor decoration for a `marker` token of a Front Matter header.
  */
 export class FrontMatterMarkerDecoration extends DecorationBase<FrontMatterMarker, CssClassNames> {
 	protected override get className(): CssClassNames {
@@ -26,13 +26,13 @@ export class FrontMatterMarkerDecoration extends DecorationBase<FrontMatterMarke
 	}
 
 	protected override get description(): string {
-		return 'Front Matter marker editor decoration.';
+		return 'Marker decoration of a Front Matter header.';
 	}
 
 	public static get cssStyles(): TDecorationStyles {
 		return {
 			[CssClassNames.inline]: [
-				'opacity: 0.6;',
+				'opacity: 0.5;',
 			],
 		};
 	}

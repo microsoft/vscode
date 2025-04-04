@@ -6,12 +6,11 @@
 import { IPromptsService } from '../../../service/types.js';
 import { ProviderInstanceBase } from '../providerInstanceBase.js';
 import { toDisposable } from '../../../../../../../../base/common/lifecycle.js';
-import { DecorationBase, TDecorationClass } from './decorations/decorationBase.js';
-import { FrontMatterHeaderDecoration } from './decorations/frontMatterDecoration.js';
+import { FrontMatterDecoration } from './decorations/frontMatterDecoration.js';
 import { BaseToken } from '../../../../../../../../editor/common/codecs/baseToken.js';
 import { IPromptFileEditor, ProviderInstanceManagerBase } from '../providerInstanceManagerBase.js';
-import { ReactiveDecorationBase, TChangedDecorator } from './decorations/reactiveDecorationBase.js';
 import { registerThemingParticipant } from '../../../../../../../../platform/theme/common/themeService.js';
+import { DecorationBase, TDecorationClass, ReactiveDecorationBase, TChangedDecorator } from './decorations/utils/index.js';
 import { FrontMatterHeader } from '../../../../../../../../editor/common/codecs/markdownExtensionsCodec/tokens/frontMatterHeader.js';
 
 /**
@@ -23,7 +22,7 @@ type TDecoratedToken = FrontMatterHeader;
  * List of all supported decorations.
  */
 const SUPPORTED_DECORATIONS: readonly TDecorationClass<TDecoratedToken>[] = Object.freeze([
-	FrontMatterHeaderDecoration,
+	FrontMatterDecoration,
 ]);
 
 /**
@@ -93,7 +92,7 @@ export class TextModelPromptDecorator extends ProviderInstanceBase {
 	): this {
 		this.editor.changeDecorations((accessor) => {
 			for (const decoration of decorations) {
-				decoration.render(accessor);
+				decoration.changes(accessor);
 			}
 		});
 

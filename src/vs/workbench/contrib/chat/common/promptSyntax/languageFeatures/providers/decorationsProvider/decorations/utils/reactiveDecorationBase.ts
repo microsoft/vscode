@@ -4,38 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DecorationBase } from './decorationBase.js';
-import { Position } from '../../../../../../../../../editor/common/core/position.js';
-import { BaseToken } from '../../../../../../../../../editor/common/codecs/baseToken.js';
-import { IModelDecorationsChangeAccessor } from '../../../../../../../../../editor/common/model.js';
-
-/**
- * CSS class names of the decoration.
- */
-interface IClassNames<T extends string = string> {
-	/**
-	 * Main, default CSS class name of the decoration
-	 * for the `active` decoration state.
-	 */
-	readonly main: T;
-
-	/**
-	 * CSS class name of the decoration for the `inline`(text)
-	 * styles.
-	 */
-	readonly inline: T;
-
-	/**
-	 * main CSS class name of the decoration for the `inactive`
-	 * decoration state.
-	 */
-	readonly mainInactive: T;
-
-	/**
-	 * CSS class name of the decoration for the `inline`(text)
-	 * styles when decoration is in the `inactive` state.
-	 */
-	readonly inlineInactive: T;
-}
+import type { IReactiveDecorationClassNames, TChangeAccessor } from './types.js';
+import { Position } from '../../../../../../../../../../editor/common/core/position.js';
+import { BaseToken } from '../../../../../../../../../../editor/common/codecs/baseToken.js';
 
 /**
  * Base class for all reactive editor decorations. A reactive decoration
@@ -49,10 +20,10 @@ export abstract class ReactiveDecorationBase<
 	/**
 	 * CSS class names of the decoration.
 	 */
-	protected abstract get classNames(): IClassNames<TCssClassName>;
+	protected abstract get classNames(): IReactiveDecorationClassNames<TCssClassName>;
 
 	/**
-	 * Whether the decoration has changed since the last {@link render}.
+	 * Whether the decoration has changed since the last {@link changes}.
 	 */
 	public get changed(): boolean {
 		return this.didChange;
@@ -67,13 +38,6 @@ export abstract class ReactiveDecorationBase<
 	 * Private field for the {@link changed} property.
 	 */
 	private didChange = true;
-
-	constructor(
-		accessor: Pick<IModelDecorationsChangeAccessor, 'addDecoration'>,
-		token: TPromptToken,
-	) {
-		super(accessor, token);
-	}
 
 	/**
 	 * Whether cursor is currently inside the decoration range.
@@ -112,14 +76,14 @@ export abstract class ReactiveDecorationBase<
 		return this.didChange;
 	}
 
-	public override render(
-		accessor: Pick<IModelDecorationsChangeAccessor, 'changeDecoration' | 'changeDecorationOptions'>,
+	public override changes(
+		accessor: TChangeAccessor,
 	): this {
 		if (this.didChange === false) {
 			return this;
 		}
 
-		super.render(accessor);
+		super.changes(accessor);
 		this.didChange = false;
 
 		return this;
