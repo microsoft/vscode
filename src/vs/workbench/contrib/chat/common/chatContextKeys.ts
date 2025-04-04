@@ -30,7 +30,6 @@ export namespace ChatContextKeys {
 	export const inputHasFocus = new RawContextKey<boolean>('chatInputHasFocus', false, { type: 'boolean', description: localize('interactiveInputHasFocus', "True when the chat input has focus.") });
 	export const inChatInput = new RawContextKey<boolean>('inChatInput', false, { type: 'boolean', description: localize('inInteractiveInput', "True when focus is in the chat input, false otherwise.") });
 	export const inChatSession = new RawContextKey<boolean>('inChat', false, { type: 'boolean', description: localize('inChat', "True when focus is in the chat widget, false otherwise.") });
-	export const inUnifiedChat = new RawContextKey<boolean>('inUnifiedChat', false, { type: 'boolean', description: localize('inUnifiedChat', "True when focus is in the unified chat widget, false otherwise.") });
 	export const instructionsAttached = new RawContextKey<boolean>('chatInstructionsAttached', false, { type: 'boolean', description: localize('chatInstructionsAttachedContextDescription', "True when the chat has a prompt instructions attached.") });
 	export const chatMode = new RawContextKey<ChatMode>('chatMode', ChatMode.Ask, { type: 'string', description: localize('chatMode', "The current chat mode.") });
 
@@ -96,12 +95,6 @@ export namespace ChatContextKeys {
 }
 
 export namespace ChatContextKeyExprs {
-	export const unifiedChatEnabled = ContextKeyExpr.has(`config.deleteme`);
-
-	export const inNonUnifiedPanel = ContextKeyExpr.and(
-		ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
-		ChatContextKeys.inUnifiedChat.negate());
-
 	export const inEditingMode = ContextKeyExpr.or(
 		ChatContextKeys.chatMode.isEqualTo(ChatMode.Edit),
 		ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent),

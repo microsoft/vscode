@@ -50,7 +50,7 @@ import { SearchView } from '../../../search/browser/searchView.js';
 import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from '../../../search/browser/symbolsQuickAccess.js';
 import { SearchContext } from '../../../search/common/constants.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
-import { ChatContextKeyExprs, ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
 import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData, OmittedState } from '../../common/chatModel.js';
 import { ChatRequestAgentPart } from '../../common/chatParserTypes.js';
@@ -457,20 +457,16 @@ export class AttachContextAction extends Action2 {
 		icon: Codicon.attach,
 		category: CHAT_CATEGORY,
 		keybinding: {
-			when: ContextKeyExpr.and(
-				ChatContextKeys.inChatInput,
-				ChatContextKeyExprs.inNonUnifiedPanel),
+			when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel)),
 			primary: KeyMod.CtrlCmd | KeyCode.Slash,
 			weight: KeybindingWeight.EditorContrib
 		},
-		menu: [
-			{
-				when: ChatContextKeyExprs.inNonUnifiedPanel,
-				id: MenuId.ChatInputAttachmentToolbar,
-				group: 'navigation',
-				order: 2
-			}
-		]
+		menu: {
+			when: ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
+			id: MenuId.ChatInputAttachmentToolbar,
+			group: 'navigation',
+			order: 3
+		},
 	}) {
 		super(desc);
 	}
@@ -968,36 +964,5 @@ export class AttachContextAction extends Action2 {
 		};
 	}
 }
-
-registerAction2(class AttachFilesAction extends AttachContextAction {
-	constructor() {
-		super({
-			id: 'workbench.action.chat.editing.attachContext',
-			title: localize2('workbench.action.chat.editing.attachContext.label', "Add Context to Copilot Edits"),
-			shortTitle: localize2('workbench.action.chat.editing.attachContext.shortLabel', "Add Context..."),
-			f1: false,
-			category: CHAT_CATEGORY,
-			menu: {
-				when: ChatContextKeys.inUnifiedChat,
-				id: MenuId.ChatInputAttachmentToolbar,
-				group: 'navigation',
-				order: 3
-			},
-			icon: Codicon.attach,
-			precondition: ChatContextKeys.inUnifiedChat,
-			keybinding: {
-				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.inUnifiedChat),
-				primary: KeyMod.CtrlCmd | KeyCode.Slash,
-				weight: KeybindingWeight.EditorContrib
-			}
-		});
-	}
-
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const context = args[0];
-		const attachFilesContext = { ...context, showFilesOnly: true };
-		return super.run(accessor, attachFilesContext);
-	}
-});
 
 registerAction2(AttachPromptAction);

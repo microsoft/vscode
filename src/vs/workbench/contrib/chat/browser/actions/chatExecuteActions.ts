@@ -14,7 +14,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { ChatContextKeyExprs, ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { chatVariableLeader } from '../../common/chatParserTypes.js';
 import { IChatService } from '../../common/chatService.js';
@@ -110,15 +110,12 @@ class ToggleChatModeAction extends Action2 {
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
-				ContextKeyExpr.or(
-					ChatContextKeys.Editing.hasToolsAgent,
-					ChatContextKeyExprs.unifiedChatEnabled),
 				ChatContextKeys.requestInProgress.negate()),
 			tooltip: localize('setChatMode', "Set Mode"),
 			keybinding: {
 				when: ContextKeyExpr.and(
 					ChatContextKeys.inChatInput,
-					ChatContextKeys.inUnifiedChat),
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel)),
 				primary: KeyMod.CtrlCmd | KeyCode.Period,
 				weight: KeybindingWeight.EditorContrib
 			},
@@ -129,7 +126,7 @@ class ToggleChatModeAction extends Action2 {
 					// Either in edits with agent mode available, or in unified chat view
 					when: ContextKeyExpr.and(
 						ChatContextKeys.enabled,
-						ChatContextKeys.inUnifiedChat
+						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel)
 					),
 					group: 'navigation',
 				},
@@ -228,7 +225,7 @@ export class ToggleRequestPausedAction extends Action2 {
 					when: ContextKeyExpr.and(
 						ChatContextKeys.canRequestBePaused,
 						ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent),
-						ChatContextKeys.inUnifiedChat,
+						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
 						ContextKeyExpr.or(ChatContextKeys.isRequestPaused.negate(), ChatContextKeys.inputHasText.negate()),
 					),
 					group: 'navigation',
