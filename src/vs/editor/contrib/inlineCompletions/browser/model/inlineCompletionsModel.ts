@@ -737,8 +737,8 @@ export class InlineCompletionsModel extends Disposable {
 		this._lastAcceptedInlineCompletionInfo = { textModelVersionIdAfter: this.textModel.getVersionId(), inlineCompletion: completion };
 	}
 
-	public async acceptNextWord(editor: ICodeEditor): Promise<void> {
-		await this._acceptNext(editor, (pos, text) => {
+	public async acceptNextWord(): Promise<void> {
+		await this._acceptNext(this._editor, (pos, text) => {
 			const langId = this.textModel.getLanguageIdAtPosition(pos.lineNumber, pos.column);
 			const config = this._languageConfigurationService.getLanguageConfiguration(langId);
 			const wordRegExp = new RegExp(config.wordDefinition.source, config.wordDefinition.flags.replace('g', ''));
@@ -766,8 +766,8 @@ export class InlineCompletionsModel extends Disposable {
 		}, PartialAcceptTriggerKind.Word);
 	}
 
-	public async acceptNextLine(editor: ICodeEditor): Promise<void> {
-		await this._acceptNext(editor, (pos, text) => {
+	public async acceptNextLine(): Promise<void> {
+		await this._acceptNext(this._editor, (pos, text) => {
 			const m = text.match(/\n/);
 			if (m && m.index !== undefined) {
 				return m.index + 1;
