@@ -104,3 +104,7 @@
     (#eq? @support.function.url.css "url"))
   (arguments
     (plain_value) @variable.parameter.url.css))
+
+; Keywords
+
+(important) @keyword.other.important.css
