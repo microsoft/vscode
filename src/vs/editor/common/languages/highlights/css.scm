@@ -47,6 +47,7 @@
   ("@media")
   ("@supports")
   ("@keyframes")
+  (at_keyword)
 ] @keyword.control.at-rule.css
 
 (keyword_query) @support.constant.media.css
