@@ -30,6 +30,7 @@ import { EditContext } from './editContextFactory.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { NativeEditContextRegistry } from './nativeEditContextRegistry.js';
 import { IEditorAriaOptions } from '../../../editorBrowser.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 
 // Corresponds to classes in nativeEditContext.css
 enum CompositionClassName {
@@ -68,7 +69,8 @@ export class NativeEditContext extends AbstractEditContext {
 		viewController: ViewController,
 		private readonly _visibleRangeProvider: IVisibleRangeProvider,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@IClipboardService private readonly _clipboardService: IClipboardService,
 	) {
 		super(context);
 
@@ -253,24 +255,26 @@ export class NativeEditContext extends AbstractEditContext {
 		return true;
 	}
 
-	public executePaste(): boolean {
+	public triggerPaste(): Promise<void> | undefined {
 		this._onWillPaste();
-		try {
-			// pause focus tracking because we don't want to react to focus/blur
-			// events while pasting since we move the focus to the textarea
-			this._focusTracker.pause();
+		// pause focus tracking because we don't want to react to focus/blur
+		// events while pasting since we move the focus to the textarea
+		this._focusTracker.pause();
 
-			// Since we can not call execCommand('paste') on a dom node with edit context set
-			// we added a hidden text area that receives the paste execution
-			this._textArea.focus();
-			const result = this._textArea.domNode.ownerDocument.execCommand('paste');
-			this._textArea.domNode.textContent = '';
-			this.domNode.focus();
-
-			return result;
-		} finally {
+		// Since we can not call execCommand('paste') on a dom node with edit context set
+		// we added a hidden text area that receives the paste execution
+		this._textArea.focus();
+		const triggerPaste = this._clipboardService.triggerPaste();
+		if (!triggerPaste) {
+			this.domNode.domNode.focus();
 			this._focusTracker.resume(); // resume focus tracking
+			return undefined;
 		}
+		return triggerPaste.then(() => {
+			this._textArea.domNode.textContent = '';
+			this.domNode.domNode.focus();
+			this._focusTracker.resume(); // resume focus tracking
+		});
 	}
 
 	private _onWillPaste(): void {
