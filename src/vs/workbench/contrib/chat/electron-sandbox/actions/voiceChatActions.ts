@@ -736,7 +736,7 @@ class ChatSynthesizerSessions {
 		const activeSession = this.activeSession = new CancellationTokenSource();
 
 		const disposables = new DisposableStore();
-		activeSession.token.onCancellationRequested(() => disposables.dispose());
+		disposables.add(activeSession.token.onCancellationRequested(() => disposables.dispose()));
 
 		const session = await this.speechService.createTextToSpeechSession(activeSession.token, 'chat');
 

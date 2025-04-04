@@ -1163,16 +1163,16 @@
 	},
 	{
 		"c": "\\s",
-		"t": "string.regexp.ts constant.other.character-class.regexp",
+		"t": "string.regexp.ts constant.character.escape.regexp",
 		"r": {
-			"dark_plus": "constant.other.character-class.regexp: #D16969",
-			"light_plus": "constant.other.character-class.regexp: #811F3F",
+			"dark_plus": "constant.character.escape: #D7BA7D",
+			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969",
-			"dark_modern": "constant.other.character-class.regexp: #D16969",
-			"hc_light": "constant.other.character-class.regexp: #811F3F",
-			"light_modern": "constant.other.character-class.regexp: #811F3F"
+			"hc_black": "constant.character: #569CD6",
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"hc_light": "constant.character.escape: #EE0000",
+			"light_modern": "constant.character.escape: #EE0000"
 		}
 	},
 	{
@@ -1233,16 +1233,16 @@
 	},
 	{
 		"c": "\\s",
-		"t": "string.regexp.ts constant.other.character-class.regexp",
+		"t": "string.regexp.ts constant.character.escape.regexp",
 		"r": {
-			"dark_plus": "constant.other.character-class.regexp: #D16969",
-			"light_plus": "constant.other.character-class.regexp: #811F3F",
+			"dark_plus": "constant.character.escape: #D7BA7D",
+			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969",
-			"dark_modern": "constant.other.character-class.regexp: #D16969",
-			"hc_light": "constant.other.character-class.regexp: #811F3F",
-			"light_modern": "constant.other.character-class.regexp: #811F3F"
+			"hc_black": "constant.character: #569CD6",
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"hc_light": "constant.character.escape: #EE0000",
+			"light_modern": "constant.character.escape: #EE0000"
 		}
 	},
 	{
@@ -1289,16 +1289,16 @@
 	},
 	{
 		"c": "\\s",
-		"t": "string.regexp.ts constant.other.character-class.regexp",
+		"t": "string.regexp.ts constant.character.escape.regexp",
 		"r": {
-			"dark_plus": "constant.other.character-class.regexp: #D16969",
-			"light_plus": "constant.other.character-class.regexp: #811F3F",
+			"dark_plus": "constant.character.escape: #D7BA7D",
+			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969",
-			"dark_modern": "constant.other.character-class.regexp: #D16969",
-			"hc_light": "constant.other.character-class.regexp: #811F3F",
-			"light_modern": "constant.other.character-class.regexp: #811F3F"
+			"hc_black": "constant.character: #569CD6",
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"hc_light": "constant.character.escape: #EE0000",
+			"light_modern": "constant.character.escape: #EE0000"
 		}
 	},
 	{
@@ -1877,30 +1877,30 @@
 	},
 	{
 		"c": "\\s",
-		"t": "string.regexp.ts punctuation.definition.group.regexp constant.other.character-class.regexp",
+		"t": "string.regexp.ts punctuation.definition.group.regexp constant.character.escape.regexp",
 		"r": {
-			"dark_plus": "constant.other.character-class.regexp: #D16969",
-			"light_plus": "constant.other.character-class.regexp: #811F3F",
+			"dark_plus": "constant.character.escape: #D7BA7D",
+			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969",
-			"dark_modern": "constant.other.character-class.regexp: #D16969",
-			"hc_light": "constant.other.character-class.regexp: #811F3F",
-			"light_modern": "constant.other.character-class.regexp: #811F3F"
+			"hc_black": "constant.character: #569CD6",
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"hc_light": "constant.character.escape: #EE0000",
+			"light_modern": "constant.character.escape: #EE0000"
 		}
 	},
 	{
 		"c": "\\S",
-		"t": "string.regexp.ts punctuation.definition.group.regexp constant.other.character-class.regexp",
+		"t": "string.regexp.ts punctuation.definition.group.regexp constant.character.escape.regexp",
 		"r": {
-			"dark_plus": "constant.other.character-class.regexp: #D16969",
-			"light_plus": "constant.other.character-class.regexp: #811F3F",
+			"dark_plus": "constant.character.escape: #D7BA7D",
+			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969",
-			"dark_modern": "constant.other.character-class.regexp: #D16969",
-			"hc_light": "constant.other.character-class.regexp: #811F3F",
-			"light_modern": "constant.other.character-class.regexp: #811F3F"
+			"hc_black": "constant.character: #569CD6",
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"hc_light": "constant.character.escape: #EE0000",
+			"light_modern": "constant.character.escape: #EE0000"
 		}
 	},
 	{
@@ -2255,16 +2255,16 @@
 	},
 	{
 		"c": "\\s",
-		"t": "string.regexp.ts constant.other.character-class.regexp",
+		"t": "string.regexp.ts constant.character.escape.regexp",
 		"r": {
-			"dark_plus": "constant.other.character-class.regexp: #D16969",
-			"light_plus": "constant.other.character-class.regexp: #811F3F",
+			"dark_plus": "constant.character.escape: #D7BA7D",
+			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969",
-			"dark_modern": "constant.other.character-class.regexp: #D16969",
-			"hc_light": "constant.other.character-class.regexp: #811F3F",
-			"light_modern": "constant.other.character-class.regexp: #811F3F"
+			"hc_black": "constant.character: #569CD6",
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"hc_light": "constant.character.escape: #EE0000",
+			"light_modern": "constant.character.escape: #EE0000"
 		}
 	},
 	{
@@ -3305,44 +3305,44 @@
 	},
 	{
 		"c": "{",
-		"t": "string.regexp.ts constant.other.character-class.regexp punctuation.regexp",
+		"t": "string.regexp.ts constant.character.escape.regexp punctuation.regexp",
 		"r": {
-			"dark_plus": "constant.other.character-class.regexp: #D16969",
-			"light_plus": "constant.other.character-class.regexp: #811F3F",
+			"dark_plus": "constant.character.escape: #D7BA7D",
+			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969",
-			"dark_modern": "constant.other.character-class.regexp: #D16969",
-			"hc_light": "constant.other.character-class.regexp: #811F3F",
-			"light_modern": "constant.other.character-class.regexp: #811F3F"
+			"hc_black": "constant.character: #569CD6",
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"hc_light": "constant.character.escape: #EE0000",
+			"light_modern": "constant.character.escape: #EE0000"
 		}
 	},
 	{
 		"c": "L",
-		"t": "string.regexp.ts constant.other.character-class.regexp",
+		"t": "string.regexp.ts constant.character.escape.regexp",
 		"r": {
-			"dark_plus": "constant.other.character-class.regexp: #D16969",
-			"light_plus": "constant.other.character-class.regexp: #811F3F",
+			"dark_plus": "constant.character.escape: #D7BA7D",
+			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969",
-			"dark_modern": "constant.other.character-class.regexp: #D16969",
-			"hc_light": "constant.other.character-class.regexp: #811F3F",
-			"light_modern": "constant.other.character-class.regexp: #811F3F"
+			"hc_black": "constant.character: #569CD6",
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"hc_light": "constant.character.escape: #EE0000",
+			"light_modern": "constant.character.escape: #EE0000"
 		}
 	},
 	{
 		"c": "}",
-		"t": "string.regexp.ts constant.other.character-class.regexp punctuation.regexp",
+		"t": "string.regexp.ts constant.character.escape.regexp punctuation.regexp",
 		"r": {
-			"dark_plus": "constant.other.character-class.regexp: #D16969",
-			"light_plus": "constant.other.character-class.regexp: #811F3F",
+			"dark_plus": "constant.character.escape: #D7BA7D",
+			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969",
-			"dark_modern": "constant.other.character-class.regexp: #D16969",
-			"hc_light": "constant.other.character-class.regexp: #811F3F",
-			"light_modern": "constant.other.character-class.regexp: #811F3F"
+			"hc_black": "constant.character: #569CD6",
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"hc_light": "constant.character.escape: #EE0000",
+			"light_modern": "constant.character.escape: #EE0000"
 		}
 	},
 	{
@@ -3403,16 +3403,16 @@
 	},
 	{
 		"c": "\\d",
-		"t": "string.regexp.ts constant.other.character-class.regexp",
+		"t": "string.regexp.ts constant.character.escape.regexp",
 		"r": {
-			"dark_plus": "constant.other.character-class.regexp: #D16969",
-			"light_plus": "constant.other.character-class.regexp: #811F3F",
+			"dark_plus": "constant.character.escape: #D7BA7D",
+			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969",
-			"dark_modern": "constant.other.character-class.regexp: #D16969",
-			"hc_light": "constant.other.character-class.regexp: #811F3F",
-			"light_modern": "constant.other.character-class.regexp: #811F3F"
+			"hc_black": "constant.character: #569CD6",
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"hc_light": "constant.character.escape: #EE0000",
+			"light_modern": "constant.character.escape: #EE0000"
 		}
 	},
 	{
@@ -3599,16 +3599,16 @@
 	},
 	{
 		"c": "\\s",
-		"t": "string.regexp.ts constant.other.character-class.regexp",
+		"t": "string.regexp.ts constant.character.escape.regexp",
 		"r": {
-			"dark_plus": "constant.other.character-class.regexp: #D16969",
-			"light_plus": "constant.other.character-class.regexp: #811F3F",
+			"dark_plus": "constant.character.escape: #D7BA7D",
+			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969",
-			"dark_modern": "constant.other.character-class.regexp: #D16969",
-			"hc_light": "constant.other.character-class.regexp: #811F3F",
-			"light_modern": "constant.other.character-class.regexp: #811F3F"
+			"hc_black": "constant.character: #569CD6",
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"hc_light": "constant.character.escape: #EE0000",
+			"light_modern": "constant.character.escape: #EE0000"
 		}
 	},
 	{

@@ -119,7 +119,7 @@ export class InlineCompletionsModel extends Disposable {
 		}));
 
 		this._register(autorun(reader => {
-			const jumpToReset = this.state.map(s => !s || s.kind === 'inlineEdit' && !s.cursorAtInlineEdit).read(reader);
+			const jumpToReset = this.state.map((s, reader) => !s || s.kind === 'inlineEdit' && !s.cursorAtInlineEdit.read(reader)).read(reader);
 			if (jumpToReset) {
 				this._jumpedToId.set(undefined, undefined);
 			}
@@ -428,7 +428,7 @@ export class InlineCompletionsModel extends Disposable {
 		edits: readonly SingleTextEdit[];
 		inlineEdit: InlineEdit;
 		inlineCompletion: InlineCompletionWithUpdatedRange;
-		cursorAtInlineEdit: boolean;
+		cursorAtInlineEdit: IObservable<boolean>;
 	} | undefined>({
 		owner: this,
 		equalsFn: (a, b) => {
@@ -439,7 +439,7 @@ export class InlineCompletionsModel extends Disposable {
 					&& a.inlineCompletion === b.inlineCompletion
 					&& a.suggestItem === b.suggestItem;
 			} else if (a.kind === 'inlineEdit' && b.kind === 'inlineEdit') {
-				return a.inlineEdit.equals(b.inlineEdit) && a.cursorAtInlineEdit === b.cursorAtInlineEdit;
+				return a.inlineEdit.equals(b.inlineEdit);
 			}
 			return false;
 		}
@@ -455,13 +455,7 @@ export class InlineCompletionsModel extends Disposable {
 			let edit = inlineEditResult.toSingleTextEdit(reader);
 			edit = singleTextRemoveCommonPrefix(edit, model);
 
-			const cursorPos = this.primaryPosition.read(reader);
-			const cursorAtInlineEdit = LineRange.fromRangeInclusive(edit.range).addMargin(1, 1).contains(cursorPos.lineNumber);
-			const cursorInsideShowRange = cursorAtInlineEdit || (inlineEditResult.inlineCompletion.cursorShowRange?.containsPosition(cursorPos) ?? true);
-
-			if (!cursorInsideShowRange && !this._inAcceptFlow.read(reader)) {
-				return undefined;
-			}
+			const cursorAtInlineEdit = this.primaryPosition.map(cursorPos => LineRange.fromRangeInclusive(edit.range).addMargin(1, 1).contains(cursorPos.lineNumber));
 
 			const commands = inlineEditResult.inlineCompletion.source.inlineCompletions.commands;
 			const inlineEdit = new InlineEdit(edit, commands ?? [], inlineEditResult.inlineCompletion);
@@ -632,7 +626,7 @@ export class InlineCompletionsModel extends Disposable {
 			return true;
 		}
 
-		return !s.cursorAtInlineEdit;
+		return !s.cursorAtInlineEdit.read(reader);
 	});
 
 	public readonly tabShouldAcceptInlineEdit = derived(this, reader => {
@@ -653,7 +647,7 @@ export class InlineCompletionsModel extends Disposable {
 			return false;
 		}
 
-		return s.cursorAtInlineEdit;
+		return s.cursorAtInlineEdit.read(reader);
 	});
 
 	private async _deltaSelectedInlineCompletionIndex(delta: 1 | -1): Promise<void> {
@@ -743,8 +737,8 @@ export class InlineCompletionsModel extends Disposable {
 		this._lastAcceptedInlineCompletionInfo = { textModelVersionIdAfter: this.textModel.getVersionId(), inlineCompletion: completion };
 	}
 
-	public async acceptNextWord(editor: ICodeEditor): Promise<void> {
-		await this._acceptNext(editor, (pos, text) => {
+	public async acceptNextWord(): Promise<void> {
+		await this._acceptNext(this._editor, (pos, text) => {
 			const langId = this.textModel.getLanguageIdAtPosition(pos.lineNumber, pos.column);
 			const config = this._languageConfigurationService.getLanguageConfiguration(langId);
 			const wordRegExp = new RegExp(config.wordDefinition.source, config.wordDefinition.flags.replace('g', ''));
@@ -772,8 +766,8 @@ export class InlineCompletionsModel extends Disposable {
 		}, PartialAcceptTriggerKind.Word);
 	}
 
-	public async acceptNextLine(editor: ICodeEditor): Promise<void> {
-		await this._acceptNext(editor, (pos, text) => {
+	public async acceptNextLine(): Promise<void> {
+		await this._acceptNext(this._editor, (pos, text) => {
 			const m = text.match(/\n/);
 			if (m && m.index !== undefined) {
 				return m.index + 1;

@@ -98,12 +98,11 @@
   (class_character) @constant.character.numeric.regexp
 ) @constant.character.numeric.regexp
 
-(decimal_escape) @keyword.other.back-reference.regexp
+(control_escape) @constant.other.character-class.regexp
 
-[
-  (character_class_escape)
-  (control_escape)
-] @constant.other.character-class.regexp
+(character_class_escape) @constant.character.escape.regexp
+
+(decimal_escape) @keyword.other.back-reference.regexp
 
 ("|") @keyword.operator.or.regexp
 

@@ -13,7 +13,10 @@
   "*="
 ] @keyword.operator.css
 
-("+") @keyword.operator.combinator.css
+[
+  "+"
+  ">"
+] @keyword.operator.combinator.css
 
 (comment) @comment.block.css
 
@@ -31,6 +34,11 @@
 
 (pseudo_class_selector) @entity.other.attribute-name.pseudo-class.css
 
+(pseudo_element_selector
+  "::" @entity.other.attribute-name.pseudo-element.css
+  .
+  (tag_name) @entity.other.attribute-name.pseudo-element.css)
+
 (attribute_name) @entity.other.attribute-name.css
 
 ; @ Rules
@@ -42,6 +50,7 @@
   ("@media")
   ("@supports")
   ("@keyframes")
+  (at_keyword)
 ] @keyword.control.at-rule.css
 
 (keyword_query) @support.constant.media.css
@@ -87,6 +96,11 @@
 ((color_value) @constant.other.color.rgb-value.hex.css
   (#match? @constant.other.color.rgb-value.hex.css "^#.*"))
 
+(call_expression
+  (function_name) @meta.function.variable.css (#eq? @meta.function.variable.css "var")
+  (arguments
+    (plain_value) @variable.argument.css))
+
 ; Special Functions
 
 (call_expression
@@ -94,3 +108,7 @@
     (#eq? @support.function.url.css "url"))
   (arguments
     (plain_value) @variable.parameter.url.css))
+
+; Keywords
+
+(important) @keyword.other.important.css
