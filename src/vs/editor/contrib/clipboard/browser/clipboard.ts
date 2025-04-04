@@ -294,8 +294,8 @@ if (PasteAction) {
 
 	// 2. Paste: (default) handle case when focus is somewhere else.
 	PasteAction.addImplementation(0, 'generic-dom', (accessor: ServicesAccessor, args: any) => {
-		accessor.get(IClipboardService).triggerPaste();
-		return true;
+		const triggerPaste = accessor.get(IClipboardService).triggerPaste();
+		return triggerPaste ?? false;
 	});
 }
 
