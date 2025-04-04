@@ -71,7 +71,9 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 			return 500;
 		}
 
-		// By default, use a short delay to keep watchers updating fast
+		// By default, use a short delay to keep watchers updating fast but still
+		// with a delay so that we can efficiently deduplicate requests or reuse
+		// existing watchers.
 		return 0;
 	}
 
@@ -126,10 +128,6 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 	}
 
 	private refreshUniversalWatchers(): void {
-
-		// Buffer requests for universal watching to decide on right watcher
-		// that supports potentially watching more than one path at once
-
 		this.universalWatchRequestDelayer.trigger(() => {
 			return this.doRefreshUniversalWatchers();
 		}, this.getRefreshWatchersDelay(this.universalWatchRequests.length)).catch(error => onUnexpectedError(error));
@@ -197,13 +195,6 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 	}
 
 	private refreshNonRecursiveWatchers(): void {
-
-		// Buffer requests for nonrecursive watching to decide on right watcher
-		// that supports potentially watching more than one path at once and
-		// also as a way to reduce pressure with file watching non recursively
-		// in general. We see potentially thousands of watch requests coming in
-		// repeadedly after startup so we take it easy.
-
 		this.nonRecursiveWatchRequestDelayer.trigger(() => {
 			return this.doRefreshNonRecursiveWatchers();
 		}, this.getRefreshWatchersDelay(this.nonRecursiveWatchRequests.length)).catch(error => onUnexpectedError(error));
