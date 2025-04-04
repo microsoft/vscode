@@ -5,7 +5,8 @@ properties:
     - resource: Microsoft.WinGet.DSC/WinGetPackage
       directives:
         description: Install Git
-        allowPrerelease: true
+        # Requires elevation for the set operation (i.e., for installing the package)
+        securityContext: elevated
       settings:
         id: Git.Git
         source: winget
@@ -13,7 +14,8 @@ properties:
       id: npm
       directives:
         description: Install NodeJS version 20
-        allowPrerelease: true
+        # Requires elevation for the set operation (i.e., for installing the package)
+        securityContext: elevated
       settings:
         id: OpenJS.NodeJS.LTS
         version: "20.14.0"
@@ -21,7 +23,6 @@ properties:
     - resource: Microsoft.WinGet.DSC/WinGetPackage
       directives:
         description: Install Python 3.10
-        allowPrerelease: true
       settings:
         id: Python.Python.3.10
         source: winget
@@ -29,7 +30,8 @@ properties:
       id: vsPackage
       directives:
         description: Install Visual Studio 2022 (any edition is OK)
-        allowPrerelease: true
+        # Requires elevation for the set operation (i.e., for installing the package)
+        securityContext: elevated
       settings:
         id: Microsoft.VisualStudio.2022.BuildTools
         source: winget
@@ -38,6 +40,8 @@ properties:
         - vsPackage
       directives:
         description: Install required VS workloads
+        # Requires elevation for the get and set operations
+        securityContext: elevated
         allowPrerelease: true
       settings:
         productId: Microsoft.VisualStudio.Product.BuildTools
