@@ -6,6 +6,7 @@
 import * as arrays from '../../base/common/arrays.js';
 import { IScrollPosition, Scrollable } from '../../base/common/scrollable.js';
 import * as strings from '../../base/common/strings.js';
+import { FontInfo } from './config/fontInfo.js';
 import { IPosition, Position } from './core/position.js';
 import { Range } from './core/range.js';
 import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData, ICursorSimpleModel, PartialCursorState } from './cursorCommon.js';
@@ -14,6 +15,7 @@ import { INewScrollPosition, ScrollType } from './editorCommon.js';
 import { EditorTheme } from './editorTheme.js';
 import { EndOfLinePreference, IGlyphMarginLanesModel, IModelDecorationOptions, ITextModel, PositionAffinity } from './model.js';
 import { ILineBreaksComputer, InjectedText } from './modelLineProjectionData.js';
+import { FontDecoration } from './textModelEvents.js';
 import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from './textModelGuides.js';
 import { IViewLineTokens } from './tokens/lineTokens.js';
 import { ViewEventHandler } from './viewEventHandler.js';
@@ -75,6 +77,8 @@ export interface IViewModel extends ICursorSimpleModel {
 	deduceModelPositionRelativeToViewPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position;
 	getPlainTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): string | string[];
 	getRichTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean): { html: string; mode: string } | null;
+	getFontInfoForPosition(position: Position): FontInfo;
+	hasFontDecorations(lineNumber: number): boolean;
 
 	createLineBreaksComputer(): ILineBreaksComputer;
 
@@ -133,6 +137,7 @@ export interface IViewLayout {
 	getLineNumberAtVerticalOffset(verticalOffset: number): number;
 	getVerticalOffsetForLineNumber(lineNumber: number, includeViewZones?: boolean): number;
 	getVerticalOffsetAfterLineNumber(lineNumber: number, includeViewZones?: boolean): number;
+	getLineHeightForLineNumber(lineNumber: number): number;
 	getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData | null;
 
 	/**
@@ -154,6 +159,16 @@ export interface IWhitespaceChangeAccessor {
 	insertWhitespace(afterLineNumber: number, ordinal: number, heightInPx: number, minWidth: number): string;
 	changeOneWhitespace(id: string, newAfterLineNumber: number, newHeight: number): void;
 	removeWhitespace(id: string): void;
+}
+
+export interface ISpecialLineHeightChangeAccessor {
+	insertOrChangeSpecialLineHeight(decoration: string, lineNumber: number, lineHeight: number): void;
+	removeSpecialLineHeight(decoration: string): void;
+}
+
+export interface ICustomFontChangeAccessor {
+	insertOrChangeCustomFont(decoration: string, fontDecoration: FontDecoration): void;
+	removeCustomFonts(decoration: string): void;
 }
 
 export interface IPartialViewLinesViewportData {
