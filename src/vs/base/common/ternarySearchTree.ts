@@ -173,7 +173,7 @@ export class UriIterator implements IKeyIterator<URI> {
 
 	constructor(
 		private readonly _ignorePathCasing: (uri: URI) => boolean,
-		private readonly _ignoreQueryAndFragment: (uri: URI) => boolean) { }
+		private readonly _prioritizeQueryAndFragment: (uri: URI) => boolean) { }
 
 	reset(key: URI): this {
 		this._value = key;
@@ -184,6 +184,14 @@ export class UriIterator implements IKeyIterator<URI> {
 		if (this._value.authority) {
 			this._states.push(UriIteratorState.Authority);
 		}
+		if (this._prioritizeQueryAndFragment(key)) {
+			if (this._value.query) {
+				this._states.push(UriIteratorState.Query);
+			}
+			if (this._value.fragment) {
+				this._states.push(UriIteratorState.Fragment);
+			}
+		}
 		if (this._value.path) {
 			this._pathIterator = new PathIterator(false, !this._ignorePathCasing(key));
 			this._pathIterator.reset(key.path);
@@ -191,7 +199,7 @@ export class UriIterator implements IKeyIterator<URI> {
 				this._states.push(UriIteratorState.Path);
 			}
 		}
-		if (!this._ignoreQueryAndFragment(key)) {
+		if (!this._prioritizeQueryAndFragment(key)) {
 			if (this._value.query) {
 				this._states.push(UriIteratorState.Query);
 			}
@@ -317,8 +325,8 @@ const enum Dir {
 
 export class TernarySearchTree<K, V> {
 
-	static forUris<E>(ignorePathCasing: (key: URI) => boolean = () => false, ignoreQueryAndFragment: (key: URI) => boolean = () => false): TernarySearchTree<URI, E> {
-		return new TernarySearchTree<URI, E>(new UriIterator(ignorePathCasing, ignoreQueryAndFragment));
+	static forUris<E>(ignorePathCasing: (key: URI) => boolean = () => false, prioritizeQueryAndFragment: (key: URI) => boolean = () => false): TernarySearchTree<URI, E> {
+		return new TernarySearchTree<URI, E>(new UriIterator(ignorePathCasing, prioritizeQueryAndFragment));
 	}
 
 	static forPaths<E>(ignorePathCasing = false): TernarySearchTree<string, E> {
