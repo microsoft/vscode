@@ -7,16 +7,14 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const zx_1 = require("zx");
 async function main() {
     (0, zx_1.usePwsh)();
-    console.log(`
-###################################################################
-#                                                                 #
-#                         CODE SIGNING                            #
-#                                                                 #
-###################################################################
-`);
     const arch = process.env['VSCODE_ARCH'];
     const esrpCliDLLPath = process.env['EsrpCliDllPath'];
     const codesigningFolderPath = process.env['CodeSigningFolderPath'];
+    const command1 = (0, zx_1.$) `node build/azure-pipelines/common/sign ${esrpCliDLLPath} sign-windows ${codesigningFolderPath} '*.dll,*.exe,*.node'`;
+    const command2 = (0, zx_1.$) `node build/azure-pipelines/common/sign ${esrpCliDLLPath} sign-windows-appx ${codesigningFolderPath} '*.ps1'`;
+    const command3 = process.env['VSCODE_QUALITY'] === 'insider'
+        ? (0, zx_1.$) `node build/azure-pipelines/common/sign ${esrpCliDLLPath} sign-windows-appx ${codesigningFolderPath} '*.appx'`
+        : undefined;
     console.log(`
 ###################################################################
 #                                                                 #
@@ -24,7 +22,8 @@ async function main() {
 #                                                                 #
 ###################################################################
 `);
-    await (0, zx_1.$) `node build/azure-pipelines/common/sign ${esrpCliDLLPath} sign-windows ${codesigningFolderPath} '*.dll,*.exe,*.node'`.pipe(process.stdout);
+    //await $`node build/azure-pipelines/common/sign ${esrpCliDLLPath} sign-windows ${codesigningFolderPath} '*.dll,*.exe,*.node'`.pipe(process.stdout);
+    await command1.pipe(process.stdout);
     console.log(`
 ###################################################################
 #                                                                 #
@@ -32,8 +31,9 @@ async function main() {
 #                                                                 #
 ###################################################################
 `);
-    await (0, zx_1.$) `node build/azure-pipelines/common/sign ${esrpCliDLLPath} sign-windows-appx ${codesigningFolderPath} '*.ps1'`.pipe(process.stdout);
-    if (process.env['VSCODE_QUALITY'] === 'insider') {
+    // await $`node build/azure-pipelines/common/sign ${esrpCliDLLPath} sign-windows-appx ${codesigningFolderPath} '*.ps1'`.pipe(process.stdout);
+    await command2.pipe(process.stdout);
+    if (process.env['VSCODE_QUALITY'] === 'insider' && command3) {
         console.log(`
 ###################################################################
 #                                                                 #
@@ -41,7 +41,8 @@ async function main() {
 #                                                                 #
 ###################################################################
 `);
-        await (0, zx_1.$) `node build/azure-pipelines/common/sign ${esrpCliDLLPath} sign-windows-appx ${codesigningFolderPath} '*.appx'`.pipe(process.stdout);
+        // await $`node build/azure-pipelines/common/sign ${esrpCliDLLPath} sign-windows-appx ${codesigningFolderPath} '*.appx'`.pipe(process.stdout);
+        await command3.pipe(process.stdout);
     }
     const packageJson = await (0, zx_1.$) `Get-Content -Raw -Path ../VSCode-win32-${arch}/resources/app/package.json | ConvertFrom-Json`;
     const version = packageJson.version;
