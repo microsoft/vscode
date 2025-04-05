@@ -15,7 +15,7 @@ function printBanner(title: string) {
 	console.log('#'.repeat(65));
 }
 
-function sign(type: string, glob: string): ProcessPromise {
+function sign(type: 'sign-windows' | 'sign-windows-appx', glob: string): ProcessPromise {
 	return $`node build/azure-pipelines/common/sign ${esrpCliDLLPath} ${type} ${codeSigningFolderPath} '${glob}'`;
 }
 
