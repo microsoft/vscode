@@ -109,13 +109,13 @@ export interface ITextFileService extends IDisposable {
 	 * Get the properties for decoding the provided `resource` based on configuration.
 	 * @param resource
 	 */
-	resolveDecoding(resource: URI | undefined): Promise<IDecodeStreamOptionsDto>;
+	resolveDecoding(resource: URI | undefined, options?: IReadTextFileEncodingOptions): Promise<IDecodeStreamOptionsDto>;
 
 	/**
 	 * Get the properties for decoding the provided `resource` based on configuration.
 	 * @param resource
 	 */
-	resolveEncoding(resource: URI | undefined): Promise<{ encoding: string; addBOM: boolean }>;
+	resolveEncoding(resource: URI | undefined, options?: IWriteTextFileOptions): Promise<{ encoding: string; addBOM: boolean }>;
 
 	overwriteEncoding(resource: URI | undefined, detectedEncoding: string | null, options?: IReadTextFileEncodingOptions): Promise<string>;
 

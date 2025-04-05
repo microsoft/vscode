@@ -305,15 +305,15 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- encodings
 
-	$resolveDecoding(resource: UriComponents | undefined): Promise<IDecodeStreamOptionsDto> {
-		return this._textFileService.resolveDecoding(URI.revive(resource));
+	$resolveDecoding(resource: UriComponents | undefined, options?: { encoding: string }): Promise<IDecodeStreamOptionsDto> {
+		return this._textFileService.resolveDecoding(URI.revive(resource), options);
 	}
 
 	$overwriteEncoding(resource: UriComponents | undefined, detectedEncoding: string | null, options?: { encoding?: string }): Promise<string> {
 		return this._textFileService.overwriteEncoding(URI.revive(resource), detectedEncoding, options);
 	}
 
-	$resolveEncoding(resource: UriComponents | undefined): Promise<{ encoding: string; addBOM: boolean }> {
-		return this._textFileService.resolveEncoding(URI.revive(resource));
+	$resolveEncoding(resource: UriComponents | undefined, options?: { encoding: string }): Promise<{ encoding: string; addBOM: boolean }> {
+		return this._textFileService.resolveEncoding(URI.revive(resource), options);
 	}
 }
