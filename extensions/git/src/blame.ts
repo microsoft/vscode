@@ -256,6 +256,7 @@ export class GitBlameController {
 		const authorEmail = commitInformation?.authorEmail ?? blameInformation.authorEmail;
 		const authorDate = commitInformation?.authorDate ?? blameInformation.authorDate;
 		const avatar = commitAvatar ? `![${authorName}](${commitAvatar}|width=${AVATAR_SIZE},height=${AVATAR_SIZE})` : '$(account)';
+		const message = commitMessageWithLinks ?? commitInformation?.message ?? blameInformation.subject ?? '';
 
 		if (authorName) {
 			if (authorEmail) {
@@ -276,7 +277,7 @@ export class GitBlameController {
 		}
 
 		// Subject | Message
-		markdownString.appendMarkdown(`${emojify(commitMessageWithLinks ?? commitInformation?.message ?? blameInformation.subject ?? '')}\n\n`);
+		markdownString.appendMarkdown(`${emojify(message.replace(/(?:\r\n|\n\n|\r|\n)/g, '\n\n'))}\n\n`);
 		markdownString.appendMarkdown(`---\n\n`);
 
 		// Short stats
