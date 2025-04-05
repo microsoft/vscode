@@ -8,6 +8,7 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { Event } from '../../../../base/common/event.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyValue } from '../../../../platform/policy/common/policy.js';
+import { PolicyName } from '../../../../base/common/policy.js';
 
 export class MultiplexPolicyService extends AbstractPolicyService implements IPolicyService {
 
@@ -27,6 +28,16 @@ export class MultiplexPolicyService extends AbstractPolicyService implements IPo
 	override async updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<IStringDictionary<PolicyValue>> {
 		await this._updatePolicyDefinitions(policyDefinitions);
 		return Iterable.reduce(this.policies.entries(), (r, [name, value]) => ({ ...r, [name]: value }), {});
+	}
+
+	override getPolicySource(name: PolicyName): { short: string; long: string } | undefined {
+		for (const service of this.policyServices) {
+			const source = service.getPolicySource(name);
+			if (source) {
+				return source;
+			}
+		}
+		return;
 	}
 
 	protected async _updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<void> {

@@ -21,6 +21,7 @@ export interface IPolicyService {
 	readonly onDidChange: Event<readonly PolicyName[]>;
 	updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<IStringDictionary<PolicyValue>>;
 	getPolicyValue(name: PolicyName): PolicyValue | undefined;
+	getPolicySource(name: PolicyName): { short: string; long: string } | undefined;
 	serialize(): IStringDictionary<{ definition: PolicyDefinition; value: PolicyValue }> | undefined;
 	readonly policyDefinitions: IStringDictionary<PolicyDefinition>;
 }
@@ -53,6 +54,7 @@ export abstract class AbstractPolicyService extends Disposable implements IPolic
 		return Iterable.reduce<[PolicyName, PolicyDefinition], IStringDictionary<{ definition: PolicyDefinition; value: PolicyValue }>>(Object.entries(this.policyDefinitions), (r, [name, definition]) => ({ ...r, [name]: { definition, value: this.policies.get(name)! } }), {});
 	}
 
+	public abstract getPolicySource(name: PolicyName): { short: string; long: string } | undefined;
 	protected abstract _updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<void>;
 }
 
@@ -61,6 +63,7 @@ export class NullPolicyService implements IPolicyService {
 	readonly onDidChange = Event.None;
 	async updatePolicyDefinitions() { return {}; }
 	getPolicyValue() { return undefined; }
+	getPolicySource() { return undefined; }
 	serialize() { return undefined; }
 	policyDefinitions: IStringDictionary<PolicyDefinition> = {};
 }

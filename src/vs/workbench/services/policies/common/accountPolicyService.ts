@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IStringDictionary } from '../../../../base/common/collections.js';
+import { PolicyName } from '../../../../base/common/policy.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { AbstractPolicyService, IPolicyService, PolicyDefinition } from '../../../../platform/policy/common/policy.js';
 import { IDefaultAccountService } from '../../accounts/common/defaultAccount.js';
@@ -21,6 +22,17 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 				this._update(account?.chat_preview_features_enabled ?? true);
 				this._register(this.defaultAccountService.onDidChangeDefaultAccount(account => this._update(account?.chat_preview_features_enabled ?? true)));
 			});
+	}
+
+	public override getPolicySource(name: PolicyName): { short: string; long: string } | undefined {
+		if (!this.policies.has(name)) {
+			return;
+		}
+		// TODO: this is a hack for now
+		return {
+			short: 'Account Policy',
+			long: 'Account Policy but longer',
+		};
 	}
 
 	private _update(chatPreviewFeaturesEnabled: boolean | undefined) {

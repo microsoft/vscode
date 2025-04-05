@@ -9,9 +9,9 @@ import { Throttler } from '../../../base/common/async.js';
 import type { PolicyUpdate, Watcher } from '@vscode/policy-watcher';
 import { MutableDisposable } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
+import { PolicyName } from '../../../base/common/policy.js';
 
 export class NativePolicyService extends AbstractPolicyService implements IPolicyService {
-
 	private throttler = new Throttler();
 	private readonly watcher = this._register(new MutableDisposable<Watcher>());
 
@@ -20,6 +20,17 @@ export class NativePolicyService extends AbstractPolicyService implements IPolic
 		private readonly productName: string
 	) {
 		super();
+	}
+
+	public override getPolicySource(name: PolicyName): { short: string; long: string } | undefined {
+		if (!this.policies.has(name)) {
+			return;
+		}
+		// TODO: this is a hack for now
+		return {
+			short: 'Native (real)',
+			long: 'Native (real) but longer',
+		};
 	}
 
 	protected async _updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<void> {
