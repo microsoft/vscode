@@ -1,3 +1,7 @@
+/*---------------------------------------------------------
+ * Copyright (C) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------*/
+
 <!-- BEGIN MICROSOFT SECURITY.MD V0.0.9 BLOCK -->
 
 ## Security
@@ -39,3 +43,6 @@ We prefer all communications to be in English.
 Microsoft follows the principle of [Coordinated Vulnerability Disclosure](https://aka.ms/security.md/cvd).
 
 <!-- END MICROSOFT SECURITY.MD BLOCK -->
+/*---------------------------------------------------------
+ * Copyright (C) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------*/
